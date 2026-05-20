@@ -94,7 +94,7 @@ export function KpiFilterPanel({
       </div>
 
       {/* Right content area */}
-      <div className="flex-1 overflow-y-auto md:overflow-hidden rounded-xl border border-slate-200 bg-white p-4 md:p-5 shadow-sm min-h-0 md:min-h-[400px]">
+      <div className="flex-1 overflow-y-auto md:overflow-auto rounded-xl border border-slate-200 bg-white p-4 md:p-5 shadow-sm min-h-0 md:min-h-[400px]">
         {sectionConfig.map(section => {
           if (activeSection !== section.id) return null;
 
@@ -119,7 +119,7 @@ export function KpiFilterPanel({
                 title={section.label + " filter"}
                 description="Filter by specific items."
                 options={brands}
-                pageSize={pageSize}
+                pageSize={10000}
                 onChange={onBrandChange}
                 value={sectionValues["brands"]}
               />
@@ -235,7 +235,7 @@ export function KpiFilterPanel({
                 title={section.label + " filter"}
                 description={`Filter by ${section.label.toLowerCase()}.`}
                 options={section.options}
-                pageSize={pageSize}
+                pageSize={section.id === 'brand' || section.id === 'brands' ? 10000 : pageSize}
                 value={sectionValues[section.id]} // Pass persisted selection values
                 onChange={(vals) => {
                   console.log(section.id, vals);
