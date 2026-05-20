@@ -26,7 +26,7 @@ export const getAllUsers = async () => {
 
         // 2. Fetch all databases from tb_database
         const databasesQuery = `
-            SELECT 
+            SELECT DISTINCT 
                 db_name, 
                 toString(db_id) as db_id 
             FROM tb_database
@@ -169,7 +169,7 @@ export const getPendingRequests = async () => {
         const requests = await queryAdminDB(query);
 
         // Fetch databases to map names
-        const databases = await queryAdminDB("SELECT db_name, toString(db_id) as db_id FROM tb_database");
+        const databases = await queryAdminDB("SELECT DISTINCT db_name, toString(db_id) as db_id FROM tb_database");
         const dbMap = new Map();
         databases.forEach(db => dbMap.set(db.db_id, db.db_name));
 
@@ -301,24 +301,28 @@ export const getPermissionsUsers = async () => {
         // Get unique users by email with their latest row's data
         // Use argMaxIf for db_status/tab_permissions to pick latest non-empty value
         const usersQuery = `
-            SELECT 
-                user_id as id,
-                user_email as email,
-                user_name as name,
-                user_role as role,
-                toString(db_id) as db_id,
-                if(empty(db_status), 'active', db_status) as db_status,
-                tab_permissions,
-                ip,
-                last_login
-            FROM tb_user
-            WHERE status != 'deleted'
+            SELECT * FROM (
+                SELECT 
+                    toString(user_id) as id,
+                    user_email as email,
+                    user_name as name,
+                    user_role as role,
+                    toString(db_id) as db_id,
+                    if(empty(db_status), 'active', db_status) as db_status,
+                    tab_permissions,
+                    ip,
+                    last_login
+                FROM tb_user
+                WHERE status != 'deleted'
+                ORDER BY last_login DESC
+                LIMIT 1 BY user_email
+            )
             ORDER BY name ASC
         `;
         const users = await queryAdminDB(usersQuery);
 
         // Fetch all databases for mapping
-        const databasesQuery = `SELECT db_name, toString(db_id) as db_id FROM tb_database`;
+        const databasesQuery = `SELECT DISTINCT db_name, toString(db_id) as db_id FROM tb_database`;
         const databases = await queryAdminDB(databasesQuery);
 
         const dbMap = new Map();
@@ -371,37 +375,47 @@ export const getPermissionsUsers = async () => {
 /**
  * Update db_status for a user device (by user_id)
  */
-export const updateUserDbStatus = async (userId, dbStatus) => {
+export const updateUserDbStatus = async (userIdOrEmail, dbStatus) => {
     try {
         const statusValue = dbStatus ? 'active' : 'inactive';
-        const query = `
+        const isEmail = userIdOrEmail.includes('@');
+        const query = isEmail ? `
             ALTER TABLE tb_user 
             UPDATE db_status = '${statusValue}' 
-            WHERE user_id = ${userId}
+            WHERE user_email = '${userIdOrEmail}'
+        ` : `
+            ALTER TABLE tb_user 
+            UPDATE db_status = '${statusValue}' 
+            WHERE toString(user_id) = '${userIdOrEmail}'
         `;
         await queryAdminDB(query);
         return { success: true };
     } catch (error) {
-        console.error(`[AdminService] updateUserDbStatus failed for user_id ${userId}:`, error.message);
+        console.error(`[AdminService] updateUserDbStatus failed for ${userIdOrEmail}:`, error.message);
         throw error;
     }
 };
 
 /**
- * Update tab_permissions JSON for a user device (by user_id)
+ * Update tab_permissions JSON for a user device (by user_id or email)
  */
-export const updateUserTabPermissions = async (userId, tabPermissions) => {
+export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions) => {
     try {
         const jsonStr = JSON.stringify(tabPermissions).replace(/'/g, "\\'");
-        const query = `
+        const isEmail = userIdOrEmail.includes('@');
+        const query = isEmail ? `
             ALTER TABLE tb_user 
             UPDATE tab_permissions = '${jsonStr}' 
-            WHERE user_id = ${userId}
+            WHERE user_email = '${userIdOrEmail}'
+        ` : `
+            ALTER TABLE tb_user 
+            UPDATE tab_permissions = '${jsonStr}' 
+            WHERE toString(user_id) = '${userIdOrEmail}'
         `;
         await queryAdminDB(query);
         return { success: true };
     } catch (error) {
-        console.error(`[AdminService] updateUserTabPermissions failed for user_id ${userId}:`, error.message);
+        console.error(`[AdminService] updateUserTabPermissions failed for ${userIdOrEmail}:`, error.message);
         throw error;
     }
 };
@@ -412,7 +426,7 @@ export const updateUserTabPermissions = async (userId, tabPermissions) => {
 export const getDatabases = async () => {
     try {
         const query = `
-            SELECT 
+            SELECT DISTINCT 
                 db_name, 
                 toString(db_id) as db_id 
             FROM tb_database
@@ -485,6 +499,41 @@ export const saveWalkthroughNotification = async ({ title, selectedClients, step
         return { success: true };
     } catch (error) {
         console.error('[AdminService] saveWalkthroughNotification failed:', error.message);
+        throw error;
+    }
+};
+
+/**
+ * Create a new database in tb_database
+ */
+export const createDatabase = async (dbName) => {
+    try {
+        const safeDbName = dbName.replace(/'/g, "\\'").trim();
+        // Check if database already exists
+        const existsQuery = `
+            SELECT 1 FROM tb_database 
+            WHERE lower(db_name) = '${safeDbName.toLowerCase()}'
+            LIMIT 1
+        `;
+        const exists = await queryAdminDB(existsQuery);
+        if (exists.length > 0) {
+            throw new Error(`Database "${dbName}" already exists`);
+        }
+
+        // Insert using ClickHouse native UUID and cityHash64 generation
+        const query = `
+            INSERT INTO tb_database (id, db_id, db_name, created_on, status)
+            SELECT 
+                cityHash64(toString(generateUUIDv4())), 
+                cityHash64('${safeDbName}'), 
+                '${safeDbName}', 
+                now(), 
+                'active'
+        `;
+        await queryAdminDB(query);
+        return { success: true };
+    } catch (error) {
+        console.error(`[AdminService] createDatabase failed for ${dbName}:`, error.message);
         throw error;
     }
 };
