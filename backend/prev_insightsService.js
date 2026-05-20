@@ -766,7 +766,7 @@ export const getInsightsData = async (filters) => {
     `;
 
     // -------------------------------------------------------------------------
-    // QUERY 10 — PRIORITISE PO (powers: Prioritise PO)
+    // QUERY 10 — PRIORITISE PRODUCT PO (powers: Prioritise Product PO)
     // Identifies SKUs with low OSA and high projected sales loss that need PO.
     // Projected Sales Loss = Sales * ((100/OSA) - 1)
     // -------------------------------------------------------------------------
@@ -1991,9 +1991,9 @@ export const getInsightsData = async (filters) => {
         }
 
         // ---------------------------------------------------------------------
-        // SIGNAL 9 — Prioritise PO
+        // SIGNAL 9 — Prioritise Product PO
         // ---------------------------------------------------------------------
-        if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Prioritise PO') {
+        if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Prioritise Product PO') {
             const filteredData = (prioritisePOData || []).filter(r => isAllowedCity(r.city));
             const hasData = filteredData.length > 0;
             const totalPSL = hasData ? filteredData.reduce((s, r) => s + Number(r.projectedSalesLoss || 0), 0) : 0;
@@ -2011,7 +2011,7 @@ export const getInsightsData = async (filters) => {
 
             insights.push({
                 id: "dyn_po_1",
-                type: "Prioritise PO",
+                type: "Prioritise Product PO",
                 title: title9,
                 family: "Supply",
                 platforms: hasData ? [...new Set(filteredData.map(r => r.platform))] : ["-"],

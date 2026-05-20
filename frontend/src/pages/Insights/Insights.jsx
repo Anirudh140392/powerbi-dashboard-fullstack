@@ -20,6 +20,7 @@ import {
     ArrowRightLeft,
     MapPin,
     Store,
+    Info,
 } from "lucide-react";
 
 
@@ -48,7 +49,7 @@ import AIInsightsPanelLive from "@/components/insights/AIInsightsPanelLive";
 import CustomHeaderDropdown from "@/components/CommonLayout/CustomHeaderDropdown";
 import DateRangeComparePicker from "@/components/CommonLayout/DateRangeComparePicker";
 import dayjs from "dayjs";
-import { Typography, Divider, Skeleton } from "@mui/material";
+import { Typography, Divider, Skeleton, Tooltip } from "@mui/material";
 import InsightsOnboardingTour, { DrillDownTour } from "@/components/insights/InsightsOnboardingTour";
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
@@ -190,11 +191,11 @@ const createEmptySignal = (type, brandName = "Brand") => {
 
         case "Surplus Stock":
             base.kpis = [{ label: "Avg DOI", value: "0 days" }, { label: "Affected SKUs", value: "0" }, { label: "Open PO Qty", value: "0" }];
-            base.evidence = [{ skuName: "-", platform: "-", city: "-", excessInventory: 0, excessDOI: 0, currentDiscount: 0, excessInventoryValue: 0, openPOQty: 0 }];
+            base.evidence = [{ skuName: "-", platform: "-", city: "-", excessInventory: 0, excessDOI: 0, drr: 0, currentDiscount: 0, excessInventoryValue: 0, openPOQty: 0 }];
             break;
         case "Prioritise PO":
             base.kpis = [{ label: "PSL", value: "₹0" }, { label: "Avg OSA", value: "0%" }, { label: "Critical SKUs", value: "0" }];
-            base.evidence = [{ skuName: "-", city: "-", platform: "-", osa: 0, projectedSalesLoss: 0, poRaisedDate: "-", poStatus: "-" }];
+            base.evidence = [{ poNumber: "-", skuName: "-", platform: "-", facility: "-", osa: 0, projectedSalesLoss: 0, poRaisedDate: "-", poStatus: "-" }];
             break;
         case "Transfer Issue":
             base.kpis = [{ label: "PSL", value: "₹0" }, { label: "Avg Backed DOI", value: "0 days" }, { label: "Cities", value: "0" }];
@@ -859,22 +860,20 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
         if (t === "Surplus Stock") return [
             { key: "skuName", label: "SKU Name", isText: true },
             { key: "platform", label: "Platform" },
-            { key: "city", label: "Warehouse / City" },
+            { key: "facility", label: "Facility" },
             { key: "excessInventory", label: "Excess Inv", fmt: (v) => `${Number(v || 0).toLocaleString('en-IN')} units` },
             { key: "excessDOI", label: "Excess DOI", fmt: (v) => `${Number(v || 0).toFixed(0)} days` },
-            { key: "currentDiscount", label: "Discount %", fmt: (v, r) => {
-                // Hardcoded random % — discount not yet in rb_po_olap
-                const seed = ((r?.skuName || '').length * 7 + (r?.city || '').length * 13 + (r?.platform || '').length * 3) % 100;
-                const discount = 5 + (seed % 21);
-                return `${discount.toFixed(1)}%`;
-            }},
+            { key: "drr", label: "DRR", fmt: (v) => Number(v || 0).toFixed(2) },
+            { key: "currentDiscount", label: "Discount %", fmt: (v) => `${Number(v || 0).toFixed(1)}%` },
             { key: "openPOQty", label: "Open PO Qty", fmt: (v) => Number(v || 0).toLocaleString('en-IN') },
         ];
         if (t === "Prioritise PO") return [
+            { key: "poNumber", label: "PO Number", isText: true },
             { key: "skuName", label: "SKU Name", isText: true },
-            { key: "city", label: "Facility / City" },
+            { key: "platform", label: "Platform" },
+            { key: "facility", label: "Facility" },
             { key: "osa", label: "OSA %", fmt: safePct },
-            { key: "projectedSalesLoss", label: "Projected Sales Loss", fmt: safeINR },
+            { key: "projectedSalesLoss", label: "PSL", fmt: safeINR },
             { key: "poRaisedDate", label: "PO Raised Date", isText: true },
             { key: "poStatus", label: "PO Status", isText: true },
         ];
@@ -1650,18 +1649,29 @@ const EvidenceTable = ({ insight, loading }) => {
                             {view === "surplus" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">SKU Name</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Warehouse / City</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Facility</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Excess Inventory</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Excess DOI (days)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>DRR</span>
+                                        <Tooltip title="DRR (Daily Run Rate) is calculated as the sum of quantities sold over the last 30 days divided by 30." arrow placement="top">
+                                            <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                <Info size={12} className="inline-block" />
+                                            </span>
+                                        </Tooltip>
+                                    </div>
+                                </TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Current Discount %</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Open PO Qty</TableHead>
                             </>)}
                             {view === "prioritisePO" && (<>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">PO Number</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">SKU Name</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Facility / City</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Facility</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">OSA %</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Projected Sales Loss</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">PO Raised Date</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">PO Status</TableHead>
                             </>)}
@@ -1888,20 +1898,18 @@ const EvidenceTable = ({ insight, loading }) => {
                                                 <>
                                                     <SkuImageCell name={d.skuName} imageUrl={d.imageUrl} subtext={d.brandName || '-'} onImageClick={setPreviewImage} />
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.facility || "-"}</TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
                                                         {Number(d.excessInventory || 0).toLocaleString('en-IN')} units
                                                     </TableCell>
                                                     <TableCell className="text-right text-[11px] font-medium text-amber-600 px-3 py-3">
                                                         {Number(d.excessDOI || 0).toFixed(0)} days
                                                     </TableCell>
+                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
+                                                         {Number(d.drr || 0).toFixed(2)}
+                                                     </TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
-                                                        {(() => {
-                                                            // Discount % hardcoded — not available in rb_po_olap yet
-                                                            const seed = ((d.skuName || '').length * 7 + (d.city || '').length * 13 + (d.platform || '').length * 3) % 100;
-                                                            const discount = 5 + (seed % 21); // range 5% – 25%
-                                                            return `${discount.toFixed(1)}%`;
-                                                        })()}
+                                                        {d.currentDiscount != null ? `${Number(d.currentDiscount).toFixed(1)}%` : '-'}
                                                     </TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-500 px-3 py-3">
                                                         {Number(d.openPOQty || 0).toLocaleString('en-IN')}
@@ -1910,9 +1918,10 @@ const EvidenceTable = ({ insight, loading }) => {
                                             )}
                                             {view === "prioritisePO" && (
                                                 <>
+                                                    <TableCell className="text-[11px] font-semibold text-slate-800 px-3 py-3">{d.poNumber || "-"}</TableCell>
                                                     <SkuImageCell name={d.skuName} imageUrl={d.imageUrl} subtext={d.brandName || '-'} onImageClick={setPreviewImage} />
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.facility || "-"}</TableCell>
                                                     <TableCell className="text-right text-[11px] px-3 py-3">
                                                         <span className={`font-medium ${Number(d.osa || 0) < 50 ? 'text-red-600' : Number(d.osa || 0) < 70 ? 'text-amber-600' : 'text-slate-800'}`}>
                                                             {safePct(d.osa)}
