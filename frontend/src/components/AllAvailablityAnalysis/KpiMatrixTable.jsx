@@ -171,7 +171,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
 
     // Dynamic filter options fetched from backend (lazy-loaded when panel opens)
     const [filterOptions, setFilterOptions] = useState([
-        { id: 'platform', label: 'Platform', options: [] },
         { id: 'format', label: 'Category', options: [] },
         { id: 'city', label: 'City', options: [] },
         { id: 'brand', label: 'Brand', options: [] },
@@ -186,7 +185,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     const [showFilterPanel, setShowFilterPanel] = useState(false);
 
     const [tentativeFilters, setTentativeFilters] = useState({
-        platform: [],
         format: [],
         city: [],
         brand: [],
@@ -195,7 +193,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     });
 
     const [appliedFilters, setAppliedFilters] = useState({
-        platform: [],
         format: [],
         city: [],
         brand: [],
@@ -211,7 +208,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
         const fetchFilterOptions = async () => {
             try {
                 const filterTypes = [
-                    { id: 'platform', apiType: 'platforms', label: 'Platform' },
                     { id: 'format', apiType: 'formats', label: 'Category' },
                     { id: 'city', apiType: 'cities', label: 'City' },
                     { id: 'brand', apiType: 'brands', label: 'Brand' },
