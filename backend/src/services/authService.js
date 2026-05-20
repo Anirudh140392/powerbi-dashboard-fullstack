@@ -155,6 +155,35 @@ export async function loginUser(email, password, clientIp = '') {
     // 5. Track successful login history
     try {
         const rowId = (Date.now() + 1).toString(); // Unique sequential ID
+
+        // --- Walkthrough Visibility Fix ---
+        // Fetch the user's PREVIOUS last_login to check if they have pending walkthroughs
+        const oldUserRows = await queryAdminDB(
+            `SELECT max(last_login) as last_login FROM tb_user WHERE user_email = {email:String}`,
+            { email: user.user_email }
+        );
+        let lastLoginToSave = new Date().toISOString().replace('T', ' ').split('.')[0];
+
+        if (oldUserRows.length > 0 && oldUserRows[0].last_login) {
+            const prevLastLogin = oldUserRows[0].last_login;
+            
+            // Check if there are any pending walkthroughs for this client created AFTER their previous login
+            const pendingWalkthroughs = await queryAdminDB(`
+                SELECT count() as count FROM walkthrough_notifications 
+                WHERE arrayExists(x -> lower(x) = lower('${dbName}'), target_clients)
+                AND created_on > '${prevLastLogin}'
+            `);
+            
+            if (pendingWalkthroughs.length > 0 && parseInt(pendingWalkthroughs[0].count) > 0) {
+                // There are pending walkthroughs! Preserve the OLD last_login time.
+                // This ensures WalkthroughModal will pick them up on the frontend.
+                // The frontend will call /api/walkthroughs/acknowledge later to update this to now().
+                lastLoginToSave = prevLastLogin;
+                console.log(`[DEBUG_AUTH] Preserving old last_login (${lastLoginToSave}) for ${user.user_email} due to pending walkthroughs.`);
+            }
+        }
+        // ----------------------------------
+
         await insertAdminDB('tb_user', [{
             id: rowId,
             user_id: user.user_id_str,
@@ -163,7 +192,7 @@ export async function loginUser(email, password, clientIp = '') {
             user_role: userRole,
             password_hash: user.password_hash,
             db_id: user.db_id_str,
-            last_login: new Date().toISOString().replace('T', ' ').split('.')[0],
+            last_login: lastLoginToSave,
             created_on: user.created_on,
             status: 'active',
             ip: clientIp || '0.0.0.0',

@@ -193,20 +193,21 @@ export const updateDbStatus = async (req, res) => {
             });
         }
 
-        const { email, dbStatus } = req.body;
+        const { userId, email, dbStatus } = req.body;
+        const targetIdentifier = userId || email;
 
-        if (!email || typeof dbStatus !== 'boolean') {
+        if (!targetIdentifier || typeof dbStatus !== 'boolean') {
             return res.status(400).json({
                 success: false,
-                error: 'email and dbStatus (boolean) are required'
+                error: 'userId or email, and dbStatus (boolean) are required'
             });
         }
 
-        await adminService.updateUserDbStatus(email, dbStatus);
+        await adminService.updateUserDbStatus(targetIdentifier, dbStatus);
 
         return res.status(200).json({
             success: true,
-            message: `DB status updated for ${email}`
+            message: `DB status updated for ${targetIdentifier}`
         });
     } catch (error) {
         console.error('[AdminController] updateDbStatus failed:', error.message);
@@ -230,20 +231,21 @@ export const updateTabPermissions = async (req, res) => {
             });
         }
 
-        const { email, tabPermissions } = req.body;
+        const { userId, email, tabPermissions } = req.body;
+        const targetIdentifier = userId || email;
 
-        if (!email || typeof tabPermissions !== 'object') {
+        if (!targetIdentifier || typeof tabPermissions !== 'object') {
             return res.status(400).json({
                 success: false,
-                error: 'email and tabPermissions (object) are required'
+                error: 'userId or email, and tabPermissions (object) are required'
             });
         }
 
-        await adminService.updateUserTabPermissions(email, tabPermissions);
+        await adminService.updateUserTabPermissions(targetIdentifier, tabPermissions);
 
         return res.status(200).json({
             success: true,
-            message: `Tab permissions updated for ${email}`
+            message: `Tab permissions updated for ${targetIdentifier}`
         });
     } catch (error) {
         console.error('[AdminController] updateTabPermissions failed:', error.message);
@@ -283,6 +285,42 @@ export const getDatabases = async (req, res) => {
 };
 
 /**
+ * POST /api/admin/databases
+ * Creates a new database in ClickHouse
+ */
+export const createDatabase = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const { db_name } = req.body;
+        if (!db_name || typeof db_name !== 'string' || !db_name.trim()) {
+            return res.status(400).json({
+                success: false,
+                error: 'Database Name is required'
+            });
+        }
+
+        await adminService.createDatabase(db_name);
+
+        return res.status(201).json({
+            success: true,
+            message: 'Database created successfully'
+        });
+    } catch (error) {
+        console.error('[AdminController] createDatabase failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Internal Server Error'
+        });
+    }
+};
+
+/**
  * POST /api/admin/users
  * Creates a new user with hashed password
  */
@@ -313,6 +351,43 @@ export const createUser = async (req, res) => {
         });
     } catch (error) {
         console.error('[AdminController] createUser failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};
+
+/**
+ * POST /api/admin/walkthrough-notifications
+ * Saves a new walkthrough notification
+ */
+export const createWalkthroughNotification = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const { title, selectedClients, steps } = req.body;
+
+        if (!title || !selectedClients || !Array.isArray(selectedClients) || !steps || !Array.isArray(steps)) {
+            return res.status(400).json({
+                success: false,
+                error: 'title, selectedClients (Array), and steps (Array) are required'
+            });
+        }
+
+        await adminService.saveWalkthroughNotification({ title, selectedClients, steps });
+
+        return res.status(201).json({
+            success: true,
+            message: 'Walkthrough notification published successfully'
+        });
+    } catch (error) {
+        console.error('[AdminController] createWalkthroughNotification failed:', error.message);
         return res.status(500).json({
             success: false,
             error: 'Internal Server Error'

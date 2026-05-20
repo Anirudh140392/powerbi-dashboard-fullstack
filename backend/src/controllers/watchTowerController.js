@@ -350,9 +350,9 @@ export const getKpiTrends = async (req, res) => {
  */
 export const getTrendsFilterOptions = async (req, res) => {
     try {
-        const { filterType, platform, brand } = req.query;
-        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand });
-        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand });
+        const { filterType, platform, brand, category } = req.query;
+        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand, category });
+        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand, category });
         res.json(data);
     } catch (error) {
         console.error('[getTrendsFilterOptions] Error:', error);

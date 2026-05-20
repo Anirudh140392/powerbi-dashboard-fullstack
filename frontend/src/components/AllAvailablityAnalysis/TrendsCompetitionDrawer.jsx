@@ -631,8 +631,6 @@ export default function TrendsCompetitionDrawer({
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
 
-  const isEcom = (typeof selectedPlatform === 'string' && (selectedPlatform.toLowerCase() === "amazon" || selectedPlatform.toLowerCase() === "flipkart"));
-
 
   // Drawer-specific filters for the Effective Filters bar
   const [drawerFilters, setDrawerFilters] = useState({
@@ -643,6 +641,18 @@ export default function TrendsCompetitionDrawer({
     SKU: "All"
   });
 
+  const getEffectivePlatform = () => {
+    if (drawerFilters?.Platform && drawerFilters.Platform !== "All") return drawerFilters.Platform;
+    if (selectedLevel?.toLowerCase() === "platform" && selectedColumn) return selectedColumn;
+    return selectedPlatform || initialPlatform || "";
+  };
+  
+  const platName = (typeof getEffectivePlatform() === 'string' ? getEffectivePlatform() : "").toLowerCase();
+  const ECOM_PLATFORMS = ['amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart'];
+  const QCOM_PLATFORMS = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow'];
+  
+  const isEcom = ECOM_PLATFORMS.some(p => platName.includes(p));
+  const isQcom = QCOM_PLATFORMS.some(p => platName.includes(p));
   // ===================== CONSOLIDATED DRAWER FILTER INITIALIZATION =====================
   // All filter initialization happens in ONE atomic state update to prevent
   // race conditions where multiple effects override each other.
@@ -749,72 +759,113 @@ export default function TrendsCompetitionDrawer({
   const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : (brandOptions || ["Amul", "Mother Dairy", "Nestle", "Hatsun"]);
   const SKU_OPTIONS = filterOptions.skus.length > 0 ? filterOptions.skus : [];
 
-  // ===================== FETCH FILTER OPTIONS =====================
+  // ===================== FETCH FILTER OPTIONS (CASCADING) =====================
+  const TIER_1_CITIES = useMemo(() => [
+    "Ahmedabad", "Bangalore", "Chennai", "Delhi", "Hyderabad",
+    "Kolkata", "Mumbai", "Lucknow", "Gurugram", "Chandigarh",
+    "Faridabad", "Pune"
+  ], []);
+
+  // Effect 1: Fetch platforms and platform-channels (static — only on drawer open)
   useEffect(() => {
     if (!open) return;
-
-    const fetchFilterOptions = async () => {
+    let cancelled = false;
+    const fetchStaticOptions = async () => {
       try {
-        console.log("[TrendsDrawer] Fetching filter options");
-        const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes, platformChannelsRes] = await Promise.all([
+        console.log("[TrendsDrawer] Fetching platform options and channels");
+        const [platformsRes, platformChannelsRes] = await Promise.all([
           axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'platforms' } }),
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'categories' } }),
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'cities' } }),
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'brands' } }),
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'skus' } }),
           axiosInstance.get('/watchtower/platform-channels')
         ]);
-
-        // Build platform → channel lookup map
+        if (cancelled) return;
         const channelMap = {};
         (platformChannelsRes.data || []).forEach(item => {
-          if (item.platform && item.channel) {
-            channelMap[item.platform] = item.channel;
-          }
+          if (item.platform && item.channel) channelMap[item.platform] = item.channel;
         });
         setPlatformChannelMap(channelMap);
         console.log('[TrendsDrawer] Platform→Channel map:', channelMap);
+        const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All' && p.trim()).sort();
+        setFilterOptions(prev => ({ ...prev, platforms, loading: false }));
+      } catch (error) {
+        console.error("[TrendsDrawer] Error fetching static filter options:", error);
+        if (!cancelled) setFilterOptions(prev => ({ ...prev, loading: false }));
+      }
+    };
+    fetchStaticOptions();
+    return () => { cancelled = true; };
+  }, [open]);
 
-        const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
-        const formats = (formatsRes.data?.options || []).filter(f => f !== 'All');
-        const TIER_1_CITIES = [
-          "Ahmedabad",
-          "Bangalore",
-          "Chennai",
-          "Delhi",
-          "Hyderabad",
-          "Kolkata",
-          "Mumbai",
-          "Lucknow",
-          "Gurugram",
-          "Chandigarh",
-          "Faridabad",
-          "Pune"
-        ];
+  // Effect 2: Fetch categories + brands when platform changes (cascading)
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const platformParam = drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined;
+    const fetchCascaded = async () => {
+      try {
+        console.log("[TrendsDrawer] Cascading: fetching categories/brands for platform:", platformParam || 'All');
+        const [formatsRes, brandsRes] = await Promise.all([
+          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'categories', platform: platformParam } }),
+          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'brands', platform: platformParam } }),
+        ]);
+        if (cancelled) return;
+        const formats = (formatsRes.data?.options || []).filter(f => f !== 'All' && f !== 'Others' && f.trim()).sort();
+        const brands = (brandsRes.data?.options || []).filter(b => b !== 'All' && b.trim()).sort();
+        setFilterOptions(prev => ({ ...prev, formats, brands }));
+      } catch (error) {
+        console.error("[TrendsDrawer] Error fetching cascaded categories/brands:", error);
+      }
+    };
+    fetchCascaded();
+    return () => { cancelled = true; };
+  }, [open, drawerFilters.Platform]);
+
+  // Effect 3: Fetch cities when platform + brand changes (cascading)
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const platformParam = drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined;
+    const brandParam = drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined;
+    const fetchCities = async () => {
+      try {
+        const citiesRes = await axiosInstance.get('/watchtower/trends-filter-options', {
+          params: { filterType: 'cities', platform: platformParam, brand: brandParam }
+        });
+        if (cancelled) return;
         const defaultCities = (citiesRes.data?.options || [])
           .filter(c => c !== 'All' && c !== 'All India')
           .filter(c => TIER_1_CITIES.some(t => c.toLowerCase().includes(t.toLowerCase())));
         const cities = ["All India", ...defaultCities];
-        const brands = (brandsRes.data?.options || []).filter(b => b !== 'All');
-        const skus = (skusRes.data?.options || []).filter(s => s !== 'All');
-
-        setFilterOptions({
-          platforms,
-          formats,
-          cities,
-          brands,
-          skus,
-          loading: false
-        });
-
+        setFilterOptions(prev => ({ ...prev, cities }));
       } catch (error) {
-        console.error("[TrendsDrawer] Error fetching filter options:", error);
-        setFilterOptions(prev => ({ ...prev, loading: false }));
+        console.error("[TrendsDrawer] Error fetching cascaded cities:", error);
       }
     };
+    fetchCities();
+    return () => { cancelled = true; };
+  }, [open, drawerFilters.Platform, drawerFilters.Brand, TIER_1_CITIES]);
 
-    fetchFilterOptions();
-  }, [open]);
+  // Effect 4: Fetch SKUs when platform + brand + category changes (cascading)
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const platformParam = drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined;
+    const brandParam = drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined;
+    const categoryParam = drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined;
+    const fetchSkus = async () => {
+      try {
+        const skusRes = await axiosInstance.get('/watchtower/trends-filter-options', {
+          params: { filterType: 'skus', platform: platformParam, brand: brandParam, category: categoryParam }
+        });
+        if (cancelled) return;
+        const skus = (skusRes.data?.options || []).filter(s => s !== 'All' && s.trim()).sort();
+        setFilterOptions(prev => ({ ...prev, skus }));
+      } catch (error) {
+        console.error("[TrendsDrawer] Error fetching cascaded SKUs:", error);
+      }
+    };
+    fetchSkus();
+    return () => { cancelled = true; };
+  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format]);
 
   const [trendError, setTrendError] = useState(null);
 
@@ -1998,12 +2049,17 @@ export default function TrendsCompetitionDrawer({
     }
   }, [DASHBOARD_DATA, dynamicKey, open, isEcom]);
 
-  // Sync active metrics: remove Listing if platform becomes Ecom
+  // Sync active metrics: remove Listing/CPM/CPC based on platform
   useEffect(() => {
-    if (isEcom && activeMetrics.includes('Listing')) {
-      setActiveMetrics(prev => prev.filter(m => m !== 'Listing'));
-    }
-  }, [isEcom, activeMetrics]);
+    setActiveMetrics(prev => {
+      let newMetrics = [...prev];
+      if (isEcom && newMetrics.includes('Listing')) newMetrics = newMetrics.filter(m => m !== 'Listing');
+      if (isEcom && newMetrics.includes('CPM')) newMetrics = newMetrics.filter(m => m !== 'CPM');
+      if (isQcom && newMetrics.includes('CPC')) newMetrics = newMetrics.filter(m => m !== 'CPC');
+      if (newMetrics.length !== prev.length) return newMetrics;
+      return prev;
+    });
+  }, [isEcom, isQcom]);
 
   // Note: PM metrics (Spend, Conversion, ROAS, CPC) are now always visible.
   // When SKU is selected, the backend sources these from rb_pdp_olap instead of rb_pm_olap.
@@ -2443,19 +2499,19 @@ export default function TrendsCompetitionDrawer({
                   title="Platform" 
                   value={drawerFilters.Platform} 
                   options={PLATFORM_OPTIONS} 
-                  onChange={(v) => setDrawerFilters(prev => ({...prev, Platform: v}))} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, Platform: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All'}))} 
                 />
                 <FilterDropdown 
                   title="Category" 
                   value={drawerFilters.Format} 
                   options={FORMAT_OPTIONS} 
-                  onChange={(v) => setDrawerFilters(prev => ({...prev, Format: v}))} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, Format: v, SKU: 'All'}))} 
                 />
                 <FilterDropdown 
                   title="Brand" 
                   value={drawerFilters.Brand} 
                   options={BRAND_OPTIONS} 
-                  onChange={(v) => setDrawerFilters(prev => ({...prev, Brand: v}))} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, Brand: v, City: 'All', SKU: 'All'}))} 
                 />
                 <FilterDropdown 
                   title="City" 
@@ -2731,7 +2787,12 @@ export default function TrendsCompetitionDrawer({
                 }}
               >
                 {trendMeta.metrics
-                  .filter(m => !(isEcom && m.id === 'Listing'))
+                  .filter(m => {
+                    if (isEcom && m.id === 'Listing') return false;
+                    if (isEcom && m.id === 'CPM') return false;
+                    if (isQcom && m.id === 'CPC') return false;
+                    return true;
+                  })
                   .map((m) => {
                     // Determine if this metric's data source is unavailable
                     let sourceGroup = KPI_SOURCE_MAP[m.id];
