@@ -185,7 +185,6 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
 
   // 6. Memoize filter sections to prevent prop instability in CityKpiTrendShowcase
   const matrixFilterSections = useMemo(() => [
-    { id: "platforms", label: "Platform", apiType: "platforms" },
     { id: "categories", label: "Category", apiType: "formats" },
     { id: "cities", label: "City", apiType: "cities" },
     { id: "brands", label: "Brand", apiType: "brands" },

@@ -1846,11 +1846,8 @@ class VisibilityService {
      */
     async getVisibilityFilterOptions({ filterType, platform, format, city, brand, keywordType, keyword, sku, ownBrandsOnly, channel }) {
         console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
-        const cacheKey = generateCacheKey('visibility_filters_v8', { filterType, platform, format, city, brand, keywordType, keyword, sku, ownBrandsOnly, channel });
-
-        return await getCachedOrCompute(cacheKey, async () => {
-            try {
-                console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
+        try {
+            console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
 
                 // Shared conditions for cascading filters
                 const platformFilter = platform || null;
@@ -1977,7 +1974,7 @@ class VisibilityService {
                     brandWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
                     brandWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
                     brandWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
-                    if (ownBrandsOnly) brandWhere += ` AND flag = 1`;
+                    brandWhere += ` AND flag = 1`; // Only show our brands as requested
 
                     const results = await queryClickHouse(`
                         SELECT DISTINCT brand as brand
@@ -2118,7 +2115,6 @@ class VisibilityService {
                 console.error('[VisibilityService] getVisibilityFilterOptions error:', error);
                 throw error;
             }
-        }, CACHE_TTL.LONG);
     }
 
     /**

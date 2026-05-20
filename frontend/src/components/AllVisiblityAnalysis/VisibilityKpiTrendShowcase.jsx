@@ -520,8 +520,8 @@ const DATA_MODEL = buildDataModel();
 
 const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
   const { selectedChannel } = useContext(FilterContext);
-  // initial tab: platform for visibility mode (Platform KPI Matrix)
-  const [activeTab, setActiveTab] = useState("platform");
+  // initial tab: changed to format after removing platform
+  const [activeTab, setActiveTab] = useState("format");
   const [search, setSearch] = useState("");
 
   // Dynamic filter options from API (rb_kw_olap table)
@@ -585,8 +585,8 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
     fetchFilterOptions();
   }, [open, value.formats]); // Refetch when formats change (cascading for cities)
 
-  // Filter tabs - mapped to rb_kw_olap columns (platform first for Platform KPI Matrix)
-  const tabOptions = ["platform", "format", "city", "keywordType", "productName", "brand"];
+  // Filter tabs - mapped to rb_kw_olap columns
+  const tabOptions = ["format", "city", "keywordType", "productName", "brand"];
 
   const getListForTab = () => {
     if (activeTab === "platform") return filterOptions.platforms;
