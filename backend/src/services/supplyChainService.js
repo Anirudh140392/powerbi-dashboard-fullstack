@@ -73,8 +73,11 @@ function computePriority(avgDoi, fillRate, expiryDate) {
         daysToExpiry = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
     }
 
-    if (avgDoi < 3 || fillRate < 50 || daysToExpiry < 3) return 'High';
-    if (avgDoi < 7 || fillRate < 80 || daysToExpiry < 7) return 'Medium';
+    const doiVal = avgDoi === null || avgDoi === undefined ? 999 : avgDoi;
+    const frVal = fillRate === null || fillRate === undefined ? 100 : fillRate;
+
+    if (doiVal < 3 || frVal < 50 || daysToExpiry < 3) return 'High';
+    if (doiVal < 7 || frVal < 80 || daysToExpiry < 7) return 'Medium';
     return 'Low';
 }
 
@@ -86,10 +89,13 @@ function computePSL(expected7DaySales, totalNenoOsa, totalDenoOsa, avgDoi, leadT
     // OSA = neno_osa / deno_osa
     const osa = totalDenoOsa > 0 ? totalNenoOsa / totalDenoOsa : 0;
 
+    const doiVal = avgDoi === null || avgDoi === undefined ? 0 : avgDoi;
+    const ltVal = leadTime === null || leadTime === undefined ? 0 : leadTime;
+
     // Stock-Out Risk Factor: if DIH << LT, risk approaches 1
     // If DIH >= LT, no risk (factor = 0)
-    const stockOutRisk = leadTime > 0
-        ? Math.max(0, Math.min(1, 1 - (avgDoi / leadTime)))
+    const stockOutRisk = ltVal > 0
+        ? Math.max(0, Math.min(1, 1 - (doiVal / ltVal)))
         : 0;
 
     const psl = expected7DaySales * (1 - Math.min(1, osa)) * stockOutRisk;
@@ -157,20 +163,20 @@ const supplyChainService = {
                         any(category) as category_val,
 
                         -- Order Value: sum of total_po_value across SKUs in this PO
-                        SUM(ifNull(total_po_value, 0)) as order_value,
+                        SUM(total_po_value) as order_value,
 
                         -- Fill Rate: computed from raw units
-                        SUM(ifNull(units_ordered, 0)) as total_units_ordered,
-                        SUM(ifNull(units_delivered, 0)) as total_fulfilled_qty,
+                        SUM(units_ordered) as total_units_ordered,
+                        SUM(units_delivered) as total_fulfilled_qty,
 
                         -- AVG DOI (Days of Inventory on Hand)
-                        avg(ifNull(DIH, 0)) as avg_doi,
+                        avg(DIH) as avg_doi,
 
                         -- Lead Time (max across SKUs in PO)
-                        max(ifNull(delivery_time, 0)) as lead_time,
+                        max(delivery_time) as lead_time,
 
                         -- Consumption Per Day (avg DRR)
-                        avg(ifNull(DRR, 0)) as consumption_per_day,
+                        avg(DRR) as consumption_per_day,
 
                         -- PSL Components
                         SUM(ifNull(DRR, 0) * 7 * ifNull(cost_per_unit, 0)) as expected_7day_sales,
@@ -178,7 +184,7 @@ const supplyChainService = {
                         SUM(ifNull(deno_osa, 0)) as total_deno_osa,
 
                         -- Remaining value
-                        SUM(ifNull(remaining_po_value, 0)) as remaining_value,
+                        SUM(remaining_po_value) as remaining_value,
 
                         -- SKU count
                         count() as sku_count
@@ -196,13 +202,13 @@ const supplyChainService = {
 
                 // Post-process: compute PSL, Priority, format fields
                 const data = rows.map(row => {
-                    const orderValue = parseFloat(row.order_value) || 0;
-                    const totalOrdered = parseFloat(row.total_units_ordered) || 0;
-                    const totalFulfilled = parseFloat(row.total_fulfilled_qty) || 0;
-                    const fillRate = totalOrdered > 0 ? (totalFulfilled / totalOrdered) * 100 : 0;
-                    const avgDoi = parseFloat(row.avg_doi) || 0;
-                    const leadTime = parseInt(row.lead_time) || 0;
-                    const cpd = parseFloat(row.consumption_per_day) || 0;
+                    const orderValue = row.order_value === null ? null : parseFloat(row.order_value);
+                    const totalOrdered = row.total_units_ordered === null ? null : parseFloat(row.total_units_ordered);
+                    const totalFulfilled = row.total_fulfilled_qty === null ? null : parseFloat(row.total_fulfilled_qty);
+                    const fillRate = (totalOrdered !== null && totalOrdered > 0 && totalFulfilled !== null) ? (totalFulfilled / totalOrdered) * 100 : null;
+                    const avgDoi = row.avg_doi === null ? null : parseFloat(row.avg_doi);
+                    const leadTime = row.lead_time === null ? null : parseInt(row.lead_time);
+                    const cpd = row.consumption_per_day === null ? null : parseFloat(row.consumption_per_day);
                     const expected7DaySales = parseFloat(row.expected_7day_sales) || 0;
                     const totalNenoOsa = parseFloat(row.total_neno_osa) || 0;
                     const totalDenoOsa = parseFloat(row.total_deno_osa) || 0;
@@ -220,15 +226,15 @@ const supplyChainService = {
                         city: titleCase(row.city_val || ''),
                         status: titleCase(row.po_status_val || ''),
                         rawStatus: row.po_status_val,
-                        orderValue: Math.round(orderValue),
+                        orderValue: orderValue !== null ? Math.round(orderValue) : null,
                         raisedOn: formatDate(row.po_raised_date_val),
                         apptDate: formatDate(row.po_appointment_date_val),
                         expiry: formatDate(row.po_expiry_date_val),
                         rawExpiryDate: row.po_expiry_date_val,
-                        avgDoi: parseFloat(avgDoi.toFixed(1)),
+                        avgDoi: avgDoi !== null ? parseFloat(avgDoi.toFixed(1)) : null,
                         lt: leadTime,
-                        fillRate: parseFloat(fillRate.toFixed(1)),
-                        consumptionPerDay: parseFloat(cpd.toFixed(1)),
+                        fillRate: fillRate !== null ? parseFloat(fillRate.toFixed(1)) : null,
+                        consumptionPerDay: cpd !== null ? parseFloat(cpd.toFixed(1)) : null,
                         skuCount: parseInt(row.sku_count) || 0,
                         brand: titleCase(row.brand_val || ''),
                         category: titleCase(row.category_val || ''),
@@ -314,25 +320,25 @@ const supplyChainService = {
                         category,
                         item_id,
                         web_pid,
-                        ifNull(cost_per_unit, 0) as cost_per_unit,
-                        ifNull(units_ordered, 0) as units_ordered,
-                        ifNull(units_remaining, 0) as units_remaining,
-                        ifNull(units_delivered, 0) as units_delivered,
-                        ifNull(total_po_value, 0) as total_po_value,
-                        ifNull(remaining_po_value, 0) as remaining_po_value,
-                        ifNull(fullfilled_quantity, 0) as fullfilled_quantity,
-                        ifNull(fullfilled_po_value, 0) as fullfilled_po_value,
-                        ifNull(front_inventory, 0) as front_inventory,
-                        toFloat64OrZero(ifNull(back_inventory, '0')) as back_inventory,
-                        ifNull(DIH, 0) as DIH,
-                        ifNull(DRR, 0) as DRR,
-                        ifNull(qty_sold, 0) as qty_sold,
+                        cost_per_unit,
+                        units_ordered,
+                        units_remaining,
+                        units_delivered,
+                        total_po_value,
+                        remaining_po_value,
+                        fullfilled_quantity,
+                        fullfilled_po_value,
+                        front_inventory,
+                        toFloat64OrNull(back_inventory) as back_inventory,
+                        DIH,
+                        DRR,
+                        qty_sold,
                         fill_rate as fill_rate_str,
-                        ifNull(delivery_time, 0) as delivery_time,
+                        delivery_time,
                         image_url,
-                        ifNull(neno_osa, 0) as neno_osa,
-                        ifNull(deno_osa, 0) as deno_osa,
-                        ifNull(listing_percent, 0) as listing_percent
+                        neno_osa,
+                        deno_osa,
+                        listing_percent
                     FROM rb_po_olap
                     WHERE lower(po_number) = lower('${poNumber}')
                     ${facilityName && facilityName !== 'null' && facilityName !== 'undefined' ? `AND lower(facility_name) = lower('${facilityName}')` : ''}
@@ -366,9 +372,9 @@ const supplyChainService = {
 
                 // Map each SKU row
                 const skus = rows.map(row => {
-                    const unitsOrdered = parseFloat(row.units_ordered) || 0;
-                    const unitsDelivered = parseFloat(row.units_delivered) || 0;
-                    const fillRate = unitsOrdered > 0 ? (unitsDelivered / unitsOrdered) * 100 : 0;
+                    const unitsOrdered = row.units_ordered === null ? null : parseFloat(row.units_ordered);
+                    const unitsDelivered = row.units_delivered === null ? null : parseFloat(row.units_delivered);
+                    const fillRate = (unitsOrdered !== null && unitsOrdered > 0 && unitsDelivered !== null) ? (unitsDelivered / unitsOrdered) * 100 : null;
 
                     return {
                         skuName: row.sku_name,
@@ -376,27 +382,27 @@ const supplyChainService = {
                         category: titleCase(row.category || ''),
                         itemId: row.item_id,
                         webPid: row.web_pid,
-                        costPerUnit: parseFloat(row.cost_per_unit) || 0,
-                        unitsOrdered: Math.round(unitsOrdered),
-                        unitsRemaining: Math.round(parseFloat(row.units_remaining) || 0),
-                        unitsDelivered: Math.round(parseFloat(row.units_delivered) || 0),
-                        totalValue: Math.round(parseFloat(row.total_po_value) || 0),
-                        remainingValue: Math.round(parseFloat(row.remaining_po_value) || 0),
-                        fulfilledQty: Math.round(parseFloat(row.fullfilled_quantity) || 0),
-                        fulfilledValue: Math.round(parseFloat(row.fullfilled_po_value) || 0),
-                        fillRate: parseFloat(fillRate.toFixed(1)),
+                        costPerUnit: row.cost_per_unit === null ? null : parseFloat(row.cost_per_unit),
+                        unitsOrdered: unitsOrdered !== null ? Math.round(unitsOrdered) : null,
+                        unitsRemaining: row.units_remaining === null ? null : Math.round(parseFloat(row.units_remaining)),
+                        unitsDelivered: unitsDelivered !== null ? Math.round(unitsDelivered) : null,
+                        totalValue: row.total_po_value === null ? null : Math.round(parseFloat(row.total_po_value)),
+                        remainingValue: row.remaining_po_value === null ? null : Math.round(parseFloat(row.remaining_po_value)),
+                        fulfilledQty: row.fullfilled_quantity === null ? null : Math.round(parseFloat(row.fullfilled_quantity)),
+                        fulfilledValue: row.fullfilled_po_value === null ? null : Math.round(parseFloat(row.fullfilled_po_value)),
+                        fillRate: fillRate !== null ? parseFloat(fillRate.toFixed(1)) : null,
                         fillRateStr: row.fill_rate_str,
-                        frontInventory: Math.round(parseFloat(row.front_inventory) || 0),
-                        backInventory: Math.round(parseFloat(row.back_inventory) || 0),
-                        doi: parseFloat(row.DIH) || 0,
-                        drr: parseFloat(row.DRR) || 0,
-                        qtySold: parseFloat(row.qty_sold) || 0,
-                        deliveryTime: parseInt(row.delivery_time) || 0,
+                        frontInventory: row.front_inventory === null ? null : Math.round(parseFloat(row.front_inventory)),
+                        backInventory: row.back_inventory === null ? null : Math.round(parseFloat(row.back_inventory)),
+                        doi: row.DIH === null ? null : parseFloat(row.DIH),
+                        drr: row.DRR === null ? null : parseFloat(row.DRR),
+                        qtySold: row.qty_sold === null ? null : parseFloat(row.qty_sold),
+                        deliveryTime: row.delivery_time === null ? null : parseInt(row.delivery_time),
                         imageUrl: row.image_url || null,
-                        osa: parseFloat(row.deno_osa) > 0
+                        osa: (row.deno_osa !== null && parseFloat(row.deno_osa) > 0 && row.neno_osa !== null)
                             ? parseFloat((parseFloat(row.neno_osa) / parseFloat(row.deno_osa) * 100).toFixed(1))
                             : null,
-                        listingPercent: parseFloat(row.listing_percent) || 0
+                        listingPercent: row.listing_percent === null ? null : parseFloat(row.listing_percent)
                     };
                 });
 
@@ -466,17 +472,36 @@ const supplyChainService = {
             try {
                 const query = `
                     SELECT
-                        DATE as date,
-                        sum(ifNull(Qty_Sold, 0)) as offtake,
-                        avg(ifNull(Selling_Price, 0)) as avg_price,
-                        avg(ifNull(Discount, 0)) as avg_discount,
-                        sum(ifNull(neno_osa, 0)) as total_neno_osa,
-                        sum(ifNull(deno_osa, 0)) as total_deno_osa,
-                        sum(ifNull(Inventory, 0)) as total_inventory
-                    FROM rb_pdp_olap
-                    WHERE Web_Pid = '${webPid}'
-                    GROUP BY DATE
-                    ORDER BY DATE ASC
+                        p.DATE as date,
+                        p.offtake as offtake,
+                        p.offtake_qty as offtake_qty,
+                        p.avg_price as avg_price,
+                        p.avg_discount as avg_discount,
+                        p.total_inventory as total_inventory,
+                        o.total_neno_osa as total_neno_osa,
+                        o.total_deno_osa as total_deno_osa
+                    FROM (
+                        SELECT
+                            DATE,
+                            sumIf(ifNull(Sales, 0), Comp_flag = 0) as offtake,
+                            sumIf(ifNull(Qty_Sold, 0), Comp_flag = 0) as offtake_qty,
+                            avg(ifNull(Selling_Price, 0)) as avg_price,
+                            avg(ifNull(Discount, 0)) as avg_discount,
+                            sum(ifNull(Inventory, 0)) as total_inventory
+                        FROM rb_pdp_olap
+                        WHERE Web_Pid = '${webPid}'
+                        GROUP BY DATE
+                    ) p
+                    LEFT JOIN (
+                        SELECT
+                            po_raised_date,
+                            sum(ifNull(neno_osa, 0)) as total_neno_osa,
+                            sum(ifNull(deno_osa, 0)) as total_deno_osa
+                        FROM rb_po_olap
+                        WHERE web_pid = '${webPid}'
+                        GROUP BY po_raised_date
+                    ) o ON toDate(p.DATE) = toDate(o.po_raised_date)
+                    ORDER BY p.DATE ASC
                 `;
 
                 const rows = await queryClickHouse(query);
@@ -488,22 +513,28 @@ const supplyChainService = {
 
                 // Compute daily values first
                 const offtakeValues = rows.map(r => parseFloat(r.offtake) || 0);
+                const qtySoldValues = rows.map(r => parseFloat(r.offtake_qty) || 0);
                 const dailyPoints = rows.map((row, idx) => {
-                    const nenoOsa = parseFloat(row.total_neno_osa) || 0;
-                    const denoOsa = parseFloat(row.total_deno_osa) || 0;
-                    const osaVal = denoOsa > 0 ? (nenoOsa / denoOsa * 100) : null;
+                    const nenoOsa = row.total_neno_osa === null ? null : parseFloat(row.total_neno_osa);
+                    const denoOsa = row.total_deno_osa === null ? null : parseFloat(row.total_deno_osa);
+                    const osaVal = (denoOsa !== null && denoOsa > 0 && nenoOsa !== null) ? (nenoOsa / denoOsa * 100) : null;
                     const dailyOfftake = parseFloat(row.offtake) || 0;
 
-                    // DRR: rolling 30-day average of offtake
+                    // DRR: rolling 30-day average of offtake (sales in rupees)
                     const windowStart = Math.max(0, idx - 29);
-                    const windowSlice = offtakeValues.slice(windowStart, idx + 1);
-                    const rollingSum = windowSlice.reduce((a, b) => a + b, 0);
+                    const offtakeSlice = offtakeValues.slice(windowStart, idx + 1);
+                    const rollingSum = offtakeSlice.reduce((a, b) => a + b, 0);
                     const rollingDrr = rollingSum / 30;
 
-                    const priceVal = parseFloat(row.avg_price || 0);
-                    const discountVal = parseFloat(row.avg_discount || 0);
-                    const inv = parseFloat(row.total_inventory) || 0;
-                    const doiVal = rollingDrr > 0 ? (inv / rollingDrr) : null;
+                    // DRR Qty: rolling 30-day average of qty_sold in units (for DOI)
+                    const qtySlice = qtySoldValues.slice(windowStart, idx + 1);
+                    const rollingSumQty = qtySlice.reduce((a, b) => a + b, 0);
+                    const rollingDrrQty = rollingSumQty / 30;
+
+                    const priceVal = row.avg_price === null ? null : parseFloat(row.avg_price);
+                    const discountVal = row.avg_discount === null ? null : parseFloat(row.avg_discount);
+                    const inv = row.total_inventory === null ? null : parseFloat(row.total_inventory);
+                    const doiVal = (rollingDrrQty > 0 && inv !== null) ? (inv / rollingDrrQty) : null;
 
                     return {
                         date: row.date,
@@ -556,27 +587,33 @@ const supplyChainService = {
                     // OSA: mathematically aggregate numerators and denominators
                     let sumNeno = 0;
                     let sumDeno = 0;
+                    let hasOsa = false;
                     pts.forEach(p => {
-                        sumNeno += p.nenoOsa;
-                        sumDeno += p.denoOsa;
+                        if (p.nenoOsa !== null && p.denoOsa !== null) {
+                            sumNeno += p.nenoOsa;
+                            sumDeno += p.denoOsa;
+                            hasOsa = true;
+                        }
                     });
-                    osa.push(sumDeno > 0 ? parseFloat((sumNeno / sumDeno * 100).toFixed(1)) : null);
+                    osa.push(hasOsa && sumDeno > 0 ? parseFloat((sumNeno / sumDeno * 100).toFixed(1)) : null);
 
                     // Offtake: total sum over the period
-                    const sumOfftake = pts.reduce((sum, p) => sum + p.offtakeVal, 0);
+                    const sumOfftake = pts.reduce((sum, p) => sum + (p.offtakeVal || 0), 0);
                     offtake.push(Math.round(sumOfftake));
 
                     // DRR: average of daily DRR values in this period
-                    const avgDrr = pts.reduce((sum, p) => sum + p.drrVal, 0) / pts.length;
+                    const avgDrr = pts.reduce((sum, p) => sum + (p.drrVal || 0), 0) / pts.length;
                     drr.push(parseFloat(avgDrr.toFixed(1)));
 
                     // Price: average of daily prices in this period
-                    const avgPrice = pts.reduce((sum, p) => sum + p.priceVal, 0) / pts.length;
-                    price.push(parseFloat(avgPrice.toFixed(1)));
+                    const validPrices = pts.map(p => p.priceVal).filter(v => v !== null);
+                    const avgPrice = validPrices.length > 0 ? (validPrices.reduce((sum, v) => sum + v, 0) / validPrices.length) : null;
+                    price.push(avgPrice !== null ? parseFloat(avgPrice.toFixed(1)) : null);
 
                     // Promo %: average of daily discounts in this period
-                    const avgPromo = pts.reduce((sum, p) => sum + p.discountVal, 0) / pts.length;
-                    promo.push(parseFloat(avgPromo.toFixed(1)));
+                    const validPromos = pts.map(p => p.discountVal).filter(v => v !== null);
+                    const avgPromo = validPromos.length > 0 ? (validPromos.reduce((sum, v) => sum + v, 0) / validPromos.length) : null;
+                    promo.push(avgPromo !== null ? parseFloat(avgPromo.toFixed(1)) : null);
 
                     // DOI: average of daily DOI values in this period
                     const validDois = pts.map(p => p.doiVal).filter(v => v !== null);

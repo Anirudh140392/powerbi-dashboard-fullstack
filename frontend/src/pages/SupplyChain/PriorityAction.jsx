@@ -44,12 +44,21 @@ import {
 
 // Helper to format currency in INR style
 const formatINR = (n) => {
-    if (typeof n !== "number") return "N/A";
+    if (n === null || n === undefined || n === "") return "N/A";
+    const num = Number(n);
+    if (isNaN(num)) return "N/A";
     return new Intl.NumberFormat('en-IN', {
         style: 'currency',
         currency: 'INR',
         maximumFractionDigits: 0
-    }).format(n);
+    }).format(num);
+};
+
+const formatOrNA = (val, formatter = (v) => v) => {
+    if (val === null || val === undefined || val === "") {
+        return "N/A";
+    }
+    return formatter(val);
 };
 
 export default function PriorityAction() {
@@ -414,14 +423,72 @@ export default function PriorityAction() {
         }
     };
 
+    const formatK_Lac_Cr = (val) => {
+        if (val === null || val === undefined || val === "") return "N/A";
+        const num = Number(val);
+        if (isNaN(num)) return "N/A";
+        
+        const sign = num < 0 ? "-" : "";
+        const absNum = Math.abs(num);
+        
+        if (absNum < 1000) {
+            return sign + (absNum % 1 === 0 ? absNum.toFixed(0) : absNum.toFixed(1));
+        } else if (absNum < 100000) {
+            const kVal = absNum / 1000;
+            return sign + (kVal % 1 === 0 ? kVal.toFixed(0) : kVal.toFixed(1)) + "K";
+        } else if (absNum < 10000000) {
+            const lacVal = absNum / 100000;
+            return sign + (lacVal % 1 === 0 ? lacVal.toFixed(0) : lacVal.toFixed(1)) + " lac";
+        } else {
+            const crVal = absNum / 10000000;
+            return sign + (crVal % 1 === 0 ? crVal.toFixed(0) : crVal.toFixed(2)) + " Cr";
+        }
+    };
+
     // KPI configuration for the trend chart — axis: 'left' for absolute values, 'right' for percentage
     const KPI_CONFIG = {
-        offtake: { label: 'Offtake', unit: ' units', color: '#2563eb', gradient: ['#2563eb', '#bfdbfe'], axis: 'left' },
-        drr: { label: 'DRR', unit: ' units/day', color: '#7c3aed', gradient: ['#7c3aed', '#ddd6fe'], axis: 'left' },
-        price: { label: 'Price', unit: ' ₹', color: '#ea580c', gradient: ['#ea580c', '#fed7aa'], axis: 'left' },
-        doi: { label: 'DOI', unit: ' days', color: '#0891b2', gradient: ['#0891b2', '#a5f3fc'], axis: 'left' },
-        osa: { label: 'OSA', unit: '%', color: '#16a34a', gradient: ['#16a34a', '#bbf7d0'], axis: 'right' },
-        promo: { label: 'Promo %', unit: '%', color: '#db2777', gradient: ['#db2777', '#fbcfe8'], axis: 'right' },
+        offtake: { 
+            label: 'Offtake', 
+            format: (v) => `₹${formatK_Lac_Cr(v)}`, 
+            color: '#2563eb', 
+            gradient: ['#2563eb', '#bfdbfe'], 
+            axis: 'left' 
+        },
+        drr: { 
+            label: 'DRR', 
+            format: (v) => `₹${formatK_Lac_Cr(v)}/day`, 
+            color: '#7c3aed', 
+            gradient: ['#7c3aed', '#ddd6fe'], 
+            axis: 'left' 
+        },
+        price: { 
+            label: 'Price', 
+            format: (v) => `₹${formatK_Lac_Cr(v)}`, 
+            color: '#ea580c', 
+            gradient: ['#ea580c', '#fed7aa'], 
+            axis: 'left' 
+        },
+        doi: { 
+            label: 'DOI', 
+            format: (v) => `${Number(v).toFixed(1)} days`, 
+            color: '#0891b2', 
+            gradient: ['#0891b2', '#a5f3fc'], 
+            axis: 'left' 
+        },
+        osa: { 
+            label: 'OSA', 
+            format: (v) => `${Number(v).toFixed(0)}%`, 
+            color: '#16a34a', 
+            gradient: ['#16a34a', '#bbf7d0'], 
+            axis: 'right' 
+        },
+        promo: { 
+            label: 'Promo %', 
+            format: (v) => `${Number(v).toFixed(1)}%`, 
+            color: '#db2777', 
+            gradient: ['#db2777', '#fbcfe8'], 
+            axis: 'right' 
+        },
     };
 
     // Toggle a KPI on/off (multi-select)
@@ -819,12 +886,12 @@ export default function PriorityAction() {
  
                                                 {/* Projected Sales at Risk */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-red-600">
-                                                    {formatINR(po.projectedSalesAtRisk)}
+                                                    {formatOrNA(po.projectedSalesAtRisk, formatINR)}
                                                 </TableCell>
  
                                                 {/* Platform Warehouse */}
                                                 <TableCell className="px-3 py-3 text-[11px] text-slate-800 font-medium">
-                                                    {po.platformWarehouse}
+                                                    {formatOrNA(po.platformWarehouse)}
                                                 </TableCell>
  
                                                 {/* Status */}
@@ -834,48 +901,48 @@ export default function PriorityAction() {
                                                         po.rawStatus === "in_transit" || po.rawStatus === "in transit" ? "status-badge-intransit" :
                                                         po.rawStatus === "pending" ? "status-badge-pending" : "status-badge-appointed"
                                                     }`}>
-                                                        {po.status}
+                                                        {formatOrNA(po.status)}
                                                     </span>
                                                 </TableCell>
  
                                                 {/* Order Value */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-900">
-                                                    {formatINR(po.orderValue)}
+                                                    {formatOrNA(po.orderValue, formatINR)}
                                                 </TableCell>
  
                                                 {/* Raised On */}
                                                 <TableCell className="px-3 py-3 text-[11px] text-slate-500 font-medium whitespace-nowrap">
-                                                    {po.raisedOn}
+                                                    {formatOrNA(po.raisedOn)}
                                                 </TableCell>
  
                                                 {/* Appt Date */}
                                                 <TableCell className="px-3 py-3 text-[11px] text-slate-800 font-semibold whitespace-nowrap">
-                                                    {po.apptDate || "-"}
+                                                    {formatOrNA(po.apptDate)}
                                                 </TableCell>
  
                                                 {/* Expiry */}
                                                 <TableCell className="px-3 py-3 text-[11px] text-slate-500 font-medium whitespace-nowrap">
-                                                    {po.expiry}
+                                                    {formatOrNA(po.expiry)}
                                                 </TableCell>
  
                                                 {/* AVG DOI */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {po.avgDoi} days
+                                                    {formatOrNA(po.avgDoi, (v) => `${v} days`)}
                                                 </TableCell>
  
                                                 {/* LT */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] text-slate-600 font-medium">
-                                                    {po.lt} days
+                                                    {formatOrNA(po.lt, (v) => `${v} days`)}
                                                 </TableCell>
  
                                                 {/* Fill Rate */}
                                                 <TableCell className={`px-3 py-3 text-right text-[11px] font-bold ${po.fillRate >= 95 ? "text-emerald-600" : po.fillRate >= 90 ? "text-amber-600" : "text-red-600"}`}>
-                                                    {po.fillRate}%
+                                                    {formatOrNA(po.fillRate, (v) => `${v}%`)}
                                                 </TableCell>
  
                                                 {/* Consumption per Day */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {po.consumptionPerDay} units
+                                                    {formatOrNA(po.consumptionPerDay, (v) => `${v} units`)}
                                                 </TableCell>
                                             </TableRow>
                                         ))
@@ -953,52 +1020,52 @@ export default function PriorityAction() {
 
                                                 {/* From CFA */}
                                                 <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-800">
-                                                    {item.fromCfa}
+                                                    {formatOrNA(item.fromCfa)}
                                                 </TableCell>
 
                                                 {/* To CFA */}
                                                 <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-800">
-                                                    {item.toCfa}
+                                                    {formatOrNA(item.toCfa)}
                                                 </TableCell>
 
                                                 {/* City OSA % */}
                                                 <TableCell className={`px-3 py-3 text-right text-[11px] font-bold ${item.cityOsa < 80 ? "text-red-500" : "text-emerald-600"}`}>
-                                                    {item.cityOsa}%
+                                                    {formatOrNA(item.cityOsa, (v) => `${v}%`)}
                                                 </TableCell>
 
                                                 {/* DOI (FE) */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {item.doiFe} days
+                                                    {formatOrNA(item.doiFe, (v) => `${v} days`)}
                                                 </TableCell>
-
+ 
                                                 {/* DOI (BE) */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {item.doiBe} days
+                                                    {formatOrNA(item.doiBe, (v) => `${v} days`)}
                                                 </TableCell>
-
+ 
                                                 {/* SOH (FE) */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-medium text-slate-800">
-                                                    {item.sohFe}
+                                                    {formatOrNA(item.sohFe)}
                                                 </TableCell>
-
+ 
                                                 {/* SOH (BE) */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-medium text-slate-800">
-                                                    {item.sohBe}
+                                                    {formatOrNA(item.sohBe)}
                                                 </TableCell>
-
+ 
                                                 {/* Run Rate */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {item.runRate}
+                                                    {formatOrNA(item.runRate)}
                                                 </TableCell>
-
+ 
                                                 {/* CPD */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {item.cpd}
+                                                    {formatOrNA(item.cpd)}
                                                 </TableCell>
-
+ 
                                                 {/* PSL Recovery */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-bold text-indigo-600">
-                                                    {formatINR(item.pslRecovery * 1000)}
+                                                    {formatOrNA(item.pslRecovery, (v) => formatINR(v * 1000))}
                                                 </TableCell>
 
                                                 {/* Actions */}
@@ -1075,12 +1142,12 @@ export default function PriorityAction() {
 
                                                 {/* Platform */}
                                                 <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-500">
-                                                    {item.platform}
+                                                    {formatOrNA(item.platform)}
                                                 </TableCell>
 
                                                 {/* Warehouse */}
                                                 <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-800">
-                                                    {item.warehouse}
+                                                    {formatOrNA(item.warehouse)}
                                                 </TableCell>
 
                                                 {/* Priority */}
@@ -1089,33 +1156,33 @@ export default function PriorityAction() {
                                                         item.priority === "High" ? "priority-badge-high" : 
                                                         item.priority === "Medium" ? "priority-badge-medium" : "priority-badge-low"
                                                     }`}>
-                                                        {item.priority}
+                                                        {formatOrNA(item.priority)}
                                                     </span>
                                                 </TableCell>
 
                                                 {/* SOH (BE) */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-medium text-slate-800">
-                                                    {item.sohBe}
+                                                    {formatOrNA(item.sohBe)}
                                                 </TableCell>
 
                                                 {/* SOH (FE) */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-medium text-slate-800">
-                                                    {item.sohFe}
+                                                    {formatOrNA(item.sohFe)}
                                                 </TableCell>
 
                                                 {/* DOI */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {item.doi} days
+                                                     {formatOrNA(item.doi, (v) => `${v} days`)}
                                                 </TableCell>
 
                                                 {/* CPD */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {item.cpd}
+                                                    {formatOrNA(item.cpd)}
                                                 </TableCell>
 
                                                 {/* City OSA */}
                                                 <TableCell className={`px-3 py-3 text-right text-[11px] font-bold ${item.cityOsa < 80 ? "text-red-500" : "text-emerald-600"}`}>
-                                                    {item.cityOsa}%
+                                                     {formatOrNA(item.cityOsa, (v) => `${v}%`)}
                                                 </TableCell>
 
                                                 {/* Actions */}
@@ -1215,16 +1282,16 @@ export default function PriorityAction() {
                                                             </div>
                                                         </td>
                                                         <td style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 600, color: "#475569", textAlign: "right" }}>
-                                                            {sku.unitsOrdered.toLocaleString()}
+                                                            {formatOrNA(sku.unitsOrdered, (v) => v.toLocaleString())}
                                                         </td>
                                                         <td style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 600, color: "#475569", textAlign: "right" }}>
-                                                            {sku.unitsDelivered.toLocaleString()}
+                                                            {formatOrNA(sku.unitsDelivered, (v) => v.toLocaleString())}
                                                         </td>
                                                         <td style={{
                                                             padding: "10px 12px", fontSize: "11px", fontWeight: 700, textAlign: "right",
-                                                            color: sku.fillRate >= 95 ? "#16a34a" : sku.fillRate >= 50 ? "#d97706" : "#dc2626"
+                                                            color: !sku.fillRate ? "#64748b" : sku.fillRate >= 95 ? "#16a34a" : sku.fillRate >= 50 ? "#d97706" : "#dc2626"
                                                         }}>
-                                                            {sku.fillRate}%
+                                                            {formatOrNA(sku.fillRate, (v) => `${v}%`)}
                                                         </td>
                                                         <td style={{ padding: "6px 8px", textAlign: "center" }}>
                                                             <button
@@ -1412,7 +1479,7 @@ export default function PriorityAction() {
                                                                 <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: cfg.color, flexShrink: 0 }} />
                                                                 <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", flex: 1 }}>{cfg.label}</span>
                                                                 <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>
-                                                                    {entry.value !== null ? `${Number(entry.value).toLocaleString('en-IN')}${cfg.unit}` : '—'}
+                                                                    {entry.value !== null && entry.value !== undefined ? cfg.format(entry.value) : 'N/A'}
                                                                 </span>
                                                             </div>
                                                         );
@@ -1450,9 +1517,11 @@ export default function PriorityAction() {
                                                                 axisLine={false}
                                                                 width={48}
                                                                 tickFormatter={(v) => {
-                                                                    if (v >= 10000) return `${(v / 1000).toFixed(0)}k`;
-                                                                    if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
-                                                                    return v;
+                                                                    const activeLeftKpis = activeList.filter(k => KPI_CONFIG[k].axis === 'left');
+                                                                    const isCurrencyOnly = activeLeftKpis.length > 0 && activeLeftKpis.every(k => k === 'offtake' || k === 'drr' || k === 'price');
+                                                                    const formatted = formatK_Lac_Cr(v);
+                                                                    if (formatted === "N/A") return "";
+                                                                    return isCurrencyOnly ? `₹${formatted}` : formatted;
                                                                 }}
                                                             />
                                                         )}
@@ -1515,10 +1584,16 @@ export default function PriorityAction() {
                                     </span>
                                     <div style={{ display: "flex", gap: "16px" }}>
                                         <span style={{ fontSize: "10px", fontWeight: 700, color: "#475569" }}>
-                                            Total Ordered: {activePODetail.skus.reduce((s, sk) => s + sk.unitsOrdered, 0).toLocaleString()}
+                                            Total Ordered: {(() => {
+                                                const total = activePODetail.skus.reduce((s, sk) => s + (sk.unitsOrdered || 0), 0);
+                                                return total === 0 ? "N/A" : total.toLocaleString();
+                                            })()}
                                         </span>
                                         <span style={{ fontSize: "10px", fontWeight: 700, color: "#475569" }}>
-                                            Total Delivered: {activePODetail.skus.reduce((s, sk) => s + sk.unitsDelivered, 0).toLocaleString()}
+                                            Total Delivered: {(() => {
+                                                const total = activePODetail.skus.reduce((s, sk) => s + (sk.unitsDelivered || 0), 0);
+                                                return total === 0 ? "N/A" : total.toLocaleString();
+                                            })()}
                                         </span>
                                     </div>
                                 </div>
