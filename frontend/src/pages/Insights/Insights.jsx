@@ -68,7 +68,7 @@ const safeINR = (v) => (typeof v === "number" ? formatINRCompact(v) : "-");
 
 // ─── SIGNAL CONFIG ───────────────────────────────────────────────────────────
 
-const SIGNAL_META = {
+export const SIGNAL_META = {
     "Share Headroom Hotspots": {
         family: "Market Share",
         color: "#4a6fa5", accent: "#e8eef6",
@@ -573,17 +573,17 @@ const BetaBadge = ({ size = "sm" }) => (
     </span>
 );
 
-const LiveBadge = () => (
+const LiveBadge = ({ size = "sm" }) => (
     <span 
         className="status-pulse-green"
         style={{
-            fontSize: "8.5px",
+            fontSize: size === "xs" ? "8.5px" : "9px",
             fontWeight: 800,
             letterSpacing: "0.05em",
             background: "#10b981",
             color: "#fff",
             borderRadius: "5px",
-            padding: "2.5px 8px",
+            padding: size === "xs" ? "2.5px 8px" : "2.5px 8px",
             display: "inline-flex",
             alignItems: "center",
             verticalAlign: "middle",
@@ -627,6 +627,9 @@ const AIInsightsPanel = ({ insight, onClose }) => {
         setVisibleCount(segments.length);
     }, [insight, segments.length]);
 
+    const meta = SIGNAL_META[insight.type] || {};
+    const isBeta = meta.isBeta !== false;
+
     return (
         <motion.div
             initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }}
@@ -659,7 +662,7 @@ const AIInsightsPanel = ({ insight, onClose }) => {
                     </div>
                     <div style={{ display: "flex", flexDirection: "column" }}>
                         <div style={{ fontSize: "12px", fontWeight: 700, color: "#1e1b4b", display: "flex", alignItems: "center", gap: "5px", letterSpacing: "-0.01em" }}>
-                            AI Summary <BetaBadge size="xs" />
+                            AI Summary {isBeta ? <BetaBadge size="xs" /> : <LiveBadge size="xs" />}
                         </div>
                         <div style={{ fontSize: "9px", color: "#6366f1", fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase", marginTop: "1px" }}>powered by Trailytics AI</div>
                     </div>
@@ -2259,6 +2262,9 @@ const DynamicInsightsBar = ({ insight, loading }) => {
         }
     };
 
+    const meta = SIGNAL_META[insight.type] || {};
+    const isBeta = meta.isBeta !== false;
+
     return (
         <div style={{
             width: "100%",
@@ -2292,7 +2298,7 @@ const DynamicInsightsBar = ({ insight, loading }) => {
                     >
                         <span style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", lineHeight: 1 }}>i</span>
                     </div>
-                    <BetaBadge size="xs" />
+                    {isBeta ? <BetaBadge size="xs" /> : <LiveBadge size="xs" />}
                 </div>
                 <p style={{
                     fontSize: "11px",
@@ -2513,7 +2519,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                             <h2 className="modal-header-title-text" style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
                                                 {insight.type}
                                             </h2>
-                                            {meta.isBeta !== false && <BetaBadge size="xs" />}
+                                            {meta.isBeta !== false ? <BetaBadge size="xs" /> : <LiveBadge size="xs" />}
                                         </div>
                                     </div>
                                 </div>
