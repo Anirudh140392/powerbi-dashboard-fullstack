@@ -32,6 +32,7 @@ import { SocketProvider } from "./utils/SocketContext";
 import HelpDrawer from "./components/CommonLayout/HelpDrawer";
 import WalkthroughModal from "./components/CommonLayout/WalkthroughModal";
 import AdminPanel from "./pages/Admin/AdminPanel";
+import PriorityAction from "./pages/SupplyChain/PriorityAction";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -161,6 +162,12 @@ function AppContent() {
             <Route path="/compare-skus" element={
               <ProtectedRoute>
                 <CompareSkuMatrix onClose={() => window.history.back()} />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/priority-action" element={
+              <ProtectedRoute>
+                <PriorityAction />
               </ProtectedRoute>
             } />
 
