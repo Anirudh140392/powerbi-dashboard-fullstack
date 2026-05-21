@@ -109,7 +109,7 @@ const SIGNAL_META = {
         family: "Supply Chain",
         color: "#6b5ea8", accent: "#eeebf8",
         FamilyIcon: Package, metricKey: "impactInr",
-        metricLabel: "Excess Inventory Value", trend: "negative",
+        metricLabel: "Excess Inventory", trend: "negative",
         isBeta: false,
     },
     "Prioritise PO": {
@@ -1036,7 +1036,9 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
                                     })[0];
                                     return (topRow && topRow.firstSeenDate && topRow.firstSeenDate !== "-") ? topRow.firstSeenDate : "—";
                                 })()
-                                : formatINRCompact(insight.impactInr || 0)}
+                                : insight.type === "Surplus Stock"
+                                    ? `${Number(insight.totalExcessInventoryUnits || (insight.evidence || []).reduce((s, e) => s + (e.excessInventory || 0), 0)).toLocaleString('en-IN')} Units`
+                                    : formatINRCompact(insight.impactInr || 0)}
                         </span>
                     </div>
                 </div>
