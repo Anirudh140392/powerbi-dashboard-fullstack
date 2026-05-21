@@ -28,7 +28,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, BrainCircuit, Loader2, Sparkles, RefreshCw } from "lucide-react";
-import { buildAISegments } from "../../pages/Insights/Insights";
+import { buildAISegments, SIGNAL_META } from "../../pages/Insights/Insights";
 
 // ─── Helpers (copied from Insights.jsx so this file is self-contained) ────────
 
@@ -212,15 +212,50 @@ const staticFallback = (insight) => {
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
 
-const BetaBadge = () => (
-    <span style={{
-        fontSize: "8.5px", fontWeight: 800, letterSpacing: "0.05em",
-        background: "#2563eb", color: "#fff", borderRadius: "5px",
-        padding: "2.5px 8px", display: "inline-flex", alignItems: "center",
-        textTransform: "uppercase", lineHeight: 1,
-        boxShadow: "0 2px 4px rgba(37, 99, 235, 0.3)",
-    }}>
+const BetaBadge = ({ size = "sm" }) => (
+    <span 
+        className="status-pulse-blue"
+        style={{
+            fontSize: size === "xs" ? "8.5px" : "9px",
+            fontWeight: 800,
+            letterSpacing: "0.05em",
+            background: "#2563eb",
+            color: "#fff",
+            borderRadius: "5px",
+            padding: "2.5px 8px",
+            display: "inline-flex",
+            alignItems: "center",
+            textTransform: "uppercase",
+            lineHeight: 1,
+            fontFamily: "'Inter', sans-serif",
+            whiteSpace: "nowrap",
+            verticalAlign: "middle",
+            boxShadow: "0 2px 4px rgba(37, 99, 235, 0.3)",
+        }}
+    >
         BETA
+    </span>
+);
+
+const LiveBadge = ({ size = "sm" }) => (
+    <span 
+        className="status-pulse-green"
+        style={{
+            fontSize: size === "xs" ? "8.5px" : "9px",
+            fontWeight: 800,
+            letterSpacing: "0.05em",
+            background: "#10b981",
+            color: "#fff",
+            borderRadius: "5px",
+            padding: "2.5px 8px",
+            display: "inline-flex",
+            alignItems: "center",
+            textTransform: "uppercase",
+            lineHeight: 1,
+            boxShadow: "0 2px 4px rgba(16, 185, 129, 0.3)",
+        }}
+    >
+        LIVE
     </span>
 );
 
@@ -313,7 +348,11 @@ const AIInsightsPanelLive = ({ insight, onClose, loading }) => {
                             display: "flex", alignItems: "center", gap: "5px",
                             letterSpacing: "-0.01em",
                         }}>
-                            AI Summary <BetaBadge />
+                            AI Summary {(() => {
+                                const meta = SIGNAL_META[insight.type] || {};
+                                const isBeta = meta.isBeta !== false;
+                                return isBeta ? <BetaBadge size="xs" /> : <LiveBadge size="xs" />;
+                            })()}
                         </div>
                         <div style={{
                             fontSize: "9px", color: "#6366f1", fontWeight: 700,
