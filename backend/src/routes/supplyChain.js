@@ -1,4 +1,4 @@
-import { getPrioritizePO, getPODetail, getPOFilters } from '../controllers/supplyChainController.js';
+import { getPrioritizePO, getPODetail, getPOFilters, getSKUTrend } from '../controllers/supplyChainController.js';
 
 export default (app) => {
     // Middleware/logger for supply chain endpoints
@@ -33,4 +33,13 @@ export default (app) => {
      *     description: Retrieves distinct filter values from rb_po_olap.
      */
     app.get('/api/supply-chain/po-filters', getPOFilters);
+
+    /**
+     * @swagger
+     * /api/supply-chain/sku-trend:
+     *   get:
+     *     summary: Get SKU trend data
+     *     description: Daily KPI time-series (OSA, Offtake, DRR, Price, Promo%, DOI) for a specific SKU by Web_Pid.
+     */
+    app.get('/api/supply-chain/sku-trend', getSKUTrend);
 };
