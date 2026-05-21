@@ -1,5 +1,6 @@
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
+import dayjs from 'dayjs';
 
 /**
  * Supply Chain Service
@@ -36,12 +37,22 @@ function buildPOWhereClause(filters = {}) {
         const searchTerm = filters.search.trim().toLowerCase();
         conditions.push(`(lower(po_number) LIKE '%${searchTerm}%' OR lower(facility_name) LIKE '%${searchTerm}%' OR lower(sku_name) LIKE '%${searchTerm}%')`);
     }
-    // Date range filter on created_on column
+    // Date range filter on po_raised_date column
+    // Frontend sends dates as raw JS Date strings (e.g. "Thu, 30 Apr 2026 18:30:00 GMT")
+    // ClickHouse needs YYYY-MM-DD format
     if (filters.startDate) {
-        conditions.push(`toDate(created_on) >= toDate('${filters.startDate}')`);
+        const d = new Date(filters.startDate);
+        if (!isNaN(d.getTime())) {
+            const formatted = d.toISOString().split('T')[0]; // "2026-04-30"
+            conditions.push(`toDate(po_raised_date) >= toDate('${formatted}')`);
+        }
     }
     if (filters.endDate) {
-        conditions.push(`toDate(created_on) <= toDate('${filters.endDate}')`);
+        const d = new Date(filters.endDate);
+        if (!isNaN(d.getTime())) {
+            const formatted = d.toISOString().split('T')[0];
+            conditions.push(`toDate(po_raised_date) <= toDate('${formatted}')`);
+        }
     }
 
     return conditions.join(' AND ');
@@ -150,7 +161,7 @@ const supplyChainService = {
 
                         -- Fill Rate: computed from raw units
                         SUM(ifNull(units_ordered, 0)) as total_units_ordered,
-                        SUM(ifNull(fullfilled_quantity, 0)) as total_fulfilled_qty,
+                        SUM(ifNull(units_delivered, 0)) as total_fulfilled_qty,
 
                         -- AVG DOI (Days of Inventory on Hand)
                         avg(ifNull(DIH, 0)) as avg_doi,
@@ -175,7 +186,7 @@ const supplyChainService = {
                     FROM rb_po_olap
                     WHERE ${whereClause}
                     ${statusFilter}
-                    GROUP BY po_number
+                    GROUP BY po_number, lower(facility_name)
                     ORDER BY po_number
                 `;
 
@@ -267,17 +278,26 @@ const supplyChainService = {
      * @param {string} poNumber — PO number to drill down into
      * @returns {Object} { poInfo, skus: [...] }
      */
-    async getPODetailData(poNumber) {
-        console.log(`[SupplyChain] getPODetailData called for PO: ${poNumber}`);
+    async getPODetailData(poNumber, facilityName, filters = {}) {
+        console.log(`[SupplyChain] getPODetailData called for PO: ${poNumber}, facility: ${facilityName}, filters:`, filters);
 
         if (!poNumber) {
             throw new Error('poNumber is required');
         }
 
-        const cacheKey = generateCacheKey('supply_chain_po_detail_v1', { poNumber });
+        const cacheKey = generateCacheKey('supply_chain_po_detail_v2', { poNumber, facilityName, ...filters });
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
+                // Build the active filters WHERE clause
+                const whereClause = buildPOWhereClause(filters);
+
+                // Default filter: exclude terminal PO statuses unless user explicitly filters by status
+                let statusFilter = '';
+                if (!filters.status || filters.status === 'All') {
+                    statusFilter = `AND lower(po_status) NOT IN ('completed', 'fulfilled', 'expired', 'cancelled', 'rejected', 'cancelled post creation')`;
+                }
+
                 const query = `
                     SELECT
                         po_number,
@@ -314,7 +334,10 @@ const supplyChainService = {
                         ifNull(deno_osa, 0) as deno_osa,
                         ifNull(listing_percent, 0) as listing_percent
                     FROM rb_po_olap
-                    WHERE po_number = '${poNumber}'
+                    WHERE lower(po_number) = lower('${poNumber}')
+                    ${facilityName && facilityName !== 'null' && facilityName !== 'undefined' ? `AND lower(facility_name) = lower('${facilityName}')` : ''}
+                    AND ${whereClause}
+                    ${statusFilter}
                     ORDER BY sku_name
                 `;
 
@@ -344,8 +367,8 @@ const supplyChainService = {
                 // Map each SKU row
                 const skus = rows.map(row => {
                     const unitsOrdered = parseFloat(row.units_ordered) || 0;
-                    const fulfilledQty = parseFloat(row.fullfilled_quantity) || 0;
-                    const fillRate = unitsOrdered > 0 ? (fulfilledQty / unitsOrdered) * 100 : 0;
+                    const unitsDelivered = parseFloat(row.units_delivered) || 0;
+                    const fillRate = unitsOrdered > 0 ? (unitsDelivered / unitsOrdered) * 100 : 0;
 
                     return {
                         skuName: row.sku_name,
@@ -359,7 +382,7 @@ const supplyChainService = {
                         unitsDelivered: Math.round(parseFloat(row.units_delivered) || 0),
                         totalValue: Math.round(parseFloat(row.total_po_value) || 0),
                         remainingValue: Math.round(parseFloat(row.remaining_po_value) || 0),
-                        fulfilledQty: Math.round(fulfilledQty),
+                        fulfilledQty: Math.round(parseFloat(row.fullfilled_quantity) || 0),
                         fulfilledValue: Math.round(parseFloat(row.fullfilled_po_value) || 0),
                         fillRate: parseFloat(fillRate.toFixed(1)),
                         fillRateStr: row.fill_rate_str,
@@ -418,6 +441,156 @@ const supplyChainService = {
                 throw error;
             }
         }, CACHE_TTL.STATIC);
+    },
+
+    /**
+     * Get SKU trend data (time-series KPIs)
+     * Uses rb_pdp_olap table, joined by Web_Pid
+     * 
+     * KPIs: OSA, Offtake, DRR (rolling 30-day), Price, Promo %, DOI
+     * 
+     * @param {string} webPid — Web_Pid identifier for the SKU
+     * @param {string} timeStep — 'daily', 'weekly', or 'monthly'
+     * @returns {Object} { dates: [...], kpis: { osa, offtake, drr, price, promo, doi } }
+     */
+    async getSKUTrendData(webPid, timeStep = 'daily') {
+        console.log(`[SupplyChain] getSKUTrendData called for webPid: ${webPid}, timeStep: ${timeStep}`);
+
+        if (!webPid) {
+            throw new Error('webPid is required');
+        }
+
+        const cacheKey = generateCacheKey('supply_chain_sku_trend_v3', { webPid, timeStep });
+
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                const query = `
+                    SELECT
+                        DATE as date,
+                        sum(ifNull(Qty_Sold, 0)) as offtake,
+                        avg(ifNull(Selling_Price, 0)) as avg_price,
+                        avg(ifNull(Discount, 0)) as avg_discount,
+                        sum(ifNull(neno_osa, 0)) as total_neno_osa,
+                        sum(ifNull(deno_osa, 0)) as total_deno_osa,
+                        sum(ifNull(Inventory, 0)) as total_inventory
+                    FROM rb_pdp_olap
+                    WHERE Web_Pid = '${webPid}'
+                    GROUP BY DATE
+                    ORDER BY DATE ASC
+                `;
+
+                const rows = await queryClickHouse(query);
+                console.log(`[SupplyChain] Got ${rows.length} trend data points for webPid: ${webPid}`);
+
+                if (rows.length === 0) {
+                    return { dates: [], kpis: { osa: [], offtake: [], drr: [], price: [], promo: [], doi: [] } };
+                }
+
+                // Compute daily values first
+                const offtakeValues = rows.map(r => parseFloat(r.offtake) || 0);
+                const dailyPoints = rows.map((row, idx) => {
+                    const nenoOsa = parseFloat(row.total_neno_osa) || 0;
+                    const denoOsa = parseFloat(row.total_deno_osa) || 0;
+                    const osaVal = denoOsa > 0 ? (nenoOsa / denoOsa * 100) : null;
+                    const dailyOfftake = parseFloat(row.offtake) || 0;
+
+                    // DRR: rolling 30-day average of offtake
+                    const windowStart = Math.max(0, idx - 29);
+                    const windowSlice = offtakeValues.slice(windowStart, idx + 1);
+                    const rollingSum = windowSlice.reduce((a, b) => a + b, 0);
+                    const rollingDrr = rollingSum / 30;
+
+                    const priceVal = parseFloat(row.avg_price || 0);
+                    const discountVal = parseFloat(row.avg_discount || 0);
+                    const inv = parseFloat(row.total_inventory) || 0;
+                    const doiVal = rollingDrr > 0 ? (inv / rollingDrr) : null;
+
+                    return {
+                        date: row.date,
+                        nenoOsa,
+                        denoOsa,
+                        osaVal,
+                        offtakeVal: dailyOfftake,
+                        drrVal: rollingDrr,
+                        priceVal,
+                        discountVal,
+                        inventoryVal: inv,
+                        doiVal
+                    };
+                });
+
+                // Group by timeStep
+                const buckets = {};
+                dailyPoints.forEach(p => {
+                    let key;
+                    if (timeStep === 'weekly') {
+                        const d = dayjs(p.date);
+                        const day = d.day();
+                        const diff = d.subtract(day === 0 ? 6 : day - 1, 'day');
+                        key = diff.format('YYYY-MM-DD');
+                    } else if (timeStep === 'monthly') {
+                        key = dayjs(p.date).startOf('month').format('YYYY-MM-DD');
+                    } else {
+                        key = p.date;
+                    }
+
+                    if (!buckets[key]) {
+                        buckets[key] = [];
+                    }
+                    buckets[key].push(p);
+                });
+
+                const sortedKeys = Object.keys(buckets).sort();
+                const dates = [];
+                const osa = [];
+                const offtake = [];
+                const drr = [];
+                const price = [];
+                const promo = [];
+                const doi = [];
+
+                sortedKeys.forEach(key => {
+                    const pts = buckets[key];
+                    dates.push(key);
+
+                    // OSA: mathematically aggregate numerators and denominators
+                    let sumNeno = 0;
+                    let sumDeno = 0;
+                    pts.forEach(p => {
+                        sumNeno += p.nenoOsa;
+                        sumDeno += p.denoOsa;
+                    });
+                    osa.push(sumDeno > 0 ? parseFloat((sumNeno / sumDeno * 100).toFixed(1)) : null);
+
+                    // Offtake: total sum over the period
+                    const sumOfftake = pts.reduce((sum, p) => sum + p.offtakeVal, 0);
+                    offtake.push(Math.round(sumOfftake));
+
+                    // DRR: average of daily DRR values in this period
+                    const avgDrr = pts.reduce((sum, p) => sum + p.drrVal, 0) / pts.length;
+                    drr.push(parseFloat(avgDrr.toFixed(1)));
+
+                    // Price: average of daily prices in this period
+                    const avgPrice = pts.reduce((sum, p) => sum + p.priceVal, 0) / pts.length;
+                    price.push(parseFloat(avgPrice.toFixed(1)));
+
+                    // Promo %: average of daily discounts in this period
+                    const avgPromo = pts.reduce((sum, p) => sum + p.discountVal, 0) / pts.length;
+                    promo.push(parseFloat(avgPromo.toFixed(1)));
+
+                    // DOI: average of daily DOI values in this period
+                    const validDois = pts.map(p => p.doiVal).filter(v => v !== null);
+                    const avgDoi = validDois.length > 0 ? (validDois.reduce((sum, v) => sum + v, 0) / validDois.length) : null;
+                    doi.push(avgDoi !== null ? parseFloat(avgDoi.toFixed(1)) : null);
+                });
+
+                return { dates, kpis: { osa, offtake, drr, price, promo, doi } };
+
+            } catch (error) {
+                console.error(`[SupplyChain] Error fetching SKU trend data for ${webPid}:`, error);
+                throw error;
+            }
+        }, CACHE_TTL.SHORT);
     }
 };
 

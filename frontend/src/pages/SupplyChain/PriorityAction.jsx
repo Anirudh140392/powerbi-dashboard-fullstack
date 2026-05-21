@@ -1,4 +1,4 @@
-import React, { useEffect, useContext, useState } from "react";
+import React, { useEffect, useContext, useState, useCallback } from "react";
 import CommonContainer from "@/components/CommonLayout/CommonContainer";
 import { FilterContext } from "@/utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
@@ -33,9 +33,14 @@ import {
     Package,
     Sparkles,
     Zap,
-    ArrowLeftRight
+    ArrowLeftRight,
+    BarChart3
 } from "lucide-react";
 import { Tooltip } from "@mui/material";
+import {
+    LineChart, Line, XAxis, YAxis, CartesianGrid,
+    Tooltip as RechartsTooltip, ResponsiveContainer, Area, AreaChart
+} from "recharts";
 
 // Helper to format currency in INR style
 const formatINR = (n) => {
@@ -288,6 +293,13 @@ export default function PriorityAction() {
     const [activePODetail, setActivePODetail] = useState(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
+    // SKU Trend states
+    const [trendSku, setTrendSku] = useState(null); // { webPid, skuName }
+    const [trendData, setTrendData] = useState(null);
+    const [trendLoading, setTrendLoading] = useState(false);
+    const [activeKpis, setActiveKpis] = useState(new Set(['offtake']));
+    const [timeStep, setTimeStep] = useState('daily');
+
     // API Data States
     const [poData, setPoData] = useState([]);
     const [poSummary, setPoSummary] = useState({
@@ -378,9 +390,20 @@ export default function PriorityAction() {
         setActivePODetail(null);
         setLoadingDetail(true);
         try {
-            const response = await axiosInstance.get('/supply-chain/po-detail', {
-                params: { poNumber: po.poNumber }
-            });
+            const params = {
+                poNumber: po.poNumber,
+                ...(po.facilityName ? { facilityName: po.facilityName } : {})
+            };
+            if (searchTerm) params.search = searchTerm;
+            if (selectedStatus !== "All") params.status = selectedStatus;
+            if (selectedPlatform !== "All") params.platform = selectedPlatform;
+            if (selectedBrand !== "All") params.brand = selectedBrand;
+            if (selectedCategory !== "All") params.category = selectedCategory;
+            if (selectedCity !== "All") params.city = selectedCity;
+            if (timeStart) params.startDate = timeStart;
+            if (timeEnd) params.endDate = timeEnd;
+
+            const response = await axiosInstance.get('/supply-chain/po-detail', { params });
             if (response.data) {
                 setActivePODetail(response.data);
             }
@@ -391,7 +414,78 @@ export default function PriorityAction() {
         }
     };
 
-    // Apply filtering based on active tab
+    // KPI configuration for the trend chart — axis: 'left' for absolute values, 'right' for percentage
+    const KPI_CONFIG = {
+        offtake: { label: 'Offtake', unit: ' units', color: '#2563eb', gradient: ['#2563eb', '#bfdbfe'], axis: 'left' },
+        drr: { label: 'DRR', unit: ' units/day', color: '#7c3aed', gradient: ['#7c3aed', '#ddd6fe'], axis: 'left' },
+        price: { label: 'Price', unit: ' ₹', color: '#ea580c', gradient: ['#ea580c', '#fed7aa'], axis: 'left' },
+        doi: { label: 'DOI', unit: ' days', color: '#0891b2', gradient: ['#0891b2', '#a5f3fc'], axis: 'left' },
+        osa: { label: 'OSA', unit: '%', color: '#16a34a', gradient: ['#16a34a', '#bbf7d0'], axis: 'right' },
+        promo: { label: 'Promo %', unit: '%', color: '#db2777', gradient: ['#db2777', '#fbcfe8'], axis: 'right' },
+    };
+
+    // Toggle a KPI on/off (multi-select)
+    const toggleKpi = (key) => {
+        setActiveKpis(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) {
+                if (next.size > 1) next.delete(key); // keep at least one active
+            } else {
+                next.add(key);
+            }
+            return next;
+        });
+    };
+
+    // Fetch SKU trend data
+    const fetchSKUTrend = useCallback((webPid, skuName) => {
+        if (!webPid) return;
+        // If clicking the same SKU, toggle off
+        if (trendSku?.webPid === webPid) {
+            setTrendSku(null);
+            setTrendData(null);
+            return;
+        }
+        setTrendSku({ webPid, skuName });
+    }, [trendSku]);
+
+    // Reactively fetch SKU trend data when active SKU or timeStep changes
+    useEffect(() => {
+        if (!trendSku?.webPid) return;
+        
+        let isMounted = true;
+        const loadTrend = async () => {
+            setTrendLoading(true);
+            try {
+                const response = await axiosInstance.get('/supply-chain/sku-trend', {
+                    params: { webPid: trendSku.webPid, timeStep }
+                });
+                if (isMounted && response.data) {
+                    setTrendData(response.data);
+                }
+            } catch (err) {
+                console.error('[PriorityAction] Error fetching SKU trend:', err);
+            } finally {
+                if (isMounted) {
+                    setTrendLoading(false);
+                }
+            }
+        };
+
+        loadTrend();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [trendSku?.webPid, timeStep]);
+
+    // Reset trend when modal closes
+    useEffect(() => {
+        if (!activePO) {
+            setTrendSku(null);
+            setTrendData(null);
+        }
+    }, [activePO]);
     const getFilteredData = () => {
         if (activeTab === "prioritize-po") {
             // Apply priority client-side so it's super snappy
@@ -662,7 +756,6 @@ export default function PriorityAction() {
                                                 </Tooltip>
                                             </div>
                                         </TableHead>
-                                        <TableHead className="px-3 py-3 text-center">Actions</TableHead>
                                     </TableRow>
                                 </thead>
                                 <TableBody>
@@ -683,7 +776,7 @@ export default function PriorityAction() {
                                         </TableRow>
                                     ) : (
                                         filteredData.map((po) => (
-                                            <TableRow key={po.poNumber} className="hover:bg-blue-50/30 transition-colors duration-200">
+                                            <TableRow key={`${po.poNumber}-${po.facilityName}`} className="hover:bg-blue-50/30 transition-colors duration-200">
                                                 {/* PO Number */}
                                                 <TableCell className="px-3 py-3">
                                                     <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-start" }}>
@@ -694,12 +787,12 @@ export default function PriorityAction() {
                                                                 background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
                                                                 color: "#4f46e5",
                                                                 fontWeight: 700,
-                                                                fontSize: "9px",
+                                                                fontSize: "8px",
                                                                 textTransform: "uppercase",
                                                                 border: "1px solid rgba(99, 102, 241, 0.2)", 
-                                                                borderRadius: "6px",
-                                                                padding: "4px 10px", cursor: "pointer",
-                                                                display: "inline-flex", alignItems: "center", gap: "4px",
+                                                                borderRadius: "4px",
+                                                                padding: "2px 6px", cursor: "pointer",
+                                                                display: "inline-flex", alignItems: "center", gap: "3px",
                                                                 transition: "all 0.2s ease",
                                                                 letterSpacing: "0.01em",
                                                                 boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
@@ -708,8 +801,8 @@ export default function PriorityAction() {
                                                                 whiteSpace: "nowrap"
                                                             }}
                                                         >
-                                                            <Sparkles size={10} color="#4f46e5" />
-                                                            Know More
+                                                            <BoxIcon size={7} />
+                                                            Show SKUs
                                                         </button>
                                                     </div>
                                                 </TableCell>
@@ -783,16 +876,6 @@ export default function PriorityAction() {
                                                 {/* Consumption per Day */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
                                                     {po.consumptionPerDay} units
-                                                </TableCell>
- 
-                                                {/* Actions */}
-                                                <TableCell className="px-3 py-3 text-center">
-                                                    <button
-                                                        onClick={() => handleKnowMore(po)}
-                                                        className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 text-slate-400 rounded-lg transition-colors cursor-pointer"
-                                                    >
-                                                        <Eye size={14} />
-                                                    </button>
                                                 </TableCell>
                                             </TableRow>
                                         ))
@@ -1054,174 +1137,392 @@ export default function PriorityAction() {
                 </div>
             </div>
 
-            {/* ─── PO/SKU Details Modal / Dialog (Gorgeously Designed) ─── */}
+            {/* ─── Show SKUs Modal ─── */}
             <Dialog open={activePO !== null} onOpenChange={(open) => { if (!open) setActivePO(null); }}>
-                <DialogContent className="sm:max-w-xl p-0 overflow-hidden rounded-[24px] border-none shadow-2xl">
+                <DialogContent className={`p-0 overflow-hidden rounded-[18px] border-none shadow-2xl transition-all duration-300 ${trendSku ? 'sm:max-w-5xl' : 'sm:max-w-2xl'}`}>
                     {activePO && (
                         <div className="flex flex-col bg-white">
-                            {/* Header (with platform background and item info) */}
-                            <div className="bg-gradient-to-r from-indigo-500 to-indigo-700 p-6 text-white relative">
+                            {/* Header */}
+                            <div style={{
+                                background: "linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)",
+                                padding: "16px 20px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                            }}>
+                                <div>
+                                    <p style={{ fontSize: "13px", fontWeight: 800, color: "white", letterSpacing: "-0.01em" }}>
+                                        {activePO.poNumber}
+                                    </p>
+                                    <p style={{ fontSize: "10px", fontWeight: 500, color: "rgba(255,255,255,0.7)", marginTop: "2px" }}>
+                                        {activePO.platformWarehouse} • {activePO.skuCount || "—"} SKUs
+                                    </p>
+                                </div>
                                 <button
                                     onClick={() => setActivePO(null)}
-                                    className="absolute right-4 top-4 p-1 hover:bg-white/10 rounded-full transition-all text-white/80 hover:text-white"
+                                    style={{
+                                        background: "rgba(255,255,255,0.15)",
+                                        border: "none",
+                                        borderRadius: "8px",
+                                        padding: "6px",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                    }}
                                 >
-                                    <X size={18} />
+                                    <X size={16} color="white" />
                                 </button>
-                                <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded bg-white/20 text-white border border-white/30 mr-2`}>
-                                    {activePO.priority || "Standard"} Action
-                                </span>
-                                <h3 className="text-lg font-extrabold mt-2 tracking-tight">
-                                    {activePO.skuName || activePO.poNumber}
-                                </h3>
-                                <p className="text-white/80 text-xs mt-1 font-medium">
-                                    {activePO.platformWarehouse || activePO.warehouse || `${activePO.fromCfa} ➔ ${activePO.toCfa}`}
-                                </p>
                             </div>
 
-                            {/* Details Body */}
-                            <div className="p-6 space-y-6">
-                                {/* Details KPI Overview */}
-                                <div className="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                    <div className="text-center">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                                            {activeTab === "prioritize-po" ? "Sales At Risk" : "City OSA"}
-                                        </span>
-                                        <p className={`text-[13px] font-black mt-1 ${activeTab === "prioritize-po" ? "text-red-600" : "text-emerald-600"}`}>
-                                            {activeTab === "prioritize-po" ? formatINR(activePO.projectedSalesAtRisk) : `${activePO.cityOsa}%`}
-                                        </p>
-                                    </div>
-                                    <div className="text-center border-x border-slate-200">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                                            {activeTab === "prioritize-po" ? "Order Value" : "Daily Consumption"}
-                                        </span>
-                                        <p className="text-[13px] font-black text-slate-800 mt-1">
-                                            {activeTab === "prioritize-po" ? formatINR(activePO.orderValue) : activePO.cpd} units
-                                        </p>
-                                    </div>
-                                    <div className="text-center">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                                            {activeTab === "prioritize-po" ? "Fill Rate" : "Stock SOH (FE)"}
-                                        </span>
-                                        <p className="text-[13px] font-black text-indigo-600 mt-1">
-                                            {activeTab === "prioritize-po" ? `${activePO.fillRate}%` : activePO.sohFe}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Scheduling / CFA Logistics */}
-                                <div className="space-y-3">
-                                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                                        <Calendar size={14} className="text-indigo-600" />
-                                        Logistics & Storage Context
-                                    </h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="flex justify-between items-center text-xs py-1.5 border-b border-slate-100">
-                                            <span className="text-slate-400 font-medium">Platform / Location</span>
-                                            <span className="font-semibold text-slate-700">{activePO.platform || "CFA Node"}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-xs py-1.5 border-b border-slate-100">
-                                            <span className="text-slate-400 font-medium">Stock SOH (BE)</span>
-                                            <span className="font-semibold text-slate-800">{activePO.sohBe || "N/A"}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-xs py-1.5 border-b border-slate-100">
-                                            <span className="text-slate-400 font-medium">Coverage DOI</span>
-                                            <span className="font-semibold text-slate-700">{activePO.doi || activePO.doiFe || activePO.avgDoi} days</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-xs py-1.5 border-b border-slate-100">
-                                            <span className="text-slate-400 font-medium">Lead Time (LT)</span>
-                                            <span className="font-semibold text-slate-700">{activePO.lt || 5} days</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* SKU Item List */}
-                                <div className="space-y-3">
-                                    <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                                        <Package size={14} className="text-indigo-600" />
-                                        SKU Specific Details
-                                    </h4>
-                                    <div className="border border-slate-150 rounded-xl overflow-hidden">
-                                        <table className="w-full text-left border-collapse">
-                                            <thead className="bg-slate-50">
-                                                <tr>
-                                                    <th className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase">Item Name</th>
-                                                    <th className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase text-right">Qty</th>
-                                                    <th className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase text-right">Value</th>
-                                                    <th className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase text-right">Fill Rate</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {loadingDetail ? (
-                                                    <tr>
-                                                        <td colSpan={4} className="px-3 py-6 text-center">
-                                                            <div className="flex justify-center items-center gap-2">
-                                                                <RefreshCw size={16} className="animate-spin text-indigo-600" />
-                                                                <span className="text-[11px] font-bold text-slate-500">Loading SKU-level details...</span>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ) : activeTab === "prioritize-po" ? (
-                                                    activePODetail?.skus?.map((sku, sIdx) => (
-                                                        <tr key={sIdx} className="hover:bg-slate-50">
-                                                            <td className="px-3 py-2.5 text-[11px] font-semibold text-slate-700 flex items-center gap-2">
+                            {/* SKU Table */}
+                            <div style={{ maxHeight: trendSku ? "280px" : "520px", overflowY: "auto", transition: "max-height 0.3s ease" }}>
+                                <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
+                                    <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
+                                        <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                                            <th style={{ padding: "10px 16px", fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em" }}>SKU Name</th>
+                                            <th style={{ padding: "10px 12px", fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "right" }}>Units Ordered</th>
+                                            <th style={{ padding: "10px 12px", fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "right" }}>Units Delivered</th>
+                                            <th style={{ padding: "10px 12px", fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "right" }}>Fill Rate</th>
+                                            <th style={{ padding: "10px 8px", fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "center", width: "44px" }}>Trend</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {loadingDetail ? (
+                                            <tr>
+                                                <td colSpan={5} style={{ padding: "32px 16px", textAlign: "center" }}>
+                                                    <div className="flex justify-center items-center gap-2">
+                                                        <RefreshCw size={16} className="animate-spin text-indigo-600" />
+                                                        <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Loading SKUs...</span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ) : activePODetail?.skus?.length > 0 ? (
+                                            activePODetail.skus.map((sku, sIdx) => {
+                                                const isActiveTrend = trendSku?.webPid === sku.webPid;
+                                                return (
+                                                    <tr key={sIdx} style={{
+                                                        borderBottom: "1px solid #f1f5f9",
+                                                        transition: "background 0.15s",
+                                                        background: isActiveTrend ? "#eff6ff" : undefined
+                                                    }} className={isActiveTrend ? "" : "hover:bg-blue-50/40"}>
+                                                        <td style={{ padding: "10px 16px", fontSize: "11px", fontWeight: 600, color: "#1e293b", maxWidth: "220px" }}>
+                                                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                                                                 {sku.imageUrl && (
-                                                                    <img src={sku.imageUrl} alt={sku.skuName} className="w-8 h-8 rounded border object-contain bg-white" />
+                                                                    <img src={sku.imageUrl} alt="" style={{ width: "28px", height: "28px", borderRadius: "6px", border: "1px solid #e2e8f0", objectFit: "contain", background: "#fff", flexShrink: 0 }} />
                                                                 )}
                                                                 <span className="line-clamp-2">{sku.skuName}</span>
-                                                            </td>
-                                                            <td className="px-3 py-2.5 text-[11px] text-slate-600 text-right font-medium">{sku.unitsOrdered}</td>
-                                                            <td className="px-3 py-2.5 text-[11px] text-slate-900 font-bold text-right">
-                                                                {formatINR(sku.totalValue)}
-                                                            </td>
-                                                            <td className={`px-3 py-2.5 text-[11px] text-right font-bold ${sku.fillRate >= 95 ? "text-emerald-600" : "text-amber-600"}`}>{sku.fillRate}%</td>
-                                                        </tr>
-                                                    )) || (
-                                                        <tr>
-                                                            <td colSpan={4} className="px-3 py-4 text-center text-slate-400 text-[11px]">No SKU data available.</td>
-                                                        </tr>
-                                                    )
-                                                ) : activePO.skus ? activePO.skus.map((sku, sIdx) => (
-                                                    <tr key={sIdx} className="hover:bg-slate-50">
-                                                        <td className="px-3 py-2.5 text-[11px] font-semibold text-slate-700">{sku.name}</td>
-                                                        <td className="px-3 py-2.5 text-[11px] text-slate-600 text-right font-medium">{sku.qty}</td>
-                                                        <td className="px-3 py-2.5 text-[11px] text-slate-900 font-bold text-right">
-                                                            {sku.value ? formatINR(sku.value) : "N/A"}
+                                                            </div>
                                                         </td>
-                                                        <td className="px-3 py-2.5 text-[11px] text-indigo-600 text-right font-bold">{sku.fill}</td>
+                                                        <td style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 600, color: "#475569", textAlign: "right" }}>
+                                                            {sku.unitsOrdered.toLocaleString()}
+                                                        </td>
+                                                        <td style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 600, color: "#475569", textAlign: "right" }}>
+                                                            {sku.unitsDelivered.toLocaleString()}
+                                                        </td>
+                                                        <td style={{
+                                                            padding: "10px 12px", fontSize: "11px", fontWeight: 700, textAlign: "right",
+                                                            color: sku.fillRate >= 95 ? "#16a34a" : sku.fillRate >= 50 ? "#d97706" : "#dc2626"
+                                                        }}>
+                                                            {sku.fillRate}%
+                                                        </td>
+                                                        <td style={{ padding: "6px 8px", textAlign: "center" }}>
+                                                            <button
+                                                                onClick={() => fetchSKUTrend(sku.webPid, sku.skuName)}
+                                                                disabled={!sku.webPid}
+                                                                title={sku.webPid ? "View KPI Trends" : "No web_pid available"}
+                                                                style={{
+                                                                    background: isActiveTrend ? "#2563eb" : "#f1f5f9",
+                                                                    border: "none",
+                                                                    borderRadius: "6px",
+                                                                    padding: "5px",
+                                                                    cursor: sku.webPid ? "pointer" : "not-allowed",
+                                                                    display: "inline-flex",
+                                                                    alignItems: "center",
+                                                                    justifyContent: "center",
+                                                                    transition: "all 0.2s",
+                                                                    opacity: sku.webPid ? 1 : 0.35,
+                                                                }}
+                                                            >
+                                                                <BarChart3 size={14} color={isActiveTrend ? "#fff" : "#64748b"} />
+                                                            </button>
+                                                        </td>
                                                     </tr>
-                                                )) : (
-                                                    <tr className="hover:bg-slate-50">
-                                                        <td className="px-3 py-2.5 text-[11px] font-semibold text-slate-700">{activePO.skuName}</td>
-                                                        <td className="px-3 py-2.5 text-[11px] text-slate-600 text-right font-medium">1</td>
-                                                        <td className="px-3 py-2.5 text-[11px] text-slate-900 font-bold text-right">N/A</td>
-                                                        <td className="px-3 py-2.5 text-[11px] text-indigo-600 text-right font-bold">100%</td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
+                                                );
+                                            })
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={5} style={{ padding: "24px 16px", textAlign: "center", fontSize: "11px", color: "#94a3b8", fontWeight: 600 }}>
+                                                    No SKU data available for this PO.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* ─── SKU Trend Panel (Multi-KPI) ─── */}
+                            {trendSku && (
+                                <div style={{
+                                    borderTop: "2px solid #e2e8f0",
+                                    background: "linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)",
+                                    padding: "16px 20px 18px",
+                                    animation: "fadeIn 0.25s ease-out",
+                                }}>
+                                    {/* Trend Header */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px" }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
+                                                <BarChart3 size={14} color="#2563eb" />
+                                                <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>KPI Trend</span>
+                                            </div>
+                                            <p style={{ fontSize: "10px", color: "#64748b", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                {trendSku.skuName}
+                                            </p>
+                                        </div>
+
+                                        {/* Time Step Segmented Controls */}
+                                        <div style={{ display: "flex", background: "#f1f5f9", borderRadius: "8px", padding: "2px", gap: "2px", flexShrink: 0 }}>
+                                            {['daily', 'weekly', 'monthly'].map(step => (
+                                                <button
+                                                    key={step}
+                                                    onClick={() => setTimeStep(step)}
+                                                    style={{
+                                                        padding: "4px 10px",
+                                                        borderRadius: "6px",
+                                                        border: "none",
+                                                        background: timeStep === step ? "#fff" : "transparent",
+                                                        color: timeStep === step ? "#1e293b" : "#64748b",
+                                                        fontSize: "10px",
+                                                        fontWeight: 700,
+                                                        cursor: "pointer",
+                                                        boxShadow: timeStep === step ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                                                        textTransform: "capitalize",
+                                                        transition: "all 0.15s ease",
+                                                    }}
+                                                >
+                                                    {step}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <button
+                                            onClick={() => { setTrendSku(null); setTrendData(null); }}
+                                            style={{
+                                                background: "#f1f5f9",
+                                                border: "none",
+                                                borderRadius: "6px",
+                                                padding: "4px",
+                                                cursor: "pointer",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            <X size={12} color="#64748b" />
+                                        </button>
+                                    </div>
+
+                                    {/* Multi-Select KPI Toggle Buttons */}
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "14px" }}>
+                                        {Object.entries(KPI_CONFIG).map(([key, cfg]) => {
+                                            const isActive = activeKpis.has(key);
+                                            return (
+                                                <button
+                                                    key={key}
+                                                    onClick={() => toggleKpi(key)}
+                                                    style={{
+                                                        padding: "5px 14px",
+                                                        borderRadius: "20px",
+                                                        border: isActive ? `1.5px solid ${cfg.color}` : "1.5px solid #e2e8f0",
+                                                        background: isActive ? cfg.color : "#fff",
+                                                        color: isActive ? "#fff" : "#64748b",
+                                                        fontSize: "11px",
+                                                        fontWeight: 700,
+                                                        cursor: "pointer",
+                                                        transition: "all 0.2s",
+                                                        letterSpacing: "0.01em",
+                                                        boxShadow: isActive ? `0 2px 8px ${cfg.color}40` : "none",
+                                                    }}
+                                                >
+                                                    {cfg.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Chart Area */}
+                                    {trendLoading ? (
+                                        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "220px", gap: "8px" }}>
+                                            <RefreshCw size={16} className="animate-spin text-indigo-600" />
+                                            <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Loading trend data...</span>
+                                        </div>
+                                    ) : trendData?.dates?.length > 0 ? (() => {
+                                        // Build chart data with all active KPIs as separate keys
+                                        const activeList = [...activeKpis];
+                                        const chartData = trendData.dates.map((date, i) => {
+                                            const d = new Date(date);
+                                            let labelDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+                                            let tooltipDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                                            
+                                            if (timeStep === 'monthly') {
+                                                labelDate = d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+                                                tooltipDate = d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+                                            } else if (timeStep === 'weekly') {
+                                                labelDate = 'W/C ' + d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+                                                const nextWeek = new Date(d);
+                                                nextWeek.setDate(nextWeek.getDate() + 6);
+                                                tooltipDate = `Week of ${d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} - ${nextWeek.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+                                            }
+
+                                            const point = {
+                                                date: labelDate,
+                                                fullDate: tooltipDate,
+                                            };
+                                            activeList.forEach(key => {
+                                                point[key] = trendData.kpis[key]?.[i] ?? null;
+                                            });
+                                            return point;
+                                        });
+
+                                        // Determine if we need dual Y-axis
+                                        const hasLeftAxis = activeList.some(k => KPI_CONFIG[k].axis === 'left');
+                                        const hasRightAxis = activeList.some(k => KPI_CONFIG[k].axis === 'right');
+
+                                        // Custom tooltip
+                                        const CustomTooltip = ({ active, payload, label }) => {
+                                            if (!active || !payload?.length) return null;
+                                            return (
+                                                <div style={{
+                                                    background: "#fff",
+                                                    border: "1px solid #e2e8f0",
+                                                    borderRadius: "10px",
+                                                    padding: "10px 14px",
+                                                    boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                                                    minWidth: "140px",
+                                                }}>
+                                                    <p style={{ fontSize: "11px", fontWeight: 700, color: "#1e293b", marginBottom: "6px", borderBottom: "1px solid #f1f5f9", paddingBottom: "4px" }}>
+                                                        {payload[0]?.payload?.fullDate || label}
+                                                    </p>
+                                                    {payload.map((entry, idx) => {
+                                                        const cfg = KPI_CONFIG[entry.dataKey];
+                                                        if (!cfg) return null;
+                                                        return (
+                                                            <div key={idx} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 0" }}>
+                                                                <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: cfg.color, flexShrink: 0 }} />
+                                                                <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", flex: 1 }}>{cfg.label}</span>
+                                                                <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>
+                                                                    {entry.value !== null ? `${Number(entry.value).toLocaleString('en-IN')}${cfg.unit}` : '—'}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            );
+                                        };
+
+                                        return (
+                                            <div style={{ width: "100%", height: "240px" }}>
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <AreaChart data={chartData} margin={{ top: 8, right: hasRightAxis ? 10 : 12, left: 0, bottom: 4 }}>
+                                                        <defs>
+                                                            {activeList.map(key => (
+                                                                <linearGradient key={key} id={`gradient-${key}`} x1="0" y1="0" x2="0" y2="1">
+                                                                    <stop offset="5%" stopColor={KPI_CONFIG[key].gradient[0]} stopOpacity={0.2} />
+                                                                    <stop offset="95%" stopColor={KPI_CONFIG[key].gradient[1]} stopOpacity={0.02} />
+                                                                </linearGradient>
+                                                            ))}
+                                                        </defs>
+                                                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                                                        <XAxis
+                                                            dataKey="date"
+                                                            tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 500 }}
+                                                            tickLine={false}
+                                                            axisLine={{ stroke: "#e2e8f0" }}
+                                                            interval={Math.max(0, Math.floor(chartData.length / 7) - 1)}
+                                                        />
+                                                        {hasLeftAxis && (
+                                                            <YAxis
+                                                                yAxisId="left"
+                                                                orientation="left"
+                                                                tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 500 }}
+                                                                tickLine={false}
+                                                                axisLine={false}
+                                                                width={48}
+                                                                tickFormatter={(v) => {
+                                                                    if (v >= 10000) return `${(v / 1000).toFixed(0)}k`;
+                                                                    if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
+                                                                    return v;
+                                                                }}
+                                                            />
+                                                        )}
+                                                        {hasRightAxis && (
+                                                            <YAxis
+                                                                yAxisId="right"
+                                                                orientation="right"
+                                                                tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 500 }}
+                                                                tickLine={false}
+                                                                axisLine={false}
+                                                                width={40}
+                                                                domain={[0, 100]}
+                                                                tickFormatter={(v) => `${v}%`}
+                                                            />
+                                                        )}
+                                                        <RechartsTooltip content={<CustomTooltip />} />
+                                                        {activeList.map(key => {
+                                                            const cfg = KPI_CONFIG[key];
+                                                            const yId = cfg.axis === 'right' && hasRightAxis ? 'right'
+                                                                     : cfg.axis === 'left' && hasLeftAxis ? 'left'
+                                                                     : hasLeftAxis ? 'left' : 'right';
+                                                            return (
+                                                                <Area
+                                                                    key={key}
+                                                                    type="monotone"
+                                                                    dataKey={key}
+                                                                    yAxisId={yId}
+                                                                    stroke={cfg.color}
+                                                                    strokeWidth={2.5}
+                                                                    fill={`url(#gradient-${key})`}
+                                                                    dot={false}
+                                                                    activeDot={{ r: 4, fill: cfg.color, stroke: "#fff", strokeWidth: 2 }}
+                                                                />
+                                                            );
+                                                        })}
+                                                    </AreaChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        );
+                                    })() : (
+                                        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "220px" }}>
+                                            <span style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8" }}>No trend data available for this SKU.</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Footer summary */}
+                            {activePODetail?.skus?.length > 0 && (
+                                <div style={{
+                                    padding: "12px 20px",
+                                    borderTop: "1px solid #e2e8f0",
+                                    background: "linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)",
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                }}>
+                                    <span style={{ fontSize: "10px", fontWeight: 600, color: "#94a3b8" }}>
+                                        {activePODetail.skus.length} SKU{activePODetail.skus.length !== 1 ? "s" : ""}
+                                    </span>
+                                    <div style={{ display: "flex", gap: "16px" }}>
+                                        <span style={{ fontSize: "10px", fontWeight: 700, color: "#475569" }}>
+                                            Total Ordered: {activePODetail.skus.reduce((s, sk) => s + sk.unitsOrdered, 0).toLocaleString()}
+                                        </span>
+                                        <span style={{ fontSize: "10px", fontWeight: 700, color: "#475569" }}>
+                                            Total Delivered: {activePODetail.skus.reduce((s, sk) => s + sk.unitsDelivered, 0).toLocaleString()}
+                                        </span>
                                     </div>
                                 </div>
-
-                                {/* Call to action buttons */}
-                                <div className="flex gap-3 pt-3">
-                                    <button 
-                                        onClick={() => {
-                                            alert(`Actioning priority item: ${activePO.skuName || activePO.poNumber}...`);
-                                            setActivePO(null);
-                                        }}
-                                        className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-1.5 cursor-pointer"
-                                    >
-                                        <Truck size={14} />
-                                        Initiate Action
-                                    </button>
-                                    <button 
-                                        onClick={() => setActivePO(null)}
-                                        className="px-5 py-3 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                                    >
-                                        Close
-                                    </button>
-                                </div>
-                            </div>
+                            )}
                         </div>
                     )}
                 </DialogContent>
