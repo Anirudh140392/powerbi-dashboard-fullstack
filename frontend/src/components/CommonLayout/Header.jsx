@@ -1179,6 +1179,488 @@ function MarketShareFilterModal({
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   PRIORITY ACTION FILTER MODAL — Priority, Status, Platform, Brand, City
+   ═══════════════════════════════════════════════════════════════════ */
+const PA_FILTER_TABS = [
+  { key: "priority", label: "Priority", icon: Layers },
+  { key: "status", label: "Status", icon: LayoutGrid },
+  { key: "brand", label: "Brand", icon: Tag },
+  { key: "city", label: "City", icon: MapPin },
+];
+
+function PriorityActionFilterModal({
+  open, onClose,
+  paPriority, setPaPriority,
+  paStatus, setPaStatus,
+  paPlatform, setPaPlatform,
+  paBrand, setPaBrand,
+  paCity, setPaCity,
+  paFilters = {},
+}) {
+  const [activeTab, setActiveTab] = React.useState("priority");
+  const [searchTerm, setSearchTerm] = React.useState("");
+
+  // Draft state — not committed until Apply
+  const [draftPriority, setDraftPriority] = React.useState(paPriority);
+  const [draftStatus, setDraftStatus] = React.useState(paStatus);
+  const [draftPlatform, setDraftPlatform] = React.useState(paPlatform);
+  const [draftBrand, setDraftBrand] = React.useState(paBrand);
+  const [draftCity, setDraftCity] = React.useState(paCity);
+
+  // Static priority options
+  const priorityOptions = ["High", "Medium", "Low"];
+
+  // Dynamic options from paFilters (populated by PriorityAction.jsx from API)
+  const statusOptions = paFilters.statuses || [];
+  const platformOptions = paFilters.platforms || [];
+  const brandOptions = paFilters.brands || [];
+  const cityOptions = paFilters.cities || [];
+
+  // Sync drafts whenever modal opens
+  React.useEffect(() => {
+    if (open) {
+      setDraftPriority(paPriority);
+      setDraftStatus(paStatus);
+      setDraftPlatform(paPlatform);
+      setDraftBrand(paBrand);
+      setDraftCity(paCity);
+      setActiveTab("priority");
+      setSearchTerm("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
+
+  const tabConfig = {
+    priority: { options: priorityOptions, value: draftPriority, onChange: setDraftPriority },
+    status: { options: statusOptions, value: draftStatus, onChange: setDraftStatus },
+    platform: { options: platformOptions, value: draftPlatform, onChange: setDraftPlatform },
+    brand: { options: brandOptions, value: draftBrand, onChange: setDraftBrand },
+    city: { options: cityOptions, value: draftCity, onChange: setDraftCity },
+  };
+
+  const { options, value, onChange } = tabConfig[activeTab];
+
+  const getSelected = (v, opts) => {
+    if (v === "All" || (Array.isArray(v) && v.includes("All"))) return [...opts];
+    if (Array.isArray(v)) return v;
+    if (!v) return [];
+    return [v];
+  };
+
+  const selected = getSelected(value, options);
+  const filteredOptions = options.filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  const toggle = (opt) => {
+    let next;
+    if (selected.includes(opt)) {
+      next = selected.filter(s => s !== opt && s !== "All");
+    } else {
+      next = [...selected.filter(s => s !== "All"), opt];
+    }
+    if (next.length === options.length && options.length > 0) onChange("All");
+    else onChange(next.length === 1 ? next[0] : (next.length === 0 ? "All" : next));
+  };
+
+  const selectAll = () => onChange("All");
+  const clearAll = () => onChange([]);
+
+  const countFor = (key) => {
+    const cfg = tabConfig[key];
+    const v = cfg.value;
+    const opts = cfg.options;
+    if (v === "All" || (Array.isArray(v) && v.includes("All"))) return 0;
+    if (Array.isArray(v) && v.length === opts.length && opts.length > 0) return 0;
+    if (Array.isArray(v)) return v.length;
+    if (v) return 1;
+    return 0;
+  };
+
+  const handleApply = () => {
+    setPaPriority(draftPriority);
+    setPaStatus(draftStatus);
+    setPaPlatform(draftPlatform);
+    setPaBrand(draftBrand);
+    setPaCity(draftCity);
+    onClose();
+  };
+
+  const handleCancel = () => { onClose(); };
+
+  const handleResetAll = () => {
+    setDraftPriority("All");
+    setDraftStatus("All");
+    setDraftPlatform("All");
+    setDraftBrand("All");
+    setDraftCity("All");
+  };
+
+  const totalActiveCount = PA_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const tabMeta = PA_FILTER_TABS.find(t => t.key === activeTab);
+
+  return (
+    <Dialog
+      open={open}
+      onClose={handleCancel}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: "18px",
+          boxShadow: "0 30px 60px -15px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04)",
+          overflow: "hidden",
+          height: "540px",
+          display: "flex",
+          flexDirection: "column",
+          background: "#fff",
+        }
+      }}
+    >
+      <Box sx={{ display: "flex", flex: 1, minHeight: 0 }}>
+        {/* LEFT SIDEBAR */}
+        <Box
+          sx={{
+            width: 230,
+            flexShrink: 0,
+            background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+            borderRight: "1px solid #e2e8f0",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <Box
+            sx={{
+              px: 2.5, pt: 2.5, pb: 2,
+              background: "linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)",
+              display: "flex",
+              alignItems: "center",
+              gap: 1.2,
+            }}
+          >
+            <Box
+              sx={{
+                width: 32, height: 32,
+                borderRadius: "10px",
+                background: "rgba(255,255,255,0.18)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              <SlidersHorizontal size={16} color="white" />
+            </Box>
+            <Box>
+              <Typography
+                sx={{
+                  fontSize: "0.95rem", fontWeight: 700,
+                  color: "white",
+                  fontFamily: "'Inter', 'Roboto', sans-serif",
+                  lineHeight: 1.2,
+                }}
+              >
+                Filters
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: "0.65rem", fontWeight: 500,
+                  color: "rgba(255,255,255,0.7)",
+                  fontFamily: "'Inter', 'Roboto', sans-serif",
+                }}
+              >
+                {totalActiveCount > 0 ? `${totalActiveCount} active` : "None active"}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
+            {PA_FILTER_TABS.map(tab => {
+              const isActive = activeTab === tab.key;
+              const cnt = countFor(tab.key);
+              const TabIcon = tab.icon;
+              return (
+                <Box
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  sx={{
+                    mx: 1, mb: 0.5, px: 1.8, py: 1.3,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.2,
+                    borderRadius: "10px",
+                    bgcolor: isActive ? "white" : "transparent",
+                    color: isActive ? "#1e3a5f" : "#64748b",
+                    fontWeight: isActive ? 700 : 500,
+                    fontSize: "0.85rem",
+                    fontFamily: "'Inter', 'Roboto', sans-serif",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                    boxShadow: isActive ? "0 2px 8px rgba(37,99,235,0.10)" : "none",
+                    border: isActive ? "1px solid rgba(37,99,235,0.12)" : "1px solid transparent",
+                    "&:hover": {
+                      bgcolor: isActive ? "white" : "rgba(255,255,255,0.65)",
+                      transform: "translateX(2px)",
+                    },
+                  }}
+                >
+                  <TabIcon size={16} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1 }}>{tab.label}</span>
+                  {cnt > 0 && (
+                    <Box
+                      sx={{
+                        minWidth: 20, height: 20,
+                        borderRadius: "6px",
+                        bgcolor: isActive ? "#2563eb" : "#94a3b8",
+                        color: "white",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "0.68rem",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {cnt}
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+
+        {/* RIGHT CONTENT PANEL */}
+        <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+
+          {/* Header row */}
+          <Box sx={{ px: 3, pt: 2.5, pb: 1.5, position: "relative" }}>
+            {/* Close button */}
+            <IconButton
+              onClick={handleCancel}
+              sx={{
+                position: "absolute", top: 12, right: 12,
+                width: 32, height: 32,
+                bgcolor: "#f1f5f9",
+                "&:hover": { bgcolor: "#e2e8f0" },
+                transition: "all 0.15s ease",
+              }}
+            >
+              <X size={16} color="#64748b" />
+            </IconButton>
+
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pr: 5 }}>
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: "1.1rem", fontFamily: "'Inter', 'Roboto', sans-serif", color: "#0f172a", letterSpacing: "-0.01em" }}>
+                  {tabMeta?.label}
+                </Typography>
+                <Typography sx={{ fontSize: "0.76rem", color: "#94a3b8", mt: 0.2, fontFamily: "'Inter', 'Roboto', sans-serif" }}>
+                  Select {tabMeta?.label.toLowerCase()} to filter your data
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  background: selected.length === options.length ? "linear-gradient(135deg, #2563eb, #3b82f6)" : "#f1f5f9",
+                  color: selected.length === options.length ? "white" : "#475569",
+                  borderRadius: "20px",
+                  px: 1.5, py: 0.4,
+                  fontSize: "0.72rem",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  fontFamily: "'Inter', 'Roboto', sans-serif",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {selected.length === options.length ? "All" : selected.length} selected
+              </Box>
+            </Box>
+
+            {/* Select all / Clear + Search */}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 1.5 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={selectAll}
+                sx={{
+                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                  fontFamily: "'Inter', 'Roboto', sans-serif",
+                  "&:hover": { borderColor: "#2563eb", color: "#2563eb", bgcolor: "#eff6ff" },
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Select all
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={clearAll}
+                sx={{
+                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                  fontFamily: "'Inter', 'Roboto', sans-serif",
+                  "&:hover": { borderColor: "#ef4444", color: "#ef4444", bgcolor: "#fef2f2" },
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Clear
+              </Button>
+              <TextField
+                size="small"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: <Search size={14} style={{ marginRight: 6, color: "#94a3b8" }} />,
+                  sx: {
+                    borderRadius: "10px", bgcolor: "#f8fafc", height: "32px",
+                    fontSize: "0.78rem",
+                    fontFamily: "'Inter', 'Roboto', sans-serif",
+                    "& fieldset": { borderColor: "#e2e8f0" },
+                    "&:hover fieldset": { borderColor: "#cbd5e1 !important" },
+                    "&.Mui-focused fieldset": { borderColor: "#2563eb !important", borderWidth: "1.5px !important" },
+                  },
+                }}
+                sx={{ ml: "auto", width: 190 }}
+              />
+            </Box>
+          </Box>
+
+          <Divider sx={{ borderColor: "#f1f5f9" }} />
+
+          {/* Checkbox list — vertical, one per row */}
+          <Box
+            sx={{
+              flex: 1, overflowY: "auto", px: 1.5, py: 0.5,
+              "&::-webkit-scrollbar": { width: "5px" },
+              "&::-webkit-scrollbar-track": { bgcolor: "transparent" },
+              "&::-webkit-scrollbar-thumb": { bgcolor: "#d1d5db", borderRadius: "10px" },
+              "&::-webkit-scrollbar-thumb:hover": { bgcolor: "#9ca3af" },
+            }}
+          >
+            {filteredOptions.length === 0 ? (
+              <Box sx={{ textAlign: "center", py: 6 }}>
+                <Search size={32} color="#cbd5e1" style={{ marginBottom: 8 }} />
+                <Typography sx={{ color: "#94a3b8", fontSize: "0.85rem", fontFamily: "'Inter', 'Roboto', sans-serif" }}>
+                  No results found
+                </Typography>
+              </Box>
+            ) : (
+              filteredOptions.map(opt => {
+                const isChecked = selected.includes(opt);
+                return (
+                  <Box
+                    key={opt}
+                    onClick={() => toggle(opt)}
+                    sx={{
+                      display: "flex", alignItems: "center", gap: 1.5,
+                      px: 1.5, py: 1,
+                      mx: 0.5, my: 0.3,
+                      cursor: "pointer",
+                      borderRadius: "10px",
+                      bgcolor: isChecked ? "#eff6ff" : "transparent",
+                      border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent",
+                      transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
+                      "&:hover": {
+                        bgcolor: isChecked ? "#dbeafe" : "#f8fafc",
+                        transform: "translateX(2px)",
+                      },
+                    }}
+                  >
+                    <Checkbox
+                      size="small"
+                      checked={isChecked}
+                      sx={{
+                        p: 0.3,
+                        color: "#cbd5e1",
+                        "&.Mui-checked": { color: "#2563eb" },
+                        transition: "all 0.15s ease",
+                      }}
+                    />
+                    <Typography
+                      sx={{
+                        fontSize: "0.84rem",
+                        fontWeight: isChecked ? 600 : 450,
+                        color: isChecked ? "#1e40af" : "#475569",
+                        fontFamily: "'Inter', 'Roboto', sans-serif",
+                        transition: "all 0.15s ease",
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {opt}
+                    </Typography>
+                  </Box>
+                );
+              })
+            )}
+          </Box>
+        </Box>
+      </Box>
+
+      {/* ── FOOTER ── */}
+      <Box
+        sx={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          borderTop: "1px solid #e2e8f0",
+          px: 3, py: 1.8,
+          background: "linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)",
+        }}
+      >
+        <Button
+          variant="text"
+          onClick={handleResetAll}
+          startIcon={<X size={14} />}
+          sx={{
+            textTransform: "none", borderRadius: "10px", fontWeight: 600, fontSize: "0.78rem",
+            color: "#ef4444", px: 1.5,
+            fontFamily: "'Inter', 'Roboto', sans-serif",
+            "&:hover": { bgcolor: "#fef2f2" },
+            transition: "all 0.15s ease",
+          }}
+        >
+          Reset All
+        </Button>
+
+        <Box sx={{ display: "flex", gap: 1.2 }}>
+          <Button
+            variant="outlined"
+            onClick={handleCancel}
+            sx={{
+              textTransform: "none", borderRadius: "10px", fontWeight: 600, fontSize: "0.78rem",
+              borderColor: "#e2e8f0", color: "#64748b", px: 2.5,
+              fontFamily: "'Inter', 'Roboto', sans-serif",
+              "&:hover": { borderColor: "#cbd5e1", bgcolor: "#f8fafc" },
+              transition: "all 0.15s ease",
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleApply}
+            sx={{
+              textTransform: "none", borderRadius: "10px", fontWeight: 700, fontSize: "0.8rem",
+              background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+              color: "white",
+              px: 3.5, py: 0.8,
+              fontFamily: "'Inter', 'Roboto', sans-serif",
+              boxShadow: "0 4px 14px rgba(37,99,235,0.35)",
+              "&:hover": {
+                background: "linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)",
+                boxShadow: "0 6px 20px rgba(37,99,235,0.45)",
+                transform: "translateY(-1px)",
+              },
+              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+            }}
+          >
+            Apply Filters
+          </Button>
+        </Box>
+      </Box>
+    </Dialog>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    AVAILABILITY ANALYSIS FILTER MODAL — Channel, Platform, Category, Location
    ═══════════════════════════════════════════════════════════════════ */
 const AVAIL_FILTER_TABS = [
@@ -3238,6 +3720,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
   const [contentFilterModalOpen, setContentFilterModalOpen] = React.useState(false);
   const [inventoryFilterModalOpen, setInventoryFilterModalOpen] = React.useState(false);
   const [osaFilterModalOpen, setOsaFilterModalOpen] = React.useState(false);
+  const [priorityActionFilterModalOpen, setPriorityActionFilterModalOpen] = React.useState(false);
   const [osaBrands, setOsaBrands] = React.useState([]);
 
   const {
@@ -3279,6 +3762,18 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     setVisibilityMode,
     selectedRank,
     setSelectedRank,
+    paPriority,
+    setPaPriority,
+    paStatus,
+    setPaStatus,
+    paPlatform,
+    setPaPlatform,
+    paBrand,
+    setPaBrand,
+    paCity,
+    setPaCity,
+    paFilters,
+    setPaFilters,
   } = React.useContext(FilterContext);
 
   const { socketMaxDates } = useSocket();
@@ -3543,7 +4038,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
             >
 
               {/* ============ WATCH TOWER / MARKET SHARE / PRICING ANALYSIS / INVENTORY ANALYSIS: SINGLE FILTER BUTTON ============ */}
-              {(title === "Business Overview" || title === "Insights" || title === "Market Share" || title === "Market Coverage" || title === "Availability Analysis" || title === "Visibility Analysis" || title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") ? (
+              {(title === "Business Overview" || title === "Insights" || title === "Market Share" || title === "Market Coverage" || title === "Availability Analysis" || title === "Visibility Analysis" || title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis" || title === "Priority Action") ? (
                 <>
                   <Box sx={{ display: "flex", alignItems: "flex-end" }}>
                     <Button
@@ -3557,6 +4052,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                         else if (title === "Content Analysis") setContentFilterModalOpen(true);
                         else if (title === "Inventory Analysis") setInventoryFilterModalOpen(true);
                         else if (title === "Market Coverage") setOsaFilterModalOpen(true);
+                        else if (title === "Priority Action") setPriorityActionFilterModalOpen(true);
                       }}
                       variant="contained"
                       startIcon={<SlidersHorizontal size={14} strokeWidth={2.5} />}
@@ -3602,6 +4098,11 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
                         } else if (title === "Market Coverage") {
                           if (currentBrand !== "All" && !(Array.isArray(currentBrand) && currentBrand.includes("All"))) count++;
+                        } else if (title === "Priority Action") {
+                          if (paPriority !== "All") count++;
+                          if (paStatus !== "All") count++;
+                          if (paBrand !== "All") count++;
+                          if (paCity !== "All") count++;
                         } else if (title !== "Market Share") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.length === brands.length)) count++;
                         }
@@ -3842,6 +4343,25 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
                       hideChannel={true}
+                    />
+                  )}
+
+                  {/* PRIORITY ACTION FILTER MODAL */}
+                  {title === "Priority Action" && (
+                    <PriorityActionFilterModal
+                      open={priorityActionFilterModalOpen}
+                      onClose={() => setPriorityActionFilterModalOpen(false)}
+                      paPriority={paPriority}
+                      setPaPriority={setPaPriority}
+                      paStatus={paStatus}
+                      setPaStatus={setPaStatus}
+                      paPlatform={paPlatform}
+                      setPaPlatform={setPaPlatform}
+                      paBrand={paBrand}
+                      setPaBrand={setPaBrand}
+                      paCity={paCity}
+                      setPaCity={setPaCity}
+                      paFilters={paFilters}
                     />
                   )}
                 </>

@@ -15,6 +15,7 @@ import mapIntellect from './routes/mapIntellect.js';
 import insights from './routes/insights.js';
 import admin from './routes/admin.js';
 import walkthrough from './routes/walkthrough.js';
+import supplyChain from './routes/supplyChain.js';
 
 export default (app) => {
     // Admin routes
@@ -22,6 +23,9 @@ export default (app) => {
 
     // Walkthrough routes
     walkthrough(app);
+
+    // Supply Chain routes
+    supplyChain(app);
 
     // Control Tower routes
     controlTower(app);
