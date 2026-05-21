@@ -2489,6 +2489,7 @@ export const getInsightsData = async (filters) => {
             const filteredData = (surplusStockData || []).filter(r => isAllowedCity(r.city));
             const hasData = filteredData.length > 0;
             const totalExcessValue = hasData ? filteredData.reduce((s, r) => s + Number(r.excessInventoryValue || 0), 0) : 0;
+            const totalExcessInventoryUnits = hasData ? filteredData.reduce((s, r) => s + Number(r.excessInventory || 0), 0) : 0;
             const avgDOI = hasData ? filteredData.reduce((s, r) => s + Number(r.excessDOI || 0), 0) / filteredData.length : 0;
             const totalOpenPO = hasData ? filteredData.reduce((s, r) => s + Number(r.openPOQty || 0), 0) : 0;
 
@@ -2510,6 +2511,7 @@ export const getInsightsData = async (filters) => {
                 city: filters.city !== "All cities" ? filters.city : "Multi-city",
                 category: filters.category !== "All categories" ? filters.category : "Overall",
                 impactInr: Math.round(totalExcessValue),
+                totalExcessInventoryUnits: Math.round(totalExcessInventoryUnits),
                 impactLabel: "Excess Inventory",
                 brandName: brandLabel,
                 dateRange: { from: dateFrom, to: dateTo },
