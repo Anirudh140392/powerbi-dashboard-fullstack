@@ -6,13 +6,13 @@ const clickhouse = createClient({
     url: process.env.CLICKHOUSE_URL,
     username: process.env.CLICKHOUSE_USER,
     password: process.env.CLICKHOUSE_PASSWORD,
-    database: process.env.CLICKHOUSE_DB,
+    database: 'pidilite',
 });
 
-async function checkCintholCrawl() {
+async function checkPlatforms() {
     try {
         const result = await clickhouse.query({
-            query: "SELECT brand_crawl, keyword_is_rb_product, count() as cnt FROM colpal.rb_kw_olap WHERE brand_crawl LIKE '%Cinthol%' GROUP BY brand_crawl, keyword_is_rb_product",
+            query: "SELECT pf_name, platform_description, status FROM rb_platform",
             format: 'JSONEachRow',
         });
         const data = await result.json();
@@ -22,4 +22,4 @@ async function checkCintholCrawl() {
     }
 }
 
-checkCintholCrawl();
+checkPlatforms();
