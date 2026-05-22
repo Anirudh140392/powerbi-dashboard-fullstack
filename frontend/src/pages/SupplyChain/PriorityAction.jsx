@@ -77,6 +77,7 @@ export default function PriorityAction() {
         setPaFilters,
         timeStart,
         timeEnd,
+        platform,
     } = useContext(FilterContext);
 
     useEffect(() => {
@@ -84,6 +85,15 @@ export default function PriorityAction() {
             refreshFilters();
         }
     }, [refreshFilters]);
+
+    // Sync global sidebar platform selection to page-specific platform filter
+    useEffect(() => {
+        if (platform) {
+            setSelectedPlatform(platform);
+        } else {
+            setSelectedPlatform("All");
+        }
+    }, [platform, setSelectedPlatform]);
 
     // Active tab: prioritize-po, stock-transfer, manage-surplus
     const [activeTab, setActiveTab] = useState("prioritize-po");
