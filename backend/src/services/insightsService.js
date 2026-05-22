@@ -894,7 +894,7 @@ export const getInsightsData = async (filters) => {
                 argMax(ifNull(toFloat64OrZero(toString(po.DIH)), 0), po.po_raised_date) AS latestDIH,
                 argMax(ifNull(toFloat64OrZero(toString(po.DRR)), 0), po.po_raised_date) AS latestDRR,
                 SUM(
-                    CASE WHEN LOWER(po.po_status) IN ('unscheduled', 'confirmed', 'pending_grn', 'asn_created', 'pending_acknowledgement')
+                    CASE WHEN LOWER(po.po_status) IN ('unscheduled', 'confirmed', 'pending_grn', 'asn_created', 'pending_acknowledgement', 'scheduled', 'partially scheduled')
                          THEN ifNull(toFloat64OrZero(toString(po.units_remaining)), 0)
                          ELSE 0
                     END
@@ -974,7 +974,7 @@ export const getInsightsData = async (filters) => {
         FROM rb_po_olap
         WHERE po_raised_date BETWEEN '${dateFrom}' AND '${dateTo}'
           AND sku_name IS NOT NULL AND sku_name != ''
-          AND LOWER(po_status) IN ('unscheduled', 'pending_grn', 'asn_created', 'pending_acknowledgement')
+          AND LOWER(po_status) IN ('unscheduled', 'pending_grn', 'asn_created', 'pending_acknowledgement', 'confirmed', 'scheduled', 'partially scheduled')
           AND ${buildCHCondition(filters.platform, 'platform')}
           AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('city'))}
         GROUP BY
@@ -1029,7 +1029,7 @@ export const getInsightsData = async (filters) => {
          AND LOWER(po.platform) = s.platform
         WHERE po.po_raised_date BETWEEN '${dateFrom}' AND '${dateTo}'
           AND po.sku_name IS NOT NULL AND po.sku_name != ''
-          AND LOWER(po.po_status) IN ('unscheduled', 'pending_grn', 'asn_created', 'pending_acknowledgement')
+          AND LOWER(po.po_status) IN ('unscheduled', 'pending_grn', 'asn_created', 'pending_acknowledgement', 'confirmed', 'scheduled', 'partially scheduled')
           AND ${buildCHCondition(filters.platform, 'po.platform')}
           AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('po.city'))}
         GROUP BY
@@ -2547,7 +2547,24 @@ export const getInsightsData = async (filters) => {
         // SIGNAL 9 — Prioritise PO
         // ---------------------------------------------------------------------
         if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Prioritise PO') {
-            const filteredData = (prioritisePOData || []).filter(r => isAllowedCity(r.city));
+            const mappedData = (prioritisePOData || []).map(r => {
+                let priority = 'Medium';
+                const psl = Number(r.projectedSalesLoss) || 0;
+                if (psl > 50000) {
+                    priority = 'Critical';
+                } else if (psl > 10000) {
+                    priority = 'High';
+                } else if (psl > 2000) {
+                    priority = 'Medium';
+                } else {
+                    priority = 'Low';
+                }
+                return {
+                    ...r,
+                    poStatus: priority
+                };
+            });
+            const filteredData = mappedData.filter(r => isAllowedCity(r.city));
             const hasData = filteredData.length > 0;
             const totalPSL = hasData ? filteredData.reduce((s, r) => s + Number(r.projectedSalesLoss || 0), 0) : 0;
             const avgOsa = hasData ? filteredData.reduce((s, r) => s + Number(r.osa || 0), 0) / filteredData.length : 0;
