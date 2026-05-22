@@ -927,7 +927,7 @@ export default function PriorityAction() {
  
                                                 {/* AVG DOI */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(po.avgDoi, (v) => `${v} days`)}
+                                                    {formatOrNA(po.avgDoi, (v) => `${Math.round(Number(v))} days`)}
                                                 </TableCell>
  
                                                 {/* LT */}
@@ -942,7 +942,7 @@ export default function PriorityAction() {
  
                                                 {/* Consumption per Day */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(po.consumptionPerDay, (v) => `${v} units`)}
+                                                    {formatOrNA(po.consumptionPerDay, (v) => `${Math.round(Number(v))} units`)}
                                                 </TableCell>
                                             </TableRow>
                                         ))
@@ -988,34 +988,9 @@ export default function PriorityAction() {
                                     ) : (
                                         filteredData.map((item) => (
                                             <TableRow key={item.id} className="hover:bg-blue-50/30 transition-colors duration-200">
-                                                {/* SKU Name with Know More button */}
+                                                {/* SKU Name */}
                                                 <TableCell className="px-3 py-3">
-                                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-start" }}>
-                                                        <span className="text-[11px] font-bold text-slate-900">{item.skuName}</span>
-                                                        <button
-                                                            onClick={() => setActivePO(item)}
-                                                            style={{
-                                                                background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
-                                                                color: "#4f46e5",
-                                                                fontWeight: 700,
-                                                                fontSize: "9px",
-                                                                textTransform: "uppercase",
-                                                                border: "1px solid rgba(99, 102, 241, 0.2)", 
-                                                                borderRadius: "6px",
-                                                                padding: "4px 10px", cursor: "pointer",
-                                                                display: "inline-flex", alignItems: "center", gap: "4px",
-                                                                transition: "all 0.2s ease",
-                                                                letterSpacing: "0.01em",
-                                                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-                                                                minWidth: "max-content",
-                                                                flexShrink: 0,
-                                                                whiteSpace: "nowrap"
-                                                            }}
-                                                        >
-                                                            <Sparkles size={10} color="#4f46e5" />
-                                                            Know More
-                                                        </button>
-                                                    </div>
+                                                    <span className="text-[11px] font-bold text-slate-900">{item.skuName}</span>
                                                 </TableCell>
 
                                                 {/* From CFA */}
