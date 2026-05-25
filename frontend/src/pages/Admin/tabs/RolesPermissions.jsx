@@ -491,7 +491,7 @@ const RolesPermissions = () => {
                                                                     const token = sessionStorage.getItem("token");
                                                                     await Promise.all(filteredByDb.map(u =>
                                                                         axios.patch(`${API_BASE}/admin/permissions/db-status`, {
-                                                                            userId: u.id,
+                                                                            email: u.email,
                                                                             dbStatus: newStatus
                                                                         }, { headers: { Authorization: `Bearer ${token}` } })
                                                                     ));
@@ -554,7 +554,7 @@ const RolesPermissions = () => {
                                                                                             await Promise.all(filteredByDb.map(u => {
                                                                                                 const updatedTabs = { ...u.tabs, [tab]: newVal };
                                                                                                 return axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
-                                                                                                    userId: u.id,
+                                                                                                    email: u.email,
                                                                                                     tabPermissions: updatedTabs
                                                                                                 }, { headers: { Authorization: `Bearer ${token}` } });
                                                                                             }));
