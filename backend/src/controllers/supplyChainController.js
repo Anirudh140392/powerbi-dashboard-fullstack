@@ -58,3 +58,19 @@ export const getSKUTrend = async (req, res) => {
         res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
+
+/**
+ * Get aggregated Manage Surplus list
+ */
+export const getManageSurplus = async (req, res) => {
+    try {
+        const filters = { ...req.query };
+        console.log('[SupplyChainController] Fetching manage surplus with filters:', filters);
+        const data = await supplyChainService.getManageSurplusData(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('[SupplyChainController] Error fetching Manage Surplus data:', error.message, error.stack);
+        res.status(500).json({ error: error.message, stack: error.stack });
+    }
+};
+
