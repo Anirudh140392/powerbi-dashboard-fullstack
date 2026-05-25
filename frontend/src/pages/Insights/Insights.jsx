@@ -119,6 +119,13 @@ const SIGNAL_META = {
         metricLabel: "Projected Sales Loss", trend: "negative",
         isBeta: false,
     },
+    "Prioritise Product": {
+        family: "Supply Chain",
+        color: "#8a4a6b", accent: "#f5e8ef",
+        FamilyIcon: Truck, metricKey: "impactInr",
+        metricLabel: "Projected Sales Loss", trend: "negative",
+        isBeta: false,
+    },
     "Transfer Issue": {
         family: "Supply Chain",
         color: "#5a7a4e", accent: "#ebf3e8",
@@ -196,6 +203,10 @@ const createEmptySignal = (type, brandName = "Brand") => {
         case "Prioritise PO":
             base.kpis = [{ label: "PSL", value: "₹0" }, { label: "Avg OSA", value: "0%" }, { label: "Critical SKUs", value: "0" }];
             base.evidence = [{ poNumber: "-", skuName: "-", platform: "-", facility: "-", osa: 0, projectedSalesLoss: 0, poRaisedDate: "-", poStatus: "-" }];
+            break;
+        case "Prioritise Product":
+            base.kpis = [{ label: "PSL", value: "₹0" }, { label: "Avg OSA", value: "0%" }, { label: "Critical SKUs", value: "0" }];
+            base.evidence = [{ skuName: "-", platform: "-", facility: "-", osa: 0, projectedSalesLoss: 0, doi: 0, poRaisedDate: "-", poStatus: "-" }];
             break;
         case "Transfer Issue":
             base.kpis = [{ label: "PSL", value: "₹0" }, { label: "Avg Backed DOI", value: "0 days" }, { label: "Cities", value: "0" }];
@@ -455,10 +466,10 @@ export const buildAISegments = (insight) => {
         ];
     }
 
-    if (type === "Prioritise PO") {
+    if (type === "Prioritise PO" || type === "Prioritise Product") {
         const worst = allEv.reduce((w, e) => ((e.projectedSalesLoss || 0) > (w.projectedSalesLoss || 0) ? e : w), allEv[0]);
         const totalPSL = allEv.reduce((s, e) => s + (e.projectedSalesLoss || 0), 0);
-        const criticalCount = allEv.filter(e => e.poStatus === "Critical" || e.poStatus === "High").length;
+        const criticalCount = allEv.filter(e => e.poStatus === "Critical" || e.poStatus === "High" || e.poStatus === "HGH").length;
         
         return [
             {
@@ -875,6 +886,15 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
             { key: "osa", label: "OSA %", fmt: safePct },
             { key: "projectedSalesLoss", label: "PSL", fmt: safeINR },
             { key: "poRaisedDate", label: "PO Raised Date", isText: true },
+            { key: "poStatus", label: "PO Status", isText: true },
+        ];
+        if (t === "Prioritise Product") return [
+            { key: "skuName", label: "SKU Name", isText: true },
+            { key: "platform", label: "Platform" },
+            { key: "facility", label: "Facility" },
+            { key: "osa", label: "City OSA %", fmt: safePct },
+            { key: "projectedSalesLoss", label: "PSL", fmt: safeINR },
+            { key: "doi", label: "DOI", fmt: (v) => v != null ? `${Number(v).toFixed(1)} days` : "-" },
             { key: "poStatus", label: "PO Status", isText: true },
         ];
         if (t === "Transfer Issue") return [
@@ -1441,6 +1461,7 @@ const getEvidenceView = (type) => {
     if (type === "Remove Ad Low OSA") return "adStock";
     if (type === "Surplus Stock") return "surplus";
     if (type === "Prioritise PO") return "prioritisePO";
+    if (type === "Prioritise Product") return "prioritiseProductPO";
     if (type === "Transfer Issue") return "transferIssue";
     if (type === "New Market Entry") return "newMarket";
     if (type === "Dark Store Coverage Gaps") return "dsCoverage";
@@ -1581,40 +1602,110 @@ const EvidenceTable = ({ insight, loading }) => {
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Competitor Brand</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Comp OSA</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Comp MK Share</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} OSA</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} Mkt Share</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Gap %</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Comp OSA</span>
+                                        <Tooltip title="The current on-shelf availability percentage for competing brands." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Comp MK Share</span>
+                                        <Tooltip title="The percentage of total category sales held by the competitor." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>{insight.brandName} OSA</span>
+                                        <Tooltip title="Current On-Shelf Availability percentage for your products." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>{insight.brandName} Mkt Share</span>
+                                        <Tooltip title="Your brand's percentage of total category sales." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Gap %</span>
+                                        <Tooltip title="The variance between your brand’s availability and the competitor’s, helping identify where you can capture their market share." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
                             </>)}
                             {view === "share" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} OSA</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Mkt Share</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Offtake</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>{insight.brandName} OSA</span>
+                                        <Tooltip title="Current On-Shelf Availability percentage for your products." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Mkt Share</span>
+                                        <Tooltip title="Your brand's percentage of total category sales." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>PSL</span>
+                                        <Tooltip title="Calculated as (Total Sales / Average OSA) - Total Sales, representing the additional revenue potential if your availability reached 100%." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Offtake</span>
+                                        <Tooltip title="The total quantity or value of product sold to end consumers over a specific period." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} Top Impacted SKU</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Comp Top SKU</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Cause</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center gap-1">
+                                        <span>Cause</span>
+                                        <Tooltip title="The primary driver or bottleneck identified for the current performance gap (e.g., supply chain lag, low demand, or logistics issues)." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
                             </>)}
                             {view === "pricing" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} PPU</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>{insight.brandName} PPU</span>
+                                        <Tooltip title="The current Price Per Unit of your product." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Competitor PPU</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} Impacted SKU</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Competitor SKU</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>PSL</span>
+                                        <Tooltip title="The estimated revenue opportunity lost due to pricing imbalances, calculated as (Total Sales / Average OSA) - Total Sales." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
                             </>)}
                             {view === "adStock" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Product</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">OSA % (Change %)</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Ad SOV % (Change %)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>OSA % (Change %)</span>
+                                        <Tooltip title="Your current on-shelf availability and the recent trend (increase/decrease) compared to the previous period." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Ad SOV % (Change %)</span>
+                                        <Tooltip title="Your brand’s current Advertising Share of Voice and the recent trend, indicating your relative visibility in paid ad placements." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
                             </>)}
                             {view === "newEntry" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
@@ -1650,8 +1741,18 @@ const EvidenceTable = ({ insight, loading }) => {
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">SKU Name</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Facility</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Excess Inventory</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Excess DOI (days)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Excess Inventory</span>
+                                        <Tooltip title="The volume of stock held above the defined optimal inventory level." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Excess DOI (days)</span>
+                                        <Tooltip title="The number of days of inventory held beyond the target threshold." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
                                     <div className="flex items-center justify-end gap-1">
                                         <span>DRR</span>
@@ -1662,18 +1763,88 @@ const EvidenceTable = ({ insight, loading }) => {
                                         </Tooltip>
                                     </div>
                                 </TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Current Discount %</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Open PO Qty</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Current Discount %</span>
+                                        <Tooltip title="The active markdown percentage applied to clear surplus stock." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>Open PO Qty</span>
+                                        <Tooltip title="The quantity of units currently ordered from suppliers but not yet received." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
                             </>)}
                             {view === "prioritisePO" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">PO Number</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">SKU Name</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Facility</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">OSA %</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>OSA %</span>
+                                        <Tooltip title="Your current on-shelf availability level." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>PSL</span>
+                                        <Tooltip title="The estimated revenue at risk, calculated as: (Expected 7-Day Sales at MRP) × (1 − OSA) × Stock-Out Risk Factor." arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">PO Raised Date</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">PO Status</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center gap-1">
+                                        <span>PO Status</span>
+                                        <Tooltip title={<div className="flex flex-col gap-1 text-[10.5px]"><div><b>Open:</b> Order is active and awaiting shipment/receipt.</div><div><b>Pending Approval:</b> Order is currently in the internal verification or authorization queue.</div><div><b>Partially Delivered:</b> Some items have arrived, but the full order remains incomplete.</div><div><b>Cancelled:</b> The order has been voided and will not be fulfilled.</div></div>} arrow placement="top"><span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors"><Info size={12} className="inline-block" /></span></Tooltip>
+                                    </div>
+                                </TableHead>
+                            </>)}
+                            {view === "prioritiseProductPO" && (<>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">SKU Name</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Facility</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>City OSA %</span>
+                                        <Tooltip title="City OSA (On-Shelf Availability) is calculated as the ratio of Neno OSA to Deno OSA, representing the overall availability of stock within the city." arrow placement="top">
+                                            <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                <Info size={12} className="inline-block" />
+                                            </span>
+                                        </Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>PSL</span>
+                                        <Tooltip title="The estimated revenue at risk, calculated as: (Expected 7-Day Sales at MRP) × (1 − OSA) × Stock-Out Risk Factor." arrow placement="top">
+                                            <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                <Info size={12} className="inline-block" />
+                                            </span>
+                                        </Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center justify-end gap-1">
+                                        <span>DOI</span>
+                                        <Tooltip title="Days of Inventory (Days in Hand)" arrow placement="top">
+                                            <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                <Info size={12} className="inline-block" />
+                                            </span>
+                                        </Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3 select-none">
+                                    <div className="flex items-center gap-1">
+                                        <span>PO Status</span>
+                                        <Tooltip title="DOI measures your stock health: less than 10 days is HIGH risk (understocked), 10–20 days is MODERATE, and 20–30 days is LOW risk (well-stocked)." arrow placement="top">
+                                            <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                <Info size={12} className="inline-block" />
+                                            </span>
+                                        </Tooltip>
+                                    </div>
+                                </TableHead>
                             </>)}
                             {view === "transferIssue" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">SKU Name</TableHead>
@@ -1926,11 +2097,6 @@ const EvidenceTable = ({ insight, loading }) => {
                                                         <span className={`font-medium ${Number(d.osa || 0) < 50 ? 'text-red-600' : Number(d.osa || 0) < 70 ? 'text-amber-600' : 'text-slate-800'}`}>
                                                             {safePct(d.osa)}
                                                         </span>
-                                                        {d.osaChange !== 0 && (
-                                                            <span className={`ml-1 text-[10px] ${(d.osaChange || 0) < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                                                                ({(d.osaChange || 0) > 0 ? '+' : ''}{Number(d.osaChange || 0).toFixed(1)}%)
-                                                            </span>
-                                                        )}
                                                     </TableCell>
                                                     <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">
                                                         {safeINR(d.projectedSalesLoss)}
@@ -1938,9 +2104,37 @@ const EvidenceTable = ({ insight, loading }) => {
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.poRaisedDate || "-"}</TableCell>
                                                     <TableCell className="px-3 py-3">
                                                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                                                            d.poStatus === 'Critical' ? 'bg-red-100 text-red-700' :
-                                                            d.poStatus === 'High' ? 'bg-amber-100 text-amber-700' :
-                                                            d.poStatus === 'Medium' ? 'bg-blue-100 text-blue-700' :
+                                                            (d.poStatus === 'Critical' || d.poStatus === 'HGH') ? 'bg-red-100 text-red-700' :
+                                                            (d.poStatus === 'High' || d.poStatus === 'MODERATE') ? 'bg-amber-100 text-amber-700' :
+                                                            (d.poStatus === 'Medium' || d.poStatus === 'LOW') ? 'bg-blue-100 text-blue-700' :
+                                                            'bg-slate-100 text-slate-600'
+                                                        }`}>
+                                                            {d.poStatus || "-"}
+                                                        </span>
+                                                    </TableCell>
+                                                </>
+                                            )}
+                                            {view === "prioritiseProductPO" && (
+                                                <>
+                                                    <SkuImageCell name={d.skuName} imageUrl={d.imageUrl} subtext={d.brandName || '-'} onImageClick={setPreviewImage} />
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.facility || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] px-3 py-3">
+                                                        <span className={`font-medium ${Number(d.osa || 0) < 50 ? 'text-red-600' : Number(d.osa || 0) < 70 ? 'text-amber-600' : 'text-slate-800'}`}>
+                                                            {safePct(d.osa)}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">
+                                                        {safeINR(d.projectedSalesLoss)}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
+                                                        {d.doi != null ? `${Number(d.doi).toFixed(1)} days` : "-"}
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-3">
+                                                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                                            (d.poStatus === 'Critical' || d.poStatus === 'HGH') ? 'bg-red-100 text-red-700' :
+                                                            (d.poStatus === 'High' || d.poStatus === 'MODERATE') ? 'bg-amber-100 text-amber-700' :
+                                                            (d.poStatus === 'Medium' || d.poStatus === 'LOW') ? 'bg-blue-100 text-blue-700' :
                                                             'bg-slate-100 text-slate-600'
                                                         }`}>
                                                             {d.poStatus || "-"}

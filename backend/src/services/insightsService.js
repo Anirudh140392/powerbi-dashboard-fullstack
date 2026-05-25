@@ -891,7 +891,7 @@ export const getInsightsData = async (filters) => {
                 argMax(ifNull(toFloat64OrZero(toString(po.front_inventory)), 0), po.po_raised_date) AS latestFrontInv,
                 argMax(ifNull(toFloat64OrZero(toString(po.back_inventory)), 0), po.po_raised_date) AS latestBackInv,
                 argMax(ifNull(toFloat64OrZero(toString(po.cost_per_unit)), 0), po.po_raised_date) AS latestCost,
-                argMax(ifNull(toFloat64OrZero(toString(po.DIH)), 0), po.po_raised_date) AS latestDIH,
+                avg(ifNull(toFloat64OrZero(toString(po.DIH)), 0)) AS latestDIH,
                 argMax(ifNull(toFloat64OrZero(toString(po.DRR)), 0), po.po_raised_date) AS latestDRR,
                 SUM(
                     CASE WHEN LOWER(po.po_status) IN ('unscheduled', 'confirmed', 'pending_grn', 'asn_created', 'pending_acknowledgement')
@@ -1034,6 +1034,107 @@ export const getInsightsData = async (filters) => {
           AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('po.city'))}
         GROUP BY
             poNumber, facility, city, skuName, platform
+        HAVING projectedSalesLoss > 0
+        ORDER BY projectedSalesLoss DESC
+        LIMIT 15
+    `;
+
+    // -------------------------------------------------------------------------
+    // QUERY 10.5 — PRIORITISE PRODUCT PO (powers: Prioritise Product)
+    // Identifies SKUs with low OSA and high projected sales loss that need PO, without po_number
+    // -------------------------------------------------------------------------
+    const prioritiseProductPOQuery = hasQtySoldInPo ? `
+        SELECT
+            facility_name AS facility,
+            ${CITY_NORM_EXPR('city')} AS city,
+            sku_name AS skuName,
+            platform,
+            ROUND((SUM(toFloat64OrZero(toString(neno_osa))) / NULLIF(SUM(toFloat64OrZero(toString(deno_osa))), 0)) * 100, 2) AS osa,
+            ROUND(
+                (
+                    ((SUM(toFloat64OrZero(toString(qty_sold))) / 30.0) * 7 * MAX(toFloat64OrZero(toString(cost_per_unit))))
+                )
+                *
+                (
+                    1 - (
+                        SUM(toFloat64OrZero(toString(neno_osa))) / NULLIF(SUM(toFloat64OrZero(toString(deno_osa))), 0)
+                    )
+                )
+                *
+                (
+                    greatest(
+                        0,
+                        (7 - ifNull(argMax(toFloat64OrZero(toString(DIH)), po_raised_date), 0)) / 7.0
+                    )
+                ),
+                2
+            ) AS projectedSalesLoss,
+            argMax(po_raised_date, po_raised_date) AS poRaisedDate,
+            multiIf(argMax(toFloat64OrZero(toString(DIH)), po_raised_date) < 10, 'HGH', argMax(toFloat64OrZero(toString(DIH)), po_raised_date) <= 20, 'MODERATE', argMax(toFloat64OrZero(toString(DIH)), po_raised_date) <= 30, 'LOW', 'LOW') AS poStatus,
+            ROUND(argMax(toFloat64OrZero(toString(DIH)), po_raised_date), 2) AS doi
+        FROM rb_po_olap
+        WHERE po_raised_date BETWEEN '${dateFrom}' AND '${dateTo}'
+          AND sku_name IS NOT NULL AND sku_name != ''
+          AND LOWER(po_status) IN ('unscheduled', 'pending_grn', 'asn_created', 'pending_acknowledgement')
+          AND ${buildCHCondition(filters.platform, 'platform')}
+          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('city'))}
+        GROUP BY
+            facility_name, city, sku_name, platform
+        HAVING projectedSalesLoss > 0
+        ORDER BY projectedSalesLoss DESC
+        LIMIT 15
+    ` : `
+        WITH sales_30d AS (
+            SELECT
+                Web_Pid,
+                ${CITY_NORM_EXPR('Location')} AS city,
+                LOWER(Platform) AS platform,
+                SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS qty_sold_30d
+            FROM rb_pdp_olap
+            WHERE DATE BETWEEN '${dayjs(dateTo).subtract(29, 'day').format('YYYY-MM-DD')}' AND '${dateTo}'
+              AND Comp_flag IN (0, '0')
+            GROUP BY Web_Pid, city, platform
+        )
+        SELECT
+            po.facility_name AS facility,
+            ${CITY_NORM_EXPR('po.city')} AS city,
+            po.sku_name AS skuName,
+            po.platform AS platform,
+            ROUND((SUM(toFloat64OrZero(toString(po.neno_osa))) / NULLIF(SUM(toFloat64OrZero(toString(po.deno_osa))), 0)) * 100, 2) AS osa,
+            ROUND(
+                (
+                    ((MAX(ifNull(s.qty_sold_30d, 0)) / 30.0) * 7 * MAX(toFloat64OrZero(toString(po.cost_per_unit))))
+                )
+                *
+                (
+                    1 - (
+                        SUM(toFloat64OrZero(toString(po.neno_osa))) / NULLIF(SUM(toFloat64OrZero(toString(po.deno_osa))), 0)
+                    )
+                )
+                *
+                (
+                    greatest(
+                        0,
+                        (7 - ifNull(argMax(toFloat64OrZero(toString(po.DIH)), po.po_raised_date), 0)) / 7.0
+                    )
+                ),
+                2
+            ) AS projectedSalesLoss,
+            argMax(po.po_raised_date, po.po_raised_date) AS poRaisedDate,
+            multiIf(argMax(toFloat64OrZero(toString(po.DIH)), po.po_raised_date) < 10, 'HGH', argMax(toFloat64OrZero(toString(po.DIH)), po.po_raised_date) <= 20, 'MODERATE', argMax(toFloat64OrZero(toString(po.DIH)), po.po_raised_date) <= 30, 'LOW', 'LOW') AS poStatus,
+            ROUND(argMax(toFloat64OrZero(toString(po.DIH)), po.po_raised_date), 2) AS doi
+        FROM rb_po_olap po
+        LEFT JOIN sales_30d s
+          ON po.web_pid = s.Web_Pid
+         AND LOWER(po.city) = s.city
+         AND LOWER(po.platform) = s.platform
+        WHERE po.po_raised_date BETWEEN '${dateFrom}' AND '${dateTo}'
+          AND po.sku_name IS NOT NULL AND po.sku_name != ''
+          AND LOWER(po.po_status) IN ('unscheduled', 'pending_grn', 'asn_created', 'pending_acknowledgement')
+          AND ${buildCHCondition(filters.platform, 'po.platform')}
+          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('po.city'))}
+        GROUP BY
+            facility, city, skuName, platform
         HAVING projectedSalesLoss > 0
         ORDER BY projectedSalesLoss DESC
         LIMIT 15
@@ -1659,7 +1760,8 @@ export const getInsightsData = async (filters) => {
             newMarketEntryData,
             skuLossData,
             darkStoreCoverageData,
-            newDarkStoreData
+            newDarkStoreData,
+            prioritiseProductPOData
         ] = await Promise.all([
             safeQuery(visibilityQuery, 'Visibility'),
             safeQuery(visibilityTotalsQuery, 'VisibilityTotals'),
@@ -1680,7 +1782,8 @@ export const getInsightsData = async (filters) => {
             safeQuery(newMarketEntryQuery, 'NewMarketEntry'),
             rbMsOlapExists ? safeQuery(skuLossQuery, 'SkuLoss') : Promise.resolve([]),
             safeQuery(darkStoreCoverageQuery, 'DarkStoreCoverage'),
-            safeQuery(newDarkStoreQuery, 'NewDarkStore')
+            safeQuery(newDarkStoreQuery, 'NewDarkStore'),
+            safeQuery(prioritiseProductPOQuery, 'PrioritiseProductPO')
         ]);
 
         // Build SKU loss maps from rb_pdp_olap for Share Headroom Hotspots
@@ -1745,6 +1848,7 @@ export const getInsightsData = async (filters) => {
             // From other signals
             for (const r of (surplusStockData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
             for (const r of (prioritisePOData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
+            for (const r of (prioritiseProductPOData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
             for (const r of (transferIssueData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
             for (const r of (newMarketEntryData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
             for (const r of (replData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
@@ -2029,7 +2133,7 @@ export const getInsightsData = async (filters) => {
                     r.city !== '-' && 
                     String(r.city).toLowerCase() !== 'other' && 
                     isAllowedCity(r.city) && 
-                    (r.headroomInr > 0 || r.offtake > 0) &&
+                    r.psl > 0 &&
                     r.offtakeDelta < 0 &&
                     r.offtakeMoM < 0 && 
                     r.brandOsa > 0
@@ -2605,6 +2709,73 @@ export const getInsightsData = async (filters) => {
                     poRaisedDate: String(r.poRaisedDate || '-'),
                     poStatus: r.poStatus || '-',
                 })) : [{ poNumber: '-', skuName: '-', platform: '-', facility: '-', osa: 0, projectedSalesLoss: 0, poRaisedDate: '-', poStatus: '-' }],
+            });
+        }
+
+        // ---------------------------------------------------------------------
+        // SIGNAL 9.5 — Prioritise Product PO
+        // ---------------------------------------------------------------------
+        if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Prioritise Product') {
+            const filteredData = (prioritiseProductPOData || []).filter(r => isAllowedCity(r.city));
+            const hasData = filteredData.length > 0;
+            const totalPSL = hasData ? filteredData.reduce((s, r) => s + Number(r.projectedSalesLoss || 0), 0) : 0;
+            const avgOsa = hasData ? filteredData.reduce((s, r) => s + Number(r.osa || 0), 0) / filteredData.length : 0;
+            const criticalCount = filteredData.filter(r => r.poStatus === 'Critical' || r.poStatus === 'High' || r.poStatus === 'HGH').length;
+
+            let title9_5 = "No PO prioritisation required";
+            if (hasData) {
+                if (criticalCount > 3) {
+                    title9_5 = `${criticalCount} high priority SKUs need urgent PO — combined weekly PSL of ₹${Math.round(totalPSL).toLocaleString('en-IN')}`;
+                } else {
+                    title9_5 = `${filteredData.length} SKU(s) with low availability need PO prioritisation (avg OSA: ${avgOsa.toFixed(1)}%)`;
+                }
+            }
+
+            const absPSL = Math.abs(totalPSL);
+            let formattedPSL = "";
+            if (absPSL >= 10000000) {
+                formattedPSL = "₹ " + (totalPSL / 10000000).toFixed(1) + " Cr";
+            } else if (absPSL >= 100000) {
+                formattedPSL = "₹ " + (totalPSL / 100000).toFixed(1) + " L";
+            } else {
+                formattedPSL = "₹ " + totalPSL.toFixed(1);
+            }
+
+            insights.push({
+                id: "dyn_prod_po_1",
+                type: "Prioritise Product",
+                title: title9_5,
+                family: "Supply",
+                platforms: hasData ? [...new Set(filteredData.map(r => r.platform))] : ["-"],
+                city: filters.city !== "All cities" ? filters.city : "Multi-city",
+                category: filters.category !== "All categories" ? filters.category : "Overall",
+                impactInr: Math.round(totalPSL),
+                impactLabel: "Projected Sales Loss",
+                brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
+                kpis: [
+                    { label: "PSL", value: formattedPSL },
+                    { label: "Avg OSA", value: `${avgOsa.toFixed(1)}%` },
+                    { label: "High Priority SKUs", value: `${criticalCount}` },
+                ],
+                whatWeSee: hasData ? [
+                    `${filteredData.length} SKU(s) at ${filteredData[0]?.city || 'warehouse'} have combined weekly Potential Sales Loss of ₹${Math.round(totalPSL).toLocaleString('en-IN')}.`,
+                    `PO status indicates ${criticalCount} critical and high-priority replenishment needs.`,
+                ] : ["-", "-"],
+                evidence: hasData ? filteredData.map(r => ({
+                    skuName: r.skuName || '-',
+                    imageUrl: productImageMap[r.skuName] || null,
+                    city: r.city,
+                    platform: r.platform || '-',
+                    facility: r.facility || '-',
+                    category: r.category || 'Overall',
+                    brandName: r.brandName || brandLabel,
+                    osa: Number(r.osa) || 0,
+                    projectedSalesLoss: Number(r.projectedSalesLoss) || 0,
+                    doi: Number(r.doi) || 0,
+                    poRaisedDate: String(r.poRaisedDate || '-'),
+                    poStatus: r.poStatus || '-',
+                })) : [{ skuName: '-', platform: '-', facility: '-', osa: 0, projectedSalesLoss: 0, doi: 0, poRaisedDate: '-', poStatus: '-' }],
             });
         }
 
