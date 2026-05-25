@@ -5242,7 +5242,7 @@ const getPlatformOverview = async (filters) => {
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} ELSE 0 END) as buy_box_neno,
                         AVG(if(${src.f.compFlagMapping} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlagMapping} = 1, ${src.f.discount}, NULL)) as comp_avg_discount,
-                        AVG(if(${src.f.compFlagMapping} = 0, ${src.f.sellingPrice}, NULL)) as asp
+                        AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPrice} > 0, ${src.f.sellingPrice}, NULL)) as asp
                     FROM ${src.table}
                     WHERE ${currOfftakeConds}
                     GROUP BY Platform
@@ -5257,7 +5257,7 @@ const getPlatformOverview = async (filters) => {
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} ELSE 0 END) as buy_box_neno,
                         AVG(if(${src.f.compFlagMapping} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlagMapping} = 1, ${src.f.discount}, NULL)) as comp_avg_discount,
-                        AVG(if(${src.f.compFlagMapping} = 0, ${src.f.sellingPrice}, NULL)) as asp
+                        AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPrice} > 0, ${src.f.sellingPrice}, NULL)) as asp
                     FROM ${src.table}
                     WHERE ${prevOfftakeConds}
                     GROUP BY Platform
@@ -5585,7 +5585,7 @@ const getPlatformOverview = async (filters) => {
                         SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ${src.f.deno} ELSE 0 END) as total_deno,
                         AVG(if(${src.f.compFlag} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlag} = 1, ${src.f.discount}, NULL)) as comp_avg_discount,
-                        AVG(if(${src.f.compFlag} = 0, ${src.f.sellingPrice}, NULL)) as avg_asp
+                        AVG(if(${src.f.compFlag} = 0 AND ${src.f.sellingPrice} > 0, ${src.f.sellingPrice}, NULL)) as avg_asp
                     FROM ${src.table}
                     WHERE ${allConds}
                 `),
@@ -5597,7 +5597,7 @@ const getPlatformOverview = async (filters) => {
                         SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ${src.f.deno} ELSE 0 END) as total_deno,
                         AVG(if(${src.f.compFlag} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlag} = 1, ${src.f.discount}, NULL)) as comp_avg_discount,
-                        AVG(if(${src.f.compFlag} = 0, ${src.f.sellingPrice}, NULL)) as avg_asp
+                        AVG(if(${src.f.compFlag} = 0 AND ${src.f.sellingPrice} > 0, ${src.f.sellingPrice}, NULL)) as avg_asp
                     FROM ${src.table}
                     WHERE ${prevAllConds}
                 `),
