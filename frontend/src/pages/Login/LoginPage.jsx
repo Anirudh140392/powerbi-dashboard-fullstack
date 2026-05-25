@@ -209,10 +209,6 @@ const LoginPage = () => {
                                 {loading ? "Signing In..." : "Sign In"}
                             </button>
                         </form>
-
-                        <p className="text-center text-[15px] font-medium text-gray-500 mt-8 cursor-pointer hover:text-[#4c46f5] transition-colors">
-                            Forgot password?
-                        </p>
                     </motion.div>
                 </div>
             </div>

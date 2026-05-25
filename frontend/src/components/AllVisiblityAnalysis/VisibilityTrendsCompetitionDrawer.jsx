@@ -1470,17 +1470,19 @@ export default function VisibilityTrendsCompetitionDrawer({
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={0}>
             {/* Title Block */}
-            <Typography
-              variant="h5"
-              fontWeight={800}
-              sx={{
-                color: '#0f172a',
-                lineHeight: 1.2,
-                mb: 2,
-              }}
-            >
-              {selectedColumn || "KPI Trends"}
-            </Typography>
+            {!(allTrendMeta?.context?.audience?.toLowerCase() === 'platform') && selectedColumn && (
+              <Typography
+                variant="h5"
+                fontWeight={800}
+                sx={{
+                  color: '#0f172a',
+                  lineHeight: 1.2,
+                  mb: 2,
+                }}
+              >
+                {selectedColumn}
+              </Typography>
+            )}
 
             {/* HEADER FILTER CONTAINER */}
             <Box

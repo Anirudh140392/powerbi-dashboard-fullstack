@@ -997,6 +997,122 @@ const Sidebar = ({
             })}
           </Box>
         ))}
+
+        {/* ─── Supply Chain Collapsible Section ─── */}
+        {!isCollapsed && user?.dbStatus !== false && (() => {
+          const supplyChainSubpages = ['Priority Action'];
+          const hasSupplyChainAccess = supplyChainSubpages.some(subpage => user?.tabPermissions?.[subpage] !== false);
+          if (!hasSupplyChainAccess) return null;
+
+          return (
+            <Box sx={{ px: 0, mb: 2 }}>
+              {/* Section Header */}
+              <ListItemButton
+                onClick={() => setExpandedSection(expandedSection === 'supply-chain' ? '' : 'supply-chain')}
+                sx={{
+                  px: 2,
+                  py: 1.2,
+                  borderRadius: "12px",
+                  mb: 0.5,
+                  color: "#64748b",
+                  "&:hover": {
+                    bgcolor: "rgba(30, 41, 59, 0.04)",
+                    color: "#1e293b",
+                  },
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                }}
+              >
+                <ListItemIcon
+                  sx={{
+                    minWidth: 0,
+                    mr: 1.5,
+                    color: "inherit",
+                    display: 'flex',
+                    '& .MuiSvgIcon-root': { fontSize: '1.15rem' }
+                  }}
+                >
+                  <LocalShippingIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Supply Chain"
+                  primaryTypographyProps={{
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}
+                  sx={{ my: 0 }}
+                />
+                {expandedSection === 'supply-chain' ? (
+                  <ExpandLessIcon sx={{ fontSize: '1rem', color: '#94a3b8' }} />
+                ) : (
+                  <ExpandMoreIcon sx={{ fontSize: '1rem', color: '#94a3b8' }} />
+                )}
+              </ListItemButton>
+
+              {/* Collapsible Children */}
+              <Collapse in={expandedSection === 'supply-chain'} timeout="auto" unmountOnExit>
+                <Box sx={{ pl: 2 }}>
+                  {(() => {
+                    const tabPerms = user?.tabPermissions;
+                    if (tabPerms && tabPerms['Priority Action'] === false) return null;
+                    const isActive = currentPath === '/priority-action';
+                    return (
+                      <ListItemButton
+                        onClick={() => {
+                          navigate('/priority-action');
+                          if (isMobile && onClose) onClose();
+                        }}
+                        className={isActive ? "sidebar-item-active" : ""}
+                        sx={{
+                          minWidth: 44,
+                          maxWidth: "100%",
+                          justifyContent: "flex-start",
+                          px: 2,
+                          py: 1,
+                          borderRadius: "12px",
+                          mb: 0.5,
+                          bgcolor: isActive ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                          color: isActive ? "#2563eb" : "#64748b",
+                          position: 'relative',
+                          overflow: 'hidden',
+                          "&:hover": {
+                            bgcolor: isActive ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
+                            color: isActive ? "#1d4ed8" : "#1e293b",
+                            transform: 'translateX(2px)',
+                          },
+                          transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                        }}
+                      >
+                        <ListItemIcon
+                          sx={{
+                            minWidth: 0,
+                            mr: 1.5,
+                            color: isActive ? "#2563eb" : "inherit",
+                            display: 'flex',
+                            '& .MuiSvgIcon-root': { fontSize: '1.15rem' }
+                          }}
+                        >
+                          <StarBorderIcon />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary="Priority Action"
+                          primaryTypographyProps={{
+                            fontSize: "12px",
+                            fontWeight: isActive ? 700 : 500,
+                            fontFamily: "'DM Sans', sans-serif",
+                            color: isActive ? "#2563eb" : "inherit",
+                            letterSpacing: '0.01em',
+                          }}
+                          sx={{ my: 0 }}
+                        />
+                      </ListItemButton>
+                    );
+                  })()}
+                </Box>
+              </Collapse>
+            </Box>
+          );
+        })()}
       </Box>
 
       {/* Footer / Powered By */}

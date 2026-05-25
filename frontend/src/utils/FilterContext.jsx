@@ -92,6 +92,20 @@ export const FilterProvider = ({ children }) => {
     // Visibility rank filter (POSITION <= rank).
     const [selectedRank, setSelectedRank] = useState('Top 10');
 
+    // Priority Action specific filters
+    const [paPriority, setPaPriority] = useState("All");
+    const [paStatus, setPaStatus] = useState("All");
+    const [paPlatform, setPaPlatform] = useState("All");
+    const [paBrand, setPaBrand] = useState("All");
+    const [paCity, setPaCity] = useState("All");
+    const [paFilters, setPaFilters] = useState({
+        statuses: [],
+        platforms: [],
+        brands: [],
+        categories: [],
+        cities: []
+    });
+
     // Use react-router's useLocation instead of native hashchange for reliable route tracking
     const location = useLocation();
     
@@ -756,7 +770,19 @@ export const FilterProvider = ({ children }) => {
             visibilityMode,
             setVisibilityMode,
             selectedRank,
-            setSelectedRank
+            setSelectedRank,
+            paPriority,
+            setPaPriority,
+            paStatus,
+            setPaStatus,
+            paPlatform,
+            setPaPlatform,
+            paBrand,
+            setPaBrand,
+            paCity,
+            setPaCity,
+            paFilters,
+            setPaFilters
         }}>
             {children}
         </FilterContext.Provider>
