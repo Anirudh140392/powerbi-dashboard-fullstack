@@ -662,6 +662,7 @@ export const getSearchTermsLocationDrilldown = async (req, res) => {
         const filters = {
             keyword: req.query.keyword,
             sku: req.query.sku,
+            viewMode: req.query.viewMode || (req.query.sku && req.query.sku !== 'All' ? 'sku' : 'keyword'),
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',

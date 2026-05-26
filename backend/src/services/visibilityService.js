@@ -4040,52 +4040,82 @@ class VisibilityService {
                 ? buildCHCondition(keyword, 'keyword', { noSplit: true })
                 : `keyword IN (SELECT DISTINCT keyword FROM rb_kw_olap WHERE ${dimConditionSubquery} AND DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND ${platformCondition} AND ${channelCondition} AND ${rankCondition})`;
 
+            // For SKU view: numerator = flag=1 AND specific SKU, denominator = ALL at that location (no SKU/flag filter)
+            // For keyword view: numerator = flag=1, denominator = ALL at that location
+            const skuFilterForNum = (viewMode === 'sku' && sku && sku !== 'All')
+                ? `AND ${buildCHCondition(sku, 'keyword_search_product', { isDimension: true, noSplit: true })}`
+                : '';
             const query = `
                 SELECT 
-                    location_name as city,
-                    sumIf(toInt32(overall), ${numCondition}) as num_overall,
-                    sum(toInt32(overall)) as den_overall,
-                    ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
+                    t1.location_name as city,
+                    t1.num_overall as num_overall,
+                    t2.den_overall as den_overall,
+                    ROUND(t1.num_overall * 100.0 / nullIf(t2.den_overall, 0), 2) AS overall_sos,
                     
-                    sumIf(toInt32(organic), ${numCondition}) as num_organic,
-                    sum(toInt32(organic)) as den_organic,
-                    ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
+                    t1.num_organic as num_organic,
+                    t2.den_organic as den_organic,
+                    ROUND(t1.num_organic * 100.0 / nullIf(t2.den_organic, 0), 2) AS organic_sos,
                     
-                    sumIf(toInt32(spons), ${numCondition}) as num_spons,
-                    sum(toInt32(spons)) as den_spons,
-                    ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos,
-                    ROUND(avgIf(POSITION, ${numCondition} AND toInt32(overall) = 1), 1) as overallRank,
-                    ROUND(avgIf(POSITION, ${numCondition} AND toInt32(spons) = 1), 1) as paidRank,
-                    ROUND(avgIf(POSITION, ${numCondition} AND toInt32(organic) = 1), 1) as organicRank
-                FROM rb_kw_olap
-                WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
-                  AND ${platformCondition}
-                  AND ${channelCondition}
-                  AND ${locationCondition}
-                  AND ${categoryCondition}
-                  AND ${globalKeywordTypeCondition}
-                  AND ${localKeywordTypeCondition}
-                   AND ${keywordFilter}
-                   AND ${locationTypeFilter}
-                   AND ${rankCondition}
-                   AND location_name IS NOT NULL AND location_name != ''
-                GROUP BY location_name
-                HAVING den_overall > 0
+                    t1.num_spons as num_spons,
+                    t2.den_spons as den_spons,
+                    ROUND(t1.num_spons * 100.0 / nullIf(t2.den_spons, 0), 2) AS paid_sos,
+                    t1.overallRank as overallRank,
+                    t1.paidRank as paidRank,
+                    t1.organicRank as organicRank
+                FROM (
+                    -- Numerator: our brand metrics per location (flag=1 AND specific SKU/keyword)
+                    SELECT 
+                        location_name,
+                        sum(toInt32(overall)) as num_overall,
+                        sum(toInt32(organic)) as num_organic,
+                        sum(toInt32(spons)) as num_spons,
+                        ROUND(avgIf(POSITION, toInt32(overall) = 1), 1) as overallRank,
+                        ROUND(avgIf(POSITION, toInt32(spons) = 1), 1) as paidRank,
+                        ROUND(avgIf(POSITION, toInt32(organic) = 1), 1) as organicRank
+                    FROM rb_kw_olap
+                    WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                      AND ${platformCondition}
+                      AND ${channelCondition}
+                      AND ${locationCondition}
+                      AND ${categoryCondition}
+                      AND ${globalKeywordTypeCondition}
+                      AND ${localKeywordTypeCondition}
+                      AND ${keywordFilter}
+                      AND ${locationTypeFilter}
+                      AND ${rankCondition}
+                      AND toInt32(flag) = 1
+                      ${skuFilterForNum}
+                      AND location_name IS NOT NULL AND location_name != ''
+                    GROUP BY location_name
+                ) t1
+                LEFT JOIN (
+                    -- Denominator: total landscape per location (no flag/SKU filter)
+                    SELECT 
+                        location_name,
+                        sum(toInt32(overall)) as den_overall,
+                        sum(toInt32(organic)) as den_organic,
+                        sum(toInt32(spons)) as den_spons
+                    FROM rb_kw_olap
+                    WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                      AND ${platformCondition}
+                      AND ${channelCondition}
+                      AND ${locationCondition}
+                      AND ${categoryCondition}
+                      AND ${globalKeywordTypeCondition}
+                      AND ${localKeywordTypeCondition}
+                      AND ${locationTypeFilter}
+                      AND ${rankCondition}
+                      AND location_name IS NOT NULL AND location_name != ''
+                    GROUP BY location_name
+                ) t2 ON t1.location_name = t2.location_name
+                WHERE t2.den_overall > 0
                 ORDER BY overall_sos DESC
             `;
 
+            console.log('[VisibilityService] getSearchTermsLocationDrilldown viewMode:', viewMode, 'sku:', sku, 'skuFilterForNum:', skuFilterForNum);
             console.log('[VisibilityService] getSearchTermsLocationDrilldown query:', query.replace(/\s+/g, ' '));
             
-            const fs = await import('fs');
-            const params = { dim: dimValueForSubquery, kw: keyword };
-            fs.appendFileSync('debug_drilldown.log', `\n[${new Date().toISOString()}] Query: ${query}\nParams: ${JSON.stringify(params)}\n`);
-            
-            const results = await queryClickHouse(query, params);
-            
-            fs.appendFileSync('debug_drilldown.log', `Result Count: ${results.length}\n`);
-            if (results.length > 0) {
-                fs.appendFileSync('debug_drilldown.log', `First Row: ${JSON.stringify(results[0])}\n`);
-            }
+            const results = await queryClickHouse(query);
 
             return {
                 locations: results.map(row => ({
