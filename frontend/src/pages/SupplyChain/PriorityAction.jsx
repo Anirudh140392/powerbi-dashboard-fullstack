@@ -200,60 +200,7 @@ export default function PriorityAction() {
         }
     ];
 
-    // Mock data for Fix Stock Transfer
-    const initialStockTransferData = [
-        {
-            id: "ST-001",
-            skuName: "Almond Milk 1L",
-            fromCfa: "Mumbai CFA (Surplus)",
-            toCfa: "Delhi CFA (Shortage)",
-            cityOsa: 78,
-            doiFe: 3.5,
-            doiBe: 12.2,
-            sohFe: 420,
-            sohBe: 1450,
-            runRate: 120,
-            cpd: 110,
-            pslRecovery: 85,
-            skus: [
-                { name: "Almond Milk 1L", qty: 500, value: 75000, fill: "100%" }
-            ]
-        },
-        {
-            id: "ST-002",
-            skuName: "Oat Milk Barista 1L",
-            fromCfa: "Bangalore CFA (Surplus)",
-            toCfa: "Chennai CFA (Shortage)",
-            cityOsa: 82,
-            doiFe: 4.1,
-            doiBe: 15.0,
-            sohFe: 310,
-            sohBe: 1120,
-            runRate: 75,
-            cpd: 70,
-            pslRecovery: 90,
-            skus: [
-                { name: "Oat Milk Barista 1L", qty: 300, value: 54000, fill: "100%" }
-            ]
-        },
-        {
-            id: "ST-003",
-            skuName: "Chocolate Protein Shake 330ml",
-            fromCfa: "Kolkata CFA (Surplus)",
-            toCfa: "Patna CFA (Shortage)",
-            cityOsa: 65,
-            doiFe: 1.8,
-            doiBe: 8.5,
-            sohFe: 120,
-            sohBe: 580,
-            runRate: 65,
-            cpd: 65,
-            pslRecovery: 72,
-            skus: [
-                { name: "Chocolate Protein Shake 330ml", qty: 250, value: 18750, fill: "100%" }
-            ]
-        }
-    ];
+
 
     // Mock data for Manage Surplus
     const initialSurplusData = [
@@ -322,6 +269,7 @@ export default function PriorityAction() {
     // API Data States
     const [poData, setPoData] = useState([]);
     const [surplusData, setSurplusData] = useState([]);
+    const [stockTransferData, setStockTransferData] = useState([]);
     const [poSummary, setPoSummary] = useState({
         totalPOs: 0,
         totalSalesAtRisk: 0,
@@ -433,6 +381,40 @@ export default function PriorityAction() {
 
         const timer = setTimeout(() => {
             fetchSurplusData();
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [activeTab, searchTerm, selectedPlatform, selectedBrand, selectedCategory, selectedCity, timeStart, timeEnd]);
+
+    // Fetch Stock Transfer data from backend with debounced search
+    useEffect(() => {
+        if (activeTab !== "stock-transfer") return;
+
+        const fetchStockTransferData = async () => {
+            setLoading(true);
+            try {
+                const params = {};
+                if (searchTerm) params.search = searchTerm;
+                if (selectedPlatform !== "All") params.platform = selectedPlatform;
+                if (selectedBrand !== "All") params.brand = selectedBrand;
+                if (selectedCategory !== "All") params.category = selectedCategory;
+                if (selectedCity !== "All") params.city = selectedCity;
+                if (timeStart) params.startDate = timeStart;
+                if (timeEnd) params.endDate = timeEnd;
+
+                const response = await axiosInstance.get('/supply-chain/stock-transfer', { params });
+                if (response.data) {
+                    setStockTransferData(response.data || []);
+                }
+            } catch (err) {
+                console.error('[PriorityAction] Error fetching stock transfer data:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        const timer = setTimeout(() => {
+            fetchStockTransferData();
         }, 300);
 
         return () => clearTimeout(timer);
@@ -605,11 +587,16 @@ export default function PriorityAction() {
                 return selectedPriority === "All" || po.priority === selectedPriority;
             });
         } else if (activeTab === "stock-transfer") {
-            return initialStockTransferData.filter(item => {
-                const matchesSearch = item.skuName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.fromCfa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.toCfa.toLowerCase().includes(searchTerm.toLowerCase());
+            return stockTransferData.filter(item => {
+                const matchesSearch = !searchTerm ||
+                    item.skuName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (item.fromCfa || '').toLowerCase().includes(searchTerm.toLowerCase());
                 return matchesSearch;
+            }).sort((a, b) => {
+                const aSurplus = ((a.doiFe || 0) + (a.doiBe || 0)) > 30 ? 1 : 0;
+                const bSurplus = ((b.doiFe || 0) + (b.doiBe || 0)) > 30 ? 1 : 0;
+                if (bSurplus !== aSurplus) return bSurplus - aSurplus;
+                return ((b.doiFe || 0) + (b.doiBe || 0)) - ((a.doiFe || 0) + (a.doiBe || 0));
             });
         } else {
             return surplusData.filter(item => {
@@ -758,7 +745,7 @@ export default function PriorityAction() {
                             <ArrowLeftRight size={13} className={activeTab === "stock-transfer" ? "text-[#0284c7]" : "text-slate-500"} />
                             <span>Fix Stock Transfer</span>
                             <span className={`badge-pill ${activeTab === "stock-transfer" ? "badge-pill-active" : "badge-pill-inactive"}`}>
-                                61
+                                {stockTransferData.length}
                             </span>
                         </button>
 
@@ -924,7 +911,7 @@ export default function PriorityAction() {
                                                 {/* Priority */}
                                                 <TableCell className="px-3 py-3">
                                                     <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md ${po.priority === "High" ? "priority-badge-high" :
-                                                            po.priority === "Medium" ? "priority-badge-medium" : "priority-badge-low"
+                                                        po.priority === "Medium" ? "priority-badge-medium" : "priority-badge-low"
                                                         }`}>
                                                         {po.priority}
                                                     </span>
@@ -943,8 +930,8 @@ export default function PriorityAction() {
                                                 {/* Status */}
                                                 <TableCell className="px-3 py-3">
                                                     <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-full ${po.rawStatus === "delayed" ? "status-badge-delayed" :
-                                                            po.rawStatus === "in_transit" || po.rawStatus === "in transit" ? "status-badge-intransit" :
-                                                                po.rawStatus === "pending" ? "status-badge-pending" : "status-badge-appointed"
+                                                        po.rawStatus === "in_transit" || po.rawStatus === "in transit" ? "status-badge-intransit" :
+                                                            po.rawStatus === "pending" ? "status-badge-pending" : "status-badge-appointed"
                                                         }`}>
                                                         {formatOrNA(po.status)}
                                                     </span>
@@ -1001,14 +988,14 @@ export default function PriorityAction() {
                                 <thead>
                                     <TableRow style={{ borderBottom: "2px solid #cbd5e1" }}>
                                         <TableHead className="px-3 py-3 text-left">SKU Name</TableHead>
-                                        <TableHead className="px-3 py-3 text-left">From CFA (Surplus)</TableHead>
-                                        <TableHead className="px-3 py-3 text-left">To CFA (Shortage)</TableHead>
+                                        <TableHead className="px-3 py-3 text-left">CFA (Surplus)</TableHead>
+
                                         <TableHead className="px-3 py-3 text-right">City OSA %</TableHead>
                                         <TableHead className="px-3 py-3 text-right">DOI (FE)</TableHead>
                                         <TableHead className="px-3 py-3 text-right">DOI (BE)</TableHead>
                                         <TableHead className="px-3 py-3 text-right">SOH (FE)</TableHead>
                                         <TableHead className="px-3 py-3 text-right">SOH (BE)</TableHead>
-                                        <TableHead className="px-3 py-3 text-right">Run Rate</TableHead>
+
                                         <TableHead className="px-3 py-3 text-right">
                                             <div className="flex items-center justify-end gap-1">
                                                 <span>CPD</span>
@@ -1020,13 +1007,13 @@ export default function PriorityAction() {
                                             </div>
                                         </TableHead>
                                         <TableHead className="px-3 py-3 text-right">PSL Recovery</TableHead>
-                                        <TableHead className="px-3 py-3 text-center">Actions</TableHead>
+
                                     </TableRow>
                                 </thead>
                                 <TableBody>
                                     {filteredData.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={12} className="text-center py-12 text-slate-400 text-[11px] font-semibold">
+                                            <TableCell colSpan={9} className="text-center py-12 text-slate-400 text-[11px] font-semibold">
                                                 No stock transfers matching search found.
                                             </TableCell>
                                         </TableRow>
@@ -1040,13 +1027,17 @@ export default function PriorityAction() {
 
                                                 {/* From CFA */}
                                                 <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-800">
-                                                    {formatOrNA(item.fromCfa)}
+                                                    <div className="flex items-center gap-1.5">
+                                                        {formatOrNA(item.fromCfa)}
+                                                        {((item.doiFe || 0) + (item.doiBe || 0)) > 30 && (
+                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">
+                                                                Surplus
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
 
-                                                {/* To CFA */}
-                                                <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-800">
-                                                    {formatOrNA(item.toCfa)}
-                                                </TableCell>
+
 
                                                 {/* City OSA % */}
                                                 <TableCell className={`px-3 py-3 text-right text-[11px] font-bold ${item.cityOsa < 80 ? "text-red-500" : "text-emerald-600"}`}>
@@ -1073,10 +1064,7 @@ export default function PriorityAction() {
                                                     {formatOrNA(item.sohBe)}
                                                 </TableCell>
 
-                                                {/* Run Rate */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(item.runRate)}
-                                                </TableCell>
+
 
                                                 {/* CPD */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
@@ -1088,15 +1076,7 @@ export default function PriorityAction() {
                                                     {formatOrNA(item.pslRecovery, (v) => formatINR(v * 1000))}
                                                 </TableCell>
 
-                                                {/* Actions */}
-                                                <TableCell className="px-3 py-3 text-center">
-                                                    <button
-                                                        onClick={() => setActivePO(item)}
-                                                        className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 text-slate-400 rounded-lg transition-colors cursor-pointer"
-                                                    >
-                                                        <Eye size={14} />
-                                                    </button>
-                                                </TableCell>
+
                                             </TableRow>
                                         ))
                                     )}
@@ -1156,7 +1136,7 @@ export default function PriorityAction() {
                                                 {/* Priority */}
                                                 <TableCell className="px-3 py-3">
                                                     <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md ${item.priority === "High" ? "priority-badge-high" :
-                                                            item.priority === "Medium" ? "priority-badge-medium" : "priority-badge-low"
+                                                        item.priority === "Medium" ? "priority-badge-medium" : "priority-badge-low"
                                                         }`}>
                                                         {formatOrNA(item.priority)}
                                                     </span>

@@ -680,7 +680,8 @@ export const getSearchTermsLocationDrilldown = async (req, res) => {
         }
 
         console.log('\n========== SEARCH TERMS LOCATION DRILLDOWN API ==========');
-        console.log('[REQUEST] Keyword:', filters.keyword, 'SKU:', filters.sku);
+        console.log('[REQUEST] Keyword:', filters.keyword, 'SKU:', filters.sku, 'viewMode:', filters.viewMode, 'rank:', filters.rank);
+        console.log('[REQUEST] Full query params:', JSON.stringify(req.query));
 
         const cacheKey = generateCacheKey('search_terms_loc_ctrl', filters);
         const data = await getCachedOrCompute(cacheKey, async () => {

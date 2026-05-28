@@ -1,4 +1,4 @@
-import { getPrioritizePO, getPODetail, getPOFilters, getSKUTrend, getManageSurplus } from '../controllers/supplyChainController.js';
+import { getPrioritizePO, getPODetail, getPOFilters, getSKUTrend, getManageSurplus, getStockTransfer } from '../controllers/supplyChainController.js';
 
 export default (app) => {
     // Middleware/logger for supply chain endpoints
@@ -51,4 +51,13 @@ export default (app) => {
      *     description: Retrieves surplus SKU data with computed DOI and City OSA metrics from rb_po_olap.
      */
     app.get('/api/supply-chain/manage-surplus', getManageSurplus);
+
+    /**
+     * @swagger
+     * /api/supply-chain/stock-transfer:
+     *   get:
+     *     summary: Get stock transfer actions
+     *     description: Retrieves SKU-level stock transfer data with computed KPIs (City OSA%, DOI, SOH, CPD, PSL Recovery) from rb_po_olap.
+     */
+    app.get('/api/supply-chain/stock-transfer', getStockTransfer);
 };
