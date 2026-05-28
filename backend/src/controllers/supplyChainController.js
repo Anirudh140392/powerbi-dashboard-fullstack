@@ -74,3 +74,17 @@ export const getManageSurplus = async (req, res) => {
     }
 };
 
+/**
+ * Get aggregated Stock Transfer list with computed KPIs
+ */
+export const getStockTransfer = async (req, res) => {
+    try {
+        const filters = { ...req.query };
+        console.log('[SupplyChainController] Fetching stock transfer with filters:', filters);
+        const data = await supplyChainService.getStockTransferData(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('[SupplyChainController] Error fetching Stock Transfer data:', error.message, error.stack);
+        res.status(500).json({ error: error.message, stack: error.stack });
+    }
+};

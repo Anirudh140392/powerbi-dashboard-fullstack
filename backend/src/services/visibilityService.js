@@ -3643,7 +3643,7 @@ class VisibilityService {
                     const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
                     const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
                     if (!isNaN(maxRank) && maxRank > 0) {
-                        rankCondition = ` AND toInt32(POSITION) <= ${maxRank}`;
+                        rankCondition = ` AND toInt32(POSITION) <= ${maxRank} AND toInt32(POSITION) > 0`;
                     }
                 }
 
@@ -3981,38 +3981,15 @@ class VisibilityService {
             const dateFrom = startDate ? dayjs(startDate).format('YYYY-MM-DD') : dayjs().subtract(30, 'day').format('YYYY-MM-DD');
             const dateTo = endDate ? dayjs(endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
 
-            let numCondition = '1=1';
-            let dimColumnForSubquery = 'keyword';
-            let dimValueForSubquery = keyword;
-
-            if (viewMode === 'sku') {
-                numCondition = (sku && sku !== 'All') 
-                    ? buildCHCondition(sku, 'keyword_search_product', { isDimension: true, noSplit: true })
-                    : '1=1';
-                dimColumnForSubquery = 'keyword_search_product';
-                dimValueForSubquery = sku;
-            } else {
-                numCondition = (brand && brand !== 'All')
-                    ? buildCHCondition(brand, 'brand', { isDimension: true, noSplit: true })
-                    : 'toInt32(flag) = 1';
-                dimColumnForSubquery = 'keyword';
-                dimValueForSubquery = keyword;
-            }
-
             const platformCondition = buildCHCondition(platform, 'platform_name', { isPlatform: true });
             const channelCondition = buildChannelCondition(channel, 'platform_name');
-            const locationCondition = buildCHCondition(location, 'location_name');
-            const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
-            const globalKeywordTypeCondition = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
-            const localKeywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
-            const dimConditionSubquery = buildCHCondition(dimValueForSubquery, dimColumnForSubquery, { isDimension: true, noSplit: true });
 
             let rankCondition = '1=1';
             if (rank && rank !== 'All') {
                 const ranksArray = Array.isArray(rank) ? rank : [rank];
                 const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
                 if (!isNaN(maxRank) && maxRank > 0) {
-                    rankCondition = `toInt32(POSITION) <= ${maxRank}`;
+                    rankCondition = `toInt32(POSITION) <= ${maxRank} AND toInt32(POSITION) > 0`;
                 }
             }
 
@@ -4036,15 +4013,23 @@ class VisibilityService {
                 locationTypeFilter = `lower(location_name) IN (${NATIONAL_LABELS})`;
             }
 
-            const keywordFilter = (keyword && keyword !== 'All')
-                ? buildCHCondition(keyword, 'keyword', { noSplit: true })
-                : `keyword IN (SELECT DISTINCT keyword FROM rb_kw_olap WHERE ${dimConditionSubquery} AND DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND ${platformCondition} AND ${channelCondition} AND ${rankCondition})`;
+            // Build numerator-specific filter based on viewMode
+            // SKU mode: flag=1 AND keyword_search_product = 'sku_name' AND keyword = 'keyword_name'
+            // Keyword mode: flag=1 AND keyword = 'keyword_name'
+            let numSpecificFilter = 'AND toInt32(flag) = 1';
+            if (viewMode === 'sku' && sku && sku !== 'All') {
+                const skuCond = buildCHCondition(sku, 'keyword_search_product', { isDimension: true, noSplit: true });
+                numSpecificFilter = `AND toInt32(flag) = 1 AND ${skuCond}`;
+                // Also add keyword filter if provided (so we scope to the specific keyword + SKU)
+                if (keyword && keyword !== 'All') {
+                    const kwCond = buildCHCondition(keyword, 'keyword', { noSplit: true });
+                    numSpecificFilter += ` AND ${kwCond}`;
+                }
+            } else if (keyword && keyword !== 'All') {
+                const kwCond = buildCHCondition(keyword, 'keyword', { noSplit: true });
+                numSpecificFilter = `AND toInt32(flag) = 1 AND ${kwCond}`;
+            }
 
-            // For SKU view: numerator = flag=1 AND specific SKU, denominator = ALL at that location (no SKU/flag filter)
-            // For keyword view: numerator = flag=1, denominator = ALL at that location
-            const skuFilterForNum = (viewMode === 'sku' && sku && sku !== 'All')
-                ? `AND ${buildCHCondition(sku, 'keyword_search_product', { isDimension: true, noSplit: true })}`
-                : '';
             const query = `
                 SELECT 
                     t1.location_name as city,
@@ -4063,33 +4048,27 @@ class VisibilityService {
                     t1.paidRank as paidRank,
                     t1.organicRank as organicRank
                 FROM (
-                    -- Numerator: our brand metrics per location (flag=1 AND specific SKU/keyword)
+                    -- Numerator: flag=1 + SKU/keyword filter per location
                     SELECT 
                         location_name,
                         sum(toInt32(overall)) as num_overall,
                         sum(toInt32(organic)) as num_organic,
                         sum(toInt32(spons)) as num_spons,
-                        ROUND(avgIf(POSITION, toInt32(overall) = 1), 1) as overallRank,
-                        ROUND(avgIf(POSITION, toInt32(spons) = 1), 1) as paidRank,
-                        ROUND(avgIf(POSITION, toInt32(organic) = 1), 1) as organicRank
+                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(overall) = 1 AND POSITION > 0), 1) as overallRank,
+                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1 AND POSITION > 0), 1) as paidRank,
+                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1 AND POSITION > 0), 1) as organicRank
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                       AND ${platformCondition}
                       AND ${channelCondition}
-                      AND ${locationCondition}
-                      AND ${categoryCondition}
-                      AND ${globalKeywordTypeCondition}
-                      AND ${localKeywordTypeCondition}
-                      AND ${keywordFilter}
-                      AND ${locationTypeFilter}
                       AND ${rankCondition}
-                      AND toInt32(flag) = 1
-                      ${skuFilterForNum}
-                      AND location_name IS NOT NULL AND location_name != ''
+                      AND ${locationTypeFilter}
+                      ${numSpecificFilter}
+                      AND location_name IS NOT NULL AND location_name != '' AND lower(location_name) != 'other'
                     GROUP BY location_name
                 ) t1
                 LEFT JOIN (
-                    -- Denominator: total landscape per location (no flag/SKU filter)
+                    -- Denominator: total landscape per location (no flag/SKU/keyword filter)
                     SELECT 
                         location_name,
                         sum(toInt32(overall)) as den_overall,
@@ -4099,21 +4078,17 @@ class VisibilityService {
                     WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                       AND ${platformCondition}
                       AND ${channelCondition}
-                      AND ${locationCondition}
-                      AND ${categoryCondition}
-                      AND ${globalKeywordTypeCondition}
-                      AND ${localKeywordTypeCondition}
-                      AND ${locationTypeFilter}
                       AND ${rankCondition}
-                      AND location_name IS NOT NULL AND location_name != ''
+                      AND ${locationTypeFilter}
+                      AND location_name IS NOT NULL AND location_name != '' AND lower(location_name) != 'other'
                     GROUP BY location_name
                 ) t2 ON t1.location_name = t2.location_name
                 WHERE t2.den_overall > 0
                 ORDER BY overall_sos DESC
             `;
 
-            console.log('[VisibilityService] getSearchTermsLocationDrilldown viewMode:', viewMode, 'sku:', sku, 'skuFilterForNum:', skuFilterForNum);
-            console.log('[VisibilityService] getSearchTermsLocationDrilldown query:', query.replace(/\s+/g, ' '));
+            console.log('[VisibilityService] Location Drilldown | viewMode:', viewMode, '| sku:', sku, '| keyword:', keyword, '| rank:', rank, '| rankCondition:', rankCondition);
+            console.log('[VisibilityService] Location Drilldown query:', query.replace(/\s+/g, ' '));
             
             const results = await queryClickHouse(query);
 
@@ -4182,7 +4157,7 @@ class VisibilityService {
                 const ranksArray = Array.isArray(rank) ? rank : [rank];
                 const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
                 if (!isNaN(maxRank) && maxRank > 0) {
-                    rankCondition = `toInt32(POSITION) <= ${maxRank}`;
+                    rankCondition = `toInt32(POSITION) <= ${maxRank} AND toInt32(POSITION) > 0`;
                 }
             }
 
