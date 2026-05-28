@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 
@@ -2123,7 +2123,8 @@ class VisibilityService {
      */
     async getLatestAvailableDates() {
         console.log('[VisibilityService] getLatestAvailableDates (ClickHouse) called');
-        const cacheKey = 'visibility_latest_dates';
+        const dbName = getCurrentDbName();
+        const cacheKey = `visibility_latest_dates_db_${dbName}`;
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
