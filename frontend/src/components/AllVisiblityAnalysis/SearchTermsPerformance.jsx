@@ -106,8 +106,8 @@ const DrilldownModal = ({
           </h3>
           <span style={{ background: "#eef2ff", color: "#4f46e5", fontSize: 10, fontWeight: 700, borderRadius: 6, padding: "2px 8px", border: "1px solid #c7d2fe" }}>
             {type === "brandKeywords" 
-              ? (title.split('—')[1]?.trim() || title).replace(/"/g, '').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
-              : (title.split('—')[1]?.trim() || title)}
+              ? (title?.split('—')?.[1]?.trim() || title || "").replace(/"/g, '').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
+              : (title?.split('—')?.[1]?.trim() || title || "")}
           </span>
         </div>
         <button 
@@ -203,7 +203,7 @@ const DrilldownModal = ({
                         {onToggleLocations && (
                           <div 
                             onClick={() => {
-                              const nameFromTitle = title.split('—')[1]?.trim().replace(/"/g, '');
+                              const nameFromTitle = title?.split('—')?.[1]?.trim().replace(/"/g, '') || "";
                               if (type === "sku") {
                                 onToggleLocations?.(nameFromTitle, item.name, "All", item.name);
                               } else if (type === "brandKeywords") {
@@ -479,7 +479,7 @@ export default function SearchTermsPerformance() {
     setModalKeywordType("All");
     const title = `Keywords — "${brandName}"`;
     setExpandedKeywordLocations({});
-    setDrilldownModal({ title: [], items: [], loading: true, type: "brandKeywords" });
+    setDrilldownModal({ title, items: [], loading: true, type: "brandKeywords" });
   }, []);
 
   // Effect to re-fetch SKU or Keyword drilldown modal data when filter parameters change
