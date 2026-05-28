@@ -9,7 +9,6 @@ const clickhouse = createClient({
     password: process.env.CLICKHOUSE_PASSWORD,
     database: process.env.CLICKHOUSE_DB,
 });
-
 async function run() {
     try {
         // 1. Describe table
