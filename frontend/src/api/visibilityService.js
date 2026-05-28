@@ -1,4 +1,5 @@
 import axiosInstance from './axiosInstance';
+import dayjs from 'dayjs';
 
 /**
  * Visibility Analysis API Service
@@ -9,6 +10,14 @@ import axiosInstance from './axiosInstance';
 const normalize = (val) => {
     if (!val || val === 'All' || val === 'all') return 'All';
     return Array.isArray(val) ? val.join(',').toLowerCase() : String(val).toLowerCase();
+};
+
+// Helper to safely format any date value (dayjs object, Date, or string) to YYYY-MM-DD
+// This prevents timezone issues when dayjs objects are implicitly stringified to UTC format
+const formatDate = (val) => {
+    if (!val) return null;
+    const d = dayjs(val);
+    return d.isValid() ? d.format('YYYY-MM-DD') : null;
 };
 
 /**
@@ -22,8 +31,8 @@ export const fetchVisibilityOverview = async (filters = {}) => {
     if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
     if (filters.keyword && filters.keyword !== 'All') params.append('keyword', normalize(filters.keyword));
     if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.startDate) params.append('startDate', formatDate(filters.startDate));
+    if (filters.endDate) params.append('endDate', formatDate(filters.endDate));
     if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
     if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
 
@@ -43,8 +52,8 @@ export const fetchVisibilityPlatformKpiMatrix = async (filters = {}) => {
     if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
     if (filters.keyword && filters.keyword !== 'All') params.append('keyword', normalize(filters.keyword));
     if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.startDate) params.append('startDate', formatDate(filters.startDate));
+    if (filters.endDate) params.append('endDate', formatDate(filters.endDate));
     if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
     if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
 
@@ -64,8 +73,8 @@ export const fetchVisibilityKeywordsAtGlance = async (filters = {}) => {
     if (filters.keyword && filters.keyword !== 'All') params.append('keyword', normalize(filters.keyword));
     if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
     if (filters.view) params.append('view', filters.view);
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.startDate) params.append('startDate', formatDate(filters.startDate));
+    if (filters.endDate) params.append('endDate', formatDate(filters.endDate));
     if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
     if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
 
@@ -88,8 +97,8 @@ export const fetchVisibilityTopSearchTerms = async (filters = {}) => {
     if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
     if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
     if (filters.filter && filters.filter !== 'All') params.append('filter', filters.filter);
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.startDate) params.append('startDate', formatDate(filters.startDate));
+    if (filters.endDate) params.append('endDate', formatDate(filters.endDate));
     if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
     if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
 
@@ -108,8 +117,8 @@ export const fetchVisibilityBrandDrilldown = async (filters = {}) => {
     if (filters.location && filters.location !== 'All') params.append('location', normalize(filters.location));
     if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
     if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.startDate) params.append('startDate', formatDate(filters.startDate));
+    if (filters.endDate) params.append('endDate', formatDate(filters.endDate));
     if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
     if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
 
@@ -183,8 +192,8 @@ export const fetchSearchTermsPerformance = async (filters = {}) => {
     if (filters.sku && filters.sku !== 'All') params.append('sku', normalize(filters.sku));
     if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
     if (filters.ownBrandsOnly) params.append('ownBrandsOnly', filters.ownBrandsOnly);
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.startDate) params.append('startDate', formatDate(filters.startDate));
+    if (filters.endDate) params.append('endDate', formatDate(filters.endDate));
     if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
     if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
 
@@ -214,8 +223,8 @@ export const fetchSearchTermsBrandBreakdown = async (filters = {}) => {
     if (filters.platform && filters.platform !== 'All') params.append('platform', normalize(filters.platform));
     if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
     if (filters.keyword && filters.keyword !== 'All') params.append('keyword', normalize(filters.keyword));
-    if (filters.startDate) params.append('startDate', filters.startDate);
-    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.startDate) params.append('startDate', formatDate(filters.startDate));
+    if (filters.endDate) params.append('endDate', formatDate(filters.endDate));
     if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
     if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
     if (filters.rank && filters.rank !== 'All') params.append('rank', filters.rank);
