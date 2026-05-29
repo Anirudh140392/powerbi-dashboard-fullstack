@@ -106,8 +106,8 @@ const DrilldownModal = ({
           </h3>
           <span style={{ background: "#eef2ff", color: "#4f46e5", fontSize: 10, fontWeight: 700, borderRadius: 6, padding: "2px 8px", border: "1px solid #c7d2fe" }}>
             {type === "brandKeywords" 
-              ? (title.split('—')[1]?.trim() || title).replace(/"/g, '').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
-              : (title.split('—')[1]?.trim() || title)}
+              ? (title?.split('—')?.[1]?.trim() || title || "").replace(/"/g, '').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
+              : (title?.split('—')?.[1]?.trim() || title || "")}
           </span>
         </div>
         <button 
@@ -203,7 +203,7 @@ const DrilldownModal = ({
                         {onToggleLocations && (
                           <div 
                             onClick={() => {
-                              const nameFromTitle = title.split('—')[1]?.trim().replace(/"/g, '');
+                              const nameFromTitle = title?.split('—')?.[1]?.trim().replace(/"/g, '') || "";
                               if (type === "sku") {
                                 onToggleLocations?.(nameFromTitle, item.name, "All", item.name);
                               } else if (type === "brandKeywords") {
@@ -247,10 +247,14 @@ const DrilldownModal = ({
                         {loc.city}
                       </div>
                     </td>
-                    <td style={{ textAlign: "center", padding: "8px", color: "#94a3b8", fontSize: 12 }}>—</td>
                     <td style={{ textAlign: "center", padding: "8px" }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
-                        #{loc.overallRank ? Math.round(loc.overallRank) : "—"}
+                      <span style={{ fontSize: 12, fontWeight: 700, color: loc.paidRank ? "#0f172a" : "#94a3b8" }}>
+                        {loc.paidRank ? `#${Math.round(loc.paidRank)}` : "—"}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: "center", padding: "8px" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: loc.organicRank ? "#0f172a" : "#94a3b8" }}>
+                        {loc.organicRank ? `#${Math.round(loc.organicRank)}` : "—"}
                       </span>
                     </td>
                     {(type === "sku" || type === "brandKeywords") && (
@@ -360,6 +364,7 @@ export default function SearchTermsPerformance() {
       setExpandedRows({});
       setLocationData({}); // Clear location drilldown cache on filter change
       setBbData({}); // Clear brand breakdown cache on filter change
+      setExpandedKeywordLocations({}); // Clear expanded SKU/Keyword locations on filter change
       setSummaryExpanded(false);
       try {
         const data = await fetchSearchTermsPerformance(filterParams);
@@ -438,78 +443,107 @@ export default function SearchTermsPerformance() {
   }, [locationData, locationLoading, filterParams]);
 
 
-  const openSkuModal = useCallback(async (e, keywordName, isMySkus) => {
+  const openSkuModal = useCallback((e, keywordName, isMySkus) => {
     e.stopPropagation();
     const title = isMySkus ? `My SKUs — "${keywordName}"` : `All SKUs — "${keywordName}"`;
-    setDrilldownModal({ title, items: [], loading: true, type: "sku" });
-    try {
-      const data = await fetchSearchTermsPerformance({
-        viewMode: "sku",
-        platform: globalPlatform || "All",
-        brand: isMySkus ? (selectedBrand || "All") : "All",
-        location: (selectedLocation && selectedLocation !== "All") 
-          ? (Array.isArray(selectedLocation) ? selectedLocation.join(',').toLowerCase() : selectedLocation.toLowerCase()) 
-          : "All",
-        category: selectedCategory || "All",
-        startDate: timeStart, endDate: timeEnd,
-        keywordTypeFilter: activeFilter.toLowerCase(),
-        keywordType: selectedKeywordType || "All",
-        channel: selectedChannel || "All",
-        keyword: keywordName,
-        ownBrandsOnly: isMySkus,
-        rank: selectedRank || 'All',
-        compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
-        compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
-      });
-      setDrilldownModal({ title, items: data.items || [], loading: false, type: "sku" });
-    } catch (err) {
-      console.error("Error fetching SKU data for keyword:", err);
-      setDrilldownModal({ title, items: [], loading: false, type: "sku" });
-    }
-  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd, compareStart, compareEnd, selectedChannel, selectedRank]);
+    setExpandedKeywordLocations({});
+    setDrilldownModal({
+      title,
+      items: [],
+      loading: true,
+      type: "sku",
+      keywordName,
+      isMySkus
+    });
+  }, []);
 
 
-  const openKeywordModal = useCallback(async (e, skuName, isMyKeywords) => {
+  const openKeywordModal = useCallback((e, skuName, isMyKeywords) => {
     e.stopPropagation();
     const title = isMyKeywords ? `My Keywords — "${skuName}"` : `All Keywords — "${skuName}"`;
-    setDrilldownModal({ title, items: [], loading: true, type: "keyword" });
-    setExpandedKeywordLocations({}); // Reset location expansion
-    try {
-      const data = await fetchSearchTermsPerformance({
-        viewMode: "keyword",
-        platform: globalPlatform || "All",
-        brand: isMyKeywords ? (selectedBrand || "All") : "All",
-        location: (selectedLocation && selectedLocation !== "All") 
-          ? (Array.isArray(selectedLocation) ? selectedLocation.join(',').toLowerCase() : selectedLocation.toLowerCase()) 
-          : "All",
-        category: selectedCategory || "All",
-        startDate: timeStart, endDate: timeEnd,
-        keywordTypeFilter: activeFilter.toLowerCase(),
-        keywordType: selectedKeywordType || "All",
-        channel: selectedChannel || "All",
-        sku: skuName,
-        ownBrandsOnly: isMyKeywords,
-        rank: selectedRank || 'All',
-        compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
-        compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
-      });
-      setDrilldownModal({ title, items: data.items || [], loading: false, type: "keyword" });
-    } catch (err) {
-      console.error("Error fetching Keyword data for SKU:", err);
-      setDrilldownModal({ title, items: [], loading: false, type: "keyword" });
-    }
-  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd, compareStart, compareEnd, selectedChannel, selectedRank]);
+    setExpandedKeywordLocations({});
+    setDrilldownModal({
+      title,
+      items: [],
+      loading: true,
+      type: "keyword",
+      skuName,
+      isMyKeywords
+    });
+  }, []);
 
 
-  const openBrandKeywordsModal = useCallback(async (e, brandName) => {
+  const openBrandKeywordsModal = useCallback((e, brandName) => {
     e.stopPropagation();
     setCurrentModalBrand(brandName);
     setModalKeywordType("All");
     const title = `Keywords — "${brandName}"`;
-    setDrilldownModal({ title, items: [], loading: true, type: "brandKeywords" });
     setExpandedKeywordLocations({});
-    // Fetch happens in the useEffect below
+    setDrilldownModal({ title, items: [], loading: true, type: "brandKeywords" });
   }, []);
+
+  // Effect to re-fetch SKU or Keyword drilldown modal data when filter parameters change
+  useEffect(() => {
+    if (!drilldownModal) return;
+
+    if (drilldownModal.type === "sku" && drilldownModal.keywordName) {
+      const fetchModalData = async () => {
+        setDrilldownModal(prev => ({ ...prev, loading: true }));
+        setExpandedKeywordLocations({}); // Reset expanded locations
+        try {
+          const data = await fetchSearchTermsPerformance({
+            ...filterParams,
+            viewMode: "sku",
+            brand: drilldownModal.isMySkus ? (selectedBrand || "All") : "All",
+            location: (selectedLocation && selectedLocation !== "All") 
+              ? (Array.isArray(selectedLocation) ? selectedLocation.join(',').toLowerCase() : selectedLocation.toLowerCase()) 
+              : "All",
+            category: selectedCategory || "All",
+            keyword: drilldownModal.keywordName,
+            ownBrandsOnly: drilldownModal.isMySkus,
+          });
+          setDrilldownModal(prev => ({ ...prev, items: data.items || [], loading: false }));
+        } catch (err) {
+          console.error("Error fetching SKU data reactively:", err);
+          setDrilldownModal(prev => ({ ...prev, items: [], loading: false }));
+        }
+      };
+      fetchModalData();
+    } else if (drilldownModal.type === "keyword" && drilldownModal.skuName) {
+      const fetchModalData = async () => {
+        setDrilldownModal(prev => ({ ...prev, loading: true }));
+        setExpandedKeywordLocations({}); // Reset expanded locations
+        try {
+          const data = await fetchSearchTermsPerformance({
+            ...filterParams,
+            viewMode: "keyword",
+            brand: drilldownModal.isMyKeywords ? (selectedBrand || "All") : "All",
+            location: (selectedLocation && selectedLocation !== "All") 
+              ? (Array.isArray(selectedLocation) ? selectedLocation.join(',').toLowerCase() : selectedLocation.toLowerCase()) 
+              : "All",
+            category: selectedCategory || "All",
+            sku: drilldownModal.skuName,
+            ownBrandsOnly: drilldownModal.isMyKeywords,
+          });
+          setDrilldownModal(prev => ({ ...prev, items: data.items || [], loading: false }));
+        } catch (err) {
+          console.error("Error fetching Keyword data reactively:", err);
+          setDrilldownModal(prev => ({ ...prev, items: [], loading: false }));
+        }
+      };
+      fetchModalData();
+    }
+  }, [
+    drilldownModal?.keywordName, 
+    drilldownModal?.skuName, 
+    drilldownModal?.type, 
+    drilldownModal?.isMySkus, 
+    drilldownModal?.isMyKeywords, 
+    filterParams,
+    selectedBrand,
+    selectedLocation,
+    selectedCategory
+  ]);
 
   // Effect to re-fetch brand keywords when modal filter changes
   useEffect(() => {
@@ -555,7 +589,7 @@ export default function SearchTermsPerformance() {
         keyword: keywordName,
         sku: skuName || "All",
         brand: brandName || "All",
-        viewMode: "keyword"
+        viewMode: (skuName && skuName !== "All") ? "sku" : "keyword"
       });
       setExpandedKeywordLocations(prev => ({ ...prev, [keyToExpand]: data.locations || [] }));
     } catch (err) {
@@ -1131,7 +1165,12 @@ export default function SearchTermsPerformance() {
           type={drilldownModal.type} 
           keywordTypeFilter={modalKeywordType}
           onKeywordTypeFilterChange={setModalKeywordType}
-          onClose={() => { setDrilldownModal(null); setCurrentModalBrand(null); }} 
+          onClose={() => { 
+            setDrilldownModal(null); 
+            setCurrentModalBrand(null); 
+            setExpandedKeywordLocations({});
+            setKeywordLocationLoading({});
+          }} 
           onToggleLocations={toggleKeywordLocations}
           expandedLocs={expandedKeywordLocations}
           locsLoading={keywordLocationLoading}

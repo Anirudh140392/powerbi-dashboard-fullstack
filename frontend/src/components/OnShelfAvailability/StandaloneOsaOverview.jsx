@@ -21,6 +21,9 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
         if (u.dbName.toLowerCase() === 'mamaearth') {
           return 'The Derma Co.';
         }
+        if (u.dbName.toLowerCase() === 'hm_zydus') {
+          return 'Zydus';
+        }
         return u.dbName
           .replace(/_/g, ' ')
           .replace(/\b\w/g, c => c.toUpperCase());

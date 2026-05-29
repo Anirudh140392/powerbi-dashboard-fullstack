@@ -119,6 +119,7 @@ async function getWatchtowerSource() {
                 compFlagMapping: r('comp_flag'),
                 mrp: r('mrp'),
                 sellingPrice: r('selling_price'),
+                sellingPriceRaw: r('selling_price'),
                 product: r('product'),
                 skuCode: r('sku_code'),
                 quantitySold: r('total_qty'),
@@ -183,6 +184,7 @@ async function getWatchtowerSource() {
             compFlagMapping: compFlagCol,
             mrp: wrap(mrpCol),
             sellingPrice: wrap(sellingPriceCol),
+            sellingPriceRaw: `toFloat64OrNull(toString(${sellingPriceCol}))`,
             product: productCol,
             skuCode: webPidCol,
             quantitySold: qtySoldCol,
@@ -1120,23 +1122,18 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     if (pCond) baseConditions.push(pCond);
                 }
 
-                // For brand filter: filter by specific brand name or our valid brands
+                // For brand filter: filter by specific brand name or use flag column for "our brands"
                 const brandArr = normalizeFilterArray(brandFilter);
                 let numCondition = '1=1';
 
                 if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+                    // Specific brand selected — match by brand_name_th
                     const brandConds = brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
                     numCondition = `lower(brand_name_th) IN (${brandConds})`;
                 } else {
-                    // When brand is "All", filter for our brands using validBrandNames
-                    const validBrandNamesForSos = await getCachedValidBrandNames();
-                    if (validBrandNamesForSos && validBrandNamesForSos.length > 0) {
-                        const brandConds = validBrandNamesForSos.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
-                        numCondition = `lower(brand_name_th) IN (${brandConds})`;
-                    } else {
-                        // Fallback if no brands found
-                        numCondition = "toString(flag) = '1'";
-                    }
+                    // When brand is "All", use the native flag column in rb_kw_olap
+                    // flag = '1' reliably marks "our brands" without cross-table name matching
+                    numCondition = "toString(flag) = '1'";
                 }
 
                 // Mathematical logic matching user query: SUM(overall) for our brands / SUM(overall) total × 100
@@ -1687,12 +1684,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             // 10. Share of Search Trend Data - USING CLICKHOUSE
             (async () => {
                 try {
-                    // Approximate Weekly Trend for SOS by day
-                    const brandsForNumerator = (brand && brand !== 'All')
-                        ? (Array.isArray(brand) ? brand : [brand])
-                        : (await getGlobalOurBrandsList());
-
-                    const brandInClause = brandsForNumerator.map(b => `'${escapeStr(b)}'`).join(', ');
                     const baseCond = [
                         `toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`
                     ];
@@ -1707,11 +1698,21 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const platCond = buildPlatformChannelCond(platArr, channel, 'lower(platform_name)', true);
                     if (platCond) baseCond.push(platCond);
 
+                    // Build numerator condition: use flag='1' for "All" brands, brand name match for specific brands
+                    let numBrandCond;
+                    if (brand && brand !== 'All') {
+                        const brandsForNumerator = Array.isArray(brand) ? brand : [brand];
+                        const brandInClause = brandsForNumerator.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
+                        numBrandCond = `lower(brand) IN (${brandInClause})`;
+                    } else {
+                        numBrandCond = `toString(flag) = '1'`;
+                    }
+
                     // POSITION <= 10 constraint: Only consider top 10 positions for SOS
                     const result = await queryClickHouse(`
                         SELECT 
                             toDate(DATE) as date,
-                            SUM(if(lower(brand) IN (${brandInClause.toLowerCase()}) AND POSITION <= 10, toInt32(overall), 0)) as num,
+                            SUM(if(${numBrandCond} AND POSITION <= 10, toInt32(overall), 0)) as num,
                             SUM(if(POSITION <= 10, toInt32(overall), 0)) as den
                         FROM rb_kw_olap
                         WHERE ${baseCond.join(' AND ')}
@@ -3108,12 +3109,19 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             )
         );
 
-        // ⚠️ OPTIMIZATION: Skip platform-level SOS calculation
-        // SOS is a brand metric, not a platform metric. The previous code incorrectly 
-        // passed platform names (Zepto, Blinkit) as brand names, causing 2+ minute 
-        // queries that returned nothing. Platform SOS will be set to 0.
-        // For accurate per-platform SOS, use getShareOfSearch with platform filter.
-        const platformSosMap = new Map(); // Empty map - platform SOS not meaningful
+        // Per-platform SOS: call getShareOfSearch with platform filter for each platform
+        // getShareOfSearch already filters by POSITION <= 10 (top 10 rank)
+        const platformSosMap = new Map();
+        const platformSosResults = await Promise.all(
+            platformDefinitions.map(async (p) => {
+                const [currSos, prevSos] = await Promise.all([
+                    getShareOfSearch(startDate, endDate, brand, p.label, location, category),
+                    getShareOfSearch(momStart, momEnd, brand, p.label, location, category)
+                ]);
+                return { label: p.label, current: currSos || 0, previous: prevSos || 0 };
+            })
+        );
+        platformSosResults.forEach(r => platformSosMap.set(r.label, { current: r.current, previous: r.previous }));
 
         console.timeEnd(platformBulkTimerLabel);
         console.log(`[Platform Overview] Bulk fetch complete. Now processing ${platformDefinitions.length} platforms in-memory...`);
@@ -4766,6 +4774,8 @@ const computeTrendData = async (filters) => {
         // Uses overall/spons/organic columns and flag column for our brands
         const buildSosConds = () => {
             const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+            // Only consider top 10 ranked positions for SOS
+            conds.push(`POSITION <= 10`);
             const catArr = normalizeFilterArray(category);
             if (catArr && catArr.length > 0) {
                 if (catArr.length === 1) {
@@ -4793,12 +4803,9 @@ const computeTrendData = async (filters) => {
             return conds.join(' AND ');
         };
 
-        // Numerator: Our valid brands using brand_name_th
+        // Numerator: Our brands using flag column (reliable native marker in rb_kw_olap)
         const sosNumConds = buildSosConds();
         let numCondition = "toString(flag) = '1'";
-        if (validBrandNamesForMs && validBrandNamesForMs.length > 0) {
-            numCondition = `lower(brand_name_th) IN (${validBrandNamesForMs.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`;
-        }
 
         // POSITION <= 10 constraint: Only consider top 10 positions for SOS
         const sosNumerator = await queryClickHouse(`
@@ -5159,6 +5166,8 @@ const getPlatformOverview = async (filters) => {
     // Build base conditions for rb_kw_olap (SOS / Ad SOV / Organic SOV)
     const buildSosConds = (start, end) => {
         const conds = [`toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
+        // Only consider top 10 ranked positions for SOS
+        conds.push(`POSITION <= 10`);
         if (locationArr && locationArr.length > 0) {
             conds.push(`lower(location_name) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
         }
@@ -5242,7 +5251,7 @@ const getPlatformOverview = async (filters) => {
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} ELSE 0 END) as buy_box_neno,
                         AVG(if(${src.f.compFlagMapping} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlagMapping} = 1, ${src.f.discount}, NULL)) as comp_avg_discount,
-                        AVG(if(${src.f.compFlagMapping} = 0, ${src.f.sellingPrice}, NULL)) as asp
+                        AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as asp
                     FROM ${src.table}
                     WHERE ${currOfftakeConds}
                     GROUP BY Platform
@@ -5257,7 +5266,7 @@ const getPlatformOverview = async (filters) => {
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} ELSE 0 END) as buy_box_neno,
                         AVG(if(${src.f.compFlagMapping} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlagMapping} = 1, ${src.f.discount}, NULL)) as comp_avg_discount,
-                        AVG(if(${src.f.compFlagMapping} = 0, ${src.f.sellingPrice}, NULL)) as asp
+                        AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as asp
                     FROM ${src.table}
                     WHERE ${prevOfftakeConds}
                     GROUP BY Platform
@@ -5585,7 +5594,7 @@ const getPlatformOverview = async (filters) => {
                         SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ${src.f.deno} ELSE 0 END) as total_deno,
                         AVG(if(${src.f.compFlag} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlag} = 1, ${src.f.discount}, NULL)) as comp_avg_discount,
-                        AVG(if(${src.f.compFlag} = 0, ${src.f.sellingPrice}, NULL)) as avg_asp
+                        AVG(if(${src.f.compFlag} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
                     FROM ${src.table}
                     WHERE ${allConds}
                 `),
@@ -5597,7 +5606,7 @@ const getPlatformOverview = async (filters) => {
                         SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ${src.f.deno} ELSE 0 END) as total_deno,
                         AVG(if(${src.f.compFlag} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlag} = 1, ${src.f.discount}, NULL)) as comp_avg_discount,
-                        AVG(if(${src.f.compFlag} = 0, ${src.f.sellingPrice}, NULL)) as avg_asp
+                        AVG(if(${src.f.compFlag} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
                     FROM ${src.table}
                     WHERE ${prevAllConds}
                 `),
@@ -6103,7 +6112,7 @@ const getMonthOverview = async (filters) => {
                         SUM(CASE WHEN ${src.f.compFlag} = 1 AND ${src.f.mrp} > 0 THEN ${src.f.sellingPrice} * ${src.f.quantitySold} ELSE 0 END) as comp_actual_sales,
                         SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
                         AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
-                        AVG(if(${src.f.compFlag} = 0, ${src.f.sellingPrice}, NULL)) as avg_asp
+                        AVG(if(${src.f.compFlag} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
                     FROM ${src.table}
                     WHERE ${moConds}
                     GROUP BY formatDateTime(toDate(${src.f.date}), '%Y-%m-01')
@@ -6408,6 +6417,8 @@ const getCategoryOverview = async (filters) => {
     // Build SOS conditions for rb_kw_olap
     const buildSosCatConds = (sDate, eDate) => {
         const conds = [`toDate(DATE) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
+        // Only consider top 10 ranked positions for SOS
+        conds.push(`POSITION <= 10`);
         const pCond = buildPlatformChannelCond(catPlatform, channel, 'platform_name');
         if (pCond) conds.push(pCond);
         if (locationArr && locationArr.length > 0) {
@@ -6503,7 +6514,7 @@ const getCategoryOverview = async (filters) => {
             SUM(${src.f.actualSales}) as comp_actual_sales,
             SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
             AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
-            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'}, ${src.f.sellingPrice}, NULL)) as avg_asp
+            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
         FROM ${src.table} WHERE ${buildCatConds(startDate, endDate)} GROUP BY Category`),
         queryClickHouse(`SELECT ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} as Category,
             SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
@@ -6516,7 +6527,7 @@ const getCategoryOverview = async (filters) => {
             SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as comp_actual_sales,
             SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
             AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
-            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'}, ${src.f.sellingPrice}, NULL)) as avg_asp
+            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
         FROM ${src.table} WHERE ${buildCatConds(momStart, momEnd)} GROUP BY Category`),
         // Marketing Metrics from PM table
         queryClickHouse(`SELECT ${pmSrc.f.category} as Category,
@@ -6861,6 +6872,8 @@ const getBrandsOverview = async (filters) => {
     // Build SOS conditions for rb_kw_olap
     const buildSosBrandConds = (sDate, eDate) => {
         const conds = [`toDate(DATE) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
+        // Only consider top 10 ranked positions for SOS
+        conds.push(`POSITION <= 10`);
         const platformArr = normalizeFilterArray(boPlatform);
         const pCond = buildPlatformChannelCond(boPlatform, channel, 'platform_name');
         if (pCond) conds.push(pCond);
@@ -6927,7 +6940,7 @@ const getBrandsOverview = async (filters) => {
             SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as comp_actual_sales,
             SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
             AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
-            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'}, ${src.f.sellingPrice}, NULL)) as avg_asp
+            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
         FROM ${src.table} WHERE ${buildBrandConds(startDate, endDate)} AND ${src.f.compFlag} = 0 GROUP BY Brand`),
         queryClickHouse(`SELECT ${src.f.brand} as Brand,
             SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
@@ -6940,7 +6953,7 @@ const getBrandsOverview = async (filters) => {
             SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as comp_actual_sales,
             SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
             AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
-            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'}, ${src.f.sellingPrice}, NULL)) as avg_asp
+            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
         FROM ${src.table} WHERE ${buildBrandConds(momStart, momEnd)} AND ${src.f.compFlag} = 0 GROUP BY Brand`),
         // Marketing Metrics from PM table
         queryClickHouse(`SELECT ${pmSrc.f.brand} as Brand,
@@ -7456,7 +7469,8 @@ const getKpiTrends = async (filters) => {
     // Build SOS base conditions (uses DATE and flag columns)
     const buildSosConds = () => {
         const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-
+        // Only consider top 10 ranked positions for SOS
+        conds.push(`POSITION <= 10`);
         if (catArr && catArr.length > 0) conds.push(`keyword_category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         if (locArr && locArr.length > 0) conds.push(`location_name IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         if (platArr && platArr.length > 0) conds.push(`platform_name IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
@@ -11088,7 +11102,7 @@ const getSkuOverview = async (filters) => {
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} * 1.0 ELSE 0 END) as total_buy_box_neno,
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
-                AVG(if(${src.f.compFlagMapping} = 0, ${src.f.sellingPrice}, NULL)) as avg_asp,
+                AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
                 any(${src.isAgg ? 'sku_code' : 'Web_Pid'}) as web_pid
             FROM ${src.table}
             WHERE ${currSkuConds} AND ${src.isAgg ? 'brand' : 'Product'} IS NOT NULL AND ${src.isAgg ? 'brand' : 'Product'} != ''
@@ -11113,7 +11127,7 @@ const getSkuOverview = async (filters) => {
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} * 1.0 ELSE 0 END) as total_buy_box_neno,
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
-                AVG(if(${src.f.compFlagMapping} = 0, ${src.f.sellingPrice}, NULL)) as avg_asp
+                AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
             FROM ${src.table}
             WHERE ${prevSkuConds} AND ${src.isAgg ? 'brand' : 'Product'} IS NOT NULL AND ${src.isAgg ? 'brand' : 'Product'} != ''
             GROUP BY Product

@@ -59,6 +59,51 @@ function buildPOWhereClause(filters = {}) {
 }
 
 /**
+ * Build WHERE clause fragments for Surplus Inventory filtering
+ */
+function buildSurplusWhereClause(filters = {}) {
+    const conditions = ['sku_name IS NOT NULL'];
+
+    if (filters.platform && filters.platform !== 'All') {
+        const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
+        conditions.push(`lower(platform) IN (${platforms})`);
+    }
+    if (filters.brand && filters.brand !== 'All') {
+        const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
+        conditions.push(`lower(brand) IN (${brands})`);
+    }
+    if (filters.category && filters.category !== 'All') {
+        const categories = filters.category.split(',').map(c => `'${c.trim().toLowerCase()}'`).join(',');
+        conditions.push(`lower(category) IN (${categories})`);
+    }
+    if (filters.city && filters.city !== 'All') {
+        const cities = filters.city.split(',').map(c => `'${c.trim().toLowerCase()}'`).join(',');
+        conditions.push(`lower(city) IN (${cities})`);
+    }
+    if (filters.search) {
+        const searchTerm = filters.search.trim().toLowerCase();
+        conditions.push(`(lower(sku_name) LIKE '%${searchTerm}%' OR lower(facility_name) LIKE '%${searchTerm}%')`);
+    }
+    if (filters.startDate) {
+        const d = new Date(filters.startDate);
+        if (!isNaN(d.getTime())) {
+            const formatted = d.toISOString().split('T')[0];
+            conditions.push(`toDate(po_raised_date) >= toDate('${formatted}')`);
+        }
+    }
+    if (filters.endDate) {
+        const d = new Date(filters.endDate);
+        if (!isNaN(d.getTime())) {
+            const formatted = d.toISOString().split('T')[0];
+            conditions.push(`toDate(po_raised_date) <= toDate('${formatted}')`);
+        }
+    }
+
+    return conditions.join(' AND ');
+}
+
+
+/**
  * Compute Priority level from aggregated PO metrics
  * Priority is determined by urgency signals:
  *  - High: DIH < 3 OR fillRate < 50% OR expiry within 3 days
@@ -628,6 +673,177 @@ const supplyChainService = {
                 throw error;
             }
         }, CACHE_TTL.SHORT);
+    },
+
+    /**
+     * Get Stock Transfer Data
+     * Aggregates rb_po_olap rows by sku_name and facility_name
+     * to compute KPIs: City OSA%, DOI(FE/BE), SOH(FE/BE), CPD, PSL Recovery
+     *
+     * @param {Object} filters — platform, brand, category, city, search, startDate, endDate
+     * @returns {Array} Stock transfer items with computed KPIs
+     */
+    async getStockTransferData(filters = {}) {
+        console.log('[SupplyChain] getStockTransferData called with filters:', filters);
+        const cacheKey = generateCacheKey('supply_chain_stock_transfer_v1', filters);
+
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                const whereClause = buildSurplusWhereClause(filters);
+
+                const query = `
+                    SELECT
+                        sku_name,
+                        facility_name,
+                        any(platform) as platform_val,
+
+                        -- SOH
+                        SUM(ifNull(front_inventory, 0)) as soh_fe,
+                        SUM(ifNull(toFloat64OrNull(back_inventory), 0)) as soh_be,
+
+                        -- CPD (Consumption Per Day)
+                        SUM(ifNull(DRR, 0)) as cpd,
+
+                        -- DOI (FE) = SUM(front_inventory) / SUM(DRR)
+                        if(SUM(ifNull(DRR, 0)) > 0,
+                           SUM(ifNull(front_inventory, 0)) / SUM(ifNull(DRR, 0)),
+                           0) as doi_fe,
+
+                        -- DOI (BE) = SUM(back_inventory) / SUM(DRR)
+                        if(SUM(ifNull(DRR, 0)) > 0,
+                           SUM(ifNull(toFloat64OrNull(back_inventory), 0)) / SUM(ifNull(DRR, 0)),
+                           0) as doi_be,
+
+                        -- OSA components
+                        SUM(ifNull(neno_osa, 0)) as total_neno_osa,
+                        SUM(ifNull(deno_osa, 0)) as total_deno_osa,
+
+                        -- PSL components
+                        SUM(ifNull(DRR, 0) * 7 * ifNull(cost_per_unit, 0)) as expected_7day_sales,
+                        avg(ifNull(DIH, 0)) as avg_dih,
+                        max(ifNull(delivery_time, 0)) as lead_time
+
+                    FROM rb_po_olap
+                    WHERE ${whereClause}
+                    GROUP BY sku_name, facility_name
+                    HAVING SUM(ifNull(DRR, 0)) > 0
+                    ORDER BY expected_7day_sales DESC
+                `;
+
+                console.log('[SupplyChain] Executing Stock Transfer query...');
+                const rows = await queryClickHouse(query);
+                console.log(`[SupplyChain] Got ${rows.length} stock transfer rows from ClickHouse`);
+
+                const data = rows.map((row, index) => {
+                    const sohFe = row.soh_fe === null ? 0 : Math.round(parseFloat(row.soh_fe));
+                    const sohBe = row.soh_be === null ? 0 : Math.round(parseFloat(row.soh_be));
+                    const doiFe = row.doi_fe === null ? 0 : parseFloat(parseFloat(row.doi_fe).toFixed(1));
+                    const doiBe = row.doi_be === null ? 0 : parseFloat(parseFloat(row.doi_be).toFixed(1));
+                    const cpd = row.cpd === null ? 0 : Math.round(parseFloat(row.cpd));
+
+                    const totalNenoOsa = parseFloat(row.total_neno_osa) || 0;
+                    const totalDenoOsa = parseFloat(row.total_deno_osa) || 0;
+                    const cityOsa = totalDenoOsa > 0
+                        ? parseFloat(((totalNenoOsa / totalDenoOsa) * 100).toFixed(1))
+                        : 0;
+
+                    // PSL Recovery using existing computePSL helper
+                    const expected7DaySales = parseFloat(row.expected_7day_sales) || 0;
+                    const avgDih = parseFloat(row.avg_dih) || 0;
+                    const leadTime = parseInt(row.lead_time) || 0;
+                    const pslRecovery = computePSL(expected7DaySales, totalNenoOsa, totalDenoOsa, avgDih, leadTime);
+
+                    return {
+                        id: `ST-${String(index + 1).padStart(3, '0')}`,
+                        skuName: row.sku_name || '',
+                        fromCfa: titleCase(row.facility_name || ''),
+                        platform: titleCase(row.platform_val || ''),
+                        cityOsa,
+                        doiFe,
+                        doiBe,
+                        sohFe,
+                        sohBe,
+                        cpd,
+                        pslRecovery: Math.round(pslRecovery)
+                    };
+                });
+
+                return data;
+            } catch (error) {
+                console.error('[SupplyChain] Error in getStockTransferData:', error.message);
+                throw error;
+            }
+        }, CACHE_TTL.SHORT);
+    },
+
+    /**
+     * Get Manage Surplus Data
+     * Aggregates rb_po_olap rows by sku_name, platform, and facility_name
+     */
+    async getManageSurplusData(filters = {}) {
+        console.log('[SupplyChain] getManageSurplusData called with filters:', filters);
+        const cacheKey = generateCacheKey('supply_chain_manage_surplus_v3', filters);
+
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                const whereClause = buildSurplusWhereClause(filters);
+
+                const query = `
+                    SELECT
+                        sku_name,
+                        platform,
+                        facility_name,
+                        SUM(front_inventory) as soh_fe,
+                        SUM(toFloat64OrNull(back_inventory)) as soh_be,
+                        if(SUM(DRR) > 0, (SUM(front_inventory) + SUM(toFloat64OrNull(back_inventory))) / SUM(DRR), 0) as doi,
+                        SUM(DRR) as cpd,
+                        SUM(ifNull(neno_osa, 0)) as total_neno_osa,
+                        SUM(ifNull(deno_osa, 0)) as total_deno_osa
+                    FROM rb_po_olap
+                    WHERE ${whereClause}
+                    GROUP BY sku_name, platform, facility_name
+                    ORDER BY sku_name ASC
+                `;
+
+                console.log('[SupplyChain] Executing Manage Surplus query...');
+                const rows = await queryClickHouse(query);
+                console.log(`[SupplyChain] Got ${rows.length} surplus rows from ClickHouse`);
+
+                const data = rows.map((row, index) => {
+                    const sohFe = row.soh_fe === null ? 0 : Math.round(parseFloat(row.soh_fe));
+                    const sohBe = row.soh_be === null ? 0 : Math.round(parseFloat(row.soh_be));
+                    const doi = row.doi === null ? 0 : Math.round(parseFloat(row.doi));
+                    const cpd = row.cpd === null ? 0 : Math.round(parseFloat(row.cpd));
+                    
+                    const totalNenoOsa = parseFloat(row.total_neno_osa) || 0;
+                    const totalDenoOsa = parseFloat(row.total_deno_osa) || 0;
+                    const cityOsa = totalDenoOsa > 0 ? parseFloat(((totalNenoOsa / totalDenoOsa) * 100).toFixed(1)) : 0;
+
+                    // Priority logic: High if doi > 40, Medium if doi > 25, Low otherwise
+                    let priority = 'Low';
+                    if (doi > 40) priority = 'High';
+                    else if (doi > 25) priority = 'Medium';
+
+                    return {
+                        id: `MS-${String(index + 1).padStart(3, '0')}`,
+                        skuName: row.sku_name || '',
+                        platform: titleCase(row.platform || ''),
+                        warehouse: titleCase(row.facility_name || ''),
+                        priority,
+                        sohBe,
+                        sohFe,
+                        doi,
+                        cpd,
+                        cityOsa
+                    };
+                });
+
+                return data;
+            } catch (error) {
+                console.error('[SupplyChain] Error in getManageSurplusData:', error.message);
+                throw error;
+            }
+        });
     }
 };
 
