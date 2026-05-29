@@ -1,0 +1,1289 @@
+import React, { useMemo, useState, useContext, createContext, useEffect, useCallback } from "react";
+import { FilterContext } from "../../utils/FilterContext";
+import axiosInstance from "../../api/axiosInstance";
+// import PaginationFooter from "../CommonLayout/PaginationFooter"; // Removed pagination
+import {
+    Filter,
+    LineChart as LineChartIcon,
+    BarChart3,
+    SlidersHorizontal,
+} from "lucide-react";
+import {
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    Tooltip,
+    Legend,
+    ResponsiveContainer,
+    CartesianGrid,
+} from "recharts";
+import { Box } from "@mui/material";
+
+/* -------------------------------------------------------------------------- */
+/*                               Utility helper                               */
+/* -------------------------------------------------------------------------- */
+
+function cn(...classes) {
+    return classes.filter(Boolean).join(" ");
+}
+
+const formatKpiValue = (value, unit = "%") => {
+    if (value === null || value === undefined || value === 0 || value === "0") {
+        return "N/A";
+    }
+    const num = parseFloat(value);
+    if (isNaN(num)) return "N/A";
+    return `${num.toFixed(1)}${unit}`;
+};
+
+/* -------------------------------------------------------------------------- */
+/*                           Small UI components (local)                      */
+/* -------------------------------------------------------------------------- */
+
+/* Card */
+
+const Card = ({ className, children }) => (
+    <div
+        className={cn(
+            "rounded-lg border border-slate-200 bg-white shadow-sm",
+            className
+        )}
+    >
+        {children}
+    </div>
+);
+
+const CardHeader = ({ className, children }) => (
+    <div className={cn("px-4 py-3", className)}>{children}</div>
+);
+
+const CardTitle = ({ className, children }) => (
+    <h2 className={cn("font-semibold text-slate-900", className)}>{children}</h2>
+);
+
+const CardContent = ({ className, children }) => (
+    <div className={cn("px-4 py-3", className)}>{children}</div>
+);
+
+/* Button */
+
+const Button = ({
+    className,
+    variant = "solid",
+    size = "md",
+    children,
+    ...props
+}) => {
+    const base =
+        "inline-flex items-center justify-center rounded-md text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-400 disabled:opacity-50 disabled:cursor-not-allowed";
+
+    const variants = {
+        solid: "bg-blue-600 text-white hover:bg-blue-700",
+        outline:
+            "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50",
+        ghost: "text-slate-700 hover:bg-slate-100",
+    };
+
+    const sizes = {
+        sm: "h-8 px-3 text-xs",
+        md: "h-9 px-4",
+        lg: "h-10 px-5 text-base",
+    };
+
+    return (
+        <button
+            className={cn(base, variants[variant], sizes[size], className)}
+            {...props}
+        >
+            {children}
+        </button>
+    );
+};
+
+/* Badge */
+
+const Badge = ({ className, children }) => (
+    <span
+        className={cn(
+            "inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700",
+            className
+        )}
+    >
+        {children}
+    </span>
+);
+
+/* Separator */
+
+const Separator = ({ orientation = "horizontal", className }) => {
+    const base = orientation === "vertical" ? "h-full w-px" : "h-px w-full";
+    return <div className={cn("bg-slate-200", base, className)} />;
+};
+
+/* Input */
+
+const Input = ({ className, ...props }) => (
+    <input
+        className={cn(
+            "h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500",
+            className
+        )}
+        {...props}
+    />
+);
+
+/* Checkbox */
+
+const Checkbox = ({ checked, onCheckedChange, className }) => (
+    <input
+        type="checkbox"
+        className={cn(
+            "h-4 w-4 rounded border border-slate-300 text-blue-600 focus:ring-blue-500",
+            className
+        )}
+        checked={checked}
+        onChange={(e) => onCheckedChange?.(e.target.checked)}
+    />
+);
+
+/* ScrollArea */
+
+const ScrollArea = ({ className, children }) => (
+    <div className={cn("overflow-auto", className)}>{children}</div>
+);
+
+/* Dialog */
+
+const Dialog = ({ open, onOpenChange, children }) => {
+    if (!open) return null;
+    return (
+        <div
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/40"
+            onClick={() => onOpenChange?.(false)}
+        >
+            <div
+                className="relative w-full max-w-3xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {children}
+            </div>
+        </div>
+    );
+};
+
+const DialogContent = ({ className, children }) => (
+    <div
+        className={cn(
+            "rounded-lg bg-white shadow-xl border border-slate-200",
+            className
+        )}
+    >
+        {children}
+    </div>
+);
+
+const DialogHeader = ({ className, children }) => (
+    <div className={cn(className)}>{children}</div>
+);
+
+const DialogFooter = ({ className, children }) => (
+    <div className={cn("flex justify-end gap-2", className)}>{children}</div>
+);
+
+const DialogTitle = ({ className, children }) => (
+    <h3 className={cn("text-base font-semibold text-slate-900", className)}>
+        {children}
+    </h3>
+);
+
+/* Tabs */
+
+const TabsContext = createContext(null);
+
+const Tabs = ({ value, onValueChange, className, children }) => (
+    <TabsContext.Provider value={{ value, onValueChange }}>
+        <div className={className}>{children}</div>
+    </TabsContext.Provider>
+);
+
+const TabsList = ({ className, children }) => (
+    <div className={cn("inline-flex rounded-md bg-slate-100 p-1", className)}>
+        {children}
+    </div>
+);
+
+const TabsTrigger = ({ value, className, children }) => {
+    const ctx = useContext(TabsContext);
+    const active = ctx?.value === value;
+
+    return (
+        <button
+            type="button"
+            onClick={() => ctx?.onValueChange?.(value)}
+            className={cn(
+                "px-3 py-1.5 text-sm rounded-md font-medium transition",
+                active
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:bg-slate-200",
+                className
+            )}
+        >
+            {children}
+        </button>
+    );
+};
+
+const TabsContent = ({ value, className, children }) => {
+    const ctx = useContext(TabsContext);
+    if (ctx?.value !== value) return null;
+    return <div className={className}>{children}</div>;
+};
+
+/* Select */
+
+const SelectContext = createContext(null);
+
+const Select = ({ value, onValueChange, children }) => {
+    const [open, setOpen] = useState(false);
+    return (
+        <SelectContext.Provider value={{ value, onValueChange, open, setOpen }}>
+            <div className="relative inline-block">{children}</div>
+        </SelectContext.Provider>
+    );
+};
+
+const SelectTrigger = ({ className, children }) => {
+    const ctx = useContext(SelectContext);
+    return (
+        <button
+            type="button"
+            onClick={() => ctx?.setOpen(!ctx.open)}
+            className={cn(
+                "flex h-9 w-40 items-center justify-between rounded-md border border-slate-300 bg-white px-2 text-sm shadow-sm hover:bg-slate-50",
+                className
+            )}
+        >
+            {children}
+            <span className="ml-2 text-xs text-slate-500">▾</span>
+        </button>
+    );
+};
+
+const SelectValue = ({ placeholder }) => {
+    const ctx = useContext(SelectContext);
+    const { value } = ctx || {};
+    return (
+        <span className={cn("truncate", !value && "text-slate-400")}>
+            {value || placeholder}
+        </span>
+    );
+};
+
+const SelectContent = ({ className, children }) => {
+    const ctx = useContext(SelectContext);
+    if (!ctx?.open) return null;
+
+    return (
+        <div
+            className={cn(
+                "absolute z-50 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg",
+                className
+            )}
+        >
+            <div className="max-h-60 overflow-auto py-1">{children}</div>
+        </div>
+    );
+};
+
+const SelectItem = ({ value, children }) => {
+    const ctx = useContext(SelectContext);
+    const selected = ctx?.value === value;
+
+    return (
+        <div
+            role="button"
+            className={cn(
+                "cursor-pointer px-3 py-1.5 text-sm hover:bg-slate-100",
+                selected && "bg-slate-100 font-medium"
+            )}
+            onClick={() => {
+                ctx?.onValueChange?.(value);
+                ctx?.setOpen(false);
+            }}
+        >
+            {children}
+        </div>
+    );
+};
+
+/* -------------------------------------------------------------------------- */
+/*                                Trend View                                  */
+/* -------------------------------------------------------------------------- */
+const MetricChip = ({ label, color, active, onClick }) => {
+    return (
+        <Box
+            onClick={onClick}
+            sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.8,
+                px: 1.5,
+                py: 0.6,
+                borderRadius: "999px",
+                cursor: "pointer",
+                border: `1px solid ${active ? color : "#E5E7EB"}`,
+                backgroundColor: active ? `${color}20` : "white",
+                color: active ? color : "#0f172a",
+                fontSize: "12px",
+                fontWeight: 600,
+                userSelect: "none",
+                transition: "all 0.15s ease",
+            }}
+        >
+            <Box
+                sx={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 3,
+                    border: `2px solid ${active ? color : "#CBD5E1"}`,
+                    backgroundColor: active ? color : "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "white",
+                    fontSize: 10,
+                    lineHeight: 1,
+                }}
+            >
+                {active && "✓"}
+            </Box>
+
+            {label}
+        </Box>
+    );
+};
+
+const TrendView = ({ mode, filters, city, platform, channel, period, globalFilters, brandRows, skuRows, onBackToTable, isEcom }) => {
+    const isBrandMode = mode === "brand";
+
+    // Also include any filter-selected SKUs/brands not already in the top rows
+    const allPossibleIds = useMemo(() => {
+        if (isBrandMode) {
+            const rows = brandRows || [];
+            const ids = rows.map((r) => r.id || r.name);
+            // Add filter-selected brands not already in the list
+            if (filters.brands && filters.brands.length > 0) {
+                filters.brands.forEach(b => { if (!ids.includes(b)) ids.push(b); });
+            }
+            return ids;
+        }
+        const rows = skuRows || [];
+        const ids = rows.map((r) => r.id || r.name);
+        // Add filter-selected SKUs not already in the list
+        if (filters.skus && filters.skus.length > 0) {
+            filters.skus.forEach(s => { if (!ids.includes(s)) ids.push(s); });
+        }
+        return ids;
+    }, [isBrandMode, brandRows, skuRows, filters.brands, filters.skus]);
+
+    const [visibleIds, setVisibleIds] = useState([]);
+    const [overflowOpen, setOverflowOpen] = useState(false);
+
+    useEffect(() => {
+        setVisibleIds(allPossibleIds.slice(0, 5));
+    }, [allPossibleIds]);
+
+    const [apiTrendData, setApiTrendData] = useState(null);
+    const [trendLoading, setTrendLoading] = useState(false);
+    const [trendError, setTrendError] = useState(null);
+
+    const [activeMetric, setActiveMetric] = useState("Osa");
+
+    useEffect(() => {
+        if (isEcom && activeMetric === 'Listing') {
+            setActiveMetric('Osa');
+        }
+    }, [isEcom, activeMetric]);
+
+    const metricMeta = KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
+
+    const fetchTrendData = useCallback(async () => {
+        if (visibleIds.length === 0) {
+            setApiTrendData(null);
+            return;
+        }
+        setTrendLoading(true);
+        setTrendError(null);
+        try {
+            const params = {
+                platform: platform || 'All',
+                channel: channel || 'All',
+                location: city === 'All India' ? 'All' : city,
+                category: filters.categories.length > 0 ? filters.categories.join('|') + '|' : 'All',
+                period: period || '1M',
+                startDate: globalFilters?.startDate,
+                endDate: globalFilters?.endDate
+            };
+
+            let endpoint = '';
+            if (isBrandMode) {
+                params.brands = visibleIds.join('|') + '|';
+                endpoint = '/availability-analysis/competition-brand-trends';
+            } else {
+                params.skus = visibleIds.join('|') + '|';
+                endpoint = '/availability-analysis/competition-sku-trends';
+            }
+
+            const response = await axiosInstance.post(endpoint, params);
+            setApiTrendData(response.data);
+        } catch (err) {
+            console.error("Error fetching trend data", err);
+            setTrendError(err.message || "Failed to load trend data");
+        } finally {
+            setTrendLoading(false);
+        }
+    }, [visibleIds, city, platform, channel, isBrandMode, filters.categories, period, globalFilters?.startDate, globalFilters?.endDate]);
+
+    useEffect(() => {
+        fetchTrendData();
+    }, [fetchTrendData]);
+
+    const chartData = useMemo(() => {
+        if (!apiTrendData) return [];
+        const dates = apiTrendData.dates || [];
+        const metricData = apiTrendData[activeMetric.toLowerCase()] || {};
+
+        return dates.map((date, idx) => {
+            const row = { date };
+            visibleIds.forEach(id => {
+                row[id] = metricData[id] ? metricData[id][idx] : null;
+            });
+            return row;
+        });
+    }, [apiTrendData, activeMetric, visibleIds]);
+
+    const formatValue = (v) => {
+        if (v === null || v === undefined) return 'N/A';
+        if (metricMeta.unit) return `${Number(v).toFixed(1)}${metricMeta.unit}`;
+        if (metricMeta.prefix) return `${metricMeta.prefix}${Number(v).toFixed(1)}`;
+        if (metricMeta.suffix) return `${Number(v).toFixed(1)}${metricMeta.suffix}`;
+        return Number(v).toFixed(1);
+    };
+
+    const truncateName = (name, length = 25) => {
+        if (!name) return '';
+        return name.length > length ? name.substring(0, length) + '...' : name;
+    };
+
+    return (
+        <Card className="mt-4">
+            <CardHeader className="flex flex-col gap-4 border-b pb-4">
+                <div className="flex items-center justify-between w-full">
+                    <Box display="flex" gap={1} flexWrap="wrap">
+                        {KPI_KEYS
+                            .filter(m => !(isEcom && m.key === 'Listing'))
+                            .map((m) => (
+                                <MetricChip
+                                    key={m.key}
+                                    label={m.label}
+                                    color={m.color}
+                                    active={activeMetric === m.key}
+                                    onClick={() => setActiveMetric(m.key)}
+                                />
+                            ))}
+                    </Box>
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" onClick={onBackToTable}>
+                            Back to list
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                        Select {isBrandMode ? 'Brands' : 'SKUs'} to Plot ({city})
+                    </div>
+                    <Box display="flex" gap={1} flexWrap="wrap">
+                        {(() => {
+                            const maxInline = 5;
+                            const inlineIds = allPossibleIds.slice(0, maxInline);
+                            const overflowIds = allPossibleIds.slice(maxInline);
+
+                            return (
+                                <>
+                                    {inlineIds.map((id, idx) => {
+                                        const name = truncateName(id, 35);
+                                        const active = visibleIds.includes(id);
+                                        const color = CHART_COLORS[idx % CHART_COLORS.length];
+                                        return (
+                                            <Box
+                                                key={id}
+                                                onClick={() => setVisibleIds(prev => {
+                                                    if (prev.includes(id)) return prev.filter(x => x !== id);
+                                                    if (prev.length >= 10) return prev; // Max 10 limit
+                                                    return [...prev, id];
+                                                })}
+                                                sx={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 1,
+                                                    px: 1.5,
+                                                    py: 0.5,
+                                                    borderRadius: "6px",
+                                                    cursor: "pointer",
+                                                    fontSize: "12px",
+                                                    fontWeight: 500,
+                                                    border: "1px solid",
+                                                    borderColor: active ? color : "#E2E8F0",
+                                                    backgroundColor: active ? `${color}10` : "transparent",
+                                                    color: active ? color : "#64748B",
+                                                    transition: "all 0.2s",
+                                                    maxWidth: "200px"
+                                                }}
+                                            >
+                                                <div style={{ minWidth: 8, height: 8, borderRadius: "50%", backgroundColor: color }} />
+                                                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={id}>{name}</span>
+                                                {active && <span style={{ fontSize: "10px" }}>✓</span>}
+                                            </Box>
+                                        )
+                                    })}
+
+                                    {overflowIds.length > 0 && (
+                                        <>
+                                            <Box
+                                                onClick={() => setOverflowOpen(true)}
+                                                sx={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 1,
+                                                    px: 2,
+                                                    py: 0.5,
+                                                    borderRadius: "6px",
+                                                    cursor: "pointer",
+                                                    fontSize: "12px",
+                                                    fontWeight: 600,
+                                                    border: "1px dashed #E2E8F0",
+                                                    backgroundColor: "#F8FAFC",
+                                                    color: "#475569",
+                                                }}
+                                            >
+                                                +{overflowIds.length} more
+                                            </Box>
+
+                                            <Dialog open={overflowOpen} onOpenChange={(v) => !v && setOverflowOpen(false)}>
+                                                <DialogContent className="max-w-md p-4 bg-white z-[60]">
+                                                    <DialogHeader className="mb-2">
+                                                        <DialogTitle>Select more {isBrandMode ? 'Brands' : 'SKUs'}</DialogTitle>
+                                                    </DialogHeader>
+                                                    <div style={{ maxHeight: 320, overflow: 'auto' }}>
+                                                        {overflowIds.map((id, idx) => {
+                                                            const name = id;
+                                                            const active = visibleIds.includes(id);
+                                                            const color = CHART_COLORS[(idx + maxInline) % CHART_COLORS.length];
+                                                            return (
+                                                                <div
+                                                                    key={id}
+                                                                    onClick={() => {
+                                                                        setVisibleIds(prev => {
+                                                                            if (prev.includes(id)) return prev.filter(x => x !== id);
+                                                                            if (prev.length >= 10) return prev; // Max 10 limit
+                                                                            return [...prev, id];
+                                                                        });
+                                                                    }}
+                                                                    className="p-2 rounded-md mb-2 cursor-pointer"
+                                                                    style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #E6EEF8', background: active ? `${color}10` : 'white' }}
+                                                                >
+                                                                    <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color }} />
+                                                                    <div style={{ flex: 1, fontSize: '13px' }}>{name}</div>
+                                                                    {active && <div style={{ fontSize: 12 }}>✓</div>}
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
+
+                                                    <DialogFooter className="mt-4">
+                                                        <Button variant="outline" onClick={() => setOverflowOpen(false)}>Close</Button>
+                                                    </DialogFooter>
+                                                </DialogContent>
+                                            </Dialog>
+                                        </>
+                                    )}
+                                </>
+                            )
+                        })()}
+                    </Box>
+                </div>
+            </CardHeader>
+
+            <CardContent className="pt-4">
+                <div className="h-[350px] w-full">
+                    {trendLoading ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                            <div className="animate-pulse flex items-end gap-4 px-8 pb-8 w-full h-[300px]">
+                                <div className="w-1/6 bg-slate-200/50 h-[40%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[70%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[50%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[80%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[60%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[90%] rounded-t-sm" />
+                            </div>
+                        </div>
+                    ) : trendError ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-500">
+                            <p>{trendError}</p>
+                            <Button variant="outline" size="sm" className="mt-2" onClick={fetchTrendData}>Retry</Button>
+                        </div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData} margin={{ bottom: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="date" fontSize={11} tickLine={false} dy={6} />
+                                <YAxis
+                                    tickLine={false}
+                                    fontSize={11}
+                                    tickFormatter={formatValue}
+                                />
+                                <Tooltip 
+                                    formatter={(value, name) => [formatValue(value), truncateName(name, 40)]}
+                                />
+                                <Legend 
+                                    formatter={(value) => truncateName(value, 20)}
+                                    wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                                />
+
+                                {visibleIds.map((id, idx) => {
+                                    const colorIndex = allPossibleIds.indexOf(id);
+                                    const color = CHART_COLORS[(colorIndex === -1 ? idx : colorIndex) % CHART_COLORS.length];
+                                    return (
+                                        <Line
+                                            key={id}
+                                            type="monotone"
+                                            dataKey={id}
+                                            name={id}
+                                            dot={{ r: 3, strokeWidth: 1 }}
+                                            activeDot={{ r: 5 }}
+                                            stroke={color}
+                                            strokeWidth={2}
+                                        />
+                                    );
+                                })}
+                            </LineChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+const CHART_COLORS = ["#F97316", "#8B5CF6", "#22C55E", "#3B82F6", "#EC4899", "#EAB308"];
+
+const KPI_KEYS = [
+    {
+        key: "Osa",
+        label: "OSA",
+        color: "#F97316",
+        unit: "%",
+    },
+    {
+        key: "Listing",
+        label: "Listing %",
+        color: "#0EA5E9",
+        unit: "%",
+    },
+];
+
+/* -------------------------------------------------------------------------- */
+/*                                 Tables                                     */
+/* -------------------------------------------------------------------------- */
+
+const BrandTable = ({ rows, loading, isEcom }) => {
+    return (
+        <Card className="mt-3">
+            <CardHeader className="border-b pb-2">
+                <CardTitle className="text-sm font-medium text-slate-800">
+                    Brands ({rows.length || 0})
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-3">
+                <div className="max-h-[500px] overflow-auto rounded-md border">
+                    <table className="min-w-full divide-y divide-slate-200 text-xs">
+                        <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 shadow-sm">
+                            <tr>
+                                <th className="px-3 py-2 text-left">Brand</th>
+                                <th className="px-3 py-2 text-center">OSA</th>
+                                {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
+                            </tr>
+
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                            {loading && Array.from({ length: 5 }).map((_, idx) => (
+                                <tr key={`skeleton-${idx}`} className="animate-pulse">
+                                    <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
+                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                                </tr>
+                            ))}
+                            {!loading && rows.map((row, idx) => (
+                                <tr
+                                    key={row.id}
+                                    className={cn(
+                                        "hover:bg-slate-50",
+                                        idx % 2 === 1 && "bg-slate-50/60"
+                                    )}
+                                >
+                                    <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
+                                        {row.name}
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-[12px]">
+                                        <span className="font-semibold text-slate-700">
+                                            {formatKpiValue(row.osa)}
+                                        </span>
+                                    </td>
+                                    {!isEcom && (
+                                        <td className="px-3 py-2 text-center text-[12px]">
+                                            <span className="font-semibold text-slate-700">
+                                                {formatKpiValue(row.listing)}
+                                            </span>
+                                        </td>
+                                    )}
+                                </tr>
+
+                            ))}
+                            {!loading && rows.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={isEcom ? 2 : 3}
+                                        className="px-3 py-6 text-center text-[12px] text-slate-400"
+                                    >
+
+                                        No brands matching current filters.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+const SkuTable = ({ rows, loading, isEcom }) => {
+    return (
+        <Card className="mt-3 border-slate-200 bg-white shadow-sm">
+            <CardHeader className="border-b pb-2">
+                <CardTitle className="text-sm font-medium text-slate-800">
+                    SKUs ({rows.length || 0})
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-3">
+                <div className="max-h-[500px] overflow-auto rounded-md border">
+                    <table className="min-w-full divide-y divide-slate-200 text-xs">
+                        <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 shadow-sm">
+                            <tr>
+                                <th className="px-3 py-2 text-left">SKU</th>
+                                <th className="px-3 py-2 text-left">Brand</th>
+                                <th className="px-3 py-2 text-center">OSA</th>
+                                {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
+                            </tr>
+
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                            {loading && (
+                                <tr>
+                                    <td colSpan={4} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                                        <div className="animate-pulse">Loading competition data...</div>
+                                    </td>
+                                </tr>
+                            )}
+                            {!loading && rows.slice(0, 8).map((row, idx) => (
+                                <tr
+                                    key={row.id}
+                                    className={cn(
+                                        "hover:bg-slate-50",
+                                        idx % 2 === 1 && "bg-slate-50/60"
+                                    )}
+                                >
+                                    <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
+                                        {row.name}
+                                    </td>
+                                    <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
+                                        {row.brandName}
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-[12px]">
+                                        <span className="font-semibold text-slate-700">
+                                            {formatKpiValue(row.osa)}
+                                        </span>
+                                    </td>
+                                    {!isEcom && (
+                                        <td className="px-3 py-2 text-center text-[12px]">
+                                            <span className="font-semibold text-slate-700">
+                                                {formatKpiValue(row.listing)}
+                                            </span>
+                                        </td>
+                                    )}
+                                </tr>
+
+                            ))}
+                            {!loading && rows.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={isEcom ? 3 : 4}
+                                        className="px-3 py-6 text-center text-[12px] text-slate-400"
+                                    >
+
+                                        No SKUs matching current filters.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+/* -------------------------------------------------------------------------- */
+/*                             Filter Dialog                                  */
+/* -------------------------------------------------------------------------- */
+
+const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location, channel }) => {
+    const [activeTab, setActiveTab] = useState(
+        mode === "brand" ? "category" : "sku"
+    );
+    const [search, setSearch] = useState("");
+
+    const [filterOptions, setFilterOptions] = useState({
+        categories: [],
+        brands: [],
+        skus: [],
+        loading: false,
+        error: null
+    });
+
+    useEffect(() => {
+        if (!open) return;
+
+        const fetchFilterOptions = async () => {
+            setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
+
+            try {
+                const params = new URLSearchParams();
+                if (platform) params.append('platform', platform);
+                if (channel) params.append('channel', channel);
+                if (location) params.append('location', location === 'All India' ? 'All' : location);
+                if (value.categories.length > 0) {
+                    params.append('category', value.categories.join(','));
+                }
+                if (value.brands.length > 0) {
+                    params.append('brand', value.brands.join(','));
+                }
+
+                const response = await axiosInstance.get(`/availability-analysis/competition-filter-options?${params.toString()}`);
+
+                if (response.data) {
+                    setFilterOptions({
+                        categories: (response.data.categories || []).filter(c => c && c !== 'All'),
+                        brands: (response.data.brands || []).filter(b => b && b !== 'All'),
+                        skus: (response.data.skus || []).filter(s => s && s !== 'All'),
+                        loading: false,
+                        error: null
+                    });
+                }
+            } catch (error) {
+                console.error('[FilterDialog] Error:', error);
+                setFilterOptions(prev => ({
+                    ...prev,
+                    loading: false,
+                    error: 'Failed to load filter options'
+                }));
+            }
+        };
+
+        fetchFilterOptions();
+    }, [open, value.categories, value.brands, platform, location]);
+
+    const getListForTab = () => {
+        if (activeTab === "category") return filterOptions.categories;
+        if (activeTab === "brand") return filterOptions.brands;
+        return filterOptions.skus;
+    };
+
+    const list = useMemo(() => {
+        const base = getListForTab() || [];
+        return base.filter((item) =>
+            item.toLowerCase().includes(search.toLowerCase())
+        );
+    }, [activeTab, search, filterOptions]);
+
+    const currentKey =
+        activeTab === "category"
+            ? "categories"
+            : activeTab === "brand"
+                ? "brands"
+                : "skus";
+
+    const handleToggle = (type, item) => {
+        const current = new Set(value[type]);
+        if (current.has(item)) current.delete(item);
+        else current.add(item);
+
+        const next = { ...value, [type]: Array.from(current) };
+
+        if (type === "categories") {
+            next.brands = [];
+            next.skus = [];
+        } else if (type === "brands") {
+            next.skus = [];
+        }
+
+        onChange(next);
+    };
+
+    const handleSelectAll = (type, items) => {
+        const allSelected =
+            items.length > 0 && items.every((i) => value[type].includes(i));
+
+        const next = { ...value, [type]: allSelected ? [] : items.slice() };
+
+        if (type === "categories") {
+            next.brands = [];
+            next.skus = [];
+        } else if (type === "brands") {
+            next.skus = [];
+        }
+
+        onChange(next);
+    };
+
+    const allItemsForCurrentTab = getListForTab();
+    const allSelectedForCurrentTab =
+        allItemsForCurrentTab.length > 0 &&
+        allItemsForCurrentTab.every((i) => value[currentKey].includes(i));
+
+    return (
+        <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+            <DialogContent className="max-w-4xl gap-0 p-0">
+                <DialogHeader className="border-b px-6 py-4">
+                    <DialogTitle className="text-lg font-semibold">Filters</DialogTitle>
+                </DialogHeader>
+
+                <div className="flex min-h-[360px]">
+                    <div className="flex w-56 flex-col border-r bg-slate-50/80 px-4 py-4">
+                        <div className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Filters
+                        </div>
+                        <Tabs
+                            value={activeTab}
+                            onValueChange={setActiveTab}
+                            className="flex-1"
+                        >
+                            <TabsList className="flex flex-col items-stretch gap-1 bg-transparent p-0">
+                                {["category", "brand", "sku"].map((t) => (
+                                    <TabsTrigger
+                                        key={t}
+                                        value={t}
+                                        className="justify-start rounded-lg px-3 py-2 text-sm font-medium"
+                                    >
+                                        {t === "category" && "Category"}
+                                        {t === "brand" && "Brand"}
+                                        {t === "sku" && "SKU"}
+                                    </TabsTrigger>
+                                ))}
+                            </TabsList>
+                        </Tabs>
+                    </div>
+
+                    <div className="flex-1 min-w-0 px-6 py-4">
+                        <div className="flex items-center justify-between gap-4">
+                            <Input
+                                placeholder="Search"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="max-w-sm bg-slate-50"
+                            />
+                            <button
+                                className="text-sm font-medium text-blue-600 hover:underline"
+                                onClick={() =>
+                                    handleSelectAll(currentKey, allItemsForCurrentTab)
+                                }
+                            >
+                                {allSelectedForCurrentTab ? "Clear all" : "Select all"}
+                            </button>
+                        </div>
+
+                        <ScrollArea className="mt-4 h-64 rounded-md border bg-slate-50/60">
+                            <div className="space-y-1 p-3">
+                                {filterOptions.loading && (
+                                    <div className="px-3 py-8 text-center text-xs text-slate-400">
+                                        <div className="animate-pulse">Loading filter options...</div>
+                                    </div>
+                                )}
+                                {filterOptions.error && (
+                                    <div className="px-3 py-8 text-center text-xs text-red-400">
+                                        {filterOptions.error}
+                                    </div>
+                                )}
+                                {!filterOptions.loading && !filterOptions.error && list.map((item) => (
+                                    <label
+                                        key={item}
+                                        className="flex w-full cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
+                                    >
+                                        <Checkbox
+                                            className="flex-shrink-0"
+                                            checked={value[currentKey].includes(item)}
+                                            onCheckedChange={() => handleToggle(currentKey, item)}
+                                        />
+                                        <span className="flex-1 truncate" title={item}>{item}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    </div>
+                </div>
+
+                <DialogFooter className="border-t px-6 py-3">
+                    <Button variant="outline" onClick={onClose}>
+                        Cancel
+                    </Button>
+                    <Button onClick={onClose}>Apply</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+/* -------------------------------------------------------------------------- */
+/*                             Main Component                                 */
+/* -------------------------------------------------------------------------- */
+
+export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, period }) => {
+    const isEcom = platform?.toLowerCase() === "amazon" || platform?.toLowerCase() === "flipkart";
+    const [tab, setTab] = useState("brand");
+
+    const { selectedChannel } = useContext(FilterContext);
+    const [city, setCity] = useState("All India");
+    const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+    const [filters, setFilters] = useState({
+        categories: [],
+        brands: [],
+        skus: [],
+    });
+    const [viewMode, setViewMode] = useState("table");
+
+    const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
+    const [trendData, setTrendData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [availableCities, setAvailableCities] = useState(["All India"]);
+
+    // Fetch dynamic city options
+    useEffect(() => {
+        const fetchCities = async () => {
+            try {
+                const response = await axiosInstance.get('/availability-analysis/competition-filter-options', {
+                    params: { 
+                        platform: platform || 'All',
+                        channel: selectedChannel || 'All'
+                    }
+                });
+                if (response.data && response.data.locations) {
+                    setAvailableCities(response.data.locations);
+                }
+            } catch (error) {
+                console.error('[AvailabilityCompetitionKpiShowcase] Error fetching cities:', error);
+            }
+        };
+        fetchCities();
+    }, [platform]);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const params = {
+                    platform: platform || 'All',
+                    channel: selectedChannel || 'All',
+                    location: city === 'All India' ? 'All' : city,
+                    category: filters.categories.length > 0 ? filters.categories.join('|') + '|' : 'All',
+                    brand: filters.brands.length > 0 ? filters.brands.join('|') + '|' : 'All',
+                    sku: filters.skus.length > 0 ? filters.skus.join('|') + '|' : 'All',
+                    period: period || '1M',
+                    startDate: globalFilters?.startDate,
+                    endDate: globalFilters?.endDate
+                };
+
+                const response = await axiosInstance.get('/availability-analysis/competition', { params });
+                if (response.data) {
+                    setCompetitionData(response.data);
+                }
+            } catch (error) {
+                console.error('[AvailabilityCompetitionKpiShowcase] Error:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [city, filters, platform, viewMode, tab, globalFilters?.startDate, globalFilters?.endDate, period]);
+
+    const selectionCount =
+        filters.categories.length + filters.brands.length + filters.skus.length;
+
+    const brandRows = useMemo(() => {
+        return (competitionData.brands || []).map((b, idx) => ({
+            id: b.brand || `brand-${idx}`,
+            name: b.brand || 'Unknown',
+            osa: b.osa || 0,
+            listing: b.listing || 0,
+            doi: b.doi || 0,
+            fillrate: b.fillrate || 0,
+            assortment: b.assortment || 0,
+            psl: b.psl || 0
+        }));
+    }, [competitionData.brands]);
+
+    const skuRows = useMemo(() => {
+        return (competitionData.skus || []).map((s, idx) => ({
+            id: s.sku_name || `sku-${idx}`,
+            name: s.sku_name || 'Unknown',
+            brandName: s.brand_name || 'Unknown',
+            osa: s.osa || 0,
+            listing: s.listing || 0,
+            doi: s.doi || 0,
+            fillrate: s.fillrate || 0,
+            assortment: s.assortment || 0,
+            psl: s.psl || 0
+        }));
+    }, [competitionData.skus]);
+
+    return (
+        <div className="flex-col bg-slate-50 text-slate-900">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                        {filters.categories.length > 0 ? (
+                            filters.categories.map((c) => (
+                                <Badge key={c} className="bg-blue-50 text-blue-700 border-blue-100">{c}</Badge>
+                            ))
+                        ) : (
+                            <Badge className="bg-slate-100 text-slate-600 border-slate-200">All Categories</Badge>
+                        )}
+                        {filters.brands.map((b) => (
+                            <Badge key={b} className="bg-indigo-50 text-indigo-700 border-indigo-100">{b}</Badge>
+                        ))}
+                    </div>
+                    <h1 className="text-lg font-semibold text-slate-900">Competition List</h1>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <Select value={city} onValueChange={setCity}>
+                        <SelectTrigger className="h-9 w-40 bg-white">
+                            <SelectValue placeholder="Select city" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {availableCities.map((c) => (
+                                <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="relative bg-white"
+                        onClick={() => setFilterDialogOpen(true)}
+                    >
+                        <Filter className="mr-1.5 h-4 w-4" />
+                        Filters
+                        {selectionCount > 0 && (
+                            <Badge className="ml-2 h-5 min-w-[20px] justify-center rounded-full bg-blue-600 text-[11px] text-white">
+                                {selectionCount}
+                            </Badge>
+                        )}
+                    </Button>
+
+                    <Button
+                        size="sm"
+                        className="bg-blue-600 text-white hover:bg-blue-700"
+                        onClick={() => setViewMode(viewMode === 'table' ? 'trend' : 'table')}
+                    >
+                        {viewMode === 'table' ? (
+                            <><LineChartIcon className="mr-1.5 h-4 w-4" /> Trend</>
+                        ) : (
+                            <>Back to Table</>
+                        )}
+                    </Button>
+                </div>
+            </div>
+
+            <Tabs
+                value={tab}
+                onValueChange={(v) => {
+                    setTab(v);
+                }}
+                className="w-full"
+            >
+                <div className="flex items-center justify-between gap-3">
+                    <TabsList className="bg-slate-100">
+                        <TabsTrigger value="brand" className="px-4">Brands</TabsTrigger>
+                        <TabsTrigger value="sku" className="px-4">SKUs</TabsTrigger>
+                    </TabsList>
+                </div>
+
+                <TabsContent value="brand" className="mt-3">
+                    {viewMode === "table" ? (
+                        <BrandTable rows={brandRows} loading={loading} isEcom={isEcom} />
+                    ) : (
+                        <TrendView
+                            mode="brand"
+                            filters={filters}
+                            city={city}
+                            platform={platform}
+                            channel={selectedChannel}
+                            period={period}
+                            globalFilters={globalFilters}
+                            brandRows={brandRows}
+                            skuRows={skuRows}
+                            onBackToTable={() => setViewMode("table")}
+                            isEcom={isEcom}
+                        />
+                    )}
+                </TabsContent>
+
+                <TabsContent value="sku" className="mt-3">
+                    {viewMode === "table" ? (
+                        <SkuTable rows={skuRows} loading={loading} isEcom={isEcom} />
+                    ) : (
+                        <TrendView
+                            mode="sku"
+                            filters={filters}
+                            city={city}
+                            platform={platform}
+                            channel={selectedChannel}
+                            period={period}
+                            globalFilters={globalFilters}
+                            brandRows={brandRows}
+                            skuRows={skuRows}
+                            onBackToTable={() => setViewMode("table")}
+                            isEcom={isEcom}
+                        />
+                    )}
+                </TabsContent>
+            </Tabs>
+
+            <FilterDialog
+                open={filterDialogOpen}
+                onClose={() => setFilterDialogOpen(false)}
+                mode={tab}
+                value={filters}
+                onChange={setFilters}
+                platform={platform}
+                channel={selectedChannel}
+                location={city}
+            />
+        </div>
+    );
+};
+
+export default AvailabilityCompetitionKpiShowcase;

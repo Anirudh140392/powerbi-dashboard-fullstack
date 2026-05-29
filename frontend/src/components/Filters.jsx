@@ -6,6 +6,9 @@ import {
   MenuItem,
   TextField,
 } from "@mui/material";
+import DateRangeComparePicker from "./CommonLayout/DateRangeComparePicker";
+import { useContext } from "react";
+import { FilterContext } from "../utils/FilterContext";
 
 export default function DashboardHeadersFilters({
   filters,
@@ -17,6 +20,7 @@ export default function DashboardHeadersFilters({
   msls = [],
   premiums = [],
 }) {
+  const { maxDate } = useContext(FilterContext);
   const handleChange = (key) => (e) =>
     setFilters((prev) => ({ ...prev, [key]: e.target.value }));
 
@@ -27,7 +31,7 @@ export default function DashboardHeadersFilters({
         gridTemplateColumns: {
           xs: "1fr",
           sm: "repeat(2, 1fr)",
-          md: "repeat(4, 1fr) repeat(2, 1.5fr)",
+          md: "repeat(4, 1fr) 3fr",
         },
         gap: 2,
         width: "100%",
@@ -135,25 +139,38 @@ export default function DashboardHeadersFilters({
         </Select>
       </FormControl>
 
-      {/* TIME PERIOD */}
-      <TextField
-        fullWidth
-        size="small"
-        label="TIME PERIOD :"
-        value={filters.timePeriod}
-        onChange={handleChange("timePeriod")}
-        sx={{ borderRadius: 3, bgcolor: "white" }}
-      />
-
-      {/* COMPARE WITH */}
-      <TextField
-        fullWidth
-        size="small"
-        label="COMPARE WITH :"
-        value={filters.compareWith}
-        onChange={handleChange("compareWith")}
-        sx={{ borderRadius: 3, bgcolor: "white" }}
-      />
+      {/* DATE RANGE & COMPARE PICKER */}
+      <Box sx={{ gridColumn: { md: "span 1" } }}>
+        <DateRangeComparePicker
+          dateRange={{
+            startDate: filters.startDate || "",
+            endDate: filters.endDate || "",
+          }}
+          maxDate={maxDate}
+          onDateRangeChange={(range) => {
+            setFilters((prev) => ({
+              ...prev,
+              startDate: range.startDate,
+              endDate: range.endDate,
+            }));
+          }}
+          comparison={filters.comparison || "period"}
+          onComparisonChange={(val) => {
+            setFilters((prev) => ({ ...prev, comparison: val }));
+          }}
+          compareDateRange={{
+            startDate: filters.compareStartDate || "",
+            endDate: filters.compareEndDate || "",
+          }}
+          onCompareDateRangeChange={(range) => {
+            setFilters((prev) => ({
+              ...prev,
+              compareStartDate: range.startDate,
+              compareEndDate: range.endDate,
+            }));
+          }}
+        />
+      </Box>
     </Box>
   );
 }

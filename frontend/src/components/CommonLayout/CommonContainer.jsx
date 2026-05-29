@@ -2,20 +2,78 @@ import React, { useState } from "react";
 import { Box, Container } from "@mui/material";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import HelpDrawer from "./HelpDrawer";
+import NotificationScroller from "./NotificationScroller";
+import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
+import { HelpProvider, useHelp } from "../../utils/HelpContext";
 
 export default function CommonContainer({
   title,
   filters,
   onFiltersChange,
+  hideFilters = false,
+  disablePadding = false,
   children,
 }) {
+  const { channels, selectedChannel, setSelectedChannel, platforms, platformMetadata, setPlatform, platform } = React.useContext(FilterContext);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const { user } = useAuth();
+
+  return (
+    <CommonLayoutContent
+      title={title}
+      filters={filters}
+      onFiltersChange={onFiltersChange}
+      hideFilters={hideFilters}
+      disablePadding={disablePadding}
+      channels={channels}
+      selectedChannel={selectedChannel}
+      setSelectedChannel={setSelectedChannel}
+      platforms={platforms}
+      platformMetadata={platformMetadata}
+      setPlatform={setPlatform}
+      currentPlatform={platform}
+      mobileMenuOpen={mobileMenuOpen}
+      setMobileMenuOpen={setMobileMenuOpen}
+      isCollapsed={isCollapsed}
+      setIsCollapsed={setIsCollapsed}
+      user={user}
+    >
+      {children}
+    </CommonLayoutContent>
+  );
+}
+
+function CommonLayoutContent({
+  title,
+  filters,
+  onFiltersChange,
+  hideFilters,
+  disablePadding,
+  channels,
+  selectedChannel,
+  setSelectedChannel,
+  platforms,
+  platformMetadata,
+  setPlatform,
+  currentPlatform,
+  mobileMenuOpen,
+  setMobileMenuOpen,
+  isCollapsed,
+  setIsCollapsed,
+  user,
+  children,
+}) {
+  const sidebarWidth = isCollapsed ? "72px" : "250px";
 
   return (
     <Box
       sx={{
         display: "flex",
-        height: "100vh",
+        height: "100dvh",
+        width: "100vw",
 
         // 🔥 REMOVE ALL HORIZONTAL SCROLL
         overflowX: "hidden",
@@ -25,13 +83,24 @@ export default function CommonContainer({
       }}
     >
       <Sidebar
-        platforms={["Blinkit", "Instamart", "Zepto"]}
-        selectedPlatform={filters?.platform}
-        onPlatformChange={(p) =>
-          onFiltersChange?.((prev) => ({ ...prev, platform: p }))
-        }
+        channels={channels}
+        selectedChannel={selectedChannel}
+        onChannelChange={(ch) => {
+          setSelectedChannel(ch);
+          // Clear local filters.platform so the new context platform value flows through
+          onFiltersChange?.((prev) => ({ ...prev, platform: undefined }));
+        }}
+        platforms={platforms}
+        platformMetadata={platformMetadata}
+        selectedPlatform={filters?.platform || currentPlatform}
+        onPlatformChange={(p) => {
+          setPlatform?.(p);
+          onFiltersChange?.((prev) => ({ ...prev, platform: p }));
+        }}
         open={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={setIsCollapsed}
         sx={{
           overflowX: "hidden", // <-- sidebar safe
         }}
@@ -41,21 +110,26 @@ export default function CommonContainer({
         sx={{
           flex: 1,
 
-          marginLeft: { xs: 0, sm: "250px" },
-          width: { xs: "100%", sm: "calc(100% - 250px)" },
+          marginLeft: { xs: 0, sm: sidebarWidth },
+          width: { xs: "100%", sm: `calc(100% - ${sidebarWidth})` },
           display: "flex",
           flexDirection: "column",
+          transition: "margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
 
           // 🔥 Remove horizontal scroll here also
           overflowX: "hidden",
           overflowY: "hidden",
+          minHeight: 0, // Ensure flex child shrinking works
         }}
       >
+        <NotificationScroller />
+
         <Header
           title={title}
           onMenuClick={() => setMobileMenuOpen(true)}
           filters={filters}
           onFiltersChange={onFiltersChange}
+          hideFilters={hideFilters}
           sx={{
             overflowX: "hidden", // <-- prevents header small horizontal shift
           }}
@@ -67,17 +141,21 @@ export default function CommonContainer({
             flex: 1,
             overflowY: "auto",
             overflowX: "hidden", // 🔥 IMPORTANT
+            minHeight: 0, // Ensure flex scrolling works
+            WebkitOverflowScrolling: "touch", // Smooth scroll on iOS
           }}
         >
           <Container
             maxWidth={false}
             disableGutters
             sx={{
-              py: 3,
-              px: { xs: 2, sm: 3 },
+              py: disablePadding ? 0 : 2,
+              px: disablePadding ? 0 : { xs: 2, sm: 3 },
               width: "100%",
               boxSizing: "border-box",
-
+              minHeight: "100%", // Ensures it stretches to fill the flex Box height
+              display: "flex",
+              flexDirection: "column",
               overflowX: "hidden", // 🔥 no horizontal scroll inside content
             }}
           >

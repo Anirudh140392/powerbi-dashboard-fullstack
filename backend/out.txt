@@ -1,0 +1,114 @@
+﻿[ClickHouse] Created client for database: colpal
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ΓÜÖ∩╕Å  suppress all logs with { quiet: true }
+--- 1. Testing getCategories() ---
+Categories: [ 'Chocolates (Gifting)', 'Chocolates (Non Gifting)', 'GMFC' ]
+
+--- 2. Testing getPlatforms() ---
+node : ≡ƒöì [Service] Fetching PM platforms...
+At line:1 char:1
++ node verify_mars_pm.js 2>&1 | Out-File 
+-Encoding utf8 out.txt
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( 
+   ≡ƒöì [Service] Fetching PM platforms...:S  
+  tring) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandEr 
+   ror
+ 
+≡ƒôñ [Service] PM Platforms: []
+Platforms: []
+
+--- 3. Testing getBrands(All) ---
+≡ƒöì [Service] Fetching PM brands for 
+platform: All
+≡ƒôñ [Service] PM Brands: [
+  'Boomer',     'Bounty',
+  'Cancelled',  'DP',
+  'Doublemint', 'Galaxy',
+  'M&M',        'MARS',
+  'Mars',       'Orbit',
+  'Skittles',   'Snickers',
+  'Twix'
+]
+Brands (Top 5): [ 'Boomer', 'Bounty', 'Cancelled', 'DP', 'Doublemint' ]
+
+--- 4. Testing getKeywordAnalysis() ---
+≡ƒöì [Service] getKeywordAnalysis filters: { platform: 'All', brand: 'All', zone: 'All' }
+≡ƒöì [Service] getKeywordAnalysis whereSql: Date BETWEEN '2026-02-05' AND '2026-03-06'
+≡ƒöì [Service] getKeywordAnalysis Query:
+ 
+                    SELECT 
+                        keyword as keyword_name, 
+                        category as keyword_category, 
+                        formatDateTime(Date, '%M') as month, 
+                        SUM(impressions) as impressions, 
+                        SUM(ad_spend) as spend, 
+                        SUM(Ad_sales) as revenue, 
+                        SUM(ad_click) as clicks, 
+                        SUM(ad_quantity_sold) as orders 
+                    FROM mars.rb_pm_olap 
+                    WHERE Date BETWEEN '2026-02-05' AND '2026-03-06'
+                    GROUP BY keyword, category, month
+                
+Γ£à [Service] getKeywordAnalysis Results: 353
+Analysis Keyword Count: 206
+
+--- 5. Testing getKpisOverview() ---
+Fetching Performance Marketing KPIs with filters: { platform: 'All', brand: 'All', zone: 'All' }
+KPIs Overview Keys: [ 'kpi_cards', 'trend_chart' ]
+KPI Cards: [
+  {
+    label: 'Impressions',
+    value: '2.52 Cr',
+    change: '16.6%',
+    positive: true
+  },
+  {
+    label: 'Conversion',
+    value: '50.5%',
+    change: '2.7%',
+    positive: false
+  },
+  {
+    label: 'Spend',
+    value: '87.93 L',
+    change: '28.4%',
+    positive: false
+  },
+  { label: 'ROAS', value: '1.84', change: '0.2', positive: false }
+]
+
+--- 6. Testing getFormatPerformance() ---
+≡ƒöì [Service] getFormatPerformance filters: { platform: 'All', brand: 'All', zone: 'All' }
+≡ƒöì [Service] getFormatPerformance Query:
+ 
+                    SELECT 
+                        category as Category,
+                        formatDateTime(Date, '%Y-%m-%d') as date,
+                        SUM(ad_spend) as spend,
+                        SUM(impressions) as impressions,
+                        SUM(ad_click) as clicks,
+                        SUM(ad_quantity_sold) as orders,
+                        SUM(Ad_sales) as sales,
+                        SUM(Ad_sales) as total_sales
+                    FROM mars.rb_pm_olap
+                    WHERE 1=1
+                    GROUP BY category, date
+                    ORDER BY category ASC, date ASC
+                
+Γ£à [Service] getFormatPerformance Results: 994
+
+≡ƒôè [getFormatPerformance] Retrieved 994 rows from database
+
+  ≡ƒôü Chocolates (Gifting): 145 dates total
+
+  ≡ƒôü Chocolates (Non Gifting): 427 dates total
+
+  ≡ƒôü GMFC: 422 dates total
+Verification failed: TypeError: Cannot read 
+properties of undefined (reading 'length')
+    at verify (file:///C:/Ads-Auto/powerbi-das
+hboard-fullstack/backend/verify_mars_pm.js:28:
+64)
+    at process.processTicksAndRejections 
+(node:internal/process/task_queues:105:5)

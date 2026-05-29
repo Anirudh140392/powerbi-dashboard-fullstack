@@ -4,9 +4,10 @@
 //  + ECP by Brand + Weekday/Weekend + Discount Trend Drilldown
 //  + GLOBAL BRAND FILTER (Option A) + SKU CLICK FILTER
 //  + TREND / RPI TABS with Dual RPI Charts
+//  + ECP COMPARISON API INTEGRATION
 // --------------------------------------------------------------
 
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect, useContext } from "react";
 import {
   Box,
   Grid,
@@ -46,6 +47,8 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
+  CircularProgress,
+  Skeleton,
 } from "@mui/material";
 
 import {
@@ -77,9 +80,22 @@ import {
   LegendToggle,
   Tune,
   StackedBarChart,
+  TrendingUp,
+  MonetizationOn,
+  Discount,
 } from "@mui/icons-material";
 
-import ReactECharts from "echarts-for-react";
+import EChartsWrapper from "../EChartsWrapper";
+import axiosInstance from "../../api/axiosInstance";
+import axios from "axios";
+import LatestOverivewCatCity from "./LatestOverivewCatCity";
+import SnapshotOverview from "../CommonLayout/SnapshotOverview";
+import { LayoutGrid, Monitor, PieChart, Target, TrendingUp as TrendingUpLucide } from "lucide-react";
+import { getLogicalKpiTrend, getLogicalKpiValue } from "../AllAvailablityAnalysis/availablityDataCenter";
+import { FilterContext } from "@/utils/FilterContext";
+import InsightsPricingView from "./InsightsPricingView";
+import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
+import PricingRcaDrawer from "./PricingRcaDrawer";
 
 // ----------------------------------------------------------------------
 // MOCK DATA
@@ -135,6 +151,18 @@ const DATE_OPTIONS = [
 const makeRandom = (a, b, decimals = 1) =>
   Number((Math.random() * (b - a) + a).toFixed(decimals));
 
+const formatKpiValue = (value, unit = "", format = 1) => {
+    if (value === null || value === undefined || value === 0 || value === "0") {
+        return "N/A";
+    }
+    const num = parseFloat(value);
+    if (isNaN(num)) return "N/A";
+    
+    // If unit is currency, put it in front
+    if (unit === "₹") return `₹${num.toFixed(format)}`;
+    return `${num.toFixed(format)}${unit}`;
+};
+
 // Base price rows
 const PRICE_ROWS = Array.from({ length: 18 }).map((_, i) => ({
   id: i + 1,
@@ -152,9 +180,8 @@ const SKU_ROWS = Array.from({ length: 60 }).map((_, i) => ({
   date: `2${(i % 9) + 1} Nov 2025`,
   platform: PLATFORMS[i % PLATFORMS.length],
   brand: BRANDS[i % BRANDS.length],
-  product: `${BRANDS[i % BRANDS.length]} ${
-    ["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4]
-  } Tub`,
+  product: `${BRANDS[i % BRANDS.length]} ${["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4]
+    } Tub`,
   skuType: i % 2 === 0 ? "Own" : "Competition",
   format: FORMATS[i % FORMATS.length],
   flavour: ["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4],
@@ -305,7 +332,7 @@ const ownVsCompColumns = [
       />
     ),
   },
-  { id: "format", label: "Format", sortable: true },
+  { id: "format", label: "Category", sortable: true },
   { id: "ml", label: "ML", sortable: true, numeric: true },
 ];
 
@@ -313,9 +340,8 @@ const OWN_VS_COMP_ROWS = Array.from({ length: 10 }).map((_, i) => ({
   id: i + 1,
   brandOwn: BRANDS[i % BRANDS.length],
   brandComp: BRANDS.slice().reverse()[i % BRANDS.length],
-  product: `${BRANDS[i % BRANDS.length]} ${
-    ["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4]
-  } Tub`,
+  product: `${BRANDS[i % BRANDS.length]} ${["Mango", "Chocolate", "Vanilla", "Kesar"][i % 4]
+    } Tub`,
   platform: PLATFORMS[i % PLATFORMS.length],
   ownECP: makeRandom(120, 240),
   compECP: makeRandom(130, 260),
@@ -341,6 +367,7 @@ const SuperTable = ({
   enableExport = true,
   enableColumnManager = true,
   enableRowExpansion = false,
+  searchPlaceholder = "Search in table…", // Customizable search placeholder
   renderDetail, // (row) => ReactNode
   onRowClick, // (row) => void
 }) => {
@@ -352,12 +379,14 @@ const SuperTable = ({
     }, {})
   );
   const [sortConfig, setSortConfig] = useState(null); // { id, direction }
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1); // 1-indexed instead of 0
   const [rowsPerPage, setRowsPerPage] = useState(7);
   const [density, setDensity] = useState(initialDensity);
   const [anchorElColumns, setAnchorElColumns] = useState(null);
   const [selected, setSelected] = useState([]);
   const [expanded, setExpanded] = useState({});
+
+
 
   const handleSort = (col) => {
     if (!col.sortable) return;
@@ -377,13 +406,9 @@ const SuperTable = ({
     }));
   };
 
-  const handleChangePage = (_, newPage) => {
-    setPage(newPage);
-  };
-
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
+    setPage(1); // Reset to page 1 when changing rows per page
   };
 
   const handleSelectAllClick = (event, processedRows) => {
@@ -478,13 +503,16 @@ const SuperTable = ({
   }, [rows, globalSearch, sortConfig, columns, visibleColumns]);
 
   const paginatedRows = useMemo(() => {
-    const start = page * rowsPerPage;
+    const start = (page - 1) * rowsPerPage; // 1-indexed page
     return processedRows.slice(start, start + rowsPerPage);
   }, [processedRows, page, rowsPerPage]);
 
   const numSelected = selected.length;
   const rowCount = processedRows.length;
   const visibleCols = columns.filter((c) => visibleColumns[c.id]);
+
+  const totalPages = Math.max(1, Math.ceil(rowCount / rowsPerPage));
+  const safePage = Math.max(1, Math.min(page, totalPages));
 
   return (
     <Card
@@ -523,11 +551,11 @@ const SuperTable = ({
           {enableGlobalSearch && (
             <TextField
               size="small"
-              placeholder="Search in table…"
+              placeholder={searchPlaceholder}
               value={globalSearch}
               onChange={(e) => {
                 setGlobalSearch(e.target.value);
-                setPage(0);
+                setPage(1); // Reset to page 1 when searching
               }}
               InputProps={{
                 startAdornment: <Search sx={{ fontSize: 18, mr: 1 }} />,
@@ -761,10 +789,11 @@ const SuperTable = ({
         </Table>
       </TableContainer>
 
+      {/* Pagination - OSA% Detail View Style */}
       <Box
         sx={{
           px: 2,
-          py: 1,
+          py: 1.5,
           borderTop: "1px solid",
           borderColor: "divider",
           display: "flex",
@@ -773,18 +802,86 @@ const SuperTable = ({
           bgcolor: "rgba(250,250,252,0.9)",
         }}
       >
-        <Typography variant="caption" color="text.secondary">
-          Showing {paginatedRows.length} of {rowCount} rows
-        </Typography>
-        <TablePagination
-          component="div"
-          count={rowCount}
-          page={page}
-          onPageChange={handleChangePage}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          rowsPerPageOptions={[7, 10, 25, 50]}
-        />
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <button
+            disabled={safePage === 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            style={{
+              fontSize: "11px",
+              padding: "4px 12px",
+              borderRadius: "9999px",
+              border: "1px solid rgb(226, 232, 240)",
+              background: "white",
+              color: "rgb(51, 65, 85)",
+              cursor: safePage === 1 ? "not-allowed" : "pointer",
+              opacity: safePage === 1 ? 0.4 : 1,
+              transition: "background-color 0.2s",
+            }}
+            onMouseEnter={(e) =>
+              safePage !== 1 && (e.target.style.background = "rgb(248, 250, 252)")
+            }
+            onMouseLeave={(e) => (e.target.style.background = "white")}
+          >
+            Prev
+          </button>
+
+          <Typography variant="caption" sx={{ fontSize: "11px", color: "rgb(100, 116, 139)" }}>
+            Page <strong style={{ color: "rgb(15, 23, 42)" }}>{safePage}</strong> /{" "}
+            {totalPages}
+          </Typography>
+
+          <button
+            disabled={safePage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            style={{
+              fontSize: "11px",
+              padding: "4px 12px",
+              borderRadius: "9999px",
+              border: "1px solid rgb(226, 232, 240)",
+              background: "white",
+              color: "rgb(51, 65, 85)",
+              cursor: safePage >= totalPages ? "not-allowed" : "pointer",
+              opacity: safePage >= totalPages ? 0.4 : 1,
+              transition: "background-color 0.2s",
+            }}
+            onMouseEnter={(e) =>
+              safePage < totalPages &&
+              (e.target.style.background = "rgb(248, 250, 252)")
+            }
+            onMouseLeave={(e) => (e.target.style.background = "white")}
+          >
+            Next
+          </button>
+        </Stack>
+
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <Typography variant="caption" sx={{ fontSize: "11px", color: "rgb(100, 116, 139)" }}>
+            Rows/page
+          </Typography>
+          <select
+            value={rowsPerPage}
+            onChange={(e) => {
+              setPage(1);
+              setRowsPerPage(Number(e.target.value));
+            }}
+            style={{
+              fontSize: "11px",
+              padding: "4px 8px",
+              borderRadius: "9999px",
+              border: "1px solid rgb(226, 232, 240)",
+              background: "white",
+              color: "rgb(51, 65, 85)",
+              outline: "none",
+              cursor: "pointer",
+            }}
+          >
+            <option value={5}>5</option>
+            <option value={7}>7</option>
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+          </select>
+        </Stack>
       </Box>
     </Card>
   );
@@ -803,20 +900,23 @@ const getHeatColor = (value) => {
   return "rgba(229, 231, 235, 0.6)"; // grey for 0
 };
 
-const DiscountTrendDrillTable = ({ groups, selectedBrand, onBrandClick }) => {
-  const [expandedGroups, setExpandedGroups] = useState(() => {
-    const initial = {};
-    groups.forEach((g) => {
-      initial[g.skuType] = true;
-    });
-    return initial;
-  });
+const DiscountTrendDrillTable = ({ groups, platforms = [], selectedBrand, onBrandClick, onCategoryExpand }) => {
+  // Default platforms if none provided (fallback for mock data)
+  const displayPlatforms = platforms.length > 0 ? platforms : ['Blinkit', 'Instamart', 'Zepto'];
+
+  const [expandedGroups, setExpandedGroups] = useState({});
 
   const toggleGroup = (skuType) => {
+    const isExpanding = !expandedGroups[skuType];
     setExpandedGroups((prev) => ({
       ...prev,
-      [skuType]: !prev[skuType],
+      [skuType]: isExpanding,
     }));
+
+    // Fetch brand data when expanding a category
+    if (isExpanding && onCategoryExpand) {
+      onCategoryExpand(skuType);
+    }
   };
 
   const filteredGroups = useMemo(() => {
@@ -824,29 +924,40 @@ const DiscountTrendDrillTable = ({ groups, selectedBrand, onBrandClick }) => {
     return groups.map((g) => ({
       ...g,
       rows: g.rows.filter(
-        (r) => r.brand === selectedBrand || r.brand === "Total"
+        (r) => r.brand === selectedBrand || r.brand === "All Brands"
       ),
     }));
   }, [groups, selectedBrand]);
 
+  // Calculate grand total dynamically based on platforms
   const grandTotal = useMemo(() => {
-    const init = { blinkit: 0, instamart: 0, zepto: 0 };
+    const init = {};
+    displayPlatforms.forEach(p => { init[p] = 0; });
+
     filteredGroups.forEach((g) => {
       g.rows.forEach((r) => {
-        if (r.brand === "Total") {
-          init.blinkit += r.blinkit || 0;
-          init.instamart += r.instamart || 0;
-          init.zepto += r.zepto || 0;
+        if (r.brand === "All Brands") {
+          displayPlatforms.forEach(p => {
+            init[p] += r[p] || 0;
+          });
         }
       });
     });
     const count = filteredGroups.length || 1;
-    return {
-      blinkit: Number((init.blinkit / count).toFixed(1)),
-      instamart: Number((init.instamart / count).toFixed(1)),
-      zepto: Number((init.zepto / count).toFixed(1)),
-    };
-  }, [filteredGroups]);
+    const result = {};
+    displayPlatforms.forEach(p => {
+      result[p] = Number((init[p] / count).toFixed(1));
+    });
+    return result;
+  }, [filteredGroups, displayPlatforms]);
+
+  // Helper to calculate row total (average across platforms)
+  const calcRowTotal = (row) => {
+    const values = displayPlatforms.map(p => row[p] || 0);
+    return values.length > 0
+      ? Number((values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(1))
+      : 0;
+  };
 
   return (
     <Card
@@ -898,34 +1009,17 @@ const DiscountTrendDrillTable = ({ groups, selectedBrand, onBrandClick }) => {
             >
               <TableCell>SKU Type</TableCell>
               <TableCell>Brand</TableCell>
-              <TableCell align="right">Blinkit</TableCell>
-              <TableCell align="right">Instamart</TableCell>
-              <TableCell align="right">Zepto</TableCell>
+              {displayPlatforms.map(platform => (
+                <TableCell key={platform} align="right">{platform}</TableCell>
+              ))}
               <TableCell align="right">Total</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredGroups.map((g) => {
-              const groupTotals = g.rows.reduce(
-                (acc, r) => {
-                  if (r.brand === "Total") {
-                    acc.blinkit = r.blinkit;
-                    acc.instamart = r.instamart;
-                    acc.zepto = r.zepto;
-                  }
-                  return acc;
-                },
-                { blinkit: 0, instamart: 0, zepto: 0 }
-              );
-
-              const totalCell = Number(
-                (
-                  (groupTotals.blinkit +
-                    groupTotals.instamart +
-                    groupTotals.zepto) /
-                  3
-                ).toFixed(1)
-              );
+              // Get the "All Brands" row for group totals
+              const allBrandsRow = g.rows.find(r => r.brand === "All Brands") || {};
+              const groupTotal = calcRowTotal(allBrandsRow);
 
               return (
                 <React.Fragment key={g.skuType}>
@@ -956,110 +1050,79 @@ const DiscountTrendDrillTable = ({ groups, selectedBrand, onBrandClick }) => {
                     <TableCell>
                       <Chip
                         size="small"
-                        label="Total"
+                        label="All Brands"
                         variant="outlined"
-                        sx={{ fontSize: 11 }}
+                        sx={{ fontSize: 11, cursor: 'pointer' }}
+                        icon={g.loading ? <CircularProgress size={12} color="inherit" /> : null}
+                        onClick={() => toggleGroup(g.skuType)}
+                        disabled={g.loading}
                       />
                     </TableCell>
+                    {displayPlatforms.map(platform => (
+                      <TableCell
+                        key={platform}
+                        align="right"
+                        sx={{ bgcolor: getHeatColor(allBrandsRow[platform] || 0) }}
+                      >
+                        {allBrandsRow[platform] || 0}%
+                      </TableCell>
+                    ))}
                     <TableCell
                       align="right"
-                      sx={{ bgcolor: getHeatColor(groupTotals.blinkit) }}
+                      sx={{ bgcolor: getHeatColor(groupTotal) }}
                     >
-                      {groupTotals.blinkit}%
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{ bgcolor: getHeatColor(groupTotals.instamart) }}
-                    >
-                      {groupTotals.instamart}%
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{ bgcolor: getHeatColor(groupTotals.zepto) }}
-                    >
-                      {groupTotals.zepto}%
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{ bgcolor: getHeatColor(totalCell) }}
-                    >
-                      {totalCell}%
+                      {groupTotal}%
                     </TableCell>
                   </TableRow>
 
                   {/* Child rows */}
                   {expandedGroups[g.skuType] &&
-                    g.rows.map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell />
-                        <TableCell>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontWeight: r.brand === "Total" ? 700 : 500,
-                              color:
-                                r.brand === "Total"
-                                  ? "text.secondary"
-                                  : "text.primary",
-                              cursor:
-                                r.brand !== "Total" && onBrandClick
-                                  ? "pointer"
-                                  : "default",
-                            }}
-                            onClick={() =>
-                              r.brand !== "Total" &&
-                              onBrandClick &&
-                              onBrandClick(r.brand)
-                            }
+                    g.rows.map((r) => {
+                      const rowTotal = calcRowTotal(r);
+                      return (
+                        <TableRow key={r.id}>
+                          <TableCell />
+                          <TableCell>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontWeight: r.brand === "All Brands" ? 700 : 500,
+                                color:
+                                  r.brand === "All Brands"
+                                    ? "text.secondary"
+                                    : "text.primary",
+                                cursor:
+                                  r.brand !== "All Brands" && onBrandClick
+                                    ? "pointer"
+                                    : "default",
+                              }}
+                              onClick={() =>
+                                r.brand !== "All Brands" &&
+                                onBrandClick &&
+                                onBrandClick(r.brand)
+                              }
+                            >
+                              {r.brand}
+                            </Typography>
+                          </TableCell>
+                          {displayPlatforms.map(platform => (
+                            <TableCell
+                              key={platform}
+                              align="right"
+                              sx={{ bgcolor: getHeatColor(r[platform] || 0) }}
+                            >
+                              {r[platform] || 0}%
+                            </TableCell>
+                          ))}
+                          <TableCell
+                            align="right"
+                            sx={{ bgcolor: getHeatColor(rowTotal) }}
                           >
-                            {r.brand}
-                          </Typography>
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{ bgcolor: getHeatColor(r.blinkit) }}
-                        >
-                          {r.blinkit}%
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{ bgcolor: getHeatColor(r.instamart) }}
-                        >
-                          {r.instamart}%
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{ bgcolor: getHeatColor(r.zepto) }}
-                        >
-                          {r.zepto}%
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{
-                            bgcolor: getHeatColor(
-                              Number(
-                                (
-                                  ((r.blinkit || 0) +
-                                    (r.instamart || 0) +
-                                    (r.zepto || 0)) /
-                                  3
-                                ).toFixed(1)
-                              )
-                            ),
-                          }}
-                        >
-                          {Number(
-                            (
-                              ((r.blinkit || 0) +
-                                (r.instamart || 0) +
-                                (r.zepto || 0)) /
-                              3
-                            ).toFixed(1)
-                          )}
-                          %
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                            {rowTotal}%
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                 </React.Fragment>
               );
             })}
@@ -1076,19 +1139,11 @@ const DiscountTrendDrillTable = ({ groups, selectedBrand, onBrandClick }) => {
                   Overall Avg Discount
                 </Typography>
               </TableCell>
-              <TableCell align="right">{grandTotal.blinkit}%</TableCell>
-              <TableCell align="right">{grandTotal.instamart}%</TableCell>
-              <TableCell align="right">{grandTotal.zepto}%</TableCell>
+              {displayPlatforms.map(platform => (
+                <TableCell key={platform} align="right">{grandTotal[platform]}%</TableCell>
+              ))}
               <TableCell align="right">
-                {Number(
-                  (
-                    (grandTotal.blinkit +
-                      grandTotal.instamart +
-                      grandTotal.zepto) /
-                    3
-                  ).toFixed(1)
-                )}
-                %
+                {calcRowTotal(grandTotal)}%
               </TableCell>
             </TableRow>
           </TableBody>
@@ -1104,7 +1159,286 @@ const DiscountTrendDrillTable = ({ groups, selectedBrand, onBrandClick }) => {
 
 export default function PricingAnalysisData() {
   const [chartTab, setChartTab] = useState("discount");
-  const [filters, setFilters] = useState(defaultFilters);
+
+  // Get global filters from FilterContext
+  const {
+    platform: globalPlatform,
+    selectedBrand,
+    selectedCategory,
+    selectedChannel,
+    selectedLocation,
+    timeStart,
+    timeEnd,
+    compareStart,
+    compareEnd,
+    datesInitialized,
+  } = useContext(FilterContext);
+
+  const [filters, setFilters] = useState({ brand: selectedBrand || 'All', range: [0, 100], format: 'All' });
+
+  // Helper: convert array or string filter to comma-separated string for API
+  const toFilterString = (val) => Array.isArray(val) ? val.join(',') : val;
+
+  // Centralized query params builder
+  const buildQueryParams = (includeCompare = false) => {
+    const params = {
+      startDate: timeStart?.format('YYYY-MM-DD'),
+      endDate: timeEnd?.format('YYYY-MM-DD'),
+    };
+    if (includeCompare) {
+      params.compareStartDate = compareStart?.format('YYYY-MM-DD');
+      params.compareEndDate = compareEnd?.format('YYYY-MM-DD');
+    }
+    if (globalPlatform && globalPlatform !== 'All') params.platform = toFilterString(globalPlatform);
+    if (selectedLocation && selectedLocation !== 'All') params.location = toFilterString(selectedLocation);
+    if (selectedCategory && selectedCategory !== 'All') params.category = toFilterString(selectedCategory);
+
+    const brandFilter = selectedBrand || filters.brand;
+    if (brandFilter && brandFilter !== 'All') params.brand = toFilterString(brandFilter);
+
+    if (selectedChannel && selectedChannel !== 'All') params.channel = toFilterString(selectedChannel);
+
+    return params;
+  };
+
+  // Refs for tracking and cancelling requests
+  const abortControllerRef = useRef(null);
+  const lastFetchedFiltersRef = useRef(null);
+
+
+  // ECP Comparison state
+  const [ecpData, setEcpData] = useState([]);
+  const [ecpLoading, setEcpLoading] = useState(true); // Start with loading state
+
+  // ECP by Brand state
+  const [ecpByBrandData, setEcpByBrandData] = useState([]);
+  const [ecpByBrandLoading, setEcpByBrandLoading] = useState(true);
+
+  // Brand Price Overview state
+  const [brandPriceOverviewData, setBrandPriceOverviewData] = useState([]);
+  const [brandPriceOverviewLoading, setBrandPriceOverviewLoading] = useState(true);
+
+  // One View Price Grid state
+  const [oneViewPriceGridData, setOneViewPriceGridData] = useState([]);
+  const [oneViewPriceGridLoading, setOneViewPriceGridLoading] = useState(true);
+
+  // Brand Discount Trend state (for Price Intelligence chart)
+  const [brandDiscountTrendData, setBrandDiscountTrendData] = useState({ months: [], series: [] });
+  const [brandDiscountTrendLoading, setBrandDiscountTrendLoading] = useState(true);
+
+  // ECP by City state
+  const [ecpByCityData, setEcpByCityData] = useState([]);
+  const [ecpByCityLoading, setEcpByCityLoading] = useState(true);
+
+  // Pricing KPIs state
+  const [pricingKpiData, setPricingKpiData] = useState(null);
+  const [pricingKpiLoading, setPricingKpiLoading] = useState(true);
+
+  // Discount Trend state
+  const [discountTrendData, setDiscountTrendData] = useState([]);
+  const [discountTrendLoading, setDiscountTrendLoading] = useState(true);
+  const [discountBrandData, setDiscountBrandData] = useState({}); // { [category]: brandRows }
+  const [categoryLoading, setCategoryLoading] = useState({}); // { [category]: boolean }
+  const [discountPlatforms, setDiscountPlatforms] = useState([]); // Dynamic platforms from API
+
+  // Filter Dependency Array Helper
+  const filterDeps = [globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand, filters.brand, timeStart, timeEnd, datesInitialized];
+  const compareFilterDeps = [...filterDeps, compareStart, compareEnd];
+
+  // Unified Fetcher for all segments to prevent race conditions and redundant renders
+  useEffect(() => {
+    if (!datesInitialized) return;
+
+    // Build the query params and a stable key for dependency tracking
+    const params = buildQueryParams(true);
+    const filterKey = JSON.stringify(params);
+
+    // Skip if we already fetched with these exact filters
+    if (lastFetchedFiltersRef.current === filterKey) return;
+
+    // Abort any pending requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    lastFetchedFiltersRef.current = filterKey;
+
+    const fetchData = async () => {
+      // Set all loading states
+      setPricingKpiLoading(true);
+      setEcpLoading(true);
+      setEcpByBrandLoading(true);
+      setBrandPriceOverviewLoading(true);
+      setOneViewPriceGridLoading(true);
+      setBrandDiscountTrendLoading(true);
+      setEcpByCityLoading(true);
+      setDiscountTrendLoading(true);
+
+      const signal = abortController.signal;
+
+      try {
+        console.log("[PricingAnalysisData] Fetching all segments in parallel...");
+        
+        const fetchers = [
+          // 0: KPIs
+          axiosInstance.get('/pricing-analysis/kpis', { params, signal }),
+          // 1: ECP Comparison
+          axiosInstance.get('/pricing-analysis/ecp-comparison', { params, signal }),
+          // 2: ECP by Brand
+          axiosInstance.get('/pricing-analysis/ecp-by-brand', { params: buildQueryParams(false), signal }),
+          // 3: Brand Price Overview
+          axiosInstance.get('/pricing-analysis/brand-price-overview', { params: buildQueryParams(false), signal }),
+          // 4: One View Grid
+          axiosInstance.get('/pricing-analysis/one-view-price-grid', { params: buildQueryParams(false), signal }),
+          // 5: Brand Discount Trend
+          axiosInstance.get('/pricing-analysis/brand-discount-trend', { params: buildQueryParams(false), signal }),
+          // 6: ECP by City
+          axiosInstance.get('/pricing-analysis/ecp-by-city', { params: buildQueryParams(false), signal }),
+          // 7: Discount by Category
+          axiosInstance.get('/pricing-analysis/discount-by-category', { params: buildQueryParams(false), signal })
+        ];
+
+        const results = await Promise.allSettled(fetchers);
+
+        // Process results
+        results.forEach((result, idx) => {
+          if (result.status === 'rejected') {
+            if (axios.isCancel(result.reason)) return;
+            console.error(`Error fetching segment ${idx}:`, result.reason);
+          }
+
+          const data = result.value?.data;
+          
+          switch(idx) {
+            case 0: // KPIs
+              setPricingKpiData(data?.success ? data.data : null);
+              setPricingKpiLoading(false);
+              break;
+            case 1: // ECP Comparison
+              setEcpData(data?.success ? data.data : []);
+              setEcpLoading(false);
+              break;
+            case 2: // ECP by Brand
+              setEcpByBrandData(data?.success ? data.data : []);
+              setEcpByBrandLoading(false);
+              break;
+            case 3: // Brand Price Overview
+              setBrandPriceOverviewData(data?.success ? data.data : []);
+              setBrandPriceOverviewLoading(false);
+              break;
+            case 4: // One View Grid
+              setOneViewPriceGridData(data?.success ? data.data : []);
+              setOneViewPriceGridLoading(false);
+              break;
+            case 5: // Brand Discount Trend
+              setBrandDiscountTrendData(data?.success ? data.data : { months: [], series: [] });
+              setBrandDiscountTrendLoading(false);
+              break;
+            case 6: // ECP by City
+              setEcpByCityData(data?.success ? data.data : []);
+              setEcpByCityLoading(false);
+              break;
+            case 7: // Discount by Category
+              if (data?.success) {
+                setDiscountTrendData(data.data || []);
+                setDiscountPlatforms(data.platforms || []);
+              } else {
+                setDiscountTrendData([]);
+                setDiscountPlatforms([]);
+              }
+              setDiscountTrendLoading(false);
+              break;
+          }
+        });
+      } catch (error) {
+        if (!axios.isCancel(error)) {
+          console.error("Critical error in Pricing parallel fetch:", error);
+          lastFetchedFiltersRef.current = null;
+        }
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      // Logic handled via ref for stability across fast interactions
+    };
+  }, compareFilterDeps);
+
+
+  // Fetch brand-level discount data for a specific category
+  const fetchDiscountByBrand = async (category) => {
+    if (discountBrandData[category]) return; // Already fetched
+
+    setCategoryLoading(prev => ({ ...prev, [category]: true }));
+    try {
+      const params = { ...buildQueryParams(false), category };
+
+      console.log("[PricingAnalysisData] Fetching discount by brand for category:", category);
+      const response = await axiosInstance.get('/pricing-analysis/discount-by-brand', { params });
+
+      if (response.data?.success && response.data?.data) {
+        setDiscountBrandData(prev => ({
+          ...prev,
+          [category]: response.data.data
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching discount by brand data:", error);
+    } finally {
+      setCategoryLoading(prev => ({ ...prev, [category]: false }));
+    }
+  };
+
+  // Transform API data to match DiscountTrendDrillTable expected format
+  const discountTrendGroups = useMemo(() => {
+    if (discountTrendLoading || discountTrendData.length === 0) {
+      return DISCOUNT_TREND_GROUPS; // Fallback to mock data
+    }
+
+    return discountTrendData.map(cat => {
+      const brandRows = discountBrandData[cat.category] || [];
+
+      // Create rows: brands + All Brands row (category totals)
+      const rows = [
+        ...brandRows.map(b => {
+          const row = {
+            id: `${cat.category}_${b.brand}`,
+            brand: b.brand,
+          };
+          // Add dynamic platform values
+          discountPlatforms.forEach(p => {
+            row[p] = b[p] || 0;
+          });
+          return row;
+        }),
+        {
+          id: `${cat.category}_AllBrands`,
+          brand: "All Brands",
+          // Add dynamic platform values from category data
+          ...discountPlatforms.reduce((acc, p) => {
+            acc[p] = cat[p] || 0;
+            return acc;
+          }, {}),
+        }
+      ];
+
+      return {
+        skuType: cat.category,
+        rows,
+        loading: !!categoryLoading[cat.category],
+        onExpand: () => fetchDiscountByBrand(cat.category) // Fetch brands when expanded
+      };
+    });
+  }, [discountTrendData, discountBrandData, discountTrendLoading, discountPlatforms]);
+
+  // Weekday/Weekend ECP state
+  const [ecpWeekdayWeekendData, setEcpWeekdayWeekendData] = useState([]);
+  const [ecpWeekdayWeekendSummary, setEcpWeekdayWeekendSummary] = useState({ brand: 'All Brands', weekday: 0, weekend: 0 });
+  const [ecpWeekdayWeekendLoading, setEcpWeekdayWeekendLoading] = useState(false);
+
   const [openPopup, setOpenPopup] = useState(false);
   const [tab, setTab] = useState("overview");
 
@@ -1125,8 +1459,20 @@ export default function PricingAnalysisData() {
   const [seriesMenuAnchor, setSeriesMenuAnchor] = useState(null);
   const chartRef = useRef(null);
 
-  // Brand selected from ECP-by-Brand or anywhere (GLOBAL)
-  const [selectedBrand, setSelectedBrand] = useState(null);
+  // Update series selection when API data arrives with new brands
+  useEffect(() => {
+    if (brandDiscountTrendData.series && brandDiscountTrendData.series.length > 0) {
+      setChartSeriesSelection(prev => {
+        const newSelection = { ...prev };
+        brandDiscountTrendData.series.forEach(s => {
+          if (!(s.name in newSelection)) {
+            newSelection[s.name] = true; // Enable new brands by default
+          }
+        });
+        return newSelection;
+      });
+    }
+  }, [brandDiscountTrendData]);
 
   const handleChangeFilter = (key) => (e, v) => {
     if (key === "range") setFilters({ ...filters, range: v });
@@ -1153,13 +1499,64 @@ export default function PricingAnalysisData() {
     [filters]
   );
 
+  // Use only API data for ECP by Brand table (no mock data fallback)
   const filteredEcpBrandRows = useMemo(() => {
-    if (filters.brand === "All") return ECP_BRAND_ROWS;
-    return ECP_BRAND_ROWS.filter((r) => r.brand === filters.brand);
-  }, [filters.brand]);
+    const brandFilter = selectedBrand || filters.brand;
+
+    // Use only API data
+    const data = ecpByBrandData;
+
+    // If no brand filter, return all data
+    if (!brandFilter || brandFilter === "All" || (Array.isArray(brandFilter) && brandFilter.includes("All"))) {
+      return data;
+    }
+
+    // Filter by brand (case-insensitive)
+    const filtered = data.filter((r) => {
+      const rowBrand = String(r.brand || '').toLowerCase();
+      if (Array.isArray(brandFilter)) {
+        return brandFilter.map(b => String(b).toLowerCase()).includes(rowBrand);
+      }
+      return rowBrand === String(brandFilter).toLowerCase();
+    });
+
+    return filtered;
+  }, [filters.brand, selectedBrand, ecpByBrandData]);
 
   const activeBrand =
     selectedBrand || (filters.brand !== "All" ? filters.brand : null);
+
+  // Fetch weekday/weekend ECP data when dates or brand changes
+  useEffect(() => {
+    if (!datesInitialized) return;
+
+    const fetchEcpWeekdayWeekend = async () => {
+      setEcpWeekdayWeekendLoading(true);
+      try {
+        const params = buildQueryParams(false);
+
+        console.log("[PricingAnalysisData] Fetching ECP weekday/weekend with params:", params);
+        const response = await axiosInstance.get('/pricing-analysis/ecp-weekday-weekend', { params });
+
+        if (response.data?.success) {
+          console.log("[PricingAnalysisData] ECP weekday/weekend data received:", response.data.data?.length, "brands");
+          setEcpWeekdayWeekendData(response.data.data || []);
+          setEcpWeekdayWeekendSummary(response.data.summary || { brand: 'All Brands', weekday: 0, weekend: 0 });
+        } else {
+          setEcpWeekdayWeekendData([]);
+          setEcpWeekdayWeekendSummary({ brand: 'All Brands', weekday: 0, weekend: 0 });
+        }
+      } catch (error) {
+        console.error("Error fetching ECP weekday/weekend data:", error);
+        setEcpWeekdayWeekendData([]);
+        setEcpWeekdayWeekendSummary({ brand: 'All Brands', weekday: 0, weekend: 0 });
+      } finally {
+        setEcpWeekdayWeekendLoading(false);
+      }
+    };
+
+    fetchEcpWeekdayWeekend();
+  }, filterDeps);
 
   const renderTrendChip = (trend) => (
     <Chip
@@ -1241,11 +1638,28 @@ export default function PricingAnalysisData() {
     }));
   };
 
+  // Use API data for chart, fallback to mock data if loading or empty
+  // Defined before handler functions that use it
+  const chartDataSource = useMemo(() => {
+    if (brandDiscountTrendLoading || !brandDiscountTrendData.series || brandDiscountTrendData.series.length === 0) {
+      // Fallback to mock data
+      return {
+        months: DATE_OPTIONS,
+        series: DISCOUNT_SERIES
+      };
+    }
+    return brandDiscountTrendData;
+  }, [brandDiscountTrendData, brandDiscountTrendLoading]);
+
   const handleToggleAllSeries = () => {
+    // Use dynamic brands from API data or fallback
+    const dynamicBrands = (chartDataSource.series || []).map(s => s.name);
+    const brandsToUse = dynamicBrands.length > 0 ? dynamicBrands : BRANDS;
+
     setChartSeriesSelection((prev) => {
-      const allOn = BRANDS.every((b) => prev[b]);
+      const allOn = brandsToUse.every((b) => prev[b]);
       const next = {};
-      BRANDS.forEach((b) => {
+      brandsToUse.forEach((b) => {
         next[b] = !allOn;
       });
       return next;
@@ -1254,6 +1668,10 @@ export default function PricingAnalysisData() {
 
   // GLOBAL BRAND FILTER — OPTION A
   const applyGlobalBrandSelection = (brand) => {
+    // Use dynamic brands from API data or fallback
+    const dynamicBrands = (chartDataSource.series || []).map(s => s.name);
+    const brandsToUse = dynamicBrands.length > 0 ? dynamicBrands : BRANDS;
+
     // Toggle behaviour: clicking same brand again clears filter
     const nextBrand = brand && activeBrand === brand ? "All" : brand || "All";
 
@@ -1262,7 +1680,7 @@ export default function PricingAnalysisData() {
       setSelectedBrand(null);
       // reset chart series to all ON
       setChartSeriesSelection(() =>
-        BRANDS.reduce((acc, name) => {
+        brandsToUse.reduce((acc, name) => {
           acc[name] = true;
           return acc;
         }, {})
@@ -1273,7 +1691,7 @@ export default function PricingAnalysisData() {
       // chart highlight only selected brand by default
       setChartSeriesSelection(() => {
         const next = {};
-        BRANDS.forEach((b) => {
+        brandsToUse.forEach((b) => {
           next[b] = b === nextBrand;
         });
         return next;
@@ -1286,7 +1704,11 @@ export default function PricingAnalysisData() {
     const gridColor = chartThemeMode === "light" ? "#e5e7eb" : "#374151";
     const bgColor = chartThemeMode === "light" ? "#ffffff" : "#020617";
 
-    const series = DISCOUNT_SERIES.filter(
+    // Use API data or fallback
+    const sourceData = chartDataSource.series || [];
+    const months = chartDataSource.months || DATE_OPTIONS;
+
+    const series = sourceData.filter(
       (s) => chartSeriesSelection[s.name]
     ).map((s) => {
       const isBar = chartType === "bar";
@@ -1296,8 +1718,8 @@ export default function PricingAnalysisData() {
       const areaStyle =
         chartGradient && (chartType === "area" || chartType === "line")
           ? {
-              opacity: 0.18,
-            }
+            opacity: 0.18,
+          }
           : undefined;
 
       return {
@@ -1347,7 +1769,7 @@ export default function PricingAnalysisData() {
       xAxis: {
         type: "category",
         boundaryGap: chartType === "bar",
-        data: DATE_OPTIONS,
+        data: months,
         axisLine: { lineStyle: { color: gridColor } },
         axisLabel: { color: baseTextColor },
       },
@@ -1385,6 +1807,7 @@ export default function PricingAnalysisData() {
     chartLegendVisible,
     chartPanMode,
     chartSeriesSelection,
+    chartDataSource,
   ]);
 
   // RPI charts for RPI tab
@@ -1457,6 +1880,14 @@ export default function PricingAnalysisData() {
     const gridColor = chartThemeMode === "light" ? "#e5e7eb" : "#374151";
     const bgColor = chartThemeMode === "light" ? "#ffffff" : "#020617";
 
+    // Use live API data from ecpByBrandData or fallback to mock
+    const liveData = ecpByBrandData.length > 0
+      ? [...ecpByBrandData].sort((a, b) => (a.rpi || 0) - (b.rpi || 0))
+      : RPI_BRAND_DATA;
+
+    const categories = liveData.map((d) => d.brand);
+    const seriesData = liveData.map((d) => Number(d.rpi || 0).toFixed(2));
+
     return {
       backgroundColor: bgColor,
       title: {
@@ -1480,7 +1911,7 @@ export default function PricingAnalysisData() {
       },
       yAxis: {
         type: "category",
-        data: RPI_BRAND_DATA.map((d) => d.brand),
+        data: categories,
         axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: {
@@ -1491,7 +1922,7 @@ export default function PricingAnalysisData() {
       series: [
         {
           type: "bar",
-          data: RPI_BRAND_DATA.map((d) => d.rpi),
+          data: seriesData,
           barWidth: "45%",
           itemStyle: {
             opacity: 0.9,
@@ -1518,7 +1949,7 @@ export default function PricingAnalysisData() {
         data: [{ xAxis: 1 }],
       },
     };
-  }, [chartThemeMode]);
+  }, [chartThemeMode, ecpByBrandData]);
 
   // Popup filter UI
   const FilterPopup = (
@@ -1719,7 +2150,7 @@ export default function PricingAnalysisData() {
     { id: "brand", label: "Brand", sortable: true },
     { id: "product", label: "Product", sortable: true },
     { id: "skuType", label: "SKU Type", sortable: true },
-    { id: "format", label: "Format", sortable: true },
+    { id: "format", label: "Category", sortable: true },
     { id: "flavour", label: "Flavour", sortable: true },
     { id: "ml", label: "ML", sortable: true, numeric: true },
     { id: "mrp", label: "MRP (₹)", sortable: true, numeric: true },
@@ -1741,7 +2172,100 @@ export default function PricingAnalysisData() {
     { id: "rpi", label: "RPI", sortable: true, numeric: true },
   ];
 
+  // Brand Price Overview columns
+  const brandPriceOverviewColumns = [
+    { id: "brand", label: "Brand", sortable: true },
+    { id: "platform", label: "Platform", sortable: true },
+    {
+      id: "ecp",
+      label: "ECP (₹)",
+      sortable: true,
+      numeric: true,
+      render: (val) => val || 0
+    },
+    {
+      id: "ecpWithoutDisc",
+      label: "ECP w/o Disc (₹)",
+      sortable: true,
+      numeric: true,
+      render: (val) => val || 0
+    },
+    {
+      id: "discount",
+      label: "Disc %",
+      sortable: true,
+      numeric: true,
+      render: (val) => val || 0
+    },
+    {
+      id: "trend",
+      label: "Trend",
+      sortable: false,
+      render: (val) => (
+        <Chip
+          size="small"
+          label={val === "up" ? "Up" : "Down"}
+          icon={val === "up" ? <ArrowUpward fontSize="small" /> : <ArrowDownward fontSize="small" />}
+          color={val === "up" ? "success" : "error"}
+          sx={{ fontWeight: 600 }}
+        />
+      )
+    },
+  ];
+
+  // One View Price Grid columns
+  const oneViewPriceGridColumns = [
+    { id: "date", label: "Date", sortable: true },
+    { id: "platform", label: "Platform", sortable: true },
+    { id: "brand", label: "Brand", sortable: true },
+    { id: "product", label: "Product", sortable: true },
+    { id: "skuType", label: "SKU Type", sortable: true },
+    { id: "format", label: "Category", sortable: true },
+    { id: "ml", label: "ML", sortable: true, numeric: true },
+    {
+      id: "mrp",
+      label: "MRP (₹)",
+      sortable: true,
+      numeric: true,
+      render: (val) => val || 0
+    },
+    {
+      id: "basePrice",
+      label: "Base Price (₹)",
+      sortable: true,
+      numeric: true,
+      render: (val) => val || 0
+    },
+    {
+      id: "discount",
+      label: "Disc %",
+      sortable: true,
+      numeric: true,
+      render: (val) => val || 0
+    },
+    {
+      id: "ecp",
+      label: "ECP (₹)",
+      sortable: true,
+      numeric: true,
+      render: (val) => val || 0
+    },
+  ];
+
+
   const weekdayWeekendRow = useMemo(() => {
+    // If API data is available, use it
+    if (ecpWeekdayWeekendData.length > 0 || ecpWeekdayWeekendSummary.weekday > 0) {
+      if (!activeBrand) {
+        // Return summary (All Brands average)
+        return ecpWeekdayWeekendSummary;
+      }
+      // Find specific brand data
+      const brandRow = ecpWeekdayWeekendData.find((r) => r.brand === activeBrand);
+      return brandRow || ecpWeekdayWeekendSummary;
+    }
+
+    // Fallback to mock data if API not yet loaded
     if (!activeBrand) {
       const avg = WEEKDAY_WEEKEND_ECP.reduce(
         (acc, r) => {
@@ -1762,667 +2286,252 @@ export default function PricingAnalysisData() {
       WEEKDAY_WEEKEND_ECP.find((r) => r.brand === activeBrand) ||
       WEEKDAY_WEEKEND_ECP[0];
     return row;
-  }, [activeBrand]);
+  }, [activeBrand, ecpWeekdayWeekendData, ecpWeekdayWeekendSummary]);
+
+  // TABS for Gainer/Drainer
+  const pricingGainerDrainerTabs = [
+    { key: "ecp", label: "ECP" },
+    { key: "discount", label: "Discount" },
+    { key: "rpi", label: "RPI" },
+  ];
+
+  // Transform ECP comparison data for top gainers and drainers
+  const pricingGainerDrainerData = useMemo(() => {
+    if (ecpLoading || ecpData.length === 0) {
+      return {
+        ecp: { gainer: [], drainer: [] },
+        discount: { gainer: [], drainer: [] },
+        rpi: { gainer: [], drainer: [] }
+      };
+    }
+
+    // Filter out items with meaningful shifts in any of the three metrics
+    const validData = ecpData.filter(item =>
+      Math.abs(item.changePercent) > 0.05 ||
+      Math.abs(item.discountChange) > 0.05 ||
+      Math.abs(item.rpiChange) > 0.005
+    );
+
+    // Map to component format
+    const mapToGainerDrainer = (item, idx, prefix, metricType = 'ecp') => {
+      const name = item.product || item.brand;
+      const packSize = item.packSize || "N/A";
+
+      let impactValue = Number(item.changePercent) || 0;
+      let impactPrefix = impactValue > 0 ? '+' : '';
+      let impactSuffix = '%';
+
+      if (metricType === 'discount') {
+        impactValue = Number(item.discountChange) || 0;
+        impactPrefix = impactValue > 0 ? '+' : '';
+        impactSuffix = '%';
+      } else if (metricType === 'rpi') {
+        impactValue = Number(item.rpiChange) || 0;
+        impactPrefix = impactValue > 0 ? '+' : '';
+        impactSuffix = '';
+      }
+
+      const ecp = Number(item.ecp_curr) || 0;
+      const mrp = Number(item.mrp_curr) || 0;
+      const discount = Number(item.discount_curr) || 0;
+      const rpi = Number(item.rpi_curr) || 0;
+      const change = Number(item.change) || 0;
+
+      return {
+        id: `${prefix}-${idx}-${item.brand}-${item.product || idx}`,
+        skuCode: item.product ? item.product.substring(0, 8).toUpperCase() : item.brand,
+        skuName: name,
+        packSize: packSize,
+        platform: item.platform,
+        categoryTag: item.brand,
+        ecpValue: formatKpiValue(ecp, "₹", 0),
+        discountValue: formatKpiValue(discount, "%", 1),
+        rpiValue: formatKpiValue(rpi, "", 2),
+        impact: impactValue === 0 ? "N/A" : `${impactPrefix}${impactValue.toFixed(metricType === 'rpi' ? 2 : 1)}${impactSuffix}`,
+        kpis: {
+          ecp: formatKpiValue(ecp, "₹", 0),
+          mrp: formatKpiValue(mrp, "₹", 0),
+          discount: formatKpiValue(discount, "%", 1),
+          rpi: formatKpiValue(rpi, "", 2),
+          prevEcp: formatKpiValue(item.ecp_prev, "₹", 0),
+          change: change === 0 ? "N/A" : `${change > 0 ? '+' : ''}${change.toFixed(1)}`
+        },
+        topCities: item.topCities || []
+      };
+    };
+
+    const sortedByEcp = [...validData].sort((a, b) => b.changePercent - a.changePercent);
+    const sortedByDiscount = [...validData].sort((a, b) => b.discountChange - a.discountChange);
+    const sortedByRpi = [...validData].sort((a, b) => b.rpiChange - a.rpiChange);
+
+    return {
+      ecp: {
+        gainer: sortedByEcp.slice(0, 5).map((item, i) => mapToGainerDrainer(item, i, 'E-G', 'ecp')),
+        drainer: sortedByEcp.slice(-5).reverse().map((item, i) => mapToGainerDrainer(item, i, 'E-D', 'ecp'))
+      },
+      discount: {
+        gainer: sortedByDiscount.slice(0, 5).map((item, i) => mapToGainerDrainer(item, i, 'D-G', 'discount')),
+        drainer: sortedByDiscount.slice(-5).reverse().map((item, i) => mapToGainerDrainer(item, i, 'D-D', 'discount'))
+      },
+      rpi: {
+        gainer: sortedByRpi.slice(0, 5).map((item, i) => mapToGainerDrainer(item, i, 'R-G', 'rpi')),
+        drainer: sortedByRpi.slice(-5).reverse().map((item, i) => mapToGainerDrainer(item, i, 'R-D', 'rpi'))
+      }
+    };
+  }, [ecpData, ecpLoading]);
+
+  // Overall ECP Delta calculation
+  const overallEcpDelta = useMemo(() => {
+    if (ecpData.length === 0) return 0;
+    const totalCurr = ecpData.reduce((sum, item) => sum + item.ecp_curr, 0);
+    const totalPrev = ecpData.reduce((sum, item) => sum + item.ecp_prev, 0);
+    if (totalPrev === 0) return 0;
+    return parseFloat(((totalCurr - totalPrev) / totalPrev * 100).toFixed(1));
+  }, [ecpData]);
+
+
+  const pricingKpis = useMemo(() => {
+    const icons = [Discount, PieChart, Target];
+    const gradients = [
+      ['#6366f1', '#8b5cf6'],
+      ['#14b8a6', '#06b6d4'],
+      ['#f43f5e', '#ec4899']
+    ];
+
+    if (!pricingKpiData) {
+      return [
+        { id: 'vis-0', title: 'Discount', value: '-', subtitle: 'Loading...', icon: icons[0], gradient: gradients[0] },
+        { id: 'vis-1', title: 'Weighted Discount', value: '-', subtitle: 'Loading...', icon: icons[1], gradient: gradients[1] },
+        { id: 'vis-2', title: 'Average selling price', value: '-', subtitle: 'Loading...', icon: icons[2], gradient: gradients[2] },
+      ];
+    }
+
+    const d = pricingKpiData;
+
+    return [
+      {
+        id: 'vis-0',
+        title: 'Discount',
+        value: formatKpiValue(d.discount?.value, "%", 1),
+        subtitle: 'Average discount across active SKUs',
+        delta: Math.abs(d.discount?.change || 0),
+        deltaLabel: !d.discount?.value || d.discount?.value === 0 ? "N/A" : `${(d.discount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.discount?.change || 0).toFixed(1)}%`,
+        icon: icons[0],
+        gradient: gradients[0],
+        trend: d.discount?.sparklineData || [],
+        trendDir: (d.discount?.change || 0) >= 0 ? 'up' : 'down',
+        prevText: 'vs Previous Period',
+        infoTooltip: 'Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.'
+      },
+      {
+        id: 'vis-1',
+        title: 'Weighted Discount',
+        value: formatKpiValue(d.weightedDiscount?.value, "%", 1),
+        subtitle: 'Discount weighted by sales',
+        delta: Math.abs(d.weightedDiscount?.change || 0),
+        deltaLabel: !d.weightedDiscount?.value || d.weightedDiscount?.value === 0 ? "N/A" : `${(d.weightedDiscount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.weightedDiscount?.change || 0).toFixed(1)}%`,
+        icon: icons[1],
+        gradient: gradients[1],
+        trend: d.weightedDiscount?.sparklineData || [],
+        trendDir: (d.weightedDiscount?.change || 0) >= 0 ? 'up' : 'down',
+        prevText: 'vs Previous Period',
+        infoTooltip: 'Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.'
+      },
+      {
+        id: 'vis-2',
+        title: 'Average selling price',
+        value: formatKpiValue(d.asp?.value, "₹", 2),
+        subtitle: 'Average selling price of SKUs',
+        delta: Math.abs(d.asp?.change || 0),
+        deltaLabel: !d.asp?.value || d.asp?.value === 0 ? "N/A" : `${(d.asp?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.asp?.change || 0).toFixed(1)}%`,
+        icon: icons[2],
+        gradient: gradients[2],
+        trend: d.asp?.sparklineData || [],
+        trendDir: (d.asp?.change || 0) >= 0 ? 'up' : 'down',
+        prevText: 'vs Previous Period'
+      }
+    ];
+  }, [pricingKpiData, pricingKpiLoading]);
+
+  // ── Drawer state for LatestOverivewCatCity ──────────────────────────────
+  const [trendsDrawer, setTrendsDrawer] = useState({ open: false, entity: '', dimension: '' });
+  const [rcaDrawer, setRcaDrawer] = useState({ open: false, entity: '', dimension: '' });
+
+  const handleViewTrends = (entityName, dimensionLabel, dimensionType) => {
+    setTrendsDrawer({ open: true, entity: entityName, dimension: dimensionLabel, dimensionType: dimensionType || 'category' });
+  };
+
+  const handleViewRca = (entityName, dimensionLabel) => {
+    setRcaDrawer({ open: true, entity: entityName, dimension: dimensionLabel });
+  };
 
   // MAIN RETURN
   return (
-    <Box sx={{ p: 2, bgcolor: "#f4f6fb", minHeight: "100vh" }}>
-      {/* Top Bar */}
+    <Box sx={{ p: 3, bgcolor: "white", minHeight: "100vh" }}>
+      {/* KPIs Section */}
+      <SnapshotOverview
+        title="Pricing Overview"
+        icon={LayoutGrid}
+
+        headerRight={
+          <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+            vs Previous Period
+          </span>
+        }
+        kpis={pricingKpis}
+        variant="detailed"
+        helpMenu="Pricing Analysis"
+        loading={pricingKpiLoading}
+      />
+
+      {/* Insights Section */}
       <Card
         sx={{
-          mb: 2,
+          mb: 3,
           p: 2,
-          borderRadius: 3,
+          borderRadius: 8,
           boxShadow: 4,
           background: "linear-gradient(120deg,#ffffff,#f3f5ff)",
+          minHeight: 300
         }}
       >
-        <Typography variant="h5" fontWeight={700}>
-          Price & Discount Intelligence
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Cross-platform ECP tracking • Brand comparison • Discount movement
-        </Typography>
+        <InsightsPricingView loading={ecpLoading} />
       </Card>
 
-      {/* KPI Row */}
-      <Grid container spacing={2} mb={2}>
-        {PRICE_ROWS.slice(0, 3).map((row) => (
-          <Grid item xs={12} md={4} key={row.id}>
-            <Card
-              sx={{
-                p: 2,
-                borderRadius: 3,
-                boxShadow: 4,
-                background:
-                  "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(236,240,255,0.9))",
-                cursor: "pointer",
-              }}
-              onClick={() => applyGlobalBrandSelection(row.brand)}
-            >
-              <Typography variant="subtitle2" color="text.secondary">
-                {row.brand}
-              </Typography>
-              <Typography variant="h5" fontWeight={700} mt={1}>
-                ₹{row.ecp}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Platform: {row.platform}
-              </Typography>
-              <Box mt={1}>{renderTrendChip(row.trend)}</Box>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* NEW SECTION: ECP by Brand + Weekday/Weekend */}
-      <Grid container spacing={2} mb={2}>
-        <Grid item xs={12} md={8}>
-          <SuperTable
-            title="ECP by Brand"
-            columns={ecpByBrandColumns}
-            rows={filteredEcpBrandRows}
-            initialDensity="comfortable" // wider spacing so it doesn't feel tight
-            enableRowExpansion={false}
-            onRowClick={(row) => applyGlobalBrandSelection(row.brand)}
-          />
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Card
-            sx={{
-              borderRadius: 3,
-              boxShadow: 4,
-              mb: 3,
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <Toolbar
-              sx={{
-                px: 2,
-                py: 1,
-                borderBottom: "1px solid",
-                borderColor: "divider",
-                bgcolor: "rgba(250,250,252,0.9)",
-                display: "flex",
-                justifyContent: "space-between",
-              }}
-            >
-              <Box>
-                <Typography variant="subtitle1" fontWeight={700}>
-                  ECP by Brand – Weekday / Weekend
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Driven by brand selection from left table / SKU / trend
-                </Typography>
-              </Box>
-              {activeBrand && (
-                <Chip
-                  size="small"
-                  label={activeBrand}
-                  variant="outlined"
-                  onDelete={() => applyGlobalBrandSelection(null)}
-                />
-              )}
-            </Toolbar>
-
-            <TableContainer sx={{ flex: 1 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow
-                    sx={{
-                      "& th": {
-                        bgcolor: "rgba(245,247,252,0.98)",
-                        fontWeight: 600,
-                      },
-                    }}
-                  >
-                    <TableCell>Brand</TableCell>
-                    <TableCell align="right">Weekday</TableCell>
-                    <TableCell align="right">Weekend</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  <TableRow>
-                    <TableCell>{weekdayWeekendRow.brand}</TableCell>
-                    <TableCell align="right">
-                      {weekdayWeekendRow.weekday}
-                    </TableCell>
-                    <TableCell align="right">
-                      {weekdayWeekendRow.weekend}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                        Total
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      {weekdayWeekendRow.weekday}
-                    </TableCell>
-                    <TableCell align="right">
-                      {weekdayWeekendRow.weekend}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Discount Trend Drilldown (Power BI-style) */}
-      <DiscountTrendDrillTable
-        groups={DISCOUNT_TREND_GROUPS}
-        selectedBrand={activeBrand}
-        onBrandClick={applyGlobalBrandSelection}
-      />
-
-      {/* Tabs + Brand / Own vs Competitors */}
-      <Card
-        sx={{
-          mb: 3,
-          borderRadius: 3,
-          boxShadow: 0,
-          background: "transparent",
-        }}
-        elevation={0}
-      >
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          sx={{
-            mb: 1.5,
-            "& .MuiTab-root": { textTransform: "none", fontWeight: 600 },
-          }}
-        >
-          <Tab label="Brand Overview" value="overview" />
-          <Tab label="Own vs Competitors" value="own" />
-        </Tabs>
-      </Card>
-
-      {tab === "overview" && (
-        <SuperTable
-          title="Brand Price Overview"
-          columns={brandColumns}
-          rows={filteredPrice}
-          initialDensity="comfortable"
-          onRowClick={(row) => applyGlobalBrandSelection(row.brand)}
-        />
-      )}
-
-      {tab === "own" && (
-        <SuperTable
-          title="Own vs Competition Pricing"
-          columns={ownVsCompColumns}
-          rows={OWN_VS_COMP_ROWS}
-          initialDensity="comfortable"
-          enableRowExpansion
-          onRowClick={(row) => applyGlobalBrandSelection(row.brandOwn)}
-          renderDetail={(row) => (
-            <Box>
-              <Typography variant="subtitle2" gutterBottom>
-                Detailed Comparison — {row.product}
-              </Typography>
-
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={3}
-                justifyContent="space-between"
-              >
-                {/* LEFT BLOCK */}
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Own Brand Details
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>{row.brandOwn}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Platform: <strong>{row.platform}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Format: <strong>{row.format}</strong> | ML:{" "}
-                    <strong>{row.ml}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Own MRP: <strong>₹{row.ownMRP}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Own ECP: <strong>₹{row.ownECP}</strong>
-                  </Typography>
-                </Box>
-
-                {/* RIGHT BLOCK */}
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Competitor Details
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>{row.brandComp}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Comp MRP: <strong>₹{row.compMRP}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    Comp ECP: <strong>₹{row.compECP}</strong>
-                  </Typography>
-                  <Typography variant="body2">
-                    ECP Diff:{" "}
-                    <strong
-                      style={{
-                        color:
-                          row.diff < 0 ? "green" : row.diff > 0 ? "red" : "",
-                      }}
-                    >
-                      {row.diff}
-                    </strong>
-                  </Typography>
-                </Box>
-              </Stack>
-            </Box>
-          )}
-        />
-      )}
-
-      {/* SKU SuperTable with Row Expansion
-          CLICK SKU -> GLOBAL BRAND FILTER -> updates:
-          - ECP by Brand
-          - Weekday/Weekend
-          - Discount Trend Drilldown
-          - Brand Price Overview
-          - Chart series selection
-      */}
-      <SuperTable
-        title="One View Price Grid"
-        columns={skuColumns}
-        rows={filteredSKUs}
-        initialDensity="compact"
-        enableRowExpansion
-        onRowClick={(row) => applyGlobalBrandSelection(row.brand)}
-        renderDetail={(row) => (
-          <Box>
-            <Typography variant="subtitle2" gutterBottom>
-              Detailed View — {row.product}
-            </Typography>
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={3}
-              justifyContent="space-between"
-            >
-              <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Basic Info
-                </Typography>
-                <Typography variant="body2">
-                  Brand: <strong>{row.brand}</strong>
-                </Typography>
-                <Typography variant="body2">
-                  Platform: <strong>{row.platform}</strong>
-                </Typography>
-                <Typography variant="body2">
-                  Format: <strong>{row.format}</strong> | ML:{" "}
-                  <strong>{row.ml}</strong>
-                </Typography>
-                <Typography variant="body2">
-                  Flavour: <strong>{row.flavour}</strong>
-                </Typography>
-              </Box>
-
-              <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Pricing Snapshot
-                </Typography>
-                <Typography variant="body2">
-                  MRP: <strong>₹{row.mrp}</strong>
-                </Typography>
-                <Typography variant="body2">
-                  Base: <strong>₹{row.base}</strong>
-                </Typography>
-                <Typography variant="body2">
-                  Discount: <strong>{row.disc}%</strong>
-                </Typography>
-                <Typography variant="body2">
-                  ECP: <strong>₹{row.ecp}</strong>
-                </Typography>
-                <Typography variant="body2">
-                  MRP: <strong>₹{row.mrp}</strong>
-                </Typography>
-                <Typography variant="body2">
-                  Discount: <strong>{row.disc}%</strong>
-                </Typography>
-              </Box>
-            </Stack>
-          </Box>
-        )}
-      />
-      {/* Trend + RPI Card with Tabs */}
+      {/* ECP Comparison Section */}
       <Card
         sx={{
           mb: 3,
           p: 2,
-          borderRadius: 3,
+          borderRadius: 8,
           boxShadow: 4,
-          overflow: "hidden",
+          background: "linear-gradient(120deg,#ffffff,#f3f5ff)",
+          minHeight: 400
         }}
       >
-        {/* Header + Tabs */}
-        <Box
-          sx={{
-            mb: 1.5,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <Box>
-            <Typography fontWeight={600} mb={0.5}>
-              Price Intelligence — Trend & RPI
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Switch between discount trend and RPI view. Brand selection is
-              synced from tables / SKU / drilldown.
-            </Typography>
-          </Box>
-
-          <Tabs
-            value={chartTab}
-            onChange={(_, v) => v && setChartTab(v)}
-            sx={{
-              minHeight: 32,
-              "& .MuiTab-root": {
-                textTransform: "none",
-                fontSize: 12,
-                minHeight: 32,
-              },
-            }}
-          >
-            <Tab label="Discount Trend" value="discount" />
-            <Tab label="RPI View" value="rpi" />
-          </Tabs>
-        </Box>
-
-        {/* DISCOUNT TREND TAB */}
-        {chartTab === "discount" && (
-          <>
-            {/* Toolbar ABOVE chart */}
-            <Box
-              sx={{
-                width: "fit-content",
-                mx: "auto", // center OR remove this for right side
-                mb: 1.5,
-                display: "flex",
-                alignItems: "center",
-                gap: 0.5,
-                px: 1.2,
-                py: 0.6,
-                borderRadius: 999,
-                bgcolor: "rgba(15,23,42,0.85)",
-                backdropFilter: "blur(10px)",
-                boxShadow: 4,
-              }}
-            >
-              <ToggleButtonGroup
-                size="small"
-                value={chartType}
-                exclusive
-                onChange={(_, val) => val && setChartType(val)}
-                sx={{
-                  "& .MuiToggleButton-root": {
-                    color: "#e5e7eb",
-                    borderColor: "rgba(148,163,184,0.5)",
-                    px: 0.8,
-                    "&.Mui-selected": {
-                      bgcolor: "rgba(248,250,252,0.15)",
-                      color: "#f9fafb",
-                    },
-                  },
-                }}
-              >
-                <ToggleButton value="line">
-                  <ShowChart sx={{ fontSize: 18 }} />
-                </ToggleButton>
-                <ToggleButton value="area">
-                  <StackedBarChart sx={{ fontSize: 18 }} />
-                </ToggleButton>
-                <ToggleButton value="bar">
-                  <BarChart sx={{ fontSize: 18 }} />
-                </ToggleButton>
-                <ToggleButton value="spline">
-                  <ShowChart sx={{ fontSize: 18 }} />
-                </ToggleButton>
-              </ToggleButtonGroup>
-
-              <Divider
-                orientation="vertical"
-                flexItem
-                sx={{ mx: 0.5, borderColor: "rgba(148,163,184,0.6)" }}
-              />
-
-              <Tooltip title="Zoom in">
-                <IconButton size="small" onClick={() => handleChartZoom("in")}>
-                  <ZoomIn sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Zoom out">
-                <IconButton size="small" onClick={() => handleChartZoom("out")}>
-                  <ZoomOut sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Reset zoom">
-                <IconButton size="small" onClick={handleChartResetZoom}>
-                  <RestartAlt sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={chartPanMode ? "Pan mode (on)" : "Pan mode"}>
-                <IconButton
-                  size="small"
-                  onClick={() => setChartPanMode((v) => !v)}
-                  sx={{
-                    bgcolor: chartPanMode
-                      ? "rgba(248,250,252,0.18)"
-                      : "transparent",
-                  }}
-                >
-                  <PanTool sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-
-              <Divider
-                orientation="vertical"
-                flexItem
-                sx={{ mx: 0.5, borderColor: "rgba(148,163,184,0.6)" }}
-              />
-
-              <Tooltip
-                title={chartPoints ? "Hide data points" : "Show data points"}
-              >
-                <IconButton
-                  size="small"
-                  onClick={() => setChartPoints((v) => !v)}
-                >
-                  {chartPoints ? (
-                    <RadioButtonChecked
-                      sx={{ fontSize: 18, color: "#e5e7eb" }}
-                    />
-                  ) : (
-                    <RadioButtonUnchecked
-                      sx={{ fontSize: 18, color: "#e5e7eb" }}
-                    />
-                  )}
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip
-                title={chartGradient ? "Disable gradient" : "Enable gradient"}
-              >
-                <IconButton
-                  size="small"
-                  onClick={() => setChartGradient((v) => !v)}
-                >
-                  <Gradient sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip
-                title={
-                  chartThemeMode === "light"
-                    ? "Dark chart mode"
-                    : "Light chart mode"
-                }
-              >
-                <IconButton
-                  size="small"
-                  onClick={() =>
-                    setChartThemeMode((m) => (m === "light" ? "dark" : "light"))
-                  }
-                >
-                  {chartThemeMode === "light" ? (
-                    <DarkMode sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                  ) : (
-                    <LightMode sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                  )}
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip
-                title={chartLegendVisible ? "Hide legend" : "Show legend"}
-              >
-                <IconButton
-                  size="small"
-                  onClick={() => setChartLegendVisible((visible) => !visible)}
-                >
-                  <LegendToggle sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title="Select series">
-                <IconButton
-                  size="small"
-                  onClick={(e) => setSeriesMenuAnchor(e.currentTarget)}
-                >
-                  <Tune sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-
-              <Tooltip title="Download PNG">
-                <IconButton
-                  size="small"
-                  onClick={() => handleDownloadChart("png")}
-                >
-                  <Download sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Download SVG">
-                <IconButton
-                  size="small"
-                  onClick={() => handleDownloadChart("svg")}
-                >
-                  <Download sx={{ fontSize: 18, color: "#e5e7eb" }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
-
-            {/* Series Selection Menu */}
-            <Menu
-              anchorEl={seriesMenuAnchor}
-              open={Boolean(seriesMenuAnchor)}
-              onClose={() => setSeriesMenuAnchor(null)}
-              keepMounted
-            >
-              {BRANDS.map((b) => (
-                <MenuItem key={b} onClick={() => handleToggleSeries(b)}>
-                  <ListItemIcon>
-                    <Checkbox size="small" checked={chartSeriesSelection[b]} />
-                  </ListItemIcon>
-                  <ListItemText primary={b} />
-                </MenuItem>
-              ))}
-              <Divider />
-              <MenuItem onClick={handleToggleAllSeries}>
-                <ListItemIcon>
-                  <LegendToggle fontSize="small" />
-                </ListItemIcon>
-                <ListItemText primary="Toggle all" />
-              </MenuItem>
-            </Menu>
-
-            <Box sx={{ mt: 1, height: 320 }}>
-              <ReactECharts
-                ref={chartRef}
-                option={discountChart}
-                style={{ height: "100%", width: "100%" }}
-                notMerge
-              />
-            </Box>
-          </>
-        )}
-
-        {/* RPI TAB */}
-        {chartTab === "rpi" && (
-          <Box sx={{ mt: 1, height: 320 }}>
-            <Grid container spacing={2} sx={{ height: "100%" }}>
-              <Grid item xs={12} md={6} sx={{ height: "100%" }}>
-                <ReactECharts
-                  option={rpiFormatChart}
-                  style={{ height: "100%", width: "100%" }}
-                  notMerge
-                />
-              </Grid>
-              <Grid item xs={12} md={6} sx={{ height: "100%" }}>
-                <ReactECharts
-                  option={rpiBrandChart}
-                  style={{ height: "100%", width: "100%" }}
-                  notMerge
-                />
-              </Grid>
-            </Grid>
-          </Box>
-        )}
+        <LatestOverivewCatCity
+          loading={ecpLoading}
+          onViewTrends={handleViewTrends}
+          onViewRca={handleViewRca}
+        />
       </Card>
-      {/* MODERN FLOATING FILTER DOCK */}
-      <Box
-        sx={{
-          position: "fixed",
-          bottom: 28,
-          right: 28,
-          zIndex: 1000,
-        }}
-      >
-        <Box
-          onClick={() => setOpenPopup(true)}
-          sx={{
-            px: 2.2,
-            py: 1.1,
-            borderRadius: "30px",
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            cursor: "pointer",
-            boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
-            background: "rgba(255,255,255,0.75)",
-            backdropFilter: "blur(14px)",
-            border: "1px solid rgba(255,255,255,0.45)",
-            transition: "0.3s",
-            "&:hover": {
-              background: "rgba(255,255,255,0.9)",
-              transform: "translateY(-2px)",
-              boxShadow: "0 12px 32px rgba(0,0,0,0.22)",
-            },
-          }}
-        >
-          <FilterList sx={{ fontSize: 22, color: "#1976d2" }} />
-          <Typography fontWeight={600} sx={{ color: "#1976d2" }}>
-            Filters
-          </Typography>
-        </Box>
-      </Box>
 
-      {/* POPUP FILTER PANEL */}
-      {FilterPopup}
+      {/* Pricing Trends Drawer */}
+      <TrendsCompetitionDrawer
+        dynamicKey="pricing"
+        open={trendsDrawer.open}
+        onClose={() => setTrendsDrawer({ open: false, entity: '', dimension: '', dimensionType: '' })}
+        selectedColumn={trendsDrawer.entity}
+        selectedLevel={trendsDrawer.dimension}
+        dimensionType={trendsDrawer.dimensionType}
+      />
+
+      {/* Pricing RCA Drawer */}
+      <PricingRcaDrawer
+        entityName={rcaDrawer.open ? rcaDrawer.entity : null}
+        dimensionType={rcaDrawer.dimension}
+        onClose={() => setRcaDrawer({ open: false, entity: '', dimension: '' })}
+      />
     </Box>
   );
 }

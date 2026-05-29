@@ -1,0 +1,128 @@
+name: Deploy to EC2
+
+
+on:
+  push:
+    branches:
+      - enhancement_01122025_backend_kenil
+      - enhancement_01122025_dev_kenil
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  APP_DIR: /Dashboard/powerbi-dashboard-fullstack
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set environment variables based on branch
+        run: |
+          if [ "${{ github.ref_name }}" = "enhancement_01122025_backend_kenil" ]; then
+            echo "DEPLOY_ENV=production" >> $GITHUB_ENV
+            echo "TARGET_HOST=${{ secrets.EC2_HOST }}" >> $GITHUB_ENV
+            echo "TARGET_SSH_KEY<<EOF" >> $GITHUB_ENV
+            echo "${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+            echo "TARGET_USER=${{ secrets.EC2_USER }}" >> $GITHUB_ENV
+            echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_URL }}" >> $GITHUB_ENV
+          elif [ "${{ github.ref_name }}" = "enhancement_01122025_dev_kenil" ]; then
+            echo "DEPLOY_ENV=development" >> $GITHUB_ENV
+            echo "TARGET_HOST=${{ secrets.EC2_DEV_HOST }}" >> $GITHUB_ENV
+            echo "TARGET_SSH_KEY<<EOF" >> $GITHUB_ENV
+            echo "${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+            echo "TARGET_USER=${{ secrets.EC2_USER }}" >> $GITHUB_ENV
+            echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_DEV_URL }}" >> $GITHUB_ENV
+          fi
+          echo "🎯 Deploying to ${{ github.ref_name }} environment"
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ env.TARGET_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ env.TARGET_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create .env file on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.TARGET_USER }}@${{ env.TARGET_HOST }} << 'ENDSSH'
+            # Ensure the user has permissions to the directory
+            sudo chown -R ${{ env.TARGET_USER }}:${{ env.TARGET_USER }} ${{ env.APP_DIR }}
+            
+            cd ${{ env.APP_DIR }}
+            cat > .env << 'EOF'
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          REDIS_HOST=host.docker.internal
+          REDIS_PORT=6379
+          REDIS_PASSWORD=
+          REDIS_DB=${{ secrets.REDIS_DB }}
+          REDIS_ENABLED=${{ secrets.REDIS_ENABLED }}
+          REDIS_DEFAULT_TTL=${{ secrets.REDIS_DEFAULT_TTL }}
+          CLICKHOUSE_URL=${{ env.TARGET_CLICKHOUSE_URL }}
+          CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}
+          CLICKHOUSE_DB=${{ secrets.CLICKHOUSE_DB }}
+          ENABLE_DEBUG_LOGS=true
+          EOF
+            echo "✅ .env file created for ${{ env.DEPLOY_ENV }} environment"
+          ENDSSH
+
+      - name: Deploy to EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.TARGET_USER }}@${{ env.TARGET_HOST }} << 'ENDSSH'
+            set -e
+            
+            echo "📁 Navigating to app directory..."
+            cd ${{ env.APP_DIR }} || { echo "❌ App directory not found"; exit 1; }
+            
+            # Resolve dubious ownership error
+            git config --global --add safe.directory ${{ env.APP_DIR }}
+            
+            echo "📥 Pulling latest code from branch: ${{ github.ref_name }}..."
+            git fetch origin ${{ github.ref_name }}
+            git checkout ${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
+            
+            echo "🛑 Stopping and removing specific containers..."
+            sudo docker stop backend_multiple frontend_multiple || true
+            sudo docker rm backend_multiple frontend_multiple || true
+            
+            echo "🔨 Building and starting containers..."
+            sudo docker compose up -d --build
+            
+            echo "⏳ Waiting for services to start..."
+            sleep 10
+            
+            echo "🔍 Checking container status..."
+            sudo docker compose ps
+            sleep 10
+            echo "✅ Health check..."
+            curl -sf http://localhost:5000/health || { echo "❌ Backend health check failed"; exit 1; }
+            curl -sf http://localhost:9400/ || { echo "❌ Frontend health check failed"; exit 1; }
+            
+            echo "🎉 Deployment successful!"
+          ENDSSH
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+
+      - name: Deployment Summary
+        run: |
+          echo "## Deployment Summary 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌍 Environment: \`${{ env.DEPLOY_ENV }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Deployed to: \`${{ env.TARGET_HOST }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "📦 Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 App: http://${{ env.TARGET_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 API: http://${{ env.TARGET_HOST }}/api" >> $GITHUB_STEP_SUMMARY
