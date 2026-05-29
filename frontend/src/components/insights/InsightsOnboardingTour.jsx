@@ -24,8 +24,7 @@ const STEPS = [
     { target: ".tour-card-prioritise-po", title: "Prioritise PO", description: "Ranks incoming purchase orders by projected sales velocity and current stock levels. Helps your supply chain team focus on the POs that will have the biggest impact on preventing lost sales.", icon: Truck, iconColor: "#8a4a6b" },
     { target: ".tour-card-transfer-issue", title: "Transfer Issue", description: "Flags friction points in inter-warehouse stock transfers — delayed shipments, routing inefficiencies, or mismatched inventory levels between locations that could be balanced.", icon: ArrowRightLeft, iconColor: "#5a7a4e" },
     { target: ".tour-card-new-market-entry", title: "New Market Entry", description: "Identifies promising new territories by analyzing competitor performance, demand density, and distribution gaps. Shows where competitors are generating revenue in markets you haven't entered yet.", icon: MapPin, iconColor: "#4a6b8a" },
-    { target: ".tour-card-dark-store-coverage-gaps", title: "Dark Store Coverage Gaps", description: "Specifically monitors quick-commerce availability. Dark stores have rapid turnover — even small gaps in coverage can mean significant lost sales in high-velocity urban markets.", icon: Store, iconColor: "#7c3aed" },
-    { target: ".tour-card-new-dark-store-expansion", title: "New Dark Store Expansion", description: "Recommends locations for new dark store deployments based on demand heatmaps, competitor dark store density, and delivery radius optimization.", icon: Store, iconColor: "#6d28d9" },
+
 ];
 
 const DD_STEPS = [

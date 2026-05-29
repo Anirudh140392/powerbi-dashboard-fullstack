@@ -131,7 +131,7 @@ export const SIGNAL_META = {
         color: "#5a7a4e", accent: "#ebf3e8",
         FamilyIcon: ArrowRightLeft, metricKey: "impactInr",
         metricLabel: "Projected Sales Loss", trend: "negative",
-        isBeta: false,
+        isBeta: true,
     },
     "New Market Entry": {
         family: "Competitive Landscape",
@@ -140,18 +140,7 @@ export const SIGNAL_META = {
         metricLabel: "Last Seen Date", trend: "negative",
         isBeta: true,
     },
-    "Dark Store Coverage Gaps": {
-        family: "Dark Store",
-        color: "#7c3aed", accent: "#ede9fe",
-        FamilyIcon: Store, metricKey: "impactInr",
-        metricLabel: "Potential Sales Loss", trend: "negative",
-    },
-    "New Dark Store Expansion": {
-        family: "Dark Store",
-        color: "#6d28d9", accent: "#f5f3ff",
-        FamilyIcon: Store, metricKey: "impactInr",
-        metricLabel: "Potential Sales Loss", trend: "negative",
-    },
+
 };
 
 const REQUIRED_SIGNAL_TYPES = Object.keys(SIGNAL_META);

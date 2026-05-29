@@ -907,7 +907,6 @@ export const getInsightsData = async (filters) => {
             WHERE po.po_raised_date BETWEEN '${dateFrom}' AND '${dateTo}'
               AND po.sku_name IS NOT NULL AND po.sku_name != ''
               AND ${buildCHCondition(filters.platform, 'po.platform')}
-              AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('po.city'))}
               AND ${buildCHCondition(filters.category, 'po.category', { isCategory: true })}
             GROUP BY web_pid, skuName, platform, city, facility, category, brandName
         )
@@ -949,6 +948,7 @@ export const getInsightsData = async (filters) => {
             ${CITY_NORM_EXPR('city')} AS city,
             sku_name AS skuName,
             platform,
+            any(web_pid) AS webPid,
             ROUND((SUM(toFloat64OrZero(toString(neno_osa))) / NULLIF(SUM(toFloat64OrZero(toString(deno_osa))), 0)) * 100, 2) AS osa,
             ROUND(
                 (
@@ -976,7 +976,6 @@ export const getInsightsData = async (filters) => {
           AND sku_name IS NOT NULL AND sku_name != ''
           AND LOWER(po_status) IN ('unscheduled', 'pending_grn', 'asn_created', 'pending_acknowledgement', 'confirmed', 'scheduled', 'partially scheduled')
           AND ${buildCHCondition(filters.platform, 'platform')}
-          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('city'))}
         GROUP BY
             po_number, facility_name, city, sku_name, platform
         HAVING projectedSalesLoss > 0
@@ -1000,6 +999,7 @@ export const getInsightsData = async (filters) => {
             ${CITY_NORM_EXPR('po.city')} AS city,
             po.sku_name AS skuName,
             po.platform AS platform,
+            any(po.web_pid) AS webPid,
             ROUND((SUM(toFloat64OrZero(toString(po.neno_osa))) / NULLIF(SUM(toFloat64OrZero(toString(po.deno_osa))), 0)) * 100, 2) AS osa,
             ROUND(
                 (
@@ -1031,7 +1031,6 @@ export const getInsightsData = async (filters) => {
           AND po.sku_name IS NOT NULL AND po.sku_name != ''
           AND LOWER(po.po_status) IN ('unscheduled', 'pending_grn', 'asn_created', 'pending_acknowledgement', 'confirmed', 'scheduled', 'partially scheduled')
           AND ${buildCHCondition(filters.platform, 'po.platform')}
-          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('po.city'))}
         GROUP BY
             poNumber, facility, city, skuName, platform
         HAVING projectedSalesLoss > 0
@@ -1049,6 +1048,7 @@ export const getInsightsData = async (filters) => {
             ${CITY_NORM_EXPR('city')} AS city,
             sku_name AS skuName,
             platform,
+            any(web_pid) AS webPid,
             ROUND((SUM(toFloat64OrZero(toString(neno_osa))) / NULLIF(SUM(toFloat64OrZero(toString(deno_osa))), 0)) * 100, 2) AS osa,
             ROUND(
                 (
@@ -1077,7 +1077,6 @@ export const getInsightsData = async (filters) => {
           AND sku_name IS NOT NULL AND sku_name != ''
           AND LOWER(po_status) IN ('unscheduled', 'pending_grn', 'asn_created', 'pending_acknowledgement')
           AND ${buildCHCondition(filters.platform, 'platform')}
-          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('city'))}
         GROUP BY
             facility_name, city, sku_name, platform
         HAVING projectedSalesLoss > 0
@@ -1100,6 +1099,7 @@ export const getInsightsData = async (filters) => {
             ${CITY_NORM_EXPR('po.city')} AS city,
             po.sku_name AS skuName,
             po.platform AS platform,
+            any(po.web_pid) AS webPid,
             ROUND((SUM(toFloat64OrZero(toString(po.neno_osa))) / NULLIF(SUM(toFloat64OrZero(toString(po.deno_osa))), 0)) * 100, 2) AS osa,
             ROUND(
                 (
@@ -1132,7 +1132,6 @@ export const getInsightsData = async (filters) => {
           AND po.sku_name IS NOT NULL AND po.sku_name != ''
           AND LOWER(po.po_status) IN ('unscheduled', 'pending_grn', 'asn_created', 'pending_acknowledgement')
           AND ${buildCHCondition(filters.platform, 'po.platform')}
-          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('po.city'))}
         GROUP BY
             facility, city, skuName, platform
         HAVING projectedSalesLoss > 0
@@ -1846,9 +1845,18 @@ export const getInsightsData = async (filters) => {
             }
 
             // From other signals
-            for (const r of (surplusStockData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
-            for (const r of (prioritisePOData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
-            for (const r of (prioritiseProductPOData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
+            for (const r of (surplusStockData || [])) { 
+                if (r.webPid) allKnownPids.add(String(r.webPid));
+                if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); 
+            }
+            for (const r of (prioritisePOData || [])) { 
+                if (r.webPid) allKnownPids.add(String(r.webPid));
+                if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); 
+            }
+            for (const r of (prioritiseProductPOData || [])) { 
+                if (r.webPid) allKnownPids.add(String(r.webPid));
+                if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); 
+            }
             for (const r of (transferIssueData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
             for (const r of (newMarketEntryData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
             for (const r of (replData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
@@ -1894,6 +1902,15 @@ export const getInsightsData = async (filters) => {
             // Final assignments for rows with explicit webPids
             for (const r of (removeAdLowOSAData || [])) {
                 r.imageUrl = pidImageMap[String(r.webPid)] || null;
+            }
+            for (const r of (surplusStockData || [])) {
+                r.imageUrl = pidImageMap[String(r.webPid)] || productImageMap[r.skuName] || null;
+            }
+            for (const r of (prioritisePOData || [])) {
+                r.imageUrl = pidImageMap[String(r.webPid)] || productImageMap[r.skuName] || null;
+            }
+            for (const r of (prioritiseProductPOData || [])) {
+                r.imageUrl = pidImageMap[String(r.webPid)] || productImageMap[r.skuName] || null;
             }
         } catch (imgErr) {
             console.log('[Insights] Image resolution failed (non-critical):', imgErr.message);
@@ -2590,7 +2607,7 @@ export const getInsightsData = async (filters) => {
         // SIGNAL 8 — Surplus Stock (from rb_po_olap)
         // ---------------------------------------------------------------------
         if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Surplus Stock') {
-            const filteredData = (surplusStockData || []).filter(r => isAllowedCity(r.city));
+            const filteredData = (surplusStockData || []);
             const hasData = filteredData.length > 0;
             const totalExcessValue = hasData ? filteredData.reduce((s, r) => s + Number(r.excessInventoryValue || 0), 0) : 0;
             const totalExcessInventoryUnits = hasData ? filteredData.reduce((s, r) => s + Number(r.excessInventory || 0), 0) : 0;
@@ -2630,7 +2647,7 @@ export const getInsightsData = async (filters) => {
                 ] : ["-", "-"],
                 evidence: hasData ? filteredData.map(r => ({
                     skuName: r.skuName || '-',
-                    imageUrl: productImageMap[r.skuName] || null,
+                    imageUrl: r.imageUrl || productImageMap[r.skuName] || null,
                     city: r.city,
                     facility: r.facility || '-',
                     platform: r.platform,
@@ -2668,7 +2685,7 @@ export const getInsightsData = async (filters) => {
                     poStatus: priority
                 };
             });
-            const filteredData = mappedData.filter(r => isAllowedCity(r.city));
+            const filteredData = mappedData;
             const hasData = filteredData.length > 0;
             const totalPSL = hasData ? filteredData.reduce((s, r) => s + Number(r.projectedSalesLoss || 0), 0) : 0;
             const avgOsa = hasData ? filteredData.reduce((s, r) => s + Number(r.osa || 0), 0) / filteredData.length : 0;
@@ -2717,7 +2734,7 @@ export const getInsightsData = async (filters) => {
                 evidence: hasData ? filteredData.map(r => ({
                     poNumber: r.poNumber || '-',
                     skuName: r.skuName || '-',
-                    imageUrl: productImageMap[r.skuName] || null,
+                    imageUrl: r.imageUrl || productImageMap[r.skuName] || null,
                     city: r.city,
                     platform: r.platform || '-',
                     facility: r.facility || '-',
@@ -2735,7 +2752,7 @@ export const getInsightsData = async (filters) => {
         // SIGNAL 9.5 — Prioritise Product PO
         // ---------------------------------------------------------------------
         if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Prioritise Product') {
-            const filteredData = (prioritiseProductPOData || []).filter(r => isAllowedCity(r.city));
+            const filteredData = (prioritiseProductPOData || []);
             const hasData = filteredData.length > 0;
             const totalPSL = hasData ? filteredData.reduce((s, r) => s + Number(r.projectedSalesLoss || 0), 0) : 0;
             const avgOsa = hasData ? filteredData.reduce((s, r) => s + Number(r.osa || 0), 0) / filteredData.length : 0;
@@ -2783,7 +2800,7 @@ export const getInsightsData = async (filters) => {
                 ] : ["-", "-"],
                 evidence: hasData ? filteredData.map(r => ({
                     skuName: r.skuName || '-',
-                    imageUrl: productImageMap[r.skuName] || null,
+                    imageUrl: r.imageUrl || productImageMap[r.skuName] || null,
                     city: r.city,
                     platform: r.platform || '-',
                     facility: r.facility || '-',
