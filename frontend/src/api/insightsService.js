@@ -19,3 +19,23 @@ export const fetchInsightsFilters = async () => {
         return { success: false, data: { categories: [], productLines: [], geographies: [] } };
     }
 };
+
+export const fetchCorrelations = async (filters) => {
+    try {
+        const response = await axiosInstance.get("/insights/correlations", { params: filters });
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching correlations:", error);
+        throw error;
+    }
+};
+
+export const fetchCorrelationsTrend = async (filters) => {
+    try {
+        const response = await axiosInstance.get("/insights/correlations/trend", { params: filters });
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching correlations trend:", error);
+        throw error;
+    }
+};

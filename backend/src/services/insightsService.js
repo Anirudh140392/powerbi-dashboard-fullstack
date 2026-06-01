@@ -1,7 +1,7 @@
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
-const ALLOWED_CITIES = ['Chandigarh', 'Delhi', 'Gurugram', 'Faridabad', 'Lucknow', 'Kolkata', 'Ahmedabad', 'Mumbai', 'Pune', 'Hyderabad', 'Bengaluru', 'Chennai'];
+const ALLOWED_CITIES = ['Chandigarh', 'Delhi', 'Gurugram', 'Faridabad', 'Lucknow', 'Kolkata', 'Ahmedabad', 'Mumbai', 'Pune', 'Hyderabad', 'Bengaluru', 'Chennai', 'Nation'];
 const ALLOWED_CITIES_LOWER = ALLOWED_CITIES.map(c => c.toLowerCase());
 const ALLOWED_CITIES_SQL = ALLOWED_CITIES_LOWER.map(c => `'${c}'`).join(', ');
 
@@ -72,11 +72,35 @@ const checkRbMsOlapExists = async () => {
     }
 };
 
+const checkRbPoOlapExists = async () => {
+    try {
+        const dbName = getCurrentDbName();
+        const rows = await queryClickHouse(
+            `SELECT name FROM system.tables WHERE database = '${dbName}' AND name = 'rb_po_olap' LIMIT 1`
+        );
+        return rows.length > 0;
+    } catch {
+        return false;
+    }
+};
+
 const checkQtySoldExistsInPo = async () => {
     try {
         const dbName = getCurrentDbName();
         const rows = await queryClickHouse(
             `SELECT name FROM system.columns WHERE database = '${dbName}' AND table = 'rb_po_olap' AND name = 'qty_sold' LIMIT 1`
+        );
+        return rows.length > 0;
+    } catch {
+        return false;
+    }
+};
+
+const checkColumnExists = async (tableName, columnName) => {
+    try {
+        const dbName = getCurrentDbName();
+        const rows = await queryClickHouse(
+            `SELECT name FROM system.columns WHERE database = '${dbName}' AND table = '${tableName}' AND name = '${columnName}' LIMIT 1`
         );
         return rows.length > 0;
     } catch {
@@ -1636,8 +1660,9 @@ export const getInsightsData = async (filters) => {
     };
 
     try {
-        // Check rb_ms_olap availability once before building the competitor OSA query
+        // Check rb_ms_olap and rb_po_olap availability once before building queries
         const rbMsOlapExists = await checkRbMsOlapExists();
+        const rbPoOlapExists = await checkRbPoOlapExists();
         const competitorOsaQuery = buildCompetitorOsaQuery(rbMsOlapExists);
 
         const [
@@ -1674,8 +1699,8 @@ export const getInsightsData = async (filters) => {
             rbMsOlapExists ? safeQuery(ownShareQuery, 'OwnShare') : Promise.resolve([]),
             rbMsOlapExists ? safeQuery(compShareQuery, 'CompShare') : Promise.resolve([]),
             safeQuery(sosTrendQuery, 'SOSTrend'),
-            safeQuery(surplusStockQuery, 'SurplusStock'),
-            safeQuery(prioritisePOQuery, 'PrioritisePO'),
+            rbPoOlapExists ? safeQuery(surplusStockQuery, 'SurplusStock') : Promise.resolve([]),
+            rbPoOlapExists ? safeQuery(prioritisePOQuery, 'PrioritisePO') : Promise.resolve([]),
             safeQuery(transferIssueQuery, 'TransferIssue'),
             safeQuery(newMarketEntryQuery, 'NewMarketEntry'),
             rbMsOlapExists ? safeQuery(skuLossQuery, 'SkuLoss') : Promise.resolve([]),
@@ -1756,16 +1781,18 @@ export const getInsightsData = async (filters) => {
             const knownPidList = [...allKnownPids];
             const namesList = [...allProductNames].slice(0, 500); // Increased cap for direct metadata lookup
 
+            const hasImageUrlInSkuPlatform = await checkColumnExists('rb_sku_platform', 'image_url');
+
             const [pidImageRows, nameImageRows] = await Promise.all([
                 // Query A: Fetch images by web_pid from rb_sku_platform
-                knownPidList.length > 0
+                (knownPidList.length > 0 && hasImageUrlInSkuPlatform)
                     ? safeQuery(
                         `SELECT web_pid, image_url FROM rb_sku_platform WHERE web_pid IN (${knownPidList.map(p => `'${escapeCH(String(p))}'`).join(',')}) AND image_url IS NOT NULL AND image_url != ''`,
                         'ImageByPid'
                     )
                     : Promise.resolve([]),
                 // Query B: Fetch images directly by sku_name from rb_sku_platform
-                namesList.length > 0
+                (namesList.length > 0 && hasImageUrlInSkuPlatform)
                     ? safeQuery(
                         `SELECT sku_name, argMax(image_url, modified_on) AS latest_image_url FROM rb_sku_platform WHERE sku_name IN (${namesList.map(n => `'${escapeCH(n)}'`).join(',')}) AND image_url IS NOT NULL AND image_url != '' GROUP BY sku_name`,
                         'ImageByName'
@@ -3088,5 +3115,466 @@ export const getCompetitorMarketShareTrend = async (filters = {}) => {
     } catch (err) {
         console.error('[InsightsService] getCompetitorMarketShareTrend failed:', err.message);
         return { ownBrand: null, competitors: [], topThreat: null };
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CO-RELATIONS — Comparative KPI Analysis (Sales, OSA, SOS)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * getCorrelationsData
+ * Compares Sales, OSA, SOS across two periods at platform/category/brand/SKU/location level.
+ * Returns rows where significant changes occurred.
+ */
+export const getCorrelationsData = async (filters) => {
+    try {
+        const CORR_ALLOWED_CITIES = ['ahmedabad', 'mumbai', 'pune', 'hyderabad', 'bengaluru', 'kolkata', 'delhi', 'gurugram', 'noida', 'lucknow', 'chennai', 'chandigarh', 'nation'];
+        const CORR_ALLOWED_CITIES_SQL = CORR_ALLOWED_CITIES.map(c => `'${c}'`).join(', ');
+
+        const platformCond = buildCHCondition(filters.platform, 'p.Platform', { isPdp: true });
+        const cityCond = buildCHCondition(filters.city, `${CITY_NORM_EXPR('p.Location')}`, { isPdp: true });
+        const categoryCond = buildCHCondition(filters.category, 'p.Category', { isCategory: true, isPdp: true });
+        const brandCond = buildCHCondition(filters.brand, 'p.Brand', { isBrand: true, isPdp: true });
+
+        const kwPlatformCond = buildCHCondition(filters.platform, 'k.platform_name');
+        const kwCityCond = buildCHCondition(filters.city, `${CITY_NORM_EXPR('k.location_name')}`);
+        const kwCategoryCond = buildCHCondition(filters.category, 'k.keyword_category', { isCategory: true });
+
+        const windowConfigs = [
+            { size: 40, max: 2 },
+            { size: 30, max: 3 },
+            { size: 25, max: 3 },
+            { size: 18, max: 4 },
+            { size: 12, max: 5 },
+            { size: 7, max: 8 },
+            { size: 4, max: 10 }
+        ];
+
+        const maxDateStr = '2026-05-26';
+        const limitDateStr = '2026-02-01';
+        const periods = [];
+        let periodId = 1;
+
+        for (const config of windowConfigs) {
+            let anchor = dayjs(maxDateStr);
+            let count = 0;
+            while (count < config.max) {
+                const curr_end = anchor.format('YYYY-MM-DD');
+                const curr_start = anchor.subtract(config.size - 1, 'day').format('YYYY-MM-DD');
+                const prev_end = anchor.subtract(config.size, 'day').format('YYYY-MM-DD');
+                const prev_start = anchor.subtract(2 * config.size - 1, 'day').format('YYYY-MM-DD');
+
+                if (dayjs(prev_start).isBefore(dayjs(limitDateStr))) {
+                    break;
+                }
+
+                periods.push({
+                    id: periodId++,
+                    curr_start,
+                    curr_end,
+                    prev_start,
+                    prev_end,
+                    size: config.size
+                });
+
+                anchor = anchor.subtract(config.size, 'day');
+                count++;
+            }
+        }
+
+        // Sales & OSA Selects
+        const salesOsaSelects = periods.map(p => `
+            SUM(if(p.DATE BETWEEN toDate('${p.curr_start}') AND toDate('${p.curr_end}'), toFloat64OrZero(toString(p.Sales)), 0)) AS s_${p.id}_curr,
+            SUM(if(p.DATE BETWEEN toDate('${p.prev_start}') AND toDate('${p.prev_end}'), toFloat64OrZero(toString(p.Sales)), 0)) AS s_${p.id}_prev,
+            SUM(if(p.DATE BETWEEN toDate('${p.curr_start}') AND toDate('${p.curr_end}'), toFloat64OrZero(toString(p.neno_osa)), 0)) AS n_${p.id}_curr,
+            SUM(if(p.DATE BETWEEN toDate('${p.curr_start}') AND toDate('${p.curr_end}'), toFloat64OrZero(toString(p.deno_osa)), 0)) AS d_${p.id}_curr,
+            SUM(if(p.DATE BETWEEN toDate('${p.prev_start}') AND toDate('${p.prev_end}'), toFloat64OrZero(toString(p.neno_osa)), 0)) AS n_${p.id}_prev,
+            SUM(if(p.DATE BETWEEN toDate('${p.prev_start}') AND toDate('${p.prev_end}'), toFloat64OrZero(toString(p.deno_osa)), 0)) AS d_${p.id}_prev
+        `).join(',\n');
+
+        const pdpQuery = `
+            SELECT
+                p.Platform AS platform,
+                COALESCE(NULLIF(p.Category, ''), 'Other') AS category,
+                p.Brand AS brand,
+                p.Product AS sku,
+                ${CITY_NORM_EXPR('p.Location')} AS location,
+                ${salesOsaSelects}
+            FROM rb_pdp_olap p
+            WHERE p.Comp_flag IN (0, '0')
+              AND p.DATE >= '2026-02-01'
+              AND ${platformCond}
+              AND ${cityCond}
+              AND ${categoryCond}
+              AND ${brandCond}
+              AND ${CITY_NORM_EXPR('p.Location')} IN (${CORR_ALLOWED_CITIES_SQL})
+            GROUP BY platform, category, brand, sku, location
+        `;
+
+        // SOS Selects
+        const brandVolSelects = periods.map(p => `
+            SUM(if(k.DATE BETWEEN toDate('${p.curr_start}') AND toDate('${p.curr_end}'), toFloat64OrZero(toString(k.overall)), 0)) AS b_${p.id}_curr,
+            SUM(if(k.DATE BETWEEN toDate('${p.prev_start}') AND toDate('${p.prev_end}'), toFloat64OrZero(toString(k.overall)), 0)) AS b_${p.id}_prev
+        `).join(',\n');
+
+        const totalVolSelects = periods.map(p => `
+            SUM(if(k.DATE BETWEEN toDate('${p.curr_start}') AND toDate('${p.curr_end}'), toFloat64OrZero(toString(k.overall)), 0)) AS t_${p.id}_curr,
+            SUM(if(k.DATE BETWEEN toDate('${p.prev_start}') AND toDate('${p.prev_end}'), toFloat64OrZero(toString(k.overall)), 0)) AS t_${p.id}_prev
+        `).join(',\n');
+
+        const brandVolQuery = `
+            SELECT
+                k.platform_name AS platform,
+                k.keyword_category AS category,
+                k.brand_name_th AS brand,
+                ${CITY_NORM_EXPR('k.location_name')} AS location,
+                ${brandVolSelects}
+            FROM rb_kw_olap k
+            WHERE k.flag = 1
+              AND k.DATE >= '2026-02-01'
+              AND ${kwPlatformCond}
+              AND ${kwCityCond}
+              AND ${kwCategoryCond}
+              AND ${CITY_NORM_EXPR('k.location_name')} IN (${CORR_ALLOWED_CITIES_SQL})
+            GROUP BY platform, category, brand, location
+        `;
+
+        const totalVolQuery = `
+            SELECT
+                k.platform_name AS platform,
+                k.keyword_category AS category,
+                ${CITY_NORM_EXPR('k.location_name')} AS location,
+                ${totalVolSelects}
+            FROM rb_kw_olap k
+            WHERE k.DATE >= '2026-02-01'
+              AND ${kwPlatformCond}
+              AND ${kwCityCond}
+              AND ${kwCategoryCond}
+              AND ${CITY_NORM_EXPR('k.location_name')} IN (${CORR_ALLOWED_CITIES_SQL})
+            GROUP BY platform, category, location
+        `;
+
+        const [pdpRows, brandVolRows, totalVolRows] = await Promise.all([
+            queryClickHouse(pdpQuery).catch(err => { console.error('[Correlations] pdp query error:', err.message); return []; }),
+            queryClickHouse(brandVolQuery).catch(err => { console.error('[Correlations] brandVol query error:', err.message); return []; }),
+            queryClickHouse(totalVolQuery).catch(err => { console.error('[Correlations] totalVol query error:', err.message); return []; }),
+        ]);
+
+        // Build total volume lookup map
+        const totalVolMap = {};
+        for (const row of totalVolRows) {
+            const key = `${String(row.platform).toLowerCase()}|${String(row.category).toLowerCase()}|${String(row.location).toLowerCase()}`;
+            totalVolMap[key] = row;
+        }
+
+        // Build SOS lookup map per period: key -> { currSos, prevSos }
+        const sosMap = {};
+        for (const row of brandVolRows) {
+            const platform = String(row.platform).toLowerCase();
+            const category = String(row.category).toLowerCase();
+            const brand = String(row.brand).toLowerCase();
+            const location = String(row.location).toLowerCase();
+            
+            const totalKey = `${platform}|${category}|${location}`;
+            const totalRow = totalVolMap[totalKey] || {};
+
+            for (const p of periods) {
+                const bCurr = Number(row[`b_${p.id}_curr`]) || 0;
+                const bPrev = Number(row[`b_${p.id}_prev`]) || 0;
+
+                const tCurr = Number(totalRow[`t_${p.id}_curr`]) || 0;
+                const tPrev = Number(totalRow[`t_${p.id}_prev`]) || 0;
+
+                const currSos = tCurr > 0 ? (bCurr * 100.0 / tCurr) : 0;
+                const prevSos = tPrev > 0 ? (bPrev * 100.0 / tPrev) : 0;
+
+                const mapKey = `${platform}|${category}|${brand}|${location}|${p.id}`;
+                sosMap[mapKey] = {
+                    currSos: Number(currSos.toFixed(2)),
+                    prevSos: Number(prevSos.toFixed(2)),
+                    sosChange: Number((currSos - prevSos).toFixed(2))
+                };
+            }
+        }
+
+        // Post-process PDP rows to find the period of the largest anomaly, joining SOS
+        const results = [];
+        for (const row of pdpRows) {
+            const platform = String(row.platform).toLowerCase();
+            const category = String(row.category).toLowerCase();
+            const brand = String(row.brand).toLowerCase();
+            const location = String(row.location).toLowerCase();
+
+            let maxScore = -1;
+            let bestPeriod = null;
+            let bestMetrics = null;
+
+            for (const p of periods) {
+                const currSales = Number(row[`s_${p.id}_curr`]) || 0;
+                const prevSales = Number(row[`s_${p.id}_prev`]) || 0;
+
+                const currNeno = Number(row[`n_${p.id}_curr`]) || 0;
+                const currDeno = Number(row[`d_${p.id}_curr`]) || 0;
+                const prevNeno = Number(row[`n_${p.id}_prev`]) || 0;
+                const prevDeno = Number(row[`d_${p.id}_prev`]) || 0;
+
+                const currOsa = currDeno > 0 ? (currNeno * 100 / currDeno) : null;
+                const prevOsa = prevDeno > 0 ? (prevNeno * 100 / prevDeno) : null;
+
+                const salesChange = prevSales > 0 ? ((currSales - prevSales) / prevSales) : 0;
+                const osaChange = (currOsa !== null && prevOsa !== null) ? (currOsa - prevOsa) : 0;
+
+                // Look up SOS
+                const sosKey = `${platform}|${category}|${brand}|${location}|${p.id}`;
+                const sos = sosMap[sosKey] || { currSos: 0, prevSos: 0, sosChange: 0 };
+
+                // Anomaly condition
+                const salesAnomaly = prevSales > 0 && Math.abs(salesChange) > 0.15;
+                const osaAnomaly = Math.abs(osaChange) > 5;
+                const sosAnomaly = Math.abs(sos.sosChange) > 3;
+
+                if (salesAnomaly || osaAnomaly || sosAnomaly) {
+                    const score = Math.abs(salesChange) * 100 + Math.abs(osaChange) * 2 + Math.abs(sos.sosChange) * 3;
+                    if (score > maxScore) {
+                        maxScore = score;
+                        bestPeriod = p;
+                        bestMetrics = {
+                            sales: currSales,
+                            prevSales,
+                            salesChange: Number((salesChange * 100).toFixed(1)),
+                            osa: currOsa !== null ? Number(currOsa.toFixed(1)) : null,
+                            prevOsa: prevOsa !== null ? Number(prevOsa.toFixed(1)) : null,
+                            osaChange: Number(osaChange.toFixed(1)),
+                            sos: sos.currSos,
+                            prevSos: sos.prevSos,
+                            sosChange: sos.sosChange
+                        };
+                    }
+                }
+            }
+
+            if (bestPeriod) {
+                // Ensure OSA is present (not null) in both current and previous period
+                if (bestMetrics.osa != null && bestMetrics.prevOsa != null) {
+                    results.push({
+                        platform: row.platform || '-',
+                        category: row.category || '-',
+                        brand: row.brand || '-',
+                        sku: row.sku || '-',
+                        location: row.location || '-',
+                        dateRange: `${bestPeriod.curr_start} to ${bestPeriod.curr_end}`,
+                        prevRange: `${bestPeriod.prev_start} to ${bestPeriod.prev_end}`,
+                        size: bestPeriod.size,
+                        ...bestMetrics
+                    });
+                }
+            }
+        }
+
+        // Sort by absolute magnitude of any change
+        results.sort((a, b) => {
+            const scoreA = Math.abs(a.salesChange || 0) + Math.abs(a.osaChange || 0) * 2 + Math.abs(a.sosChange || 0) * 3;
+            const scoreB = Math.abs(b.salesChange || 0) + Math.abs(b.osaChange || 0) * 2 + Math.abs(b.sosChange || 0) * 3;
+            return scoreB - scoreA;
+        });
+
+        return results;
+
+    } catch (err) {
+        console.error('[InsightsService] getCorrelationsData failed:', err.message);
+        return [];
+    }
+};
+
+/**
+ * getCorrelationsTrend
+ * Returns daily-level Sales, OSA, SOS, Market Share, Search Rank for a specific dimension combo over a date range.
+ * - Sales, OSA, Search Rank come from rb_pdp_olap (best_seller_rank column)
+ * - SOS comes from rb_kw_olap (flag=1 brand share)
+ * - Market Share comes from rb_ms_olap (own brand sales / total category sales)
+ */
+export const getCorrelationsTrend = async (filters) => {
+    try {
+        const startDate = filters.startDate ? dayjs(filters.startDate).format('YYYY-MM-DD') : dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+        const endDate = filters.endDate ? dayjs(filters.endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+
+        const platform = filters.platform || '';
+        const category = filters.category || '';
+        const brand = filters.brand || '';
+        const sku = filters.sku || '';
+        const location = filters.location || '';
+
+        // ── rb_pdp_olap conditions ──
+        const dimCondPdp = [
+            platform ? `LOWER(p.Platform) = '${escapeCH(platform.toLowerCase())}'` : '1=1',
+            category && category !== '-' ? `LOWER(COALESCE(NULLIF(p.Category, ''), 'Other')) = '${escapeCH(category.toLowerCase())}'` : '1=1',
+            brand && brand !== '-' ? `LOWER(p.Brand) = '${escapeCH(brand.toLowerCase())}'` : '1=1',
+            sku && sku !== '-' ? `p.Product = '${escapeCH(sku)}'` : '1=1',
+            location && location !== '-' ? `${CITY_NORM_EXPR('p.Location')} = '${escapeCH(location.toLowerCase())}'` : '1=1',
+        ].join(' AND ');
+
+        // ── rb_kw_olap conditions ──
+        const dimCondKw = [
+            platform ? `LOWER(k.platform_name) = '${escapeCH(platform.toLowerCase())}'` : '1=1',
+            category && category !== '-' ? `LOWER(k.keyword_category) = '${escapeCH(category.toLowerCase())}'` : '1=1',
+            location && location !== '-' ? `${CITY_NORM_EXPR('k.location_name')} = '${escapeCH(location.toLowerCase())}'` : '1=1',
+        ].join(' AND ');
+
+        // ── rb_ms_olap base conditions (platform/category/location, NO brand — brand goes into numerator only) ──
+        const dimCondMsBase = [
+            platform ? `LOWER(m.platform) = '${escapeCH(platform.toLowerCase())}'` : '1=1',
+            category && category !== '-' ? `LOWER(m.category) = '${escapeCH(category.toLowerCase())}'` : '1=1',
+            location && location !== '-' ? `${CITY_NORM_EXPR('m.location')} = '${escapeCH(location.toLowerCase())}'` : '1=1',
+        ].join(' AND ');
+
+        // ── Query 1: Daily Sales & OSA from rb_pdp_olap ──
+        // NOTE: best_seller_rank is split into its own query because the column
+        // does not exist in every tenant database.
+        const salesOsaQuery = `
+            SELECT
+                p.DATE AS date,
+                SUM(ifNull(toFloat64OrZero(toString(p.Sales)), 0)) AS sales,
+                ROUND(SUM(ifNull(toFloat64OrZero(toString(p.neno_osa)), 0)) * 100.0 /
+                    nullIf(SUM(ifNull(toFloat64OrZero(toString(p.deno_osa)), 0)), 0), 2) AS osa
+            FROM rb_pdp_olap p
+            WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
+              AND p.Comp_flag IN (0, '0')
+              AND ${dimCondPdp}
+            GROUP BY p.DATE
+            ORDER BY p.DATE
+        `;
+
+        // ── Query 2: Daily SOS (brand share) from rb_kw_olap ──
+        const sosQuery = `
+            WITH daily_total AS (
+                SELECT
+                    k.DATE AS date,
+                    SUM(toFloat64OrZero(toString(k.overall))) AS total_vol
+                FROM rb_kw_olap k
+                WHERE k.DATE BETWEEN '${startDate}' AND '${endDate}'
+                  AND ${dimCondKw}
+                GROUP BY k.DATE
+            ),
+            daily_brand AS (
+                SELECT
+                    k.DATE AS date,
+                    SUM(toFloat64OrZero(toString(k.overall))) AS brand_vol
+                FROM rb_kw_olap k
+                WHERE k.DATE BETWEEN '${startDate}' AND '${endDate}'
+                  AND k.flag = 1
+                  AND ${dimCondKw}
+                GROUP BY k.DATE
+            )
+            SELECT
+                db.date,
+                ROUND(db.brand_vol * 100.0 / nullIf(dt.total_vol, 0), 2) AS sos
+            FROM daily_brand db
+            JOIN daily_total dt ON db.date = dt.date
+            ORDER BY db.date
+        `;
+
+        // ── Query 3: Daily Market Share from rb_ms_olap ──
+        // Market Share = (own brand sales / total category sales) * 100
+        // Determine numerator filter: if a specific brand is passed use that, otherwise use all own brands (comp_flag=0)
+        let msNumeratorConds = [];
+        if (brand && brand !== '-') {
+            // Specific brand requested — use it directly
+            msNumeratorConds.push(`LOWER(m.group_brand) = '${escapeCH(brand.toLowerCase())}'`);
+        } else {
+            // No brand filter — fetch own brand names from rca_sku_dim
+            try {
+                const brandResult = await queryClickHouse(
+                    `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`
+                );
+                const validBrandNames = brandResult.map(b => b.brand_name).filter(Boolean);
+                if (validBrandNames.length > 0) {
+                    msNumeratorConds.push(
+                        `LOWER(m.group_brand) IN (${validBrandNames.map(b => `'${escapeCH(b.toLowerCase())}'`).join(', ')})`
+                    );
+                }
+            } catch (brandErr) {
+                console.error('[CorrelationsTrend] Failed to get valid brand names for MS:', brandErr.message);
+            }
+        }
+        // If a specific SKU is passed, also filter the numerator by item_name
+        if (sku && sku !== '-') {
+            msNumeratorConds.push(`m.item_name = '${escapeCH(sku)}'`);
+        }
+
+        const msNumeratorFilter = msNumeratorConds.length > 0 ? msNumeratorConds.join(' AND ') : '1=0';
+
+        const marketShareQuery = `
+            SELECT
+                toDate(m.created_on) AS date,
+                ROUND(
+                    SUM(IF(${msNumeratorFilter}, toFloat64OrZero(toString(m.sales)), 0)) * 100.0 /
+                    nullIf(SUM(toFloat64OrZero(toString(m.sales))), 0), 2
+                ) AS marketShare
+            FROM rb_ms_olap m
+            WHERE toDate(m.created_on) BETWEEN '${startDate}' AND '${endDate}'
+              AND ${dimCondMsBase}
+            GROUP BY date
+            ORDER BY date
+        `;
+
+        // ── Query 4: Daily Search Rank from rb_pdp_olap (separate — best_seller_rank may not exist in all DBs) ──
+        const hasBestSellerRank = await checkColumnExists('rb_pdp_olap', 'best_seller_rank');
+
+        const searchRankQuery = `
+            SELECT
+                p.DATE AS date,
+                ROUND(AVG(nullIf(toFloat64OrZero(toString(p.best_seller_rank)), 0)), 2) AS searchRank
+            FROM rb_pdp_olap p
+            WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
+              AND p.Comp_flag IN (0, '0')
+              AND ${dimCondPdp}
+            GROUP BY p.DATE
+            ORDER BY p.DATE
+        `;
+
+        // ── Execute all four queries in parallel ──
+        const [salesOsaRows, sosRows, msRows, srRows] = await Promise.all([
+            queryClickHouse(salesOsaQuery).catch(err => { console.error('[CorrelationsTrend] salesOsa error:', err.message); return []; }),
+            queryClickHouse(sosQuery).catch(err => { console.error('[CorrelationsTrend] sos error:', err.message); return []; }),
+            queryClickHouse(marketShareQuery).catch(err => { console.error('[CorrelationsTrend] marketShare error:', err.message); return []; }),
+            hasBestSellerRank
+                ? queryClickHouse(searchRankQuery).catch(err => { console.error('[CorrelationsTrend] searchRank error:', err.message); return []; })
+                : Promise.resolve([]),
+        ]);
+
+        // Build SOS map by date
+        const sosMap = {};
+        for (const r of sosRows) {
+            sosMap[r.date] = Number(r.sos) || 0;
+        }
+
+        // Build Market Share map by date
+        const msMap = {};
+        for (const r of msRows) {
+            msMap[r.date] = Number(r.marketShare) || 0;
+        }
+
+        // Build Search Rank map by date
+        const srMap = {};
+        for (const r of srRows) {
+            if (r.searchRank != null) srMap[r.date] = Number(r.searchRank);
+        }
+
+        // Merge all KPIs into a single trend array keyed by date
+        const trend = salesOsaRows.map(r => ({
+            date: r.date,
+            sales: Number(r.sales) || 0,
+            osa: r.osa != null ? Number(r.osa) : null,
+            sos: sosMap[r.date] ?? null,
+            marketShare: msMap[r.date] ?? null,
+            searchRank: srMap[r.date] ?? null,
+        }));
+
+        return trend;
+
+    } catch (err) {
+        console.error('[InsightsService] getCorrelationsTrend failed:', err.message);
+        return [];
     }
 };
