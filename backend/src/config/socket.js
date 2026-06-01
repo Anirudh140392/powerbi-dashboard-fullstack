@@ -28,18 +28,72 @@ async function queryDb(dbName, sql) {
     return result.json();
 }
 
+// Cache of column maps per database/table to avoid DESCRIBE overhead during polling
+const columnsCache = new Map(); // Key: `${dbName}:${tableName}` -> Map(lowerKey -> actualName)
+
+async function getTableColumnsMap(dbName, tableName) {
+    const cacheKey = `${dbName}:${tableName}`;
+    if (columnsCache.has(cacheKey)) {
+        return columnsCache.get(cacheKey);
+    }
+    try {
+        const rows = await queryDb(dbName, `DESCRIBE TABLE ${tableName}`);
+        const map = new Map();
+        rows.forEach(r => {
+            const name = r.name || r.Name;
+            if (name) map.set(name.toLowerCase(), name);
+        });
+        columnsCache.set(cacheKey, map);
+        return map;
+    } catch (e) {
+        console.warn(`[Socket] Failed to describe table ${tableName} in ${dbName}:`, e.message);
+        return new Map();
+    }
+}
+
+function resolveColumn(columnsMap, expectedName, fallback = null) {
+    if (!columnsMap || columnsMap.size === 0) {
+        return fallback || expectedName;
+    }
+    const lowerExpected = expectedName.toLowerCase();
+    if (columnsMap.has(lowerExpected)) {
+        return columnsMap.get(lowerExpected);
+    }
+    // Simple normalization match
+    const normalizedTarget = lowerExpected.replace(/[_\s]/g, '');
+    for (const [lowerActual, actualName] of columnsMap) {
+        if (lowerActual.replace(/[_\s]/g, '') === normalizedTarget) {
+            return actualName;
+        }
+    }
+    return fallback || expectedName;
+}
+
 /**
  * Fetch Max(Date) from all key tables for a given database
  */
 async function fetchMaxDates(dbName) {
     const dates = {};
 
-    // rb_pdp_olap — used by most pages
+    // Environment detection: Prod vs Dev
+    const chUrl = process.env.CLICKHOUSE_URL || '';
+    dates.isProd = chUrl.includes('13.200.55.131');
+
+    // Describe rb_pdp_olap
+    const pdpCols = await getTableColumnsMap(dbName, 'rb_pdp_olap');
+    const pdpPlatformCol = resolveColumn(pdpCols, 'Platform');
+    const pdpDateCol = resolveColumn(pdpCols, 'DATE');
+    const pdpCompCol = resolveColumn(pdpCols, 'Comp_flag');
+    const pdpDenoCol = resolveColumn(pdpCols, 'deno_osa');
+    const pdpSalesCol = resolveColumn(pdpCols, 'Sales');
+    const pdpInvCol = resolveColumn(pdpCols, 'Inventory');
+
+    // rb_pdp_olap — general update (used for Business Overview, Availability, and other general page fallbacks)
     try {
-        const rows = await queryDb(dbName, `SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap WHERE toString(Comp_flag) = '0'`);
+        const rows = await queryDb(dbName, `SELECT MAX(toDate(${pdpDateCol})) as maxDate FROM rb_pdp_olap WHERE toString(${pdpCompCol}) = '0'`);
         dates.rb_pdp_olap = rows[0]?.maxDate || null;
         
-        const platformRows = await queryDb(dbName, `SELECT Platform as platform, MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap WHERE toString(Comp_flag) = '0' GROUP BY Platform`);
+        const platformRows = await queryDb(dbName, `SELECT ${pdpPlatformCol} as platform, MAX(toDate(${pdpDateCol})) as maxDate FROM rb_pdp_olap WHERE toString(${pdpCompCol}) = '0' GROUP BY ${pdpPlatformCol}`);
         dates.rb_pdp_olap_platform = {};
         platformRows.forEach(r => { if (r.platform) dates.rb_pdp_olap_platform[r.platform] = r.maxDate; });
     } catch (e) {
@@ -48,17 +102,70 @@ async function fetchMaxDates(dbName) {
         dates.rb_pdp_olap_platform = {};
     }
 
+    // kpi_osa_platform — OSA presence check (deno_osa > 0)
+    try {
+        const rows = await queryDb(dbName, `
+            SELECT ${pdpPlatformCol} as platform, MAX(toDate(${pdpDateCol})) as maxDate 
+            FROM rb_pdp_olap 
+            WHERE toString(${pdpCompCol}) = '0' 
+              AND ifNull(toFloat64OrZero(toString(${pdpDenoCol})), 0) > 0 
+            GROUP BY ${pdpPlatformCol}
+        `);
+        dates.kpi_osa_platform = {};
+        rows.forEach(r => { if (r.platform) dates.kpi_osa_platform[r.platform] = r.maxDate; });
+        dates.kpi_osa = Object.values(dates.kpi_osa_platform).sort().pop() || null;
+    } catch (e) {
+        console.warn(`[Socket] kpi_osa query failed for ${dbName}:`, e.message);
+        dates.kpi_osa_platform = {};
+        dates.kpi_osa = null;
+    }
+
+    // kpi_sales_platform — Sales presence check (Sales > 0)
+    try {
+        const rows = await queryDb(dbName, `
+            SELECT ${pdpPlatformCol} as platform, MAX(toDate(${pdpDateCol})) as maxDate 
+            FROM rb_pdp_olap 
+            WHERE toString(${pdpCompCol}) = '0' 
+              AND ifNull(toFloat64OrZero(toString(${pdpSalesCol})), 0) > 0 
+            GROUP BY ${pdpPlatformCol}
+        `);
+        dates.kpi_sales_platform = {};
+        rows.forEach(r => { if (r.platform) dates.kpi_sales_platform[r.platform] = r.maxDate; });
+        dates.kpi_sales = Object.values(dates.kpi_sales_platform).sort().pop() || null;
+    } catch (e) {
+        console.warn(`[Socket] kpi_sales query failed for ${dbName}:`, e.message);
+        dates.kpi_sales_platform = {};
+        dates.kpi_sales = null;
+    }
+
+    // kpi_doi_platform — DOI presence check (Inventory > 0)
+    try {
+        const rows = await queryDb(dbName, `
+            SELECT ${pdpPlatformCol} as platform, MAX(toDate(${pdpDateCol})) as maxDate 
+            FROM rb_pdp_olap 
+            WHERE toString(${pdpCompCol}) = '0' 
+              AND ifNull(toFloat64OrZero(toString(${pdpInvCol})), 0) > 0 
+            GROUP BY ${pdpPlatformCol}
+        `);
+        dates.kpi_doi_platform = {};
+        rows.forEach(r => { if (r.platform) dates.kpi_doi_platform[r.platform] = r.maxDate; });
+        dates.kpi_doi = Object.values(dates.kpi_doi_platform).sort().pop() || null;
+    } catch (e) {
+        console.warn(`[Socket] kpi_doi query failed for ${dbName}:`, e.message);
+        dates.kpi_doi_platform = {};
+        dates.kpi_doi = null;
+    }
+
     // DOI availability per platform — check which platforms have inventory data (last 30 days)
     try {
         const doiRows = await queryDb(dbName, `
-            SELECT Platform as platform,
-                   SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as total_inv
+            SELECT ${pdpPlatformCol} as platform,
+                   SUM(ifNull(toFloat64OrZero(toString(${pdpInvCol})), 0)) as total_inv
             FROM rb_pdp_olap
-            WHERE toString(Comp_flag) = '0'
-              AND DATE >= today() - 30
-            GROUP BY Platform
+            WHERE toString(${pdpCompCol}) = '0'
+              AND ${pdpDateCol} >= today() - 30
+            GROUP BY ${pdpPlatformCol}
         `);
-        // Platforms with zero inventory → DOI data is unavailable
         dates.rb_doi_platforms = {};
         doiRows.forEach(r => {
             if (r.platform) {
@@ -72,12 +179,20 @@ async function fetchMaxDates(dbName) {
 
     // rb_ms_olap — Market Share page
     try {
-        const rows = await queryDb(dbName, `SELECT MAX(toDate(created_on)) as maxDate FROM rb_ms_olap`);
-        dates.rb_ms_olap = rows[0]?.maxDate || null;
+        const msCols = await getTableColumnsMap(dbName, 'rb_ms_olap');
+        const msPlatformCol = resolveColumn(msCols, 'platform');
+        const msDateCol = resolveColumn(msCols, 'created_on');
+        const msSalesCol = resolveColumn(msCols, 'sales');
 
-        const platformRows = await queryDb(dbName, `SELECT platform as platform, MAX(toDate(created_on)) as maxDate FROM rb_ms_olap GROUP BY platform`);
+        const platformRows = await queryDb(dbName, `
+            SELECT ${msPlatformCol} as platform, MAX(toDate(${msDateCol})) as maxDate 
+            FROM rb_ms_olap 
+            WHERE ifNull(toFloat64OrZero(toString(${msSalesCol})), 0) > 0
+            GROUP BY ${msPlatformCol}
+        `);
         dates.rb_ms_olap_platform = {};
         platformRows.forEach(r => { if (r.platform) dates.rb_ms_olap_platform[r.platform] = r.maxDate; });
+        dates.rb_ms_olap = Object.values(dates.rb_ms_olap_platform).sort().pop() || null;
     } catch (e) {
         console.warn(`[Socket] rb_ms_olap query failed for ${dbName}:`, e.message);
         dates.rb_ms_olap = null;
@@ -86,12 +201,20 @@ async function fetchMaxDates(dbName) {
 
     // rb_kw_olap — Visibility Analysis page
     try {
-        const rows = await queryDb(dbName, `SELECT MAX(toDate(DATE)) as maxDate FROM rb_kw_olap`);
-        dates.rb_kw_olap = rows[0]?.maxDate || null;
+        const kwCols = await getTableColumnsMap(dbName, 'rb_kw_olap');
+        const kwPlatformCol = resolveColumn(kwCols, 'platform_name');
+        const kwDateCol = resolveColumn(kwCols, 'DATE');
+        const kwOverallCol = resolveColumn(kwCols, 'overall');
 
-        const platformRows = await queryDb(dbName, `SELECT platform_name as platform, MAX(toDate(DATE)) as maxDate FROM rb_kw_olap GROUP BY platform_name`);
+        const platformRows = await queryDb(dbName, `
+            SELECT ${kwPlatformCol} as platform, MAX(toDate(${kwDateCol})) as maxDate 
+            FROM rb_kw_olap 
+            WHERE ifNull(toFloat64OrZero(toString(${kwOverallCol})), 0) > 0
+            GROUP BY ${kwPlatformCol}
+        `);
         dates.rb_kw_olap_platform = {};
         platformRows.forEach(r => { if (r.platform) dates.rb_kw_olap_platform[r.platform] = r.maxDate; });
+        dates.rb_kw_olap = Object.values(dates.rb_kw_olap_platform).sort().pop() || null;
     } catch (e) {
         console.warn(`[Socket] rb_kw_olap query failed for ${dbName}:`, e.message);
         dates.rb_kw_olap = null;
@@ -100,12 +223,26 @@ async function fetchMaxDates(dbName) {
 
     // rb_pm_olap — Performance Marketing page
     try {
-        const rows = await queryDb(dbName, `SELECT MAX(toDate(DATE)) as maxDate FROM rb_pm_olap`);
-        dates.rb_pm_olap = rows[0]?.maxDate || null;
+        const pmCols = await getTableColumnsMap(dbName, 'rb_pm_olap');
+        const pmPlatformCol = resolveColumn(pmCols, 'Platform');
+        const pmDateCol = resolveColumn(pmCols, 'DATE');
+        const pmImpCol = resolveColumn(pmCols, 'impressions');
+
+        const platformRows = await queryDb(dbName, `
+            SELECT ${pmPlatformCol} as platform, MAX(toDate(${pmDateCol})) as maxDate 
+            FROM rb_pm_olap 
+            WHERE ifNull(toFloat64OrZero(toString(${pmImpCol})), 0) > 0
+            GROUP BY ${pmPlatformCol}
+        `);
+        dates.rb_pm_olap_platform = {};
+        platformRows.forEach(r => { if (r.platform) dates.rb_pm_olap_platform[r.platform] = r.maxDate; });
+        dates.rb_pm_olap = Object.values(dates.rb_pm_olap_platform).sort().pop() || null;
     } catch (e) {
         console.warn(`[Socket] rb_pm_olap query failed for ${dbName}:`, e.message);
         dates.rb_pm_olap = null;
+        dates.rb_pm_olap_platform = {};
     }
+
 
     // tb_content_score_data — Content Analysis page
     try {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useContext } from "react";
+import React, { useMemo, useState, useEffect, useContext, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -21,6 +21,11 @@ import {
     MapPin,
     Store,
     Info,
+    TrendingUp,
+    TrendingDown,
+    ArrowLeft,
+    Calendar,
+    Link2,
 } from "lucide-react";
 
 
@@ -44,13 +49,15 @@ import {
 } from "@/components/ui/popover";
 import CommonContainer from "@/components/CommonLayout/CommonContainer";
 import { FilterContext } from "@/utils/FilterContext";
-import { fetchInsights, fetchInsightsFilters } from "@/api/insightsService";
+import { fetchInsights, fetchInsightsFilters, fetchCorrelations, fetchCorrelationsTrend } from "@/api/insightsService";
 import AIInsightsPanelLive from "@/components/insights/AIInsightsPanelLive";
+import TrailyticsTypewriterLoader from "@/components/insights/TrailyticsTypewriterLoader";
 import CustomHeaderDropdown from "@/components/CommonLayout/CustomHeaderDropdown";
 import DateRangeComparePicker from "@/components/CommonLayout/DateRangeComparePicker";
 import dayjs from "dayjs";
 import { Typography, Divider, Skeleton, Tooltip } from "@mui/material";
 import InsightsOnboardingTour, { DrillDownTour } from "@/components/insights/InsightsOnboardingTour";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -145,6 +152,13 @@ export const SIGNAL_META = {
         FamilyIcon: Store, metricKey: "impactInr",
         metricLabel: "Potential Sales Loss", trend: "negative",
     },
+    "Co-Relations": {
+        family: "KPI Correlation",
+        color: "#6366f1", accent: "#eef2ff",
+        FamilyIcon: Link2, metricKey: "impactInr",
+        metricLabel: "KPI Anomalies Detected", trend: "negative",
+        isBeta: true,
+    },
 };
 
 const REQUIRED_SIGNAL_TYPES = Object.keys(SIGNAL_META);
@@ -213,6 +227,10 @@ const createEmptySignal = (type, brandName = "Brand") => {
             base.kpis = [{ label: "New Stores", value: "0" }, { label: "Cities", value: "0" }, { label: "Avg Listing %", value: "0%" }];
             base.evidence = [{ category: "-", city: "-", platform: "-", region: "-", tier: "-", newStoreCount: 0, listingPct: 0, sobNewDs: 0, sales: 0, competitors: "-", psl: 0 }];
             break;
+        case "Co-Relations":
+            base.kpis = [{ label: "KPI Anomalies", value: "0" }, { label: "Sales Change", value: "0%" }, { label: "OSA Change", value: "0pp" }];
+            base.evidence = [];
+            break;
         default: break;
     }
     return base;
@@ -256,7 +274,7 @@ export const buildAISegments = (insight) => {
     const type = insight.type;
     const brand = insight.brandName || "Brand";
     const allEv = insight.evidence || [];
-    
+
     // If no evidence, fallback safely
     if (allEv.length === 0) return [
         { label: "Signal", priority: "high", text: "No data detected." },
@@ -281,7 +299,7 @@ export const buildAISegments = (insight) => {
                 text: `Significant share opportunity identified. ${B(brand)} is experiencing a decline in ${B(category)} across ${B(allEv.length)} locations, primarily in ${B(city)}.`
             },
             {
-                label: "Root Cause", priority: "focus", 
+                label: "Root Cause", priority: "focus",
                 text: `A ${B("visibility gap")} against competitors is the primary driver. The current market share of ${B(safePct(worst.marketShare))} in ${B(city)} requires attention.`
             },
             {
@@ -328,7 +346,7 @@ export const buildAISegments = (insight) => {
     if (type === "Competitor OSA Weak Spots") {
         const worstComp = allEv.reduce((w, e) => ((e.otherBrandOsa || 100) < (w.otherBrandOsa || 100) ? e : w), allEv[0]);
         const totalGap = allEv.reduce((s, e) => s + (e.gapPct || 0), 0) / allEv.length;
-        
+
         return [
             {
                 label: "Market Opportunity", priority: "high",
@@ -353,7 +371,7 @@ export const buildAISegments = (insight) => {
         const worst = allEv.reduce((w, e) => ((e.estLostSalesInr || 0) > (w.estLostSalesInr || 0) ? e : w), allEv[0]);
         const totalSpend = allEv.reduce((s, e) => s + (e.spendInr || 0), 0);
         const totalLoss = allEv.reduce((s, e) => s + (e.estLostSalesInr || 0), 0);
-        
+
         return [
             {
                 label: "Ad Efficiency", priority: "high",
@@ -378,7 +396,7 @@ export const buildAISegments = (insight) => {
         const worst = allEv.reduce((w, e) => ((e.spend || 0) > (w.spend || 0) ? e : w), allEv[0]);
         const totalWaste = allEv.reduce((s, e) => s + (e.spend || 0), 0);
         const cappedCount = allEv.filter(e => e.budgetCapped).length;
-        
+
         return [
             {
                 label: "Keyword Efficiency", priority: "high",
@@ -404,7 +422,7 @@ export const buildAISegments = (insight) => {
         const totalPriorityLoc = allEv.reduce((s, e) => s + (e.priorityLocalities || 0), 0);
         const uniqueCities = new Set(allEv.map(e => e.city).filter(Boolean)).size;
         const withCompetitors = allEv.filter(e => e.competitors && e.competitors !== '-').length;
-        
+
         return [
             {
                 label: "Listing Gap", priority: "high",
@@ -432,7 +450,7 @@ export const buildAISegments = (insight) => {
         const worst = allEv.reduce((w, e) => ((e.excessInventoryValue || 0) > (w.excessInventoryValue || 0) ? e : w), allEv[0]);
         const totalValue = allEv.reduce((s, e) => s + (e.excessInventoryValue || 0), 0);
         const totalOpenPO = allEv.reduce((s, e) => s + (e.openPOQty || 0), 0);
-        
+
         return [
             {
                 label: "Excess Inventory", priority: "high",
@@ -459,7 +477,7 @@ export const buildAISegments = (insight) => {
         const worst = allEv.reduce((w, e) => ((e.projectedSalesLoss || 0) > (w.projectedSalesLoss || 0) ? e : w), allEv[0]);
         const totalPSL = allEv.reduce((s, e) => s + (e.projectedSalesLoss || 0), 0);
         const criticalCount = allEv.filter(e => e.poStatus === "Critical" || e.poStatus === "High").length;
-        
+
         return [
             {
                 label: "PO Prioritization", priority: "high",
@@ -484,7 +502,7 @@ export const buildAISegments = (insight) => {
         const worst = allEv.reduce((w, e) => ((e.projectedSalesLoss || 0) > (w.projectedSalesLoss || 0) ? e : w), allEv[0]);
         const totalPSL = allEv.reduce((s, e) => s + (e.projectedSalesLoss || 0), 0);
         const uniqueCities = new Set(allEv.map(e => e.city).filter(Boolean)).size;
-        
+
         return [
             {
                 label: "Stock Imbalance", priority: "high",
@@ -508,7 +526,7 @@ export const buildAISegments = (insight) => {
     if (type === "New Market Entry") {
         const worst = allEv.reduce((w, e) => ((e.pfu || 9999) < (w.pfu || 9999) ? e : w), allEv[0]);
         const uniqueCompetitors = new Set(allEv.map(e => e.competitorName).filter(Boolean)).size;
-        
+
         return [
             {
                 label: "Market Entry", priority: "high",
@@ -526,6 +544,15 @@ export const buildAISegments = (insight) => {
                 label: "Recommended Action", priority: "neutral",
                 text: `Monitor competitor performance in ${B(worst.city)} and consider strategic promotions to maintain market share.`
             },
+        ];
+    }
+
+    if (type === "Co-Relations") {
+        return [
+            { label: "KPI Correlation", priority: "high", text: `Comparative analysis across ${B(allEv.length)} dimension combinations reveals significant KPI movements.` },
+            { label: "Key Finding", priority: "focus", text: `Sales, OSA and SOS metrics show correlated changes requiring attention.` },
+            { label: "Impact", priority: "good", text: `Review the trend data to identify root causes of KPI shifts.` },
+            { label: "Action", priority: "neutral", text: `Click on trend buttons to drill into time-series analysis.` },
         ];
     }
 
@@ -549,7 +576,7 @@ const priorityStyles = {
 // ─── BADGES ──────────────────────────────────────────────────────────────
 
 const BetaBadge = ({ size = "sm" }) => (
-    <span 
+    <span
         className="status-pulse-blue"
         style={{
             fontSize: size === "xs" ? "8.5px" : "9px",
@@ -574,7 +601,7 @@ const BetaBadge = ({ size = "sm" }) => (
 );
 
 const LiveBadge = ({ size = "sm" }) => (
-    <span 
+    <span
         className="status-pulse-green"
         style={{
             fontSize: size === "xs" ? "8.5px" : "9px",
@@ -623,7 +650,7 @@ const AIInsightsPanel = ({ insight, onClose }) => {
     const segments = useMemo(() => buildAISegments(insight), [insight]);
 
     useEffect(() => {
-        setPhase("reveal"); 
+        setPhase("reveal");
         setVisibleCount(segments.length);
     }, [insight, segments.length]);
 
@@ -667,10 +694,10 @@ const AIInsightsPanel = ({ insight, onClose }) => {
                         <div style={{ fontSize: "9px", color: "#6366f1", fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase", marginTop: "1px" }}>powered by Trailytics AI</div>
                     </div>
                 </div>
-                <button 
-                    onClick={onClose} 
-                    style={{ 
-                        color: "#94a3b8", cursor: "pointer", background: "rgba(0,0,0,0.03)", 
+                <button
+                    onClick={onClose}
+                    style={{
+                        color: "#94a3b8", cursor: "pointer", background: "rgba(0,0,0,0.03)",
                         border: "none", padding: 5, borderRadius: "50%",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         transition: "all 0.2s ease"
@@ -689,8 +716,8 @@ const AIInsightsPanel = ({ insight, onClose }) => {
             </div>
 
             {/* Scrollable Content with Insight Cards */}
-            <div style={{ 
-                flex: 1, padding: "20px 16px", overflowY: "auto", 
+            <div style={{
+                flex: 1, padding: "20px 16px", overflowY: "auto",
                 display: "flex", flexDirection: "column", gap: "14px",
                 background: "linear-gradient(to bottom, #ffffff, #fbfcfd)"
             }}>
@@ -702,10 +729,10 @@ const AIInsightsPanel = ({ insight, onClose }) => {
                 ) : (
                     segments.map((seg, idx) => {
                         const s = priorityStyles[seg.priority] || priorityStyles.neutral;
-                        const borderColor = seg.priority === "high" ? "#ef4444" : 
-                                         seg.priority === "focus" ? "#3b82f6" : 
-                                         seg.priority === "good" ? "#10b981" : "#94a3b8";
-                        
+                        const borderColor = seg.priority === "high" ? "#ef4444" :
+                            seg.priority === "focus" ? "#3b82f6" :
+                                seg.priority === "good" ? "#10b981" : "#94a3b8";
+
                         return (
                             <motion.div
                                 key={idx}
@@ -723,17 +750,17 @@ const AIInsightsPanel = ({ insight, onClose }) => {
                                     outline: "none",
                                 }}
                             >
-                                <div style={{ 
-                                    fontSize: "9px", fontWeight: 800, 
-                                    textTransform: "uppercase", letterSpacing: "0.08em", 
+                                <div style={{
+                                    fontSize: "9px", fontWeight: 800,
+                                    textTransform: "uppercase", letterSpacing: "0.08em",
                                     marginBottom: "8px", color: borderColor,
                                     display: "flex", alignItems: "center", gap: "5px"
                                 }}>
                                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: borderColor }} />
                                     {seg.label}
                                 </div>
-                                <p style={{ 
-                                    fontSize: "11.5px", color: "#334155", 
+                                <p style={{
+                                    fontSize: "11.5px", color: "#334155",
                                     lineHeight: 1.6, margin: 0, fontWeight: 500
                                 }}>
                                     {renderBoldText(seg.text)}
@@ -776,23 +803,27 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
         if (t === "Share Headroom Hotspots") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "city", label: "City" },
-            { key: "brandOsa", label: `${insight.brandName || "Brand"} OSA`, fmt: (v, r) => v != null ? (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 600 }}>{safePct(v)}</span>
-                    <span style={{ fontSize: '10px', color: (r.brandOsaDelta || 0) < 0 ? '#ef4444' : '#10b981' }}>
-                        {(r.brandOsaDelta || 0) >= 0 ? "+" : ""}{(r.brandOsaDelta || 0).toFixed(1)}%
-                    </span>
-                </div>
-            ) : "-" },
+            {
+                key: "brandOsa", label: `${insight.brandName || "Brand"} OSA`, fmt: (v, r) => v != null ? (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: 600 }}>{safePct(v)}</span>
+                        <span style={{ fontSize: '10px', color: (r.brandOsaDelta || 0) < 0 ? '#ef4444' : '#10b981' }}>
+                            {(r.brandOsaDelta || 0) >= 0 ? "+" : ""}{(r.brandOsaDelta || 0).toFixed(1)}%
+                        </span>
+                    </div>
+                ) : "-"
+            },
             { key: "marketShare", label: "Mkt Share", fmt: (v, r) => v != null ? `${safePct(v)} (${r.marketShareMoM >= 0 ? "+" : ""}${safePct(r.marketShareMoM)})` : "-" },
-            { key: "offtake", label: "Offtake", fmt: (v, r) => v != null ? (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 600 }}>{safeINR(v)}</span>
-                    <span style={{ fontSize: '10px', color: (r.offtakeDelta || 0) < 0 ? '#ef4444' : '#10b981' }}>
-                        {(r.offtakeDelta || 0) >= 0 ? "+" : ""}{safeINR(r.offtakeDelta)} ({(r.offtakeMoM || 0) >= 0 ? "+" : ""}{safePct(r.offtakeMoM)})
-                    </span>
-                </div>
-            ) : "-" },
+            {
+                key: "offtake", label: "Offtake", fmt: (v, r) => v != null ? (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: 600 }}>{safeINR(v)}</span>
+                        <span style={{ fontSize: '10px', color: (r.offtakeDelta || 0) < 0 ? '#ef4444' : '#10b981' }}>
+                            {(r.offtakeDelta || 0) >= 0 ? "+" : ""}{safeINR(r.offtakeDelta)} ({(r.offtakeMoM || 0) >= 0 ? "+" : ""}{safePct(r.offtakeMoM)})
+                        </span>
+                    </div>
+                ) : "-"
+            },
             { key: "possibleCause", label: "Cause", isText: true },
         ];
         if (t === "Competitor OSA Weak Spots") return [
@@ -800,32 +831,38 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
             { key: "platform", label: "Platform", fmt: (v) => v || "-" },
             { key: "city", label: "City" },
             { key: "skuOrBrand", label: "Competitor Brand", isText: true },
-            { key: "otherBrandOsa", label: "Comp OSA", fmt: (v, r) => (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 600 }}>{safePct(v)}</span>
-                    <span style={{ fontSize: '10px', color: (r.otherBrandOsaChangePct || 0) < 0 ? '#ef4444' : '#10b981' }}>
-                        {(r.otherBrandOsaChangePct || 0) >= 0 ? "+" : ""}{(r.otherBrandOsaChangePct || 0).toFixed(1)}%
-                    </span>
-                </div>
-            ) },
-            { key: "otherBrandMkShare", label: "Comp MK Share", fmt: (v, r) => v != null ? (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 600 }}>{safePct(v)}</span>
-                    <span style={{ fontSize: '10px', color: (r.otherBrandMkShareChange || 0) < 0 ? '#ef4444' : '#10b981' }}>
-                        {(r.otherBrandMkShareChange || 0) >= 0 ? "+" : ""}{(r.otherBrandMkShareChange || 0).toFixed(1)}%
-                    </span>
-                </div>
-            ) : "-" },
+            {
+                key: "otherBrandOsa", label: "Comp OSA", fmt: (v, r) => (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: 600 }}>{safePct(v)}</span>
+                        <span style={{ fontSize: '10px', color: (r.otherBrandOsaChangePct || 0) < 0 ? '#ef4444' : '#10b981' }}>
+                            {(r.otherBrandOsaChangePct || 0) >= 0 ? "+" : ""}{(r.otherBrandOsaChangePct || 0).toFixed(1)}%
+                        </span>
+                    </div>
+                )
+            },
+            {
+                key: "otherBrandMkShare", label: "Comp MK Share", fmt: (v, r) => v != null ? (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: 600 }}>{safePct(v)}</span>
+                        <span style={{ fontSize: '10px', color: (r.otherBrandMkShareChange || 0) < 0 ? '#ef4444' : '#10b981' }}>
+                            {(r.otherBrandMkShareChange || 0) >= 0 ? "+" : ""}{(r.otherBrandMkShareChange || 0).toFixed(1)}%
+                        </span>
+                    </div>
+                ) : "-"
+            },
             { key: "kwOsa", label: `${insight.brandName || "Brand"} OSA`, fmt: safePct },
             { key: "gapPct", label: "Gap %", fmt: (v) => <span style={{ color: (v || 0) < 0 ? '#ef4444' : '#10b981', fontWeight: 600 }}>{safePct(v)}</span> },
-            { key: "ourBrandMkShare", label: `${insight.brandName || "Brand"} Mkt Share`, fmt: (v, r) => v != null ? (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 600 }}>{safePct(v)}</span>
-                    <span style={{ fontSize: '10px', color: (r.ourBrandMkShareChange || 0) < 0 ? '#ef4444' : '#10b981' }}>
-                        {(r.ourBrandMkShareChange || 0) >= 0 ? "+" : ""}{(r.ourBrandMkShareChange || 0).toFixed(1)}%
-                    </span>
-                </div>
-            ) : "-" },
+            {
+                key: "ourBrandMkShare", label: `${insight.brandName || "Brand"} Mkt Share`, fmt: (v, r) => v != null ? (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: 600 }}>{safePct(v)}</span>
+                        <span style={{ fontSize: '10px', color: (r.ourBrandMkShareChange || 0) < 0 ? '#ef4444' : '#10b981' }}>
+                            {(r.ourBrandMkShareChange || 0) >= 0 ? "+" : ""}{(r.ourBrandMkShareChange || 0).toFixed(1)}%
+                        </span>
+                    </div>
+                ) : "-"
+            },
         ];
         if (t === "Price Parity Radar") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
@@ -956,7 +993,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
                     background: "#ffffff",
                     outline: "none",
                     WebkitTapHighlightColor: "transparent",
-                    boxShadow: isSelected 
+                    boxShadow: isSelected
                         ? `0 10px 25px -5px rgba(0,0,0,0.1)`
                         : hovered
                             ? "0 12px 20px -5px rgba(0,0,0,0.08)"
@@ -967,11 +1004,11 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
                 }}
             >
                 {/* Top Badge Row */}
-                <div style={{ 
-                    padding: "10px 14px 4px", 
-                    display: "flex", 
-                    alignItems: "center", 
-                    justifyContent: "space-between" 
+                <div style={{
+                    padding: "10px 14px 4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between"
                 }}>
                     <SignalStatusBadge isEmpty={isEmpty} isBeta={meta.isBeta !== false} />
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -987,17 +1024,17 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
 
                 {/* Title Section */}
                 <div style={{ padding: "2px 14px 8px" }}>
-                    <div style={{ 
-                        fontSize: "9px", fontWeight: 700, 
-                        color: "#94748b", textTransform: "uppercase", 
+                    <div style={{
+                        fontSize: "9px", fontWeight: 700,
+                        color: "#94748b", textTransform: "uppercase",
                         letterSpacing: "0.06em", marginBottom: "3px"
                     }}>
                         {family}
                     </div>
-                    <div style={{ 
-                        fontSize: "13px", fontWeight: 800, 
+                    <div style={{
+                        fontSize: "13px", fontWeight: 800,
                         color: "#1e293b", lineHeight: 1.3,
-                        minHeight: "18px" 
+                        minHeight: "18px"
                     }}>
                         {insight.type}
                     </div>
@@ -1007,10 +1044,10 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
 
                 {/* Metric Hero Section */}
                 <div style={{ padding: "10px 14px 10px" }}>
-                    <div style={{ 
-                        fontSize: "8.5px", fontWeight: 700, 
-                        color: "#94a3b8", textTransform: "uppercase", 
-                        letterSpacing: "0.05em", marginBottom: "8px" 
+                    <div style={{
+                        fontSize: "8.5px", fontWeight: 700,
+                        color: "#94a3b8", textTransform: "uppercase",
+                        letterSpacing: "0.05em", marginBottom: "8px"
                     }}>
                         {metricLabel}
                     </div>
@@ -1018,8 +1055,8 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
                         display: "inline-flex",
                         padding: "5px 13px",
                         borderRadius: "8px",
-                        background: loading ? "#f1f5f9" : (isEmpty 
-                            ? "#f1f5f9" 
+                        background: loading ? "#f1f5f9" : (isEmpty
+                            ? "#f1f5f9"
                             : (isNegative ? "#fef2f2" : "#f0fdf4")),
                         border: `1px solid ${loading ? "#e2e8f0" : (isEmpty ? "#e2e8f0" : (isNegative ? "#fee2e2" : "#dcfce7"))}`,
                     }}>
@@ -1141,12 +1178,12 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
                 justifyContent: "space-between",
             }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <div style={{ 
-                        width: 22, height: 22, borderRadius: "6px", 
+                    <div style={{
+                        width: 22, height: 22, borderRadius: "6px",
                         background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
-                        display: "flex", alignItems: "center", 
-                        justifyContent: "center", 
-                        boxShadow: "0 3px 8px rgba(99,102,241,0.25)" 
+                        display: "flex", alignItems: "center",
+                        justifyContent: "center",
+                        boxShadow: "0 3px 8px rgba(99,102,241,0.25)"
                     }}>
                         <Sparkles size={11} color="#fff" />
                     </div>
@@ -1154,11 +1191,11 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
                         <span style={{ fontSize: "11.5px", fontWeight: 600, color: "#1e1b4b", letterSpacing: "-0.01em" }}>
                             Why This is Happening
                         </span>
-                        <span style={{ 
-                            fontSize: "7px", 
-                            fontWeight: 700, 
-                            color: "#6366f1", 
-                            textTransform: "uppercase", 
+                        <span style={{
+                            fontSize: "7px",
+                            fontWeight: 700,
+                            color: "#6366f1",
+                            textTransform: "uppercase",
                             letterSpacing: "0.1em",
                             marginTop: "1px"
                         }}>
@@ -1166,14 +1203,14 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
                         </span>
                     </div>
                 </div>
-                <button 
-                    onClick={(e) => { e.stopPropagation(); onClose(); }} 
-                    style={{ 
-                        background: "rgba(0,0,0,0.03)", 
-                        border: "none", 
-                        cursor: "pointer", 
-                        color: "#64748b", 
-                        padding: "5px", 
+                <button
+                    onClick={(e) => { e.stopPropagation(); onClose(); }}
+                    style={{
+                        background: "rgba(0,0,0,0.03)",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "#64748b",
+                        padding: "5px",
                         borderRadius: "50%",
                         display: "flex",
                         alignItems: "center",
@@ -1183,7 +1220,7 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
                     onMouseEnter={(e) => {
                         e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)";
                         e.currentTarget.style.color = "#ef4444";
-                    }} 
+                    }}
                     onMouseLeave={(e) => {
                         e.currentTarget.style.background = "rgba(0,0,0,0.03)";
                         e.currentTarget.style.color = "#64748b";
@@ -1192,15 +1229,15 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
                     <X size={12} strokeWidth={2.5} />
                 </button>
             </div>
-            
+
             {/* Body Content */}
             <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: "12px" }}>
                 {phase === "loading" ? (
-                    <div style={{ 
-                        display: "flex", 
-                        flexDirection: "column", 
-                        alignItems: "center", 
-                        justifyContent: "center", 
+                    <div style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
                         padding: "20px 0",
                         gap: "10px"
                     }}>
@@ -1215,9 +1252,9 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
                             initial={{ opacity: 0, y: 5 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.2, delay: idx * 0.06 }}
-                            style={{ 
-                                display: "flex", 
-                                gap: "12px", 
+                            style={{
+                                display: "flex",
+                                gap: "12px",
                                 alignItems: "flex-start",
                                 padding: "8px 10px",
                                 borderRadius: "8px",
@@ -1230,10 +1267,10 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
                                 background: seg.priority === "high" ? "#ef4444" : seg.priority === "focus" ? "#3b82f6" : seg.priority === "good" ? "#10b981" : "#94a3b8",
                                 boxShadow: `0 0 10px ${seg.priority === "high" ? "rgba(239,68,68,0.4)" : "rgba(148,163,184,0.3)"}`
                             }} />
-                            <p style={{ 
-                                fontSize: "11.5px", 
-                                color: "#334155", 
-                                lineHeight: 1.6, 
+                            <p style={{
+                                fontSize: "11.5px",
+                                color: "#334155",
+                                lineHeight: 1.6,
                                 margin: 0,
                                 fontWeight: 500
                             }}>
@@ -1246,11 +1283,11 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
 
             {/* Footer with improved aesthetics */}
             <div style={{
-                padding: "10px 18px", 
+                padding: "10px 18px",
                 background: "linear-gradient(to right, rgba(241, 245, 249, 0.4), rgba(226, 232, 240, 0.3))",
                 borderTop: "1px solid rgba(226, 232, 240, 0.5)",
-                display: "flex", 
-                alignItems: "center", 
+                display: "flex",
+                alignItems: "center",
                 justifyContent: "space-between",
             }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -1280,7 +1317,7 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
 
 const CategoryCell = ({ category, rowIdx, activePopupIdx, setActivePopupIdx, insight, rowData, totalCount }) => {
     const isOpen = activePopupIdx === rowIdx;
-    
+
     return (
         <TableCell className="px-3 py-4 align-top relative">
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "6px" }}>
@@ -1294,10 +1331,10 @@ const CategoryCell = ({ category, rowIdx, activePopupIdx, setActivePopupIdx, ins
                                 setActivePopupIdx(isOpen ? null : rowIdx);
                             }}
                             style={{
-                                fontSize: "9px", fontWeight: 700, 
+                                fontSize: "9px", fontWeight: 700,
                                 color: "#4f46e5",
                                 background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
-                                border: "1px solid rgba(99, 102, 241, 0.2)", 
+                                border: "1px solid rgba(99, 102, 241, 0.2)",
                                 borderRadius: "6px",
                                 padding: "4px 10px", cursor: "pointer",
                                 display: "inline-flex", alignItems: "center", gap: "4px",
@@ -1308,12 +1345,12 @@ const CategoryCell = ({ category, rowIdx, activePopupIdx, setActivePopupIdx, ins
                                 flexShrink: 0,
                                 whiteSpace: "nowrap"
                             }}
-                            onMouseEnter={(e) => { 
+                            onMouseEnter={(e) => {
                                 e.currentTarget.style.background = "#e0e7ff";
                                 e.currentTarget.style.transform = "translateY(-1px)";
                                 e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
                             }}
-                            onMouseLeave={(e) => { 
+                            onMouseLeave={(e) => {
                                 e.currentTarget.style.background = "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)";
                                 e.currentTarget.style.transform = "translateY(0px)";
                                 e.currentTarget.style.boxShadow = "0 1px 2px rgba(0,0,0,0.05)";
@@ -1325,10 +1362,10 @@ const CategoryCell = ({ category, rowIdx, activePopupIdx, setActivePopupIdx, ins
                     </PopoverTrigger>
                     {isOpen && (
                         <PopoverContent style={{ zIndex: 2000 }} className="p-0 border-none bg-transparent shadow-none w-auto" side="bottom" align="start" sideOffset={8}>
-                            <RowAIPopup 
-                                insight={insight} 
-                                rowData={rowData} 
-                                onClose={() => setActivePopupIdx(null)} 
+                            <RowAIPopup
+                                insight={insight}
+                                rowData={rowData}
+                                onClose={() => setActivePopupIdx(null)}
                             />
                         </PopoverContent>
                     )}
@@ -1505,7 +1542,7 @@ const EvidenceTable = ({ insight, loading }) => {
     return (
         <div style={{
             display: "flex", flexDirection: "column", flex: 1, width: "100%",
-            background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", 
+            background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px",
             overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
             outline: "none",
         }}>
@@ -1826,13 +1863,13 @@ const EvidenceTable = ({ insight, loading }) => {
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3 font-medium">{d.platform}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3 font-medium">{d.city}</TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
-                                                        {Number(d.kwOsa || 0).toFixed(1)}% 
+                                                        {Number(d.kwOsa || 0).toFixed(1)}%
                                                         <span className={`ml-1 text-[10px] ${(d.kwOsaChangePct ?? 0) < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                                                             ({(d.kwOsaChangePct ?? 0) > 0 ? '+' : ''}{(d.kwOsaChangePct ?? 0).toFixed(1)}%)
                                                         </span>
                                                     </TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
-                                                        {Number(d.adSov || 0).toFixed(1)}% 
+                                                        {Number(d.adSov || 0).toFixed(1)}%
                                                         <span className={`ml-1 text-[10px] ${(d.adSovChangePct ?? 0) < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
                                                             ({(d.adSovChangePct ?? 0) > 0 ? '+' : ''}{(d.adSovChangePct ?? 0).toFixed(1)}%)
                                                         </span>
@@ -1910,9 +1947,9 @@ const EvidenceTable = ({ insight, loading }) => {
                                                     <TableCell className="text-right text-[11px] font-medium text-amber-600 px-3 py-3">
                                                         {Number(d.excessDOI || 0).toFixed(0)} days
                                                     </TableCell>
-                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
-                                                         {Number(d.drr || 0).toFixed(2)}
-                                                     </TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
+                                                        {Number(d.drr || 0).toFixed(2)}
+                                                    </TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
                                                         {d.currentDiscount != null ? `${Number(d.currentDiscount).toFixed(1)}%` : '-'}
                                                     </TableCell>
@@ -1942,12 +1979,11 @@ const EvidenceTable = ({ insight, loading }) => {
                                                     </TableCell>
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.poRaisedDate || "-"}</TableCell>
                                                     <TableCell className="px-3 py-3">
-                                                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                                                            d.poStatus === 'Critical' ? 'bg-red-100 text-red-700' :
-                                                            d.poStatus === 'High' ? 'bg-amber-100 text-amber-700' :
-                                                            d.poStatus === 'Medium' ? 'bg-blue-100 text-blue-700' :
-                                                            'bg-slate-100 text-slate-600'
-                                                        }`}>
+                                                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${d.poStatus === 'Critical' ? 'bg-red-100 text-red-700' :
+                                                                d.poStatus === 'High' ? 'bg-amber-100 text-amber-700' :
+                                                                    d.poStatus === 'Medium' ? 'bg-blue-100 text-blue-700' :
+                                                                        'bg-slate-100 text-slate-600'
+                                                            }`}>
                                                             {d.poStatus || "-"}
                                                         </span>
                                                     </TableCell>
@@ -2123,7 +2159,7 @@ const EvidenceTable = ({ insight, loading }) => {
                                     <X size={18} color="#475569" />
                                 </button>
                             </div>
-                             <div style={{
+                            <div style={{
                                 padding: "24px",
                                 borderTop: "1px solid #f1f5f9",
                                 display: "flex",
@@ -2397,7 +2433,7 @@ const DynamicInsightsBar = ({ insight, loading }) => {
 const getKpiBadgeStyle = (label, value) => {
     const l = String(label).toLowerCase();
     const v = String(value).toLowerCase();
-    
+
     if (v.startsWith('-') || /gap|miss|lost|waste|drop|out of stock/.test(l)) {
         return { bg: "#fff1f2", border: "#fecaca", text: "#dc2626" }; // Red
     }
@@ -2472,17 +2508,17 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                 padding: "10px 24px",
                             }}>
                                 <div className="modal-header-title-row" style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-                                    <button 
-                                        onClick={onClose} 
+                                    <button
+                                        onClick={onClose}
                                         style={{
-                                            color: "#94a3b8", 
-                                            background: "#f8fafc", 
+                                            color: "#94a3b8",
+                                            background: "#f8fafc",
                                             border: "1px solid #e2e8f0",
-                                            cursor: "pointer", 
-                                            padding: "8px", 
+                                            cursor: "pointer",
+                                            padding: "8px",
                                             borderRadius: "12px",
-                                            display: "flex", 
-                                            alignItems: "center", 
+                                            display: "flex",
+                                            alignItems: "center",
                                             justifyContent: "center",
                                             transition: "all 0.2s ease",
                                         }}
@@ -2497,7 +2533,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                     >
                                         <X size={20} />
                                     </button>
-                                    
+
                                     <div>
                                         <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
                                             <div style={{
@@ -2523,7 +2559,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
                                     {loading ? (
                                         [...Array(4)].map((_, i) => (
@@ -2555,25 +2591,25 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                         })
                                     )}
                                     {insight.type !== "New Market Entry" && (
-                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: "70px" }}>
-                                        <p style={{ fontSize: "8px", color: "#94a3b8", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, margin: 0 }}>Impact</p>
-                                        {loading ? (
-                                            <div className="skeleton-pulse" style={{ width: "100%", height: "24px", borderRadius: "6px" }} />
-                                        ) : (
-                                            <div style={{
-                                                background: "#fff1f2",
-                                                border: "1px solid #fecaca",
-                                                padding: "3px 10px",
-                                                borderRadius: "6px",
-                                                display: "inline-flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                width: "100%"
-                                            }}>
-                                                <p style={{ fontSize: "13px", fontWeight: 900, color: "#dc2626", margin: 0 }}>{formatINRCompact(insight.impactInr || 0)}</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: "70px" }}>
+                                            <p style={{ fontSize: "8px", color: "#94a3b8", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, margin: 0 }}>Impact</p>
+                                            {loading ? (
+                                                <div className="skeleton-pulse" style={{ width: "100%", height: "24px", borderRadius: "6px" }} />
+                                            ) : (
+                                                <div style={{
+                                                    background: "#fff1f2",
+                                                    border: "1px solid #fecaca",
+                                                    padding: "3px 10px",
+                                                    borderRadius: "6px",
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    width: "100%"
+                                                }}>
+                                                    <p style={{ fontSize: "13px", fontWeight: 900, color: "#dc2626", margin: 0 }}>{formatINRCompact(insight.impactInr || 0)}</p>
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -2653,7 +2689,7 @@ const SignalCardSkeleton = () => (
         {/* Metric Hero Section */}
         <div style={{ padding: "10px 14px 10px" }}>
             <div className="skeleton-pulse" style={{ width: "55%", height: "8px", borderRadius: "3px", marginBottom: "8px" }} />
-            <div className="skeleton-pulse" style={{ 
+            <div className="skeleton-pulse" style={{
                 width: "110px", height: "30px", borderRadius: "8px"
             }} />
         </div>
@@ -2682,8 +2718,8 @@ const StatsPillsSkeleton = () => (
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
 const InsightsSignalHub = () => {
-    const { 
-        refreshFilters, 
+    const {
+        refreshFilters,
         maxDate,
         platform,
         selectedCategory,
@@ -2703,6 +2739,42 @@ const InsightsSignalHub = () => {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [showAIPanel, setShowAIPanel] = useState(false);
 
+    // ── Co-Relations state ──
+    const [showCorrelations, setShowCorrelations] = useState(false);
+    const [correlationsLoading, setCorrelationsLoading] = useState(false);
+    const [correlationsData, setCorrelationsData] = useState([]);
+
+    // Filter correlations data to only include rows where Sales and OSA are negative
+    const filteredCorrelations = useMemo(() => {
+        return correlationsData.filter(row => {
+            const salesVal = row.salesChange != null ? Number(row.salesChange) : 0;
+            const osaVal = row.osaChange != null ? Number(row.osaChange) : 0;
+            return salesVal < 0 && osaVal < 0;
+        });
+    }, [correlationsData]);
+
+    const [correlationsPage, setCorrelationsPage] = useState(1);
+    const correlationsPerPage = 100;
+    const totalCorrelationsPages = Math.ceil(filteredCorrelations.length / correlationsPerPage);
+    const paginatedCorrelations = useMemo(() => {
+        const startIndex = (correlationsPage - 1) * correlationsPerPage;
+        return filteredCorrelations.slice(startIndex, startIndex + correlationsPerPage);
+    }, [filteredCorrelations, correlationsPage]);
+    const [correlationsTrendRow, setCorrelationsTrendRow] = useState(null);
+    const [correlationsTrendData, setCorrelationsTrendData] = useState([]);
+    const [correlationsTrendLoading, setCorrelationsTrendLoading] = useState(false);
+    const [trendCustomStart, setTrendCustomStart] = useState("");
+    const [trendCustomEnd, setTrendCustomEnd] = useState("");
+    const [corrStartDate, setCorrStartDate] = useState(dayjs().subtract(30, 'day').format("YYYY-MM-DD"));
+    const [corrEndDate, setCorrEndDate] = useState(dayjs().format("YYYY-MM-DD"));
+    const [showCorrelationsInfo, setShowCorrelationsInfo] = useState(false);
+    const [activeTrendKPIs, setActiveTrendKPIs] = useState({
+        sales: true,
+        osa: true,
+        sos: true,
+        marketShare: true,
+        searchRank: true
+    });
 
 
     useEffect(() => {
@@ -2763,7 +2835,91 @@ const InsightsSignalHub = () => {
     const totalImpact = filteredInsights.reduce((s, i) => s + (i.impactInr || 0), 0);
     const activeSignals = filteredInsights.filter((i) => !i.id.startsWith("empty_")).length;
 
+    // ── Co-Relations handlers ──
+    const fetchCorrelationsDataLocally = useCallback(async (start, end) => {
+        setCorrelationsLoading(true);
+        setCorrelationsData([]);
+        try {
+            const formatArray = (val, defaultVal) => {
+                if (!val || val === "All") return defaultVal;
+                return Array.isArray(val) ? val.join(",") : val;
+            };
+            const apiPayload = {
+                platform: formatArray(platform, "All platforms"),
+                category: formatArray(selectedCategory, "All categories"),
+                brand: formatArray(selectedBrand, "All"),
+                city: formatArray(selectedLocation, "All cities"),
+                startDate: start,
+                endDate: end,
+            };
+            const res = await fetchCorrelations(apiPayload);
+            setCorrelationsData(res?.data || []);
+            setCorrelationsPage(1);
+        } catch (err) {
+            console.error("Correlations fetch error:", err);
+            setCorrelationsData([]);
+            setCorrelationsPage(1);
+        } finally {
+            setCorrelationsLoading(false);
+        }
+    }, [platform, selectedCategory, selectedBrand, selectedLocation]);
+
+    useEffect(() => {
+        if (showCorrelations) {
+            fetchCorrelationsDataLocally(corrStartDate, corrEndDate);
+        }
+    }, [showCorrelations, platform, selectedCategory, selectedBrand, selectedLocation, corrStartDate, corrEndDate, fetchCorrelationsDataLocally]);
+
+    const handleCorrelationsOpen = useCallback(() => {
+        setShowCorrelations(true);
+    }, []);
+
+    const handleTrendOpen = useCallback(async (row) => {
+        setCorrelationsTrendRow(row);
+        setCorrelationsTrendLoading(true);
+        setCorrelationsTrendData([]);
+        const startDate = row.dateRange?.split(" to ")?.[0] || dayjs().subtract(30, 'day').format("YYYY-MM-DD");
+        const endDate = row.dateRange?.split(" to ")?.[1] || dayjs().format("YYYY-MM-DD");
+        setTrendCustomStart(startDate);
+        setTrendCustomEnd(endDate);
+        try {
+            const res = await fetchCorrelationsTrend({
+                platform: row.platform, category: row.category,
+                brand: row.brand, sku: row.sku, location: row.location,
+                startDate, endDate,
+            });
+            setCorrelationsTrendData(res?.data || []);
+        } catch (err) {
+            console.error("Trend fetch error:", err);
+        } finally {
+            setCorrelationsTrendLoading(false);
+        }
+    }, []);
+
+    const handleTrendCustomFetch = useCallback(async () => {
+        if (!correlationsTrendRow || !trendCustomStart || !trendCustomEnd) return;
+        setCorrelationsTrendLoading(true);
+        try {
+            const res = await fetchCorrelationsTrend({
+                platform: correlationsTrendRow.platform, category: correlationsTrendRow.category,
+                brand: correlationsTrendRow.brand, sku: correlationsTrendRow.sku, location: correlationsTrendRow.location,
+                startDate: trendCustomStart, endDate: trendCustomEnd,
+            });
+            setCorrelationsTrendData(res?.data || []);
+        } catch (err) {
+            console.error("Trend custom fetch error:", err);
+        } finally {
+            setCorrelationsTrendLoading(false);
+        }
+    }, [correlationsTrendRow, trendCustomStart, trendCustomEnd]);
+
     const handleCardClick = (id) => {
+        // Check if clicked card is Co-Relations
+        const clickedInsight = allInsights.find(x => x.id === id);
+        if (clickedInsight?.type === "Co-Relations") {
+            handleCorrelationsOpen();
+            return;
+        }
         setSelectedId(id);
         setShowAIPanel(false);
         setDialogOpen(true);
@@ -3083,6 +3239,715 @@ const InsightsSignalHub = () => {
                     onCloseAIPanel={() => setShowAIPanel(false)}
                     loading={loading}
                 />
+
+                {/* ── Co-Relations Full-Screen Modal ─────────────────────── */}
+                <AnimatePresence>
+                    {showCorrelations && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            style={{
+                                position: "absolute", inset: 0, zIndex: 1000,
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                background: "#fff",
+                            }}
+                        >
+                            <motion.div
+                                initial={{ x: "100%", opacity: 0.5 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                exit={{ x: "100%", opacity: 0.5 }}
+                                transition={{ type: "spring", damping: 35, stiffness: 300 }}
+                                style={{
+                                    position: "relative", width: "100%", height: "100%",
+                                    background: "#fff", display: "flex", flexDirection: "column",
+                                    overflow: "hidden", zIndex: 101,
+                                }}
+                            >
+                                {/* Header */}
+                                <div style={{
+                                    background: "#fff", borderBottom: "1px solid #e5e9f0",
+                                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                                    flexShrink: 0, padding: "12px 24px",
+                                }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                                        <button
+                                            onClick={() => {
+                                                if (correlationsTrendRow) {
+                                                    setCorrelationsTrendRow(null);
+                                                } else {
+                                                    setShowCorrelations(false);
+                                                }
+                                            }}
+                                            style={{
+                                                color: "#94a3b8", background: "#f8fafc",
+                                                border: "1px solid #e2e8f0", cursor: "pointer",
+                                                padding: "8px", borderRadius: "12px",
+                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                transition: "all 0.2s ease",
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = "#0f172a"; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.color = "#94a3b8"; }}
+                                        >
+                                            {correlationsTrendRow ? <ArrowLeft size={20} /> : <X size={20} />}
+                                        </button>
+                                        <div>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                                <div style={{
+                                                    width: 28, height: 28, borderRadius: "7px",
+                                                    background: "linear-gradient(135deg, #6366f1, #4f46e5)",
+                                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                                }}>
+                                                    <Link2 size={14} color="#fff" />
+                                                </div>
+                                                <span style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em" }}>
+                                                    {correlationsTrendRow ? "KPI Trend Analysis" : "Co-Relations"}
+                                                </span>
+                                                <BetaBadge size="xs" />
+                                                {!correlationsTrendRow && (
+                                                    <button
+                                                        onClick={() => setShowCorrelationsInfo(true)}
+                                                        style={{
+                                                            background: "none",
+                                                            border: "none",
+                                                            color: "#6366f1",
+                                                            cursor: "pointer",
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            padding: "4px",
+                                                            borderRadius: "50%",
+                                                            marginLeft: "8px",
+                                                            transition: "all 0.2s ease"
+                                                        }}
+                                                        title="Click to know how it works"
+                                                        onMouseEnter={(e) => e.currentTarget.style.color = "#4f46e5"}
+                                                        onMouseLeave={(e) => e.currentTarget.style.color = "#6366f1"}
+                                                    >
+                                                        <Info size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <p style={{ fontSize: "11px", color: "#6b7280", margin: "2px 0 0 38px", fontWeight: 400 }}>
+                                                {correlationsTrendRow
+                                                    ? `${correlationsTrendRow.brand} › ${correlationsTrendRow.platform} › ${correlationsTrendRow.location}`
+                                                    : "Comparative Sales, OSA & SOS analysis — sudden gains and drops"
+                                                }
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Body */}
+                                <div style={{ flex: 1, overflow: "auto", padding: 0 }}>
+                                    {correlationsTrendRow ? (
+                                        /* ── TREND VIEW ──────────────────────────── */
+                                        <div style={{ padding: "24px" }}>
+                                            {/* Custom Date Picker */}
+                                            <div style={{
+                                                display: "flex", alignItems: "center", gap: "12px",
+                                                marginBottom: "24px", background: "#f8fafc",
+                                                padding: "12px 16px", borderRadius: "10px", border: "1px solid #e2e8f0",
+                                                flexWrap: "wrap",
+                                            }}>
+                                                <Calendar size={14} color="#6366f1" />
+                                                <span style={{ fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Date Range</span>
+                                                <input
+                                                    type="date"
+                                                    value={trendCustomStart}
+                                                    onChange={(e) => setTrendCustomStart(e.target.value)}
+                                                    style={{
+                                                        fontSize: "12px", padding: "6px 10px", border: "1px solid #cbd5e1",
+                                                        borderRadius: "6px", color: "#1e293b", background: "#fff",
+                                                        fontWeight: 500, outline: "none",
+                                                    }}
+                                                />
+                                                <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 500 }}>to</span>
+                                                <input
+                                                    type="date"
+                                                    value={trendCustomEnd}
+                                                    onChange={(e) => setTrendCustomEnd(e.target.value)}
+                                                    style={{
+                                                        fontSize: "12px", padding: "6px 10px", border: "1px solid #cbd5e1",
+                                                        borderRadius: "6px", color: "#1e293b", background: "#fff",
+                                                        fontWeight: 500, outline: "none",
+                                                    }}
+                                                />
+                                                <button
+                                                    onClick={handleTrendCustomFetch}
+                                                    style={{
+                                                        fontSize: "11px", fontWeight: 700, padding: "6px 16px",
+                                                        borderRadius: "6px", border: "none", cursor: "pointer",
+                                                        background: "linear-gradient(135deg, #6366f1, #4f46e5)",
+                                                        color: "#fff", transition: "all 0.2s",
+                                                    }}
+                                                    onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(99,102,241,0.3)"; }}
+                                                    onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
+                                                >
+                                                    Apply
+                                                </button>
+                                            </div>
+
+                                            {correlationsTrendLoading ? (
+                                                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "300px" }}>
+                                                    <TrailyticsTypewriterLoader size={0.85} message="Loading trend data..." />
+                                                </div>
+                                            ) : correlationsTrendData.length === 0 ? (
+                                                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "300px", color: "#94a3b8" }}>
+                                                    <Activity size={32} style={{ marginBottom: "12px" }} />
+                                                    <p style={{ fontSize: "13px", fontWeight: 600 }}>No trend data available for this selection</p>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+                                                    {/* Combined KPI Trend */}
+                                                    <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                                                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#1e293b", marginBottom: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
+                                                            <Activity size={16} color="#6366f1" />
+                                                            KPI Trend Analysis
+                                                        </div>
+
+                                                        {/* Interactive KPI Selectors */}
+                                                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+                                                            {[
+                                                                { key: "sales", label: "Sales (₹)", color: "#6366f1", bg: "rgba(99, 102, 241, 0.08)" },
+                                                                { key: "osa", label: "OSA (%)", color: "#10b981", bg: "rgba(16, 185, 129, 0.08)" },
+                                                                { key: "sos", label: "SOS (%)", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.08)" },
+                                                                { key: "marketShare", label: "Market Share (%)", color: "#ec4899", bg: "rgba(236, 72, 153, 0.08)" },
+                                                                ...(correlationsTrendRow?.platform?.toLowerCase() === "amazon" ? [
+                                                                    { key: "searchRank", label: "Search Rank", color: "#06b6d4", bg: "rgba(6, 182, 212, 0.08)" }
+                                                                ] : [])
+                                                            ].map((kpi) => {
+                                                                const isActive = activeTrendKPIs[kpi.key];
+                                                                return (
+                                                                    <button
+                                                                        key={kpi.key}
+                                                                        onClick={() => {
+                                                                            setActiveTrendKPIs(prev => ({
+                                                                                ...prev,
+                                                                                [kpi.key]: !prev[kpi.key]
+                                                                            }));
+                                                                        }}
+                                                                        style={{
+                                                                            display: "flex",
+                                                                            alignItems: "center",
+                                                                            gap: "8px",
+                                                                            padding: "8px 16px",
+                                                                            borderRadius: "20px",
+                                                                            border: isActive ? `1.5px solid ${kpi.color}` : "1.5px solid #e2e8f0",
+                                                                            background: isActive ? kpi.bg : "#fff",
+                                                                            color: isActive ? kpi.color : "#64748b",
+                                                                            fontSize: "12px",
+                                                                            fontWeight: 600,
+                                                                            cursor: "pointer",
+                                                                            transition: "all 0.2s ease",
+                                                                            outline: "none",
+                                                                            boxShadow: isActive ? `0 2px 8px ${kpi.bg}` : "none",
+                                                                        }}
+                                                                        onMouseEnter={(e) => {
+                                                                            if (!isActive) {
+                                                                                e.currentTarget.style.border = `1.5px solid ${kpi.color}`;
+                                                                                e.currentTarget.style.background = "#fafafa";
+                                                                            }
+                                                                        }}
+                                                                        onMouseLeave={(e) => {
+                                                                            if (!isActive) {
+                                                                                e.currentTarget.style.border = "1.5px solid #e2e8f0";
+                                                                                e.currentTarget.style.background = "#fff";
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        <span style={{
+                                                                            width: "8px",
+                                                                            height: "8px",
+                                                                            borderRadius: "50%",
+                                                                            background: isActive ? kpi.color : "#94a3b8",
+                                                                            display: "inline-block",
+                                                                            transition: "background 0.2s ease"
+                                                                        }} />
+                                                                        {kpi.label}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+
+                                                        <ResponsiveContainer width="100%" height={380}>
+                                                            <LineChart data={correlationsTrendData}>
+                                                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                                                                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => v ? dayjs(v).format("DD MMM") : ""} />
+                                                                
+                                                                {/* Left Y-Axis — Sales (₹) */}
+                                                                {activeTrendKPIs.sales && (
+                                                                    <YAxis
+                                                                        yAxisId="sales"
+                                                                        orientation="left"
+                                                                        tick={{ fontSize: 10, fill: "#6366f1" }}
+                                                                        tickFormatter={(v) => v >= 1e5 ? `₹${(v / 1e5).toFixed(1)}L` : v >= 1e3 ? `₹${(v / 1e3).toFixed(0)}K` : `₹${v}`}
+                                                                        axisLine={{ stroke: "#6366f1", strokeWidth: 1.5 }}
+                                                                        tickLine={{ stroke: "#6366f1" }}
+                                                                    />
+                                                                )}
+
+                                                                {/* Right Y-Axis — OSA, SOS, and MS (%) */}
+                                                                {(activeTrendKPIs.osa || activeTrendKPIs.sos || activeTrendKPIs.marketShare) && (
+                                                                    <YAxis
+                                                                        yAxisId="pct"
+                                                                        orientation="right"
+                                                                        domain={[0, 100]}
+                                                                        tick={{ fontSize: 10, fill: "#64748b" }}
+                                                                        tickFormatter={(v) => `${v}%`}
+                                                                        axisLine={{ stroke: "#94a3b8", strokeWidth: 1 }}
+                                                                        tickLine={{ stroke: "#94a3b8" }}
+                                                                    />
+                                                                )}
+
+                                                                {/* Search Rank Y-Axis — reversed since rank 1 is best */}
+                                                                {activeTrendKPIs.searchRank && (
+                                                                    <YAxis
+                                                                        yAxisId="rank"
+                                                                        orientation={activeTrendKPIs.sales ? "right" : "left"}
+                                                                        reversed
+                                                                        tick={{ fontSize: 10, fill: "#06b6d4" }}
+                                                                        tickFormatter={(v) => `#${v}`}
+                                                                        axisLine={{ stroke: "#06b6d4", strokeWidth: 1.5 }}
+                                                                        tickLine={{ stroke: "#06b6d4" }}
+                                                                    />
+                                                                )}
+
+                                                                <RechartsTooltip
+                                                                    contentStyle={{ fontSize: "11px", borderRadius: "10px", border: "1px solid #e2e8f0", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", padding: "10px 14px" }}
+                                                                    labelFormatter={(label) => label ? dayjs(label).format("DD MMM YYYY") : ""}
+                                                                    formatter={(value, name) => {
+                                                                        if (name === "sales") return [`₹${Number(value).toLocaleString("en-IN")}`, "Sales"];
+                                                                        if (name === "osa") return [`${Number(value).toFixed(1)}%`, "OSA"];
+                                                                        if (name === "sos") return [`${Number(value).toFixed(1)}%`, "SOS"];
+                                                                        if (name === "marketShare") return [`${Number(value).toFixed(1)}%`, "Market Share"];
+                                                                        if (name === "searchRank") return [`#${Number(value).toFixed(1)}`, "Search Rank"];
+                                                                        return [value, name];
+                                                                    }}
+                                                                />
+
+                                                                {activeTrendKPIs.sales && (
+                                                                    <Line yAxisId="sales" type="monotone" dataKey="sales" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#6366f1", strokeWidth: 2, fill: "#fff" }} />
+                                                                )}
+                                                                {activeTrendKPIs.osa && (
+                                                                    <Line yAxisId="pct" type="monotone" dataKey="osa" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#10b981", strokeWidth: 2, fill: "#fff" }} connectNulls />
+                                                                )}
+                                                                {activeTrendKPIs.sos && (
+                                                                    <Line yAxisId="pct" type="monotone" dataKey="sos" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3, fill: "#f59e0b", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#f59e0b", strokeWidth: 2, fill: "#fff" }} connectNulls />
+                                                                )}
+                                                                {activeTrendKPIs.marketShare && (
+                                                                    <Line yAxisId="pct" type="monotone" dataKey="marketShare" stroke="#ec4899" strokeWidth={2.5} dot={{ r: 3, fill: "#ec4899", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#ec4899", strokeWidth: 2, fill: "#fff" }} connectNulls />
+                                                                )}
+                                                                {activeTrendKPIs.searchRank && (
+                                                                    <Line yAxisId="rank" type="monotone" dataKey="searchRank" stroke="#06b6d4" strokeWidth={2.5} dot={{ r: 3, fill: "#06b6d4", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#06b6d4", strokeWidth: 2, fill: "#fff" }} connectNulls />
+                                                                )}
+                                                            </LineChart>
+                                                        </ResponsiveContainer>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        /* ── MAIN CO-RELATIONS VIEW ──────────────── */
+                                        <div>
+
+                                            {correlationsLoading ? (
+                                                /* ── LOADER ──────────────────────────── */
+                                                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
+                                                    <TrailyticsTypewriterLoader size={1.1} message="Analyzing KPI correlations..." />
+                                                </div>
+                                            ) : filteredCorrelations.length === 0 ? (
+                                                /* ── EMPTY STATE ─────────────────────── */
+                                                <div style={{
+                                                    display: "flex", flexDirection: "column", alignItems: "center",
+                                                    justifyContent: "center", minHeight: "400px", color: "#94a3b8",
+                                                }}>
+                                                    <Link2 size={36} style={{ marginBottom: "12px", opacity: 0.5 }} />
+                                                    <p style={{ fontSize: "14px", fontWeight: 700, color: "#475569", marginBottom: "4px" }}>No significant KPI changes detected</p>
+                                                    <p style={{ fontSize: "12px", color: "#94a3b8" }}>Try adjusting the date range or filters.</p>
+                                                </div>
+                                            ) : (
+                                                /* ── CORRELATIONS TABLE ──────────────── */
+                                                <div style={{ padding: "0" }}>
+                                                    <div style={{
+                                                        padding: "12px 24px", borderBottom: "1px solid #e2e8f0",
+                                                        background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)",
+                                                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                                                    }}>
+                                                        <span style={{ fontSize: "11px", fontWeight: 700, color: "#1e3a5f", letterSpacing: "0.02em" }}>
+                                                            {filteredCorrelations.length} Anomalies Detected
+                                                        </span>
+                                                        <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 500 }}>
+                                                            Comparing current vs previous period
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ overflowX: "auto" }}>
+                                                        <style>{`
+                                                            .corr-table th, .corr-table td { border-right: 1px solid #e2e8f0; }
+                                                            .corr-table tbody tr:nth-child(even) { background-color: #f8fafc; }
+                                                            .corr-table tbody tr:hover { background-color: #f0f4ff !important; }
+                                                            .corr-table thead th {
+                                                                background: #f1f5f9; font-weight: 600; letter-spacing: 0.03em;
+                                                                position: sticky; top: 0; z-index: 20; box-shadow: 0 1px 0 #e2e8f0;
+                                                            }
+                                                        `}</style>
+                                                        <table className="corr-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                                                            <thead>
+                                                                <tr style={{ borderBottom: "2px solid #cbd5e1" }}>
+                                                                    <th style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Date Range</th>
+                                                                    <th style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Platform</th>
+                                                                    <th style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Category</th>
+                                                                    <th style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Brand</th>
+                                                                    <th style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>SKU</th>
+                                                                    <th style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Location</th>
+                                                                    <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Sales</th>
+                                                                    <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>OSA</th>
+                                                                    <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>SOS</th>
+                                                                    <th style={{ padding: "8px 12px", textAlign: "center", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Trend</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {paginatedCorrelations.map((row, idx) => {
+                                                                    const salesUp = (row.salesChange || 0) >= 0;
+                                                                    const osaUp = (row.osaChange || 0) >= 0;
+                                                                    const sosUp = (row.sosChange || 0) >= 0;
+                                                                    return (
+                                                                        <tr key={idx} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                                                                            <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+                                                                                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                                                                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                                                                        <span style={{ fontSize: "8px", fontWeight: 800, padding: "2px 4px", borderRadius: "3px", background: "#dbeafe", color: "#1e40af", textTransform: "uppercase", letterSpacing: "0.03em" }}>Cur</span>
+                                                                                        <span style={{ fontWeight: 600, color: "#1e293b", fontSize: "11px" }}>{row.dateRange || "-"}</span>
+                                                                                         {row.size && (
+                                                                                             <span style={{
+                                                                                                 fontSize: "9px",
+                                                                                                 fontWeight: 700,
+                                                                                                 padding: "1.5px 5px",
+                                                                                                 borderRadius: "4px",
+                                                                                                 background: "rgba(99, 102, 241, 0.1)",
+                                                                                                 color: "#6366f1",
+                                                                                                 border: "1px solid rgba(99, 102, 241, 0.15)",
+                                                                                                 textTransform: "lowercase",
+                                                                                                 letterSpacing: "0.02em",
+                                                                                                 marginLeft: "6.5px"
+                                                                                             }}>
+                                                                                                 {row.size}-day
+                                                                                             </span>
+                                                                                         )}
+                                                                                    </div>
+                                                                                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                                                                        <span style={{ fontSize: "8px", fontWeight: 800, padding: "2px 4px", borderRadius: "3px", background: "#f1f5f9", color: "#475569", textTransform: "uppercase", letterSpacing: "0.03em" }}>Prev</span>
+                                                                                        <span style={{ color: "#64748b", fontSize: "10px", fontWeight: 500 }}>{row.prevRange || "-"}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td style={{ padding: "10px 12px", color: "#374151" }}>{row.platform || "-"}</td>
+                                                                            <td style={{ padding: "10px 12px", color: "#374151", maxWidth: "120px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.category || "-"}</td>
+                                                                            <td style={{ padding: "10px 12px", color: "#374151", fontWeight: 600 }}>{row.brand || "-"}</td>
+                                                                            <td style={{ padding: "10px 12px", color: "#6b7280", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.sku || "-"}</td>
+                                                                            <td style={{ padding: "10px 12px", color: "#374151" }}>{row.location || "-"}</td>
+                                                                            <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                                                                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                                                                                    <span style={{ fontWeight: 700, color: "#1e293b" }}>
+                                                                                        {row.sales != null ? formatINRCompact(row.sales) : "-"}
+                                                                                    </span>
+                                                                                    <span style={{
+                                                                                        fontSize: "9px", fontWeight: 700,
+                                                                                        color: salesUp ? "#16a34a" : "#dc2626",
+                                                                                        display: "flex", alignItems: "center", gap: "2px",
+                                                                                    }}>
+                                                                                        {salesUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
+                                                                                        {salesUp ? "+" : ""}{row.salesChange != null ? `${row.salesChange}%` : "-"}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                                                                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                                                                                    <span style={{ fontWeight: 700, color: "#1e293b" }}>
+                                                                                        {row.osa != null ? `${row.osa.toFixed(1)}%` : "-"}
+                                                                                    </span>
+                                                                                    {row.osaChange != null && (
+                                                                                        <span style={{
+                                                                                            fontSize: "9px", fontWeight: 700,
+                                                                                            color: osaUp ? "#16a34a" : "#dc2626",
+                                                                                            display: "flex", alignItems: "center", gap: "2px",
+                                                                                        }}>
+                                                                                            {osaUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
+                                                                                            {osaUp ? "+" : ""}{row.osaChange}pp
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </td>
+                                                                            <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                                                                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                                                                                    <span style={{ fontWeight: 700, color: "#1e293b" }}>
+                                                                                        {row.sos != null ? `${row.sos.toFixed(1)}%` : "-"}
+                                                                                    </span>
+                                                                                    {row.sosChange != null && (
+                                                                                        <span style={{
+                                                                                            fontSize: "9px", fontWeight: 700,
+                                                                                            color: sosUp ? "#16a34a" : "#dc2626",
+                                                                                            display: "flex", alignItems: "center", gap: "2px",
+                                                                                        }}>
+                                                                                            {sosUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
+                                                                                            {sosUp ? "+" : ""}{row.sosChange}pp
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </td>
+                                                                            <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                                                                                <button
+                                                                                    onClick={() => handleTrendOpen(row)}
+                                                                                    style={{
+                                                                                        fontSize: "10px", fontWeight: 700,
+                                                                                        padding: "5px 14px", borderRadius: "6px",
+                                                                                        border: "1px solid rgba(99,102,241,0.3)",
+                                                                                        background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
+                                                                                        color: "#4f46e5", cursor: "pointer",
+                                                                                        display: "inline-flex", alignItems: "center", gap: "4px",
+                                                                                        transition: "all 0.2s ease", whiteSpace: "nowrap",
+                                                                                        textTransform: "uppercase", letterSpacing: "0.05em",
+                                                                                    }}
+                                                                                    onMouseEnter={(e) => {
+                                                                                        e.currentTarget.style.background = "#e0e7ff";
+                                                                                        e.currentTarget.style.transform = "translateY(-1px)";
+                                                                                        e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(99,102,241,0.15)";
+                                                                                    }}
+                                                                                    onMouseLeave={(e) => {
+                                                                                        e.currentTarget.style.background = "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)";
+                                                                                        e.currentTarget.style.transform = "translateY(0)";
+                                                                                        e.currentTarget.style.boxShadow = "none";
+                                                                                    }}
+                                                                                >
+                                                                                    <Activity size={10} />
+                                                                                    Trend
+                                                                                </button>
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                    {/* ── PAGINATION CONTROLS ──────────────── */}
+                                                    {totalCorrelationsPages > 1 && (
+                                                        <div style={{
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "space-between",
+                                                            padding: "16px 24px",
+                                                            borderTop: "1px solid #e2e8f0",
+                                                            background: "#f8fafc",
+                                                            borderBottomLeftRadius: "16px",
+                                                            borderBottomRightRadius: "16px"
+                                                        }}>
+                                                            <div style={{ fontSize: "11px", color: "#64748b", fontWeight: 500 }}>
+                                                                Showing <span style={{ fontWeight: 600, color: "#1e293b" }}>{((correlationsPage - 1) * correlationsPerPage) + 1}</span> to{" "}
+                                                                <span style={{ fontWeight: 600, color: "#1e293b" }}>
+                                                                    {Math.min(correlationsPage * correlationsPerPage, filteredCorrelations.length)}
+                                                                </span> of{" "}
+                                                                <span style={{ fontWeight: 600, color: "#1e293b" }}>{filteredCorrelations.length}</span> rows
+                                                            </div>
+                                                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                                                <button
+                                                                    disabled={correlationsPage === 1}
+                                                                    onClick={() => setCorrelationsPage(prev => Math.max(prev - 1, 1))}
+                                                                    style={{
+                                                                        padding: "6px 12px",
+                                                                        borderRadius: "6px",
+                                                                        border: "1px solid #e2e8f0",
+                                                                        background: correlationsPage === 1 ? "#f1f5f9" : "#ffffff",
+                                                                        color: correlationsPage === 1 ? "#94a3b8" : "#334155",
+                                                                        fontSize: "11px",
+                                                                        fontWeight: 600,
+                                                                        cursor: correlationsPage === 1 ? "not-allowed" : "pointer",
+                                                                        transition: "all 0.2s ease"
+                                                                    }}
+                                                                >
+                                                                    Previous
+                                                                </button>
+                                                                
+                                                                {Array.from({ length: totalCorrelationsPages }).map((_, i) => {
+                                                                    const pageNum = i + 1;
+                                                                    if (
+                                                                        pageNum === 1 ||
+                                                                        pageNum === totalCorrelationsPages ||
+                                                                        (pageNum >= correlationsPage - 1 && pageNum <= correlationsPage + 1)
+                                                                    ) {
+                                                                        return (
+                                                                            <button
+                                                                                key={pageNum}
+                                                                                onClick={() => setCorrelationsPage(pageNum)}
+                                                                                style={{
+                                                                                    width: "32px",
+                                                                                    height: "32px",
+                                                                                    display: "flex",
+                                                                                    alignItems: "center",
+                                                                                    justifyContent: "center",
+                                                                                    borderRadius: "6px",
+                                                                                    border: pageNum === correlationsPage ? "1px solid #6366f1" : "1px solid #e2e8f0",
+                                                                                    background: pageNum === correlationsPage ? "#6366f1" : "#ffffff",
+                                                                                    color: pageNum === correlationsPage ? "#ffffff" : "#334155",
+                                                                                    fontSize: "11px",
+                                                                                    fontWeight: 700,
+                                                                                    cursor: "pointer",
+                                                                                    transition: "all 0.2s ease"
+                                                                                }}
+                                                                            >
+                                                                                {pageNum}
+                                                                            </button>
+                                                                        );
+                                                                    }
+                                                                    
+                                                                    if (
+                                                                        (pageNum === 2 && correlationsPage > 3) ||
+                                                                        (pageNum === totalCorrelationsPages - 1 && correlationsPage < totalCorrelationsPages - 2)
+                                                                    ) {
+                                                                        return (
+                                                                            <span key={pageNum} style={{ padding: "0 4px", color: "#94a3b8", fontSize: "11px" }}>
+                                                                                ...
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    
+                                                                    return null;
+                                                                })}
+
+                                                                <button
+                                                                    disabled={correlationsPage === totalCorrelationsPages}
+                                                                    onClick={() => setCorrelationsPage(prev => Math.min(prev + 1, totalCorrelationsPages))}
+                                                                    style={{
+                                                                        padding: "6px 12px",
+                                                                        borderRadius: "6px",
+                                                                        border: "1px solid #e2e8f0",
+                                                                        background: correlationsPage === totalCorrelationsPages ? "#f1f5f9" : "#ffffff",
+                                                                        color: correlationsPage === totalCorrelationsPages ? "#94a3b8" : "#334155",
+                                                                        fontSize: "11px",
+                                                                        fontWeight: 600,
+                                                                        cursor: correlationsPage === totalCorrelationsPages ? "not-allowed" : "pointer",
+                                                                        transition: "all 0.2s ease"
+                                                                    }}
+                                                                >
+                                                                    Next
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* ── Explanation Dialog / Popover ─────────────────────── */}
+                <AnimatePresence>
+                    {showCorrelationsInfo && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowCorrelationsInfo(false)}
+                            style={{
+                                position: "absolute",
+                                inset: 0,
+                                background: "rgba(15, 23, 42, 0.4)",
+                                backdropFilter: "blur(4px)",
+                                zIndex: 1100,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: "20px"
+                            }}
+                        >
+                            <motion.div
+                                initial={{ scale: 0.95, y: 15 }}
+                                animate={{ scale: 1, y: 0 }}
+                                exit={{ scale: 0.95, y: 15 }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    background: "#ffffff",
+                                    borderRadius: "16px",
+                                    padding: "28px",
+                                    maxWidth: "600px",
+                                    width: "100%",
+                                    boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
+                                    border: "1px solid #f1f5f9",
+                                    position: "relative"
+                                }}
+                            >
+                                <button
+                                    onClick={() => setShowCorrelationsInfo(false)}
+                                    style={{
+                                        position: "absolute",
+                                        top: "20px",
+                                        right: "20px",
+                                        background: "none",
+                                        border: "none",
+                                        cursor: "pointer",
+                                        color: "#94a3b8"
+                                    }}
+                                >
+                                    <X size={20} />
+                                </button>
+
+                                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+                                    <div style={{
+                                        width: "36px", height: "36px", borderRadius: "50%",
+                                        background: "rgba(99, 102, 241, 0.1)",
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        color: "#6366f1"
+                                    }}>
+                                        <Info size={20} />
+                                    </div>
+                                    <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#0f172a", margin: 0 }}>
+                                        Guide for Users
+                                    </h3>
+                                </div>
+
+                                <div style={{ fontSize: "13.5px", color: "#475569", lineHeight: "1.6", display: "flex", flexDirection: "column", gap: "16px" }}>
+                                    <div>
+                                        <h4 style={{ fontWeight: 700, color: "#0f172a", marginBottom: "6px", fontSize: "14px" }}>
+                                            What We Are Showing on the Co-Relations Card
+                                        </h4>
+                                        <p style={{ margin: 0 }}>
+                                            We show a list of granular combinations across <strong>Platform, Category, Brand, SKU, and Location</strong> that have experienced a sudden, major change (either a gain or drop) in one or more of their core KPIs:
+                                        </p>
+                                        <ul style={{ margin: "6px 0 0 0", paddingLeft: "20px" }}>
+                                            <li><strong>Sales:</strong> Significant revenue increases or decreases exceeding ±15%.</li>
+                                            <li><strong>OSA (On-Shelf Availability):</strong> Stock availability changes exceeding ±5 percentage points (pp).</li>
+                                            <li><strong>SOS (Share of Search):</strong> Brand keyword share changes exceeding ±3 percentage points (pp).</li>
+                                            <li><strong>Market Share & Search Rank:</strong> Tracked on the trend graph to analyze how availability and search prominence drive overall platform market performance.</li>
+                                        </ul>
+                                    </div>
+
+                                    <div>
+                                        <h4 style={{ fontWeight: 700, color: "#0f172a", marginBottom: "6px", fontSize: "14px" }}>
+                                            How We Pick the Current Date Range
+                                        </h4>
+                                        <p style={{ margin: 0 }}>
+                                            Rather than a fixed range, the backend dynamically evaluates multiple rolling candidate periods (including <strong>4-day, 7-day, 12-day, 18-day, 25-day, 30-day, and 40-day windows</strong>) across our database history.
+                                            For each unique combination of Platform, Category, Brand, SKU, and Location, the system automatically selects the specific date range where the absolute change in Sales, OSA, or SOS was the largest.
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <h4 style={{ fontWeight: 700, color: "#0f172a", marginBottom: "6px", fontSize: "14px" }}>
+                                            How We Pick the Compare Date Range
+                                        </h4>
+                                        <p style={{ margin: 0 }}>
+                                            To ensure mathematically fair and accurate comparisons, the <strong>Compare (Previous)</strong> date range is chosen to match the exact same number of days as the <strong>Current</strong> date range, immediately preceding it.
+                                            For example, if the current range is a 12-day period (e.g., <em>14th May to 25th May</em>), the compare range will be the preceding 12-day period (e.g., <em>2nd May to 13th May</em>).
+                                        </p>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </CommonContainer>
     );

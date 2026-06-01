@@ -1,9 +1,4 @@
-/**
- * Insights Routes
- * API endpoints for the Insights page
- */
-
-import { getInsights, getInsightsFilters } from '../controllers/insightsController.js';
+import { getInsights, getInsightsFilters, getCorrelations, getCorrelationsTrend } from '../controllers/insightsController.js';
 
 export default (app) => {
     /**
@@ -30,5 +25,7 @@ export default (app) => {
      *         description: Successful response
      */
     app.get('/api/insights/filters', getInsightsFilters);
+    app.get('/api/insights/correlations', getCorrelations);
+    app.get('/api/insights/correlations/trend', getCorrelationsTrend);
     app.get('/api/insights', getInsights);
 };

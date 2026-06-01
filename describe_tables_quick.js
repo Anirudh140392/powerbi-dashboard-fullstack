@@ -13,8 +13,7 @@ async function describeTable(tableName) {
 }
 
 async function run() {
-    await describeTable('rb_location_darkstore');
-    await describeTable('rca_watchtower_insight');
+    await describeTable('rb_pdp_olap');
 }
 
 run();
