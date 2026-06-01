@@ -2743,17 +2743,29 @@ const InsightsSignalHub = () => {
     const [showCorrelations, setShowCorrelations] = useState(false);
     const [correlationsLoading, setCorrelationsLoading] = useState(false);
     const [correlationsData, setCorrelationsData] = useState([]);
+    const [correlationMode, setCorrelationMode] = useState("drainer");
 
-    // Filter correlations data to only include rows where Sales and OSA are negative
+    // Filter correlations data based on mode (drainer vs gainer)
     const filteredCorrelations = useMemo(() => {
         return correlationsData.filter(row => {
             const salesVal = row.salesChange != null ? Number(row.salesChange) : 0;
             const osaVal = row.osaChange != null ? Number(row.osaChange) : 0;
-            return salesVal < 0 && osaVal < 0;
+            if (correlationMode === "drainer") {
+                return salesVal < 0 && osaVal < 0;
+            } else if (correlationMode === "gainer") {
+                return salesVal > 0 && osaVal > 0;
+            }
+            return true;
         });
-    }, [correlationsData]);
+    }, [correlationsData, correlationMode]);
 
     const [correlationsPage, setCorrelationsPage] = useState(1);
+    
+    // Reset page on mode change
+    useEffect(() => {
+        setCorrelationsPage(1);
+    }, [correlationMode]);
+
     const correlationsPerPage = 100;
     const totalCorrelationsPages = Math.ceil(filteredCorrelations.length / correlationsPerPage);
     const paginatedCorrelations = useMemo(() => {
@@ -2771,8 +2783,8 @@ const InsightsSignalHub = () => {
     const [activeTrendKPIs, setActiveTrendKPIs] = useState({
         sales: true,
         osa: true,
-        sos: true,
-        marketShare: true,
+        promo: true,
+        listing: true,
         searchRank: true
     });
 
@@ -3331,7 +3343,7 @@ const InsightsSignalHub = () => {
                                             <p style={{ fontSize: "11px", color: "#6b7280", margin: "2px 0 0 38px", fontWeight: 400 }}>
                                                 {correlationsTrendRow
                                                     ? `${correlationsTrendRow.brand} › ${correlationsTrendRow.platform} › ${correlationsTrendRow.location}`
-                                                    : "Comparative Sales, OSA & SOS analysis — sudden gains and drops"
+                                                    : "Comparative Sales & OSA analysis — sudden gains and drops"
                                                 }
                                             </p>
                                         </div>
@@ -3411,11 +3423,9 @@ const InsightsSignalHub = () => {
                                                             {[
                                                                 { key: "sales", label: "Sales (₹)", color: "#6366f1", bg: "rgba(99, 102, 241, 0.08)" },
                                                                 { key: "osa", label: "OSA (%)", color: "#10b981", bg: "rgba(16, 185, 129, 0.08)" },
-                                                                { key: "sos", label: "SOS (%)", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.08)" },
-                                                                { key: "marketShare", label: "Market Share (%)", color: "#ec4899", bg: "rgba(236, 72, 153, 0.08)" },
-                                                                ...(correlationsTrendRow?.platform?.toLowerCase() === "amazon" ? [
-                                                                    { key: "searchRank", label: "Search Rank", color: "#06b6d4", bg: "rgba(6, 182, 212, 0.08)" }
-                                                                ] : [])
+                                                                { key: "promo", label: "Promo (%)", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.08)" },
+                                                                { key: "listing", label: "Listing (%)", color: "#ec4899", bg: "rgba(236, 72, 153, 0.08)" },
+                                                                { key: "searchRank", label: "Search Rank", color: "#06b6d4", bg: "rgba(6, 182, 212, 0.08)" }
                                                             ].map((kpi) => {
                                                                 const isActive = activeTrendKPIs[kpi.key];
                                                                 return (
@@ -3487,8 +3497,8 @@ const InsightsSignalHub = () => {
                                                                     />
                                                                 )}
 
-                                                                {/* Right Y-Axis — OSA, SOS, and MS (%) */}
-                                                                {(activeTrendKPIs.osa || activeTrendKPIs.sos || activeTrendKPIs.marketShare) && (
+                                                                {/* Right Y-Axis — OSA, Promo, Listing (%) */}
+                                                                {(activeTrendKPIs.osa || activeTrendKPIs.promo || activeTrendKPIs.listing) && (
                                                                     <YAxis
                                                                         yAxisId="pct"
                                                                         orientation="right"
@@ -3519,8 +3529,9 @@ const InsightsSignalHub = () => {
                                                                     formatter={(value, name) => {
                                                                         if (name === "sales") return [`₹${Number(value).toLocaleString("en-IN")}`, "Sales"];
                                                                         if (name === "osa") return [`${Number(value).toFixed(1)}%`, "OSA"];
-                                                                        if (name === "sos") return [`${Number(value).toFixed(1)}%`, "SOS"];
-                                                                        if (name === "marketShare") return [`${Number(value).toFixed(1)}%`, "Market Share"];
+                                                                        if (name === "promo") return [`${Number(value).toFixed(1)}%`, "Promo"];
+                                                                        if (name === "listing") return [`${Number(value).toFixed(1)}%`, "Listing"];
+
                                                                         if (name === "searchRank") return [`#${Number(value).toFixed(1)}`, "Search Rank"];
                                                                         return [value, name];
                                                                     }}
@@ -3532,12 +3543,13 @@ const InsightsSignalHub = () => {
                                                                 {activeTrendKPIs.osa && (
                                                                     <Line yAxisId="pct" type="monotone" dataKey="osa" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#10b981", strokeWidth: 2, fill: "#fff" }} connectNulls />
                                                                 )}
-                                                                {activeTrendKPIs.sos && (
-                                                                    <Line yAxisId="pct" type="monotone" dataKey="sos" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3, fill: "#f59e0b", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#f59e0b", strokeWidth: 2, fill: "#fff" }} connectNulls />
+                                                                {activeTrendKPIs.promo && (
+                                                                    <Line yAxisId="pct" type="monotone" dataKey="promo" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3, fill: "#f59e0b", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#f59e0b", strokeWidth: 2, fill: "#fff" }} connectNulls />
                                                                 )}
-                                                                {activeTrendKPIs.marketShare && (
-                                                                    <Line yAxisId="pct" type="monotone" dataKey="marketShare" stroke="#ec4899" strokeWidth={2.5} dot={{ r: 3, fill: "#ec4899", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#ec4899", strokeWidth: 2, fill: "#fff" }} connectNulls />
+                                                                {activeTrendKPIs.listing && (
+                                                                    <Line yAxisId="pct" type="monotone" dataKey="listing" stroke="#ec4899" strokeWidth={2.5} dot={{ r: 3, fill: "#ec4899", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#ec4899", strokeWidth: 2, fill: "#fff" }} connectNulls />
                                                                 )}
+
                                                                 {activeTrendKPIs.searchRank && (
                                                                     <Line yAxisId="rank" type="monotone" dataKey="searchRank" stroke="#06b6d4" strokeWidth={2.5} dot={{ r: 3, fill: "#06b6d4", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#06b6d4", strokeWidth: 2, fill: "#fff" }} connectNulls />
                                                                 )}
@@ -3550,6 +3562,73 @@ const InsightsSignalHub = () => {
                                     ) : (
                                         /* ── MAIN CO-RELATIONS VIEW ──────────────── */
                                         <div>
+                                            {/* Mode Toggle Toolbar */}
+                                            <div style={{
+                                                padding: "16px 24px",
+                                                borderBottom: "1px solid #e2e8f0",
+                                                background: "#ffffff",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                position: "sticky",
+                                                top: 0,
+                                                zIndex: 30,
+                                                boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
+                                            }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                     <div style={{
+                                                         display: "inline-flex",
+                                                         background: "#f1f5f9",
+                                                         padding: "3px",
+                                                         borderRadius: "8px",
+                                                         border: "1px solid #e2e8f0"
+                                                     }}>
+                                                         <button
+                                                             onClick={() => setCorrelationMode("drainer")}
+                                                             style={{
+                                                                 padding: "6px 16px",
+                                                                 borderRadius: "6px",
+                                                                 border: "none",
+                                                                 fontSize: "11px",
+                                                                 fontWeight: 700,
+                                                                 cursor: "pointer",
+                                                                 background: correlationMode === "drainer" ? "#ef4444" : "transparent",
+                                                                 color: correlationMode === "drainer" ? "#ffffff" : "#64748b",
+                                                                 display: "flex",
+                                                                 alignItems: "center",
+                                                                 gap: "6px",
+                                                                 transition: "all 0.2s ease"
+                                                             }}
+                                                         >
+                                                             <TrendingDown size={12} />
+                                                             Drainers (Dropped)
+                                                         </button>
+                                                         <button
+                                                             onClick={() => setCorrelationMode("gainer")}
+                                                             style={{
+                                                                 padding: "6px 16px",
+                                                                 borderRadius: "6px",
+                                                                 border: "none",
+                                                                 fontSize: "11px",
+                                                                 fontWeight: 700,
+                                                                 cursor: "pointer",
+                                                                 background: correlationMode === "gainer" ? "#10b981" : "transparent",
+                                                                 color: correlationMode === "gainer" ? "#ffffff" : "#64748b",
+                                                                 display: "flex",
+                                                                 alignItems: "center",
+                                                                 gap: "6px",
+                                                                 transition: "all 0.2s ease"
+                                                             }}
+                                                         >
+                                                             <TrendingUp size={12} />
+                                                             Gainers (Increased)
+                                                         </button>
+                                                     </div>
+                                                </div>
+                                                <div style={{ fontSize: "11px", color: "#64748b", fontWeight: 500 }}>
+                                                    Showing anomalies based on selected mode
+                                                </div>
+                                            </div>
 
                                             {correlationsLoading ? (
                                                 /* ── LOADER ──────────────────────────── */
@@ -3602,7 +3681,6 @@ const InsightsSignalHub = () => {
                                                                     <th style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Location</th>
                                                                     <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Sales</th>
                                                                     <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>OSA</th>
-                                                                    <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>SOS</th>
                                                                     <th style={{ padding: "8px 12px", textAlign: "center", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Trend</th>
                                                                 </tr>
                                                             </thead>
@@ -3610,7 +3688,6 @@ const InsightsSignalHub = () => {
                                                                 {paginatedCorrelations.map((row, idx) => {
                                                                     const salesUp = (row.salesChange || 0) >= 0;
                                                                     const osaUp = (row.osaChange || 0) >= 0;
-                                                                    const sosUp = (row.sosChange || 0) >= 0;
                                                                     return (
                                                                         <tr key={idx} style={{ borderBottom: "1px solid #e2e8f0" }}>
                                                                             <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
@@ -3674,23 +3751,6 @@ const InsightsSignalHub = () => {
                                                                                         }}>
                                                                                             {osaUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
                                                                                             {osaUp ? "+" : ""}{row.osaChange}pp
-                                                                                        </span>
-                                                                                    )}
-                                                                                </div>
-                                                                            </td>
-                                                                            <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                                                                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                                                                                    <span style={{ fontWeight: 700, color: "#1e293b" }}>
-                                                                                        {row.sos != null ? `${row.sos.toFixed(1)}%` : "-"}
-                                                                                    </span>
-                                                                                    {row.sosChange != null && (
-                                                                                        <span style={{
-                                                                                            fontSize: "9px", fontWeight: 700,
-                                                                                            color: sosUp ? "#16a34a" : "#dc2626",
-                                                                                            display: "flex", alignItems: "center", gap: "2px",
-                                                                                        }}>
-                                                                                            {sosUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
-                                                                                            {sosUp ? "+" : ""}{row.sosChange}pp
                                                                                         </span>
                                                                                     )}
                                                                                 </div>
@@ -3919,7 +3979,6 @@ const InsightsSignalHub = () => {
                                         <ul style={{ margin: "6px 0 0 0", paddingLeft: "20px" }}>
                                             <li><strong>Sales:</strong> Significant revenue increases or decreases exceeding ±15%.</li>
                                             <li><strong>OSA (On-Shelf Availability):</strong> Stock availability changes exceeding ±5 percentage points (pp).</li>
-                                            <li><strong>SOS (Share of Search):</strong> Brand keyword share changes exceeding ±3 percentage points (pp).</li>
                                             <li><strong>Market Share & Search Rank:</strong> Tracked on the trend graph to analyze how availability and search prominence drive overall platform market performance.</li>
                                         </ul>
                                     </div>
@@ -3930,7 +3989,7 @@ const InsightsSignalHub = () => {
                                         </h4>
                                         <p style={{ margin: 0 }}>
                                             Rather than a fixed range, the backend dynamically evaluates multiple rolling candidate periods (including <strong>4-day, 7-day, 12-day, 18-day, 25-day, 30-day, and 40-day windows</strong>) across our database history.
-                                            For each unique combination of Platform, Category, Brand, SKU, and Location, the system automatically selects the specific date range where the absolute change in Sales, OSA, or SOS was the largest.
+                                            For each unique combination of Platform, Category, Brand, SKU, and Location, the system automatically selects the specific date range where the absolute change in Sales or OSA was the largest.
                                         </p>
                                     </div>
 

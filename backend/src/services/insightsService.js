@@ -3436,7 +3436,9 @@ export const getCorrelationsTrend = async (filters) => {
                 p.DATE AS date,
                 SUM(ifNull(toFloat64OrZero(toString(p.Sales)), 0)) AS sales,
                 ROUND(SUM(ifNull(toFloat64OrZero(toString(p.neno_osa)), 0)) * 100.0 /
-                    nullIf(SUM(ifNull(toFloat64OrZero(toString(p.deno_osa)), 0)), 0), 2) AS osa
+                    nullIf(SUM(ifNull(toFloat64OrZero(toString(p.deno_osa)), 0)), 0), 2) AS osa,
+                ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Discount)), 0)), 2) AS promo,
+                ROUND(AVG(ifNull(toFloat64OrZero(toString(p.listing_percent)), 0)), 2) AS listing
             FROM rb_pdp_olap p
             WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
               AND p.Comp_flag IN (0, '0')
@@ -3518,19 +3520,33 @@ export const getCorrelationsTrend = async (filters) => {
             ORDER BY date
         `;
 
-        // ── Query 4: Daily Search Rank from rb_pdp_olap (separate — best_seller_rank may not exist in all DBs) ──
-        const hasBestSellerRank = await checkColumnExists('rb_pdp_olap', 'best_seller_rank');
+        // ── Query 4: Daily Search Rank from rb_kw_olap ──
+        const cleanVal = (val, isAllName) => {
+            if (!val || val === '-' || val.toLowerCase() === 'all' || val.toLowerCase() === isAllName.toLowerCase()) {
+                return '1=1';
+            }
+            return null;
+        };
+
+        const dimCondKwSearchRank = [
+            cleanVal(platform, 'all platforms') || `LOWER(k.platform_name) = '${escapeCH(platform.toLowerCase())}'`,
+            cleanVal(category, 'all categories') || `LOWER(k.keyword_category) = '${escapeCH(category.toLowerCase())}'`,
+            cleanVal(brand, 'all') || `LOWER(k.brand) = '${escapeCH(brand.toLowerCase())}'`,
+            cleanVal(sku, 'all') || `LOWER(k.keyword_search_product) = '${escapeCH(sku.toLowerCase())}'`,
+            cleanVal(location, 'all cities') || (location.toLowerCase() === 'nation' ? `LOWER(k.location_name) = 'nation'` : `${CITY_NORM_EXPR('k.location_name')} = '${escapeCH(location.toLowerCase())}'`),
+        ].join(' AND ');
 
         const searchRankQuery = `
             SELECT
-                p.DATE AS date,
-                ROUND(AVG(nullIf(toFloat64OrZero(toString(p.best_seller_rank)), 0)), 2) AS searchRank
-            FROM rb_pdp_olap p
-            WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
-              AND p.Comp_flag IN (0, '0')
-              AND ${dimCondPdp}
-            GROUP BY p.DATE
-            ORDER BY p.DATE
+                k.DATE AS date,
+                arrayElement(topKIf(1)(toInt32(k.POSITION), toInt32(k.POSITION) > 0), 1) AS searchRank
+            FROM rb_kw_olap k
+            WHERE k.DATE BETWEEN '${startDate}' AND '${endDate}'
+              AND toInt32(k.POSITION) < 40
+              AND toInt32(k.POSITION) > 0
+              AND ${dimCondKwSearchRank}
+            GROUP BY k.DATE
+            ORDER BY k.DATE
         `;
 
         // ── Execute all four queries in parallel ──
@@ -3538,9 +3554,7 @@ export const getCorrelationsTrend = async (filters) => {
             queryClickHouse(salesOsaQuery).catch(err => { console.error('[CorrelationsTrend] salesOsa error:', err.message); return []; }),
             queryClickHouse(sosQuery).catch(err => { console.error('[CorrelationsTrend] sos error:', err.message); return []; }),
             queryClickHouse(marketShareQuery).catch(err => { console.error('[CorrelationsTrend] marketShare error:', err.message); return []; }),
-            hasBestSellerRank
-                ? queryClickHouse(searchRankQuery).catch(err => { console.error('[CorrelationsTrend] searchRank error:', err.message); return []; })
-                : Promise.resolve([]),
+            queryClickHouse(searchRankQuery).catch(err => { console.error('[CorrelationsTrend] searchRank error:', err.message); return []; }),
         ]);
 
         // Build SOS map by date
@@ -3566,6 +3580,8 @@ export const getCorrelationsTrend = async (filters) => {
             date: r.date,
             sales: Number(r.sales) || 0,
             osa: r.osa != null ? Number(r.osa) : null,
+            promo: r.promo != null ? Number(r.promo) : null,
+            listing: r.listing != null ? Number(r.listing) : null,
             sos: sosMap[r.date] ?? null,
             marketShare: msMap[r.date] ?? null,
             searchRank: srMap[r.date] ?? null,
