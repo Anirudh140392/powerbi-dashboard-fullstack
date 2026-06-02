@@ -312,7 +312,6 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
             ${whereClause}
             GROUP BY olap.Product, olap.Product_type, olap.Platform
             ORDER BY total_value DESC
-            LIMIT 100
         `;
 
         console.log('Executing ClickHouse query:', query);
@@ -544,7 +543,6 @@ async function fetchMarketShareByProduct(filters, metricKey) {
               AND web_pid IS NOT NULL AND web_pid != ''
             GROUP BY web_pid, platform
             ORDER BY web_pid_ms DESC
-            LIMIT 500
         `;
 
         const results = await queryClickHouse(query, {});
