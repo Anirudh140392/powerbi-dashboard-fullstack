@@ -46,6 +46,8 @@ export const getPricingKpis = async (req, res) => {
         const filters = {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate,
             platform: req.query.platform,
             location: req.query.location,
             brand: req.query.brand,
@@ -78,6 +80,8 @@ export const getPricingInsights = async (req, res) => {
         const filters = {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate,
             platform: req.query.platform,
             location: req.query.location,
             brand: req.query.brand,
@@ -110,6 +114,8 @@ export const getDimensionOverview = async (req, res) => {
         const filters = {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate,
             platform: req.query.platform,
             location: req.query.location,
             brand: req.query.brand,

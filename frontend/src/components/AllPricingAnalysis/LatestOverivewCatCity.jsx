@@ -90,6 +90,8 @@ const LatestOverivewCatCity = ({
         selectedLocation,
         timeStart,
         timeEnd,
+        compareStart,
+        compareEnd,
         datesInitialized,
         brands: contextBrands,
         platforms: contextPlatforms,
@@ -222,6 +224,12 @@ const LatestOverivewCatCity = ({
                 if (start) params.append('startDate', start);
                 if (end) params.append('endDate', end);
 
+                // Comparison date range
+                const compStart = compareStart ? (typeof compareStart === 'string' ? compareStart : compareStart?.format('YYYY-MM-DD')) : null;
+                const compEnd = compareEnd ? (typeof compareEnd === 'string' ? compareEnd : compareEnd?.format('YYYY-MM-DD')) : null;
+                if (compStart) params.append('compareStartDate', compStart);
+                if (compEnd) params.append('compareEndDate', compEnd);
+
                 const url = `/pricing-analysis/dimension-overview?${params.toString()}`;
                 console.log('[CategoryOverview] Fetching:', url);
                 const response = await axiosInstance.get(url);
@@ -237,7 +245,7 @@ const LatestOverivewCatCity = ({
         };
         fetchData();
         return () => { isMounted = false; };
-    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.dateFrom, advancedFilters.dateTo]);
+    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.dateFrom, advancedFilters.dateTo]);
 
     // Reset pagination when dimension or filters change
     useEffect(() => {
@@ -283,6 +291,12 @@ const LatestOverivewCatCity = ({
             
             if (start) params.append('startDate', start);
             if (end) params.append('endDate', end);
+
+            // Comparison date range for city drilldown
+            const compStart = compareStart ? (typeof compareStart === 'string' ? compareStart : compareStart?.format('YYYY-MM-DD')) : null;
+            const compEnd = compareEnd ? (typeof compareEnd === 'string' ? compareEnd : compareEnd?.format('YYYY-MM-DD')) : null;
+            if (compStart) params.append('compareStartDate', compStart);
+            if (compEnd) params.append('compareEndDate', compEnd);
 
             const url = `/pricing-analysis/dimension-overview?${params.toString()}`;
             const response = await axiosInstance.get(url);
