@@ -487,9 +487,16 @@ async function getPricingKpis(filters = {}) {
             const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
             const startDate = filters.startDate || dayjs().startOf('month').format('YYYY-MM-DD');
 
-            const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
-            const compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
-            const compareStartDate = dayjs(compareEndDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
+            // Comparison period (previous date range)
+            let compareStartDate, compareEndDate;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                compareStartDate = filters.compareStartDate;
+                compareEndDate = filters.compareEndDate;
+            } else {
+                const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
+                compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
+                compareStartDate = dayjs(compareEndDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
+            }
 
             const platform = filters.platform || null;
             const location = filters.location || null;
@@ -688,9 +695,16 @@ async function getPricingInsights(filters = {}) {
             const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
             const startDate = filters.startDate || dayjs().subtract(15, 'days').format('YYYY-MM-DD');
 
-            const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
-            const compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
-            const compareStartDate = dayjs(compareEndDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
+            // Comparison period (previous date range)
+            let compareStartDate, compareEndDate;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                compareStartDate = filters.compareStartDate;
+                compareEndDate = filters.compareEndDate;
+            } else {
+                const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
+                compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
+                compareStartDate = dayjs(compareEndDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
+            }
 
             const platform = filters.platform || null;
             const location = filters.location || null;
@@ -899,9 +913,16 @@ const getDimensionOverview = async (filters = {}) => {
                 isSku ? `p.${f.product}` :
                     (isLocation ? src.cityNormSql : src.prodCatSql);
 
-            const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
-            const compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
-            const compareStartDate = dayjs(compareEndDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
+            // Comparison period (previous date range)
+            let compareStartDate, compareEndDate;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                compareStartDate = filters.compareStartDate;
+                compareEndDate = filters.compareEndDate;
+            } else {
+                const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
+                compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
+                compareStartDate = dayjs(compareEndDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
+            }
 
             const platform = filters.platform || null;
             const location = filters.location || null;
