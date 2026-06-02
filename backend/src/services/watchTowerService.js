@@ -7874,7 +7874,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category })
                 conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
             }
 
-            const query = `SELECT DISTINCT ${src.f.product} as sku FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY sku LIMIT 1000`;
+            const query = `SELECT DISTINCT ${src.f.product} as sku FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY sku`;
             const results = await queryClickHouse(query);
             const skuList = results.map(s => s.sku).filter(s => s && s.trim()).sort();
             return { options: [...skuList] };
@@ -8464,7 +8464,6 @@ const getCompetitionData = async (filters = {}) => {
                 FROM ${src.table}
                 WHERE ${currConds}
                 GROUP BY Product, Brand
-                LIMIT 100
             `),
             queryClickHouse(`
                 SELECT ${src.f.product} as Product,
@@ -11922,7 +11921,7 @@ const getProducts = async (filters = {}) => {
             const catCol = src.f.category;
             conditions.push(`${catCol} IN(${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
-        const query = `SELECT DISTINCT ${src.f.product} as Product FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY Product LIMIT 500`;
+        const query = `SELECT DISTINCT ${src.f.product} as Product FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY Product`;
         const results = await queryClickHouse(query);
         return results.map(r => r.Product).filter(Boolean).sort();
     } catch (error) {
