@@ -322,18 +322,19 @@ export default function NotificationScroller() {
      *   - timeKey: which key in `envTimes` to use for availability time
      */
     const kpiChecks = [
-      { kpi: "OSA",          platformKey: "kpi_osa_platform",    globalKey: "kpi_osa",      levelKey: "pdp",   timeKey: "pdp" },
-      { kpi: "Sales",        platformKey: "kpi_sales_platform",  globalKey: "kpi_sales",    levelKey: "sales", timeKey: "sales" },
-      { kpi: "DOI",          platformKey: "kpi_doi_platform",    globalKey: "kpi_doi",      levelKey: "pdp",   timeKey: "pdp" },
-      { kpi: "SOS",          platformKey: "rb_kw_olap_platform", globalKey: "rb_kw_olap",   levelKey: "kw",    timeKey: "kw" },
-      { kpi: "Market Share", platformKey: "rb_ms_olap_platform", globalKey: "rb_ms_olap",   levelKey: "ms",    timeKey: "ms" },
-      { kpi: "PM",           platformKey: "rb_pm_olap_platform", globalKey: "rb_pm_olap",   levelKey: "pm",    timeKey: "pm" },
+      { kpi: "OSA",          platformKey: "kpi_osa_platform",    globalKey: "kpi_osa",      levelKey: "pdp",   timeKey: "pdp",   pages: ["Business Overview", "Availability Analysis", "Market Coverage"] },
+      { kpi: "Sales",        platformKey: "kpi_sales_platform",  globalKey: "kpi_sales",    levelKey: "sales", timeKey: "sales", pages: ["Business Overview", "Sales Data"] },
+      { kpi: "DOI",          platformKey: "kpi_doi_platform",    globalKey: "kpi_doi",      levelKey: "pdp",   timeKey: "pdp",   pages: ["Availability Analysis", "Inventory Analysis"] },
+      { kpi: "SOS",          platformKey: "rb_kw_olap_platform", globalKey: "rb_kw_olap",   levelKey: "kw",    timeKey: "kw",    pages: ["Business Overview", "Visibility Analysis"] },
+      { kpi: "Market Share", platformKey: "rb_ms_olap_platform", globalKey: "rb_ms_olap",   levelKey: "ms",    timeKey: "ms",    pages: ["Business Overview", "Market Share", "Market Coverage"] },
+      { kpi: "PM",           platformKey: "rb_pm_olap_platform", globalKey: "rb_pm_olap",   levelKey: "pm",    timeKey: "pm",    pages: ["Business Overview", "Performance Marketing"] },
     ];
 
     // Group alerts per platform for cleaner messages
     const platformAlerts = {}; // { platformName: [{ kpi, expectedLevel, lastDate }] }
 
-    kpiChecks.forEach(({ kpi, platformKey, globalKey, levelKey, timeKey }) => {
+    kpiChecks.forEach(({ kpi, platformKey, globalKey, levelKey, timeKey, pages }) => {
+      if (!pages.includes(pageName)) return;
       const expectedTime = envTimes?.[timeKey];
       
       // Skip if current IST time hasn't passed the expected availability time yet
@@ -410,21 +411,23 @@ export default function NotificationScroller() {
     });
 
     // --- DOI Data Availability Alert (consolidated single line) ---
-    const doiPlatforms = effectiveDates?.rb_doi_platforms;
-    if (doiPlatforms && Object.keys(doiPlatforms).length > 0) {
-      const missingDoiPlatforms = Object.entries(doiPlatforms)
-        .filter(([, hasData]) => !hasData)
-        .map(([platform]) => capitalize(platform));
-      if (missingDoiPlatforms.length > 0) {
-        const platformList = missingDoiPlatforms.join(", ");
-        alerts.push(
-          `⚠️ Unable to fetch ${platformList} DOI data from Portal`
-        );
+    if (["Availability Analysis", "Inventory Analysis"].includes(pageName)) {
+      const doiPlatforms = effectiveDates?.rb_doi_platforms;
+      if (doiPlatforms && Object.keys(doiPlatforms).length > 0) {
+        const missingDoiPlatforms = Object.entries(doiPlatforms)
+          .filter(([, hasData]) => !hasData)
+          .map(([platform]) => capitalize(platform));
+        if (missingDoiPlatforms.length > 0) {
+          const platformList = missingDoiPlatforms.join(", ");
+          alerts.push(
+            `⚠️ Unable to fetch ${platformList} DOI data from Portal`
+          );
+        }
       }
     }
 
     return alerts;
-  }, [effectiveDates, maxDate, tableName, dbName]);
+  }, [effectiveDates, maxDate, tableName, dbName, pageName]);
 
   // Combine only active alerts for the marquee
   const message = useMemo(() => {
