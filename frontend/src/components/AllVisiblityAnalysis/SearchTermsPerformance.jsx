@@ -322,7 +322,7 @@ export default function SearchTermsPerformance() {
 
   // Local Filter State
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("Platform");
+  const [activeTab, setActiveTab] = useState("Category");
   const [optionSearch, setOptionSearch] = useState("");
   const [localFilters, setLocalFilters] = useState({ platform: [], category: [], brand: [] });
   const [tempLocalFilters, setTempLocalFilters] = useState({ platform: [], category: [], brand: [] });
@@ -413,12 +413,11 @@ export default function SearchTermsPerformance() {
       }
     };
 
-    loadOptions("platforms", "platforms");
     loadOptions("categories", "categories");
     loadOptions("brands", "brands");
 
     return () => { cancelled = true; };
-  }, [isFilterModalOpen, tempLocalFilters.platform, tempLocalFilters.category, tempLocalFilters.brand, globalPlatform, selectedBrand, selectedCategory, selectedChannel, selectedLocation]);
+  }, [isFilterModalOpen, tempLocalFilters.category, tempLocalFilters.brand, globalPlatform, selectedBrand, selectedCategory, selectedChannel, selectedLocation]);
 
   const toggleRow = useCallback(async (itemName) => {
     setExpandedRows(prev => ({ ...prev, [itemName]: !prev[itemName] }));
@@ -1209,7 +1208,6 @@ export default function SearchTermsPerformance() {
                 {/* Sidebar */}
                 <div style={{ width: 220, borderRight: "1px solid #e2e8f0", padding: "16px 0", background: "#f8fafc", overflowY: "auto" }}>
                   {[
-                    { id: "Platform", label: "Platform" },
                     { id: "Category", label: "Category" },
                     { id: "Brand", label: "Brand" }
                   ].map(tab => (
@@ -1239,7 +1237,7 @@ export default function SearchTermsPerformance() {
                       <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif" }}>{activeTab}</h4>
                       <button
                         onClick={() => {
-                          const keyMap = { "Platform": "platform", "Category": "category", "Brand": "brand" };
+                          const keyMap = { "Category": "category", "Brand": "brand" };
                           setTempLocalFilters(prev => ({ ...prev, [keyMap[activeTab]]: [] }));
                         }}
                         style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b", fontWeight: 600, fontSize: 13, fontFamily: "'Inter', sans-serif" }}
@@ -1250,9 +1248,9 @@ export default function SearchTermsPerformance() {
 
                     {/* Checkbox List with Search */}
                     {(() => {
-                      const keyMap = { "Platform": "platform", "Category": "category", "Brand": "brand" };
-                      const optionMap = { "Platform": filterOptions.platforms, "Category": filterOptions.categories, "Brand": filterOptions.brands };
-                      const loadingMap = { "Platform": optionsLoading.platforms, "Category": optionsLoading.categories, "Brand": optionsLoading.brands };
+                      const keyMap = { "Category": "category", "Brand": "brand" };
+                      const optionMap = { "Category": filterOptions.categories, "Brand": filterOptions.brands };
+                      const loadingMap = { "Category": optionsLoading.categories, "Brand": optionsLoading.brands };
                       
                       const filterKey = keyMap[activeTab];
                       const allOptions = optionMap[activeTab] || [];
