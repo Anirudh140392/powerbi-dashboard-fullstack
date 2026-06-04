@@ -12,6 +12,7 @@ import pidiliteLogo from "../../assets/pidilite.png";
 import marsDmartLogo from "../../assets/mars2.svg";
 import cheffinLogo from "../../assets/cheffin.png";
 import fastrackLogo from "../../assets/Fastrack.png";
+import drlLogo from "../../assets/drl.png";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -142,6 +143,7 @@ const Sidebar = ({
     if (user?.dbName === 'trailytics') return trailLogo;
     if (user?.dbName === 'cheffin') return cheffinLogo;
     if (user?.dbName === 'hm_titan_bags') return fastrackLogo;
+    if (user?.dbName === 'drl') return drlLogo;
     return marsLogo;
   }, [user?.dbName]);
 
@@ -157,6 +159,7 @@ const Sidebar = ({
     if (user?.dbName === 'trailytics') return 'Trailytics Logo';
     if (user?.dbName === 'cheffin') return 'Cheffin Logo';
     if (user?.dbName === 'hm_titan_bags') return 'Fastrack Logo';
+    if (user?.dbName === 'drl') return 'DRL Logo';
     return 'Mars Logo';
   }, [user?.dbName]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -302,7 +305,7 @@ const Sidebar = ({
             justifyContent: 'center',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             width: '100%',
-            height: isCollapsed ? 50 : (user?.dbName === 'mars_petcare' ? 150 : (user?.dbName === 'mamaearth' ? 100 : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags') ? 80 : (user?.dbName === 'sugar' ? 80 : (user?.dbName === 'pidilite' ? 80 : (user?.dbName === 'cheffin' ? 80 : 60)))))),
+            height: isCollapsed ? 50 : (user?.dbName === 'mars_petcare' ? 150 : (user?.dbName === 'mamaearth' ? 100 : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags') ? 80 : (user?.dbName === 'sugar' ? 80 : (user?.dbName === 'pidilite' ? 80 : (user?.dbName === 'cheffin' ? 80 : (user?.dbName === 'drl' ? 80 : 60))))))),
           }}
         >
           <Box
@@ -322,9 +325,9 @@ const Sidebar = ({
                 src={activeLogo}
                 alt={activeLogoAlt}
                 style={{
-                  maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags') ? '80px' : (user?.dbName === 'sugar' ? '80px' : (user?.dbName === 'pidilite' ? '80px' : (user?.dbName === 'cheffin' ? '80px' : '45px')))))),
+                  maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags') ? '80px' : (user?.dbName === 'sugar' ? '80px' : (user?.dbName === 'pidilite' ? '80px' : (user?.dbName === 'cheffin' ? '80px' : (user?.dbName === 'drl' ? '80px' : '45px'))))))),
                   width: isCollapsed ? '100%' : 'auto',
-                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags') ? '220px' : (user?.dbName === 'sugar' ? '220px' : (user?.dbName === 'pidilite' ? '220px' : (user?.dbName === 'cheffin' ? '220px' : '180px')))))),
+                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags') ? '220px' : (user?.dbName === 'sugar' ? '220px' : (user?.dbName === 'pidilite' ? '220px' : (user?.dbName === 'cheffin' ? '220px' : (user?.dbName === 'drl' ? '220px' : '180px'))))))),
                   objectFit: 'contain',
                   padding: '0',
                   display: 'block',
