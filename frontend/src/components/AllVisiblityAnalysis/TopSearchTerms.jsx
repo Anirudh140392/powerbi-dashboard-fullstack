@@ -164,7 +164,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
     const [skuLoading, setSkuLoading] = useState({}); // { [keyword]: boolean }
     const [cityLoading, setCityLoading] = useState({}); // { [keyword_sku]: boolean }
 
-    const { platform, location, timeStart, timeEnd, compareStart, compareEnd, selectedKeyword, selectedBrand, visibilityOwnBrandsOnly } = useContext(FilterContext) || {};
+    const { platform, location, timeStart, timeEnd, compareStart, compareEnd, selectedKeyword, selectedBrand, visibilityOwnBrandsOnly, selectedRank } = useContext(FilterContext) || {};
 
     // Select specific data based on tab filter
     // Use API data (already filtered by backend based on filter param)
@@ -254,7 +254,8 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                     keyword,
                     platform,
                     location: (location && location !== 'All') ? location.toLowerCase() : 'All',
-                    ownBrandsOnly: visibilityOwnBrandsOnly
+                    ownBrandsOnly: visibilityOwnBrandsOnly,
+                    rank: selectedRank || 'All'
                 };
                 if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
                 if (timeEnd) params.endDate = dayjs(timeEnd).format('YYYY-MM-DD');
@@ -290,6 +291,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                     sku: skuName,
                     platform,
                     location: (location && location !== 'All') ? location.toLowerCase() : 'All',
+                    rank: selectedRank || 'All'
                 };
                 if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
                 if (timeEnd) params.endDate = dayjs(timeEnd).format('YYYY-MM-DD');

@@ -28,7 +28,7 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
     const [cityDrilldownData, setCityDrilldownData] = useState({}); // { [keyword_sku]: cities[] }
     const [cityLoading, setCityLoading] = useState({}); // { [keyword_sku]: boolean }
 
-    const { platform, location, timeStart, timeEnd, compareStart, compareEnd, selectedBrand } = useContext(FilterContext) || {};
+    const { platform, location, timeStart, timeEnd, compareStart, compareEnd, selectedBrand, selectedRank } = useContext(FilterContext) || {};
 
     // Reset page and expanded state when tab changes
     useMemo(() => {
@@ -70,7 +70,8 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
                     startDate: dayjs(timeStart).format('YYYY-MM-DD'),
                     endDate: dayjs(timeEnd).format('YYYY-MM-DD'),
                     compareStartDate: compareStart ? dayjs(compareStart).format('YYYY-MM-DD') : undefined,
-                    compareEndDate: compareEnd ? dayjs(compareEnd).format('YYYY-MM-DD') : undefined
+                    compareEndDate: compareEnd ? dayjs(compareEnd).format('YYYY-MM-DD') : undefined,
+                    rank: selectedRank || 'All'
                 });
                 setCityDrilldownData(prev => ({ ...prev, [skuId]: response.cities || [] }));
             } catch (err) {

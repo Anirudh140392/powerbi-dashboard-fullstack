@@ -3089,7 +3089,7 @@ class VisibilityService {
             const ranksArray = Array.isArray(rank) ? rank : [rank];
             const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
             if (!isNaN(maxRank) && maxRank > 0) {
-                rankCondition = ` AND POSITION <= ${maxRank}`;
+                rankCondition = ` AND toInt32(POSITION) <= ${maxRank} AND toInt32(POSITION) > 0`;
             }
         }
 
@@ -3183,7 +3183,7 @@ class VisibilityService {
             const ranksArray = Array.isArray(rank) ? rank : [rank];
             const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
             if (!isNaN(maxRank) && maxRank > 0) {
-                rankCondition = ` AND POSITION <= ${maxRank}`;
+                rankCondition = ` AND toInt32(POSITION) <= ${maxRank} AND toInt32(POSITION) > 0`;
             }
         }
 
