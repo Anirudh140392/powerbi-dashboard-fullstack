@@ -1160,3 +1160,121 @@ export const downloadPdpReport = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+/**
+ * Preview PDP Report data (paginated JSON)
+ * Returns the same data as downloadPdpReport but as JSON with pagination
+ */
+export const previewPdpReport = async (req, res) => {
+    try {
+        const hasTable = await checkTableExists('rb_pdp_week');
+        if (!hasTable) {
+            return res.status(400).json({ error: 'Table rb_pdp_week does not exist for this database.' });
+        }
+
+        const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
+        const hasPortfolio = skuPlatCols.has('portfolio');
+
+        const { platforms, locations, pincodes, brands, categories, skus, webPids, dates, startDate, endDate } = req.query;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
+        const offset = (page - 1) * limit;
+
+        const conditions = [];
+
+        const addFilter = (column, value) => {
+            if (!value || value === 'All' || value.startsWith('All ') || value.trim() === '') return;
+            const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''")}'`).join(', ');
+            conditions.push(`${column} IN (${items})`);
+        };
+
+        addFilter('pdp.platform_name', platforms);
+        addFilter('pdp.location_name', locations);
+
+        if (pincodes && pincodes !== 'All' && pincodes.trim() !== '') {
+            const items = pincodes.split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v)).join(', ');
+            if (items) {
+                conditions.push(`pdp.pincode IN (${items})`);
+            }
+        }
+
+        addFilter('pdp.brand_name', brands);
+        addFilter('pdp.brand_category_name', categories);
+        addFilter('pdp.sku_name', skus);
+        addFilter('pdp.web_pid', webPids);
+
+        if (startDate && endDate) {
+            conditions.push(`toDate(pdp.pdp_crawl_date) >= '${startDate}' AND toDate(pdp.pdp_crawl_date) <= '${endDate}'`);
+        } else if (dates && dates !== 'All' && dates.trim() !== '') {
+            const formattedDates = dates.split(',').map(d => `'${d.trim()}'`).join(', ');
+            conditions.push(`toDate(pdp.pdp_crawl_date) IN (${formattedDates})`);
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        // Count query (without join to be faster, use same conditions but on pdp alias)
+        const countQuery = `SELECT count() as total FROM rb_pdp_week AS pdp ${whereClause}`;
+        const countResult = await queryClickHouse(countQuery);
+        const totalCount = countResult && countResult[0] ? parseInt(countResult[0].total, 10) : 0;
+
+        let selectPortfolio = "'' AS portfolio";
+        let joinClause = "";
+        if (hasPortfolio) {
+            selectPortfolio = "sp.portfolio AS portfolio";
+            joinClause = "LEFT JOIN rb_sku_platform AS sp ON (pdp.web_pid = sp.web_pid)";
+        }
+
+        const query = `
+            SELECT 
+                pdp.platform_name AS platform_name,
+                pdp.location_name AS location_name,
+                pdp.pincode AS pincode,
+                ${selectPortfolio},
+                pdp.brand_name AS brand_name,
+                pdp.brand_category_name AS brand_category_name,
+                pdp.sku_name AS sku_name,
+                pdp.web_pid AS web_pid,
+                pdp.osa_remark AS osa_remark,
+                pdp.price_rp AS price_rp,
+                pdp.price_sp AS price_sp,
+                pdp.price_variation AS price_variation,
+                formatDateTime(pdp.pdp_crawl_date, '%Y-%m-%d') AS date,
+                pdp.year AS year
+            FROM rb_pdp_week AS pdp
+            ${joinClause}
+            ${whereClause}
+            ORDER BY pdp.pdp_crawl_date DESC
+            LIMIT ${limit} OFFSET ${offset}
+        `;
+
+        const rawData = await queryClickHouse(query);
+
+        const rows = rawData.map(row => ({
+            "Platform Name": row.platform_name || '',
+            "Location": row.location_name || '',
+            "Pincode": row.pincode || '',
+            "Portfolio": row.portfolio || '',
+            "Brand Name": row.brand_name || '',
+            "Brand Category": row.brand_category_name || '',
+            "SKU Name": row.sku_name || '',
+            "Web Pid": row.web_pid || '',
+            "OSA Remark": row.osa_remark || '',
+            "Price RP": row.price_rp !== null && row.price_rp !== undefined ? Number(row.price_rp) : '',
+            "Price SP": row.price_sp !== null && row.price_sp !== undefined ? Number(row.price_sp) : '',
+            "Price Variation": row.price_variation !== null && row.price_variation !== undefined ? Number(row.price_variation) : '',
+            "Date": row.date || '',
+            "Year": row.year !== null && row.year !== undefined ? Number(row.year) : ''
+        }));
+
+        res.json({
+            rows,
+            totalCount,
+            page,
+            limit,
+            totalPages: Math.ceil(totalCount / limit)
+        });
+    } catch (error) {
+        console.error('[previewPdpReport] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};

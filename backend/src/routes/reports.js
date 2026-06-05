@@ -1,4 +1,4 @@
-import { getReportFilterOptions, downloadReport, getAvailableReportTypes, getReportBuilderOptions, getPdpReportFilters, downloadPdpReport } from '../controllers/reportsController.js';
+import { getReportFilterOptions, downloadReport, getAvailableReportTypes, getReportBuilderOptions, getPdpReportFilters, downloadPdpReport, previewPdpReport } from '../controllers/reportsController.js';
 
 export default (app) => {
     app.get('/api/reports/filter-options', getReportFilterOptions);
@@ -7,4 +7,6 @@ export default (app) => {
     app.get('/api/reports/download', downloadReport);
     app.get('/api/reports/pdp-report-filters', getPdpReportFilters);
     app.get('/api/reports/download-pdp-report', downloadPdpReport);
+    app.get('/api/reports/preview-pdp-report', previewPdpReport);
 };
+

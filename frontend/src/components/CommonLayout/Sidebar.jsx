@@ -537,7 +537,7 @@ const Sidebar = ({
           </>
         )}
 
-        <Box sx={{
+        {user?.dbName !== 'emami' && (<Box sx={{
           display: 'flex',
           flexDirection: isCollapsed ? 'column' : 'row',
           gap: isCollapsed ? 1 : 3,
@@ -625,10 +625,11 @@ const Sidebar = ({
             );
           })}
         </Box>
+        )}
       </Box>
 
       {/* Platform Section: Active Card & Carousel */}
-      {selectedChannel && selectedChannel !== 'All' && platforms.length > 0 && !isCollapsed && (
+      {user?.dbName !== 'emami' && selectedChannel && selectedChannel !== 'All' && platforms.length > 0 && !isCollapsed && (
         <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
 
           {/* Active Platform Card */}
@@ -842,7 +843,7 @@ const Sidebar = ({
       )}
 
       {/* Collapsed view for platform */}
-      {selectedChannel && selectedChannel !== 'All' && platforms.length > 0 && isCollapsed && (
+      {user?.dbName !== 'emami' && selectedChannel && selectedChannel !== 'All' && platforms.length > 0 && isCollapsed && (
         <Box sx={{ py: 1.5, display: 'flex', justifyContent: 'center', borderBottom: "1px solid rgba(0, 0, 0, 0.04)" }}>
           {selectedPlatform && selectedPlatform !== 'All' && (
             <Tooltip title={selectedPlatform ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1) : ''} placement="right">
