@@ -944,3 +944,219 @@ export const getAvailableReportTypes = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+/**
+ * Get filter options for Download PDP Report page
+ */
+export const getPdpReportFilters = async (req, res) => {
+    try {
+        const hasTable = await checkTableExists('rb_pdp_week');
+        if (!hasTable) {
+            return res.status(400).json({ error: 'Table rb_pdp_week does not exist for this database.' });
+        }
+
+        const { platform, location, brand, brandCategory, pincode, sku, webPid, date, startDate, endDate } = req.query;
+        const cacheKey = generateCacheKey('pdp_report_filters_v3', req.query);
+
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            const buildWhere = (excludeField) => {
+                const conditions = [];
+
+                const addStringInClause = (column, value, targetField) => {
+                    if (excludeField === targetField) return;
+                    if (!value || value === 'All' || value.startsWith('All ') || value.trim() === '') return;
+                    const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+                    conditions.push(`lower(${column}) IN (${items})`);
+                };
+
+                const addNumericInClause = (column, value, targetField) => {
+                    if (excludeField === targetField) return;
+                    if (!value || value === 'All' || value.startsWith('All ') || value.trim() === '') return;
+                    const items = value.split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v)).join(', ');
+                    if (items) {
+                        conditions.push(`${column} IN (${items})`);
+                    }
+                };
+
+                const addDateInClause = (column, value, targetField) => {
+                    if (excludeField === targetField) return;
+
+                    if (startDate && endDate) {
+                        conditions.push(`toDate(${column}) >= '${startDate}' AND toDate(${column}) <= '${endDate}'`);
+                        return;
+                    }
+
+                    if (!value || value === 'All' || value.startsWith('All ') || value.trim() === '') return;
+                    const items = value.split(',').map(d => `'${d.trim()}'`).join(', ');
+                    conditions.push(`toDate(${column}) IN (${items})`);
+                };
+
+                addStringInClause('platform_name', platform, 'platform');
+                addStringInClause('location_name', location, 'location');
+                addNumericInClause('pincode', pincode, 'pincode');
+                addStringInClause('brand_name', brand, 'brand');
+                addStringInClause('brand_category_name', brandCategory, 'brandCategory');
+                addStringInClause('sku_name', sku, 'sku');
+                addStringInClause('web_pid', webPid, 'webPid');
+                addDateInClause('pdp_crawl_date', date, 'date');
+
+                return conditions.length > 0 ? ' AND ' + conditions.join(' AND ') : '';
+            };
+
+            const platformQuery = `SELECT DISTINCT platform_name FROM rb_pdp_week WHERE platform_name != '' AND platform_name IS NOT NULL ${buildWhere('platform')} ORDER BY platform_name`;
+            const locationQuery = `SELECT DISTINCT location_name FROM rb_pdp_week WHERE location_name != '' AND location_name IS NOT NULL ${buildWhere('location')} ORDER BY location_name`;
+            const pincodeQuery = `SELECT DISTINCT pincode FROM rb_pdp_week WHERE pincode IS NOT NULL ${buildWhere('pincode')} ORDER BY pincode`;
+            const brandQuery = `SELECT DISTINCT brand_name FROM rb_pdp_week WHERE brand_name != '' AND brand_name IS NOT NULL ${buildWhere('brand')} ORDER BY brand_name`;
+            const categoryQuery = `SELECT DISTINCT brand_category_name FROM rb_pdp_week WHERE brand_category_name != '' AND brand_category_name IS NOT NULL ${buildWhere('brandCategory')} ORDER BY brand_category_name`;
+            const skuQuery = `SELECT DISTINCT sku_name FROM rb_pdp_week WHERE sku_name != '' AND sku_name IS NOT NULL ${buildWhere('sku')} ORDER BY sku_name LIMIT 10000`;
+            const webPidQuery = `SELECT DISTINCT web_pid FROM rb_pdp_week WHERE web_pid != '' AND web_pid IS NOT NULL ${buildWhere('webPid')} ORDER BY web_pid LIMIT 10000`;
+            const dateQuery = `SELECT DISTINCT toDate(pdp_crawl_date) as DateStr FROM rb_pdp_week WHERE pdp_crawl_date IS NOT NULL ${buildWhere('date')} ORDER BY DateStr DESC`;
+
+            const [platforms, locations, pincodes, brands, categories, skus, webPids, dates] = await Promise.all([
+                queryClickHouse(platformQuery),
+                queryClickHouse(locationQuery),
+                queryClickHouse(pincodeQuery),
+                queryClickHouse(brandQuery),
+                queryClickHouse(categoryQuery),
+                queryClickHouse(skuQuery),
+                queryClickHouse(webPidQuery),
+                queryClickHouse(dateQuery)
+            ]);
+
+            const getColVal = (row) => row ? Object.values(row)[0] : null;
+            const uniqueMap = (arr) => [...new Set(arr.map(getColVal).filter(v => v !== null && v !== ''))];
+            const formatDate = (dateStr) => {
+                if (!dateStr) return '';
+                return dayjs(dateStr).format('YYYY-MM-DD');
+            };
+
+            return {
+                platforms: uniqueMap(platforms),
+                locations: uniqueMap(locations),
+                pincodes: uniqueMap(pincodes),
+                brands: uniqueMap(brands),
+                categories: uniqueMap(categories),
+                skus: uniqueMap(skus),
+                webPids: uniqueMap(webPids),
+                dates: [...new Set(dates.map(getColVal).filter(Boolean).map(formatDate))]
+            };
+        }, CACHE_TTL.METRICS);
+
+        res.json(data);
+    } catch (error) {
+        console.error('[getPdpReportFilters] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Download PDP Report Excel
+ */
+export const downloadPdpReport = async (req, res) => {
+    try {
+        const hasTable = await checkTableExists('rb_pdp_week');
+        if (!hasTable) {
+            return res.status(400).json({ error: 'Table rb_pdp_week does not exist for this database.' });
+        }
+
+        const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
+        const hasPortfolio = skuPlatCols.has('portfolio');
+
+        const { platforms, locations, pincodes, brands, categories, skus, webPids, dates, startDate, endDate } = req.query;
+
+        const conditions = [];
+
+        const addFilter = (column, value) => {
+            if (!value || value === 'All' || value.startsWith('All ') || value.trim() === '') return;
+            const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''")}'`).join(', ');
+            conditions.push(`${column} IN (${items})`);
+        };
+
+        addFilter('pdp.platform_name', platforms);
+        addFilter('pdp.location_name', locations);
+        
+        if (pincodes && pincodes !== 'All' && pincodes.trim() !== '') {
+            const items = pincodes.split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v)).join(', ');
+            if (items) {
+                conditions.push(`pdp.pincode IN (${items})`);
+            }
+        }
+        
+        addFilter('pdp.brand_name', brands);
+        addFilter('pdp.brand_category_name', categories);
+        addFilter('pdp.sku_name', skus);
+        addFilter('pdp.web_pid', webPids);
+
+        if (startDate && endDate) {
+            conditions.push(`toDate(pdp.pdp_crawl_date) >= '${startDate}' AND toDate(pdp.pdp_crawl_date) <= '${endDate}'`);
+        } else if (dates && dates !== 'All' && dates.trim() !== '') {
+            const formattedDates = dates.split(',').map(d => `'${d.trim()}'`).join(', ');
+            conditions.push(`toDate(pdp.pdp_crawl_date) IN (${formattedDates})`);
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        let selectPortfolio = "'' AS portfolio";
+        let joinClause = "";
+        if (hasPortfolio) {
+            selectPortfolio = "sp.portfolio AS portfolio";
+            joinClause = "LEFT JOIN rb_sku_platform AS sp ON (pdp.web_pid = sp.web_pid)";
+        }
+
+        const query = `
+            SELECT 
+                pdp.platform_name AS platform_name,
+                pdp.location_name AS location_name,
+                pdp.pincode AS pincode,
+                ${selectPortfolio},
+                pdp.brand_name AS brand_name,
+                pdp.brand_category_name AS brand_category_name,
+                pdp.sku_name AS sku_name,
+                pdp.web_pid AS web_pid,
+                pdp.osa_remark AS osa_remark,
+                pdp.price_rp AS price_rp,
+                pdp.price_sp AS price_sp,
+                pdp.price_variation AS price_variation,
+                formatDateTime(pdp.pdp_crawl_date, '%Y-%m-%d') AS date,
+                pdp.year AS year
+            FROM rb_pdp_week AS pdp
+            ${joinClause}
+            ${whereClause}
+            ORDER BY pdp.pdp_crawl_date DESC
+            LIMIT 50000
+        `;
+
+        const rawData = await queryClickHouse(query);
+
+        const finalData = rawData.map(row => ({
+            "Platform Name": row.platform_name || '',
+            "Location": row.location_name || '',
+            "Pincode": row.pincode || '',
+            "Portfolio": row.portfolio || '',
+            "Brand Name": row.brand_name || '',
+            "Brand Category": row.brand_category_name || '',
+            "SKU Name": row.sku_name || '',
+            "Web Pid": row.web_pid || '',
+            "OSA Remark": row.osa_remark || '',
+            "Price RP": row.price_rp !== null && row.price_rp !== undefined ? Number(row.price_rp) : '',
+            "Price SP": row.price_sp !== null && row.price_sp !== undefined ? Number(row.price_sp) : '',
+            "Price Variation": row.price_variation !== null && row.price_variation !== undefined ? Number(row.price_variation) : '',
+            "Date": row.date || '',
+            "Year": row.year !== null && row.year !== undefined ? Number(row.year) : ''
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(finalData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "PDP Report");
+
+        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        const fileName = `PDP_Report_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+        
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buffer);
+    } catch (error) {
+        console.error('[downloadPdpReport] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};

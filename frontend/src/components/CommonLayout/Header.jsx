@@ -48,6 +48,7 @@ const ROUTE_TABLE_MAP = {
   "/inventory": "rb_pdp_olap",
   "/content-score": "tb_content_score_data",
   "/scheduled-reports": "rb_pdp_olap",
+  "/download-report": "rb_pdp_week",
   "/geo-intelligence": "rb_pdp_olap",
   "/insights": "rb_pdp_olap",
   "/sales": "rb_pdp_olap",
@@ -3919,7 +3920,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
             </IconButton>
 
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              {!hideFilters && location.pathname !== "/scheduled-reports" && (
+              {!hideFilters && location.pathname !== "/scheduled-reports" && location.pathname !== "/download-report" && (
                 <IconButton
                   size="small"
                   onClick={() => setIsExpanded(!isExpanded)}
@@ -4022,7 +4023,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
 
         {/* FILTERS CONTAINER */}
         <AnimatePresence>
-          {!hideFilters && isExpanded && location.pathname !== "/scheduled-reports" && (
+          {!hideFilters && isExpanded && location.pathname !== "/scheduled-reports" && location.pathname !== "/download-report" && (
             <Box
               component={motion.div}
               initial={{ opacity: 0, height: 0 }}
@@ -4494,7 +4495,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
 
       {/* ---------------- SECOND ROW ---------------- */}
       <AnimatePresence>
-        {!hideFilters && isExpanded && location.pathname !== "/scheduled-reports" && (
+        {!hideFilters && isExpanded && location.pathname !== "/scheduled-reports" && location.pathname !== "/download-report" && (
           <Box
             component={motion.div}
             initial={{ opacity: 0, height: 0 }}

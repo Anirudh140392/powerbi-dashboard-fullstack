@@ -63,3 +63,34 @@ export const fetchReportBuilderOptions = async () => {
         return {};
     }
 };
+
+export const fetchPdpReportFilters = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/reports/pdp-report-filters", { params: formatParams(params) });
+        return response.data;
+    } catch (error) {
+        console.error("fetchPdpReportFilters error:", error);
+        throw error;
+    }
+};
+
+export const downloadPdpReport = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/reports/download-pdp-report", {
+            params: formatParams(params),
+            responseType: 'blob',
+            timeout: 10 * 60 * 1000,
+        });
+        if (response.status === 204) {
+            const err = new Error("No Content");
+            err.status = 204;
+            throw err;
+        }
+        return response.data;
+    } catch (error) {
+        if (error.status !== 204) {
+            console.error("downloadPdpReport error:", error);
+        }
+        throw error;
+    }
+};
