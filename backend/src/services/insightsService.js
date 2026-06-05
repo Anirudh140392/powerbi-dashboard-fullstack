@@ -11,10 +11,11 @@ const isAllowedCity = (city) => {
     // Special mapping for common variants to ensure they pass the filter
     if (lower === 'gurgaon') return true;
     if (lower === 'bangalore') return true;
+    if (lower === 'national') return true;
     return ALLOWED_CITIES_LOWER.includes(lower);
 };
 
-const CITY_NORM_EXPR = (col) => `multiIf(LOWER(${col}) IN ('gurgaon','gurugram'), 'gurugram', LOWER(${col}) IN ('bangalore','bengaluru'), 'bengaluru', LOWER(${col}))`;
+const CITY_NORM_EXPR = (col) => `multiIf(LOWER(${col}) IN ('gurgaon','gurugram'), 'gurugram', LOWER(${col}) IN ('bangalore','bengaluru'), 'bengaluru', LOWER(${col}) IN ('nation','national'), 'nation', LOWER(${col}))`;
 
 
 const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
@@ -222,20 +223,29 @@ export const getInsightsData = async (filters) => {
         ),
         ms_gap AS (
             SELECT c.city, c.platform, c.category, c.group_brand, c.item_name,
+                   c.sku_ms AS sku_ms,
                    ifNull(c.sku_ms, 0) - ifNull(p.sku_ms, 0) AS gap
             FROM ms_sku_curr c
             LEFT JOIN ms_sku_prev p ON c.city = p.city AND c.platform = p.platform AND c.category = p.category AND c.item_name = p.item_name
         ),
         our_impacted AS (
-            SELECT city, platform, category, argMin(item_name, gap) AS impacted_sku
+            SELECT city, platform, category,
+                   multiIf(
+                       argMinIf(item_name, gap, gap < 0) != '', argMinIf(item_name, gap, gap < 0),
+                       argMax(item_name, sku_ms)
+                   ) AS impacted_sku
             FROM ms_gap
-            WHERE LOWER(trim(replaceRegexpAll(group_brand, '[^a-zA-Z0-9 ]', ''))) = '${brandLabel.toLowerCase()}' AND gap < 0
+            WHERE LOWER(trim(replaceRegexpAll(group_brand, '[^a-zA-Z0-9 ]', ''))) = '${brandLabel.toLowerCase()}'
             GROUP BY city, platform, category
         ),
         comp_gainer AS (
-            SELECT city, platform, category, argMax(item_name, gap) AS comp_sku
+            SELECT city, platform, category,
+                   multiIf(
+                       argMaxIf(item_name, gap, gap > 0) != '', argMaxIf(item_name, gap, gap > 0),
+                       argMax(item_name, sku_ms)
+                   ) AS comp_sku
             FROM ms_gap
-            WHERE LOWER(trim(replaceRegexpAll(group_brand, '[^a-zA-Z0-9 ]', ''))) != '${brandLabel.toLowerCase()}' AND gap > 0
+            WHERE LOWER(trim(replaceRegexpAll(group_brand, '[^a-zA-Z0-9 ]', ''))) != '${brandLabel.toLowerCase()}'
             GROUP BY city, platform, category
         ),
         ` : `
@@ -389,7 +399,7 @@ export const getInsightsData = async (filters) => {
                     LOWER(platform) AS platform,
                     COUNT(DISTINCT concat(toString(pincode), merchant_name)) AS totalDarkStores
                 FROM rb_location_darkstore
-                WHERE pf_id IN (4, 6, 7)
+                WHERE pf_id IN (SELECT pf_id FROM rb_platform WHERE status = 1)
                   AND status IN ('1', '2')
                   AND ${buildCHCondition(filters.platform, 'platform')}
                   AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
@@ -1509,7 +1519,7 @@ export const getInsightsData = async (filters) => {
                     LOWER(platform) AS platform,
                     COUNT(DISTINCT concat(toString(pincode), merchant_name)) AS total_stores
                 FROM rb_location_darkstore
-                WHERE pf_id IN (4, 6, 7)
+                WHERE pf_id IN (SELECT pf_id FROM rb_platform WHERE status = 1)
                   AND status IN ('1', '2')
                   AND ${buildCHCondition(filters.platform, 'platform')}
                   AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
@@ -1577,7 +1587,7 @@ export const getInsightsData = async (filters) => {
                     COUNT(DISTINCT concat(toString(pincode), merchant_name)) AS newStoreCount,
                     MIN(store_first_seen) AS earliestSeen
                 FROM rb_location_darkstore
-                WHERE pf_id IN (4, 6, 7)
+                WHERE pf_id IN (SELECT pf_id FROM rb_platform WHERE status = 1)
                   AND status IN ('1', '2')
                   AND toDate(store_first_seen) BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${buildCHCondition(filters.platform, 'platform')}

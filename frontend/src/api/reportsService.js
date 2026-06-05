@@ -94,3 +94,17 @@ export const downloadPdpReport = async (params = {}) => {
         throw error;
     }
 };
+
+export const previewPdpReport = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/reports/preview-pdp-report", {
+            params: formatParams(params),
+            timeout: 2 * 60 * 1000,
+        });
+        return response.data;
+    } catch (error) {
+        console.error("previewPdpReport error:", error);
+        throw error;
+    }
+};
+
