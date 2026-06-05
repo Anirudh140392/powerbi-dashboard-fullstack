@@ -47,6 +47,7 @@ const Updates = () => {
         { label: "Content Analysis", path: "/content-score", showOnlyForDb: ['mars'] },
         { label: "Inventory Analysis", path: "/inventory", hideForDb: ['mamaearth', 'boat'] },
         { label: "Scheduled Reports", path: "/scheduled-reports" },
+        { label: "Download Report", path: "/download-report", showOnlyForDb: ['emami', 'godrej', 'pidilite', 'prestige', 'sugar'] },
         { label: "India Overview", path: "/geo-intelligence" },
         { label: "Category RCA", path: "/category-rca" },
         { label: "Portfolio Analysis", path: "/volume-cohort" },

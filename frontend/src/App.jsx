@@ -24,6 +24,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import LoginPage from "./pages/Login/LoginPage";
 import InventeryConceptMains from "./pages/InventeryConcept/InventeryConceptMains";
 import ScheduledReports from "./pages/Reports/ScheduledReports";
+import DownloadReport from "./pages/Reports/DownloadReport";
 import GeoIntelligenceMap from "./pages/GeoAnalysis/GeoIntelligenceMap.jsx";
 import Insights from "./pages/Insights/Insights";
 import CompareSkuMatrix from "./components/ControlTower/WatchTower/CompareSkuMatrix";
@@ -150,6 +151,12 @@ function AppContent() {
             <Route path="/scheduled-reports" element={
               <ProtectedRoute>
                 <ScheduledReports />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/download-report" element={
+              <ProtectedRoute>
+                <DownloadReport />
               </ProtectedRoute>
             } />
 
