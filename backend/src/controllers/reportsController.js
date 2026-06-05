@@ -956,7 +956,7 @@ export const getPdpReportFilters = async (req, res) => {
         }
 
         const { platform, location, brand, brandCategory, pincode, sku, webPid, date, startDate, endDate } = req.query;
-        const cacheKey = generateCacheKey('pdp_report_filters_v3', req.query);
+        const cacheKey = generateCacheKey('pdp_report_filters_v4', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
             const buildWhere = (excludeField) => {
@@ -1011,8 +1011,9 @@ export const getPdpReportFilters = async (req, res) => {
             const skuQuery = `SELECT DISTINCT sku_name FROM rb_pdp_week WHERE sku_name != '' AND sku_name IS NOT NULL ${buildWhere('sku')} ORDER BY sku_name LIMIT 10000`;
             const webPidQuery = `SELECT DISTINCT web_pid FROM rb_pdp_week WHERE web_pid != '' AND web_pid IS NOT NULL ${buildWhere('webPid')} ORDER BY web_pid LIMIT 10000`;
             const dateQuery = `SELECT DISTINCT toDate(pdp_crawl_date) as DateStr FROM rb_pdp_week WHERE pdp_crawl_date IS NOT NULL ${buildWhere('date')} ORDER BY DateStr DESC`;
+            const platformMaxDatesQuery = `SELECT platform_name, formatDateTime(max(pdp_crawl_date), '%Y-%m-%d') as maxDate FROM rb_pdp_week WHERE platform_name != '' AND platform_name IS NOT NULL GROUP BY platform_name`;
 
-            const [platforms, locations, pincodes, brands, categories, skus, webPids, dates] = await Promise.all([
+            const [platforms, locations, pincodes, brands, categories, skus, webPids, dates, platformMaxDates] = await Promise.all([
                 queryClickHouse(platformQuery),
                 queryClickHouse(locationQuery),
                 queryClickHouse(pincodeQuery),
@@ -1020,7 +1021,8 @@ export const getPdpReportFilters = async (req, res) => {
                 queryClickHouse(categoryQuery),
                 queryClickHouse(skuQuery),
                 queryClickHouse(webPidQuery),
-                queryClickHouse(dateQuery)
+                queryClickHouse(dateQuery),
+                queryClickHouse(platformMaxDatesQuery)
             ]);
 
             const getColVal = (row) => row ? Object.values(row)[0] : null;
@@ -1030,6 +1032,15 @@ export const getPdpReportFilters = async (req, res) => {
                 return dayjs(dateStr).format('YYYY-MM-DD');
             };
 
+            const maxDatesMap = {};
+            if (platformMaxDates && platformMaxDates.length > 0) {
+                platformMaxDates.forEach(row => {
+                    if (row.platform_name && row.maxDate) {
+                        maxDatesMap[row.platform_name] = row.maxDate;
+                    }
+                });
+            }
+
             return {
                 platforms: uniqueMap(platforms),
                 locations: uniqueMap(locations),
@@ -1038,7 +1049,8 @@ export const getPdpReportFilters = async (req, res) => {
                 categories: uniqueMap(categories),
                 skus: uniqueMap(skus),
                 webPids: uniqueMap(webPids),
-                dates: [...new Set(dates.map(getColVal).filter(Boolean).map(formatDate))]
+                dates: [...new Set(dates.map(getColVal).filter(Boolean).map(formatDate))],
+                platformMaxDates: maxDatesMap
             };
         }, CACHE_TTL.METRICS);
 
