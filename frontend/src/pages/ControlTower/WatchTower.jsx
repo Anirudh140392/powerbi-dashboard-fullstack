@@ -39,6 +39,7 @@ import CategoryTable from "../../components/ControlTower/WatchTower/CategoryTabl
 import SKUTable from "../../components/ControlTower/WatchTower/SKUTable";
 import MyTrendsDrawer from "../../components/ControlTower/WatchTower/MyTrendsDrawer";
 import CardMetric from "../../components/ControlTower/WatchTower/CardMetric";
+import SalesOverview from "../../components/ControlTower/WatchTower/SalesOverview";
 import {
   allCategories,
   allProducts,
@@ -838,6 +839,8 @@ export default function WatchTower() {
         >
           <TopActionsLayoutsShowcase />
         </Box> */}
+        <SalesOverview />
+
         {/* Category / SKU Tabs */}
         <Box
           sx={{

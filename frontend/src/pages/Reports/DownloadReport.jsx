@@ -10,6 +10,7 @@ import {
   Refresh as RefreshIcon,
   HelpOutline as HelpOutlineIcon,
   Visibility as VisibilityIcon,
+  FilterAlt as FilterAltIcon,
 } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
@@ -36,7 +37,7 @@ export default function DownloadReport() {
 
   const [filterOptions, setFilterOptions] = useState({
     platforms: [], locations: [], pincodes: [], brands: [],
-    categories: [], skus: [], webPids: [], dates: [],
+    categories: [], skus: [], webPids: [], dates: [], platformMaxDates: {},
   });
 
   const [loadingFilters, setLoadingFilters] = useState(false);
@@ -86,6 +87,7 @@ export default function DownloadReport() {
         pincodes: data.pincodes || [], brands: data.brands || [],
         categories: data.categories || [], skus: data.skus || [],
         webPids: data.webPids || [], dates: data.dates || [],
+        platformMaxDates: data.platformMaxDates || {},
       });
     } catch (err) {
       console.error("[DownloadReport] Error loading filters:", err);
@@ -181,6 +183,42 @@ export default function DownloadReport() {
             </Tooltip>
           </Box>
 
+          {/* Platform Max Dates (Data Freshness) Banner */}
+          {filterOptions.platformMaxDates && Object.keys(filterOptions.platformMaxDates).length > 0 && (
+            <Box
+              sx={{
+                mb: 4, p: 2, borderRadius: "14px",
+                background: "rgba(241, 245, 249, 0.6)",
+                border: "1px solid rgba(226, 232, 240, 0.8)",
+                display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5
+              }}
+            >
+              <Typography variant="caption" sx={{ fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", mr: 1, fontFamily: "'Inter', sans-serif" }}>
+                Data Freshness:
+              </Typography>
+              {Object.entries(filterOptions.platformMaxDates).map(([plat, maxD]) => (
+                <Chip
+                  key={plat}
+                  label={
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, fontFamily: "'Inter', sans-serif" }}>
+                      <span style={{ textTransform: "capitalize", fontWeight: 700 }}>{plat}:</span>
+                      <span style={{ color: "#2563eb", fontWeight: 600 }}>{dayjs(maxD).format("DD MMM YYYY")}</span>
+                    </Box>
+                  }
+                  size="small"
+                  sx={{
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    color: "#334155",
+                    fontSize: "0.75rem",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                    "& .MuiChip-label": { px: 1 }
+                  }}
+                />
+              ))}
+            </Box>
+          )}
+
           <Grid container spacing={3}>
             <Grid item xs={12} sm={6} md={3}>
               <Autocomplete multiple options={filterOptions.platforms} value={selectedPlatforms}
@@ -244,15 +282,28 @@ export default function DownloadReport() {
               </Box>
             )}
             <Button variant="outlined" onClick={handleReset} startIcon={<RefreshIcon />}
-              sx={{ textTransform: "none", borderRadius: "12px", borderColor: "#cbd5e1", color: "#64748b", fontWeight: 650, px: 3, py: 1.2,
-                "&:hover": { borderColor: "#94a3b8", backgroundColor: "#f8fafc" } }}>
+              sx={{
+                textTransform: "none", borderRadius: "12px", borderColor: "#cbd5e1", color: "#64748b", fontWeight: 650, px: 3, py: 1.2,
+                "&:hover": { borderColor: "#94a3b8", backgroundColor: "#f8fafc" }
+              }}>
               Reset Filters
+            </Button>
+            <Button variant="contained" onClick={() => fetchPreview(0)} disabled={previewLoading}
+              startIcon={previewLoading ? <CircularProgress size={18} color="inherit" /> : <FilterAltIcon />}
+              sx={{
+                textTransform: "none", borderRadius: "12px", background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                color: "white", fontWeight: 700, px: 4, py: 1.2, boxShadow: "0 4px 14px rgba(37, 99, 235, 0.25)",
+                "&:hover": { background: "linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)", boxShadow: "0 6px 20px rgba(37, 99, 235, 0.35)" }
+              }}>
+              {previewLoading ? "Applying..." : "Apply"}
             </Button>
             <Button variant="contained" onClick={handleDownload} disabled={isDownloading}
               startIcon={isDownloading ? <CircularProgress size={18} color="inherit" /> : <CloudDownloadIcon />}
-              sx={{ textTransform: "none", borderRadius: "12px", background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                color: "white", fontWeight: 700, px: 4, py: 1.2, boxShadow: "0 4px 14px rgba(37, 99, 235, 0.25)",
-                "&:hover": { background: "linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)", boxShadow: "0 6px 20px rgba(37, 99, 235, 0.35)" } }}>
+              sx={{
+                textTransform: "none", borderRadius: "12px", background: "linear-gradient(135deg, #334155 0%, #1e293b 100%)",
+                color: "white", fontWeight: 700, px: 4, py: 1.2, boxShadow: "0 4px 14px rgba(51, 65, 85, 0.25)",
+                "&:hover": { background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)", boxShadow: "0 6px 20px rgba(51, 65, 85, 0.35)" }
+              }}>
               {isDownloading ? "Downloading..." : "Download Report"}
             </Button>
           </Box>
