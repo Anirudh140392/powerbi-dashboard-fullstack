@@ -3222,6 +3222,21 @@ export const getCorrelationsData = async (filters) => {
             GROUP BY platform, category, brand, sku, location
         `;
 
+        const minDateQuery = `
+            SELECT
+                p.Product AS sku,
+                ${CITY_NORM_EXPR('p.Location')} AS location,
+                MIN(p.DATE) AS min_date
+            FROM rb_pdp_olap p
+            WHERE p.Comp_flag IN (0, '0')
+              AND ${platformCond}
+              AND ${cityCond}
+              AND ${categoryCond}
+              AND ${brandCond}
+              AND ${CITY_NORM_EXPR('p.Location')} IN (${CORR_ALLOWED_CITIES_SQL})
+            GROUP BY sku, location
+        `;
+
         // SOS Selects
         const brandVolSelects = periods.map(p => `
             SUM(if(k.DATE BETWEEN toDate('${p.curr_start}') AND toDate('${p.curr_end}'), toFloat64OrZero(toString(k.overall)), 0)) AS b_${p.id}_curr,
@@ -3265,11 +3280,18 @@ export const getCorrelationsData = async (filters) => {
             GROUP BY platform, category, location
         `;
 
-        const [pdpRows, brandVolRows, totalVolRows] = await Promise.all([
+        const [pdpRows, brandVolRows, totalVolRows, minDateRows] = await Promise.all([
             queryClickHouse(pdpQuery).catch(err => { console.error('[Correlations] pdp query error:', err.message); return []; }),
             queryClickHouse(brandVolQuery).catch(err => { console.error('[Correlations] brandVol query error:', err.message); return []; }),
             queryClickHouse(totalVolQuery).catch(err => { console.error('[Correlations] totalVol query error:', err.message); return []; }),
+            queryClickHouse(minDateQuery).catch(err => { console.error('[Correlations] minDate query error:', err.message); return []; }),
         ]);
+
+        const minDateMap = new Map();
+        for (const row of minDateRows) {
+            const key = `${String(row.sku).toLowerCase()}|${String(row.location).toLowerCase()}`;
+            minDateMap.set(key, row.min_date);
+        }
 
         // Build total volume lookup map
         const totalVolMap = {};
@@ -3315,12 +3337,22 @@ export const getCorrelationsData = async (filters) => {
             const category = String(row.category).toLowerCase();
             const brand = String(row.brand).toLowerCase();
             const location = String(row.location).toLowerCase();
+            const sku = String(row.sku || '');
 
             let maxScore = -1;
             let bestPeriod = null;
             let bestMetrics = null;
 
             for (const p of periods) {
+                // Check min date of SKU/location relative to prev_start
+                const minDateKey = `${sku.toLowerCase()}|${location}`;
+                const rawMinDate = minDateMap.get(minDateKey);
+                const minDateVal = rawMinDate ? dayjs(rawMinDate).format('YYYY-MM-DD') : null;
+
+                if (!minDateVal || minDateVal === 'Invalid Date' || !dayjs(minDateVal).isBefore(dayjs(p.prev_start))) {
+                    continue;
+                }
+
                 const currSales = Number(row[`s_${p.id}_curr`]) || 0;
                 const prevSales = Number(row[`s_${p.id}_prev`]) || 0;
 

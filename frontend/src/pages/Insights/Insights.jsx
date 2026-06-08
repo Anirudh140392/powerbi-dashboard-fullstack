@@ -2745,9 +2745,9 @@ const InsightsSignalHub = () => {
     const [correlationsData, setCorrelationsData] = useState([]);
     const [correlationMode, setCorrelationMode] = useState("drainer");
 
-    // Filter correlations data based on mode (drainer vs gainer)
+    // Filter correlations data based on mode (drainer vs gainer) and sort by Sales descending
     const filteredCorrelations = useMemo(() => {
-        return correlationsData.filter(row => {
+        const filtered = correlationsData.filter(row => {
             const salesVal = row.salesChange != null ? Number(row.salesChange) : 0;
             const osaVal = row.osaChange != null ? Number(row.osaChange) : 0;
             if (correlationMode === "drainer") {
@@ -2756,6 +2756,12 @@ const InsightsSignalHub = () => {
                 return salesVal > 0 && osaVal > 0;
             }
             return true;
+        });
+
+        return [...filtered].sort((a, b) => {
+            const aSales = a.sales != null ? Number(a.sales) : 0;
+            const bSales = b.sales != null ? Number(b.sales) : 0;
+            return bSales - aSales;
         });
     }, [correlationsData, correlationMode]);
 
@@ -3743,16 +3749,9 @@ const InsightsSignalHub = () => {
                                                                                     <span style={{ fontWeight: 700, color: "#1e293b" }}>
                                                                                         {row.osa != null ? `${row.osa.toFixed(1)}%` : "-"}
                                                                                     </span>
-                                                                                    {row.osaChange != null && (
-                                                                                        <span style={{
-                                                                                            fontSize: "9px", fontWeight: 700,
-                                                                                            color: osaUp ? "#16a34a" : "#dc2626",
-                                                                                            display: "flex", alignItems: "center", gap: "2px",
-                                                                                        }}>
-                                                                                            {osaUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
-                                                                                            {osaUp ? "+" : ""}{row.osaChange}pp
-                                                                                        </span>
-                                                                                    )}
+                                                                                    <span style={{ fontSize: "9px", color: "#64748b", fontWeight: 500 }}>
+                                                                                        {row.prevOsa != null ? `Prev: ${row.prevOsa.toFixed(1)}%` : "-"}
+                                                                                    </span>
                                                                                 </div>
                                                                             </td>
                                                                             <td style={{ padding: "10px 12px", textAlign: "center" }}>
