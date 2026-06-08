@@ -77,8 +77,8 @@ const performanceMarketingService = {
 
                 // Filters
                 if (filters.platform && filters.platform !== 'All') {
-                    const platforms = filters.platform.split(',').map(p => `'${p.trim()}'`).join(',');
-                    whereConditions.push(`${f.platform} IN (${platforms})`);
+                    const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
+                    whereConditions.push(`lower(${f.platform}) IN (${platforms})`);
                 }
                 if (filters.brand && filters.brand !== 'All') {
                     const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
@@ -238,8 +238,8 @@ const performanceMarketingService = {
 
                 // Platform filter
                 if (filters.platform && filters.platform !== 'All') {
-                    const platforms = filters.platform.split(',').map(p => `'${p.trim()}'`).join(',');
-                    baseConditions.push(`${f.platform} IN (${platforms})`);
+                    const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
+                    baseConditions.push(`lower(${f.platform}) IN (${platforms})`);
                 }
 
                 // Brand filter
