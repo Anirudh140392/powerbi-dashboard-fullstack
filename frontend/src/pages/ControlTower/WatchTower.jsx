@@ -839,7 +839,6 @@ export default function WatchTower() {
         >
           <TopActionsLayoutsShowcase />
         </Box> */}
-        <SalesOverview />
 
         {/* Category / SKU Tabs */}
         <Box
@@ -901,6 +900,8 @@ export default function WatchTower() {
             <AggregatedViewTable />
           </PerformanceBreakdownProvider>
         </Box>
+
+        <SalesOverview />
         </FilterContext.Provider>
       </CommonContainer>
 

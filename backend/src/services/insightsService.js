@@ -3163,6 +3163,7 @@ export const getCorrelationsData = async (filters) => {
 
         const maxDateStr = '2026-05-26';
         const limitDateStr = '2026-02-01';
+        const drrStartDate = dayjs(maxDateStr).subtract(29, 'day').format('YYYY-MM-DD');
         const periods = [];
         let periodId = 1;
 
@@ -3200,7 +3201,8 @@ export const getCorrelationsData = async (filters) => {
             SUM(if(p.DATE BETWEEN toDate('${p.curr_start}') AND toDate('${p.curr_end}'), toFloat64OrZero(toString(p.neno_osa)), 0)) AS n_${p.id}_curr,
             SUM(if(p.DATE BETWEEN toDate('${p.curr_start}') AND toDate('${p.curr_end}'), toFloat64OrZero(toString(p.deno_osa)), 0)) AS d_${p.id}_curr,
             SUM(if(p.DATE BETWEEN toDate('${p.prev_start}') AND toDate('${p.prev_end}'), toFloat64OrZero(toString(p.neno_osa)), 0)) AS n_${p.id}_prev,
-            SUM(if(p.DATE BETWEEN toDate('${p.prev_start}') AND toDate('${p.prev_end}'), toFloat64OrZero(toString(p.deno_osa)), 0)) AS d_${p.id}_prev
+            SUM(if(p.DATE BETWEEN toDate('${p.prev_start}') AND toDate('${p.prev_end}'), toFloat64OrZero(toString(p.deno_osa)), 0)) AS d_${p.id}_prev,
+            SUM(if(p.DATE BETWEEN toDate('${p.curr_start}') AND toDate('${p.curr_end}'), toFloat64OrZero(toString(p.Qty_Sold)), 0)) AS q_${p.id}_curr
         `).join(',\n');
 
         const pdpQuery = `
@@ -3213,12 +3215,12 @@ export const getCorrelationsData = async (filters) => {
                 ${salesOsaSelects}
             FROM rb_pdp_olap p
             WHERE p.Comp_flag IN (0, '0')
-              AND p.DATE >= '2026-02-01'
-              AND ${platformCond}
-              AND ${cityCond}
-              AND ${categoryCond}
-              AND ${brandCond}
-              AND ${CITY_NORM_EXPR('p.Location')} IN (${CORR_ALLOWED_CITIES_SQL})
+               AND p.DATE >= '2026-02-01'
+               AND ${platformCond}
+               AND ${cityCond}
+               AND ${categoryCond}
+               AND ${brandCond}
+               AND ${CITY_NORM_EXPR('p.Location')} IN (${CORR_ALLOWED_CITIES_SQL})
             GROUP BY platform, category, brand, sku, location
         `;
 
@@ -3399,6 +3401,9 @@ export const getCorrelationsData = async (filters) => {
             if (bestPeriod) {
                 // Ensure OSA is present (not null) in both current and previous period
                 if (bestMetrics.osa != null && bestMetrics.prevOsa != null) {
+                    const currQty = Number(row[`q_${bestPeriod.id}_curr`]) || 0;
+                    const drr = currQty / bestPeriod.size;
+
                     results.push({
                         platform: row.platform || '-',
                         category: row.category || '-',
@@ -3408,7 +3413,8 @@ export const getCorrelationsData = async (filters) => {
                         dateRange: `${bestPeriod.curr_start} to ${bestPeriod.curr_end}`,
                         prevRange: `${bestPeriod.prev_start} to ${bestPeriod.prev_end}`,
                         size: bestPeriod.size,
-                        ...bestMetrics
+                        ...bestMetrics,
+                        drr: Number(drr.toFixed(2)) || 0
                     });
                 }
             }
@@ -3438,8 +3444,10 @@ export const getCorrelationsData = async (filters) => {
  */
 export const getCorrelationsTrend = async (filters) => {
     try {
+        const size = Number(filters.size) || 30;
         const startDate = filters.startDate ? dayjs(filters.startDate).format('YYYY-MM-DD') : dayjs().subtract(30, 'day').format('YYYY-MM-DD');
         const endDate = filters.endDate ? dayjs(filters.endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+        const queryStartDate = dayjs(startDate).subtract(size, 'day').format('YYYY-MM-DD');
 
         const platform = filters.platform || '';
         const category = filters.category || '';
@@ -3477,12 +3485,13 @@ export const getCorrelationsTrend = async (filters) => {
             SELECT
                 p.DATE AS date,
                 SUM(ifNull(toFloat64OrZero(toString(p.Sales)), 0)) AS sales,
+                SUM(ifNull(toFloat64OrZero(toString(p.Qty_Sold)), 0)) AS qty,
                 ROUND(SUM(ifNull(toFloat64OrZero(toString(p.neno_osa)), 0)) * 100.0 /
                     nullIf(SUM(ifNull(toFloat64OrZero(toString(p.deno_osa)), 0)), 0), 2) AS osa,
                 ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Discount)), 0)), 2) AS promo,
                 ROUND(AVG(ifNull(toFloat64OrZero(toString(p.listing_percent)), 0)), 2) AS listing
             FROM rb_pdp_olap p
-            WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
+            WHERE p.DATE BETWEEN '${queryStartDate}' AND '${endDate}'
               AND p.Comp_flag IN (0, '0')
               AND ${dimCondPdp}
             GROUP BY p.DATE
@@ -3617,17 +3626,41 @@ export const getCorrelationsTrend = async (filters) => {
             if (r.searchRank != null) srMap[r.date] = Number(r.searchRank);
         }
 
+        // Build a qty map by date string for calculating rolling DRR
+        const qtyMap = {};
+        for (const r of salesOsaRows) {
+            const dStr = dayjs(r.date).format('YYYY-MM-DD');
+            qtyMap[dStr] = Number(r.qty) || 0;
+        }
+
         // Merge all KPIs into a single trend array keyed by date
-        const trend = salesOsaRows.map(r => ({
-            date: r.date,
-            sales: Number(r.sales) || 0,
-            osa: r.osa != null ? Number(r.osa) : null,
-            promo: r.promo != null ? Number(r.promo) : null,
-            listing: r.listing != null ? Number(r.listing) : null,
-            sos: sosMap[r.date] ?? null,
-            marketShare: msMap[r.date] ?? null,
-            searchRank: srMap[r.date] ?? null,
-        }));
+        // Only return dates within the requested [startDate, endDate] range
+        const trend = salesOsaRows
+            .filter(r => {
+                const dStr = dayjs(r.date).format('YYYY-MM-DD');
+                return dStr >= startDate && dStr <= endDate;
+            })
+            .map(r => {
+                const dStr = dayjs(r.date).format('YYYY-MM-DD');
+                let totalQty = 0;
+                for (let i = 0; i < size; i++) {
+                    const checkDate = dayjs(dStr).subtract(i, 'day').format('YYYY-MM-DD');
+                    totalQty += qtyMap[checkDate] || 0;
+                }
+                const drr = Number((totalQty / size).toFixed(2));
+
+                return {
+                    date: r.date,
+                    sales: Number(r.sales) || 0,
+                    osa: r.osa != null ? Number(r.osa) : null,
+                    promo: r.promo != null ? Number(r.promo) : null,
+                    listing: r.listing != null ? Number(r.listing) : null,
+                    sos: sosMap[r.date] ?? null,
+                    marketShare: msMap[r.date] ?? null,
+                    searchRank: srMap[r.date] ?? null,
+                    drr: drr,
+                };
+            });
 
         return trend;
 
