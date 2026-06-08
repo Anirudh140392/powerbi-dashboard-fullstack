@@ -70,6 +70,15 @@ const formatINRCompact = (n) => {
     return `₹${n.toFixed(0)}`;
 };
 
+const formatUnitsCompact = (n) => {
+    if (typeof n !== "number") return "N/A";
+    const abs = Math.abs(n);
+    if (abs >= 1e7) return `${(n / 1e7).toFixed(1)} Cr`;
+    if (abs >= 1e5) return `${(n / 1e5).toFixed(1)} lac`;
+    if (abs >= 1e3) return `${(n / 1e3).toFixed(1)} K`;
+    return n.toLocaleString("en-IN", { maximumFractionDigits: 1 });
+};
+
 const safePct = (v) => (typeof v === "number" ? `${v.toFixed(1)}%` : "-");
 const safeINR = (v) => (typeof v === "number" ? formatINRCompact(v) : "-");
 
@@ -2788,6 +2797,7 @@ const InsightsSignalHub = () => {
     const [showCorrelationsInfo, setShowCorrelationsInfo] = useState(false);
     const [activeTrendKPIs, setActiveTrendKPIs] = useState({
         sales: true,
+        drr: true,
         osa: true,
         promo: true,
         listing: true,
@@ -2905,6 +2915,7 @@ const InsightsSignalHub = () => {
                 platform: row.platform, category: row.category,
                 brand: row.brand, sku: row.sku, location: row.location,
                 startDate, endDate,
+                size: row.size,
             });
             setCorrelationsTrendData(res?.data || []);
         } catch (err) {
@@ -2922,6 +2933,7 @@ const InsightsSignalHub = () => {
                 platform: correlationsTrendRow.platform, category: correlationsTrendRow.category,
                 brand: correlationsTrendRow.brand, sku: correlationsTrendRow.sku, location: correlationsTrendRow.location,
                 startDate: trendCustomStart, endDate: trendCustomEnd,
+                size: correlationsTrendRow.size,
             });
             setCorrelationsTrendData(res?.data || []);
         } catch (err) {
@@ -3428,6 +3440,7 @@ const InsightsSignalHub = () => {
                                                         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
                                                             {[
                                                                 { key: "sales", label: "Sales (₹)", color: "#6366f1", bg: "rgba(99, 102, 241, 0.08)" },
+                                                                { key: "drr", label: "DRR (Units)", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.08)" },
                                                                 { key: "osa", label: "OSA (%)", color: "#10b981", bg: "rgba(16, 185, 129, 0.08)" },
                                                                 { key: "promo", label: "Promo (%)", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.08)" },
                                                                 { key: "listing", label: "Listing (%)", color: "#ec4899", bg: "rgba(236, 72, 153, 0.08)" },
@@ -3503,6 +3516,18 @@ const InsightsSignalHub = () => {
                                                                     />
                                                                 )}
 
+                                                                {/* Left/Right Y-Axis — DRR (Units) */}
+                                                                {activeTrendKPIs.drr && (
+                                                                    <YAxis
+                                                                        yAxisId="units"
+                                                                        orientation={activeTrendKPIs.sales ? "right" : "left"}
+                                                                        tick={{ fontSize: 10, fill: "#8b5cf6" }}
+                                                                        tickFormatter={(v) => formatUnitsCompact(v)}
+                                                                        axisLine={{ stroke: "#8b5cf6", strokeWidth: 1.5 }}
+                                                                        tickLine={{ stroke: "#8b5cf6" }}
+                                                                    />
+                                                                )}
+
                                                                 {/* Right Y-Axis — OSA, Promo, Listing (%) */}
                                                                 {(activeTrendKPIs.osa || activeTrendKPIs.promo || activeTrendKPIs.listing) && (
                                                                     <YAxis
@@ -3520,7 +3545,7 @@ const InsightsSignalHub = () => {
                                                                 {activeTrendKPIs.searchRank && (
                                                                     <YAxis
                                                                         yAxisId="rank"
-                                                                        orientation={activeTrendKPIs.sales ? "right" : "left"}
+                                                                        orientation={(activeTrendKPIs.sales || activeTrendKPIs.drr) ? "right" : "left"}
                                                                         reversed
                                                                         tick={{ fontSize: 10, fill: "#06b6d4" }}
                                                                         tickFormatter={(v) => `#${v}`}
@@ -3534,10 +3559,10 @@ const InsightsSignalHub = () => {
                                                                     labelFormatter={(label) => label ? dayjs(label).format("DD MMM YYYY") : ""}
                                                                     formatter={(value, name) => {
                                                                         if (name === "sales") return [`₹${Number(value).toLocaleString("en-IN")}`, "Sales"];
+                                                                        if (name === "drr") return [Number(value).toLocaleString("en-IN"), "DRR"];
                                                                         if (name === "osa") return [`${Number(value).toFixed(1)}%`, "OSA"];
                                                                         if (name === "promo") return [`${Number(value).toFixed(1)}%`, "Promo"];
                                                                         if (name === "listing") return [`${Number(value).toFixed(1)}%`, "Listing"];
-
                                                                         if (name === "searchRank") return [`#${Number(value).toFixed(1)}`, "Search Rank"];
                                                                         return [value, name];
                                                                     }}
@@ -3545,6 +3570,9 @@ const InsightsSignalHub = () => {
 
                                                                 {activeTrendKPIs.sales && (
                                                                     <Line yAxisId="sales" type="monotone" dataKey="sales" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#6366f1", strokeWidth: 2, fill: "#fff" }} />
+                                                                )}
+                                                                {activeTrendKPIs.drr && (
+                                                                    <Line yAxisId="units" type="monotone" dataKey="drr" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 3, fill: "#8b5cf6", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#8b5cf6", strokeWidth: 2, fill: "#fff" }} />
                                                                 )}
                                                                 {activeTrendKPIs.osa && (
                                                                     <Line yAxisId="pct" type="monotone" dataKey="osa" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} activeDot={{ r: 5, stroke: "#10b981", strokeWidth: 2, fill: "#fff" }} connectNulls />
@@ -3686,6 +3714,7 @@ const InsightsSignalHub = () => {
                                                                     <th style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>SKU</th>
                                                                     <th style={{ padding: "8px 12px", textAlign: "left", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Location</th>
                                                                     <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Sales</th>
+                                                                    <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>DRR</th>
                                                                     <th style={{ padding: "8px 12px", textAlign: "right", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>OSA</th>
                                                                     <th style={{ padding: "8px 12px", textAlign: "center", fontSize: "10px", textTransform: "uppercase", color: "#64748b", whiteSpace: "nowrap" }}>Trend</th>
                                                                 </tr>
@@ -3741,6 +3770,16 @@ const InsightsSignalHub = () => {
                                                                                     }}>
                                                                                         {salesUp ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
                                                                                         {salesUp ? "+" : ""}{row.salesChange != null ? `${row.salesChange}%` : "-"}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </td>
+                                                                            <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                                                                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                                                                                    <span style={{ fontWeight: 700, color: "#1e293b" }}>
+                                                                                        {row.drr != null ? formatUnitsCompact(row.drr) : "-"}
+                                                                                    </span>
+                                                                                    <span style={{ fontSize: "9px", color: "#64748b", fontWeight: 500 }}>
+                                                                                        {row.size}d Avg
                                                                                     </span>
                                                                                 </div>
                                                                             </td>
