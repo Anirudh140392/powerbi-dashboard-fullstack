@@ -13,7 +13,7 @@ import marsDmartLogo from "../../assets/mars2.svg";
 import cheffinLogo from "../../assets/cheffin.png";
 import fastrackLogo from "../../assets/Fastrack.png";
 import titanSkinLogo from "../../assets/titanskin.png";
-import titanPerfumeLogo from "../../assets/titanperfume.png";
+import titanPerfumeLogo from "../../assets/titanperfume.jpeg";
 import drlLogo from "../../assets/drl.png";
 import emamiLogo from "../../assets/emami.jpg";
 import { useAuth } from "../../utils/AuthContext";
