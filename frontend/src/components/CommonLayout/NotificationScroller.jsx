@@ -41,7 +41,7 @@ const ROUTE_TABLE_MAP = {
   "/inventory": "rb_pdp_olap",
   "/content-score": "tb_content_score_data",
   "/scheduled-reports": "rb_pdp_olap",
-  "/download-report": "rb_pdp_week",
+  "/download-report": "rb_pdp",
   "/geo-intelligence": "rb_pdp_olap",
   "/insights": "rb_pdp_olap",
   "/sales": "rb_pdp_olap",
