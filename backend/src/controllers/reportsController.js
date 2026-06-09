@@ -950,9 +950,9 @@ export const getAvailableReportTypes = async (req, res) => {
  */
 export const getPdpReportFilters = async (req, res) => {
     try {
-        const hasTable = await checkTableExists('rb_pdp_week');
+        const hasTable = await checkTableExists('rb_pdp');
         if (!hasTable) {
-            return res.status(400).json({ error: 'Table rb_pdp_week does not exist for this database.' });
+            return res.status(400).json({ error: 'Table rb_pdp does not exist for this database.' });
         }
 
         const { platform, location, brand, brandCategory, pincode, sku, webPid, date, startDate, endDate } = req.query;
@@ -1003,15 +1003,15 @@ export const getPdpReportFilters = async (req, res) => {
                 return conditions.length > 0 ? ' AND ' + conditions.join(' AND ') : '';
             };
 
-            const platformQuery = `SELECT DISTINCT platform_name FROM rb_pdp_week WHERE platform_name != '' AND platform_name IS NOT NULL ${buildWhere('platform')} ORDER BY platform_name`;
-            const locationQuery = `SELECT DISTINCT location_name FROM rb_pdp_week WHERE location_name != '' AND location_name IS NOT NULL ${buildWhere('location')} ORDER BY location_name`;
-            const pincodeQuery = `SELECT DISTINCT pincode FROM rb_pdp_week WHERE pincode IS NOT NULL ${buildWhere('pincode')} ORDER BY pincode`;
-            const brandQuery = `SELECT DISTINCT brand_name FROM rb_pdp_week WHERE brand_name != '' AND brand_name IS NOT NULL ${buildWhere('brand')} ORDER BY brand_name`;
-            const categoryQuery = `SELECT DISTINCT brand_category_name FROM rb_pdp_week WHERE brand_category_name != '' AND brand_category_name IS NOT NULL ${buildWhere('brandCategory')} ORDER BY brand_category_name`;
-            const skuQuery = `SELECT DISTINCT sku_name FROM rb_pdp_week WHERE sku_name != '' AND sku_name IS NOT NULL ${buildWhere('sku')} ORDER BY sku_name LIMIT 10000`;
-            const webPidQuery = `SELECT DISTINCT web_pid FROM rb_pdp_week WHERE web_pid != '' AND web_pid IS NOT NULL ${buildWhere('webPid')} ORDER BY web_pid LIMIT 10000`;
-            const dateQuery = `SELECT DISTINCT toDate(pdp_crawl_date) as DateStr FROM rb_pdp_week WHERE pdp_crawl_date IS NOT NULL ${buildWhere('date')} ORDER BY DateStr DESC`;
-            const platformMaxDatesQuery = `SELECT platform_name, formatDateTime(max(pdp_crawl_date), '%Y-%m-%d') as maxDate FROM rb_pdp_week WHERE platform_name != '' AND platform_name IS NOT NULL GROUP BY platform_name`;
+            const platformQuery = `SELECT DISTINCT platform_name FROM rb_pdp WHERE platform_name != '' AND platform_name IS NOT NULL ${buildWhere('platform')} ORDER BY platform_name`;
+            const locationQuery = `SELECT DISTINCT location_name FROM rb_pdp WHERE location_name != '' AND location_name IS NOT NULL ${buildWhere('location')} ORDER BY location_name`;
+            const pincodeQuery = `SELECT DISTINCT pincode FROM rb_pdp WHERE pincode IS NOT NULL ${buildWhere('pincode')} ORDER BY pincode`;
+            const brandQuery = `SELECT DISTINCT brand_name FROM rb_pdp WHERE brand_name != '' AND brand_name IS NOT NULL ${buildWhere('brand')} ORDER BY brand_name`;
+            const categoryQuery = `SELECT DISTINCT brand_category_name FROM rb_pdp WHERE brand_category_name != '' AND brand_category_name IS NOT NULL ${buildWhere('brandCategory')} ORDER BY brand_category_name`;
+            const skuQuery = `SELECT DISTINCT sku_name FROM rb_pdp WHERE sku_name != '' AND sku_name IS NOT NULL ${buildWhere('sku')} ORDER BY sku_name LIMIT 1000000`;
+            const webPidQuery = `SELECT DISTINCT web_pid FROM rb_pdp WHERE web_pid != '' AND web_pid IS NOT NULL ${buildWhere('webPid')} ORDER BY web_pid LIMIT 1000000`;
+            const dateQuery = `SELECT DISTINCT toDate(pdp_crawl_date) as DateStr FROM rb_pdp WHERE pdp_crawl_date IS NOT NULL ${buildWhere('date')} ORDER BY DateStr DESC`;
+            const platformMaxDatesQuery = `SELECT platform_name, formatDateTime(max(pdp_crawl_date), '%Y-%m-%d') as maxDate FROM rb_pdp WHERE platform_name != '' AND platform_name IS NOT NULL GROUP BY platform_name`;
 
             const [platforms, locations, pincodes, brands, categories, skus, webPids, dates, platformMaxDates] = await Promise.all([
                 queryClickHouse(platformQuery),
@@ -1066,9 +1066,9 @@ export const getPdpReportFilters = async (req, res) => {
  */
 export const downloadPdpReport = async (req, res) => {
     try {
-        const hasTable = await checkTableExists('rb_pdp_week');
+        const hasTable = await checkTableExists('rb_pdp');
         if (!hasTable) {
-            return res.status(400).json({ error: 'Table rb_pdp_week does not exist for this database.' });
+            return res.status(400).json({ error: 'Table rb_pdp does not exist for this database.' });
         }
 
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
@@ -1086,14 +1086,14 @@ export const downloadPdpReport = async (req, res) => {
 
         addFilter('pdp.platform_name', platforms);
         addFilter('pdp.location_name', locations);
-        
+
         if (pincodes && pincodes !== 'All' && pincodes.trim() !== '') {
             const items = pincodes.split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v)).join(', ');
             if (items) {
                 conditions.push(`pdp.pincode IN (${items})`);
             }
         }
-        
+
         addFilter('pdp.brand_name', brands);
         addFilter('pdp.brand_category_name', categories);
         addFilter('pdp.sku_name', skus);
@@ -1131,11 +1131,11 @@ export const downloadPdpReport = async (req, res) => {
                 pdp.price_variation AS price_variation,
                 formatDateTime(pdp.pdp_crawl_date, '%Y-%m-%d') AS date,
                 pdp.year AS year
-            FROM rb_pdp_week AS pdp
+            FROM rb_pdp AS pdp
             ${joinClause}
             ${whereClause}
             ORDER BY pdp.pdp_crawl_date DESC
-            LIMIT 50000
+            LIMIT 500000
         `;
 
         const rawData = await queryClickHouse(query);
@@ -1163,7 +1163,7 @@ export const downloadPdpReport = async (req, res) => {
 
         const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
         const fileName = `PDP_Report_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
-        
+
         res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.send(buffer);
@@ -1179,9 +1179,9 @@ export const downloadPdpReport = async (req, res) => {
  */
 export const previewPdpReport = async (req, res) => {
     try {
-        const hasTable = await checkTableExists('rb_pdp_week');
+        const hasTable = await checkTableExists('rb_pdp');
         if (!hasTable) {
-            return res.status(400).json({ error: 'Table rb_pdp_week does not exist for this database.' });
+            return res.status(400).json({ error: 'Table rb_pdp does not exist for this database.' });
         }
 
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
@@ -1225,7 +1225,7 @@ export const previewPdpReport = async (req, res) => {
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
         // Count query (without join to be faster, use same conditions but on pdp alias)
-        const countQuery = `SELECT count() as total FROM rb_pdp_week AS pdp ${whereClause}`;
+        const countQuery = `SELECT count() as total FROM rb_pdp AS pdp ${whereClause}`;
         const countResult = await queryClickHouse(countQuery);
         const totalCount = countResult && countResult[0] ? parseInt(countResult[0].total, 10) : 0;
 
@@ -1252,7 +1252,7 @@ export const previewPdpReport = async (req, res) => {
                 pdp.price_variation AS price_variation,
                 formatDateTime(pdp.pdp_crawl_date, '%Y-%m-%d') AS date,
                 pdp.year AS year
-            FROM rb_pdp_week AS pdp
+            FROM rb_pdp AS pdp
             ${joinClause}
             ${whereClause}
             ORDER BY pdp.pdp_crawl_date DESC
