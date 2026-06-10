@@ -3758,6 +3758,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     selectedCategory,
     setSelectedCategory,
     maxDate,
+    minDate,
     datesFetched,
     visibilityMode,
     setVisibilityMode,
@@ -4460,6 +4461,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                     compareStart={compareStart}
                     compareEnd={compareEnd}
                     maxDate={maxDate}
+                    minDate={minDate}
                     onApply={(start, end, cStart, cEnd, compareOn, label) => {
                       setTimeStart(start);
                       setTimeEnd(end);

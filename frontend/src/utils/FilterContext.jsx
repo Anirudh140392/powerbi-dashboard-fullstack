@@ -72,6 +72,7 @@ export const FilterProvider = ({ children }) => {
     const [compareEnd, setCompareEnd] = useState(dayjs().subtract(1, 'month'));
     const [comparisonLabel, setComparisonLabel] = useState("VS PREV. PERIOD");
     const [maxDate, setMaxDate] = useState(dayjs());
+    const [minDate, setMinDate] = useState(null);
 
     // Tracks if the user has manually overridden the default dates
     const [userSetDate, setUserSetDate] = useState(false);
@@ -154,6 +155,7 @@ export const FilterProvider = ({ children }) => {
             setVisibilityMode('sos');
             setSelectedRank('Top 10');
             setUserSetDate(false);
+            setMinDate(null);
         }
     }, [isAuthenticated]);
 
@@ -198,6 +200,7 @@ export const FilterProvider = ({ children }) => {
                 // Normalize response: endpoints return slightly different field names
                 const endDateStr = res.data.defaultEndDate || res.data.endDate;
                 const startDateStr = res.data.defaultStartDate || res.data.startDate;
+                const minDateStr = res.data.minDate;
 
                 if (endDateStr && startDateStr) {
                     const lEnd = dayjs(endDateStr);
@@ -205,6 +208,12 @@ export const FilterProvider = ({ children }) => {
 
                     // Always update maxDate so the date picker boundary is correct for the page
                     setMaxDate(lEnd);
+
+                    if (minDateStr) {
+                        setMinDate(dayjs(minDateStr));
+                    } else {
+                        setMinDate(null);
+                    }
 
                     // Only overwrite timeStart and timeEnd if the user hasn't explicitly set a custom date
                     if (!userSetDate) {
@@ -746,6 +755,7 @@ export const FilterProvider = ({ children }) => {
             selectedProductCategory,
             setSelectedProductCategory,
             maxDate,
+            minDate,
             datesInitialized,
             datesFetched,
             platformsFetched,

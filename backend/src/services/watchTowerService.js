@@ -8754,17 +8754,19 @@ const getLatestAvailableMonth = async (filters = {}) => {
             const contentWhere = contentConditions.length > 0 ? `WHERE ${contentConditions.join(' AND ')} ` : '';
 
             const contentResult = await queryClickHouse(`
-                SELECT MAX(toDate(extraction_timestamp)) as latestDate
+                SELECT MIN(toDate(extraction_timestamp)) as minDate, MAX(toDate(extraction_timestamp)) as latestDate
                 FROM tb_content_score_data
                 ${contentWhere}
-        `);
+            `);
 
+            const minContentDate = contentResult?.[0]?.minDate;
             const latestContentDate = contentResult?.[0]?.latestDate;
             if (!latestContentDate) return { available: false };
 
             const latestC = dayjs(latestContentDate);
             return {
                 available: true,
+                minDate: minContentDate && minContentDate !== '0000-00-00' && minContentDate !== '1970-01-01' ? dayjs(minContentDate).format('YYYY-MM-DD') : undefined,
                 monthLabel: latestC.format('MMMM YYYY'),
                 startDate: latestC.startOf('month').format('YYYY-MM-DD'),
                 endDate: latestC.endOf('month').format('YYYY-MM-DD'),
@@ -8806,11 +8808,12 @@ const getLatestAvailableMonth = async (filters = {}) => {
 
         // Query rb_pdp_olap for the latest date
         const result = await queryClickHouse(`
-            SELECT MAX(toDate(${dateCol})) as latestDate
+            SELECT MIN(toDate(${dateCol})) as minDate, MAX(toDate(${dateCol})) as latestDate
             FROM rb_pdp_olap
             ${whereClause}
         `);
 
+        const minDate = result?.[0]?.minDate;
         const latestDate = result?.[0]?.latestDate;
 
         if (!latestDate) {
@@ -8821,6 +8824,7 @@ const getLatestAvailableMonth = async (filters = {}) => {
 
         return {
             available: true,
+            minDate: minDate && minDate !== '0000-00-00' && minDate !== '1970-01-01' ? dayjs(minDate).format('YYYY-MM-DD') : undefined,
             monthLabel: latest.format('MMMM YYYY'),
             startDate: latest.startOf('month').format('YYYY-MM-DD'),
             endDate: latest.endOf('month').format('YYYY-MM-DD'),
