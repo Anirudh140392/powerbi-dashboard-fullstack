@@ -126,6 +126,7 @@ export default function DateRangeComparePicker({
     compareStart: initialCompareStart,
     compareEnd: initialCompareEnd,
     maxDate,
+    minDate,
     onApply
 }) {
     const today = useMemo(() => maxDate ? maxDate.toDate() : new Date(), [maxDate]);
@@ -134,24 +135,33 @@ export default function DateRangeComparePicker({
     const [start, setStart] = useState(timeStart ? timeStart.toDate() : addDays(today, -7));
     const [end, setEnd] = useState(timeEnd ? timeEnd.toDate() : today);
 
-    useEffect(() => {
-        if (timeStart) {
-            setStart(timeStart.toDate());
-            setSelectedRangeLabel("Custom");
-        }
-    }, [timeStart]);
+    function enforceMinDate(date) {
+        if (minDate && date.getTime() < minDate.toDate().getTime()) return minDate.toDate();
+        return date;
+    }
 
-    useEffect(() => {
-        if (timeEnd) {
-            setEnd(timeEnd.toDate());
-            setSelectedRangeLabel("Custom");
-        }
-    }, [timeEnd]);
+
 
     const [compareOn, setCompareOn] = useState(true);
     const [compareMode, setCompareMode] = useState("Prev");
 
-    const computedCompare = useMemo(() => computeCompareRange(start, end, compareMode), [start, end, compareMode]);
+    const computedCompare = useMemo(() => {
+        const range = computeCompareRange(start, end, compareMode);
+        if (minDate) {
+            const minTime = minDate.toDate().getTime();
+            let cs = range[0];
+            let ce = range[1];
+            if (cs.getTime() < minTime) {
+                cs = minDate.toDate();
+            }
+            if (ce.getTime() < minTime) {
+                ce = minDate.toDate();
+            }
+            return clampRange(cs, ce);
+        }
+        return range;
+    }, [start, end, compareMode, minDate]);
+
     const [customCompareStart, setCustomCompareStart] = useState(initialCompareStart ? initialCompareStart.toDate() : computedCompare[0]);
     const [customCompareEnd, setCustomCompareEnd] = useState(initialCompareEnd ? initialCompareEnd.toDate() : computedCompare[1]);
 
@@ -163,12 +173,30 @@ export default function DateRangeComparePicker({
     }, [computedCompare, compareMode]);
 
     useEffect(() => {
-        if (initialCompareStart) setCustomCompareStart(initialCompareStart.toDate());
-    }, [initialCompareStart]);
+        if (initialCompareStart) setCustomCompareStart(enforceMinDate(initialCompareStart.toDate()));
+    }, [initialCompareStart, minDate]);
 
     useEffect(() => {
-        if (initialCompareEnd) setCustomCompareEnd(initialCompareEnd.toDate());
-    }, [initialCompareEnd]);
+        if (initialCompareEnd) setCustomCompareEnd(enforceMinDate(initialCompareEnd.toDate()));
+    }, [initialCompareEnd, minDate]);
+
+    function isCompareModeAvailable(mode) {
+        if (mode === "Custom") return true;
+        if (!minDate) return true;
+        const range = computeCompareRange(start, end, mode);
+        return range[0].getTime() >= minDate.toDate().getTime();
+    }
+
+    useEffect(() => {
+        if (compareMode !== "Custom" && !isCompareModeAvailable(compareMode)) {
+            const availableModes = ["Prev", "Month", "Year", "LYSM"].filter(m => isCompareModeAvailable(m));
+            if (availableModes.length > 0) {
+                setCompareMode(availableModes[0]);
+            } else {
+                setCompareMode("Custom");
+            }
+        }
+    }, [start, end, minDate, compareMode]);
 
     const compareStartFinal = customCompareStart;
     const compareEndFinal = customCompareEnd;
@@ -180,6 +208,7 @@ export default function DateRangeComparePicker({
     const handleClose = () => setAnchorEl(null);
     const open = Boolean(anchorEl);
     const maxDateStr = useMemo(() => maxDate ? toKey(maxDate.toDate()) : toKey(today), [maxDate, today]);
+    const minDateStr = useMemo(() => minDate ? toKey(minDate.toDate()) : undefined, [minDate]);
     const [selectedRangeLabel, setSelectedRangeLabel] = useState("Custom");
 
     function enforceMaxDate(date) {
@@ -190,6 +219,7 @@ export default function DateRangeComparePicker({
     function onPrimaryStartChange(v) {
         let ns = fromKey(v);
         ns = enforceMaxDate(ns);
+        ns = enforceMinDate(ns);
         const [cs, ce] = clampRange(ns, end);
         setStart(cs);
         setEnd(ce);
@@ -199,6 +229,7 @@ export default function DateRangeComparePicker({
     function onPrimaryEndChange(v) {
         let ne = fromKey(v);
         ne = enforceMaxDate(ne);
+        ne = enforceMinDate(ne);
         const [cs, ce] = clampRange(start, ne);
         setStart(cs);
         setEnd(ce);
@@ -206,8 +237,8 @@ export default function DateRangeComparePicker({
     }
 
     function setQuickRange(s, e, label) {
-        setStart(enforceMaxDate(s));
-        setEnd(enforceMaxDate(e));
+        setStart(enforceMinDate(enforceMaxDate(s)));
+        setEnd(enforceMinDate(enforceMaxDate(e)));
         setSelectedRangeLabel(label);
     }
 
@@ -224,6 +255,49 @@ export default function DateRangeComparePicker({
         { label: "Last 3 Months", fn: () => setQuickRange(addDays(today, -89), today, "Last 3 Months") },
         { label: "Last 6 Months", fn: () => setQuickRange(addDays(today, -179), today, "Last 6 Months") },
     ];
+
+    useEffect(() => {
+        if (timeStart && timeEnd) {
+            const s = enforceMinDate(timeStart.toDate());
+            const e = enforceMinDate(timeEnd.toDate());
+            setStart(s);
+            setEnd(e);
+
+            const sKey = toKey(s);
+            const eKey = toKey(e);
+            let matchedLabel = "Custom";
+
+            const getRangeDates = (label) => {
+                switch (label) {
+                    case "Today": return [today, today];
+                    case "Yesterday": return [addDays(today, -1), addDays(today, -1)];
+                    case "Last 7 Days": return [addDays(today, -6), today];
+                    case "Last 14 Days": return [addDays(today, -13), today];
+                    case "Last 30 Days": return [addDays(today, -29), today];
+                    case "This Month": return [startOfMonth(today), endOfMonth(today)];
+                    case "Month to Date": return [startOfMonth(today), today];
+                    case "Quarter to Date": return [startOfQuarter(today), today];
+                    case "Year to Date": return [startOfYear(today), today];
+                    case "Last 3 Months": return [addDays(today, -89), today];
+                    case "Last 6 Months": return [addDays(today, -179), today];
+                    default: return [null, null];
+                }
+            };
+
+            for (const qr of QUICK_RANGES) {
+                const [qs, qe] = getRangeDates(qr.label);
+                if (qs && qe) {
+                    const qsClamped = enforceMinDate(enforceMaxDate(qs));
+                    const qeClamped = enforceMinDate(enforceMaxDate(qe));
+                    if (toKey(qsClamped) === sKey && toKey(qeClamped) === eKey) {
+                        matchedLabel = qr.label;
+                        break;
+                    }
+                }
+            }
+            setSelectedRangeLabel(matchedLabel);
+        }
+    }, [timeStart, timeEnd, minDate, maxDate, today]);
 
     function handleFinalApply() {
         if (onApply) {
@@ -294,6 +368,7 @@ export default function DateRangeComparePicker({
                                         type="date"
                                         value={toKey(start)}
                                         onChange={(e) => onPrimaryStartChange(e.target.value)}
+                                        min={minDateStr}
                                         max={maxDateStr}
                                         style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#334155', background: 'transparent' }}
                                     />
@@ -306,6 +381,7 @@ export default function DateRangeComparePicker({
                                         type="date"
                                         value={toKey(end)}
                                         onChange={(e) => onPrimaryEndChange(e.target.value)}
+                                        min={minDateStr}
                                         max={maxDateStr}
                                         style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#334155', background: 'transparent' }}
                                     />
@@ -331,26 +407,32 @@ export default function DateRangeComparePicker({
                         }}>
                             {/* Compare Tabs */}
                             <Box sx={{ display: 'flex', bgcolor: '#f8fafc', borderRadius: 2, p: 0.5, mb: 2.5, border: '1px solid #f1f5f9' }}>
-                                {["Prev", "Month", "Year", "LYSM", "Custom"].map(mode => (
-                                    <Box
-                                        key={mode}
-                                        onClick={() => setCompareMode(mode)}
-                                        sx={{
-                                            flex: 1,
-                                            textAlign: 'center',
-                                            py: 0.8,
-                                            borderRadius: 1.5,
-                                            cursor: 'pointer',
-                                            fontSize: '0.75rem',
-                                            fontWeight: compareMode === mode ? 700 : 600,
-                                            bgcolor: compareMode === mode ? '#0f172a' : 'transparent',
-                                            color: compareMode === mode ? '#ffffff' : '#475569',
-                                            transition: 'all 0.2s ease',
-                                        }}
-                                    >
-                                        {mode}
-                                    </Box>
-                                ))}
+                                {["Prev", "Month", "Year", "LYSM", "Custom"].map(mode => {
+                                    const available = isCompareModeAvailable(mode);
+                                    return (
+                                        <Box
+                                            key={mode}
+                                            onClick={() => {
+                                                if (available) setCompareMode(mode);
+                                            }}
+                                            sx={{
+                                                flex: 1,
+                                                textAlign: 'center',
+                                                py: 0.8,
+                                                borderRadius: 1.5,
+                                                cursor: available ? 'pointer' : 'not-allowed',
+                                                fontSize: '0.75rem',
+                                                fontWeight: compareMode === mode ? 700 : 600,
+                                                bgcolor: compareMode === mode ? '#0f172a' : 'transparent',
+                                                color: compareMode === mode ? '#ffffff' : (available ? '#475569' : '#cbd5e1'),
+                                                opacity: available ? 1 : 0.5,
+                                                transition: 'all 0.2s ease',
+                                            }}
+                                        >
+                                            {mode}
+                                        </Box>
+                                    );
+                                })}
                             </Box>
 
                             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
@@ -360,7 +442,13 @@ export default function DateRangeComparePicker({
                                         <input
                                             type="date"
                                             value={toKey(customCompareStart)}
-                                            onChange={(e) => setCustomCompareStart(fromKey(e.target.value))}
+                                            onChange={(e) => {
+                                                let nd = fromKey(e.target.value);
+                                                nd = enforceMaxDate(nd);
+                                                nd = enforceMinDate(nd);
+                                                setCustomCompareStart(nd);
+                                            }}
+                                            min={minDateStr}
                                             max={maxDateStr}
                                             style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#334155', background: 'transparent' }}
                                         />
@@ -372,7 +460,13 @@ export default function DateRangeComparePicker({
                                         <input
                                             type="date"
                                             value={toKey(customCompareEnd)}
-                                            onChange={(e) => setCustomCompareEnd(fromKey(e.target.value))}
+                                            onChange={(e) => {
+                                                let nd = fromKey(e.target.value);
+                                                nd = enforceMaxDate(nd);
+                                                nd = enforceMinDate(nd);
+                                                setCustomCompareEnd(nd);
+                                            }}
+                                            min={minDateStr}
                                             max={maxDateStr}
                                             style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px', color: '#334155', background: 'transparent' }}
                                         />
@@ -385,29 +479,34 @@ export default function DateRangeComparePicker({
                     <Box sx={{ p: 2.5 }}>
                         <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a', mb: 1.5 }}>Quick Ranges</Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                            {QUICK_RANGES.map((qr) => (
-                                <Box
-                                    key={qr.label}
-                                    onClick={qr.fn}
-                                    sx={{
-                                        px: 1.5,
-                                        py: 0.6,
-                                        borderRadius: 2,
-                                        border: '1px solid #e2e8f0',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 600,
-                                        color: '#0f172a',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                        '&:hover': {
-                                            borderColor: '#94a3b8',
-                                            bgcolor: '#f8fafc'
-                                        }
-                                    }}
-                                >
-                                    {qr.label}
-                                </Box>
-                            ))}
+                            {QUICK_RANGES.map((qr) => {
+                                const isSelected = selectedRangeLabel === qr.label;
+                                return (
+                                    <Box
+                                        key={qr.label}
+                                        onClick={qr.fn}
+                                        sx={{
+                                            px: 1.5,
+                                            py: 0.6,
+                                            borderRadius: 2,
+                                            border: '1px solid',
+                                            borderColor: isSelected ? '#0f172a' : '#e2e8f0',
+                                            bgcolor: isSelected ? '#0f172a' : 'transparent',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 600,
+                                            color: isSelected ? '#ffffff' : '#0f172a',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
+                                            '&:hover': {
+                                                borderColor: isSelected ? '#0f172a' : '#94a3b8',
+                                                bgcolor: isSelected ? '#0f172a' : '#f8fafc'
+                                            }
+                                        }}
+                                    >
+                                        {qr.label}
+                                    </Box>
+                                );
+                            })}
                         </Box>
 
                         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-start', gap: 1.5, alignItems: 'center' }}>

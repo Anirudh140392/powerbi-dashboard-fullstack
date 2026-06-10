@@ -2566,13 +2566,15 @@ export const getMarketShareDrilldown = async (start, end, platformFilter, catego
  */
 export const getMarketShareLatestDate = async () => {
     try {
-        const query = `SELECT MAX(toDate(created_on)) as maxDate FROM rb_ms_olap`;
+        const query = `SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM rb_ms_olap`;
         const result = await queryClickHouse(query);
+        const minDateStr = result?.[0]?.minDate;
         const maxDateStr = result?.[0]?.maxDate;
         const maxDate = maxDateStr ? dayjs(maxDateStr) : dayjs();
         
         return {
             available: !!maxDateStr,
+            minDate: minDateStr && minDateStr !== '0000-00-00' && minDateStr !== '1970-01-01' ? dayjs(minDateStr).format('YYYY-MM-DD') : undefined,
             maxDate: maxDate.format('YYYY-MM-DD'),
             defaultEndDate: maxDate.format('YYYY-MM-DD'),
             defaultStartDate: maxDate.startOf('month').format('YYYY-MM-DD')
@@ -2581,6 +2583,7 @@ export const getMarketShareLatestDate = async () => {
         console.error('[getMarketShareLatestDate] Error:', error.message);
         return {
             available: false,
+            minDate: undefined,
             maxDate: dayjs().format('YYYY-MM-DD'),
             defaultEndDate: dayjs().format('YYYY-MM-DD'),
             defaultStartDate: dayjs().startOf('month').format('YYYY-MM-DD')

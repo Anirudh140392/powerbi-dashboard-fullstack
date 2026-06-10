@@ -2143,13 +2143,14 @@ class VisibilityService {
         return await getCachedOrCompute(cacheKey, async () => {
             try {
 
-                // Get the max date from rb_kw_olap table - ClickHouse
+                // Get the min and max date from rb_kw_olap table - ClickHouse
                 const results = await queryClickHouse(`
-                SELECT MAX(DATE) as maxDate
+                SELECT MIN(DATE) as minDate, MAX(DATE) as maxDate
                 FROM rb_kw_olap
                 WHERE DATE IS NOT NULL
             `);
 
+                const minDate = results[0]?.minDate;
                 const maxDate = results[0]?.maxDate;
 
                 if (!maxDate || maxDate === '0000-00-00' || maxDate === '1970-01-01') {
@@ -2158,6 +2159,7 @@ class VisibilityService {
                     const now = dayjs();
                     return {
                         available: false,
+                        minDate: undefined,
                         startDate: now.startOf('month').format('YYYY-MM-DD'),
                         endDate: now.format('YYYY-MM-DD'),
                         latestDate: now.format('YYYY-MM-DD'),
@@ -2172,6 +2174,7 @@ class VisibilityService {
 
                 return {
                     available: true,
+                    minDate: minDate && minDate !== '0000-00-00' && minDate !== '1970-01-01' ? dayjs(minDate).format('YYYY-MM-DD') : undefined,
                     startDate: startOfMonth.format('YYYY-MM-DD'),
                     endDate: latestDate.format('YYYY-MM-DD'),
                     latestDate: latestDate.format('YYYY-MM-DD'),
@@ -2183,6 +2186,7 @@ class VisibilityService {
                 const now = dayjs();
                 return {
                     available: false,
+                    minDate: undefined,
                     startDate: now.startOf('month').format('YYYY-MM-DD'),
                     endDate: now.format('YYYY-MM-DD'),
                     latestDate: now.format('YYYY-MM-DD'),
