@@ -21,7 +21,7 @@ export default function SalesOverview() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("billing"); // "billing", "d2c", "comparison"
 
-  const isDrlUser = user?.dbName === "drl";
+  const showSalesOverview = user?.dbName === "drl" || user?.dbName === "trailytics";
 
   // Mock Data
   const data = {
@@ -114,7 +114,7 @@ export default function SalesOverview() {
 
       {/* Relative wrapper for blurred body content and lock overlay */}
       <div className="relative">
-        <div className={!isDrlUser ? "filter blur-[5px] pointer-events-none select-none" : ""}>
+        <div className={!showSalesOverview ? "filter blur-[5px] pointer-events-none select-none" : ""}>
           {/* Tabs */}
           <div className="flex border-b border-slate-100 mb-6 overflow-x-auto gap-2 sm:gap-6 no-scrollbar">
             <button
@@ -384,8 +384,8 @@ export default function SalesOverview() {
           </div>
         </div>
 
-        {/* Lock Overlay for non-drl users */}
-        {!isDrlUser && (
+        {/* Lock Overlay for non-authorized users */}
+        {!showSalesOverview && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center p-6 bg-white/20 backdrop-blur-[2px] rounded-2xl">
             {/* Upgrade Badge with Gold gradient border */}
             <div className="relative mb-4 flex items-center justify-center w-14 h-14 rounded-full bg-white border border-slate-200 shadow-md">
