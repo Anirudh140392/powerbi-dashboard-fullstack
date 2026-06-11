@@ -120,101 +120,83 @@ function WatchTowerFilterModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, hideChannelPlatform]);
 
-  // ─── CASCADE: when draftChannel changes → fetch available platforms ───
+  // ─── CASCADE: Fetch cascaded filter options when any draft filter changes ───
   React.useEffect(() => {
     if (!open) return;
-    const channelParam = draftChannel === "All" ? undefined : (Array.isArray(draftChannel) ? draftChannel.join(",").toLowerCase() : draftChannel.toLowerCase());
 
-    // Fetch platforms for this channel (only platforms support the channel param)
-    axiosInstance.get("/watchtower/platforms", { params: { channel: channelParam } })
+    // Convert draft values to comma-separated lowercase params
+    const getParam = (val) => {
+      if (!val || val === "All") return undefined;
+      return Array.isArray(val) ? val.join(",").toLowerCase() : val.toLowerCase();
+    };
+
+    const params = {
+      channel: getParam(draftChannel),
+      platform: getParam(draftPlatform),
+      category: getParam(draftCategory),
+      brand: getParam(draftBrand),
+      location: getParam(draftLocation)
+    };
+
+    axiosInstance.get("/watchtower/cascaded-filters", { params })
       .then(res => {
-        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-          setLocalPlatforms(res.data);
-          // Reset draft platform if current selection is no longer valid
-          setDraftPlatform(prev => {
-            if (prev === "All") return "All";
-            const currList = Array.isArray(prev) ? prev : [prev];
-            const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
-            return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
-          });
+        if (res.data) {
+          const { platforms: newPlatforms, categories: newCategories, brands: newBrands, locations: newLocations } = res.data;
 
-          // Also trigger categories/brands refetch for these platforms
-          const platParam = res.data.join(",").toLowerCase();
-          axiosInstance.get("/watchtower/categories", { params: { platform: platParam } })
-            .then(catRes => {
-              if (catRes.data && Array.isArray(catRes.data) && catRes.data.length > 0) {
-                const cats = catRes.data.filter(c => c !== "All");
-                setLocalCategories(cats);
-                setDraftCategory(prev => {
-                  if (prev === "All") return "All";
-                  const currList = Array.isArray(prev) ? prev : [prev];
-                  const valid = currList.filter(c => cats.includes(c));
-                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
-                  return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
-                });
-              }
-            })
-            .catch(() => { });
+          if (newPlatforms && Array.isArray(newPlatforms)) {
+            setLocalPlatforms(newPlatforms);
+            setDraftPlatform(prev => {
+              if (prev === "All") return "All";
+              const currList = Array.isArray(prev) ? prev : [prev];
+              if (currList.length === 0 || (currList.length === 1 && !currList[0])) return [];
+              const valid = currList.filter(p => newPlatforms.some(np => np.toLowerCase() === p.toLowerCase()));
+              const newValue = valid.length === 0 ? "All" : (valid.length === newPlatforms.length ? "All" : (valid.length === 1 ? valid[0] : valid));
+              return JSON.stringify(prev) === JSON.stringify(newValue) ? prev : newValue;
+            });
+          }
 
-          axiosInstance.get("/watchtower/brands", { params: { platform: platParam } })
-            .then(brandRes => {
-              if (brandRes.data && Array.isArray(brandRes.data) && brandRes.data.length > 0) {
-                setLocalBrands(brandRes.data);
-                setDraftBrand(prev => {
-                  if (prev === "All") return "All";
-                  const currList = Array.isArray(prev) ? prev : [prev];
-                  const valid = currList.filter(b => brandRes.data.includes(b));
-                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
-                  return valid.length === brandRes.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
-                });
-              }
-            })
-            .catch(() => { });
+          if (newCategories && Array.isArray(newCategories)) {
+            const cleanCats = newCategories.filter(c => c !== "All" && c !== "Others");
+            setLocalCategories(cleanCats);
+            setDraftCategory(prev => {
+              if (prev === "All") return "All";
+              const currList = Array.isArray(prev) ? prev : [prev];
+              if (currList.length === 0 || (currList.length === 1 && !currList[0])) return [];
+              const valid = currList.filter(c => cleanCats.some(nc => nc.toLowerCase() === c.toLowerCase()));
+              const newValue = valid.length === 0 ? "All" : (valid.length === cleanCats.length ? "All" : (valid.length === 1 ? valid[0] : valid));
+              return JSON.stringify(prev) === JSON.stringify(newValue) ? prev : newValue;
+            });
+          }
+
+          if (newBrands && Array.isArray(newBrands)) {
+            setLocalBrands(newBrands);
+            setDraftBrand(prev => {
+              if (prev === "All") return "All";
+              const currList = Array.isArray(prev) ? prev : [prev];
+              if (currList.length === 0 || (currList.length === 1 && !currList[0])) return [];
+              const valid = currList.filter(b => newBrands.some(nb => nb.toLowerCase() === b.toLowerCase()));
+              const newValue = valid.length === 0 ? "All" : (valid.length === newBrands.length ? "All" : (valid.length === 1 ? valid[0] : valid));
+              return JSON.stringify(prev) === JSON.stringify(newValue) ? prev : newValue;
+            });
+          }
+
+          if (newLocations && Array.isArray(newLocations)) {
+            setLocalLocations(newLocations);
+            setDraftLocation(prev => {
+              if (prev === "All") return "All";
+              const currList = Array.isArray(prev) ? prev : [prev];
+              if (currList.length === 0 || (currList.length === 1 && !currList[0])) return [];
+              const valid = currList.filter(l => newLocations.some(nl => nl.toLowerCase() === l.toLowerCase()));
+              const newValue = valid.length === 0 ? "All" : (valid.length === newLocations.length ? "All" : (valid.length === 1 ? valid[0] : valid));
+              return JSON.stringify(prev) === JSON.stringify(newValue) ? prev : newValue;
+            });
+          }
         }
       })
-      .catch(() => { });
-  }, [draftChannel, open]);
-
-  // ─── CASCADE: when draftPlatform changes (specific selection) → refetch categories and brands ───
-  React.useEffect(() => {
-    if (!open) return;
-    // Only run when a specific platform is selected (not "All")
-    // When "All", the channel cascade already handles categories/brands
-    if (draftPlatform === "All") return;
-    const platformParam = (Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform).toLowerCase();
-
-    axiosInstance.get("/watchtower/categories", { params: { platform: platformParam } })
-      .then(res => {
-        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-          const cats = res.data.filter(c => c !== "All");
-          setLocalCategories(cats);
-          setDraftCategory(prev => {
-            if (prev === "All") return "All";
-            const currList = Array.isArray(prev) ? prev : [prev];
-            const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
-            return (valid.length === cats.length && cats.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
-          });
-        }
-      })
-      .catch(() => { });
-
-    axiosInstance.get("/watchtower/brands", { params: { platform: platformParam } })
-      .then(res => {
-        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-          setLocalBrands(res.data);
-          setDraftBrand(prev => {
-            if (prev === "All") return "All";
-            const currList = Array.isArray(prev) ? prev : [prev];
-            const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
-            return (valid.length === res.data.length && res.data.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
-          });
-        }
-      })
-      .catch(() => { });
-  }, [draftPlatform, open]);
+      .catch((err) => {
+        console.error("Failed to fetch cascaded filters:", err);
+      });
+  }, [draftChannel, draftPlatform, draftCategory, draftBrand, draftLocation, open]);
 
   // Reset search when tab changes
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
@@ -230,12 +212,14 @@ function WatchTowerFilterModal({
 
   const { options, value, onChange } = tabConfig[activeTab];
 
-  // normalise value → array
+  // normalise value → array (mapping lowercase values to options casing)
   const getSelected = (v, opts) => {
     if (v === "All" || (Array.isArray(v) && v.includes("All"))) return [...opts];
-    if (Array.isArray(v)) return v;
-    if (!v) return [];
-    return [v];
+    const rawList = Array.isArray(v) ? v : (v ? [v] : []);
+    return rawList.map(val => {
+      const match = opts.find(o => typeof o === 'string' && typeof val === 'string' ? o.toLowerCase() === val.toLowerCase() : o === val);
+      return match || val;
+    });
   };
 
   const selected = getSelected(value, options);
@@ -244,16 +228,13 @@ function WatchTowerFilterModal({
 
   const toggle = (opt) => {
     let next;
-    if (activeTab === "platform") {
-      next = opt;
+    const exists = selected.some(s => typeof s === 'string' && typeof opt === 'string' ? s.toLowerCase() === opt.toLowerCase() : s === opt);
+    if (exists) {
+      next = selected.filter(s => !(typeof s === 'string' && typeof opt === 'string' ? s.toLowerCase() === opt.toLowerCase() : s === opt) && s !== "All");
     } else {
-      if (selected.includes(opt)) {
-        next = selected.filter(s => s !== opt && s !== "All");
-      } else {
-        next = [...selected.filter(s => s !== "All"), opt];
-      }
+      next = [...selected.filter(s => s !== "All"), opt];
     }
-    if (activeTab !== "platform" && next.length === options.length && options.length > 0) onChange("All");
+    if (next.length === options.length && options.length > 0) onChange("All");
     else onChange(next);
   };
 
