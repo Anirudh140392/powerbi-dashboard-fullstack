@@ -314,7 +314,7 @@ export const FilterProvider = ({ children }) => {
                         const currentList = Array.isArray(prev) ? prev : [prev];
                         const valid = currentList.filter(p => newPlatforms.includes(p));
                         if (valid.length === 0) return newPlatforms[0];
-                        return valid.length === 1 ? valid[0] : valid[0]; // Single select first valid
+                        return valid.length === 1 ? valid[0] : valid;
                     });
 
                     // Validate current category selection
@@ -365,7 +365,7 @@ export const FilterProvider = ({ children }) => {
                             const currentList = Array.isArray(prev) ? prev : [prev];
                             const valid = currentList.filter(p => newPlatforms.includes(p));
                             if (valid.length === 0) return newPlatforms[0];
-                            return valid[0];
+                            return valid.length === 1 ? valid[0] : valid;
                         });
                     }
                 }
@@ -393,7 +393,7 @@ export const FilterProvider = ({ children }) => {
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
                         const validPlatforms = currentList.filter(p => res.data.includes(p));
                         if (validPlatforms.length === 0) return res.data[0];
-                        return validPlatforms[0];
+                        return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
                     });
                 } else {
                     setPlatforms(FALLBACK_PLATFORMS);
@@ -415,7 +415,7 @@ export const FilterProvider = ({ children }) => {
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
                         const validPlatforms = currentList.filter(p => res.data.includes(p));
                         if (validPlatforms.length === 0) return res.data[0];
-                        return validPlatforms[0];
+                        return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
                     });
                 } else {
                     setPlatforms(FALLBACK_PLATFORMS);

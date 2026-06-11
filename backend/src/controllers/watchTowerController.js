@@ -4,8 +4,6 @@ import watchTowerService from '../services/watchTowerService.js';
 export const watchTowerOverview = async (req, res) => {
     try {
         const filters = { ...req.query };
-        delete filters.location;
-        delete filters.cities;
         console.log("watch tower api call received", filters);
         const data = await watchTowerService.getSummaryMetrics(filters);
         res.json(data);
@@ -65,8 +63,6 @@ export const getTrendData = async (req, res) => {
 export const getLatestAvailableMonth = async (req, res) => {
     try {
         const filters = { ...req.query };
-        delete filters.location;
-        delete filters.cities;
         const latest = await watchTowerService.getLatestAvailableMonth(filters);
 
         if (!latest?.available) {
@@ -221,8 +217,6 @@ export const debugAvailability = async (req, res) => {
 export const getOverview = async (req, res) => {
     try {
         const filters = { ...req.query };
-        delete filters.location;
-        delete filters.cities;
         console.log('[getOverview] API call received with filters:', filters);
         const data = await watchTowerService.getOverview(filters);
         res.json(data);
@@ -238,8 +232,6 @@ export const getOverview = async (req, res) => {
 export const getPerformanceMetrics = async (req, res) => {
     try {
         const filters = { ...req.query };
-        delete filters.location;
-        delete filters.cities;
         console.log('[getPerformanceMetrics] API call received with filters:', filters);
         const data = await watchTowerService.getPerformanceMetrics(filters);
         res.json(data);
@@ -255,8 +247,6 @@ export const getPerformanceMetrics = async (req, res) => {
 export const getPlatformOverview = async (req, res) => {
     try {
         const filters = { ...req.query };
-        delete filters.location;
-        delete filters.cities;
         console.log('[getPlatformOverview] API call received with filters:', filters);
         const data = await watchTowerService.getPlatformOverview(filters);
         res.json(data);
@@ -272,8 +262,6 @@ export const getPlatformOverview = async (req, res) => {
 export const getMonthOverview = async (req, res) => {
     try {
         const filters = { ...req.query };
-        delete filters.location;
-        delete filters.cities;
         console.log('[getMonthOverview] API call received with filters:', filters);
         const data = await watchTowerService.getMonthOverview(filters);
         res.json(data);
@@ -289,8 +277,6 @@ export const getMonthOverview = async (req, res) => {
 export const getCategoryOverview = async (req, res) => {
     try {
         const filters = { ...req.query };
-        delete filters.location;
-        delete filters.cities;
         console.log('[getCategoryOverview] API call received with filters:', filters);
         const data = await watchTowerService.getCategoryOverview(filters);
         res.json(data);
@@ -306,8 +292,6 @@ export const getCategoryOverview = async (req, res) => {
 export const getBrandsOverview = async (req, res) => {
     try {
         const filters = { ...req.query };
-        delete filters.location;
-        delete filters.cities;
         console.log('[getBrandsOverview] API call received with filters:', filters);
         const data = await watchTowerService.getBrandsOverview(filters);
         res.json(data);
@@ -511,8 +495,6 @@ export const getOsaDeepDive = async (req, res) => {
 export const getSkuOverview = async (req, res) => {
     try {
         const filters = { ...req.query };
-        delete filters.location;
-        delete filters.cities;
         console.log('[getSkuOverview] API call received with filters:', filters);
         const data = await watchTowerService.getSkuOverview(filters);
         res.json(data);
@@ -529,8 +511,6 @@ export const getSkuOverview = async (req, res) => {
 export const getCityOverview = async (req, res) => {
     try {
         const filters = { ...req.query };
-        delete filters.location;
-        delete filters.cities;
         console.log('[getCityOverview] API call received with filters:', filters);
         const data = await watchTowerService.getCityOverview(filters);
         res.json(data);
@@ -547,8 +527,6 @@ export const getCityOverview = async (req, res) => {
 export const getPerformanceBreakdown = async (req, res) => {
     try {
         const filters = { ...req.query };
-        delete filters.location;
-        delete filters.cities;
         console.log('[getPerformanceBreakdown] API call received with filters:', filters);
         const data = await watchTowerService.getPerformanceBreakdownData(filters);
         res.json(data);
@@ -580,8 +558,6 @@ export const getProducts = async (req, res) => {
 export const getProductCategories = async (req, res) => {
     try {
         const filters = { ...req.query };
-        delete filters.location;
-        delete filters.cities;
         const productCategories = await watchTowerService.getProductCategories(filters);
         res.json(productCategories);
     } catch (error) {
@@ -612,5 +588,22 @@ export const getMaxDatesAll = async (req, res) => {
     } catch (error) {
         console.error('[getMaxDatesAll] Error:', error.message);
         res.status(500).json({ error: 'Failed to fetch max dates' });
+    }
+};
+
+export const getWatchTowerCascadedFilters = async (req, res) => {
+    try {
+        const { channel, platform, category, brand, location } = req.query;
+        const data = await watchTowerService.getWatchTowerCascadedFilters({
+            channel: channel || 'All',
+            platform: platform || 'All',
+            category: category || 'All',
+            brand: brand || 'All',
+            location: location || 'All'
+        });
+        res.json(data);
+    } catch (error) {
+        console.error('[getWatchTowerCascadedFilters] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };

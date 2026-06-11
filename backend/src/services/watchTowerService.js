@@ -349,6 +349,49 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
 
 
 /**
+ * Helper to build location condition dynamically based on platform
+ * @param {string[]} locationArr - Array of selected locations/cities
+ * @param {string|string[]} platformVal - Selected platform(s)
+ * @param {string} locationCol - Location column name (e.g. 'Location', 'location_name')
+ * @param {string} platformCol - Platform column name (e.g. 'Platform', 'platform_name')
+ * @returns {string|null} - The SQL condition for location
+ */
+const buildLocationQueryCond = (locationArr, platformVal, locationCol = 'location', platformCol = 'platform') => {
+    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+    if (!locationArr || locationArr.length === 0) return null;
+
+    let platforms = [];
+    if (platformVal && platformVal !== 'All') {
+        platforms = Array.isArray(platformVal)
+            ? platformVal.map(p => p.toLowerCase())
+            : (typeof platformVal === 'string' && platformVal.includes(',')
+                ? platformVal.split(',').map(p => p.trim().toLowerCase())
+                : [platformVal.toLowerCase()]);
+    }
+
+    const hasAmazon = platforms.includes('amazon');
+    const hasFlipkart = platforms.includes('flipkart');
+    const hasNational = hasAmazon || hasFlipkart;
+    const isOnlyNational = platforms.length > 0 && platforms.every(p => ['amazon', 'flipkart'].includes(p));
+
+    const nationalLocs = ["'nation'", "'national'"].join(', ');
+
+    if (isOnlyNational) {
+        return `lower(${locationCol}) IN (${nationalLocs})`;
+    } else if (hasNational) {
+        const localLocs = locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ');
+        const nationalPlats = ['amazon', 'flipkart'].map(p => `'${p}'`).join(', ');
+        return `((lower(${platformCol}) IN (${nationalPlats}) AND lower(${locationCol}) IN (${nationalLocs})) OR (lower(${platformCol}) NOT IN (${nationalPlats}) AND lower(${locationCol}) IN (${localLocs})))`;
+    } else {
+        const localLocs = locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ');
+        return `lower(${locationCol}) IN (${localLocs})`;
+    }
+};
+
+
+
+
+/**
  * Get the latest available date in rb_pdp_olap
  */
 const getCachedMaxDate = async () => {
@@ -483,7 +526,7 @@ const getPmConversion = async (start, end, platformFilter, locationFilter, categ
         }
 
         const locArr = normalizeFilterArray(locationFilter);
-        if (locArr && locArr.length > 0) {
+        if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && locArr && locArr.length > 0) {
             conds.push(`lower(${pmSrc.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
         }
 
@@ -544,7 +587,7 @@ const getPmConversionBulk = async (start, end, platformFilter, locationFilter, c
         }
 
         const locArr = normalizeFilterArray(locationFilter);
-        if (locArr && locArr.length > 0) {
+        if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && locArr && locArr.length > 0) {
             conds.push(`lower(${pmSrc.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
         }
 
@@ -962,10 +1005,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
             const locationCol = src.f.location;
             const locationArrLocal = normalizeFilterArray(location);
-            if (locationArrLocal && locationArrLocal.length > 0) {
-                const locCond = `lower(${locationCol}) IN (${locationArrLocal.map(l => `'${escapeStrMain(l.toLowerCase())}'`).join(', ')})`;
-                console.log('[DEBUG] Location Array:', locationArrLocal, 'Condition:', locCond);
-                conditions.push(locCond);
+            if (locationCol && locationCol !== "'Unknown'" && locationArrLocal && locationArrLocal.length > 0) {
+                const platformCol = src.f.platform;
+                const platformArrLocal = normalizeFilterArray(platform);
+                const locCond = buildLocationQueryCond(locationArrLocal, platformArrLocal, locationCol, platformCol);
+                if (locCond) {
+                    console.log('[DEBUG] Location Array:', locationArrLocal, 'Condition:', locCond);
+                    conditions.push(locCond);
+                }
             }
 
             const platformCol = src.f.platform;
@@ -1048,7 +1095,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             // Handle location with multi-value support
             const locationFilterArr = normalizeFilterArray(locationFilter);
             if (locationFilterArr && locationFilterArr.length > 0) {
-                conditions.push(`lower(${src.f.location}) IN (${locationFilterArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+                const locCond = buildLocationQueryCond(locationFilterArr, platformFilter, src.f.location, src.f.platform);
+                if (locCond) conditions.push(locCond);
             }
 
             // Apply Product_Category filter for rb_pdp_olap
@@ -1337,8 +1385,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                         const locCol = pmSrc.f.location;
                         const locationArr = normalizeFilterArray(location);
-                        if (locationArr && locationArr.length > 0) {
-                            conditions.push(`lower(${locCol}) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+                        if (locCol && locCol !== "'Unknown'" && locationArr && locationArr.length > 0) {
+                            const locCond = buildLocationQueryCond(locationArr, platforms, locCol, pmSrc.f.platform);
+                            if (locCond) conditions.push(locCond);
                         }
                     } else {
                         // Filter for Our Brands Only (Enforce comp_flag=0 if All brands or specific brands selected)
@@ -1361,7 +1410,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const locCol = src.isAgg ? 'location' : 'Location';
                         const locationArrLocal = normalizeFilterArray(location);
                         if (locationArrLocal && locationArrLocal.length > 0) {
-                            conditions.push(`${locCol} IN (${locationArrLocal.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                            const platformCol = src.isAgg ? 'platform' : 'Platform';
+                            const locCond = buildLocationQueryCond(locationArrLocal, platforms, locCol, platformCol);
+                            if (locCond) conditions.push(locCond);
                         }
 
                         const platformCol = src.isAgg ? 'platform' : 'Platform';
@@ -1426,11 +1477,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const locArr = normalizeFilterArray(location);
                         const hasLocFilter = locArr && locArr.length > 0;
                         if (hasLocFilter) {
-                            if (locArr.length === 1) {
-                                msConds.push(`location = '${escapeStr(locArr[0])}'`);
-                            } else {
-                                msConds.push(`location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
-                            }
+                            const locCond = buildLocationQueryCond(locArr, platforms, 'location', 'platform');
+                            if (locCond) msConds.push(locCond);
                         }
                         const catArr = normalizeFilterArray(category);
                         if (catArr && catArr.length > 0) {
@@ -1495,11 +1543,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const locArr = normalizeFilterArray(location);
                         const hasLocFilter = locArr && locArr.length > 0;
                         if (hasLocFilter) {
-                            if (locArr.length === 1) {
-                                msConds.push(`location = '${escapeStr(locArr[0])}'`);
-                            } else {
-                                msConds.push(`location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
-                            }
+                            const locCond = buildLocationQueryCond(locArr, platforms, 'location', 'platform');
+                            if (locCond) msConds.push(locCond);
                         }
                         const catArr = normalizeFilterArray(category);
                         if (catArr && catArr.length > 0) {
@@ -2021,17 +2066,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const pmSrc = await getPmSource();
                     const escapeStrLocal = (str) => str ? str.replace(/'/g, "''") : '';
 
+
                     const pmConditions = [
                         `${pmSrc.f.date} BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`
                     ];
 
-                    const platArr = normalizeFilterArray(platform);
-                    if (platArr && platArr.length > 0) {
-                        pmConditions.push(`${pmSrc.f.platform} IN (${platArr.map(p => `'${escapeStrLocal(p)}'`).join(', ')})`);
-                    } else {
-                        const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform, false, pmSrc.f.channel);
-                        if (platformCond) pmConditions.push(platformCond);
-                    }
+                    const platformCond = buildPlatformChannelCond(platform, channel, pmSrc.f.platform, false, pmSrc.f.channel);
+                    if (platformCond) pmConditions.push(platformCond);
 
                     const brandArrLocal = normalizeFilterArray(brand);
                     if (brandArrLocal && brandArrLocal.length > 0) {
@@ -2118,15 +2159,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     ];
 
                     // Add platform filter (multi-value support)
-                    const platArr = normalizeFilterArray(platform);
-                    if (platArr && platArr.length > 0) {
-                        pmConditions.push(`${pmSrc.f.platform} IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
-                    } else {
-                        // Handle All platform based on channel
-                        const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform, false, pmSrc.f.channel);
-                        if (platformCond) {
-                            pmConditions.push(platformCond);
-                        }
+                    const platformCond = buildPlatformChannelCond(platform, channel, pmSrc.f.platform, false, pmSrc.f.channel);
+                    if (platformCond) {
+                        pmConditions.push(platformCond);
                     }
 
                     // Add brand filter (mapped to brand for pmSrc.table)
@@ -3284,11 +3319,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     conds.push(`(${brandConds})`);
                 }
                 if (locationArr && locationArr.length > 0) {
-                    if (locationArr.length === 1) {
-                        conds.push(`${src.f.location} = '${escapeStrMain(locationArr[0])}'`);
-                    } else {
-                        conds.push(`${src.f.location} IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
-                    }
+                    const locCond = buildLocationQueryCond(locationArr, moPlatform, src.f.location, src.f.platform);
+                    if (locCond) conds.push(locCond);
                 }
                 // Apply Product_Category filter for rb_pdp_olap
                 const catArrLocal = normalizeFilterArray(filters.category);
@@ -3341,8 +3373,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const bConds = brandArr.map(b => `lower(${pmSrc.f.brand}) LIKE lower('%${escapeStrMain(b)}%')`).join(' OR ');
                     if (bConds) pmMoConds.push(`(${bConds})`);
                 }
-                if (locationArr && locationArr.length > 0) {
-                    pmMoConds.push(`lower(${pmSrc.f.location}) IN (${locationArr.map(l => `'${escapeStrMain(l.toLowerCase())}'`).join(', ')})`);
+                if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && locationArr && locationArr.length > 0) {
+                    const locCond = buildLocationQueryCond(locationArr, moPlatform, pmSrc.f.location, pmSrc.f.platform);
+                    if (locCond) pmMoConds.push(locCond);
                 }
                 const catArrMo = normalizeFilterArray(category);
                 if (catArrMo && catArrMo.length > 0) {
@@ -3390,11 +3423,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             }
                         }
                         if (locationArr && locationArr.length > 0) {
-                            if (locationArr.length === 1) {
-                                sosBaseConds.push(`location_name = '${escapeStrMain(locationArr[0])}'`);
-                            } else {
-                                sosBaseConds.push(`location_name IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
-                            }
+                            const locCond = buildLocationQueryCond(locationArr, moPlatform, 'location_name', 'platform_name');
+                            if (locCond) sosBaseConds.push(locCond);
                         }
 
                         const sosNumConds = [...sosBaseConds];
@@ -3434,7 +3464,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             `sales IS NOT NULL`,
                             `platform = '${escapeStrMain(moPlatform)}'`
                         ];
-                        if (location && location !== 'All') msBaseConds.push(`location = '${escapeStrMain(location)}'`);
+                        if (locationArr && locationArr.length > 0) {
+                            const locCond = buildLocationQueryCond(locationArr, moPlatform, 'location', 'platform');
+                            if (locCond) msBaseConds.push(locCond);
+                        }
                         const localCatArr = normalizeFilterArray(category);
                         if (localCatArr && localCatArr.length > 0) {
                             if (localCatArr.length === 1) {
@@ -3671,7 +3704,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             if (bConds) pmCatConds.push(`(${bConds})`);
                         }
                         const locArrPm = normalizeFilterArray(location);
-                        if (locArrPm && locArrPm.length > 0) {
+                        if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && locArrPm && locArrPm.length > 0) {
                             pmCatConds.push(`lower(${pmSrc.f.location}) IN (${locArrPm.map(l => `'${escapeStrMain(l.toLowerCase())}'`).join(', ')})`);
                         }
                         if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
@@ -3892,7 +3925,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
         const boLocArr = normalizeFilterArray(location);
         if (boLocArr && boLocArr.length > 0) {
-            boOfftakeConds.push(`Location IN (${boLocArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
+            const platformCol = src.isAgg ? 'platform' : 'Platform';
+            const locCond = buildLocationQueryCond(boLocArr, brandsOverviewPlatform, 'Location', platformCol);
+            if (locCond) boOfftakeConds.push(locCond);
         }
 
         const buildPmCondsRange = (s, e) => {
@@ -3903,8 +3938,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             if (brandsOverviewCategoryArr && brandsOverviewCategoryArr.length > 0) {
                 conds.push(`${pmSrc.f.category} IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
             }
-            if (boLocArr && boLocArr.length > 0) {
-                conds.push(`${pmSrc.f.location} IN (${boLocArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
+            if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && boLocArr && boLocArr.length > 0) {
+                const locCond = buildLocationQueryCond(boLocArr, brandsOverviewPlatform, pmSrc.f.location, pmSrc.f.platform);
+                if (locCond) conds.push(locCond);
             }
             return conds.join(' AND ');
         };
@@ -3954,7 +3990,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
         const locArr2 = normalizeFilterArray(location);
         if (locArr2 && locArr2.length > 0) {
-            boPrevOfftakeConds.push(`Location IN (${locArr2.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
+            const platformCol = src.isAgg ? 'platform' : 'Platform';
+            const locCond = buildLocationQueryCond(locArr2, brandsOverviewPlatform, 'Location', platformCol);
+            if (locCond) boPrevOfftakeConds.push(locCond);
         }
 
         // Brand list conditions for ClickHouse
@@ -4651,11 +4689,9 @@ const computeTrendData = async (filters) => {
             }
             const trendLocArr = normalizeFilterArray(location);
             if (trendLocArr && trendLocArr.length > 0) {
-                if (trendLocArr.length === 1) {
-                    conds.push(`${src.f.location} = '${escapeStr(trendLocArr[0])}'`);
-                } else {
-                    conds.push(`${src.f.location} IN (${trendLocArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
-                }
+                const trendPlatArr = normalizeFilterArray(platform);
+                const locCond = buildLocationQueryCond(trendLocArr, trendPlatArr, src.f.location, src.f.platform);
+                if (locCond) conds.push(locCond);
             }
 
             // Channel-based platform filtering
@@ -5105,7 +5141,9 @@ const getPlatformOverview = async (filters) => {
 
         const locCol = src.isAgg ? 'location' : 'Location';
         if (locationArr && locationArr.length > 0) {
-            conds.push(`${locCol} IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const platformCol = src.isAgg ? 'platform' : 'Platform';
+            const locCond = buildLocationQueryCond(locationArr, platformArr, locCol, platformCol);
+            if (locCond) conds.push(locCond);
         }
 
         const catCol = src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL;
@@ -5150,8 +5188,9 @@ const getPlatformOverview = async (filters) => {
             // If "All", we might want to filter by validBrandNames, but usually Spend table is pre-filtered.
             // However, to be consistent with Platform Overview, we add a placeholder or filter here if needed.
         }
-        if (locationArr && locationArr.length > 0) {
-            conds.push(`lower(${pmSrc.f.location}) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && locationArr && locationArr.length > 0) {
+            const locCond = buildLocationQueryCond(locationArr, platformArr, pmSrc.f.location, pmSrc.f.platform);
+            if (locCond) conds.push(locCond);
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`lower(${pmSrc.f.category}) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
@@ -5169,7 +5208,8 @@ const getPlatformOverview = async (filters) => {
         // Only consider top 10 ranked positions for SOS
         conds.push(`POSITION <= 10`);
         if (locationArr && locationArr.length > 0) {
-            conds.push(`lower(location_name) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            const locCond = buildLocationQueryCond(locationArr, platformArr, 'location_name', 'platform_name');
+            if (locCond) conds.push(locCond);
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`lower(keyword_category) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
@@ -5199,7 +5239,8 @@ const getPlatformOverview = async (filters) => {
             conds.push(`group_brand IN (${brandsFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const locCond = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');
+            if (locCond) conds.push(locCond);
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
@@ -6018,7 +6059,8 @@ const getMonthOverview = async (filters) => {
             conds.push(`(${brandArr.map(b => `${src.f.brand} LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`${src.f.location} IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const locCond = buildLocationQueryCond(locationArr, moPlatform, src.f.location, src.f.platform);
+            if (locCond) conds.push(locCond);
         }
         if (categoryArr && categoryArr.length > 0) {
             const catCol = src.f.category;
@@ -6047,7 +6089,8 @@ const getMonthOverview = async (filters) => {
             conds.push(`keyword_category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`location_name IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const locCond = buildLocationQueryCond(locationArr, moPlatform, 'location_name', 'platform_name');
+            if (locCond) conds.push(locCond);
         }
         return conds.join(' AND ');
     };
@@ -6062,8 +6105,9 @@ const getMonthOverview = async (filters) => {
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`lower(${pmSrc.f.category}) IN (${categoryArr.map(c => `'${escapeStr(c).toLowerCase()}'`).join(', ')})`);
         }
-        if (locationArr && locationArr.length > 0) {
-            conds.push(`lower(${pmSrc.f.location}) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && locationArr && locationArr.length > 0) {
+            const locCond = buildLocationQueryCond(locationArr, moPlatform, pmSrc.f.location, pmSrc.f.platform);
+            if (locCond) conds.push(locCond);
         }
         return conds.join(' AND ');
     };
@@ -6089,7 +6133,8 @@ const getMonthOverview = async (filters) => {
             conds.push(`category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const locCond = buildLocationQueryCond(locationArr, moPlatform, 'location', 'platform');
+            if (locCond) conds.push(locCond);
         }
         return conds.join(' AND ');
     };
@@ -6389,7 +6434,9 @@ const getCategoryOverview = async (filters) => {
 
         const locCol = src.isAgg ? 'location' : 'Location';
         if (locationArr && locationArr.length > 0) {
-            conds.push(`${locCol} IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const platformCol = src.isAgg ? 'platform' : 'Platform';
+            const locCond = buildLocationQueryCond(locationArr, catPlatform, locCol, platformCol);
+            if (locCond) conds.push(locCond);
         }
 
         const catCol = src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL;
@@ -6422,7 +6469,8 @@ const getCategoryOverview = async (filters) => {
         const pCond = buildPlatformChannelCond(catPlatform, channel, 'platform_name');
         if (pCond) conds.push(pCond);
         if (locationArr && locationArr.length > 0) {
-            conds.push(`location_name IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const locCond = buildLocationQueryCond(locationArr, catPlatform, 'location_name', 'platform_name');
+            if (locCond) conds.push(locCond);
         }
         if (brandArr && brandArr.length > 0) {
             conds.push(`LOWER(brand) IN (${brandArr.map(b => `'${escapeStr(b)}'`).join(', ')})`);
@@ -6438,8 +6486,9 @@ const getCategoryOverview = async (filters) => {
         const conds = [`${pmSrc.f.date} BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         const platformCond = buildPlatformChannelCond(catPlatform, channel, pmSrc.f.platform, false, pmSrc.f.channel);
         if (platformCond) conds.push(platformCond);
-        if (locationArr && locationArr.length > 0) {
-            conds.push(`lower(${pmSrc.f.location}) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && locationArr && locationArr.length > 0) {
+            const locCond = buildLocationQueryCond(locationArr, catPlatform, pmSrc.f.location, pmSrc.f.platform);
+            if (locCond) conds.push(locCond);
         }
         if (brandArr && brandArr.length > 0) {
             const brandConds = brandArr.map(b => `'${escapeStr(b).toLowerCase()}'`).join(',');
@@ -6463,7 +6512,8 @@ const getCategoryOverview = async (filters) => {
             conds.push(`LOWER(group_brand) IN (${brandsFilter.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const locCond = buildLocationQueryCond(locationArr, catPlatform, 'location', 'platform');
+            if (locCond) conds.push(locCond);
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`LOWER(category) IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
@@ -6833,7 +6883,9 @@ const getBrandsOverview = async (filters) => {
 
         const locCol = src.isAgg ? 'location' : 'Location';
         if (locationArr && locationArr.length > 0) {
-            conds.push(`${locCol} IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const platformCol = src.isAgg ? 'platform' : 'Platform';
+            const locCond = buildLocationQueryCond(locationArr, boPlatform, locCol, platformCol);
+            if (locCond) conds.push(locCond);
         }
 
         // Advanced SKU Search Filters (Only supported on raw table)
@@ -6862,8 +6914,9 @@ const getBrandsOverview = async (filters) => {
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`lower(${pmSrc.f.category}) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
         }
-        if (locationArr && locationArr.length > 0) {
-            conds.push(`lower(${pmSrc.f.location}) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && locationArr && locationArr.length > 0) {
+            const locCond = buildLocationQueryCond(locationArr, boPlatform, pmSrc.f.location, pmSrc.f.platform);
+            if (locCond) conds.push(locCond);
         }
         return conds.join(' AND ');
     };
@@ -6883,7 +6936,8 @@ const getBrandsOverview = async (filters) => {
         }
         const locArr = normalizeFilterArray(location);
         if (locArr && locArr.length > 0) {
-            conds.push(`location_name IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const locCond = buildLocationQueryCond(locArr, boPlatform, 'location_name', 'platform_name');
+            if (locCond) conds.push(locCond);
         }
         return conds.join(' AND ');
     };
@@ -6904,7 +6958,8 @@ const getBrandsOverview = async (filters) => {
         }
         const locArr = normalizeFilterArray(location);
         if (locArr && locArr.length > 0) {
-            conds.push(`location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const locCond = buildLocationQueryCond(locArr, boPlatform, 'location', 'platform');
+            if (locCond) conds.push(locCond);
         }
         return conds.join(' AND ');
     };
@@ -7377,7 +7432,7 @@ const getKpiTrends = async (filters) => {
             if (dimKey === 'platform') conds.push(`lower(${pmSrc.f.platform}) = '${escapeStr(val.toLowerCase())}'`);
             else if (dimKey === 'category' || dimKey === 'format') conds.push(`lower(${pmSrc.f.category}) = '${escapeStr(val.toLowerCase())}'`);
             else if (dimKey === 'brand') conds.push(`lower(${pmSrc.f.brand}) = '${escapeStr(val.toLowerCase())}'`);
-            else if (dimKey === 'city' || dimKey === 'location') conds.push(`lower(${pmSrc.f.location}) = '${escapeStr(val.toLowerCase())}'`);
+            else if ((dimKey === 'city' || dimKey === 'location') && pmSrc.f.location && pmSrc.f.location !== "'Unknown'") conds.push(`lower(${pmSrc.f.location}) = '${escapeStr(val.toLowerCase())}'`);
         }
 
         if (catArr && catArr.length > 0) conds.push(`lower(${pmSrc.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
@@ -7387,7 +7442,7 @@ const getKpiTrends = async (filters) => {
             conds.push(`(${brandConditions})`);
         }
 
-        if (locArr && locArr.length > 0) conds.push(`lower(${pmSrc.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && locArr && locArr.length > 0) conds.push(`lower(${pmSrc.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
 
         if (platArr && platArr.length > 0) {
             conds.push(`lower(${pmSrc.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
@@ -9314,7 +9369,8 @@ const getDarkStoreCount = async (filters = {}) => {
         if (location && location !== 'All') {
             const locationArr = Array.isArray(location) ? location : [location];
             if (locationArr.length > 0) {
-                conds.push(`location IN(${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                const locCond = buildLocationQueryCond(locationArr, platform, 'location', 'platform');
+                if (locCond) conds.push(locCond);
             }
         }
 
@@ -11009,7 +11065,9 @@ const getSkuOverview = async (filters) => {
 
         const locCol = src.isAgg ? 'location' : 'Location';
         if (locationArr && locationArr.length > 0) {
-            conds.push(`${locCol} IN(${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const platformCol = src.isAgg ? 'platform' : 'Platform';
+            const locCond = buildLocationQueryCond(locationArr, skuPlatform, locCol, platformCol);
+            if (locCond) conds.push(locCond);
         }
 
         const catCol = src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL;
@@ -11048,7 +11106,8 @@ const getSkuOverview = async (filters) => {
             conds.push(`category IN(${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`location IN(${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const locCond = buildLocationQueryCond(locationArr, skuPlatform, 'location', 'platform');
+            if (locCond) conds.push(locCond);
         }
         return conds.join(' AND ');
     };
@@ -11059,7 +11118,8 @@ const getSkuOverview = async (filters) => {
         const pCond = buildPlatformChannelCond(skuPlatform, channel, 'platform_name');
         if (pCond) conds.push(pCond);
         if (locationArr && locationArr.length > 0) {
-            conds.push(`location_name IN(${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            const locCond = buildLocationQueryCond(locationArr, skuPlatform, 'location_name', 'platform_name');
+            if (locCond) conds.push(locCond);
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`keyword_category IN(${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
@@ -11455,8 +11515,9 @@ const getCityOverview = async (filters) => {
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`lower(${pmSrc.f.category}) IN (${categoryArr.map(c => `'${escapeStr(c).toLowerCase()}'`).join(', ')})`);
         }
-        if (locationArr && locationArr.length > 0) {
-            conds.push(`lower(${pmSrc.f.location}) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && locationArr && locationArr.length > 0) {
+            const locCond = buildLocationQueryCond(locationArr, cityPlatform, pmSrc.f.location, pmSrc.f.platform);
+            if (locCond) conds.push(locCond);
         }
         return conds.join(' AND ');
     };
@@ -11685,7 +11746,7 @@ const getPerformanceBreakdownData = async (filters) => {
             const cats = filters.category.includes(',') ? filters.category.split(',').map(c => c.trim()) : [filters.category];
             extraClauses += ` AND lower(${pmSrc.f.category}) IN(${cats.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`;
         }
-        if (filters.location && filters.location !== 'All') {
+        if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && filters.location && filters.location !== 'All') {
             const locs = filters.location.includes(',') ? filters.location.split(',').map(l => l.trim()) : [filters.location];
             extraClauses += ` AND lower(${pmSrc.f.location}) IN(${locs.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`;
         }
@@ -11952,6 +12013,111 @@ const getProductCategories = async (filters = {}) => {
     }
 };
 
+const getWatchTowerCascadedFilters = async (filters) => {
+    try {
+        const { channel, platform, category, brand, location } = filters;
+
+        const cols = await getTableColumns('rca_sku_dim');
+        const hasChannel = columnExists(cols, 'channel');
+        
+        const channelCol = hasChannel ? resolveColumn(cols, 'channel') : null;
+        const platformCol = resolveColumn(cols, 'platform');
+        const categoryCol = resolveColumn(cols, 'category');
+        const brandCol = cols.has('brand_name') ? resolveColumn(cols, 'brand_name') : resolveColumn(cols, 'brand');
+        const locationCol = cols.has('location_name') ? resolveColumn(cols, 'location_name') : resolveColumn(cols, 'location');
+
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+        // Helper to get conditions excluding a specific field
+        const getConditions = (excludeField) => {
+            const conds = [];
+
+            // 1. Channel & Platform filters
+            const targetPlatform = excludeField === 'platform' ? null : platform;
+            const targetChannel = excludeField === 'channel' ? null : channel;
+            const platChanCond = buildPlatformChannelCond(targetPlatform, targetChannel, platformCol, false, channelCol);
+            if (platChanCond) {
+                conds.push(platChanCond);
+            }
+
+            // 2. Category filter
+            if (excludeField !== 'category' && category && category !== 'All') {
+                const catArr = normalizeFilterArray(category);
+                if (catArr.length > 0) {
+                    conds.push(`lower(${categoryCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+                }
+            }
+
+            // 3. Brand filter
+            if (excludeField !== 'brand' && brand && brand !== 'All') {
+                const brandArr = normalizeFilterArray(brand);
+                if (brandArr.length > 0) {
+                    conds.push(`lower(${brandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+                }
+            }
+
+            // 4. Location filter
+            if (excludeField !== 'location' && location && location !== 'All') {
+                const locArr = normalizeFilterArray(location);
+                if (locArr.length > 0) {
+                    conds.push(`lower(${locationCol}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
+                }
+            }
+
+            // Always exclude competitors for these lists
+            if (columnExists(cols, 'comp_flag')) {
+                const compFlagCol = resolveColumn(cols, 'comp_flag');
+                conds.push(`toString(${compFlagCol}) = '0'`);
+            }
+
+            return conds;
+        };
+
+        const runQuery = async (field, colName) => {
+            if (!colName) return [];
+            try {
+                const conds = getConditions(field);
+                conds.push(`${colName} IS NOT NULL`, `${colName} != ''`);
+                if (field === 'category') {
+                    conds.push(`${colName} != 'Others'`);
+                }
+                const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
+                const query = `SELECT DISTINCT ${colName} AS val FROM rca_sku_dim ${whereClause} ORDER BY val`;
+                const results = await queryClickHouse(query);
+                return results.map(r => r.val).filter(Boolean);
+            } catch (err) {
+                console.error(`[getWatchTowerCascadedFilters] Error for field ${field}:`, err);
+                return [];
+            }
+        };
+
+        const [channelsList, platformsList, categoriesList, brandsList, locationsList] = await Promise.all([
+            runQuery('channel', channelCol),
+            runQuery('platform', platformCol),
+            runQuery('category', categoryCol),
+            runQuery('brand', brandCol),
+            runQuery('location', locationCol)
+        ]);
+
+        return {
+            channels: channelsList,
+            platforms: platformsList,
+            categories: categoriesList,
+            brands: brandsList,
+            locations: locationsList
+        };
+    } catch (error) {
+        console.error("Error in getWatchTowerCascadedFilters:", error);
+        return {
+            channels: [],
+            platforms: [],
+            categories: [],
+            brands: [],
+            locations: []
+        };
+    }
+};
+
 export default {
     getSummaryMetrics,
     getTrendData,
@@ -11985,5 +12151,6 @@ export default {
     getProducts,
     getProductCategories,
     getChannels,
-    getPdpPlatforms
+    getPdpPlatforms,
+    getWatchTowerCascadedFilters
 };

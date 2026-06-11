@@ -118,7 +118,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
             const ranksArray = Array.isArray(rank) ? rank : [rank];
             const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
             if (!isNaN(maxRank) && maxRank > 0) {
-                rankCondition = ` AND POSITION <= ${maxRank}`;
+                rankCondition = ` AND POSITION <= ${maxRank} AND POSITION > 0`;
             }
         }
 
@@ -195,7 +195,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
             const ranksArray = Array.isArray(rank) ? rank : [rank];
             const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
             if (!isNaN(maxRank) && maxRank > 0) {
-                rankCondition = ` AND POSITION <= ${maxRank}`;
+                rankCondition = ` AND POSITION <= ${maxRank} AND POSITION > 0`;
             }
         }
 
@@ -761,7 +761,7 @@ class VisibilityService {
                 const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
                 const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
                 if (!isNaN(maxRank) && maxRank > 0) {
-                    baseWhere += ` AND POSITION <= ${maxRank}`;
+                    baseWhere += ` AND POSITION <= ${maxRank} AND POSITION > 0`;
                 }
             }
 
@@ -853,7 +853,7 @@ class VisibilityService {
                     const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
                     const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
                     if (!isNaN(maxRank) && maxRank > 0) {
-                        rankCondition = ` AND POSITION <= ${maxRank}`;
+                        rankCondition = ` AND POSITION <= ${maxRank} AND POSITION > 0`;
                         currentWhere += rankCondition;
                         prevWhere += rankCondition;
                     }
@@ -1075,7 +1075,7 @@ class VisibilityService {
                 const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
                 const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
                 if (!isNaN(maxRank) && maxRank > 0) {
-                    whereConditions.push(`POSITION <= ${maxRank}`);
+                    whereConditions.push(`POSITION <= ${maxRank} AND POSITION > 0`);
                 }
             }
             const baseWhereClause = `WHERE ${whereConditions.join(' AND ')}`;
@@ -1375,7 +1375,7 @@ class VisibilityService {
                     const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
                     const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
                     if (!isNaN(maxRank) && maxRank > 0) {
-                        rankCondition = ` AND POSITION <= ${maxRank}`;
+                        rankCondition = ` AND POSITION <= ${maxRank} AND POSITION > 0`;
                     }
                 }
 
@@ -1748,7 +1748,7 @@ class VisibilityService {
                     const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
                     const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
                     if (!isNaN(maxRank) && maxRank > 0) {
-                        rankCondition = ` AND POSITION <= ${maxRank}`;
+                        rankCondition = ` AND POSITION <= ${maxRank} AND POSITION > 0`;
                     }
                 }
 
@@ -2256,7 +2256,7 @@ class VisibilityService {
                 const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
                 const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
                 if (maxRank > 0) {
-                    rankCondition = `AND POSITION <= ${maxRank}`;
+                    rankCondition = `AND POSITION <= ${maxRank} AND POSITION > 0`;
                 }
             }
 
@@ -2491,7 +2491,7 @@ class VisibilityService {
                 const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
                 const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
                 if (maxRank > 0) {
-                    rankCondition = `AND POSITION <= ${maxRank}`;
+                    rankCondition = `AND POSITION <= ${maxRank} AND POSITION > 0`;
                 }
             }
 
@@ -2702,7 +2702,7 @@ class VisibilityService {
                 const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
                 const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
                 if (maxRank > 0) {
-                    rankCondition = `AND POSITION <= ${maxRank}`;
+                    rankCondition = `AND POSITION <= ${maxRank} AND POSITION > 0`;
                 }
             }
 
@@ -3305,7 +3305,7 @@ class VisibilityService {
                 const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
                 const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
                 if (!isNaN(maxRank) && maxRank > 0) {
-                    rankCondition = ` AND POSITION <= ${maxRank}`;
+                    rankCondition = ` AND POSITION <= ${maxRank} AND POSITION > 0`;
                 }
             }
 
@@ -4039,38 +4039,86 @@ class VisibilityService {
 
             // Build numerator-specific COUNTIf condition based on viewMode
             // SKU mode: keyword_search_product = 'sku_name'
-            // Keyword mode: flag=1 (own brand rows)
+            // Keyword/Brand mode: filter by specific brand if brand is selected, else flag=1 (own brand rows)
             let numCondition = 'toInt32(flag) = 1';
             if (viewMode === 'sku' && sku && sku !== 'All') {
                 const skuCond = buildCHCondition(sku, 'keyword_search_product', { isDimension: true, noSplit: true });
                 numCondition = `${skuCond}`;
+            } else if (brand && brand !== 'All') {
+                numCondition = buildCHCondition(brand, 'brand', { isBrand: false });
             }
 
+            // Use CTE + window function approach for correct location-level SOS:
+            // Step 1: Group by (platform, location, keyword, brand) to get brand_rows, ad_rows, organic_rows
+            //         Also carry `is_target` = MAX of the numCondition so we can filter in the final SELECT
+            // Step 2: Use window functions partitioned by (platform, location, keyword) for per-keyword SOS
+            // Step 3: Filter to only target brand/SKU rows, then aggregate (average) SOS per location
             const query = `
-                SELECT 
+                WITH brand_counts AS (
+                    SELECT
+                        platform_name,
+                        location_name,
+                        keyword,
+                        brand,
+                        COUNT(*) AS brand_rows,
+                        SUM(CASE WHEN toInt32(spons) = 1 THEN 1 ELSE 0 END) AS ad_rows,
+                        SUM(CASE WHEN toInt32(spons) = 0 THEN 1 ELSE 0 END) AS organic_rows,
+                        MAX(CASE WHEN ${numCondition} THEN 1 ELSE 0 END) AS is_target,
+                        ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(POSITION) > 0), 1) AS overallRank,
+                        ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(spons) = 1 AND toInt32(POSITION) > 0), 1) AS paidRank,
+                        ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(spons) = 0 AND toInt32(POSITION) > 0), 1) AS organicRank
+                    FROM rb_kw_olap
+                    WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                      AND ${platformCondition}
+                      AND ${channelCondition}
+                      AND ${keywordWhereCondition}
+                      AND ${rankCondition}
+                      AND ${locationTypeFilter}
+                      AND location_name IS NOT NULL AND location_name != '' AND lower(location_name) != 'other'
+                    GROUP BY platform_name, location_name, keyword, brand
+                ),
+                keyword_level_sos AS (
+                    SELECT
+                        platform_name,
+                        location_name,
+                        keyword,
+                        brand,
+                        brand_rows,
+                        ad_rows,
+                        organic_rows,
+                        is_target,
+                        overallRank,
+                        paidRank,
+                        organicRank,
+                        ROUND(
+                            brand_rows * 100.0 /
+                            NULLIF(SUM(brand_rows) OVER (PARTITION BY platform_name, location_name, keyword), 0),
+                            2
+                        ) AS overall_sos_pct,
+                        ROUND(
+                            ad_rows * 100.0 /
+                            NULLIF(SUM(ad_rows) OVER (PARTITION BY platform_name, location_name, keyword), 0),
+                            2
+                        ) AS ad_sos_pct,
+                        ROUND(
+                            organic_rows * 100.0 /
+                            NULLIF(SUM(organic_rows) OVER (PARTITION BY platform_name, location_name, keyword), 0),
+                            2
+                        ) AS organic_sos_pct
+                    FROM brand_counts
+                )
+                SELECT
                     location_name AS city,
-                    COUNTIf(${numCondition}) AS num_overall,
-                    COUNTIf(${numCondition} AND toInt32(spons) = 0) AS num_organic,
-                    COUNTIf(${numCondition} AND toInt32(spons) = 1) AS num_spons,
-                    COUNT(*) AS den_overall,
-                    COUNTIf(toInt32(spons) = 0) AS den_organic,
-                    COUNTIf(toInt32(spons) = 1) AS den_spons,
-                    ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
-                    ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
-                    ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos,
-                    ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(POSITION) > 0), 1) AS overallRank,
-                    ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(spons) = 1 AND toInt32(POSITION) > 0), 1) AS paidRank,
-                    ROUND(avgIf(toFloat64(POSITION), ${numCondition} AND toInt32(spons) = 0 AND toInt32(POSITION) > 0), 1) AS organicRank
-                FROM rb_kw_olap
-                WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
-                  AND ${platformCondition}
-                  AND ${channelCondition}
-                  AND ${keywordWhereCondition}
-                  AND ${rankCondition}
-                  AND ${locationTypeFilter}
-                  AND location_name IS NOT NULL AND location_name != '' AND lower(location_name) != 'other'
-                GROUP BY city
-                HAVING den_overall > 0
+                    ROUND(AVG(overall_sos_pct), 2) AS overall_sos,
+                    ROUND(AVG(organic_sos_pct), 2) AS organic_sos,
+                    ROUND(AVG(ad_sos_pct), 2) AS paid_sos,
+                    ROUND(AVG(overallRank), 1) AS overallRank,
+                    ROUND(AVG(paidRank), 1) AS paidRank,
+                    ROUND(AVG(organicRank), 1) AS organicRank
+                FROM keyword_level_sos
+                WHERE is_target = 1
+                GROUP BY location_name
+                HAVING COUNT(*) > 0
                 ORDER BY overall_sos DESC
             `;
 

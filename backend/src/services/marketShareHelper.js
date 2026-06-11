@@ -23,6 +23,73 @@ export const mapCategoryForMs = (categoryArr) => {
 };
 
 /**
+ * Helper to build location query condition dynamically handling national platforms (Amazon, Flipkart)
+ */
+const buildLocationQueryCond = (locationArr, platformVal, locationCol = 'location', platformCol = 'platform') => {
+    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+    if (!locationArr || locationArr.length === 0 || locationArr.includes('All') || locationArr.includes('All India')) return null;
+
+    let platforms = [];
+    if (platformVal && platformVal !== 'All') {
+        platforms = Array.isArray(platformVal)
+            ? platformVal.map(p => p.toLowerCase())
+            : (typeof platformVal === 'string' && platformVal.includes(',')
+                ? platformVal.split(',').map(p => p.trim().toLowerCase())
+                : [platformVal.toLowerCase()]);
+    } else {
+        platforms = ['amazon', 'flipkart', 'blinkit', 'zepto', 'instamart'];
+    }
+
+    const hasAmazon = platforms.includes('amazon');
+    const hasFlipkart = platforms.includes('flipkart');
+    const hasNational = hasAmazon || hasFlipkart;
+    const isOnlyNational = platforms.length > 0 && platforms.every(p => ['amazon', 'flipkart'].includes(p));
+
+    const nationalLocs = ["'nation'", "'national'"].join(', ');
+
+    if (isOnlyNational) {
+        return `lower(${locationCol}) IN (${nationalLocs})`;
+    } else if (hasNational) {
+        const localLocs = locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ');
+        const nationalPlats = ['amazon', 'flipkart'].map(p => `'${p}'`).join(', ');
+        return `((lower(${platformCol}) IN (${nationalPlats}) AND lower(${locationCol}) IN (${nationalLocs})) OR (lower(${platformCol}) NOT IN (${nationalPlats}) AND lower(${locationCol}) IN (${localLocs})))`;
+    } else {
+        const localLocs = locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ');
+        return `lower(${locationCol}) IN (${localLocs})`;
+    }
+};
+
+/**
+ * Helper to build keyword base condition for rb_kw_olap
+ */
+const buildKwBaseCond = (platformVal, categoryArr, locationArr = null) => {
+    let cond = '1=1';
+    let platforms = [];
+    if (platformVal && platformVal !== 'All') {
+        platforms = Array.isArray(platformVal)
+            ? platformVal.map(p => p.toLowerCase())
+            : (typeof platformVal === 'string' && platformVal.includes(',')
+                ? platformVal.split(',').map(p => p.trim().toLowerCase())
+                : [platformVal.toLowerCase()]);
+    }
+    if (platforms.length > 0) {
+        const platformConds = platforms.map(p => `lower(platform_name) LIKE '%${p.replace(/'/g, "''")}%'`).join(' OR ');
+        cond += ` AND (${platformConds})`;
+    }
+    if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
+        const mappedCats = mapCategoryForMs(categoryArr);
+        cond += ` AND lower(keyword_category) IN (${mappedCats.map(c => `'${c.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+    }
+    if (locationArr && locationArr.length > 0) {
+        const locCondStr = buildLocationQueryCond(locationArr, platformVal, 'location_name', 'platform_name');
+        if (locCondStr) {
+            cond += ` AND ${locCondStr}`;
+        }
+    }
+    return cond;
+};
+
+/**
  * Shared Market Share Calculation Helper
  * Uses rb_ms_olap table with sales-based formula:
  *   Market Share = SUM(our_sales) / SUM(total_category_sales) * 100
@@ -42,8 +109,9 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
         }
 
         let locationCond = '';
-        if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
+        const locCondStr = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');
+        if (locCondStr) {
+            locationCond = `AND ${locCondStr}`;
         }
 
         // Brands to query (our brands)
@@ -120,8 +188,9 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
         }
 
         let locationCond = '';
-        if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
+        const locCondStr = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');
+        if (locCondStr) {
+            locationCond = `AND ${locCondStr}`;
         }
 
         let brandsToQuery = [];
@@ -208,8 +277,9 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
         }
 
         let locationCond = '';
-        if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
+        const locCondStr = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');
+        if (locCondStr) {
+            locationCond = `AND ${locCondStr}`;
         }
 
         let brandsToQuery = [];
@@ -291,8 +361,9 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
         }
 
         let locationCond = '';
-        if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
+        const locCondStr = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');
+        if (locCondStr) {
+            locationCond = `AND ${locCondStr}`;
         }
 
         let brandsToQuery = [];

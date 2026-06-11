@@ -82,6 +82,7 @@ export function generateCacheKey(section, filters) {
         // Visibility Analysis
         keywordType = '',
         keywordTypeFilter = '',
+        rank = '',
         // Drill-down specific
         drillDimension = '',
         includeBreakdown = '',
@@ -123,6 +124,7 @@ export function generateCacheKey(section, filters) {
     if (city && city !== 'all' && city !== 'All') key += `:cty_${normalize(city)}`;
     if (keywordType && keywordType !== 'all' && keywordType !== 'All') key += `:ktyp_${normalize(keywordType)}`;
     if (keywordTypeFilter && keywordTypeFilter !== 'all' && keywordTypeFilter !== 'All') key += `:ktypflt_${normalize(keywordTypeFilter)}`;
+    if (rank && rank !== 'all' && rank !== 'All') key += `:rnk_${normalize(rank)}`;
     if (view) key += `:vw_${normalize(view)}`;
 
     if (drillDimension) key += `:ddim_${normalize(drillDimension)}`;
