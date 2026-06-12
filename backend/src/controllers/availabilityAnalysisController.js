@@ -683,7 +683,7 @@ export const getSignalLabData = async (req, res) => {
 
                 // Tier 1/2 filter for all Signal Lab queries (only if table exists and has data)
                 if (hasTierFilter) {
-                    conditions.push(`Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
+                    conditions.push(`LOWER(Location) IN (SELECT DISTINCT LOWER(location) FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
                 }
 
                 if (categoryFilter) {
@@ -1341,7 +1341,7 @@ export const getCityDetailsForProduct = async (req, res) => {
 
                 // Tier 1/2 filter (only if table exists and has data)
                 if (hasTierFilter) {
-                    conds.push(`Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
+                    conds.push(`LOWER(Location) IN (SELECT DISTINCT LOWER(location) FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
                 }
                 if (includeCompDates) {
                     conds.push(`(toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')`);

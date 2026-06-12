@@ -1,22 +1,23 @@
+import { queryClickHouse } from './src/config/clickhouse.js';
 
-import axios from 'axios';
-
-async function testSignalLab() {
+async function run() {
     try {
-        const baseUrl = 'http://localhost:5000/api/availability-analysis/signal-lab';
-        const params = {
-            type: 'availability',
-            signalType: 'gainer',
-            startDate: '2024-03-01',
-            endDate: '2024-03-10'
-        };
+        const query1 = `
+            SELECT DISTINCT Location FROM rb_pdp_olap 
+            WHERE Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))
+        `;
+        const res1 = await queryClickHouse(query1);
+        console.log("Matching locations with case-sensitive IN:", res1);
 
-        console.log('Testing Signal Lab Availability Gainers...');
-        // Note: This won't work if the server isn't running, but we can look at the code logic again.
-        // Instead of calling the API, let's create a mockup of the ClickHouse query and see what it would do.
-    } catch (err) {
-        console.error(err);
+        const query2 = `
+            SELECT DISTINCT Location FROM rb_pdp_olap 
+            WHERE LOWER(Location) IN (SELECT DISTINCT LOWER(location) FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))
+        `;
+        const res2 = await queryClickHouse(query2);
+        console.log("Matching locations with LOWER():", res2.map(r => r.Location));
+
+    } catch (e) {
+        console.error(e);
     }
 }
-
-// Actually, I can just use node to run a small part of the logic.
+run();
