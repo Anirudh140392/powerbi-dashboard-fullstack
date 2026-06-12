@@ -637,11 +637,11 @@ async function getPricingKpis(filters = {}) {
             const aspTrend = [];
 
             if (trendResults && trendResults.length > 0) {
-                 trendResults.forEach(row => {
-                     discountTrend.push(formatVal(row.discount_curr));
-                     weightedDiscountTrend.push(formatVal(row.weighted_discount_curr));
-                     aspTrend.push(formatVal(row.asp_curr));
-                 });
+                trendResults.forEach(row => {
+                    discountTrend.push(formatVal(row.discount_curr));
+                    weightedDiscountTrend.push(formatVal(row.weighted_discount_curr));
+                    aspTrend.push(formatVal(row.asp_curr));
+                });
             }
 
             const data = {
@@ -844,7 +844,7 @@ async function getPricingInsights(filters = {}) {
                     const delta = dp - dc; // delta represents price change
 
                     if (!cityDataMap[key]) cityDataMap[key] = [];
-                    
+
                     cityDataMap[key].push({
                         name: r.city,
                         discount: parseFloat(dc.toFixed(2)),
@@ -974,7 +974,7 @@ const getDimensionOverview = async (filters = {}) => {
                         joinClause = `LEFT JOIN rb_sku_platform s ON p.${f.webPid} = s.web_pid`;
                         imageExpr = `any(s.image_url) AS image_url`;
                     }
-                } catch(e) {
+                } catch (e) {
                     console.log("[PricingAnalysisService] rb_sku_platform or image_url missing, skipping image fetch");
                 }
             } else if (isPlatform) {
@@ -985,7 +985,7 @@ const getDimensionOverview = async (filters = {}) => {
                         joinClause = `LEFT JOIN rb_platform pl ON lower(trim(p.${f.platform})) = lower(trim(pl.pf_name))`;
                         imageExpr = `any(pl.platform_description) AS image_url`;
                     }
-                } catch(e) {
+                } catch (e) {
                     console.log("[PricingAnalysisService] rb_platform or platform_description missing, skipping image fetch");
                 }
             }
@@ -1243,7 +1243,7 @@ const getDimensionTrends = async (filters = {}) => {
                 const d = new Date(refDate);
                 if (!isNaN(d.getTime())) {
                     const day = String(d.getDate()).padStart(2, '0');
-                    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                     const mon = months[d.getMonth()];
                     const yr = String(d.getFullYear()).slice(-2);
                     return `${day} ${mon}'${yr}`;
@@ -1254,7 +1254,7 @@ const getDimensionTrends = async (filters = {}) => {
                 const d = new Date(refDate);
                 if (!isNaN(d.getTime())) {
                     const day = String(d.getDate()).padStart(2, '0');
-                    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                     const mon = months[d.getMonth()];
                     const yr = String(d.getFullYear()).slice(-2);
                     return `${day} ${mon}'${yr}`;
@@ -1265,7 +1265,7 @@ const getDimensionTrends = async (filters = {}) => {
                 const d = new Date(refDate);
                 if (!isNaN(d.getTime())) {
                     const day = String(d.getDate()).padStart(2, '0');
-                    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                     const mon = months[d.getMonth()];
                     const yr = String(d.getFullYear()).slice(-2);
                     return `${day} ${mon}'${yr}`;
