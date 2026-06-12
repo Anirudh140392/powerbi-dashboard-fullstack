@@ -214,6 +214,9 @@ const LatestOverivewCatCity = ({
                 const ch = toParam(selectedChannel); 
                 if (ch) params.append('channel', ch);
 
+                const sk = toParam(advancedFilters.skus?.length > 0 ? advancedFilters.skus : null);
+                if (sk) params.append('sku', sk);
+
                 params.append('dimension', dimension);
                 // if (drilldownSku) params.append('sku', drilldownSku); // No longer needed for main list
                 
@@ -245,7 +248,7 @@ const LatestOverivewCatCity = ({
         };
         fetchData();
         return () => { isMounted = false; };
-    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.dateFrom, advancedFilters.dateTo]);
+    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.dateFrom, advancedFilters.dateTo]);
 
     // Reset pagination when dimension or filters change
     useEffect(() => {
@@ -352,8 +355,8 @@ const LatestOverivewCatCity = ({
     const entities = useMemo(() => {
         let list = [...apiData];
 
-        // Apply dimension-specific advanced filters locally
-        if ((dimension === 'category' || dimension === 'platform' || dimension === 'sku') && advancedFilters.skus?.length > 0) {
+        // Apply SKU filter locally only when the dimension itself is 'sku'
+        if (dimension === 'sku' && advancedFilters.skus?.length > 0) {
             list = list.filter(e => advancedFilters.skus.includes(e.key));
         }
 

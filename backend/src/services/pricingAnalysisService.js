@@ -71,6 +71,7 @@ async function getPricingSource() {
     return {
         table: 'rb_pdp_olap',
         cols,
+        hasWeight,
         f: {
             sellingPrice: sellingPriceCol,
             mrp: mrpCol,
@@ -271,7 +272,7 @@ async function getEcpComparison(filters = {}) {
             SELECT
                 p.${src.f.brand} AS Brand,
                 p.${src.f.product} AS product,
-                p.${src.f.weight} AS pack_size,
+                ${src.hasWeight ? `p.${src.f.weight}` : "'N/A'"} AS pack_size,
                 p.${src.f.platform} AS Platform,
                 
                 -- Current Period Our Metrics
