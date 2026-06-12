@@ -281,10 +281,10 @@ export const downloadReport = async (req, res) => {
 
             const metroJoin = hasLocationDarkstore ? `
                 LEFT JOIN (
-                    SELECT DISTINCT location, 1 as is_metro
+                    SELECT DISTINCT LOWER(location) as location, 1 as is_metro
                     FROM rb_location_darkstore
                     WHERE tier = 'Tier 1'
-                ) m ON t.Location = m.location` : '';
+                ) m ON LOWER(t.Location) = m.location` : '';
 
             const sosCol = hasKwOlap ? `round(any(s.brand_kw_count) / nullIf(any(tot.total_kw_count), 0) * 100, 2) as SOS_Percentage,` : '';
             const metroCol = hasLocationDarkstore ? `round(SUM(if(m.is_metro = 1, toFloat64(t.${col('neno_osa')}), 0)) / nullIf(SUM(if(m.is_metro = 1, toFloat64(t.${col('deno_osa')}), 0)), 0) * 100, 2) as Metro_City_Stock_Availability` : `0 as Metro_City_Stock_Availability`;
@@ -539,10 +539,10 @@ export const downloadReport = async (req, res) => {
 
             const metroJoin = hasLocationDarkstore ? `
                 LEFT JOIN (
-                    SELECT DISTINCT location, 1 as is_metro
+                    SELECT DISTINCT LOWER(location) as location, 1 as is_metro
                     FROM rb_location_darkstore
                     WHERE tier = 'Tier 1'
-                ) m ON t.Location = m.location` : '';
+                ) m ON LOWER(t.Location) = m.location` : '';
 
             const sosJoin = hasKwOlap ? `
                 LEFT JOIN sos_stats s ON ${sosJoinOn.join(' AND ')}
