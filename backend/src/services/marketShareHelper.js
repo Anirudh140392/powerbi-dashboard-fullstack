@@ -25,15 +25,8 @@ export const makeSubCategoryJoin = (subCategoryFilter) => {
 
     if (hasSubCategory) {
         return {
-            join: `
-                JOIN (
-                    SELECT DISTINCT Web_Pid, Product_Subcategory 
-                    FROM mamaearth.rb_pdp_olap 
-                    WHERE Product_Subcategory IS NOT NULL 
-                      AND trim(Product_Subcategory) NOT IN ('', '\\\\n', '\\n', '\\\\r\\\\n', '\\r\\n', '\r\n')
-                ) as pdp ON ms.web_pid = pdp.Web_Pid
-            `,
-            where: `AND lower(pdp.Product_Subcategory) IN (${subCategoryArr.map(s => `'${s.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`,
+            join: '',
+            where: `AND ms.sub_category IN (${subCategoryArr.map(s => `'${s.replace(/'/g, "''")}'`).join(', ')})`,
             active: true
         };
     }
@@ -1088,12 +1081,13 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             AND ${isMamaearth ? 'ms.category' : 'category'} IS NOT NULL AND ${isMamaearth ? 'ms.category' : 'category'} != ''
         `;
 
-        // 1. Get distinct categories
+        // 1. Get distinct sub-categories (mamaearth has a dedicated sub_category column)
         const subCatQuery = `
-            SELECT DISTINCT ${isMamaearth ? 'ms.category' : 'category'} as sub_category
+            SELECT DISTINCT ${isMamaearth ? 'ms.sub_category' : 'category'} as sub_category
             FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
             WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
+            AND ${isMamaearth ? 'ms.sub_category' : 'category'} IS NOT NULL AND ${isMamaearth ? 'ms.sub_category' : 'category'} != ''
             ORDER BY sub_category
         `;
         const subCatResults = await queryClickHouse(subCatQuery);
@@ -1115,20 +1109,12 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             const hasGlobalSubCats = globalSubCats.length > 0 && !globalSubCats.includes('All');
 
             if (hasGlobalSubCats) {
-                subCatJoin = `
-                    JOIN (
-                        SELECT DISTINCT Web_Pid, Product_Subcategory 
-                        FROM mamaearth.rb_pdp_olap 
-                        WHERE Product_Subcategory IS NOT NULL 
-                          AND trim(Product_Subcategory) NOT IN ('', '\\\\n', '\\n', '\\\\r\\\\n', '\\r\\n', '\r\n')
-                    ) as pdp ON ms.web_pid = pdp.Web_Pid
-                `;
                 subCatCond = `
-                    AND ms.category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})
-                    AND lower(pdp.Product_Subcategory) IN (${globalSubCats.map(c => `'${c.toLowerCase().replace(/'/g, "''")}'`).join(', ')})
+                    AND ms.sub_category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})
+                    AND ms.sub_category IN (${globalSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})
                 `;
             } else {
-                subCatCond = `AND ms.category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+                subCatCond = `AND ms.sub_category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
             }
         } else {
             subCatCond = `AND category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
@@ -2426,21 +2412,16 @@ export const getMarketShareTopFilterOptions = async (channelFilter = null) => {
             ORDER BY group_brand
         `;
 
-        // 6.7 Sub-Categories from rb_ms_olap (joined with rb_pdp_olap for Mamaearth)
+        // 6.7 Sub-Categories from rb_ms_olap
         const dbName = getCurrentDbName();
         const isMamaearth = dbName === 'mamaearth';
         let subCategoryQuery;
         if (isMamaearth) {
             subCategoryQuery = `
-                SELECT DISTINCT pdp.Product_Subcategory as sub_category
-                FROM rb_ms_olap as ms
-                JOIN (
-                    SELECT DISTINCT Web_Pid, Product_Subcategory 
-                    FROM mamaearth.rb_pdp_olap 
-                    WHERE Product_Subcategory IS NOT NULL 
-                      AND trim(Product_Subcategory) NOT IN ('', '\\\\n', '\\n', '\\\\r\\\\n', '\\r\\n', '\r\n')
-                ) as pdp ON ms.web_pid = pdp.Web_Pid
-                WHERE 1=1 ${platformCond}
+                SELECT DISTINCT sub_category
+                FROM rb_ms_olap
+                WHERE sub_category IS NOT NULL AND sub_category != ''
+                ${platformCond}
                 ORDER BY sub_category
             `;
         } else {
@@ -2563,24 +2544,14 @@ export const getMarketShareCascadedFilters = async (platformFilter, channelFilte
             ? `AND group_brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`
             : '';
 
-        let subCategoryJoinForCat = '';
         let subCategoryCondForCat = '';
         if (isMamaearth && subCategoryArr && subCategoryArr.length > 0 && !subCategoryArr.includes('All')) {
-            subCategoryJoinForCat = `
-                JOIN (
-                    SELECT DISTINCT Web_Pid, Product_Subcategory 
-                    FROM mamaearth.rb_pdp_olap 
-                    WHERE Product_Subcategory IS NOT NULL 
-                      AND trim(Product_Subcategory) NOT IN ('', '\\\\n', '\\n', '\\\\r\\\\n', '\\r\\n', '\r\n')
-                ) as pdp ON ms.web_pid = pdp.Web_Pid
-            `;
-            subCategoryCondForCat = `AND lower(pdp.Product_Subcategory) IN (${subCategoryArr.map(s => `'${s.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+            subCategoryCondForCat = `AND ms.sub_category IN (${subCategoryArr.map(s => `'${s.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const catQuery = `
             SELECT DISTINCT ms.category as category
             FROM rb_ms_olap as ms
-            ${subCategoryJoinForCat}
             WHERE ms.category IS NOT NULL AND ms.category != ''
             ${platformCond}
             ${brandCondForCat}
@@ -2593,24 +2564,14 @@ export const getMarketShareCascadedFilters = async (platformFilter, channelFilte
             ? `AND ms.category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`
             : '';
 
-        let subCategoryJoinForBrand = '';
         let subCategoryCondForBrand = '';
         if (isMamaearth && subCategoryArr && subCategoryArr.length > 0 && !subCategoryArr.includes('All')) {
-            subCategoryJoinForBrand = `
-                JOIN (
-                    SELECT DISTINCT Web_Pid, Product_Subcategory 
-                    FROM mamaearth.rb_pdp_olap 
-                    WHERE Product_Subcategory IS NOT NULL 
-                      AND trim(Product_Subcategory) NOT IN ('', '\\\\n', '\\n', '\\\\r\\\\n', '\\r\\n', '\r\n')
-                ) as pdp ON ms.web_pid = pdp.Web_Pid
-            `;
-            subCategoryCondForBrand = `AND lower(pdp.Product_Subcategory) IN (${subCategoryArr.map(s => `'${s.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+            subCategoryCondForBrand = `AND ms.sub_category IN (${subCategoryArr.map(s => `'${s.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const brandQuery = `
             SELECT DISTINCT ms.group_brand as brand
             FROM rb_ms_olap as ms
-            ${subCategoryJoinForBrand}
             WHERE ms.group_brand IS NOT NULL AND ms.group_brand != ''
             ${platformCond}
             ${categoryCondForBrand}
@@ -2630,15 +2591,9 @@ export const getMarketShareCascadedFilters = async (platformFilter, channelFilte
                 : '';
 
             subCategoryQuery = `
-                SELECT DISTINCT pdp.Product_Subcategory as sub_category
+                SELECT DISTINCT ms.sub_category as sub_category
                 FROM rb_ms_olap as ms
-                JOIN (
-                    SELECT DISTINCT Web_Pid, Product_Subcategory 
-                    FROM mamaearth.rb_pdp_olap 
-                    WHERE Product_Subcategory IS NOT NULL 
-                      AND trim(Product_Subcategory) NOT IN ('', '\\\\n', '\\n', '\\\\r\\\\n', '\\r\\n', '\r\n')
-                ) as pdp ON ms.web_pid = pdp.Web_Pid
-                WHERE 1=1
+                WHERE ms.sub_category IS NOT NULL AND ms.sub_category != ''
                 ${platformCond}
                 ${categoryCondForSub}
                 ${brandCondForSub}
