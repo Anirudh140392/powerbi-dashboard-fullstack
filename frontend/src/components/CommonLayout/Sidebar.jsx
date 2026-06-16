@@ -16,6 +16,7 @@ import titanSkinLogo from "../../assets/titanskin.png";
 import titanPerfumeLogo from "../../assets/titanperfume.jpeg";
 import drlLogo from "../../assets/drl.png";
 import emamiLogo from "../../assets/emami.jpg";
+import amazonDeviceLogo from "../../assets/amazondevice.jpeg";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -151,6 +152,7 @@ const Sidebar = ({
     if (user?.dbName === 'hm_titan_perfume') return titanPerfumeLogo;
     if (user?.dbName === 'drl') return drlLogo;
     if (user?.dbName === 'emami') return emamiLogo;
+    if (user?.dbName === 'hm_amz_dev') return amazonDeviceLogo;
     return marsLogo;
   }, [user?.dbName]);
 
@@ -170,6 +172,7 @@ const Sidebar = ({
     if (user?.dbName === 'hm_titan_perfume') return 'Titan Perfume Logo';
     if (user?.dbName === 'drl') return 'DRL Logo';
     if (user?.dbName === 'emami') return 'Emami Logo';
+    if (user?.dbName === 'hm_amz_dev') return 'Amazon Device Logo';
     return 'Mars Logo';
   }, [user?.dbName]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -316,7 +319,7 @@ const Sidebar = ({
             justifyContent: 'center',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             width: '100%',
-            height: isCollapsed ? 50 : (user?.dbName === 'mars_petcare' ? 150 : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? 120 : (user?.dbName === 'mamaearth' ? 100 : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami') ? 80 : (user?.dbName === 'sugar' ? 80 : (user?.dbName === 'pidilite' ? 80 : (user?.dbName === 'cheffin' ? 80 : (user?.dbName === 'drl' ? 80 : 60)))))))),
+            height: isCollapsed ? 50 : (user?.dbName === 'mars_petcare' ? 150 : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? 120 : (user?.dbName === 'mamaearth' ? 100 : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami' || user?.dbName === 'hm_amz_dev') ? 80 : (user?.dbName === 'sugar' ? 80 : (user?.dbName === 'pidilite' ? 80 : (user?.dbName === 'cheffin' ? 80 : (user?.dbName === 'drl' ? 80 : 60)))))))),
           }}
         >
           <Box
@@ -336,9 +339,9 @@ const Sidebar = ({
                 src={activeLogo}
                 alt={activeLogoAlt}
                 style={{
-                  maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mars_petcare' ? '150px' : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? '120px' : (user?.dbName === 'mamaearth' ? '100px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami') ? '80px' : (user?.dbName === 'sugar' ? '80px' : (user?.dbName === 'pidilite' ? '80px' : (user?.dbName === 'cheffin' ? '80px' : (user?.dbName === 'drl' ? '80px' : '45px')))))))),
+                  maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mars_petcare' ? '150px' : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? '120px' : (user?.dbName === 'mamaearth' ? '100px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami' || user?.dbName === 'hm_amz_dev') ? '80px' : (user?.dbName === 'sugar' ? '80px' : (user?.dbName === 'pidilite' ? '80px' : (user?.dbName === 'cheffin' ? '80px' : (user?.dbName === 'drl' ? '80px' : '45px')))))))),
                   width: isCollapsed ? '100%' : 'auto',
-                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mars_petcare' ? '250px' : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? '240px' : (user?.dbName === 'mamaearth' ? '240px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami') ? '220px' : (user?.dbName === 'sugar' ? '220px' : (user?.dbName === 'pidilite' ? '220px' : (user?.dbName === 'cheffin' ? '220px' : (user?.dbName === 'drl' ? '220px' : '180px')))))))),
+                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mars_petcare' ? '250px' : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? '240px' : (user?.dbName === 'mamaearth' ? '240px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami' || user?.dbName === 'hm_amz_dev') ? '220px' : (user?.dbName === 'sugar' ? '220px' : (user?.dbName === 'pidilite' ? '220px' : (user?.dbName === 'cheffin' ? '220px' : (user?.dbName === 'drl' ? '220px' : '180px')))))))),
                   objectFit: 'contain',
                   padding: '0',
                   display: 'block',
