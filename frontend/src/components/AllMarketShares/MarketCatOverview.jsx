@@ -87,6 +87,7 @@ const MarketCatOverview = ({
         categories: contextCategories,
         locations: contextLocations,
         brands: contextBrands,
+        selectedSubCategory,
     } = useContext(FilterContext);
 
     const [glanceKpis, setGlanceKpis] = useState([
@@ -122,6 +123,7 @@ const MarketCatOverview = ({
                 const params = {
                     platform: globalPlatform === 'All' ? undefined : (Array.isArray(globalPlatform) ? globalPlatform.join(",") : globalPlatform),
                     category: selectedCats ? (Array.isArray(selectedCats) ? selectedCats.join(",") : selectedCats) : undefined,
+                    subCategory: selectedSubCategory === 'All' ? undefined : (Array.isArray(selectedSubCategory) ? selectedSubCategory.join(",") : selectedSubCategory),
                     location: selectedCities ? (Array.isArray(selectedCities) ? selectedCities.join(",") : selectedCities) : undefined,
                     brand: selectedBrands ? selectedBrands.join(",") : undefined,
                     startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
@@ -145,7 +147,7 @@ const MarketCatOverview = ({
         };
 
         fetchCrossPlatformData();
-    }, [globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, advancedFilters]);
+    }, [globalPlatform, selectedCategory, selectedSubCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, advancedFilters]);
 
     const loading = parentLoading || dataLoading;
 

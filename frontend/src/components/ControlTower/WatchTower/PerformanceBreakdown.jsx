@@ -361,6 +361,23 @@ export function AggregatedViewTable() {
 
 
     const [showDropdown, setShowDropdown] = useState(false);
+    const categoryDropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target) && showDropdown) {
+                setShowDropdown(false);
+            }
+        };
+        if (showDropdown) {
+            const t = setTimeout(() => document.addEventListener("mousedown", handleClickOutside), 100);
+            return () => {
+                clearTimeout(t);
+                document.removeEventListener("mousedown", handleClickOutside);
+            };
+        }
+    }, [showDropdown]);
+
     const [data, setData] = useState([]);
     const [totals, setTotals] = useState(null);
     const [untagged, setUntagged] = useState(null);
@@ -543,10 +560,10 @@ export function AggregatedViewTable() {
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-slate-400" />
                         </div>
 
-                        <PeriodComparisonPanel selectedPeriods={selectedPeriods} onPeriodsChange={setSelectedPeriods} isOpen={isPeriodPanelOpen} onToggle={() => setIsPeriodPanelOpen(!isPeriodPanelOpen)} />
+                        <PeriodComparisonPanel selectedPeriods={selectedPeriods} onPeriodsChange={setSelectedPeriods} isOpen={isPeriodPanelOpen} onToggle={() => { setIsPeriodPanelOpen(!isPeriodPanelOpen); if (!isPeriodPanelOpen) setShowDropdown(false); }} />
                         {untagged && untagged.percent > 0 && (<div className={`px-3 py-1.5 rounded-full text-xs font-medium ${darkMode ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-700"}`}>{untagged.percent.toFixed(1)}% untagged</div>)}
-                        <div className="relative">
-                            <button onClick={() => setShowDropdown(!showDropdown)} className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${darkMode ? "bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-white" : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-900"}`}>
+                        <div className="relative" ref={categoryDropdownRef}>
+                            <button onClick={() => { setShowDropdown(!showDropdown); if (!showDropdown) setIsPeriodPanelOpen(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${darkMode ? "bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-white" : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-900"}`}>
                                 <span className="text-lg">{currentDimension.icon}</span>
                                 <span className="text-sm font-medium">{currentDimension.label}</span>
                                 <ChevronDown className={`w-4 h-4 transition-transform ${showDropdown ? "rotate-180" : ""}`} />

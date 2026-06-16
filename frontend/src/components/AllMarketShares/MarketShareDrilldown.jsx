@@ -26,7 +26,7 @@ const flattenHierarchy = (nodes, expanded) => {
 };
 
 const MarketShareDrilldown = ({ loading: parentLoading }) => {
-    const { platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd } = useContext(FilterContext);
+    const { platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedSubCategory } = useContext(FilterContext);
     const [drilldownData, setDrilldownData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [expandedRows, setExpandedRows] = useState(new Set([]));
@@ -48,6 +48,7 @@ const MarketShareDrilldown = ({ loading: parentLoading }) => {
                     params: {
                         platform,
                         category: selectedCategory === 'All' ? undefined : selectedCategory,
+                        subCategory: selectedSubCategory === 'All' ? undefined : selectedSubCategory,
                         location: undefined, // Enforced isolation from global location filter
                         startDate: timeStart ? timeStart.format('YYYY-MM-DD') : undefined,
                         endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined,
@@ -64,7 +65,7 @@ const MarketShareDrilldown = ({ loading: parentLoading }) => {
         };
 
         fetchDrilldownData();
-    }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
+    }, [platform, selectedCategory, selectedSubCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
 
     const toggleRow = (id) => {
         setExpandedRows(prev => {

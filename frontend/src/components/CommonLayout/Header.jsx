@@ -29,7 +29,7 @@ import { AppThemeContext } from "../../utils/ThemeContext";
 import { FilterContext } from "../../utils/FilterContext";
 import DateRangeComparePicker from "./DateRangeComparePicker";
 
-import { ChevronDown, ChevronUp, Search, SlidersHorizontal, X, Layers, Monitor, LayoutGrid, Tag, MapPin, Hash, Type, Info } from "lucide-react";
+import { ChevronDown, ChevronUp, Search, SlidersHorizontal, X, Layers, Monitor, LayoutGrid, Tag, MapPin, Hash, Type, Info, ListFilter } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CustomHeaderDropdown from "./CustomHeaderDropdown";
 import axiosInstance from "../../api/axiosInstance";
@@ -486,38 +486,34 @@ function WatchTowerFilterModal({
 
             {/* Select all / Clear + Search */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 1.5 }}>
-              {activeTab !== "platform" && (
-                <>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={selectAll}
-                    sx={{
-                      textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
-                      borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
-                      fontFamily: "'Inter', 'Roboto', sans-serif",
-                      "&:hover": { borderColor: "#2563eb", color: "#2563eb", bgcolor: "#eff6ff" },
-                      transition: "all 0.15s ease",
-                    }}
-                  >
-                    Select all
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={clearAll}
-                    sx={{
-                      textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
-                      borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
-                      fontFamily: "'Inter', 'Roboto', sans-serif",
-                      "&:hover": { borderColor: "#ef4444", color: "#ef4444", bgcolor: "#fef2f2" },
-                      transition: "all 0.15s ease",
-                    }}
-                  >
-                    Clear
-                  </Button>
-                </>
-              )}
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={selectAll}
+                sx={{
+                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                  fontFamily: "'Inter', 'Roboto', sans-serif",
+                  "&:hover": { borderColor: "#2563eb", color: "#2563eb", bgcolor: "#eff6ff" },
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Select all
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={clearAll}
+                sx={{
+                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                  fontFamily: "'Inter', 'Roboto', sans-serif",
+                  "&:hover": { borderColor: "#ef4444", color: "#ef4444", bgcolor: "#fef2f2" },
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Clear
+              </Button>
               <TextField
                 size="small"
                 placeholder="Search..."
@@ -689,9 +685,31 @@ function MarketShareFilterModal({
   platforms, platform, setPlatform,
   categories, selectedCategory, setSelectedCategory,
   osaBrands = [], selectedOsaBrand, setSelectedOsaBrand,
+  subCategories = [], selectedSubCategory = "All", setSelectedSubCategory,
   hideChannel = false,
 }) {
-  const availableTabs = hideChannel ? MS_FILTER_TABS.filter(t => t.key !== "channel") : MS_FILTER_TABS;
+  const isMamaearth = React.useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user'));
+      return u?.dbName?.toLowerCase() === "mamaearth";
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const MS_FILTER_TABS_DYNAMIC = React.useMemo(() => {
+    const tabs = [
+      { key: "channel", label: "Channel", icon: Layers },
+      { key: "category", label: "Category", icon: LayoutGrid },
+    ];
+    if (isMamaearth) {
+      tabs.push({ key: "subCategory", label: "Sub Category", icon: ListFilter });
+    }
+    tabs.push({ key: "brand", label: "Brand", icon: Tag });
+    return tabs;
+  }, [isMamaearth]);
+
+  const availableTabs = hideChannel ? MS_FILTER_TABS_DYNAMIC.filter(t => t.key !== "channel") : MS_FILTER_TABS_DYNAMIC;
   const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
@@ -699,6 +717,11 @@ function MarketShareFilterModal({
   const [draftPlatform, setDraftPlatform] = React.useState(platform);
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
   const [draftBrand, setDraftBrand] = React.useState(selectedOsaBrand || "All");
+  const [draftSubCategory, setDraftSubCategory] = React.useState(selectedSubCategory || "All");
+
+  const [dynamicCategories, setDynamicCategories] = React.useState(categories);
+  const [dynamicBrands, setDynamicBrands] = React.useState(osaBrands);
+  const [dynamicSubCategories, setDynamicSubCategories] = React.useState(subCategories);
 
   React.useEffect(() => {
     if (open) {
@@ -706,18 +729,50 @@ function MarketShareFilterModal({
       setDraftPlatform(platform);
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedOsaBrand || "All");
+      setDraftSubCategory(selectedSubCategory || "All");
+      setDynamicCategories(categories);
+      setDynamicBrands(osaBrands);
+      setDynamicSubCategories(subCategories);
       setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
-  }, [open, selectedChannel, platform, selectedCategory, selectedOsaBrand, hideChannel]);
+  }, [open, selectedChannel, platform, selectedCategory, selectedOsaBrand, selectedSubCategory, categories, osaBrands, subCategories, hideChannel]);
 
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
+
+  // Fetch cascaded filters dynamically inside the modal when draft filters change
+  React.useEffect(() => {
+    if (!open || !isMamaearth) return;
+
+    const fetchCascaded = async () => {
+      try {
+        const res = await axiosInstance.get("/market-share/cascaded-filters", {
+          params: {
+            channel: draftChannel === "All" ? undefined : draftChannel,
+            category: draftCategory === "All" ? undefined : (Array.isArray(draftCategory) ? draftCategory.join(",") : draftCategory),
+            brand: draftBrand === "All" ? undefined : (Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand),
+            subCategory: draftSubCategory === "All" ? undefined : (Array.isArray(draftSubCategory) ? draftSubCategory.join(",") : draftSubCategory),
+          }
+        });
+        if (res.data) {
+          if (res.data.categories) setDynamicCategories(res.data.categories);
+          if (res.data.brands) setDynamicBrands(res.data.brands);
+          if (res.data.subCategories) setDynamicSubCategories(res.data.subCategories);
+        }
+      } catch (error) {
+        console.error("[MarketShareFilterModal] Error fetching cascaded filters:", error);
+      }
+    };
+
+    fetchCascaded();
+  }, [open, isMamaearth, draftChannel, draftCategory, draftBrand, draftSubCategory]);
 
   const tabConfig = {
     channel: { options: channels, value: draftChannel, onChange: setDraftChannel },
     platform: { options: platforms, value: draftPlatform, onChange: setDraftPlatform },
-    category: { options: categories, value: draftCategory, onChange: setDraftCategory },
-    brand: { options: osaBrands, value: draftBrand, onChange: setDraftBrand },
+    category: { options: dynamicCategories, value: draftCategory, onChange: setDraftCategory },
+    brand: { options: dynamicBrands, value: draftBrand, onChange: setDraftBrand },
+    subCategory: { options: dynamicSubCategories, value: draftSubCategory, onChange: setDraftSubCategory },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -746,10 +801,11 @@ function MarketShareFilterModal({
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = MS_FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
+    if (!cfg) return 0;
     const v = cfg.value;
     const opts = cfg.options;
     if (v === "All" || (Array.isArray(v) && v.includes("All"))) return 0;
@@ -764,6 +820,7 @@ function MarketShareFilterModal({
     setPlatform(draftPlatform);
     setSelectedCategory(draftCategory);
     if (setSelectedOsaBrand) setSelectedOsaBrand(draftBrand);
+    if (isMamaearth && setSelectedSubCategory) setSelectedSubCategory(draftSubCategory);
     onClose();
   };
 
@@ -778,6 +835,7 @@ function MarketShareFilterModal({
     }
     setDraftCategory("All");
     setDraftBrand("All");
+    setDraftSubCategory("All");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -3738,6 +3796,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     visibilityCategories,
     selectedCategory,
     setSelectedCategory,
+    subCategories,
+    selectedSubCategory,
+    setSelectedSubCategory,
     maxDate,
     minDate,
     datesFetched,
@@ -4153,6 +4214,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
+                      subCategories={subCategories}
+                      selectedSubCategory={selectedSubCategory}
+                      setSelectedSubCategory={setSelectedSubCategory}
                       osaBrands={brands}
                       selectedOsaBrand={selectedBrand}
                       setSelectedOsaBrand={setSelectedBrand}

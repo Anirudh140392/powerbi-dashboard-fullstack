@@ -359,6 +359,7 @@ export default function MarketShareAnalysis() {
     timeEnd,
     compareStart,
     compareEnd,
+    selectedSubCategory,
   } = useContext(FilterContext);
 
   // Determine time granularity based on platform type:
@@ -394,6 +395,7 @@ export default function MarketShareAnalysis() {
         const params = {
           platform: platform === 'All' ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
           category: selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+          subCategory: selectedSubCategory === 'All' ? undefined : (Array.isArray(selectedSubCategory) ? selectedSubCategory.join(",") : selectedSubCategory),
           location: undefined, // Enforced isolation from global location filter
           startDate: timeStart ? timeStart.format("YYYY-MM-DD") : null,
           endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : null,
@@ -411,15 +413,15 @@ export default function MarketShareAnalysis() {
             if (k.id === "ms-market-share" && response.data.marketShare) {
               const msData = response.data.marketShare;
               const shareVal = msData.share ?? 0;
-              const deltaVal = msData.delta ?? 0;
-              const arrow = deltaVal >= 0 ? '▲' : '▼';
               const prevShareVal = msData.prevShare ?? 0;
+              const pctChange = prevShareVal !== 0 ? ((shareVal - prevShareVal) / prevShareVal) * 100 : 0;
+              const arrow = pctChange >= 0 ? '▲' : '▼';
               return {
                 ...k,
                 value: `${Number(shareVal).toFixed(2)}%`,
-                delta: deltaVal,
-                deltaLabel: `${arrow} ${Math.abs(deltaVal).toFixed(2)}% (${Number(prevShareVal).toFixed(2)}%)`,
-                extraChangeColor: deltaVal >= 0 ? "green" : "red",
+                delta: pctChange,
+                deltaLabel: `${arrow} ${Math.abs(pctChange).toFixed(2)}% (${Number(prevShareVal).toFixed(2)}%)`,
+                extraChangeColor: pctChange >= 0 ? "green" : "red",
                 trend: msData.trend,
               };
             }
@@ -494,7 +496,7 @@ export default function MarketShareAnalysis() {
     };
 
     fetchMarketShareData();
-  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, timeStep]);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, timeStep, selectedSubCategory]);
 
 
   return (

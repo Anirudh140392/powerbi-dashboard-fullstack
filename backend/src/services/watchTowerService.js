@@ -2957,6 +2957,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             };
 
             const pmSrc = await getPmSource();
+            const pmChannelColSql = pmSrc.f.channel ? `lower(${pmSrc.f.channel})` : `(CASE WHEN lower(${pmSrc.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${pmSrc.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
+
             const currConditions = buildAllConditionsLocal(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'), src, false);
             const prevConditions = buildAllConditionsLocal(allMomStart.format('YYYY-MM-DD'), allMomEnd.format('YYYY-MM-DD'), src, false);
             const currPmConditions = buildAllConditionsLocal(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'), pmSrc, true);
@@ -2994,7 +2996,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         SUM(${pmSrc.f.adSales}) as total_Ad_sales,
                         SUM(${pmSrc.f.clicks}) as total_clicks,
                         SUM(${pmSrc.f.impressions}) as total_impressions,
-                        SUM(${pmSrc.f.orders}) as total_orders
+                        SUM(${pmSrc.f.orders}) as total_orders,
+                        SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.spend} ELSE 0 END) as cpc_spend,
+                        SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.clicks} ELSE 0 END) as cpc_clicks,
+                        SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.spend} ELSE 0 END) as cpm_spend,
+                        SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.impressions} ELSE 0 END) as cpm_impressions
                     FROM ${pmSrc.table}
                     WHERE ${currPmConditions}
                 `),
@@ -3004,7 +3010,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         SUM(${pmSrc.f.adSales}) as total_Ad_sales,
                         SUM(${pmSrc.f.clicks}) as total_clicks,
                         SUM(${pmSrc.f.impressions}) as total_impressions,
-                        SUM(${pmSrc.f.orders}) as total_orders
+                        SUM(${pmSrc.f.orders}) as total_orders,
+                        SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.spend} ELSE 0 END) as cpc_spend,
+                        SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.clicks} ELSE 0 END) as cpc_clicks,
+                        SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.spend} ELSE 0 END) as cpm_spend,
+                        SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.impressions} ELSE 0 END) as cpm_impressions
                     FROM ${pmSrc.table}
                     WHERE ${prevPmConditions}
                 `)
@@ -3021,6 +3031,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const allOrders = parseFloat(currPmMetrics.total_orders || 0);
             allBuyBoxNeno = parseFloat(currMetrics.total_buy_box_neno || 0);
             allDeno = parseFloat(currMetrics.total_deno || 0);
+            const cpcSpend = parseFloat(currPmMetrics.cpc_spend || 0);
+            const cpcClicks = parseFloat(currPmMetrics.cpc_clicks || 0);
+            const cpmSpend = parseFloat(currPmMetrics.cpm_spend || 0);
+            const cpmImpressions = parseFloat(currPmMetrics.cpm_impressions || 0);
 
             console.log("ALL COLUMN OFFTAKE VALUES:", {
                 allOfftake, currMetrics_totalSales: currMetrics.total_sales, currConditions
@@ -3037,18 +3051,22 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const prevAllOrders = parseFloat(prevPmMetrics.total_orders || 0);
             prevAllBuyBoxNeno = parseFloat(prevMetrics.total_buy_box_neno || 0);
             prevAllDeno = parseFloat(prevMetrics.total_deno || 0);
+            const prevCpcSpend = parseFloat(prevPmMetrics.cpc_spend || 0);
+            const prevCpcClicks = parseFloat(prevPmMetrics.cpc_clicks || 0);
+            const prevCpmSpend = parseFloat(prevPmMetrics.cpm_spend || 0);
+            const prevCpmImpressions = parseFloat(prevPmMetrics.cpm_impressions || 0);
 
             // Calculate derived KPIs - Current
             allRoas = allSpend > 0 ? allAdSales / allSpend : 0;
             allConversion = allClicks > 0 ? (allOrders / allClicks) * 100 : 0;
-            allCpm = allImpressions > 0 ? (allSpend / allImpressions) * 1000 : 0;
-            allCpc = allClicks > 0 ? allSpend / allClicks : 0;
+            allCpm = cpmImpressions > 0 ? (cpmSpend / cpmImpressions) * 1000 : 0;
+            allCpc = cpcClicks > 0 ? cpcSpend / cpcClicks : 0;
 
             // Calculate derived KPIs - Previous
             prevAllRoas = prevAllSpend > 0 ? prevAllAdSales / prevAllSpend : 0;
             prevAllConversion = prevAllClicks > 0 ? (prevAllOrders / prevAllClicks) * 100 : 0;
-            prevAllCpm = prevAllImpressions > 0 ? (prevAllSpend / prevAllImpressions) * 1000 : 0;
-            prevAllCpc = prevAllClicks > 0 ? prevAllSpend / prevAllClicks : 0;
+            prevAllCpm = prevCpmImpressions > 0 ? (prevCpmSpend / prevCpmImpressions) * 1000 : 0;
+            prevAllCpc = prevCpcClicks > 0 ? prevCpcSpend / prevCpcClicks : 0;
 
             // 2. All Availability (current and previous in parallel)
             const [currAvail, prevAvail] = await Promise.all([
@@ -3503,18 +3521,25 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         });
                     })(),
                     // Query 5: PM metrics (orders/clicks) grouped by month from pmSrc.table
-                    queryClickHouse(`
-                        SELECT 
-                            formatDateTime(${pmSrc.f.date}, '%Y-%m-01') as month,
-                            SUM(${pmSrc.f.orders}) as total_orders,
-                            SUM(${pmSrc.f.impressions}) as total_impressions,
-                            SUM(${pmSrc.f.clicks}) as total_clicks,
-                            SUM(${pmSrc.f.adSales}) as total_Ad_sales,
-                            SUM(${pmSrc.f.spend}) as total_spend
-                        FROM ${pmSrc.table}
-                        WHERE ${pmMoConds.join(' AND ')}
-                        GROUP BY month
-                    `)
+                    (() => {
+                        const pmChannelColSql = pmSrc.f.channel ? `lower(${pmSrc.f.channel})` : `(CASE WHEN lower(${pmSrc.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${pmSrc.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
+                        return queryClickHouse(`
+                            SELECT 
+                                formatDateTime(${pmSrc.f.date}, '%Y-%m-01') as month,
+                                SUM(${pmSrc.f.orders}) as total_orders,
+                                SUM(${pmSrc.f.impressions}) as total_impressions,
+                                SUM(${pmSrc.f.clicks}) as total_clicks,
+                                SUM(${pmSrc.f.adSales}) as total_Ad_sales,
+                                SUM(${pmSrc.f.spend}) as total_spend,
+                                SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.spend} ELSE 0 END) as cpc_spend,
+                                SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.clicks} ELSE 0 END) as cpc_clicks,
+                                SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.spend} ELSE 0 END) as cpm_spend,
+                                SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.impressions} ELSE 0 END) as cpm_impressions
+                            FROM ${pmSrc.table}
+                            WHERE ${pmMoConds.join(' AND ')}
+                            GROUP BY month
+                        `);
+                    })()
                 ]);
 
                 // Build lookup maps
@@ -3539,12 +3564,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const moPmClicks = parseFloat(pm.total_clicks || 0);
                     const moAdSales = parseFloat(pm.total_Ad_sales || 0);
                     const moSpend = parseFloat(pm.total_spend || 0);
+                    const cpcSpend = parseFloat(pm.cpc_spend || 0);
+                    const cpcClicks = parseFloat(pm.cpc_clicks || 0);
+                    const cpmSpend = parseFloat(pm.cpm_spend || 0);
+                    const cpmImpressions = parseFloat(pm.cpm_impressions || 0);
 
                     const moRoas = moSpend > 0 ? moAdSales / moSpend : 0;
                     // Conversion = (Orders / Clicks) * 100 from rb_pm_olap
                     const moConversion = moPmClicks > 0 ? (moOrders / moPmClicks) * 100 : 0;
-                    const moCpm = moImpressions > 0 ? (moSpend / moImpressions) * 1000 : 0;
-                    const moCpc = moPmClicks > 0 ? moSpend / moPmClicks : 0;
+                    const moCpm = cpmImpressions > 0 ? (cpmSpend / cpmImpressions) * 1000 : 0;
+                    const moCpc = cpcClicks > 0 ? cpcSpend / cpcClicks : 0;
 
                     const avail = availMap.get(monthKey) || {};
                     const neno = parseFloat(avail.total_neno || 0);
@@ -6163,18 +6192,25 @@ const getMonthOverview = async (filters) => {
                     GROUP BY formatDateTime(toDate(${src.f.date}), '%Y-%m-01')
                 `),
         // Marketing Metrics by month from PM table
-        queryClickHouse(`
-                    SELECT 
-                        formatDateTime(toDate(${pmSrc.f.date}), '%Y-%m-01') as month_date,
-                        SUM(${pmSrc.f.spend}) as total_spend,
-                        SUM(${pmSrc.f.adSales}) as total_Ad_sales,
-                        SUM(${pmSrc.f.clicks}) as total_clicks,
-                        SUM(${pmSrc.f.impressions}) as total_impressions,
-                        SUM(${pmSrc.f.orders}) as total_orders
-                    FROM ${pmSrc.table}
-                    WHERE ${pmMoConds}
-                    GROUP BY formatDateTime(toDate(${pmSrc.f.date}), '%Y-%m-01')
-                `),
+        (() => {
+            const pmChannelColSql = pmSrc.f.channel ? `lower(${pmSrc.f.channel})` : `(CASE WHEN lower(${pmSrc.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${pmSrc.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
+            return queryClickHouse(`
+                SELECT 
+                    formatDateTime(toDate(${pmSrc.f.date}), '%Y-%m-01') as month_date,
+                    SUM(${pmSrc.f.spend}) as total_spend,
+                    SUM(${pmSrc.f.adSales}) as total_Ad_sales,
+                    SUM(${pmSrc.f.clicks}) as total_clicks,
+                    SUM(${pmSrc.f.impressions}) as total_impressions,
+                    SUM(${pmSrc.f.orders}) as total_orders,
+                    SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.spend} ELSE 0 END) as cpc_spend,
+                    SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.clicks} ELSE 0 END) as cpc_clicks,
+                    SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.spend} ELSE 0 END) as cpm_spend,
+                    SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.impressions} ELSE 0 END) as cpm_impressions
+                FROM ${pmSrc.table}
+                WHERE ${pmMoConds}
+                GROUP BY formatDateTime(toDate(${pmSrc.f.date}), '%Y-%m-01')
+            `);
+        })(),
         queryClickHouse(`
                     SELECT 
                         formatDateTime(toDate(DATE), '%Y-%m-01') as month,
@@ -6273,8 +6309,12 @@ const getMonthOverview = async (filters) => {
         const availability = hasPdp ? (deno > 0 ? (neno / deno) * 100 : null) : null;
         const roas = hasPm ? (spend > 0 ? adSales / spend : null) : null;
         const conversion = hasPm ? calculateConversion(orders, impressions, clicks) : null;
-        const cpm = hasPm ? (impressions > 0 ? (spend / impressions) * 1000 : null) : null;
-        const cpc = hasPm ? (clicks > 0 ? spend / clicks : null) : null;
+        const cpcSpend = hasPm ? parseFloat(pmData.cpc_spend || 0) : 0;
+        const cpcClicks = hasPm ? parseFloat(pmData.cpc_clicks || 0) : 0;
+        const cpmSpend = hasPm ? parseFloat(pmData.cpm_spend || 0) : 0;
+        const cpmImpressions = hasPm ? parseFloat(pmData.cpm_impressions || 0) : 0;
+        const cpm = hasPm ? (cpmImpressions > 0 ? (cpmSpend / cpmImpressions) * 1000 : null) : null;
+        const cpc = hasPm ? (cpcClicks > 0 ? cpcSpend / cpcClicks : null) : null;
         const asp = hasPdp ? parseFloat(data.avg_asp || 0) : null;
         const aov = (hasPm && orders > 0) ? adSales / orders : null;
         const buyBoxPct = hasPdp ? (deno > 0 ? (parseFloat(data.total_buy_box_neno || 0) * 1.0 / deno) * 100 : null) : null;
@@ -6310,8 +6350,12 @@ const getMonthOverview = async (filters) => {
         const prevAvailability = prevHasPdp ? (prevDeno > 0 ? (prevNeno / prevDeno) * 100 : null) : null;
         const prevRoas = prevHasPm ? (prevSpend > 0 ? prevAdSales / prevSpend : null) : null;
         const prevConversion = prevHasPm ? (prevClicks > 0 ? (prevOrders / prevClicks) * 100 : null) : null;
-        const prevCpm = prevHasPm ? (prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : null) : null;
-        const prevCpc = prevHasPm ? (prevClicks > 0 ? prevSpend / prevClicks : null) : null;
+        const prevCpcSpend = prevHasPm ? parseFloat(prevPmData.cpc_spend || 0) : 0;
+        const prevCpcClicks = prevHasPm ? parseFloat(prevPmData.cpc_clicks || 0) : 0;
+        const prevCpmSpend = prevHasPm ? parseFloat(prevPmData.cpm_spend || 0) : 0;
+        const prevCpmImpressions = prevHasPm ? parseFloat(prevPmData.cpm_impressions || 0) : 0;
+        const prevCpm = prevHasPm ? (prevCpmImpressions > 0 ? (prevCpmSpend / prevCpmImpressions) * 1000 : null) : null;
+        const prevCpc = prevHasPm ? (prevCpcClicks > 0 ? prevCpcSpend / prevCpcClicks : null) : null;
         const prevAsp = prevHasPdp ? parseFloat(prevData.avg_asp || 0) : null;
         const prevAov = (prevHasPm && prevOrders > 0) ? prevAdSales / prevOrders : null;
         const prevBuyBoxPct = prevHasPdp ? (prevDeno > 0 ? (parseFloat(prevData.total_buy_box_neno || 0) * 1.0 / prevDeno) * 100 : null) : null;
@@ -7464,6 +7508,9 @@ const getKpiTrends = async (filters) => {
 
     const pmKpiConds = buildPmConds();
 
+    const channelColSql = src.f.channel ? `lower(${src.f.channel})` : `(CASE WHEN lower(${src.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${src.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
+    const pmChannelColSql = pmSrc.f.channel ? `lower(${pmSrc.f.channel})` : `(CASE WHEN lower(${pmSrc.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${pmSrc.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
+
     // 4. Query for Inorganic Sales, Conversion, ROAS, BMI/Sales Ratio from dynamic source
     const [kpiResults, pmResults] = await Promise.all([
         queryClickHouse(`
@@ -7476,6 +7523,10 @@ const getKpiTrends = async (filters) => {
                 SUM(${src.f.orders}) as total_ad_orders,
                 SUM(${src.f.clicks}) as total_ad_clicks,
                 SUM(${src.f.impressions}) as total_ad_impressions,
+                SUM(CASE WHEN ${channelColSql} = 'ecommerce' THEN ${src.f.spend} ELSE 0 END) as total_cpc_spend,
+                SUM(CASE WHEN ${channelColSql} = 'ecommerce' THEN ${src.f.clicks} ELSE 0 END) as total_cpc_clicks,
+                SUM(CASE WHEN ${channelColSql} = 'quickcomm' THEN ${src.f.spend} ELSE 0 END) as total_cpm_spend,
+                SUM(CASE WHEN ${channelColSql} = 'quickcomm' THEN ${src.f.impressions} ELSE 0 END) as total_cpm_impressions,
                 SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.neno} ELSE 0 END) as total_neno_osa,
                 SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.deno} ELSE 0 END) as total_deno_osa,
                 (toFloat64(SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.neno} ELSE 0 END)) / NULLIF(toFloat64(SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ${src.f.deno} ELSE 0 END)), 0)) * 100 as total_availability,
@@ -7499,7 +7550,11 @@ const getKpiTrends = async (filters) => {
                 SUM(${pmSrc.f.spend}) as pm_ad_spend,
                 SUM(${pmSrc.f.orders}) as pm_ad_orders,
                 SUM(${pmSrc.f.clicks}) as pm_ad_clicks,
-                SUM(${pmSrc.f.impressions}) as pm_ad_impressions
+                SUM(${pmSrc.f.impressions}) as pm_ad_impressions,
+                SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.spend} ELSE 0 END) as pm_cpc_spend,
+                SUM(CASE WHEN ${pmChannelColSql} = 'ecommerce' THEN ${pmSrc.f.clicks} ELSE 0 END) as pm_cpc_clicks,
+                SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.spend} ELSE 0 END) as pm_cpm_spend,
+                SUM(CASE WHEN ${pmChannelColSql} = 'quickcomm' THEN ${pmSrc.f.impressions} ELSE 0 END) as pm_cpm_impressions
             FROM ${pmSrc.table}
             WHERE ${pmKpiConds}
             GROUP BY date_group
@@ -7514,7 +7569,11 @@ const getKpiTrends = async (filters) => {
             spend: parseFloat(r.pm_ad_spend || 0),
             orders: parseFloat(r.pm_ad_orders || 0),
             clicks: parseFloat(r.pm_ad_clicks || 0),
-            impressions: parseFloat(r.pm_ad_impressions || 0)
+            impressions: parseFloat(r.pm_ad_impressions || 0),
+            cpcSpend: parseFloat(r.pm_cpc_spend || 0),
+            cpcClicks: parseFloat(r.pm_cpc_clicks || 0),
+            cpmSpend: parseFloat(r.pm_cpm_spend || 0),
+            cpmImpressions: parseFloat(r.pm_cpm_impressions || 0)
         });
     });
 
@@ -7713,6 +7772,10 @@ const getKpiTrends = async (filters) => {
         const adOrders = parseFloat(row.total_ad_orders || 0);
         const adImpressions = parseFloat(row.total_ad_impressions || 0);
         const adClicks = parseFloat(row.total_ad_clicks || 0);
+        const cpcSpend = parseFloat(row.total_cpc_spend || 0);
+        const cpcClicks = parseFloat(row.total_cpc_clicks || 0);
+        const cpmSpend = parseFloat(row.total_cpm_spend || 0);
+        const cpmImpressions = parseFloat(row.total_cpm_impressions || 0);
 
         // Calculate Pricing KPIs
         const avgSellingPrice = parseFloat(row.avg_selling_price || 0);
@@ -7741,7 +7804,10 @@ const getKpiTrends = async (filters) => {
         const shareOfSearch = denCount > 0 ? (numCount / denCount) * 100 : 0;
 
         // Get PM metrics for this period if available
-        const pmData = pmDataMap.get(String(bucket.groupKey)) || { adSales: 0, spend: 0, orders: 0, clicks: 0, impressions: 0 };
+        const pmData = pmDataMap.get(String(bucket.groupKey)) || {
+            adSales: 0, spend: 0, orders: 0, clicks: 0, impressions: 0,
+            cpcSpend: 0, cpcClicks: 0, cpmSpend: 0, cpmImpressions: 0
+        };
 
         // When SKU is selected, use PDP data (rb_pdp_olap) for PM KPIs;
         // otherwise use PM data (rb_pm_olap) for Platform/Category/Brand/Location level
@@ -7750,6 +7816,11 @@ const getKpiTrends = async (filters) => {
         const effectiveAdOrders = usePdpForPmKpis ? adOrders : pmData.orders;
         const effectiveAdClicks = usePdpForPmKpis ? adClicks : pmData.clicks;
         const effectiveAdImpressions = usePdpForPmKpis ? adImpressions : pmData.impressions;
+
+        const effectiveCpcSpend = usePdpForPmKpis ? cpcSpend : pmData.cpcSpend;
+        const effectiveCpcClicks = usePdpForPmKpis ? cpcClicks : pmData.cpcClicks;
+        const effectiveCpmSpend = usePdpForPmKpis ? cpmSpend : pmData.cpmSpend;
+        const effectiveCpmImpressions = usePdpForPmKpis ? cpmImpressions : pmData.cpmImpressions;
 
         // 2. Inorganic Sales (Ad Sales) - Absolute value as requested
         const inorganicSales = effectiveAdSales;
@@ -7770,10 +7841,10 @@ const getKpiTrends = async (filters) => {
         const spend = effectiveAdSpend;
 
         // 8. CPM (Cost Per Thousand Impressions)
-        const cpm = effectiveAdImpressions > 0 ? (effectiveAdSpend / effectiveAdImpressions) * 1000 : 0;
+        const cpm = effectiveCpmImpressions > 0 ? (effectiveCpmSpend / effectiveCpmImpressions) * 1000 : 0;
 
         // 9. CPC (Cost Per Click)
-        const cpc = effectiveAdClicks > 0 ? effectiveAdSpend / effectiveAdClicks : 0;
+        const cpc = effectiveCpcClicks > 0 ? effectiveCpcSpend / effectiveCpcClicks : 0;
 
         const marketShare = msTimeSeriesMap.get(String(bucket.groupKey)) || 0;
         const categoryShare = marketShare;
