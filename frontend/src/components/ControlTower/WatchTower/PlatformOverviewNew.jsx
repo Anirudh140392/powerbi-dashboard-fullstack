@@ -164,6 +164,7 @@ const PlatformOverviewNew = ({
         selectedCategory,
         categories: globalCategories,
         selectedLocation,
+        selectedChannel,
         platforms: globalPlatforms,
         timeStart,
         timeEnd,
@@ -458,12 +459,15 @@ const PlatformOverviewNew = ({
         const reqCompareEnd = compareEnd ? compareEnd.format('YYYY-MM-DD') : '';
         const reqLocation = selectedLocation === 'All' ? 'All' : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation);
 
+        const reqChannel = selectedChannel === 'All' ? undefined : selectedChannel;
+
         return JSON.stringify({
             dimension,
             reqPlatform,
             reqBrand,
             reqCategory,
             reqLocation,
+            reqChannel,
             reqStartDate,
             reqEndDate,
             reqCompareStart,
@@ -476,7 +480,7 @@ const PlatformOverviewNew = ({
                 filterLogic: advancedFilters.filterLogic
             }
         });
-    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter]);
+    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter]);
 
     // Fetch data from backend API when filters change (stable version)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
@@ -490,6 +494,7 @@ const PlatformOverviewNew = ({
                 platform: parsed.reqPlatform === 'All' ? undefined : parsed.reqPlatform,
                 brand: parsed.reqBrand || undefined,
                 category: parsed.reqCategory === 'All' ? undefined : parsed.reqCategory,
+                channel: parsed.reqChannel || undefined,
                 location: parsed.reqLocation === 'All' ? undefined : parsed.reqLocation,
                 startDate: parsed.reqStartDate || undefined,
                 endDate: parsed.reqEndDate || undefined,
