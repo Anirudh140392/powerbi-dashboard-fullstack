@@ -679,13 +679,15 @@ const MS_FILTER_TABS = [
   { key: "brand", label: "Brand", icon: Tag },
 ];
 
+const DEFAULT_EMPTY_ARRAY = [];
+
 function MarketShareFilterModal({
   open, onClose,
   channels, selectedChannel, setSelectedChannel,
   platforms, platform, setPlatform,
   categories, selectedCategory, setSelectedCategory,
-  osaBrands = [], selectedOsaBrand, setSelectedOsaBrand,
-  subCategories = [], selectedSubCategory = "All", setSelectedSubCategory,
+  osaBrands = DEFAULT_EMPTY_ARRAY, selectedOsaBrand, setSelectedOsaBrand,
+  subCategories = DEFAULT_EMPTY_ARRAY, selectedSubCategory = "All", setSelectedSubCategory,
   hideChannel = false,
 }) {
   const isMamaearth = React.useMemo(() => {
