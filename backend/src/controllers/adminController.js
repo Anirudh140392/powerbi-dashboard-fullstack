@@ -285,6 +285,43 @@ export const getDatabases = async (req, res) => {
 };
 
 /**
+ * PATCH /api/admin/databases/logo
+ * Body: { db_id, logo_url }
+ * Updates logo_url for a specific database/client
+ */
+export const updateDatabaseLogo = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const { db_id, logo_url } = req.body;
+        if (!db_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'db_id is required'
+            });
+        }
+
+        await adminService.updateDatabaseLogo(db_id, logo_url || '');
+
+        return res.status(200).json({
+            success: true,
+            message: 'Database logo updated successfully'
+        });
+    } catch (error) {
+        console.error('[AdminController] updateDatabaseLogo failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};
+
+/**
  * POST /api/admin/databases
  * Creates a new database in ClickHouse
  */

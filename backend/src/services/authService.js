@@ -39,13 +39,14 @@ export async function loginUser(email, password, clientIp = '') {
     // 3. Look up db_name from tb_database using db_id
     // Using toString() comparison to avoid UInt64 precision issues
     const databases = await queryAdminDB(
-        `SELECT db_name, toString(db_id) as db_id 
+        `SELECT db_name, toString(db_id) as db_id, logo_url 
          FROM tb_database 
          WHERE status = 'active'`
     );
 
     // Find matching database - handle potential UInt64 precision mismatch
     let dbName = process.env.CLICKHOUSE_DB || 'colpal'; // fallback
+    let dbLogoUrl = "";
     const userDbId = user.db_id_str;
 
     // Try exact match first
@@ -75,6 +76,7 @@ export async function loginUser(email, password, clientIp = '') {
 
     if (matchedDb) {
         dbName = matchedDb.db_name;
+        dbLogoUrl = matchedDb.logo_url || "";
         console.log(`[Auth] ✅ Database mapped for ${user.user_email}: ${dbName} (id: ${userDbId})`);
     } else {
         console.warn(`[Auth] ⚠️ No matching database found for db_id=${userDbId}, using fallback: ${dbName}`);
@@ -235,6 +237,7 @@ export async function loginUser(email, password, clientIp = '') {
         email: user.user_email,
         userName: user.user_name,
         dbName: dbName,
+        dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus: dbStatusBool,
         tabPermissions
@@ -248,6 +251,7 @@ export async function loginUser(email, password, clientIp = '') {
             email: user.user_email,
             name: user.user_name,
             dbName: dbName,
+            dbLogoUrl: dbLogoUrl,
             role: userRole,
             dbStatus: dbStatusBool,
             tabPermissions
@@ -298,6 +302,20 @@ export async function verifySession(token) {
 
     // 4. Look up db_name from tb_database using token info
     let dbName = decoded.dbName || process.env.CLICKHOUSE_DB || 'colpal';
+    let dbLogoUrl = decoded.dbLogoUrl || "";
+
+    try {
+        const dbRows = await queryAdminDB(`
+            SELECT logo_url FROM tb_database 
+            WHERE lower(db_name) = '${dbName.toLowerCase()}' 
+            LIMIT 1
+        `);
+        if (dbRows.length > 0) {
+            dbLogoUrl = dbRows[0].logo_url || "";
+        }
+    } catch (e) {
+        console.warn('[Auth] Failed to fetch database logo during verify:', e.message);
+    }
 
     // 5. Fetch latest db_status and tab_permissions for this user
     // Use argMaxIf to pick the latest non-empty values (login inserts may have empty defaults)
@@ -328,6 +346,7 @@ export async function verifySession(token) {
         email: decoded.email,
         name: decoded.userName,
         dbName: dbName,
+        dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus,
         tabPermissions
