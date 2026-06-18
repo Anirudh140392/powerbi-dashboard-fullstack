@@ -4039,13 +4039,14 @@ class VisibilityService {
 
             // Build numerator-specific COUNTIf condition based on viewMode
             // SKU mode: keyword_search_product = 'sku_name'
-            // Keyword/Brand mode: filter by specific brand if brand is selected, else flag=1 (own brand rows)
+            // Keyword/Brand mode: always use flag=1 (own brand rows) for SOS numerator
+            // The brand filter is a global filter and should NOT override the numerator condition,
+            // because flag=1 captures ALL own-brand rows (e.g., fevikwik, fevicol, pidilite, m-seal)
+            // while filtering by brand name would only match a single brand.
             let numCondition = 'toInt32(flag) = 1';
             if (viewMode === 'sku' && sku && sku !== 'All') {
                 const skuCond = buildCHCondition(sku, 'keyword_search_product', { isDimension: true, noSplit: true });
                 numCondition = `${skuCond}`;
-            } else if (brand && brand !== 'All') {
-                numCondition = buildCHCondition(brand, 'brand', { isBrand: false });
             }
 
             const query = `
