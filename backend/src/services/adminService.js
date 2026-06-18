@@ -428,13 +428,32 @@ export const getDatabases = async () => {
         const query = `
             SELECT DISTINCT 
                 db_name, 
-                toString(db_id) as db_id 
+                toString(db_id) as db_id,
+                logo_url
             FROM tb_database
             ORDER BY db_name ASC
         `;
         return await queryAdminDB(query);
     } catch (error) {
         console.error('[AdminService] getDatabases failed:', error.message);
+        throw error;
+    }
+};
+
+/**
+ * Update the logo_url for a specific database/client
+ */
+export const updateDatabaseLogo = async (dbId, logoUrl) => {
+    try {
+        const query = `
+            ALTER TABLE tb_database 
+            UPDATE logo_url = '${logoUrl.replace(/'/g, "\\'")}' 
+            WHERE toString(db_id) = '${dbId}'
+        `;
+        await queryAdminDB(query);
+        return { success: true };
+    } catch (error) {
+        console.error(`[AdminService] updateDatabaseLogo failed for dbId ${dbId}:`, error.message);
         throw error;
     }
 };
