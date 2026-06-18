@@ -1,4 +1,4 @@
-import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareTopFilterOptions, MarketShareCompetitionTrends, MarketShareDrilldown, MarketShareLatestDate } from '../controllers/marketShareController.js';
+import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareTopFilterOptions, MarketShareCompetitionTrends, MarketShareDrilldown, MarketShareLatestDate, MarketShareCascadedFilters } from '../controllers/marketShareController.js';
 import accessControlMiddleware from '../middleware/accessControlMiddleware.js';
 
 export default (app) => {
@@ -139,4 +139,5 @@ export default (app) => {
      */
     app.get('/api/market-share/drilldown', MarketShareDrilldown);
     app.get('/api/market-share/latest-date', MarketShareLatestDate);
+    app.get('/api/market-share/cascaded-filters', MarketShareCascadedFilters);
 };

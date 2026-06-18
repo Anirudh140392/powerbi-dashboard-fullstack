@@ -607,7 +607,7 @@ export default function TrendsCompetitionDrawer({
     }
   }, [open, initialAudience]);
 
-  const { maxDate, platform: globalPlatform, selectedBrand: globalBrand, selectedLocation: globalLocation, selectedCategory: globalCategory } = React.useContext(FilterContext);
+  const { maxDate, platform: globalPlatform, selectedBrand: globalBrand, selectedLocation: globalLocation, selectedCategory: globalCategory, selectedSubCategory } = React.useContext(FilterContext);
   const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
 
   const [view, setView] = useState(defaultView);
@@ -934,6 +934,7 @@ export default function TrendsCompetitionDrawer({
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
           skuName: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          subCategory: selectedSubCategory === 'All' ? undefined : (Array.isArray(selectedSubCategory) ? selectedSubCategory.join(",") : selectedSubCategory),
         };
 
         const response = await axiosInstance.get('/market-share/trends', { params });
@@ -1011,7 +1012,7 @@ export default function TrendsCompetitionDrawer({
     } finally {
       setLoading(false);
     }
-  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel]);
+  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel, selectedSubCategory]);
 
   useEffect(() => {
     if (view !== "Trends" || !open) return;

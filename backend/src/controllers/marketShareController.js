@@ -1,11 +1,11 @@
-import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getMarketShareKPI, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown, getMarketShareLatestDate } from '../services/marketShareHelper.js';
+import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getMarketShareKPI, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown, getMarketShareLatestDate, getMarketShareCascadedFilters } from '../services/marketShareHelper.js';
 import dayjs from 'dayjs';
 
 export const Platform = async (req, res) => {
     req.query.location = 'All';
     req.query.cities = 'All';
     try {
-        const { platform, category, location, startDate, endDate, compareStartDate, compareEndDate, timeStep } = req.query;
+        const { platform, category, location, startDate, endDate, compareStartDate, compareEndDate, timeStep, subCategory } = req.query;
         console.log("Market Share API request received:", req.query);
 
         // Use provided dates or default to last 30 days
@@ -19,10 +19,10 @@ export const Platform = async (req, res) => {
 
         // Fetch all KPIs in parallel
         const [categorySize, leaderData, marsData, marketShareData] = await Promise.all([
-            getCategorySize(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep),
-            getMarketLeaderSales(start, end, platform, category, location, compStart, compEnd),
-            getMarsWrigleySales(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep),
-            getMarketShareKPI(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep)
+            getCategorySize(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep, subCategory),
+            getMarketLeaderSales(start, end, platform, category, location, compStart, compEnd, subCategory),
+            getMarsWrigleySales(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep, subCategory),
+            getMarketShareKPI(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep, subCategory)
         ]);
 
         const response = {
@@ -46,7 +46,7 @@ export const SubCategoryKpi = async (req, res) => {
     req.query.location = 'All';
     req.query.cities = 'All';
     try {
-        const { platform, category, location, startDate, endDate, subCategory, compareStartDate, compareEndDate, brand } = req.query;
+        const { platform, category, location, startDate, endDate, subCategory, compareStartDate, compareEndDate, brand, globalSubCategory } = req.query;
         console.log("Sub-Category KPI request received:", req.query);
 
         const start = startDate ? dayjs(startDate) : dayjs().subtract(30, 'day');
@@ -54,7 +54,7 @@ export const SubCategoryKpi = async (req, res) => {
         const compStart = compareStartDate ? dayjs(compareStartDate) : null;
         const compEnd = compareEndDate ? dayjs(compareEndDate) : null;
 
-        const result = await getSubCategoryKpi(start, end, platform, category, location, subCategory, compStart, compEnd, brand);
+        const result = await getSubCategoryKpi(start, end, platform, category, location, subCategory, compStart, compEnd, brand, globalSubCategory);
 
         res.json({
             message: "Sub-Category KPI fetched successfully",
@@ -70,7 +70,7 @@ export const CrossPlatformOverview = async (req, res) => {
     req.query.location = 'All';
     req.query.cities = 'All';
     try {
-        const { platform, category, location, brand, startDate, endDate, compareStartDate, compareEndDate } = req.query;
+        const { platform, category, location, brand, startDate, endDate, compareStartDate, compareEndDate, subCategory } = req.query;
         console.log("Cross Platform Overview request received:", req.query);
 
         const start = startDate ? dayjs(startDate) : dayjs().subtract(30, 'day');
@@ -78,7 +78,7 @@ export const CrossPlatformOverview = async (req, res) => {
         const compStart = compareStartDate ? dayjs(compareStartDate) : null;
         const compEnd = compareEndDate ? dayjs(compareEndDate) : null;
 
-        const result = await getCrossPlatformOverview(start, end, platform, category, location, brand, compStart, compEnd);
+        const result = await getCrossPlatformOverview(start, end, platform, category, location, brand, compStart, compEnd, subCategory);
 
         res.json({
             message: "Cross Platform Overview fetched successfully",
@@ -94,12 +94,12 @@ export const MarketShareTrends = async (req, res) => {
     req.query.location = 'All';
     req.query.cities = 'All';
     try {
-        const { period, timeStep, dimension, dimensionValue, startDate, endDate, platform, category, location, brand, compareStartDate, compareEndDate } = req.query;
+        const { period, timeStep, dimension, dimensionValue, startDate, endDate, platform, category, location, brand, compareStartDate, compareEndDate, subCategory } = req.query;
         console.log("Market Share Trends request received:", req.query);
 
         const result = await getMarketShareTrends(
             period, timeStep, dimension, dimensionValue, startDate, endDate,
-            platform, category, location, brand, compareStartDate, compareEndDate
+            platform, category, location, brand, compareStartDate, compareEndDate, subCategory
         );
 
         res.json({
@@ -116,11 +116,11 @@ export const MarketShareCompetition = async (req, res) => {
     req.query.location = 'All';
     req.query.cities = 'All';
     try {
-        const { period, startDate, endDate, platform, category, location, brand, compareStartDate, compareEndDate } = req.query;
+        const { period, startDate, endDate, platform, category, location, brand, compareStartDate, compareEndDate, subCategory } = req.query;
         console.log("Market Share Competition request received:", req.query);
 
         const result = await getMarketShareCompetition(
-            period, startDate, endDate, platform, category, location, brand, compareStartDate, compareEndDate
+            period, startDate, endDate, platform, category, location, brand, compareStartDate, compareEndDate, subCategory
         );
 
         res.json({
@@ -194,7 +194,7 @@ export const MarketShareDrilldown = async (req, res) => {
     req.query.location = 'All';
     req.query.cities = 'All';
     try {
-        const { platform, category, location, startDate, endDate, compareStartDate, compareEndDate } = req.query;
+        const { platform, category, location, startDate, endDate, compareStartDate, compareEndDate, subCategory } = req.query;
         console.log("Market Share Drilldown request received:", { platform, category, location, startDate, endDate, compareStartDate, compareEndDate });
 
         const start = startDate ? dayjs(startDate) : dayjs().subtract(30, 'day');
@@ -202,7 +202,7 @@ export const MarketShareDrilldown = async (req, res) => {
         const compStart = compareStartDate ? dayjs(compareStartDate) : null;
         const compEnd = compareEndDate ? dayjs(compareEndDate) : null;
 
-        const result = await getMarketShareDrilldown(start, end, platform, category, location, compStart, compEnd);
+        const result = await getMarketShareDrilldown(start, end, platform, category, location, compStart, compEnd, subCategory);
 
         console.log(`Market Share Drilldown result items: ${result.length}`);
 
@@ -223,6 +223,23 @@ export const MarketShareLatestDate = async (req, res) => {
         res.json(result);
     } catch (error) {
         console.error('Error in Market Share Latest Date:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const MarketShareCascadedFilters = async (req, res) => {
+    try {
+        const { platform, channel, category, brand, subCategory } = req.query;
+        console.log("Market Share Cascaded Filters request received:", req.query);
+
+        const result = await getMarketShareCascadedFilters(platform, channel, category, brand, subCategory);
+
+        res.json({
+            message: "Cascaded filters fetched successfully",
+            ...result
+        });
+    } catch (error) {
+        console.error('Error in Market Share Cascaded Filters:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
