@@ -110,23 +110,63 @@ const buildKwBaseCond = (platformVal, categoryArr, locationArr = null) => {
 };
 
 /**
+ * Helper to build platform and channel condition for rb_ms_olap
+ */
+const buildPlatformChannelCondForMs = (platformFilter, channelFilter, columnName = 'platform') => {
+    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+    const platformArr = normalizeFilterArray(platformFilter);
+    const conditions = [];
+
+    // 1. Platform Filter
+    if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
+        if (platformArr.length === 1) {
+            conditions.push(`lower(${columnName}) = '${escapeStr(platformArr[0].toLowerCase())}'`);
+        } else {
+            const list = platformArr.map(p => `'${escapeStr(p.trim().toLowerCase())}'`).join(', ');
+            conditions.push(`lower(${columnName}) IN (${list})`);
+        }
+    }
+
+    // 2. Channel Filter
+    if (channelFilter && channelFilter !== 'All') {
+        const channels = Array.isArray(channelFilter)
+            ? channelFilter
+            : (typeof channelFilter === 'string' && channelFilter.includes(',') ? channelFilter.split(',') : [channelFilter]);
+        
+        const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c.toLowerCase()));
+        const isQuickComm = channels.some(c => c.toLowerCase().includes('quick'));
+        const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(c.toLowerCase()));
+
+        const ecomPlatforms = ['amazon', 'flipkart'];
+        const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'];
+
+        if (isQuickComm) {
+            conditions.push(`lower(${columnName}) IN (${quickPlatforms.map(p => `'${p}'`).join(', ')})`);
+        } else if (isEcom && !isModernTrade) {
+            conditions.push(`lower(${columnName}) IN (${ecomPlatforms.map(p => `'${p}'`).join(', ')})`);
+        } else if (isModernTrade && !isEcom) {
+            const allEcomQuick = [...ecomPlatforms, ...quickPlatforms];
+            conditions.push(`lower(${columnName}) NOT IN (${allEcomQuick.map(p => `'${p}'`).join(', ')})`);
+        }
+    }
+
+    return conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
+};
+
+/**
  * Shared Market Share Calculation Helper
  * Uses rb_ms_olap table with sales-based formula:
  *   Market Share = SUM(our_sales) / SUM(total_category_sales) * 100
  * The denominator is always the total sales for the category(ies) the selected entity belongs to.
  */
-export const getMarketShare = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null) => {
+export const getMarketShare = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null, channelFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
-        let platformCond = '';
-        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
-            platformCond = `AND (${platformConds})`;
-        }
+        const platformCond = buildPlatformChannelCondForMs(platformFilter, channelFilter, 'platform');
 
         let locationCond = '';
         const locCondStr = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');
@@ -194,18 +234,14 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
  * Get Market Share aggregated by month_date
  * Uses rb_ms_olap: SUM(our_sales) / SUM(total_sales) * 100 per month
  */
-export const getMarketShareByMonth = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null) => {
+export const getMarketShareByMonth = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null, channelFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
-        let platformCond = '';
-        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
-            platformCond = `AND (${platformConds})`;
-        }
+        const platformCond = buildPlatformChannelCondForMs(platformFilter, channelFilter, 'platform');
 
         let locationCond = '';
         const locCondStr = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');
@@ -283,18 +319,14 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
  * Get Market Share aggregated by brand
  * Uses rb_ms_olap: SUM(brand_sales) / SUM(total_sales) * 100 per brand
  */
-export const getMarketShareByBrand = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null) => {
+export const getMarketShareByBrand = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null, channelFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
-        let platformCond = '';
-        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
-            platformCond = `AND (${platformConds})`;
-        }
+        const platformCond = buildPlatformChannelCondForMs(platformFilter, channelFilter, 'platform');
 
         let locationCond = '';
         const locCondStr = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');
@@ -367,18 +399,14 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
  * Get Market Share Time Series aggregated by timeStep
  * Uses rb_ms_olap: SUM(our_sales) / SUM(total_sales) * 100 per time bucket
  */
-export const getMarketShareTimeSeries = async (start, end, platformFilter, categoryFilter, brandFilter = null, timeStep = 'Daily', locationFilter = null) => {
+export const getMarketShareTimeSeries = async (start, end, platformFilter, categoryFilter, brandFilter = null, timeStep = 'Daily', locationFilter = null, channelFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
-        let platformCond = '';
-        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
-            platformCond = `AND (${platformConds})`;
-        }
+        const platformCond = buildPlatformChannelCondForMs(platformFilter, channelFilter, 'platform');
 
         let locationCond = '';
         const locCondStr = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');

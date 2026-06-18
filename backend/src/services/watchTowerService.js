@@ -297,6 +297,14 @@ const getGlobalOurBrandsList = async () => {
 // =====================================================
 const MAX_DATE_TTL = 5 * 60 * 1000; // 5 minutes
 
+const extractChannel = (filters) => {
+    if (!filters) return null;
+    const rawChannel = filters['channel[]'] || filters.channel;
+    if (!rawChannel) return null;
+    const channelArr = normalizeFilterArray(rawChannel);
+    return channelArr && channelArr.length > 0 ? (channelArr.length === 1 ? channelArr[0] : channelArr) : null;
+};
+
 /**
  * Helper to build platform condition based on channel selection
  * @param {string} platform - The selected platform (e.g. 'All', 'Blinkit')
@@ -321,8 +329,17 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
     if (channel && channel !== 'All') {
         const channels = Array.isArray(channel) ? channel : (typeof channel === 'string' && channel.includes(',') ? channel.split(',') : [channel]);
         if (channelColumn) {
-            // Using the actual database channel column
-            const list = channels.map(c => `'${escapeStr(c.trim().toLowerCase())}'`).join(', ');
+            // Map frontend channel names to actual database channel column values
+            // Frontend sends: 'Quick Commerce', 'E-commerce', 'Ecommerce', etc.
+            // Database stores: 'quickcomm', 'ecommerce'
+            const mapChannelToDbValue = (ch) => {
+                const lower = ch.trim().toLowerCase();
+                if (lower.includes('quick') || lower === 'quickcomm' || lower === 'qcomm') return 'quickcomm';
+                if (['ecommerce', 'e-commerce', 'ecom'].includes(lower)) return 'ecommerce';
+                return lower; // pass through any other value as-is
+            };
+            const mappedChannels = [...new Set(channels.map(mapChannelToDbValue))];
+            const list = mappedChannels.map(c => `'${escapeStr(c)}'`).join(', ');
             conditions.push(`lower(${channelColumn}) IN (${list})`);
         } else {
             // Fallback for tables without a channel column (by filtering on platforms)
@@ -869,7 +886,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
     try {
         console.log("Processing Watch Tower request with filters:", filters);
 
-        const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, channel } = filters;
+        const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate } = filters;
+        const channel = extractChannel(filters);
 
         // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
         const rawBrand = filters['brand[]'] || filters.brand;
@@ -1354,7 +1372,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             try {
                 const timerLabel = `[Bulk Platform] Total ${Date.now()}`;
                 console.time(timerLabel);
-                const { brand, location, category, skuName, skuCode, channel } = filters;
+                const { brand, location, category, skuName, skuCode } = filters;
+                const channel = extractChannel(filters);
 
                 // Helper to escape strings for ClickHouse
                 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
@@ -1673,11 +1692,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 }
             })(),
             // 2. Market Share Trend - USING marketShareHelper
-            getMarketShareTimeSeries(startDate, endDate, platform, category, brand, 'Daily', location),
+            getMarketShareTimeSeries(startDate, endDate, platform, category, brand, 'Daily', location, channel),
             // 3. Total Market Share Average
             (async () => {
                 try {
-                    const avgMs = await getMarketShare(startDate, endDate, platform, category, brand, location);
+                    const avgMs = await getMarketShare(startDate, endDate, platform, category, brand, location, channel);
                     return { avg_market_share: avgMs, count: 1, min_val: avgMs, max_val: avgMs };
                 } catch (err) {
                     console.error('[TotalMarketShare] helper error:', err.message);
@@ -1783,7 +1802,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             // 12. Previous Market Share
             (async () => {
                 try {
-                    const avgMs = await getMarketShare(momStartDate, momEndDate, platform, category, brand, location);
+                    const avgMs = await getMarketShare(momStartDate, momEndDate, platform, category, brand, location, channel);
                     return { avg_ms: avgMs };
                 } catch (err) {
                     console.error('[PrevMarketShare] helper error:', err.message);
@@ -2062,7 +2081,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // Helper to fetch PRECISE totals for summary cards (non-grouped)
                 const getPrecisePerformanceMetrics = async (start, end, filters) => {
-                    const { brand, platform, location, channel, category } = filters;
+                    const { brand, platform, location, category } = filters;
+                    const channel = extractChannel(filters);
                     const pmSrc = await getPmSource();
                     const escapeStrLocal = (str) => str ? str.replace(/'/g, "''") : '';
 
@@ -2129,7 +2149,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // ⚡ MEGA OPTIMIZATION: Pre-computed monthly KPI cache with Redis fallback
                 const getBulkPerformanceMetrics = async (startRange, endRange, filters) => {
-                    const { brand, platform, location, channel, category } = filters;
+                    const { brand, platform, location, category } = filters;
+                    const channel = extractChannel(filters);
                     const pmSrc = await getPmSource();
 
                     // Generate list of months in range
@@ -3095,8 +3116,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 : validBrandNamesForMS;  // Use all our brands
 
             // Calculate overall Market Share using centralized helper
-            allMarketShare = await getMarketShare(startDate, endDate, null, category, brand, location);
-            prevAllMarketShare = await getMarketShare(allMomStart, allMomEnd, null, category, brand, location);
+            allMarketShare = await getMarketShare(startDate, endDate, null, category, brand, location, channel);
+            prevAllMarketShare = await getMarketShare(allMomStart, allMomEnd, null, category, brand, location, channel);
 
 
 
@@ -3193,7 +3214,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const totalImpressions = metrics.curr.impressions;
 
                 // Hardcode Market Share values as requested by user
-                const marketShare = await getMarketShare(startDate, endDate, p.label, category, null, locationArr);
+                const marketShare = await getMarketShare(startDate, endDate, p.label, category, null, locationArr, channel);
 
                 const sos = sosData.current;
 
@@ -3230,7 +3251,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const prevOfftake = metrics.prev.sales;
                 const prevSpend = metrics.prev.spend;
                 const prevAdSales = metrics.prev.adSales;
-                const prevMarketShare = await getMarketShare(momStart, momEnd, p.label, category, null, locationArr);
+                const prevMarketShare = await getMarketShare(momStart, momEnd, p.label, category, null, locationArr, channel);
                 const prevImpressions = metrics.prev.impressions;
                 const prevSos = sosData.previous;
 
@@ -3707,7 +3728,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     // Market Share - USING marketShareHelper
                     // Pass null platform so rb_brand_ms is queried without platform filter
                     // (consistent with getCategoryOverview which also omits platform on getMarketShare)
-                    getMarketShare(startDate, endDate, null, catName, null, location),
+                    getMarketShare(startDate, endDate, null, catName, null, location, channel),
                     // Promo My Brand (Comp_flag = 0)
                     queryClickHouse(`
                         SELECT (SUM(${src.f.mrp}) - SUM(${src.f.sellingPrice})) / NULLIF(SUM(${src.f.mrp}), 0) as avg_promo_depth
@@ -4080,7 +4101,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             // 3. Market Share Current
             (async () => {
                 try {
-                    const msMap = await getMarketShareByBrand(startDate, endDate, platformArr, category, brand, location);
+                    const msMap = await getMarketShareByBrand(startDate, endDate, platformArr, category, brand, location, channel);
                     return Array.from(msMap.entries()).map(([b, ms]) => ({ brand: b, avg_ms: ms }));
                 } catch (err) {
                     console.error('[BrandsOverview] MS Current error:', err.message);
@@ -4090,7 +4111,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             // 4. Market Share Previous
             (async () => {
                 try {
-                    const msMap = await getMarketShareByBrand(boPrevStartDate, boPrevEndDate, platformArr, category, brand, location);
+                    const msMap = await getMarketShareByBrand(boPrevStartDate, boPrevEndDate, platformArr, category, brand, location, channel);
                     return Array.from(msMap.entries()).map(([b, ms]) => ({ brand: b, avg_ms: ms }));
                 } catch (err) {
                     console.error('[BrandsOverview] MS Prev error:', err.message);
@@ -4650,7 +4671,8 @@ const generateTimeBuckets = (startDate, endDate, timeStep) => {
 // Internal implementation with all the compute logic - MIGRATED TO CLICKHOUSE
 const computeTrendData = async (filters) => {
     try {
-        const { brand, location, platform, period, timeStep, category, startDate: customStart, endDate: customEnd, channel, skuName, skuCode } = filters;
+        const { brand, location, platform, period, timeStep, category, startDate: customStart, endDate: customEnd, skuName, skuCode } = filters;
+        const channel = extractChannel(filters);
 
         // 1. Determine Date Range
         let endDate = await getCachedMaxDate();
@@ -5020,7 +5042,8 @@ const getPerformanceMetrics = async (filters) => {
 const getPlatformOverview = async (filters) => {
     console.log('[getPlatformOverview] Computing OPTIMIZED platform overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, channel, skuName, skuCode } = filters;
+    const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, skuName, skuCode } = filters;
+    const channel = extractChannel(filters);
 
     // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
     const rawBrand = filters['brand[]'] || filters.brand;
@@ -5125,12 +5148,22 @@ const getPlatformOverview = async (filters) => {
     }
 
     // Filter platform definitions based on channel AFTER cache block
-    if (channel === 'Ecommerce' || channel === 'E-commerce' || channel === 'Ecom') {
-        const ecomPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy', 'amazon', 'flipkart', 'bigbasket', 'jiomart'];
-        platformDefinitions = platformDefinitions.filter(p => ecomPlatforms.some(ep => p.label.toLowerCase().includes(ep)));
-    } else if (channel === 'Modern Trades' || channel === 'ModernTrade') {
-        const ecomPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy', 'amazon', 'flipkart', 'bigbasket', 'jiomart'];
-        platformDefinitions = platformDefinitions.filter(p => !ecomPlatforms.some(ep => p.label.toLowerCase().includes(ep)));
+    if (channel && channel !== 'All') {
+        const channelLower = channel.toLowerCase();
+        const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart'];
+        const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'dunzo'];
+
+        if (channelLower.includes('quick') || channelLower === 'quickcomm' || channelLower === 'qcomm') {
+            // Quick Commerce: show only quick commerce platforms
+            platformDefinitions = platformDefinitions.filter(p => quickPlatforms.some(qp => p.label.toLowerCase().includes(qp)));
+        } else if (['ecommerce', 'e-commerce', 'ecom'].includes(channelLower)) {
+            // E-commerce: show only marketplace/ecom platforms (NOT quick commerce)
+            platformDefinitions = platformDefinitions.filter(p => ecomPlatforms.some(ep => p.label.toLowerCase().includes(ep)));
+        } else if (['modern trades', 'moderntrade'].includes(channelLower)) {
+            // Modern Trades: exclude all ecom + quick commerce platforms
+            const allOnline = [...ecomPlatforms, ...quickPlatforms];
+            platformDefinitions = platformDefinitions.filter(p => !allOnline.some(op => p.label.toLowerCase().includes(op)));
+        }
     }
 
     // Calculate MoM dates or use provided comparison dates
@@ -5838,8 +5871,8 @@ const getPlatformOverview = async (filters) => {
         prevSumMsDenom += prevMsDenomMap.get(key) || 0;
     });
 
-    const allMarketShare = await getMarketShare(startDate, endDate, 'All', rawCategory, null, locationArr);
-    const prevAllMarketShare = await getMarketShare(momStart, momEnd, 'All', rawCategory, null, locationArr);
+    const allMarketShare = await getMarketShare(startDate, endDate, 'All', rawCategory, null, locationArr, channel);
+    const prevAllMarketShare = await getMarketShare(momStart, momEnd, 'All', rawCategory, null, locationArr, channel);
 
     platformOverview.push({
         key: 'all',
@@ -5939,7 +5972,7 @@ const getPlatformOverview = async (filters) => {
         const totalOrders = hasPm ? (metrics.curr.orders || 0) : null;
 
         // Hardcode Market Share values as requested by user
-        let marketShare = await getMarketShare(startDate, endDate, p.label, rawCategory, null, locationArr);
+        let marketShare = await getMarketShare(startDate, endDate, p.label, rawCategory, null, locationArr, channel);
 
         console.log(`[getPlatformOverview] DEBUG MS - Platform: ${p.label}, key: ${key}, hasMsCheck: ${hasMsCheck}, marketShare: ${marketShare}, currMsMap.has(key): ${currMsMap.has(key)}, currMsDenomMap.has(key): ${currMsDenomMap.has(key)}`);
 
@@ -5976,7 +6009,7 @@ const getPlatformOverview = async (filters) => {
         const prevClicks = prevHasPm ? (metrics.prev.clicks || 0) : null;
         const prevOrders = prevHasPm ? (metrics.prev.orders || 0) : null;
 
-        let prevMarketShare = await getMarketShare(momStart, momEnd, p.label, rawCategory, null, locationArr);
+        let prevMarketShare = await getMarketShare(momStart, momEnd, p.label, rawCategory, null, locationArr, channel);
 
         const prevSos = prevHasSosCheck ? (metrics.prev.sos ?? null) : null;
         const prevAdSov = prevHasSosCheck ? (metrics.prev.adSov ?? null) : null;
@@ -6032,7 +6065,8 @@ const getPlatformOverview = async (filters) => {
 const getMonthOverview = async (filters) => {
     console.log('[getMonthOverview] Computing OPTIMIZED month overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, monthOverviewPlatform, channel, skuName, skuCode } = filters;
+    const { months = 1, startDate: qStartDate, endDate: qEndDate, monthOverviewPlatform, skuName, skuCode } = filters;
+    const channel = extractChannel(filters);
 
     // Extract filter values - frontend may send as 'category' or 'category[]'
     const rawCategory = filters['category[]'] || filters.category;
@@ -6228,7 +6262,7 @@ const getMonthOverview = async (filters) => {
                     WHERE ${sosMoConds}
                     GROUP BY month
                 `),
-        getMarketShareByMonth(fetchStartDate, endDate, moPlatform, rawCategory, null, locationArr),
+        getMarketShareByMonth(fetchStartDate, endDate, moPlatform, rawCategory, null, locationArr, channel),
         // Category Size by month
         queryClickHouse(`
                     SELECT 
@@ -6422,7 +6456,8 @@ const getMonthOverview = async (filters) => {
 const getCategoryOverview = async (filters) => {
     console.log('[getCategoryOverview] Computing OPTIMIZED category overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, categoryOverviewPlatform, channel, skuName, skuCode } = filters;
+    const { months = 1, startDate: qStartDate, endDate: qEndDate, categoryOverviewPlatform, skuName, skuCode } = filters;
+    const channel = extractChannel(filters);
 
     // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
     const rawBrand = filters['brand[]'] || filters.brand;
@@ -6873,7 +6908,8 @@ const getCategoryOverview = async (filters) => {
 const getBrandsOverview = async (filters) => {
     console.log('[getBrandsOverview] Computing OPTIMIZED brands overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, brandsOverviewPlatform, brandsOverviewCategory, channel } = filters;
+    const { months = 1, startDate: qStartDate, endDate: qEndDate, brandsOverviewPlatform, brandsOverviewCategory } = filters;
+    const channel = extractChannel(filters);
 
     // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
     const rawBrand = filters['brand[]'] || filters.brand;
@@ -7351,7 +7387,8 @@ const getBrandsOverview = async (filters) => {
 const getKpiTrends = async (filters) => {
     console.log('[getKpiTrends] Computing KPI trends data with filters:', filters);
 
-    const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, channel, skuName, skuCode, dimension, dimensionValue } = filters;
+    const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, skuName, skuCode, dimension, dimensionValue } = filters;
+    const channel = extractChannel(filters);
 
     // 1. Determine Date Range
     let endDate = await getCachedMaxDate();
@@ -7689,7 +7726,7 @@ const getKpiTrends = async (filters) => {
             GROUP BY ${groupExpressionKw}
         `),
         // Optimized Market Share Time Series
-        getMarketShareTimeSeries(startDate, endDate, platArr, catArr, brandArr, timeStep, locArr),
+        getMarketShareTimeSeries(startDate, endDate, platArr, catArr, brandArr, timeStep, locArr, channel),
         // Master Assortment Count
         queryClickHouse(masterQuery)
     ]);
@@ -8022,6 +8059,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category })
 const getCompetitionData = async (filters = {}) => {
     try {
         const { platform = 'All', location = 'All', category = 'All', brand = 'All', sku = 'All', period = '1M' } = filters;
+        const channel = extractChannel(filters);
 
         console.log('[getCompetitionData] Filters:', { platform, location, category, brand, sku, period });
 
@@ -8309,8 +8347,8 @@ const getCompetitionData = async (filters = {}) => {
         const msBrandFilter = competitorBrands.length > 0 ? competitorBrands : validBrandNamesForNum;
 
         // Use centralized Market Share helper for consistent AVG(nation_level_market_share) logic
-        const msMapCurr = await getMarketShareByBrand(startDate, endDate, platform, category, msBrandFilter, location);
-        const msMapPrev = await getMarketShareByBrand(momStartDate, momEndDate, platform, category, msBrandFilter, location);
+        const msMapCurr = await getMarketShareByBrand(startDate, endDate, platform, category, msBrandFilter, location, channel);
+        const msMapPrev = await getMarketShareByBrand(momStartDate, momEndDate, platform, category, msBrandFilter, location, channel);
 
         const brandSalesMap = new Map();
         const brandSalesMapPrev = new Map();
@@ -8977,7 +9015,8 @@ const getLatestAvailableMonth = async (filters = {}) => {
  */
 const getCompetitionBrandTrends = async (filters = {}) => {
     try {
-        let { brands = 'All', skus = 'All', location = 'All', category = 'All', period = '1M', platform = 'All', channel } = filters;
+        let { brands = 'All', skus = 'All', location = 'All', category = 'All', period = '1M', platform = 'All' } = filters;
+        const channel = extractChannel(filters);
 
         // Handle "All India" -> "All" conversion
         if (location === 'All India') location = 'All';
@@ -11083,7 +11122,8 @@ const getRcaData = async (filters = {}) => {
 const getSkuOverview = async (filters) => {
     console.log('[getSkuOverview] Computing SKU overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, skuOverviewPlatform, channel } = filters;
+    const { months = 1, startDate: qStartDate, endDate: qEndDate, skuOverviewPlatform } = filters;
+    const channel = extractChannel(filters);
 
     // Extract filter values
     const rawBrand = filters['brand[]'] || filters.brand;
@@ -11493,7 +11533,8 @@ const getSkuOverview = async (filters) => {
 const getCityOverview = async (filters) => {
     console.log('[getCityOverview] Computing City overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, cityOverviewPlatform, channel } = filters;
+    const { months = 1, startDate: qStartDate, endDate: qEndDate, cityOverviewPlatform } = filters;
+    const channel = extractChannel(filters);
 
     // Extract filter values
     const rawBrand = filters['brand[]'] || filters.brand;
@@ -12068,7 +12109,8 @@ const getProducts = async (filters = {}) => {
 
 const getProductCategories = async (filters = {}) => {
     try {
-        const { platform, channel } = filters;
+        const { platform } = filters;
+        const channel = extractChannel(filters);
         const query = `
             SELECT DISTINCT Product_type as category
             FROM rb_pdp_olap
@@ -12086,7 +12128,8 @@ const getProductCategories = async (filters = {}) => {
 
 const getWatchTowerCascadedFilters = async (filters) => {
     try {
-        const { channel, platform, category, brand, location } = filters;
+        const { platform, category, brand, location } = filters;
+        const channel = extractChannel(filters);
 
         const cols = await getTableColumns('rca_sku_dim');
         const hasChannel = columnExists(cols, 'channel');

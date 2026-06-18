@@ -244,6 +244,17 @@ export default function WatchTower() {
       }
     }
 
+    // Also detect changes in local filter overrides (channel/platform)
+    // Without this, changing channel in the filter modal won't trigger a context rebuild
+    if (!hasMeaningfulChange && overriddenContextRef.current) {
+      const currentChannel = filters.channel || "All";
+      const currentPlatform = filters.platform || "All";
+      if (overriddenContextRef.current.selectedChannel !== currentChannel ||
+          overriddenContextRef.current.platform !== currentPlatform) {
+        hasMeaningfulChange = true;
+      }
+    }
+
     if (hasMeaningfulChange) {
       const newCtx = buildOverride();
       prevFilterContextRef.current = filterContext;
