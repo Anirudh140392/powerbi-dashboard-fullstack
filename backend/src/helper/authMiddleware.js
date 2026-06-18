@@ -26,7 +26,22 @@ export const authMiddleware = (req, res, next) => {
         req.user = decoded;
 
         // Set the database name in AsyncLocalStorage for this request
-        setCurrentDbName(decoded.dbName);
+        let dbName = decoded.dbName;
+
+        // Allow database override if user is admin/superadmin or if email is from trailytics.com
+        const userRole = (decoded.role || '').toLowerCase();
+        const isAdmin = userRole.includes('admin') || userRole.includes('super');
+        const isTrailytics = (decoded.email || '').toLowerCase().endsWith('@trailytics.com');
+
+        if (isAdmin || isTrailytics) {
+            const overrideDb = req.headers['x-db-name'] || req.headers['x-database'] || req.query.db || req.query.dbName;
+            if (overrideDb) {
+                dbName = overrideDb;
+                req.user.dbName = dbName;
+            }
+        }
+
+        setCurrentDbName(dbName);
 
         next();
     } catch (error) {
