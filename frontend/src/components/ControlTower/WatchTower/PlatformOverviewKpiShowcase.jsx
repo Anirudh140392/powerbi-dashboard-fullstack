@@ -75,7 +75,6 @@ export const KPI_SOURCE_MAP = {
   Conversion: 'pm', conversion: 'pm', Roas: 'pm', ROAS: 'pm', roas: 'pm',
   BmiSalesRatio: 'pm', Spend: 'pm', spend: 'pm',
   CPM: 'pm', cpm: 'pm', CPC: 'pm', cpc: 'pm',
-  dspSales: 'pm',
   // KW table KPIs
   ShareOfSearch: 'kw', SOS: 'kw', Sos: 'kw', sos: 'kw',
   // MS table KPIs
@@ -118,12 +117,6 @@ const DASHBOARD_DATA = {
         id: "InorgSales",
         label: "Inorg Sales",
         color: "#7C3AED",
-        axis: "right",
-      },
-      {
-        id: "DspSales",
-        label: "DSP Sales",
-        color: "#0EA5E9",
         axis: "right",
       },
       {
