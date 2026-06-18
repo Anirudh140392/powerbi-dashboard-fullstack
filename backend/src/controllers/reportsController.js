@@ -692,7 +692,6 @@ export const downloadReport = async (req, res) => {
                 WHERE toDate(${col('extraction_timestamp')}) BETWEEN '${startDate}' AND '${endDate}'
                 ${buildInClause(col('brand_name'), brand) ? `AND ${buildInClause(col('brand_name'), brand)}` : ''}
                 ORDER BY DATE DESC
-                LIMIT 5000
             `;
         } else if (reportType === "Inventory Analysis") {
             query = `
@@ -776,7 +775,6 @@ export const downloadReport = async (req, res) => {
                 ${whereClause.replace(/\bCategory\b/g, catCol)}
                 GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product
                 ORDER BY DATE DESC
-                LIMIT 10000
             `;
         }
 
@@ -1135,7 +1133,6 @@ export const downloadPdpReport = async (req, res) => {
             ${joinClause}
             ${whereClause}
             ORDER BY pdp.pdp_crawl_date DESC
-            LIMIT 500000
         `;
 
         const rawData = await queryClickHouse(query);

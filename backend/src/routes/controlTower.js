@@ -3,9 +3,18 @@ import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
 import { getCompareSkuDateRange, getCompareSkuFilters, getCompareSkuProducts, getCompareSkuMetrics, getCompareSkuTrend } from '../controllers/compareSkuController.js';
 
 export default (app) => {
-    // Middleware to log Watch Tower API calls
+    // Middleware to log and normalize Watch Tower API calls
     app.use('/api/watchtower', (req, res, next) => {
         console.log(`[Watch Tower API] Called: ${req.method} ${req.originalUrl}`);
+        if (req.query) {
+            // Normalize any array keys ending in [] to their standard key name
+            for (const key of Object.keys(req.query)) {
+                if (key.endsWith('[]')) {
+                    const cleanKey = key.slice(0, -2);
+                    req.query[cleanKey] = req.query[key];
+                }
+            }
+        }
         next();
     });
     /**

@@ -20,6 +20,8 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
+        timeout: 10 * 60 * 1000,       // 10 minutes for large report downloads
+        proxyTimeout: 10 * 60 * 1000,   // 10 minutes proxy timeout
       },
       '/socket.io': {
         target: 'http://localhost:5000',
