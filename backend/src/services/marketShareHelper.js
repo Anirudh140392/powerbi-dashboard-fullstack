@@ -1109,13 +1109,13 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             AND ${isMamaearth ? 'ms.category' : 'category'} IS NOT NULL AND ${isMamaearth ? 'ms.category' : 'category'} != ''
         `;
 
-        // 1. Get distinct sub-categories (mamaearth has a dedicated sub_category column)
+        // 1. Get distinct categories for the dropdown
         const subCatQuery = `
-            SELECT DISTINCT ${isMamaearth ? 'ms.sub_category' : 'category'} as sub_category
+            SELECT DISTINCT ${isMamaearth ? 'ms.category' : 'category'} as sub_category
             FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
             WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
-            AND ${isMamaearth ? 'ms.sub_category' : 'category'} IS NOT NULL AND ${isMamaearth ? 'ms.sub_category' : 'category'} != ''
+            AND ${isMamaearth ? 'ms.category' : 'category'} IS NOT NULL AND ${isMamaearth ? 'ms.category' : 'category'} != ''
             ORDER BY sub_category
         `;
         const subCatResults = await queryClickHouse(subCatQuery);
@@ -1138,11 +1138,11 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
 
             if (hasGlobalSubCats) {
                 subCatCond = `
-                    AND ms.sub_category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})
-                    AND ms.sub_category IN (${globalSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})
+                    AND ms.category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})
+                    AND ms.category IN (${globalSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})
                 `;
             } else {
-                subCatCond = `AND ms.sub_category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+                subCatCond = `AND ms.category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
             }
         } else {
             subCatCond = `AND category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
