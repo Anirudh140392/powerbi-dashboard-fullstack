@@ -98,6 +98,7 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
     const [selectedSubCat, setSelectedSubCat] = useState([]); // Array for multi-select
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
+    const lastFetchedSubCatRef = useRef(null);
 
     // Backend data state
     const [subCategories, setSubCategories] = useState([]);
@@ -114,6 +115,7 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
         timeEnd,
         compareStart,
         compareEnd,
+        selectedSubCategory: globalSelectedSubCategory,
     } = useContext(FilterContext);
 
     // Close dropdown on outside click
@@ -135,6 +137,14 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
     // Fetch sub-category KPI data from backend
     useEffect(() => {
         const fetchSubCategoryKpi = async () => {
+            const subCategoryParam = selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined;
+            const globalSubCategoryParam = globalSelectedSubCategory === 'All' ? 'all' : (Array.isArray(globalSelectedSubCategory) ? globalSelectedSubCategory.join(",") : globalSelectedSubCategory || 'all');
+            const paramKey = `${platform || 'All'}-${selectedCategory || 'All'}-${subCategoryParam || 'all'}-${globalSubCategoryParam}-${timeStart ? timeStart.format("YYYYMMDD") : ''}-${timeEnd ? timeEnd.format("YYYYMMDD") : ''}`;
+
+            if (lastFetchedSubCatRef.current === paramKey) {
+                return;
+            }
+
             setDataLoading(true);
             try {
                 const params = {
@@ -145,7 +155,8 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                     endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
                     compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
                     compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
-                    subCategory: selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined,
+                    subCategory: subCategoryParam,
+                    globalSubCategory: globalSelectedSubCategory === 'All' ? undefined : (Array.isArray(globalSelectedSubCategory) ? globalSelectedSubCategory.join(",") : globalSelectedSubCategory),
                 };
 
                 const response = await axiosInstance.get('/market-share/sub-category-kpi', { params });
@@ -159,9 +170,19 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                     if (brands) {
                         setBrandsData(brands);
                     }
-                    // Set default selected sub-category on first load if none selected
+                    // Set default selected category on first load or category reset
                     if (selectedSubCat.length === 0 && selectedSubCategory) {
-                        setSelectedSubCat(Array.isArray(selectedSubCategory) ? selectedSubCategory : [selectedSubCategory]);
+                        const defaultSelection = Array.isArray(selectedSubCategory) ? selectedSubCategory : [selectedSubCategory];
+                        
+                        // Update ref to prevent duplicate fetch after state update
+                        const newSubCatParam = defaultSelection.join(",");
+                        const newParamKey = `${platform || 'All'}-${selectedCategory || 'All'}-${newSubCatParam}-${globalSubCategoryParam}-${timeStart ? timeStart.format("YYYYMMDD") : ''}-${timeEnd ? timeEnd.format("YYYYMMDD") : ''}`;
+                        lastFetchedSubCatRef.current = newParamKey;
+
+                        setSelectedSubCat(defaultSelection);
+                    } else {
+                        // Keep ref in sync for normal responses
+                        lastFetchedSubCatRef.current = paramKey;
                     }
                 }
             } catch (error) {
@@ -172,7 +193,7 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
         };
 
         fetchSubCategoryKpi();
-    }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedSubCat]);
+    }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedSubCat, globalSelectedSubCategory]);
 
     const loading = parentLoading || dataLoading;
 

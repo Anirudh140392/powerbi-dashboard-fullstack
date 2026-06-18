@@ -60,6 +60,10 @@ export const FilterProvider = ({ children }) => {
     const [visibilityCategories, setVisibilityCategories] = useState(FALLBACK_CATEGORIES);
     const [selectedCategory, setSelectedCategory] = useState("All");
 
+    // Sub Category state (for market share mamaearth dashboard)
+    const [subCategories, setSubCategories] = useState([]);
+    const [selectedSubCategory, setSelectedSubCategory] = useState("All");
+
     // Product Category state (from rb_pdp_olap)
     const [productCategories, setProductCategories] = useState([]);
     const [selectedProductCategory, setSelectedProductCategory] = useState("All");
@@ -148,6 +152,8 @@ export const FilterProvider = ({ children }) => {
             setCategories(FALLBACK_CATEGORIES);
             setVisibilityCategories(FALLBACK_CATEGORIES);
             setSelectedCategory("All");
+            setSubCategories([]);
+            setSelectedSubCategory("All");
             setProductCategories([]);
             setSelectedProductCategory("All");
             setPlatformsFetched(false);
@@ -220,9 +226,12 @@ export const FilterProvider = ({ children }) => {
                         setTimeEnd(lEnd);
                         setTimeStart(lStart);
 
-                        // Simple Previous period comparison
-                        setCompareEnd(lEnd.subtract(1, 'month').endOf('month'));
-                        setCompareStart(lStart.subtract(1, 'month').startOf('month'));
+                        // Simple Previous period comparison (aligned with the length of the current period)
+                        const periodDays = lEnd.diff(lStart, 'day') + 1;
+                        const prevEnd = lStart.subtract(1, 'day');
+                        const prevStart = prevEnd.subtract(periodDays - 1, 'day');
+                        setCompareEnd(prevEnd);
+                        setCompareStart(prevStart);
 
                         console.log(`[FilterContext] Dates set for ${pageLabel}:`, startDateStr, "to", endDateStr);
                     } else {
@@ -298,6 +307,7 @@ export const FilterProvider = ({ children }) => {
                     const newChannels = res.data.channels || [];
                     const newLocations = res.data.locations || [];
                     const newBrands = res.data.brands || [];
+                    const newSubCategories = res.data.subCategories || [];
                     const newPlatformMetadata = res.data.platformMetadata || [];
 
                     if (newPlatforms.length > 0) setPlatforms(newPlatforms);
@@ -305,6 +315,11 @@ export const FilterProvider = ({ children }) => {
                     if (newChannels.length > 0) setChannels(newChannels);
                     if (newLocations.length > 0) setLocations(newLocations);
                     if (newBrands.length > 0) setBrands(newBrands);
+                    if (newSubCategories.length > 0) {
+                        setSubCategories(newSubCategories);
+                    } else {
+                        setSubCategories([]);
+                    }
                     // Update platform metadata with icons sourced from rb_ms_olap platforms
                     if (newPlatformMetadata.length > 0) setPlatformMetadata(newPlatformMetadata);
 
@@ -322,6 +337,15 @@ export const FilterProvider = ({ children }) => {
                         if (prev === "All") return "All";
                         const currentList = Array.isArray(prev) ? prev : [prev];
                         const valid = currentList.filter(c => newCategories.includes(c));
+                        if (valid.length === 0) return "All";
+                        return valid.length === 1 ? valid[0] : valid;
+                    });
+
+                    // Validate current subcategory selection
+                    setSelectedSubCategory(prev => {
+                        if (prev === "All") return "All";
+                        const currentList = Array.isArray(prev) ? prev : [prev];
+                        const valid = currentList.filter(s => newSubCategories.includes(s));
                         if (valid.length === 0) return "All";
                         return valid.length === 1 ? valid[0] : valid;
                     });
@@ -750,6 +774,10 @@ export const FilterProvider = ({ children }) => {
             setCategories,
             selectedCategory,
             setSelectedCategory,
+            subCategories,
+            setSubCategories,
+            selectedSubCategory,
+            setSelectedSubCategory,
             productCategories,
             setProductCategories,
             selectedProductCategory,

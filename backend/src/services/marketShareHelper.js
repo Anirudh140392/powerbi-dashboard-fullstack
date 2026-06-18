@@ -1,4 +1,4 @@
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
 /**
@@ -13,6 +13,26 @@ export const normalizeFilterArray = (value) => {
     }
     return [];
 };
+
+/**
+ * Helper to build sub-category join and filter conditions for Mamaearth
+ */
+export const makeSubCategoryJoin = (subCategoryFilter) => {
+    const dbName = getCurrentDbName();
+    const isMamaearth = dbName === 'mamaearth';
+    const subCategoryArr = normalizeFilterArray(subCategoryFilter);
+    const hasSubCategory = isMamaearth && subCategoryArr && subCategoryArr.length > 0 && !subCategoryArr.includes('All');
+
+    if (hasSubCategory) {
+        return {
+            join: '',
+            where: `AND ms.sub_category IN (${subCategoryArr.map(s => `'${s.replace(/'/g, "''")}'`).join(', ')})`,
+            active: true
+        };
+    }
+    return { join: '', where: '', active: false };
+};
+
 
 // ── Category name mapping helpers ──────────────────────────────────────────────
 // Maps rb_pdp_olap category names → rb_ms_olap category names
@@ -90,23 +110,63 @@ const buildKwBaseCond = (platformVal, categoryArr, locationArr = null) => {
 };
 
 /**
+ * Helper to build platform and channel condition for rb_ms_olap
+ */
+const buildPlatformChannelCondForMs = (platformFilter, channelFilter, columnName = 'platform') => {
+    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+    const platformArr = normalizeFilterArray(platformFilter);
+    const conditions = [];
+
+    // 1. Platform Filter
+    if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
+        if (platformArr.length === 1) {
+            conditions.push(`lower(${columnName}) = '${escapeStr(platformArr[0].toLowerCase())}'`);
+        } else {
+            const list = platformArr.map(p => `'${escapeStr(p.trim().toLowerCase())}'`).join(', ');
+            conditions.push(`lower(${columnName}) IN (${list})`);
+        }
+    }
+
+    // 2. Channel Filter
+    if (channelFilter && channelFilter !== 'All') {
+        const channels = Array.isArray(channelFilter)
+            ? channelFilter
+            : (typeof channelFilter === 'string' && channelFilter.includes(',') ? channelFilter.split(',') : [channelFilter]);
+        
+        const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c.toLowerCase()));
+        const isQuickComm = channels.some(c => c.toLowerCase().includes('quick'));
+        const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(c.toLowerCase()));
+
+        const ecomPlatforms = ['amazon', 'flipkart'];
+        const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'];
+
+        if (isQuickComm) {
+            conditions.push(`lower(${columnName}) IN (${quickPlatforms.map(p => `'${p}'`).join(', ')})`);
+        } else if (isEcom && !isModernTrade) {
+            conditions.push(`lower(${columnName}) IN (${ecomPlatforms.map(p => `'${p}'`).join(', ')})`);
+        } else if (isModernTrade && !isEcom) {
+            const allEcomQuick = [...ecomPlatforms, ...quickPlatforms];
+            conditions.push(`lower(${columnName}) NOT IN (${allEcomQuick.map(p => `'${p}'`).join(', ')})`);
+        }
+    }
+
+    return conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
+};
+
+/**
  * Shared Market Share Calculation Helper
  * Uses rb_ms_olap table with sales-based formula:
  *   Market Share = SUM(our_sales) / SUM(total_category_sales) * 100
  * The denominator is always the total sales for the category(ies) the selected entity belongs to.
  */
-export const getMarketShare = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null) => {
+export const getMarketShare = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null, channelFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
-        let platformCond = '';
-        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
-            platformCond = `AND (${platformConds})`;
-        }
+        const platformCond = buildPlatformChannelCondForMs(platformFilter, channelFilter, 'platform');
 
         let locationCond = '';
         const locCondStr = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');
@@ -174,18 +234,14 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
  * Get Market Share aggregated by month_date
  * Uses rb_ms_olap: SUM(our_sales) / SUM(total_sales) * 100 per month
  */
-export const getMarketShareByMonth = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null) => {
+export const getMarketShareByMonth = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null, channelFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
-        let platformCond = '';
-        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
-            platformCond = `AND (${platformConds})`;
-        }
+        const platformCond = buildPlatformChannelCondForMs(platformFilter, channelFilter, 'platform');
 
         let locationCond = '';
         const locCondStr = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');
@@ -263,18 +319,14 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
  * Get Market Share aggregated by brand
  * Uses rb_ms_olap: SUM(brand_sales) / SUM(total_sales) * 100 per brand
  */
-export const getMarketShareByBrand = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null) => {
+export const getMarketShareByBrand = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null, channelFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
-        let platformCond = '';
-        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
-            platformCond = `AND (${platformConds})`;
-        }
+        const platformCond = buildPlatformChannelCondForMs(platformFilter, channelFilter, 'platform');
 
         let locationCond = '';
         const locCondStr = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');
@@ -347,18 +399,14 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
  * Get Market Share Time Series aggregated by timeStep
  * Uses rb_ms_olap: SUM(our_sales) / SUM(total_sales) * 100 per time bucket
  */
-export const getMarketShareTimeSeries = async (start, end, platformFilter, categoryFilter, brandFilter = null, timeStep = 'Daily', locationFilter = null) => {
+export const getMarketShareTimeSeries = async (start, end, platformFilter, categoryFilter, brandFilter = null, timeStep = 'Daily', locationFilter = null, channelFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
-        let platformCond = '';
-        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
-            platformCond = `AND (${platformConds})`;
-        }
+        const platformCond = buildPlatformChannelCondForMs(platformFilter, channelFilter, 'platform');
 
         let locationCond = '';
         const locCondStr = buildLocationQueryCond(locationArr, platformArr, 'location', 'platform');
@@ -440,26 +488,22 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
     }
 };
 
-/**
- * Get Market Leader Sales
- * Logic: Brand with MAX(SUM(sales)) across the category in the period
- * Returns: { brand, sales, prevSales, delta, deltaAbs }
- */
-export const getMarketLeaderSales = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null) => {
+export const getMarketLeaderSales = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, subCategoryFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const locationArr = normalizeFilterArray(locationFilter);
+        const subCat = makeSubCategoryJoin(subCategoryFilter);
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
+            const platformConds = platformArr.map(p => `lower(ms.platform) LIKE lower('%${p}%')`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
+            locationCond = `AND lower(ms.location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
@@ -469,7 +513,7 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
                 if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
                 return c;
             });
-            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            categoryCond = `AND ms.category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
@@ -491,12 +535,14 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
 
         // Current period: brand with max total sales
         const currentQuery = `
-            SELECT group_brand as brand, SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            SELECT ms.group_brand as brand, SUM(toFloat64OrZero(toString(ms.sales))) as total_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
-            AND group_brand IS NOT NULL AND group_brand != ''
-            GROUP BY group_brand
+            ${subCat.where}
+            AND ms.group_brand IS NOT NULL AND ms.group_brand != ''
+            GROUP BY ms.group_brand
             ORDER BY total_sales DESC
             LIMIT 1
         `;
@@ -510,12 +556,14 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
         const leaderSales = parseFloat(currentResult[0].total_sales || 0);
 
         const trendQuery = `
-            SELECT formatDateTime(toDate(created_on), '%Y-%m-%d') as date_group,
-                   SUM(toFloat64OrZero(toString(sales))) as daily_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            SELECT formatDateTime(toDate(ms.created_on), '%Y-%m-%d') as date_group,
+                   SUM(toFloat64OrZero(toString(ms.sales))) as daily_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
-            AND group_brand = '${leaderBrand.replace(/'/g, "''")}'
+            ${subCat.where}
+            AND ms.group_brand = '${leaderBrand.replace(/'/g, "''")}'
             GROUP BY date_group
             ORDER BY date_group
         `;
@@ -531,11 +579,13 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
 
         // Previous period: same brand's sales
         const prevQuery = `
-            SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+            SELECT SUM(toFloat64OrZero(toString(ms.sales))) as total_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${baseCond}
-            AND group_brand = '${leaderBrand.replace(/'/g, "''")}'
+            ${subCat.where}
+            AND ms.group_brand = '${leaderBrand.replace(/'/g, "''")}'
         `;
 
         const prevResult = await queryClickHouse(prevQuery);
@@ -562,21 +612,22 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
  * Logic: SUM(sales) WHERE brand is a Mars Wrigley brand
  * Returns: { sales, prevSales, delta, deltaAbs }
  */
-export const getMarsWrigleySales = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly') => {
+export const getMarsWrigleySales = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly', subCategoryFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const locationArr = normalizeFilterArray(locationFilter);
+        const subCat = makeSubCategoryJoin(subCategoryFilter);
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
+            const platformConds = platformArr.map(p => `lower(ms.platform) LIKE lower('%${p}%')`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
+            locationCond = `AND lower(ms.location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
@@ -586,7 +637,7 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
                 if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
                 return c;
             });
-            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            categoryCond = `AND ms.category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
@@ -613,38 +664,44 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
         if (ourBrands.length === 0) {
             ourBrands = ['dummy_no_brands'];
         }
-        const marsFilter = `AND lower(group_brand) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+        const marsFilter = `AND lower(ms.group_brand) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
 
         // Current period
         const currentQuery = `
-            SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            SELECT SUM(toFloat64OrZero(toString(ms.sales))) as total_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
+            ${subCat.where}
             ${marsFilter}
         `;
 
         // Previous period
         const prevQuery = `
-            SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+            SELECT SUM(toFloat64OrZero(toString(ms.sales))) as total_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${baseCond}
+            ${subCat.where}
             ${marsFilter}
         `;
 
         // Dynamic grouping based on timeStep: Daily for Quickcomm, Monthly for Ecommerce
         const isDaily = timeStep === 'Daily';
         const groupExpr = isDaily
-            ? `toString(toDate(created_on))`
-            : `formatDateTime(toDate(created_on), '%Y-%m-01')`;
+            ? `toString(toDate(ms.created_on))`
+            : `formatDateTime(toDate(ms.created_on), '%Y-%m-01')`;
 
         const trendQuery = `
             SELECT ${groupExpr} as date_group,
-                   SUM(toFloat64OrZero(toString(sales))) as period_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                   SUM(toFloat64OrZero(toString(ms.sales))) as period_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
+            ${subCat.where}
             ${marsFilter}
             GROUP BY date_group
             ORDER BY date_group
@@ -705,27 +762,28 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
  * Logic: SUM of all sales in rb_ms_olap for the selected category/platform/date range
  */
 
-export const getCategorySize = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly') => {
+export const getCategorySize = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly', subCategoryFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const locationArr = normalizeFilterArray(locationFilter);
+        const subCat = makeSubCategoryJoin(subCategoryFilter);
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
+            const platformConds = platformArr.map(p => `lower(ms.platform) LIKE lower('%${p}%')`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
+            locationCond = `AND lower(ms.location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
         const mappedCats = mapCategoryForMs(categoryArr);
         if (mappedCats.length > 0) {
-            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            categoryCond = `AND ms.category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
@@ -746,31 +804,37 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
         const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
 
         const currentQuery = `
-            SELECT SUM(toFloat64OrZero(toString(sales))) as total_category_size
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            SELECT SUM(toFloat64OrZero(toString(ms.sales))) as total_category_size
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
+            ${subCat.where}
         `;
 
         const prevQuery = `
-            SELECT SUM(toFloat64OrZero(toString(sales))) as total_category_size
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+            SELECT SUM(toFloat64OrZero(toString(ms.sales))) as total_category_size
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${baseCond}
+            ${subCat.where}
         `;
 
         // Dynamic grouping based on timeStep: Daily for Quickcomm, Monthly for Ecommerce
         const isDaily = timeStep === 'Daily';
         const groupExpr = isDaily
-            ? `toString(toDate(created_on))`
-            : `formatDateTime(toDate(created_on), '%Y-%m-01')`;
+            ? `toString(toDate(ms.created_on))`
+            : `formatDateTime(toDate(ms.created_on), '%Y-%m-01')`;
 
         const trendQuery = `
             SELECT ${groupExpr} as date_group,
-                   SUM(toFloat64OrZero(toString(sales))) as period_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                   SUM(toFloat64OrZero(toString(ms.sales))) as period_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
+            ${subCat.where}
             GROUP BY date_group
             ORDER BY date_group
         `;
@@ -830,27 +894,28 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
  * Logic: (Our Sales / Total Category Sales) * 100
  * Returns: { share, prevShare, delta, trend }
  */
-export const getMarketShareKPI = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly') => {
+export const getMarketShareKPI = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly', subCategoryFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const locationArr = normalizeFilterArray(locationFilter);
+        const subCat = makeSubCategoryJoin(subCategoryFilter);
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
+            const platformConds = platformArr.map(p => `lower(ms.platform) LIKE lower('%${p}%')`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
+            locationCond = `AND lower(ms.location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
         const mappedCats = mapCategoryForMs(categoryArr);
         if (mappedCats.length > 0) {
-            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            categoryCond = `AND ms.category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
@@ -880,37 +945,43 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
         // Current & Previous Share
         const currentQuery = `
             SELECT 
-                SUM(toFloat64OrZero(toString(sales))) as total_sales,
-                SUM(IF(group_brand IN (${brandsSql}), toFloat64OrZero(toString(sales)), 0)) as our_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                SUM(toFloat64OrZero(toString(ms.sales))) as total_sales,
+                SUM(IF(ms.group_brand IN (${brandsSql}), toFloat64OrZero(toString(ms.sales)), 0)) as our_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
+            ${subCat.where}
         `;
 
         const prevQuery = `
             SELECT 
-                SUM(toFloat64OrZero(toString(sales))) as total_sales,
-                SUM(IF(group_brand IN (${brandsSql}), toFloat64OrZero(toString(sales)), 0)) as our_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+                SUM(toFloat64OrZero(toString(ms.sales))) as total_sales,
+                SUM(IF(ms.group_brand IN (${brandsSql}), toFloat64OrZero(toString(ms.sales)), 0)) as our_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${baseCond}
+            ${subCat.where}
         `;
 
         // Dynamic grouping based on timeStep: Daily for Quickcomm, Monthly for Ecommerce
         const isDaily = timeStep === 'Daily';
         const groupExpr = isDaily
-            ? `toString(toDate(created_on))`
-            : `formatDateTime(toDate(created_on), '%Y-%m-01')`;
+            ? `toString(toDate(ms.created_on))`
+            : `formatDateTime(toDate(ms.created_on), '%Y-%m-01')`;
 
         // Trend Query
         const trendQuery = `
             SELECT 
                 ${groupExpr} as date_group,
-                SUM(toFloat64OrZero(toString(sales))) as total_sales,
-                SUM(IF(group_brand IN (${brandsSql}), toFloat64OrZero(toString(sales)), 0)) as our_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                SUM(toFloat64OrZero(toString(ms.sales))) as total_sales,
+                SUM(IF(ms.group_brand IN (${brandsSql}), toFloat64OrZero(toString(ms.sales)), 0)) as our_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
+            ${subCat.where}
             GROUP BY date_group
             ORDER BY date_group
         `;
@@ -981,8 +1052,11 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
  * Includes delta vs previous period of equal length
  * NOTE: rb_ms_olap does not have sub_category, so we use category instead
  */
-export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilter, locationFilter = null, subCategoryFilter = null, compStart = null, compEnd = null, brandFilter = null) => {
+export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilter, locationFilter = null, subCategoryFilter = null, compStart = null, compEnd = null, brandFilter = null, globalSubCategoryFilter = null) => {
     try {
+        const dbName = getCurrentDbName();
+        const isMamaearth = dbName === 'mamaearth';
+
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const locationArr = normalizeFilterArray(locationFilter);
@@ -1032,16 +1106,17 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             ${locationCond}
             ${categoryCond}
             ${brandCond}
-            AND category IS NOT NULL AND category != ''
+            AND ${isMamaearth ? 'ms.category' : 'category'} IS NOT NULL AND ${isMamaearth ? 'ms.category' : 'category'} != ''
         `;
 
-        // 1. Get distinct categories (as sub-categories)
+        // 1. Get distinct sub-categories (mamaearth has a dedicated sub_category column)
         const subCatQuery = `
-            SELECT DISTINCT category as sub_category
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            SELECT DISTINCT ${isMamaearth ? 'ms.sub_category' : 'category'} as sub_category
+            FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
+            WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
-            ORDER BY category
+            AND ${isMamaearth ? 'ms.sub_category' : 'category'} IS NOT NULL AND ${isMamaearth ? 'ms.sub_category' : 'category'} != ''
+            ORDER BY sub_category
         `;
         const subCatResults = await queryClickHouse(subCatQuery);
         const subCategories = subCatResults.map(r => r.sub_category).filter(Boolean);
@@ -1049,59 +1124,74 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
         // Determine which category to fetch brand data for
         const targetSubCats = normalizeFilterArray(subCategoryFilter);
         const hasTargetSubCats = targetSubCats.length > 0;
-        const targetSubCat = hasTargetSubCats ? targetSubCats[0] : (subCategories.length > 0 ? subCategories[0] : null);
+        const finalTargetSubCats = hasTargetSubCats ? targetSubCats : subCategories;
 
-        if (!targetSubCat && !hasTargetSubCats) {
-            return { subCategories: [], brands: [], selectedSubCategory: null };
+        if (finalTargetSubCats.length === 0) {
+            return { subCategories: [], brands: [], selectedSubCategory: [] };
         }
 
+        let subCatJoin = '';
         let subCatCond = '';
-        if (hasTargetSubCats) {
-            subCatCond = `AND category IN (${targetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+        if (isMamaearth) {
+            const globalSubCats = normalizeFilterArray(globalSubCategoryFilter);
+            const hasGlobalSubCats = globalSubCats.length > 0 && !globalSubCats.includes('All');
+
+            if (hasGlobalSubCats) {
+                subCatCond = `
+                    AND ms.sub_category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})
+                    AND ms.sub_category IN (${globalSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})
+                `;
+            } else {
+                subCatCond = `AND ms.sub_category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            }
         } else {
-            subCatCond = `AND category = '${targetSubCat.replace(/'/g, "''")}'`;
+            subCatCond = `AND category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         // Get total category sales for denominator
         const totalSalesQuery = `
-            SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            SELECT SUM(toFloat64OrZero(toString(${isMamaearth ? 'ms.sales' : 'sales'}))) as total_sales
+            FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
+            ${subCatJoin}
+            WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${startStr}' AND '${endStr}'
             ${platformCond} ${locationCond}
             ${subCatCond}
         `;
 
         const prevTotalSalesQuery = `
-            SELECT SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+            SELECT SUM(toFloat64OrZero(toString(${isMamaearth ? 'ms.sales' : 'sales'}))) as total_sales
+            FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
+            ${subCatJoin}
+            WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${platformCond} ${locationCond}
             ${subCatCond}
         `;
 
         // 2. Current period brand KPIs
         const currentQuery = `
-            SELECT group_brand as brand,
-                   SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            SELECT ${isMamaearth ? 'ms.group_brand' : 'group_brand'} as brand,
+                   SUM(toFloat64OrZero(toString(${isMamaearth ? 'ms.sales' : 'sales'}))) as total_sales
+            FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
+            ${subCatJoin}
+            WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
             ${subCatCond}
-            AND group_brand IS NOT NULL AND group_brand != ''
-            GROUP BY group_brand
+            AND ${isMamaearth ? 'ms.group_brand' : 'group_brand'} IS NOT NULL AND ${isMamaearth ? 'ms.group_brand' : 'group_brand'} != ''
+            GROUP BY brand
             ORDER BY total_sales DESC
         `;
 
         // 3. Previous period brand KPIs (for delta)
         const prevQuery = `
-            SELECT group_brand as brand,
-                   SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+            SELECT ${isMamaearth ? 'ms.group_brand' : 'group_brand'} as brand,
+                   SUM(toFloat64OrZero(toString(${isMamaearth ? 'ms.sales' : 'sales'}))) as total_sales
+            FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
+            ${subCatJoin}
+            WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${baseCond}
             ${subCatCond}
-            AND group_brand IS NOT NULL AND group_brand != ''
-            GROUP BY group_brand
+            AND ${isMamaearth ? 'ms.group_brand' : 'group_brand'} IS NOT NULL AND ${isMamaearth ? 'ms.group_brand' : 'group_brand'} != ''
+            GROUP BY brand
         `;
 
         const [currentResults, prevResults, totalSalesResult, prevTotalSalesResult] = await Promise.all([
@@ -1133,12 +1223,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             kwCategoryCond = `AND lower(keyword_category) IN (${mappedCats.map(c => `'${c.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
         }
 
-        let kwSubCatCond = '';
-        if (hasTargetSubCats) {
-            kwSubCatCond = `AND lower(keyword_category) IN (${targetSubCats.map(c => `'${c.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
-        } else if (targetSubCat) {
-            kwSubCatCond = `AND lower(keyword_category) = '${targetSubCat.toLowerCase().replace(/'/g, "''")}'`;
-        }
+        const kwSubCatCond = isMamaearth ? '' : `AND lower(keyword_category) IN (${finalTargetSubCats.map(c => `'${c.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
 
         const kwBaseCond = `
             ${kwPlatformCond}
@@ -1261,7 +1346,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             };
         });
 
-        return { subCategories, brands, selectedSubCategory: hasTargetSubCats ? targetSubCats : targetSubCat };
+        return { subCategories, brands, selectedSubCategory: finalTargetSubCats };
     } catch (error) {
         console.error('[SubCategoryKpi] Error:', error.message);
         return { subCategories: [], brands: [], selectedSubCategory: null };
@@ -1273,15 +1358,16 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
  * Returns per-platform data for: categorySize, mwMarketShare, mwSales, mlMarketShare, mlSales
  * Platforms: Blinkit, Instamart, Zepto + ODD Overall (aggregate)
  */
-export const getCrossPlatformOverview = async (start, end, platformFilter, categoryFilter, locationFilter = null, brandFilter = null, compStart = null, compEnd = null) => {
+export const getCrossPlatformOverview = async (start, end, platformFilter, categoryFilter, locationFilter = null, brandFilter = null, compStart = null, compEnd = null, subCategoryFilter = null) => {
     try {
         const categoryArr = normalizeFilterArray(categoryFilter);
         const locationArr = normalizeFilterArray(locationFilter);
         const brandArr = normalizeFilterArray(brandFilter);
+        const subCat = makeSubCategoryJoin(subCategoryFilter);
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
+            locationCond = `AND lower(ms.location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
@@ -1291,12 +1377,12 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
                 if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
                 return c;
             });
-            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            categoryCond = `AND ms.category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let brandCond = '';
         if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
-            brandCond = `AND group_brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`;
+            brandCond = `AND ms.group_brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
@@ -1323,49 +1409,48 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
         if (ourBrands.length === 0) {
             ourBrands = ['dummy_no_brands'];
         }
-        const marsFilter = `lower(group_brand) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+        const marsFilter = `lower(ms.group_brand) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
 
-        // Platforms are derived dynamically from query results (no hardcoding)
-
-        // Build one big query per period that gets all data grouped by platform
-        // (kept for reference but not used - we use separate queries below)
-        const buildQuery = (s, e) => ``;
-
-        // Simpler approach: run separate targeted queries per metric in parallel
         // Category Size = SUM(sales) per platform
         const buildCatSizeQuery = (s, e) => `
-            SELECT platform,
-                   SUM(toFloat64OrZero(toString(sales))) as category_size
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${s}' AND '${e}'
+            SELECT ms.platform as platform,
+                   SUM(toFloat64OrZero(toString(ms.sales))) as category_size
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${s}' AND '${e}'
             ${baseCond}
-            AND platform IS NOT NULL AND platform != ''
-            GROUP BY platform
+            ${subCat.where}
+            AND ms.platform IS NOT NULL AND ms.platform != ''
+            GROUP BY ms.platform
         `;
 
         // MW Market Share = SUM(mars_sales) / SUM(total_sales) * 100 per platform
         // We run two queries: mw_sales and total_sales per platform
         const buildMwSalesQuery = (s, e) => `
-            SELECT platform,
-                   SUM(toFloat64OrZero(toString(sales))) as mw_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${s}' AND '${e}'
+            SELECT ms.platform as platform,
+                   SUM(toFloat64OrZero(toString(ms.sales))) as mw_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${s}' AND '${e}'
             ${baseCond}
+            ${subCat.where}
             AND ${marsFilter}
-            AND platform IS NOT NULL AND platform != ''
-            GROUP BY platform
+            AND ms.platform IS NOT NULL AND ms.platform != ''
+            GROUP BY ms.platform
         `;
 
         const buildMlQuery = (s, e) => `
-            SELECT platform, group_brand as brand,
-                   SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${s}' AND '${e}'
+            SELECT ms.platform as platform, ms.group_brand as brand,
+                   SUM(toFloat64OrZero(toString(ms.sales))) as total_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${s}' AND '${e}'
             ${baseCond}
-            AND group_brand IS NOT NULL AND group_brand != ''
-            AND platform IS NOT NULL AND platform != ''
-            GROUP BY platform, group_brand
-            ORDER BY platform, total_sales DESC
+            ${subCat.where}
+            AND ms.group_brand IS NOT NULL AND ms.group_brand != ''
+            AND ms.platform IS NOT NULL AND ms.platform != ''
+            GROUP BY ms.platform, ms.group_brand
+            ORDER BY ms.platform, total_sales DESC
         `;
 
         // Fire all 6 queries in parallel (current + prev for each metric)
@@ -1575,12 +1660,13 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
  * Get Market Share Trends
  * Returns time series data for market share metrics.
  */
-export const getMarketShareTrends = async (period, timeStep, dimension, dimensionValue, startDate, endDate, platformFilter, categoryFilter, locationFilter, brandFilter) => {
+export const getMarketShareTrends = async (period, timeStep, dimension, dimensionValue, startDate, endDate, platformFilter, categoryFilter, locationFilter, brandFilter, subCategoryFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const locationArr = normalizeFilterArray(locationFilter);
         const brandArr = normalizeFilterArray(brandFilter);
+        const subCat = makeSubCategoryJoin(subCategoryFilter);
 
         // Calculate Date Range based on period if Custom is not provided
         let startRaw = dayjs().subtract(30, 'day');
@@ -1602,26 +1688,26 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
         const startStr = startRaw.format('YYYY-MM-DD');
         const endStr = endRaw.format('YYYY-MM-DD');
 
-        const locationCond = (locationArr.length > 0 && !locationArr.includes('All')) ? `AND lower(location) IN (${locationArr.map(l => `'${l.toLowerCase().replace(/'/g, "''")}'`).join(', ')})` : '';
-        const categoryCond = (categoryArr.length > 0 && !categoryArr.includes('All')) ? `AND lower(category) IN (${categoryArr.map(c => `'${c.toLowerCase().replace(/'/g, "''")}'`).join(', ')})` : '';
-        const platformCond = (platformArr.length > 0 && !platformArr.includes('All')) ? `AND lower(platform) IN (${platformArr.map(p => `'${p.toLowerCase().replace(/'/g, "''")}'`).join(', ')})` : '';
-        const brandCond = (brandArr.length > 0 && !brandArr.includes('All')) ? `AND lower(group_brand) IN (${brandArr.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})` : '';
+        const locationCond = (locationArr.length > 0 && !locationArr.includes('All')) ? `AND lower(ms.location) IN (${locationArr.map(l => `'${l.toLowerCase().replace(/'/g, "''")}'`).join(', ')})` : '';
+        const categoryCond = (categoryArr.length > 0 && !categoryArr.includes('All')) ? `AND lower(ms.category) IN (${categoryArr.map(c => `'${c.toLowerCase().replace(/'/g, "''")}'`).join(', ')})` : '';
+        const platformCond = (platformArr.length > 0 && !platformArr.includes('All')) ? `AND lower(ms.platform) IN (${platformArr.map(p => `'${p.toLowerCase().replace(/'/g, "''")}'`).join(', ')})` : '';
+        const brandCond = (brandArr.length > 0 && !brandArr.includes('All')) ? `AND lower(ms.group_brand) IN (${brandArr.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})` : '';
 
         // Grouping logic based on timeStep
         let dateGroupPart = '';
         let dateFormatStr = '';
         switch (timeStep) {
             case 'Weekly':
-                dateGroupPart = `toStartOfWeek(toDate(created_on))`;
+                dateGroupPart = `toStartOfWeek(toDate(ms.created_on))`;
                 dateFormatStr = 'DD MMM YYYY'; // Start of week date
                 break;
             case 'Monthly':
-                dateGroupPart = `toStartOfMonth(toDate(created_on))`;
+                dateGroupPart = `toStartOfMonth(toDate(ms.created_on))`;
                 dateFormatStr = 'MMM YYYY';
                 break;
             case 'Daily':
             default:
-                dateGroupPart = `toDate(created_on)`;
+                dateGroupPart = `toDate(ms.created_on)`;
                 dateFormatStr = 'DD MMM YYYY';
                 break;
         }
@@ -1662,18 +1748,20 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
             brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
             // Find categories the selected brands belong to
             const catLookupQuery = `
-                SELECT DISTINCT category
-                FROM rb_ms_olap
-                WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                SELECT DISTINCT ms.category as category
+                FROM rb_ms_olap as ms
+                ${subCat.join}
+                WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
                 ${platformCond}
                 ${locationCond}
-                AND brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})
-                AND category IS NOT NULL AND category != ''
+                ${subCat.where}
+                AND ms.brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})
+                AND ms.category IS NOT NULL AND ms.category != ''
             `;
             const catLookupResult = await queryClickHouse(catLookupQuery);
             const brandCategories = catLookupResult.map(r => r.category).filter(Boolean);
             if (brandCategories.length > 0) {
-                denomCategoryCond = `AND category IN (${brandCategories.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+                denomCategoryCond = `AND ms.category IN (${brandCategories.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
             }
         }
         denomCond = `${denomCond} ${denomCategoryCond}`;
@@ -1685,16 +1773,18 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
         if (ourBrands.length === 0) {
             ourBrands = ['dummy_no_brands'];
         }
-        const marsFilter = `lower(group_brand) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+        const marsFilter = `lower(ms.group_brand) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
 
         // Query 1: Category Size per period = SUM(sales) for all brands in the category (denominator)
         const catSizeQuery = `
             SELECT
                 ${dateGroupPart} as d,
-                SUM(toFloat64OrZero(toString(sales))) as category_size
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                SUM(toFloat64OrZero(toString(ms.sales))) as category_size
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${denomCond}
+            ${subCat.where}
             GROUP BY d
             ORDER BY d ASC
         `;
@@ -1703,10 +1793,12 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
         const mwQuery = `
             SELECT
                 ${dateGroupPart} as d,
-                SUM(toFloat64OrZero(toString(sales))) as mw_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                SUM(toFloat64OrZero(toString(ms.sales))) as mw_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
+            ${subCat.where}
             ${(brandArr && brandArr.length > 0 && !brandArr.includes('All')) ? '' : `AND ${marsFilter}`}
             GROUP BY d
             ORDER BY d ASC
@@ -1722,19 +1814,21 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
             FROM (
                 SELECT
                     ${dateGroupPart} as d,
-                    group_brand as brand,
-                    SUM(toFloat64OrZero(toString(sales))) as total_sales
-                FROM rb_ms_olap
-                WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                    ms.group_brand as brand,
+                    SUM(toFloat64OrZero(toString(ms.sales))) as total_sales
+                FROM rb_ms_olap as ms
+                ${subCat.join}
+                WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
                 ${baseCond}
-                AND group_brand IS NOT NULL AND group_brand != ''
-                GROUP BY d, group_brand
+                ${subCat.where}
+                AND ms.group_brand IS NOT NULL AND ms.group_brand != ''
+                GROUP BY d, brand
             )
             ORDER BY d ASC, ml_sales DESC
         `;
 
         // Query 4: SOV trends (Overall & Paid)
-        let dateGroupPartKW = dateGroupPart.replace(/toDate\(created_on\)/g, 'toDate(DATE)');
+        let dateGroupPartKW = dateGroupPart.replace(/toDate\(ms\.created_on\)/g, 'toDate(DATE)');
         const sovDenomQuery = `
             SELECT
                 ${dateGroupPartKW} as d,
@@ -1874,31 +1968,32 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
  * Get Market Share Competition (Brand level)
  * Returns generic brand-level KPIs (marketShare, sales) for the top brands.
  */
-export const getMarketShareCompetition = async (period, startDate, endDate, platformFilter, categoryFilter, locationFilter, brandFilter, compareStartDate = null, compareEndDate = null) => {
+export const getMarketShareCompetition = async (period, startDate, endDate, platformFilter, categoryFilter, locationFilter, brandFilter, compareStartDate = null, compareEndDate = null, subCategoryFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const locationArr = normalizeFilterArray(locationFilter);
         const brandArr = normalizeFilterArray(brandFilter);
+        const subCat = makeSubCategoryJoin(subCategoryFilter);
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All') && !locationArr.includes('All India')) {
-            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(ms.location) IN (${locationArr.map(l => `'${l.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND lower(category) IN (${categoryArr.map(c => `'${c.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+            categoryCond = `AND lower(ms.category) IN (${categoryArr.map(c => `'${c.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            platformCond = `AND lower(platform) IN (${platformArr.map(p => `'${p.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+            platformCond = `AND lower(ms.platform) IN (${platformArr.map(p => `'${p.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let brandCond = '';
         if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
-            brandCond = `AND lower(group_brand) IN (${brandArr.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+            brandCond = `AND lower(ms.group_brand) IN (${brandArr.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let startRaw = dayjs().subtract(30, 'day');
@@ -1949,18 +2044,20 @@ export const getMarketShareCompetition = async (period, startDate, endDate, plat
             brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
             // Find categories the selected brands belong to
             const catLookupQuery = `
-                SELECT DISTINCT category
-                FROM rb_ms_olap
-                WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                SELECT DISTINCT ms.category as category
+                FROM rb_ms_olap as ms
+                ${subCat.join}
+                WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
                 ${platformCond}
                 ${locationCond}
-                AND group_brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})
-                AND category IS NOT NULL AND category != ''
+                ${subCat.where}
+                AND ms.group_brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})
+                AND ms.category IS NOT NULL AND ms.category != ''
             `;
             const catLookupResult = await queryClickHouse(catLookupQuery);
             const brandCategories = catLookupResult.map(r => r.category).filter(Boolean);
             if (brandCategories.length > 0) {
-                denomCategoryCond = `AND category IN (${brandCategories.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+                denomCategoryCond = `AND ms.category IN (${brandCategories.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
             }
         }
         denomCond = `${denomCond} ${denomCategoryCond}`;
@@ -1968,59 +2065,69 @@ export const getMarketShareCompetition = async (period, startDate, endDate, plat
         // Get current period data
         const currentQuery = `
             SELECT 
-                group_brand as brand_name,
-                SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                ms.group_brand as brand_name,
+                SUM(toFloat64OrZero(toString(ms.sales))) as total_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
-            GROUP BY group_brand
+            ${subCat.where}
+            GROUP BY ms.group_brand
             ORDER BY total_sales DESC
         `;
 
         // Get previous period data
         const prevQuery = `
             SELECT 
-                group_brand as brand_name,
-                SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+                ms.group_brand as brand_name,
+                SUM(toFloat64OrZero(toString(ms.sales))) as total_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${baseCond}
-            GROUP BY group_brand
+            ${subCat.where}
+            GROUP BY ms.group_brand
         `;
 
         // Category size denominator: total sales for the category scope, WITHOUT brand filter
         // This ensures Market Share = brand_sales / total_category_sales * 100
         const catSizeQuery = `
-            SELECT SUM(toFloat64OrZero(toString(sales))) as total_category_size
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            SELECT SUM(toFloat64OrZero(toString(ms.sales))) as total_category_size
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${denomCond}
+            ${subCat.where}
         `;
 
         // Get current period sku data
         const currentSkuQuery = `
             SELECT 
-                item_name as sku_name,
-                group_brand as brand_name,
-                SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                ms.item_name as sku_name,
+                ms.group_brand as brand_name,
+                SUM(toFloat64OrZero(toString(ms.sales))) as total_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
-            AND item_name IS NOT NULL AND item_name != ''
-            GROUP BY item_name, group_brand
+            ${subCat.where}
+            AND ms.item_name IS NOT NULL AND ms.item_name != ''
+            GROUP BY ms.item_name, ms.group_brand
             ORDER BY total_sales DESC
         `;
 
         const prevSkuQuery = `
             SELECT 
-                item_name as sku_name,
-                group_brand as brand_name,
-                SUM(toFloat64OrZero(toString(sales))) as total_sales
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+                ms.item_name as sku_name,
+                ms.group_brand as brand_name,
+                SUM(toFloat64OrZero(toString(ms.sales))) as total_sales
+            FROM rb_ms_olap as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${baseCond}
-            AND item_name IS NOT NULL AND item_name != ''
-            GROUP BY item_name, group_brand
+            ${subCat.where}
+            AND ms.item_name IS NOT NULL AND ms.item_name != ''
+            GROUP BY ms.item_name, ms.group_brand
         `;
 
         // --- SOV Aggregation for Competition ---
@@ -2333,6 +2440,22 @@ export const getMarketShareTopFilterOptions = async (channelFilter = null) => {
             ORDER BY group_brand
         `;
 
+        // 6.7 Sub-Categories from rb_ms_olap
+        const dbName = getCurrentDbName();
+        const isMamaearth = dbName === 'mamaearth';
+        let subCategoryQuery;
+        if (isMamaearth) {
+            subCategoryQuery = `
+                SELECT DISTINCT sub_category
+                FROM rb_ms_olap
+                WHERE sub_category IS NOT NULL AND sub_category != ''
+                ${platformCond}
+                ORDER BY sub_category
+            `;
+        } else {
+            subCategoryQuery = `SELECT '' as sub_category WHERE 1=0`;
+        }
+
         // 7. Platform metadata (icons) - source from rb_platform for the filtered platforms
         let platformMetadata = [];
         try {
@@ -2370,10 +2493,11 @@ export const getMarketShareTopFilterOptions = async (channelFilter = null) => {
             platformMetadata = filteredPlatforms.map(pfName => ({ pf_name: pfName, platform_description: null }));
         }
 
-        const [categoryResults, locationResults, brandResults] = await Promise.all([
+        const [categoryResults, locationResults, brandResults, subCategoryResults] = await Promise.all([
             queryClickHouse(categoryQuery),
             queryClickHouse(locationQuery),
-            queryClickHouse(brandQuery)
+            queryClickHouse(brandQuery),
+            queryClickHouse(subCategoryQuery)
         ]);
 
         return {
@@ -2381,14 +2505,151 @@ export const getMarketShareTopFilterOptions = async (channelFilter = null) => {
             categories: categoryResults.map(r => r.category),
             locations: locationResults.map(r => r.location),
             brands: brandResults.map(r => r.brand),
+            subCategories: subCategoryResults.map(r => r.sub_category).filter(Boolean),
             channels: Array.from(channelSet).sort(),
             platformMetadata
         };
     } catch (error) {
         console.error('[MarketShareTopFilterOptions] Error:', error.message);
-        return { platforms: [], categories: [], channels: [], locations: [], platformMetadata: [] };
+        return { platforms: [], categories: [], channels: [], locations: [], subCategories: [], platformMetadata: [] };
     }
 };
+
+/**
+ * Get Cascaded Market Share Filter Options (Category, Brand, Sub-Category)
+ * Dynamically synchronized based on selections.
+ */
+export const getMarketShareCascadedFilters = async (platformFilter, channelFilter, categoryFilter, brandFilter, subCategoryFilter) => {
+    try {
+        const platformArr = normalizeFilterArray(platformFilter);
+        const categoryArr = normalizeFilterArray(categoryFilter);
+        const brandArr = normalizeFilterArray(brandFilter);
+        const subCategoryArr = normalizeFilterArray(subCategoryFilter);
+
+        const dbName = getCurrentDbName();
+        const isMamaearth = dbName === 'mamaearth';
+
+        // 1. Resolve platforms by channel
+        let filteredPlatforms = platformArr;
+        if (channelFilter && channelFilter !== 'All') {
+            try {
+                // Fetch mapping of platforms to channel
+                const allPlatformResults = await queryClickHouse(
+                    `SELECT DISTINCT platform FROM rb_ms_olap WHERE platform IS NOT NULL AND platform != ''`
+                );
+                const allMsPlatforms = allPlatformResults.map(r => r.platform);
+                if (allMsPlatforms.length > 0) {
+                    const platformList = allMsPlatforms.map(p => `'${p.replace(/'/g, "''")}'`).join(', ');
+                    const mappingResults = await queryClickHouse(`
+                        SELECT DISTINCT platform, channel 
+                        FROM rca_sku_dim 
+                        WHERE platform IN (${platformList}) 
+                        AND channel IS NOT NULL AND channel != ''
+                    `);
+                    const channelMap = new Map();
+                    mappingResults.forEach(r => {
+                        if (r.platform && r.channel) {
+                            channelMap.set(r.platform.toLowerCase(), r.channel.toLowerCase());
+                        }
+                    });
+                    const channelLower = channelFilter.toLowerCase();
+                    filteredPlatforms = allMsPlatforms.filter(p => channelMap.get(p.toLowerCase()) === channelLower);
+                    if (filteredPlatforms.length === 0) filteredPlatforms = allMsPlatforms;
+                }
+            } catch (err) {
+                console.warn('[MarketShareCascadedFilters] channel map failed:', err.message);
+            }
+        }
+
+        // Base platform condition
+        let platformCond = '';
+        if (filteredPlatforms && filteredPlatforms.length > 0 && !filteredPlatforms.includes('All')) {
+            platformCond = `AND platform IN (${filteredPlatforms.map(p => `'${p.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        // 2. Categories Query (Filtered by: Platform, Brand, Sub-Category)
+        const brandCondForCat = (brandArr && brandArr.length > 0 && !brandArr.includes('All'))
+            ? `AND group_brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`
+            : '';
+
+        let subCategoryCondForCat = '';
+        if (isMamaearth && subCategoryArr && subCategoryArr.length > 0 && !subCategoryArr.includes('All')) {
+            subCategoryCondForCat = `AND ms.sub_category IN (${subCategoryArr.map(s => `'${s.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        const catQuery = `
+            SELECT DISTINCT ms.category as category
+            FROM rb_ms_olap as ms
+            WHERE ms.category IS NOT NULL AND ms.category != ''
+            ${platformCond}
+            ${brandCondForCat}
+            ${subCategoryCondForCat}
+            ORDER BY ms.category
+        `;
+
+        // 3. Brands Query (Filtered by: Platform, Category, Sub-Category)
+        const categoryCondForBrand = (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All'))
+            ? `AND ms.category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`
+            : '';
+
+        let subCategoryCondForBrand = '';
+        if (isMamaearth && subCategoryArr && subCategoryArr.length > 0 && !subCategoryArr.includes('All')) {
+            subCategoryCondForBrand = `AND ms.sub_category IN (${subCategoryArr.map(s => `'${s.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        const brandQuery = `
+            SELECT DISTINCT ms.group_brand as brand
+            FROM rb_ms_olap as ms
+            WHERE ms.group_brand IS NOT NULL AND ms.group_brand != ''
+            ${platformCond}
+            ${categoryCondForBrand}
+            ${subCategoryCondForBrand}
+            ORDER BY ms.group_brand
+        `;
+
+        // 4. Sub-Categories Query (Filtered by: Platform, Category, Brand)
+        let subCategoryQuery = '';
+        if (isMamaearth) {
+            const categoryCondForSub = (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All'))
+                ? `AND ms.category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`
+                : '';
+
+            const brandCondForSub = (brandArr && brandArr.length > 0 && !brandArr.includes('All'))
+                ? `AND ms.group_brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`
+                : '';
+
+            subCategoryQuery = `
+                SELECT DISTINCT ms.sub_category as sub_category
+                FROM rb_ms_olap as ms
+                WHERE ms.sub_category IS NOT NULL AND ms.sub_category != ''
+                ${platformCond}
+                ${categoryCondForSub}
+                ${brandCondForSub}
+                ORDER BY sub_category
+            `;
+        }
+
+        const promises = [
+            queryClickHouse(catQuery),
+            queryClickHouse(brandQuery)
+        ];
+        if (isMamaearth) {
+            promises.push(queryClickHouse(subCategoryQuery));
+        }
+
+        const results = await Promise.all(promises);
+
+        return {
+            categories: results[0].map(r => r.category),
+            brands: results[1].map(r => r.brand),
+            subCategories: isMamaearth ? results[2].map(r => r.sub_category).filter(Boolean) : []
+        };
+    } catch (error) {
+        console.error('[MarketShareCascadedFilters] Error:', error.message);
+        return { categories: [], brands: [], subCategories: [] };
+    }
+};
+
 
 
 /**
@@ -2514,25 +2775,26 @@ export const getMarketShareCompetitionTrends = async (mode, targets, period, sta
  * Get Market Share Drilldown (Hierarchical)
  * Hierarchy: group_brand -> brand -> item_name
  */
-export const getMarketShareDrilldown = async (start, end, platformFilter, categoryFilter, locationFilter, compStart = null, compEnd = null) => {
+export const getMarketShareDrilldown = async (start, end, platformFilter, categoryFilter, locationFilter, compStart = null, compEnd = null, subCategoryFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const locationArr = normalizeFilterArray(locationFilter);
+        const subCat = makeSubCategoryJoin(subCategoryFilter);
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            platformCond = `AND platform IN (${platformArr.map(p => `'${p.replace(/'/g, "''")}'`).join(', ')})`;
+            platformCond = `AND ms.platform IN (${platformArr.map(p => `'${p.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All') && !locationArr.includes('All India')) {
-            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
+            locationCond = `AND lower(ms.location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            categoryCond = `AND ms.category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
@@ -2543,15 +2805,17 @@ export const getMarketShareDrilldown = async (start, end, platformFilter, catego
         // 1. Query for the full nested data at once
         const query = `
             SELECT 
-                group_brand,
-                brand,
-                item_name,
-                AVG(toFloat64OrZero(toString(nation_level_market_share))) as share,
-                AVG(toFloat64OrZero(toString(mrp))) as mrp
-            FROM rb_brand_ms
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                ms.group_brand as group_brand,
+                ms.brand as brand,
+                ms.item_name as item_name,
+                AVG(toFloat64OrZero(toString(ms.nation_level_market_share))) as share,
+                AVG(toFloat64OrZero(toString(ms.mrp))) as mrp
+            FROM rb_brand_ms as ms
+            ${subCat.join}
+            WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
-            AND group_brand != '' AND brand != '' AND item_name != ''
+            ${subCat.where}
+            AND ms.group_brand != '' AND ms.brand != '' AND ms.item_name != ''
             GROUP BY group_brand, brand, item_name
             ORDER BY group_brand, brand, item_name
         `;

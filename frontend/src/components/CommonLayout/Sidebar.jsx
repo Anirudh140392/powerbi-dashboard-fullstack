@@ -182,12 +182,45 @@ const Sidebar = ({
 
   // Dynamic logo based on user's database
   const activeLogo = useMemo(() => {
-    if (dbLogoUrl) return dbLogoUrl;
-    return getStaticFallbackLogo(user?.dbName);
-  }, [user?.dbName, dbLogoUrl]);
+    if (user?.dbName === 'mamaearth') return mamaearthLogo;
+    if (user?.dbName === 'mars_petcare') return marsPetcareLogo;
+    if (user?.dbName === 'mars_dmart') return marsDmartLogo;
+    if (user?.dbName === 'boat') return boatLogo;
+    if (user?.dbName === 'zydus' || user?.dbName === 'hm_zydus') return zydusLogo;
+    if (user?.dbName === 'demo') return demoLogo;
+    if (user?.dbName === 'sugar') return sugarLogo;
+    if (user?.dbName === 'pidilite') return pidiliteLogo;
+    if (user?.dbName === 'trailytics') return trailLogo;
+    if (user?.dbName === 'cheffin') return cheffinLogo;
+    if (user?.dbName === 'hm_titan_bags') return fastrackLogo;
+    if (user?.dbName === 'hm_titan_skinn') return titanSkinLogo;
+    if (user?.dbName === 'hm_titan_perfume') return titanPerfumeLogo;
+    if (user?.dbName === 'drl') return drlLogo;
+    if (user?.dbName === 'emami') return emamiLogo;
+    if (user?.dbName === 'hm_amz_dev') return amazonDeviceLogo;
+    if (user?.dbName === 'hm_stahl') return hmstahlLogo;
+    return marsLogo;
+  }, [user?.dbName]);
 
   const activeLogoAlt = useMemo(() => {
-    return user?.dbName ? `${user.dbName.toUpperCase()} Logo` : 'Client Logo';
+    if (user?.dbName === 'mamaearth') return 'Mamaearth Logo';
+    if (user?.dbName === 'mars_petcare') return 'Mars Petcare Logo';
+    if (user?.dbName === 'mars_dmart') return 'Mars Dmart Logo';
+    if (user?.dbName === 'boat') return 'Boat Logo';
+    if (user?.dbName === 'zydus' || user?.dbName === 'hm_zydus') return 'Zydus Logo';
+    if (user?.dbName === 'demo') return 'Demo Logo';
+    if (user?.dbName === 'sugar') return 'Sugar Logo';
+    if (user?.dbName === 'pidilite') return 'Pidilite Logo';
+    if (user?.dbName === 'trailytics') return 'Trailytics Logo';
+    if (user?.dbName === 'cheffin') return 'Cheffin Logo';
+    if (user?.dbName === 'hm_titan_bags') return 'Fastrack Logo';
+    if (user?.dbName === 'hm_titan_skinn') return 'Titan Skinn Logo';
+    if (user?.dbName === 'hm_titan_perfume') return 'Titan Perfume Logo';
+    if (user?.dbName === 'drl') return 'DRL Logo';
+    if (user?.dbName === 'emami') return 'Emami Logo';
+    if (user?.dbName === 'hm_amz_dev') return 'Amazon Device Logo';
+    if (user?.dbName === 'hm_stahl') return 'HM Stahl Logo';
+    return 'Mars Logo';
   }, [user?.dbName]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
@@ -354,7 +387,7 @@ const Sidebar = ({
                 style={{
                   maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mars_petcare' ? '150px' : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? '120px' : (user?.dbName === 'mamaearth' ? '100px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami') ? '80px' : (user?.dbName === 'sugar' ? 80 : (user?.dbName === 'pidilite' ? 80 : (user?.dbName === 'cheffin' ? 80 : (user?.dbName === 'drl' ? 80 : '45px')))))))),
                   width: isCollapsed ? '100%' : 'auto',
-                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mars_petcare' ? '250px' : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? '240px' : (user?.dbName === 'mamaearth' ? '240px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami') ? '220px' : (user?.dbName === 'sugar' ? '220px' : (user?.dbName === 'pidilite' ? '220px' : (user?.dbName === 'cheffin' ? '220px' : (user?.dbName === 'drl' ? '220px' : '180px')))))))),
+                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mars_petcare' ? '250px' : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? '240px' : (user?.dbName === 'mamaearth' ? '240px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami' || user?.dbName === 'hm_amz_dev' || user?.dbName === 'hm_stahl') ? '220px' : (user?.dbName === 'sugar' ? '220px' : (user?.dbName === 'pidilite' ? '220px' : (user?.dbName === 'cheffin' ? '220px' : (user?.dbName === 'drl' ? '220px' : '180px')))))))),
                   objectFit: 'contain',
                   padding: '0',
                   display: 'block',
