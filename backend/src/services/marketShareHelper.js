@@ -3040,6 +3040,8 @@ export const getMarketShareShareTable = async (start, end, platformFilter, categ
             subCategory:      row['sub_category']  || row['r.sub_category']  || '',
             categoryShare:    parseFloat(row['ms_category']    || 0),
             subCategoryShare: parseFloat(row['ms_sub_category'] || 0),
+            brandCategorySales: parseFloat(row['brand_category_sales'] || row['bc.brand_category_sales'] || 0),
+            subCategorySales:   parseFloat(row['sub_category_sales'] || row['s.sub_category_sales'] || 0),
         }));
     } catch (error) {
         console.error('[getMarketShareShareTable] Error:', error.message);

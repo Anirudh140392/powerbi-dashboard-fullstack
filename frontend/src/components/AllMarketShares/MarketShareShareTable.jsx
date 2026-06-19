@@ -380,8 +380,36 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
 
     const overallSubCategoryShare = useMemo(() => {
         if (!processedData.length) return 0;
-        const sum = processedData.reduce((acc, r) => acc + (r.subCategoryShare || 0), 0);
-        return sum / processedData.length;
+
+        // If backend hasn't provided raw sales figures, fall back to simple average
+        const hasSalesFields = processedData.some(r => r.brandCategorySales !== undefined && r.subCategorySales !== undefined);
+        if (!hasSalesFields) {
+            const sum = processedData.reduce((acc, r) => acc + (r.subCategoryShare || 0), 0);
+            return sum / processedData.length;
+        }
+
+        // Sum of distinct brandCategorySales by (category, brand)
+        const uniqueBrandSales = new Map();
+        // Sum of distinct subCategorySales by (category, subCategory)
+        const uniqueSubCatSales = new Map();
+
+        processedData.forEach(r => {
+            const bKey = `${r.category ?? ''}-${r.brand ?? ''}`;
+            const sKey = `${r.category ?? ''}-${r.subCategory ?? ''}`;
+
+            if (r.brandCategorySales !== undefined) {
+                uniqueBrandSales.set(bKey, r.brandCategorySales);
+            }
+            if (r.subCategorySales !== undefined) {
+                uniqueSubCatSales.set(sKey, r.subCategorySales);
+            }
+        });
+
+        const sumBrandSales = Array.from(uniqueBrandSales.values()).reduce((acc, val) => acc + val, 0);
+        const sumSubCatSales = Array.from(uniqueSubCatSales.values()).reduce((acc, val) => acc + val, 0);
+
+        if (sumSubCatSales === 0) return 0;
+        return (sumBrandSales / sumSubCatSales) * 100;
     }, [processedData]);
 
     const columns = [
