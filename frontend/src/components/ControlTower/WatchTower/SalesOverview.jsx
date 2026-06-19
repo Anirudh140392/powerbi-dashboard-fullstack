@@ -4,7 +4,10 @@ import {
   FileSpreadsheet, 
   ArrowLeftRight, 
   ArrowUpRight,
-  Crown
+  Crown,
+  Download,
+  Navigation,
+  Lock
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -13,402 +16,284 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Cell
+  Cell,
+  LabelList
 } from "recharts";
 import { useAuth } from "../../../utils/AuthContext";
 
+const DRL_MOCK_DATA = {
+  primaryMom: [
+    { month: "Dec-23", value: 0.75, label: "75.99L" },
+    { month: "Jan-24", value: 0.19, label: "19.19L" },
+    { month: "Feb-24", value: 0.27, label: "27.81L" },
+    { month: "Mar-24", value: 0.73, label: "73.40L" },
+    { month: "Apr-24", value: 1.05, label: "1.05CR" },
+    { month: "May-24", value: 1.15, label: "1.15CR" },
+    { month: "Jun-24", value: 1.84, label: "1.84CR" },
+    { month: "Jul-24", value: 2.07, label: "2.07CR" },
+    { month: "Aug-24", value: 2.50, label: "2.50CR" },
+    { month: "Sep-24", value: 1.89, label: "1.89CR" },
+    { month: "Oct-24", value: 2.79, label: "2.79CR" },
+    { month: "Nov-24", value: 1.58, label: "1.58CR" },
+    { month: "Dec-24", value: 1.72, label: "1.72CR" },
+    { month: "Jan-25", value: 2.06, label: "2.06CR" },
+    { month: "Feb-25", value: 2.61, label: "2.61CR" },
+    { month: "Mar-25", value: 3.54, label: "3.54CR" },
+    { month: "Apr-25", value: 4.68, label: "4.68CR" },
+    { month: "May-25", value: 5.10, label: "5.10CR" },
+    { month: "Jun-25", value: 4.26, label: "4.26CR" },
+    { month: "Jul-25", value: 3.88, label: "3.88CR" },
+    { month: "Aug-25", value: 0.75, label: "75.11L" },
+  ],
+  quarterWise: [
+    { quarter: "Q3 2022", value: 0.19, label: "19.19L" },
+    { quarter: "Q4 2022", value: 1.68, label: "1.68CR" },
+    { quarter: "Q1 2023", value: 2.61, label: "2.61CR" },
+    { quarter: "Q2 2023", value: 4.10, label: "4.10CR" },
+    { quarter: "Q3 2023", value: 6.40, label: "6.40CR" },
+    { quarter: "Q4 2023", value: 6.26, label: "6.26CR" },
+    { quarter: "Q1 2024", value: 4.55, label: "4.55CR" },
+    { quarter: "Q2 2024", value: 6.46, label: "6.46CR" },
+    { quarter: "Q3 2024", value: 13.31, label: "13.31CR" },
+    { quarter: "Q4 2024", value: 12.59, label: "12.59CR" },
+    { quarter: "Q1 2025", value: 0.75, label: "75.11L" },
+  ],
+  tableData: [
+    { retailer: "Amazon Retail India Pvt Limite", dec22: "1,918,624", jan23: "7,598,656", feb23: "2,781,259", mar23: "6,446,795", apr23: "6,908,719", may23: "8,156,123", jun23: "10,432,064", jul23: "9,864,867", aug23: "10,995,096", sep23: "16,877,336", oct23: "15,370,454", nov23: "19,507,834" },
+    { retailer: "Counfreedise Retail Services L", dec22: "", jan23: "", feb23: "", mar23: "", apr23: "431,398", may23: "185,227", jun23: "32,123", jul23: "1,205,317", aug23: "535,137", sep23: "1,503,748", oct23: "1,551,458", nov23: "1,185,240" },
+    { retailer: "Ean Enterprises", dec22: "", jan23: "", feb23: "", mar23: "", apr23: "", may23: "", jun23: "", jul23: "", aug23: "", sep23: "", oct23: "1,415,187", nov23: "32,271" },
+    { retailer: "Hasmukh Agency", dec22: "", jan23: "", feb23: "", mar23: "", apr23: "", may23: "", jun23: "", jul23: "", aug23: "", sep23: "", oct23: "", nov23: "" },
+    { retailer: "Katalysst Cpg Consultants Llp", dec22: "", jan23: "", feb23: "", mar23: "", apr23: "", may23: "", jun23: "", jul23: "", aug23: "", sep23: "", oct23: "", nov23: "" },
+    { retailer: "Nykaa E-Retail Limited", dec22: "", jan23: "", feb23: "", mar23: "", apr23: "", may23: "", jun23: "", jul23: "", aug23: "", sep23: "", oct23: "", nov23: "" },
+    { retailer: "Rk Worldinfocom Private Limite", dec22: "", jan23: "", feb23: "", mar23: "", apr23: "", may23: "", jun23: "", jul23: "", aug23: "", sep23: "", oct23: "", nov23: "" },
+  ]
+};
+
 export default function SalesOverview() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("billing"); // "billing", "d2c", "comparison"
-
+  // Adjust this condition based on the users that are actually authorized. 
+  // We'll use 'drl' or 'trailytics' as an example of authorized DBs that shouldn't see the lock.
   const showSalesOverview = user?.dbName === "drl" || user?.dbName === "trailytics";
 
-  // Mock Data
-  const data = {
-    billing: {
-      kpis: [
-        { label: "Gross billing", value: "₹48.3 Cr", trend: "+6.2% MoM", isPositive: true },
-        { label: "Net amount", value: "₹43.1 Cr", trend: "+5.8%", isPositive: true },
-        { label: "Active CFAs", value: "12", subtext: "1,842 docs" },
-        { label: "Avg PTR", value: "₹886", trend: "-1.1%", isPositive: false },
-      ],
-      distributorsTitle: "Top distributors / CFAs",
-      distributors: [
-        { name: "Counfreedise", value: "₹36.1 Cr", percentage: 75, color: "#3b82f6" },
-        { name: "Ean Enterprises", value: "₹5.2 Cr", percentage: 11, color: "#60a5fa" },
-        { name: "Hasmukh Agency", value: "₹2.4 Cr", percentage: 5, color: "#93c5fd" },
-        { name: "Others", value: "₹4.6 Cr", percentage: 9, color: "#cbd5e1" },
-      ],
-      zonesTitle: "Zone split",
-      zones: [
-        { name: "West", value: "₹33.7 Cr", percentage: 78, color: "#3b82f6" },
-        { name: "North", value: "₹6.4 Cr", percentage: 15, color: "#93c5fd" },
-        { name: "South", value: "₹3.2 Cr", percentage: 7, color: "#cbd5e1" },
-      ],
-      footerText: "Monthly refresh · last uploaded 01 May 2026",
-      footerLinkText: "Brand & division",
-      footerDotColor: "bg-amber-500"
-    },
-    d2c: {
-      kpis: [
-        { label: "GMV", value: "₹15.1 Cr", trend: "+1.3%", isPositive: true },
-        { label: "Conversion", value: "55.96%", trend: "-1.08%", isPositive: false },
-        { label: "Availability", value: "81.00%", trend: "+1.4%", isPositive: true },
-        { label: "Orders", value: "486K", trend: "+2.45%", isPositive: true },
-      ],
-      platformsTitle: "Platform split",
-      platforms: [
-        { name: "Blinkit", value: "₹7.5 Cr", percentage: 50, color: "#10b981" },
-        { name: "Dunzo", value: "₹4.1 Cr", percentage: 27, color: "#34d399" },
-        { name: "Instamart", value: "₹2.6 Cr", percentage: 17, color: "#a7f3d0" },
-      ],
-      footerText: "Refreshes daily · as of today",
-      footerLinkText: "Platform detail",
-      footerDotColor: "bg-emerald-500"
-    },
-    comparison: {
-      kpis: [
-        { label: "Billing vs D2C ratio", value: "4.5x", trend: "+2.1% MoM", isPositive: true },
-        { label: "Zone alignment", value: "92%", subtext: "Highly aligned" },
-        { label: "Distributor overlap", value: "14", subtext: "Active distributors" },
-        { label: "Avg unit realization delta", value: "₹1,503", trend: "+3.4%", isPositive: true },
-      ],
-      chartTitle: "Monthly trend — primary vs secondary",
-      chartData: [
-        { month: "Nov", primary: 35, secondary: 15 },
-        { month: "Dec", primary: 45, secondary: 18 },
-        { month: "Jan", primary: 50, secondary: 20 },
-        { month: "Feb", primary: 55, secondary: 22 },
-        { month: "Mar", primary: 60, secondary: 24 },
-        { month: "Apr", primary: 75, secondary: 30 },
-      ],
-      footerText: "Refreshes daily · as of today",
-      footerLinkText: "Comparison detail",
-      footerDotColor: "bg-emerald-500"
-    }
+  const [viewMode, setViewMode] = useState('Units');
+
+  const getMappedData = () => {
+    const isMRP = viewMode === 'MRP';
+    const mapLabel = (label) => {
+      if (!label) return label;
+      if (isMRP) return `₹${label}`;
+      return label.replace('CR', 'K').replace('L', '');
+    };
+    const mapTableVal = (val) => {
+      if (!val) return val;
+      if (isMRP) return `₹${val}`;
+      return val;
+    };
+
+    return {
+      primaryMom: DRL_MOCK_DATA.primaryMom.map(d => ({ ...d, label: mapLabel(d.label) })),
+      quarterWise: DRL_MOCK_DATA.quarterWise.map(d => ({ ...d, label: mapLabel(d.label) })),
+      tableData: DRL_MOCK_DATA.tableData.map(row => {
+        const newRow = { ...row };
+        Object.keys(newRow).forEach(k => {
+          if (k !== 'retailer' && newRow[k]) {
+            newRow[k] = mapTableVal(newRow[k]);
+          }
+        });
+        return newRow;
+      })
+    };
   };
 
-  const activeData = data[activeTab];
+  const currentData = getMappedData();
 
   return (
-    <div className="w-full rounded-[24px] bg-white border border-slate-200/80 shadow-md p-4 lg:p-6 mb-6 transition-all duration-300 hover:shadow-lg relative overflow-hidden">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-slate-100 mb-4 gap-2">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-            <FileSpreadsheet className="w-5 h-5" />
+    <div className="relative w-full mb-8">
+      <div className={`w-full bg-white rounded-[24px] border border-slate-100 p-5 lg:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.04)] font-sans transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] ${!showSalesOverview ? "blur-[2px] pointer-events-none select-none" : ""}`}>
+        {/* Top Header */}
+        <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-1 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full" />
+            <h2 className="text-lg lg:text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-500 tracking-tight">
+              PRIMARY SUMMARY
+            </h2>
           </div>
-          <div>
-            <h3 className="text-base font-bold text-slate-800 tracking-tight" style={{ fontFamily: "Inter, sans-serif" }}>
-              Sales overview
-            </h3>
-            <p className="text-[11px] text-slate-500 font-medium" style={{ fontFamily: "Inter, sans-serif" }}>
-              Monitor billing vs D2C splits and distributor performance
-            </p>
+          
+          <div className="flex items-center gap-3">
+            {/* Animated Toggle */}
+            <div className="flex items-center bg-slate-100/80 p-1 rounded-xl shadow-inner border border-slate-200/50">
+              <button 
+                onClick={() => setViewMode('Units')}
+                className={`relative px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 z-10 ${
+                  viewMode === 'Units' ? 'text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {viewMode === 'Units' && (
+                  <motion.div 
+                    layoutId="toggleBg" 
+                    className="absolute inset-0 bg-white rounded-lg -z-10" 
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  />
+                )}
+                Units
+              </button>
+              <button 
+                onClick={() => setViewMode('MRP')}
+                className={`relative px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 z-10 ${
+                  viewMode === 'MRP' ? 'text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {viewMode === 'MRP' && (
+                  <motion.div 
+                    layoutId="toggleBg" 
+                    className="absolute inset-0 bg-white rounded-lg -z-10" 
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  />
+                )}
+                MRP
+              </button>
+            </div>
+
+            <button className="p-2 bg-orange-50 text-orange-500 border border-orange-100 rounded-xl hover:bg-orange-500 hover:text-white transition-colors shadow-sm">
+              <Download size={18} strokeWidth={2.5} />
+            </button>
           </div>
         </div>
-        <div className="text-xs font-bold text-slate-500 bg-slate-50 border border-slate-100 rounded-xl px-3 py-1.5 self-end sm:self-center" style={{ fontFamily: "Inter, sans-serif" }}>
-          Apr 2026
+        
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3 mb-8 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+          {['BRAND NAME', 'RETAILER NAME', 'PRODUCT', 'DIVISION', 'ZONE', 'X-AXIS'].map((filterName, idx) => (
+            <div key={idx} className="flex flex-col gap-1.5 flex-1 min-w-[130px] group">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-blue-500 transition-colors ml-1">{filterName}</label>
+              <div className="relative">
+                <select className="w-full appearance-none bg-white border border-slate-200 rounded-xl py-2 pl-3 pr-8 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm cursor-pointer hover:border-slate-300">
+                  {filterName === 'X-AXIS' ? <option>Retailer Name</option> : <option>All</option>}
+                </select>
+                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+                  <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Charts */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+          <motion.div 
+            whileHover={{ y: -2 }}
+            className="border border-slate-100 rounded-2xl bg-white p-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_15px_-4px_rgba(0,0,0,0.1)] transition-all duration-300"
+          >
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-2 h-2 rounded-full bg-fuchsia-500" />
+              <h4 className="text-[11px] font-extrabold text-slate-600 uppercase tracking-widest">PRIMARY MOM</h4>
+            </div>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={currentData.primaryMom} margin={{ top: 20, right: 10, left: 10, bottom: 20 }} barCategoryGap="20%">
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fontWeight: 600, fill: '#94a3b8' }} angle={-45} textAnchor="end" interval={0} axisLine={false} tickLine={false} dy={10} />
+                  <Tooltip cursor={{ fill: "rgba(241, 245, 249, 0.6)", rx: 8 }} contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)' }} />
+                  <Bar dataKey="value" fill="#d946ef" radius={[4, 4, 0, 0]} maxBarSize={30}>
+                    <LabelList dataKey="label" position="top" style={{ fontSize: '10px', fontWeight: '800', fill: '#64748b' }} offset={8} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+          
+          <motion.div 
+            whileHover={{ y: -2 }}
+            className="border border-slate-100 rounded-2xl bg-white p-5 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_15px_-4px_rgba(0,0,0,0.1)] transition-all duration-300"
+          >
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-2 h-2 rounded-full bg-indigo-500" />
+              <h4 className="text-[11px] font-extrabold text-slate-600 uppercase tracking-widest">QUARTER WISE PRIMARY DATA</h4>
+            </div>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={currentData.quarterWise} margin={{ top: 20, right: 10, left: 10, bottom: 20 }} barCategoryGap="25%">
+                  <XAxis dataKey="quarter" tick={{ fontSize: 10, fontWeight: 600, fill: '#94a3b8' }} interval={0} axisLine={false} tickLine={false} dy={10} />
+                  <Tooltip cursor={{ fill: "rgba(241, 245, 249, 0.6)", rx: 8 }} contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)' }} />
+                  <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={45}>
+                    <LabelList dataKey="label" position="top" style={{ fontSize: '10px', fontWeight: '800', fill: '#64748b' }} offset={8} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Table */}
+        <div className="border border-slate-100 rounded-2xl bg-white shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+              <h4 className="text-[11px] font-extrabold text-slate-700 uppercase tracking-widest">BRAND WISE PRIMARY</h4>
+            </div>
+          </div>
+          <div className="overflow-x-auto border-t border-slate-100">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className="font-bold text-slate-400 border-b border-r border-slate-200 py-4 px-5 min-w-[220px] uppercase tracking-wider sticky left-0 bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] z-20">Retailer Name</th>
+                  {['Dec-22', 'Jan-23', 'Feb-23', 'Mar-23', 'Apr-23', 'May-23', 'Jun-23', 'Jul-23', 'Aug-23', 'Sep-23', 'Oct-23', 'Nov-23', 'Dec-23'].map(m => (
+                    <th key={m} className="font-bold text-slate-400 border-b border-r border-slate-100 last:border-r-0 py-4 px-3 whitespace-nowrap text-right uppercase tracking-wider">{m}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {currentData.tableData.map((row, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50 transition-colors group bg-white">
+                    <td className="py-3.5 px-5 font-bold text-slate-700 sticky left-0 bg-slate-50 group-hover:bg-slate-100 transition-colors shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] z-20 border-r border-slate-200">{row.retailer}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium border-r border-slate-100">{row.dec22}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium border-r border-slate-100">{row.jan23}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium border-r border-slate-100">{row.feb23}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium border-r border-slate-100">{row.mar23}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium border-r border-slate-100">{row.apr23}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium border-r border-slate-100">{row.may23}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium border-r border-slate-100">{row.jun23}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium border-r border-slate-100">{row.jul23}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium border-r border-slate-100">{row.aug23}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium border-r border-slate-100">{row.sep23}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium border-r border-slate-100">{row.oct23}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium border-r border-slate-100">{row.nov23}</td>
+                    <td className="py-3.5 px-3 text-right text-slate-600 font-medium last:border-r-0">{row.dec23 || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      {/* Relative wrapper for blurred body content and lock overlay */}
-      <div className="relative">
-        <div className={!showSalesOverview ? "filter blur-[5px] pointer-events-none select-none" : ""}>
-          {/* Tabs */}
-          <div className="flex border-b border-slate-100 mb-6 overflow-x-auto gap-2 sm:gap-6 no-scrollbar">
-            <button
-              onClick={() => setActiveTab("billing")}
-              className={`flex items-center gap-2 py-3 px-1 text-xs font-semibold border-b-2 transition-all outline-none ${
-                activeTab === "billing"
-                  ? "border-blue-600 text-blue-600 font-bold"
-                  : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
-              style={{ fontFamily: "Inter, sans-serif" }}
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-              Primary — billing
-            </button>
-            <button
-              onClick={() => setActiveTab("d2c")}
-              className={`flex items-center gap-2 py-3 px-1 text-xs font-semibold border-b-2 transition-all outline-none ${
-                activeTab === "d2c"
-                  ? "border-blue-600 text-blue-600 font-bold"
-                  : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
-              style={{ fontFamily: "Inter, sans-serif" }}
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              Secondary — D2C
-            </button>
-            <button
-              onClick={() => setActiveTab("comparison")}
-              className={`flex items-center gap-2 py-3 px-1 text-xs font-semibold border-b-2 transition-all outline-none ${
-                activeTab === "comparison"
-                  ? "border-blue-600 text-blue-600 font-bold"
-                  : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
-              style={{ fontFamily: "Inter, sans-serif" }}
-            >
-              <ArrowLeftRight className="w-3.5 h-3.5 text-slate-400" />
-              Comparison
-            </button>
-          </div>
-
-          {/* Content */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-            >
-              {/* KPI Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 border border-slate-100 rounded-2xl divide-x divide-y md:divide-y-0 divide-slate-100 overflow-hidden mb-6">
-                {activeData.kpis.map((kpi, idx) => (
-                  <div key={idx} className="p-4 flex flex-col justify-between min-h-[95px] bg-slate-50/20">
-                    <span className="text-[11px] font-semibold text-slate-500 tracking-wide uppercase" style={{ fontFamily: "Inter, sans-serif" }}>
-                      {kpi.label}
-                    </span>
-                    <div className="flex items-baseline gap-2 mt-2">
-                      <span className="text-xl font-bold text-slate-800" style={{ fontFamily: "Inter, sans-serif" }}>
-                        {kpi.value}
-                      </span>
-                      {kpi.trend && (
-                        <span
-                          className={`text-[11px] font-bold ${
-                            kpi.isPositive ? "text-emerald-600" : "text-rose-600"
-                          }`}
-                          style={{ fontFamily: "Inter, sans-serif" }}
-                        >
-                          {kpi.trend}
-                        </span>
-                      )}
-                      {kpi.subtext && (
-                        <span className="text-[11px] text-slate-500 font-medium" style={{ fontFamily: "Inter, sans-serif" }}>
-                          {kpi.subtext}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* D2C Tab Layout */}
-              {activeTab === "d2c" && (
-                <div className="bg-[#f7f7f5]/80 border border-slate-100 rounded-2xl p-5">
-                  <h4 className="text-xs font-bold text-slate-700 mb-4" style={{ fontFamily: "Inter, sans-serif" }}>
-                    {activeData.platformsTitle}
-                  </h4>
-                  <div className="space-y-4">
-                    {activeData.platforms.map((plat, idx) => (
-                      <div key={idx} className="space-y-1.5">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="font-semibold text-slate-600" style={{ fontFamily: "Inter, sans-serif" }}>
-                            {plat.name}
-                          </span>
-                          <span className="font-bold text-slate-800" style={{ fontFamily: "Inter, sans-serif" }}>
-                            {plat.value}
-                          </span>
-                        </div>
-                        <div className="w-full h-2.5 bg-slate-200/60 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{
-                              width: `${plat.percentage}%`,
-                              backgroundColor: plat.color,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Comparison Tab Layout */}
-              {activeTab === "comparison" && (
-                <div className="bg-[#f7f7f5]/80 border border-slate-100 rounded-2xl p-5">
-                  <h4 className="text-xs font-bold text-slate-700 mb-4" style={{ fontFamily: "Inter, sans-serif" }}>
-                    {activeData.chartTitle}
-                  </h4>
-                  
-                  <div className="w-full h-[160px] mt-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={activeData.chartData}
-                        barGap={4}
-                        margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
-                      >
-                        <XAxis 
-                          dataKey="month" 
-                          tickLine={false} 
-                          axisLine={false} 
-                          tick={{ fill: "#64748b", fontSize: 11, fontWeight: 500 }}
-                        />
-                        <YAxis hide={true} />
-                        <Tooltip 
-                          cursor={{ fill: "transparent" }}
-                          contentStyle={{
-                            borderRadius: "8px",
-                            border: "1px solid #e2e8f0",
-                            fontSize: "11px",
-                            fontFamily: "Inter, sans-serif"
-                          }}
-                        />
-                        
-                        {/* Primary Bar */}
-                        <Bar dataKey="primary" radius={[4, 4, 0, 0]}>
-                          {activeData.chartData.map((entry, index) => {
-                            const isApr = entry.month === "Apr";
-                            return (
-                              <Cell 
-                                key={`cell-pri-${index}`} 
-                                fill={isApr ? "#3b82f6" : "#bfdbfe"} 
-                              />
-                            );
-                          })}
-                        </Bar>
-                        
-                        {/* Secondary Bar */}
-                        <Bar dataKey="secondary" radius={[4, 4, 0, 0]}>
-                          {activeData.chartData.map((entry, index) => {
-                            const isApr = entry.month === "Apr";
-                            return (
-                              <Cell 
-                                key={`cell-sec-${index}`} 
-                                fill={isApr ? "#10b981" : "#bbf7d0"} 
-                              />
-                            );
-                          })}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  {/* Custom Legend */}
-                  <div className="flex items-center gap-4 mt-3 text-[11px] font-bold text-slate-500 pl-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]" />
-                      Primary (billing)
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#10b981]" />
-                      Secondary (D2C)
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Billing Tab Layout: Two Columns */}
-              {activeTab === "billing" && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Left Column */}
-                  <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4">
-                    <h4 className="text-xs font-bold text-slate-700 mb-4" style={{ fontFamily: "Inter, sans-serif" }}>
-                      {activeData.distributorsTitle}
-                    </h4>
-                    <div className="space-y-3.5">
-                      {activeData.distributors.map((dist, idx) => (
-                        <div key={idx} className="space-y-1">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-semibold text-slate-600" style={{ fontFamily: "Inter, sans-serif" }}>
-                              {dist.name}
-                            </span>
-                            <span className="font-bold text-slate-800" style={{ fontFamily: "Inter, sans-serif" }}>
-                              {dist.value}
-                            </span>
-                          </div>
-                          <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{
-                                width: `${dist.percentage}%`,
-                                backgroundColor: dist.color,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Right Column */}
-                  <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4">
-                    <h4 className="text-xs font-bold text-slate-700 mb-4" style={{ fontFamily: "Inter, sans-serif" }}>
-                      {activeData.zonesTitle}
-                    </h4>
-                    <div className="space-y-3.5">
-                      {activeData.zones.map((zone, idx) => (
-                        <div key={idx} className="space-y-1">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-semibold text-slate-600" style={{ fontFamily: "Inter, sans-serif" }}>
-                              {zone.name}
-                            </span>
-                            <span className="font-bold text-slate-800" style={{ fontFamily: "Inter, sans-serif" }}>
-                              {zone.value}
-                            </span>
-                          </div>
-                          <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{
-                                width: `${zone.percentage}%`,
-                                backgroundColor: zone.color,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100 text-[11px] text-slate-500">
-            <div className="flex items-center gap-1.5 font-medium">
-              <span className={`w-2 h-2 rounded-full ${activeData.footerDotColor}`} />
-              {activeData.footerText}
-            </div>
-            <a
-              href={`#${activeData.footerLinkText.toLowerCase().replace(/\s+/g, "-")}`}
-              className="flex items-center gap-0.5 text-blue-600 hover:text-blue-700 font-bold transition-all"
-              onClick={(e) => e.preventDefault()}
-            >
-              {activeData.footerLinkText} <ArrowUpRight className="w-3.5 h-3.5" />
-            </a>
-          </div>
-        </div>
-
-        {/* Lock Overlay for non-authorized users */}
-        {!showSalesOverview && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center p-6 bg-white/20 backdrop-blur-[2px] rounded-2xl">
-            {/* Upgrade Badge with Gold gradient border */}
-            <div className="relative mb-4 flex items-center justify-center w-14 h-14 rounded-full bg-white border border-slate-200 shadow-md">
-              <Crown className="w-7 h-7 text-amber-500 drop-shadow-sm animate-pulse" />
-              <div className="absolute -bottom-1 -right-1 bg-amber-500 text-white rounded-full p-1 border border-white">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3 h-3">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                </svg>
+      {/* Lock Overlay for non-authorized users */}
+      {!showSalesOverview && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/30 backdrop-blur-md rounded-[24px]">
+          <div className="bg-white/95 border border-slate-100 p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] max-w-sm text-center flex flex-col items-center transform transition-all hover:scale-[1.02]">
+            <div className="relative mb-6 flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-50 border border-amber-200/50 shadow-inner">
+              <Lock className="w-8 h-8 text-amber-500" />
+              <div className="absolute -bottom-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full p-1.5 shadow-lg border-2 border-white">
+                <Crown className="w-3 h-3" />
               </div>
             </div>
 
-            <h4 className="text-base font-extrabold tracking-tight mb-2" style={{ fontFamily: "Inter, sans-serif" }}>
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600">
-                ✦ Sales Intelligence Premium
+            <h4 className="text-lg font-black tracking-tight mb-3">
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-600 to-orange-600">
+                Unlock Sales Intelligence
               </span>
             </h4>
 
-            <p className="max-w-md text-[11px] text-slate-600 leading-relaxed font-semibold" style={{ fontFamily: "Inter, sans-serif" }}>
-              Access primary billing insights, secondary D2C sales channel splits, distributor performance indicators, and monthly comparison trends. Contact administrator to upgrade.
+            <p className="text-xs text-slate-500 leading-relaxed font-medium mb-8">
+              Get full access to primary billing insights, D2C channel splits, and brand-wise performance metrics. Upgrade your workspace to view this data.
             </p>
+
+            <button className="w-full py-3.5 px-6 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm shadow-[0_4px_15px_rgba(0,0,0,0.15)] transition-all hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)] flex items-center justify-center gap-2">
+              Upgrade Workspace <ArrowUpRight className="w-4 h-4" />
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
