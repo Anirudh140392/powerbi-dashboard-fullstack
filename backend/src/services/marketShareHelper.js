@@ -2925,3 +2925,125 @@ export const getMarketShareLatestDate = async () => {
         };
     }
 };
+
+/**
+ * Get Market Share Table Data
+ * Returns rows: category, brand, subCategory, categoryShare (%), subCategoryShare (%)
+ * Uses CTE-based logic matching the reference SQL query on rb_ms_olap.
+ */
+export const getMarketShareShareTable = async (start, end, platformFilter, categoryFilter, subCategoryFilter) => {
+    try {
+        const platformArr = normalizeFilterArray(platformFilter);
+        const categoryArr = normalizeFilterArray(categoryFilter);
+        const subCategoryArr = normalizeFilterArray(subCategoryFilter);
+
+        const startStr = start.format('YYYY-MM-DD');
+        const endStr = end.format('YYYY-MM-DD');
+        const dateFilter = `toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'`;
+
+        let platformCond = '';
+        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
+            const conds = platformArr.map(p => `lower(platform) LIKE lower('%${p.replace(/'/g, "''")}%')`).join(' OR ');
+            platformCond = `AND (${conds})`;
+        }
+
+        let categoryCond = '';
+        const mappedCats = mapCategoryForMs(categoryArr);
+        if (mappedCats.length > 0) {
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        let subCatCond = '';
+        if (subCategoryArr && subCategoryArr.length > 0 && !subCategoryArr.includes('All')) {
+            subCatCond = `AND sub_category IN (${subCategoryArr.map(s => `'${s.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        const baseCond = `${platformCond} ${categoryCond} ${subCatCond}`;
+
+        const query = `
+            WITH category_sales AS (
+                SELECT
+                    category,
+                    SUM(toFloat64OrZero(toString(sales))) AS category_sales
+                FROM rb_ms_olap
+                WHERE ${dateFilter}
+                ${platformCond}
+                ${categoryCond}
+                GROUP BY category
+            ),
+            brand_category_sales AS (
+                SELECT
+                    category,
+                    brand,
+                    SUM(toFloat64OrZero(toString(sales))) AS brand_category_sales
+                FROM rb_ms_olap
+                WHERE ${dateFilter}
+                ${platformCond}
+                ${categoryCond}
+                GROUP BY category, brand
+            ),
+            sub_category_sales AS (
+                SELECT
+                    category,
+                    sub_category,
+                    SUM(toFloat64OrZero(toString(sales))) AS sub_category_sales
+                FROM rb_ms_olap
+                WHERE ${dateFilter}
+                ${platformCond}
+                ${categoryCond}
+                GROUP BY category, sub_category
+            ),
+            base AS (
+                SELECT
+                    category,
+                    sub_category,
+                    brand,
+                    toFloat64OrZero(toString(sales)) AS sales
+                FROM rb_ms_olap
+                WHERE ${dateFilter}
+                ${baseCond}
+            )
+            SELECT
+                r.category    AS category,
+                r.sub_category AS sub_category,
+                r.brand       AS brand,
+                bc.brand_category_sales,
+                c.category_sales,
+                s.sub_category_sales,
+                ROUND(bc.brand_category_sales * 100.0 / c.category_sales, 2) AS ms_category,
+                ROUND(SUM(r.sales) * 100.0 / s.sub_category_sales, 2)        AS ms_sub_category
+            FROM base r
+            JOIN category_sales c  ON r.category    = c.category
+            JOIN brand_category_sales bc
+                ON r.category = bc.category AND r.brand = bc.brand
+            JOIN sub_category_sales s
+                ON r.category = s.category AND r.sub_category = s.sub_category
+            GROUP BY
+                r.category,
+                r.sub_category,
+                r.brand,
+                bc.brand_category_sales,
+                c.category_sales,
+                s.sub_category_sales
+            ORDER BY
+                r.category,
+                ms_category DESC,
+                r.sub_category,
+                ms_sub_category DESC
+        `;
+
+        const rows = await queryClickHouse(query);
+
+        return rows.map(row => ({
+            category:         row['category']      || row['r.category']      || '',
+            brand:            row['brand']         || row['r.brand']         || '',
+            subCategory:      row['sub_category']  || row['r.sub_category']  || '',
+            categoryShare:    parseFloat(row['ms_category']    || 0),
+            subCategoryShare: parseFloat(row['ms_sub_category'] || 0),
+        }));
+    } catch (error) {
+        console.error('[getMarketShareShareTable] Error:', error.message);
+        return [];
+    }
+};
+

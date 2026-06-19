@@ -1,4 +1,4 @@
-import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareTopFilterOptions, MarketShareCompetitionTrends, MarketShareDrilldown, MarketShareLatestDate, MarketShareCascadedFilters } from '../controllers/marketShareController.js';
+import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareTopFilterOptions, MarketShareCompetitionTrends, MarketShareDrilldown, MarketShareLatestDate, MarketShareCascadedFilters, MarketShareShareTable } from '../controllers/marketShareController.js';
 import accessControlMiddleware from '../middleware/accessControlMiddleware.js';
 
 export default (app) => {
@@ -140,4 +140,15 @@ export default (app) => {
     app.get('/api/market-share/drilldown', MarketShareDrilldown);
     app.get('/api/market-share/latest-date', MarketShareLatestDate);
     app.get('/api/market-share/cascaded-filters', MarketShareCascadedFilters);
+    /**
+     * @swagger
+     * /api/market-share/share-table:
+     *   get:
+     *     summary: Get Market Share Table (Category × Brand × Sub-Category shares)
+     *     description: Returns rows with Category, Brand, Sub Category, Category Share %, Sub Category Share %
+     *     responses:
+     *       200:
+     *         description: Successful response with data array
+     */
+    app.get('/api/market-share/share-table', MarketShareShareTable);
 };
