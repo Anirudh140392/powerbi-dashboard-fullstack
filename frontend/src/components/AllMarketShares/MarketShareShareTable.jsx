@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import { Skeleton } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, BarChart2, ChevronUp, ChevronDown, ChevronsUpDown, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BarChart2, ChevronUp, ChevronDown, ChevronsUpDown, X, Check } from 'lucide-react';
 import { FilterContext } from '../../utils/FilterContext';
 import axiosInstance from '../../api/axiosInstance';
 import { cn } from '../../lib/utils';
@@ -22,13 +22,16 @@ const ShareBar = ({ value }) => {
     );
 };
 
-// Compact styled custom dropdown with search
-const FilterSelect = ({ label, value, options, onChange, color = 'indigo' }) => {
+// Compact styled custom multiselect dropdown with search
+const FilterSelect = ({ label, value = [], options, onChange, color = 'indigo' }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const dropdownRef = useRef(null);
 
-    const active = value !== '';
+    // value is now always an array
+    const selected = Array.isArray(value) ? value : (value ? [value] : []);
+    const active = selected.length > 0;
+
     const colors = {
         indigo: 'bg-indigo-50 border-indigo-200/80 text-indigo-700',
         violet: 'bg-violet-50 border-violet-200/80 text-violet-700',
@@ -42,12 +45,18 @@ const FilterSelect = ({ label, value, options, onChange, color = 'indigo' }) => 
         emerald: 'ring-emerald-200',
         slate: 'ring-slate-200',
     };
+    const chipBg = {
+        indigo: 'bg-indigo-100 text-indigo-700 border-indigo-200/60',
+        violet: 'bg-violet-100 text-violet-700 border-violet-200/60',
+        emerald: 'bg-emerald-100 text-emerald-700 border-emerald-200/60',
+    };
 
     // Close on click outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
                 setIsOpen(false);
+                setSearchQuery('');
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -60,11 +69,43 @@ const FilterSelect = ({ label, value, options, onChange, color = 'indigo' }) => 
         return options.filter(o => o.toLowerCase().includes(searchQuery.toLowerCase()));
     }, [options, searchQuery]);
 
-    const handleSelect = (val) => {
-        onChange(val);
-        setIsOpen(false);
-        setSearchQuery(''); // reset search on select
+    // Toggle a single option in the selection
+    const handleToggle = (val) => {
+        if (selected.includes(val)) {
+            onChange(selected.filter(v => v !== val));
+        } else {
+            onChange([...selected, val]);
+        }
     };
+
+    // Clear all selections
+    const handleClearAll = (e) => {
+        if (e) e.stopPropagation();
+        onChange([]);
+        setSearchQuery('');
+    };
+
+    // Select all filtered options
+    const handleSelectAll = () => {
+        const allFiltered = filteredOptions;
+        const newSelected = [...new Set([...selected, ...allFiltered])];
+        onChange(newSelected);
+    };
+
+    // Deselect all filtered options
+    const handleDeselectAll = () => {
+        const filteredSet = new Set(filteredOptions);
+        onChange(selected.filter(v => !filteredSet.has(v)));
+    };
+
+    const allFilteredSelected = filteredOptions.length > 0 && filteredOptions.every(o => selected.includes(o));
+
+    // Display text for the trigger
+    const displayText = selected.length === 0
+        ? 'All'
+        : selected.length === 1
+            ? selected[0]
+            : `${selected.length} selected`;
 
     return (
         <div className="relative" ref={dropdownRef}>
@@ -84,12 +125,12 @@ const FilterSelect = ({ label, value, options, onChange, color = 'indigo' }) => 
                     {label}
                 </div>
                 
-                <div className="relative h-full flex items-center bg-white/50 transition-colors hover:bg-white/80 pr-8 pl-3 min-w-[110px] rounded-r-xl">
+                <div className="relative h-full flex items-center bg-white/50 transition-colors hover:bg-white/80 pr-8 pl-3 min-w-[110px] rounded-r-xl gap-1.5">
                     <span className={cn(
                         'text-[12px] font-semibold truncate max-w-[130px]',
                         active ? 'text-slate-800' : 'text-slate-600'
                     )}>
-                        {value || 'All'}
+                        {displayText}
                     </span>
                     
                     {/* Chevron */}
@@ -99,7 +140,7 @@ const FilterSelect = ({ label, value, options, onChange, color = 'indigo' }) => 
                     
                     {active && (
                         <button
-                            onClick={(e) => { e.stopPropagation(); handleSelect(''); }}
+                            onClick={handleClearAll}
                             className={cn(
                                 "absolute right-[22px] h-4 w-4 rounded-full flex items-center justify-center transition-all bg-white shadow-sm border border-black/5 hover:scale-110",
                                 `text-${color}-600 hover:text-${color}-700 hover:border-${color}-300`
@@ -140,38 +181,58 @@ const FilterSelect = ({ label, value, options, onChange, color = 'indigo' }) => 
                             </div>
                         </div>
 
-                        {/* Options List */}
-                        <div className="max-h-56 overflow-y-auto p-1.5 custom-scrollbar">
-                            <div
-                                onClick={() => handleSelect('')}
+                        {/* Select All / Deselect All */}
+                        <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50/30">
+                            <button
+                                onClick={allFilteredSelected ? handleDeselectAll : handleSelectAll}
                                 className={cn(
-                                    "px-3 py-2 text-[12px] font-semibold rounded-lg cursor-pointer transition-colors mb-0.5",
-                                    !active ? `bg-${color}-50 text-${color}-700` : "text-slate-600 hover:bg-slate-50"
+                                    "text-[11px] font-bold transition-colors",
+                                    allFilteredSelected ? "text-rose-500 hover:text-rose-700" : "text-indigo-500 hover:text-indigo-700"
                                 )}
                             >
-                                All
-                            </div>
-                            
+                                {allFilteredSelected ? 'Deselect All' : 'Select All'}
+                            </button>
+                            {selected.length > 0 && (
+                                <span className="text-[10px] font-semibold text-slate-400">
+                                    {selected.length} selected
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Options List */}
+                        <div className="max-h-56 overflow-y-auto p-1.5 custom-scrollbar">
                             {filteredOptions.length === 0 ? (
                                 <div className="px-3 py-6 text-center text-[12px] text-slate-400 font-medium">
                                     No results found for "{searchQuery}"
                                 </div>
                             ) : (
-                                filteredOptions.map(o => (
-                                    <div
-                                        key={o}
-                                        onClick={() => handleSelect(o)}
-                                        className={cn(
-                                            "px-3 py-2 text-[12px] rounded-lg cursor-pointer transition-colors truncate mb-0.5 last:mb-0",
-                                            value === o 
-                                                ? `bg-${color}-50 text-${color}-700 font-bold` 
-                                                : "text-slate-700 font-medium hover:bg-slate-50"
-                                        )}
-                                        title={o}
-                                    >
-                                        {o}
-                                    </div>
-                                ))
+                                filteredOptions.map(o => {
+                                    const isSelected = selected.includes(o);
+                                    return (
+                                        <div
+                                            key={o}
+                                            onClick={() => handleToggle(o)}
+                                            className={cn(
+                                                "flex items-center gap-2.5 px-3 py-2 text-[12px] rounded-lg cursor-pointer transition-colors mb-0.5 last:mb-0",
+                                                isSelected
+                                                    ? `bg-${color}-50 text-${color}-700 font-bold`
+                                                    : "text-slate-700 font-medium hover:bg-slate-50"
+                                            )}
+                                            title={o}
+                                        >
+                                            {/* Checkbox indicator */}
+                                            <div className={cn(
+                                                "w-4 h-4 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all",
+                                                isSelected
+                                                    ? `bg-${color}-500 border-${color}-500`
+                                                    : "border-slate-300 bg-white"
+                                            )}>
+                                                {isSelected && <Check size={10} className="text-white" strokeWidth={3} />}
+                                            </div>
+                                            <span className="truncate">{o}</span>
+                                        </div>
+                                    );
+                                })
                             )}
                         </div>
                     </motion.div>
@@ -192,8 +253,8 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
     const [sortKey,     setSortKey]     = useState('categoryShare');
     const [sortDir,     setSortDir]     = useState('desc');
 
-    const [localCategory,    setLocalCategory]    = useState('');
-    const [localSubCategory, setLocalSubCategory] = useState('');
+    const [localCategory,    setLocalCategory]    = useState([]);
+    const [localSubCategory, setLocalSubCategory] = useState([]);
 
     // ── Fetch ──────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -220,8 +281,8 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
         };
         fetchData();
         // reset local filters when global filters change
-        setLocalCategory('');
-        setLocalSubCategory('');
+        setLocalCategory([]);
+        setLocalSubCategory([]);
     }, [platform, selectedCategory, selectedSubCategory, timeStart, timeEnd]);
 
     const loading = parentLoading || dataLoading;
@@ -235,14 +296,22 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
     // sub-categories available under selected category (or all)
     const availableSubCategories = useMemo(() => {
         let base = tableData;
-        if (localCategory) base = base.filter(r => r.category === localCategory);
+        if (localCategory.length > 0) base = base.filter(r => localCategory.includes(r.category));
         return [...new Set(base.map(r => r.subCategory).filter(Boolean))].sort();
     }, [tableData, localCategory]);
 
     // reset downstream filters when parent changes
     const handleCategoryChange = (val) => {
         setLocalCategory(val);
-        setLocalSubCategory('');
+        // When category changes, remove any sub-category selections that are no longer valid
+        if (val.length > 0) {
+            const validSubCats = new Set(
+                tableData.filter(r => val.includes(r.category)).map(r => r.subCategory).filter(Boolean)
+            );
+            setLocalSubCategory(prev => prev.filter(sc => validSubCats.has(sc)));
+        } else {
+            setLocalSubCategory([]);
+        }
         setCurrentPage(1);
     };
     const handleSubCategoryChange = (val) => {
@@ -250,10 +319,10 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
         setCurrentPage(1);
     };
 
-    const hasActiveFilters = localCategory || localSubCategory;
+    const hasActiveFilters = localCategory.length > 0 || localSubCategory.length > 0;
     const resetAllFilters = () => {
-        setLocalCategory('');
-        setLocalSubCategory('');
+        setLocalCategory([]);
+        setLocalSubCategory([]);
         setCurrentPage(1);
     };
 
@@ -271,9 +340,9 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
     const processedData = useMemo(() => {
         let data = tableData;
 
-        // local section filters
-        if (localCategory)    data = data.filter(r => r.category    === localCategory);
-        if (localSubCategory) data = data.filter(r => r.subCategory === localSubCategory);
+        // local section filters (multiselect)
+        if (localCategory.length > 0)    data = data.filter(r => localCategory.includes(r.category));
+        if (localSubCategory.length > 0) data = data.filter(r => localSubCategory.includes(r.subCategory));
 
         // search
         if (searchQuery.trim()) {
@@ -303,6 +372,18 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
     const maxCategoryShare    = useMemo(() => Math.max(...processedData.map(r => r.categoryShare    || 0), 1), [processedData]);
     const maxSubCategoryShare = useMemo(() => Math.max(...processedData.map(r => r.subCategoryShare || 0), 1), [processedData]);
 
+    const overallCategoryShare = useMemo(() => {
+        if (!processedData.length) return 0;
+        const sum = processedData.reduce((acc, r) => acc + (r.categoryShare || 0), 0);
+        return sum / processedData.length;
+    }, [processedData]);
+
+    const overallSubCategoryShare = useMemo(() => {
+        if (!processedData.length) return 0;
+        const sum = processedData.reduce((acc, r) => acc + (r.subCategoryShare || 0), 0);
+        return sum / processedData.length;
+    }, [processedData]);
+
     const columns = [
         { key: 'category',         label: 'Category',           sortable: false },
         { key: 'brand',            label: 'Brand',              sortable: false },
@@ -313,11 +394,11 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
 
     return (
         <motion.div
-            className="bg-white rounded-3xl shadow-sm border border-slate-200 mt-6 overflow-hidden"
+            className="bg-white rounded-3xl shadow-sm border border-slate-200 mt-6"
             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
         >
             {/* ── Header ── */}
-            <div className="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
+            <div className="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 rounded-t-3xl bg-white">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0">
                         <BarChart2 size={20} className="text-indigo-600" />
@@ -411,6 +492,34 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
                         </tr>
                     </thead>
                     <tbody>
+                        {!loading && processedData.length > 0 && (
+                            <motion.tr
+                                className="bg-purple-50/70 font-bold border-b border-purple-200/60 hover:bg-purple-100/50 transition-colors"
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
+                            >
+                                <td className="px-6 py-3.5 sticky left-0 bg-purple-50/95 z-10 border-r border-purple-100/40">
+                                    <span className="text-[12px] font-black text-purple-800 tracking-wider">OVERVIEW</span>
+                                </td>
+                                <td className="px-6 py-3.5 bg-purple-50/40">
+                                    <span className="text-[12px] font-semibold text-purple-400">—</span>
+                                </td>
+                                <td className="px-6 py-3.5 bg-purple-50/40">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-100 text-purple-700 border border-purple-200/50">
+                                        All Selected ({processedData.length})
+                                    </span>
+                                </td>
+                                <td className={cn('px-6 py-3.5 bg-purple-50/30', sortKey === 'categoryShare' && 'bg-purple-100/40')}>
+                                    <span className="text-purple-900 font-extrabold">
+                                        <ShareBar value={overallCategoryShare} max={100} color="#6366f1" />
+                                    </span>
+                                </td>
+                                <td className={cn('px-6 py-3.5 bg-purple-50/30', sortKey === 'subCategoryShare' && 'bg-purple-100/40')}>
+                                    <span className="text-purple-900 font-extrabold">
+                                        <ShareBar value={overallSubCategoryShare} max={100} color="#10b981" />
+                                    </span>
+                                </td>
+                            </motion.tr>
+                        )}
                         {loading ? (
                             [...Array(8)].map((_, i) => (
                                 <tr key={'sk-' + i} className="border-b border-slate-50">
@@ -459,7 +568,7 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
             </div>
 
             {/* ── Footer ── */}
-            <div className="px-6 py-4 flex items-center justify-between border-t border-slate-100 bg-white shadow-[0_-4px_20px_-12px_rgba(0,0,0,0.07)]">
+            <div className="px-6 py-4 flex items-center justify-between border-t border-slate-100 bg-white shadow-[0_-4px_20px_-12px_rgba(0,0,0,0.07)] rounded-b-3xl">
                 <div className="flex items-center gap-2">
                     <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
