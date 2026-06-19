@@ -24,6 +24,7 @@ import MarketCatOverview from "./MarketCatOverview";
 import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
 import MarketShareDrilldown from "./MarketShareDrilldown";
 import SubCategoryMarket from "./SubCategoryMarket";
+import MarketShareShareTable from "./MarketShareShareTable";
 
 const marketShareKpis = [
   {
@@ -326,19 +327,18 @@ export default function MarketShareAnalysis() {
   const [loading, setLoading] = useState(true);
 
   // Derive display name from the logged-in user's dbName
-  const dbDisplayName = useMemo(() => {
+  const { dbDisplayName, isMamaearth } = useMemo(() => {
     try {
       const u = JSON.parse(sessionStorage.getItem('user'));
       if (u?.dbName) {
-        if (u.dbName.toLowerCase() === 'mamaearth') {
-          return 'The Derma Co.';
-        }
-        return u.dbName
-          .replace(/_/g, ' ')
-          .replace(/\b\w/g, c => c.toUpperCase());
+        const isME = u.dbName.toLowerCase() === 'mamaearth';
+        const displayName = isME
+          ? 'The Derma Co.'
+          : u.dbName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        return { dbDisplayName: displayName, isMamaearth: isME };
       }
     } catch { /* ignore */ }
-    return 'Our';
+    return { dbDisplayName: 'Our', isMamaearth: false };
   }, []);
 
   // Use state for KPIs to allow dynamic updates from backend
@@ -522,8 +522,11 @@ export default function MarketShareAnalysis() {
         onViewRca={handleViewRca}
       />
 
-      {/* <MarketShareDrilldown loading={loading} /> */}
+      {/* KPI Matrix */}
       <SubCategoryMarket loading={loading} />
+
+      {/* Category & Sub-Category Share Table — Mamaearth only */}
+      {isMamaearth && <MarketShareShareTable loading={loading} />}
 
       {/* <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-2">
         <div className="text-sm font-semibold">

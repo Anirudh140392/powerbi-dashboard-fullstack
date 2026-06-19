@@ -1,4 +1,4 @@
-import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getMarketShareKPI, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown, getMarketShareLatestDate, getMarketShareCascadedFilters } from '../services/marketShareHelper.js';
+import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getMarketShareKPI, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown, getMarketShareLatestDate, getMarketShareCascadedFilters, getMarketShareShareTable } from '../services/marketShareHelper.js';
 import dayjs from 'dayjs';
 
 export const Platform = async (req, res) => {
@@ -240,6 +240,28 @@ export const MarketShareCascadedFilters = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in Market Share Cascaded Filters:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const MarketShareShareTable = async (req, res) => {
+    req.query.location = 'All';
+    req.query.cities = 'All';
+    try {
+        const { platform, category, subCategory, startDate, endDate } = req.query;
+        console.log("Market Share Share Table request received:", req.query);
+
+        const start = startDate ? dayjs(startDate) : dayjs().subtract(30, 'day');
+        const end = endDate ? dayjs(endDate) : dayjs();
+
+        const rows = await getMarketShareShareTable(start, end, platform, category, subCategory);
+
+        res.json({
+            message: "Market Share Share Table fetched successfully",
+            data: rows
+        });
+    } catch (error) {
+        console.error('Error in Market Share Share Table:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
