@@ -147,12 +147,23 @@ export const fetchAllVisibilityData = async (filters = {}) => {
     };
 };
 
+// Helper to format date fields in raw param objects before sending to backend.
+// Prevents timezone mismatch: browser (IST) sends "Sun, 14 Jun 2026 18:30:00 GMT"
+// which a UTC server would parse as June 14 instead of the intended June 15.
+const formatParamDates = (params) => {
+    const formatted = { ...params };
+    ['startDate', 'endDate', 'compareStartDate', 'compareEndDate'].forEach(key => {
+        if (formatted[key]) formatted[key] = formatDate(formatted[key]);
+    });
+    return formatted;
+};
+
 /**
  * Fetch SKU visibility drilldown for a specific keyword
  */
 export const fetchVisibilitySkuDrilldown = async (params) => {
     try {
-        const queryParams = new URLSearchParams(params).toString();
+        const queryParams = new URLSearchParams(formatParamDates(params)).toString();
         const response = await axiosInstance.get(`/visibility-analysis/sku-drilldown?${queryParams}`);
         return response.data;
     } catch (error) {
@@ -166,7 +177,7 @@ export const fetchVisibilitySkuDrilldown = async (params) => {
  */
 export const fetchVisibilityCityDrilldown = async (params) => {
     try {
-        const queryParams = new URLSearchParams(params).toString();
+        const queryParams = new URLSearchParams(formatParamDates(params)).toString();
         const response = await axiosInstance.get(`/visibility-analysis/city-drilldown?${queryParams}`);
         return response.data;
     } catch (error) {
@@ -206,7 +217,7 @@ export const fetchSearchTermsPerformance = async (filters = {}) => {
  */
 export const fetchSearchTermsLocations = async (params) => {
     try {
-        const queryParams = new URLSearchParams(params).toString();
+        const queryParams = new URLSearchParams(formatParamDates(params)).toString();
         const response = await axiosInstance.get(`/visibility-analysis/search-terms-locations?${queryParams}`);
         return response.data;
     } catch (error) {
@@ -238,7 +249,7 @@ export const fetchSearchTermsBrandBreakdown = async (filters = {}) => {
  */
 export const fetchVisibilityFilterOptions = async (params) => {
     try {
-        const queryParams = new URLSearchParams(params).toString();
+        const queryParams = new URLSearchParams(formatParamDates(params)).toString();
         const response = await axiosInstance.get(`/visibility-analysis/filter-options?${queryParams}`);
         return response.data;
     } catch (error) {
