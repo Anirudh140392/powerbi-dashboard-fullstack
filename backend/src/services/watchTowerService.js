@@ -6643,7 +6643,7 @@ const getCategoryOverview = async (filters) => {
             SUM(${src.f.actualSales}) as comp_actual_sales,
             SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
             AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
-            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
+            AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
         FROM ${src.table} WHERE ${buildCatConds(startDate, endDate)} GROUP BY Category`),
         queryClickHouse(`SELECT ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} as Category,
             SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
@@ -6656,7 +6656,7 @@ const getCategoryOverview = async (filters) => {
             SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as comp_actual_sales,
             SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
             AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
-            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
+            AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
         FROM ${src.table} WHERE ${buildCatConds(momStart, momEnd)} GROUP BY Category`),
         // Marketing Metrics from PM table
         queryClickHouse(`SELECT ${pmSrc.f.category} as Category,
@@ -7075,7 +7075,7 @@ const getBrandsOverview = async (filters) => {
             SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as comp_actual_sales,
             SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
             AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
-            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
+            AVG(if(${src.f.compFlag} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
         FROM ${src.table} WHERE ${buildBrandConds(startDate, endDate)} AND ${src.f.compFlag} = 0 GROUP BY Brand`),
         queryClickHouse(`SELECT ${src.f.brand} as Brand,
             SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
@@ -7088,7 +7088,7 @@ const getBrandsOverview = async (filters) => {
             SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as comp_actual_sales,
             SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
             AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
-            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
+            AVG(if(${src.f.compFlag} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp
         FROM ${src.table} WHERE ${buildBrandConds(momStart, momEnd)} AND ${src.f.compFlag} = 0 GROUP BY Brand`),
         // Marketing Metrics from PM table
         queryClickHouse(`SELECT ${pmSrc.f.brand} as Brand,
