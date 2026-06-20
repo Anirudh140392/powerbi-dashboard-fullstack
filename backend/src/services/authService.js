@@ -342,6 +342,8 @@ export async function verifySession(token) {
         console.warn('[Auth] Failed to fetch permissions during verify:', e.message);
     }
 
+    console.error(`[DEBUG_VERIFY_SESSION] returning userData: email=${decoded.email}, dbName=${dbName}, dbLogoUrl length=${dbLogoUrl ? dbLogoUrl.length : 0}`);
+
     return {
         email: decoded.email,
         name: decoded.userName,

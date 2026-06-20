@@ -523,9 +523,9 @@ export const getAvailabilityCompetitionFilterOptions = async (req, res) => {
  */
 export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
     try {
-        const { brands, location, category, period, startDate, endDate, channel } = { ...req.query, ...req.body };
+        const { brands, location, category, period, startDate, endDate, channel, timeStep } = { ...req.query, ...req.body };
         console.log('\n========== AVAILABILITY COMPETITION BRAND TRENDS API ==========');
-        console.log('[REQUEST] brands:', brands, 'location:', location, 'category:', category, 'period:', period, 'startDate:', startDate, 'endDate:', endDate);
+        console.log('[REQUEST] brands:', brands, 'location:', location, 'category:', category, 'period:', period, 'startDate:', startDate, 'endDate:', endDate, 'timeStep:', timeStep);
 
         const data = await availabilityService.getAvailabilityCompetitionBrandTrends({
             brands: parseFilter(brands || 'All'),
@@ -534,7 +534,8 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
             period: period || '1M',
             channel: channel,
             startDate,
-            endDate
+            endDate,
+            timeStep: timeStep || 'Daily'
         });
 
         console.log('[RESPONSE]:', Object.keys(data.timeSeries || {}).length, 'brands with trends');
@@ -553,9 +554,9 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
  */
 export const getAvailabilityCompetitionSkuTrends = async (req, res) => {
     try {
-        const { skus, location, category, period, startDate, endDate, channel } = { ...req.query, ...req.body };
+        const { skus, location, category, period, startDate, endDate, channel, timeStep } = { ...req.query, ...req.body };
         console.log('\n========== AVAILABILITY COMPETITION SKU TRENDS API ==========');
-        console.log('[REQUEST] skus:', skus, 'location:', location, 'category:', category, 'period:', period);
+        console.log('[REQUEST] skus:', skus, 'location:', location, 'category:', category, 'period:', period, 'timeStep:', timeStep);
 
         const data = await availabilityService.getAvailabilityCompetitionSkuTrends({
             skus: parseFilter(skus || 'All'),
@@ -564,7 +565,8 @@ export const getAvailabilityCompetitionSkuTrends = async (req, res) => {
             period: period || '1M',
             channel: channel,
             startDate,
-            endDate
+            endDate,
+            timeStep: timeStep || 'Daily'
         });
 
         console.log('[RESPONSE]:', Object.keys(data.osa || {}).length, 'SKUs with trends');
