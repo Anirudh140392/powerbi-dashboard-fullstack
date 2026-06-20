@@ -364,7 +364,7 @@ const MetricChip = ({ label, color, active, onClick }) => {
     );
 };
 
-const TrendView = ({ mode, filters, city, platform, channel, period, globalFilters, brandRows, skuRows, onBackToTable, isEcom }) => {
+const TrendView = ({ mode, filters, city, platform, channel, period, globalFilters, brandRows, skuRows, onBackToTable, isEcom, timeStep }) => {
     const isBrandMode = mode === "brand";
 
     // Also include any filter-selected SKUs/brands not already in the top rows
@@ -423,7 +423,8 @@ const TrendView = ({ mode, filters, city, platform, channel, period, globalFilte
                 category: filters.categories.length > 0 ? filters.categories.join('|') + '|' : 'All',
                 period: period || '1M',
                 startDate: globalFilters?.startDate,
-                endDate: globalFilters?.endDate
+                endDate: globalFilters?.endDate,
+                timeStep: timeStep || 'Daily'
             };
 
             let endpoint = '';
@@ -443,7 +444,7 @@ const TrendView = ({ mode, filters, city, platform, channel, period, globalFilte
         } finally {
             setTrendLoading(false);
         }
-    }, [visibleIds, city, platform, channel, isBrandMode, filters.categories, period, globalFilters?.startDate, globalFilters?.endDate]);
+    }, [visibleIds, city, platform, channel, isBrandMode, filters.categories, period, globalFilters?.startDate, globalFilters?.endDate, timeStep]);
 
     useEffect(() => {
         fetchTrendData();
@@ -1059,7 +1060,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, period }) => {
+export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, period, timeStep }) => {
     const isEcom = platform?.toLowerCase() === "amazon" || platform?.toLowerCase() === "flipkart";
     const [tab, setTab] = useState("brand");
 
@@ -1247,6 +1248,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                             skuRows={skuRows}
                             onBackToTable={() => setViewMode("table")}
                             isEcom={isEcom}
+                            timeStep={timeStep}
                         />
                     )}
                 </TabsContent>
@@ -1267,6 +1269,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                             skuRows={skuRows}
                             onBackToTable={() => setViewMode("table")}
                             isEcom={isEcom}
+                            timeStep={timeStep}
                         />
                     )}
                 </TabsContent>

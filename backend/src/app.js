@@ -44,7 +44,8 @@ if (process.env.ENABLE_DEBUG_LOGS == 'true') {
 // create app or middleware
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Swagger configuration
 const swaggerOptions = {
@@ -79,6 +80,35 @@ app.use("/api", (req, res, next) => {
 // AsyncLocalStorage middleware - wraps every request in a storage context
 // This MUST be before any routes that use queryClickHouse
 app.use(asyncStorageMiddleware);
+
+// Auth request logger middleware
+import fs from 'fs';
+app.use("/api/auth/verify", (req, res, next) => {
+    const originalJson = res.json;
+    res.json = function (data) {
+        try {
+            const logEntry = {
+                timestamp: new Date().toISOString(),
+                headers: req.headers,
+                response: {
+                    success: data.success,
+                    error: data.error,
+                    user: data.user ? {
+                        email: data.user.email,
+                        dbName: data.user.dbName,
+                        dbLogoUrlLength: data.user.dbLogoUrl ? data.user.dbLogoUrl.length : 0,
+                        role: data.user.role
+                    } : null
+                }
+            };
+            fs.appendFileSync('verify_requests.log', JSON.stringify(logEntry, null, 2) + "\n---\n");
+        } catch (e) {
+            console.error("Failed to write request log:", e.message);
+        }
+        return originalJson.apply(this, arguments);
+    };
+    next();
+});
 
 // Auth routes (PUBLIC - no JWT required)
 app.use("/api/auth", authRoutes);

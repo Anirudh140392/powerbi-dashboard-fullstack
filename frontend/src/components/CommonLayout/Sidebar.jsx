@@ -157,6 +157,7 @@ const Sidebar = ({
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuth();
+  console.log("DEBUG_SIDEBAR: user=", user);
 
   const [dbLogoUrl, setDbLogoUrl] = useState(() => {
     return user?.dbLogoUrl || "";
@@ -178,6 +179,32 @@ const Sidebar = ({
 
   useEffect(() => {
     setDbLogoUrl(user?.dbLogoUrl || "");
+
+    const fetchLatestLogo = async () => {
+      const token = sessionStorage.getItem("token");
+      if (token) {
+        try {
+          const response = await fetch("/api/auth/verify", {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const data = await response.json();
+          if (data.success && data.user?.dbLogoUrl) {
+            setDbLogoUrl(data.user.dbLogoUrl);
+            const currentUserStr = sessionStorage.getItem("user");
+            if (currentUserStr) {
+              try {
+                const currentUser = JSON.parse(currentUserStr);
+                currentUser.dbLogoUrl = data.user.dbLogoUrl;
+                sessionStorage.setItem("user", JSON.stringify(currentUser));
+              } catch (e) {}
+            }
+          }
+        } catch (err) {
+          console.warn("[Sidebar] Failed to fetch latest logo:", err);
+        }
+      }
+    };
+    fetchLatestLogo();
   }, [user]);
 
   // Dynamic logo based on user's database
@@ -365,7 +392,7 @@ const Sidebar = ({
             alignItems: 'center',
             justifyContent: 'center',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            width: '100%',            height: isCollapsed ? 50 : (activeLogo ? (user?.dbName === 'mars_petcare' ? 150 : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? 120 : (user?.dbName === 'mamaearth' ? 100 : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami') ? 80 : (user?.dbName === 'sugar' ? 80 : (user?.dbName === 'pidilite' ? 80 : (user?.dbName === 'cheffin' ? 80 : (user?.dbName === 'drl' ? 80 : 60)))))))) : 50),
+            width: '100%',            height: isCollapsed ? 50 : ((dbLogoUrl || activeLogo) ? (user?.dbName === 'mars_petcare' ? 150 : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? 120 : (user?.dbName === 'mamaearth' ? 100 : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami') ? 80 : (user?.dbName === 'sugar' ? 80 : (user?.dbName === 'pidilite' ? 80 : (user?.dbName === 'cheffin' ? 80 : (user?.dbName === 'drl' ? 80 : 60)))))))) : 50),
           }}
         >
           <Box
@@ -380,9 +407,9 @@ const Sidebar = ({
               filter: 'drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.05))'
             }}
           >
-            {activeLogo ? (
+            {dbLogoUrl || activeLogo ? (
               <img
-                src={activeLogo}
+                src={dbLogoUrl || activeLogo}
                 alt={activeLogoAlt}
                 style={{
                   maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mars_petcare' ? '150px' : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? '120px' : (user?.dbName === 'mamaearth' ? '100px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami') ? '80px' : (user?.dbName === 'sugar' ? 80 : (user?.dbName === 'pidilite' ? 80 : (user?.dbName === 'cheffin' ? 80 : (user?.dbName === 'drl' ? 80 : '45px')))))))),
