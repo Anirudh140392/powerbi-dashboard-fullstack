@@ -1,6 +1,6 @@
 import React from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
-// MUI Date Picker Providers
+
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import SalesMainPage from "./pages/Sales/SalesMainPage";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
