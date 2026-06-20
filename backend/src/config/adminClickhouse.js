@@ -34,6 +34,9 @@ export const queryAdminDB = async (query, params = {}) => {
             query,
             query_params: params,
             format: 'JSONEachRow',
+            clickhouse_settings: {
+                max_query_size: 100 * 1024 * 1024, // 100 MB
+            }
         });
         const data = await result.json();
         console.log('[AdminDB] Query returned', data.length, 'rows');
