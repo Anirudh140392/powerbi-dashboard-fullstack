@@ -4427,79 +4427,124 @@ class VisibilityService {
                 }
 
                 // ==========================================
-                // Calculate BSR SOV from rb_kw_olap using the valid SKUs
+                // Calculate BSR SOS using the web_pid logic
                 // ==========================================
                 let globalSov = 0, prevGlobalSov = 0;
                 let categorySovs = {};
 
-                const currentSkus = skusResult.filter(r => r.currentBSR !== null).map(r => escapeCH(r.sku));
-                const prevSkus = skusResult.filter(r => r.prevBSR !== null).map(r => escapeCH(r.sku));
+                const pidCol = r('Web_Pid', 'Web_Pid');
+                const targetPlatform = (filters.platform && filters.platform !== 'All') ? filters.platform : 'amazon';
 
-                if (currentSkus.length > 0 || prevSkus.length > 0) {
-                    const currTokens = currentSkus.length ? currentSkus.map(s => `'${s}'`).join(',') : "''";
-                    const prevTokens = prevSkus.length ? prevSkus.map(s => `'${s}'`).join(',') : "''";
-
-                    // Build kw_olap specific filter
-                    const kwPlatformCond = buildCHCondition(filters.platform, 'platform_name');
-                    const kwChannelCond = buildChannelCondition(filters.channel, 'platform_name', filters.platform);
-                    const kwCategoryCond = buildCHCondition(filters.category, 'keyword_category', { isCategory: true });
-                    const kwLocationCond = buildCHCondition(filters.location, 'location_name');
-
-                    const kwFilterClauseList = [kwPlatformCond, kwChannelCond, kwCategoryCond, kwLocationCond].filter(c => c && c !== '1=1');
-                    const kwFilterClause = kwFilterClauseList.length > 0 ? kwFilterClauseList.join(' AND ') : '1=1';
-
-                    const sovQuery = `
-                        SELECT 
-                            'current' as period,
-                            multiIf(keyword_category = '', 'Uncategorized', keyword_category) as category,
-                            SUM(toInt32(overall)) as total_overall,
-                            SUM(IF(keyword_search_product IN (${currTokens}), toInt32(overall), 0)) as bsr_overall
-                        FROM rb_kw_olap
-                        WHERE DATE BETWEEN '${startDate}' AND '${endDate}' 
-                          AND ${kwFilterClause}
-                        GROUP BY category
-                        UNION ALL
-                        SELECT 
-                            'previous' as period,
-                            multiIf(keyword_category = '', 'Uncategorized', keyword_category) as category,
-                            SUM(toInt32(overall)) as total_overall,
-                            SUM(IF(keyword_search_product IN (${prevTokens}), toInt32(overall), 0)) as bsr_overall
-                        FROM rb_kw_olap
-                        WHERE DATE BETWEEN (toDate('${startDate}') - (toDate('${endDate}') - toDate('${startDate}') + 1)) 
-                              AND (toDate('${startDate}') - 1)
-                          AND ${kwFilterClause}
-                        GROUP BY category
-                    `;
-
-                    console.log('[BSR] Executing BSR SOV Query...');
-                    const sovResults = await queryClickHouse(sovQuery);
-
-                    let globalCNum = 0, globalCDen = 0, globalPNum = 0, globalPDen = 0;
-
-                    sovResults.forEach(r => {
-                        const period = r.period;
-                        const cat = r.category || 'Uncategorized';
-                        const num = Number(r.bsr_overall) || 0;
-                        const den = Number(r.total_overall) || 0;
-
-                        if (!categorySovs[cat]) categorySovs[cat] = { current: 0, prev: 0, delta: 0 };
-
-                        if (period === 'current') {
-                            globalCNum += num;
-                            globalCDen += den;
-                            categorySovs[cat].current = den > 0 ? (num * 100 / den) : 0;
-                        } else {
-                            globalPNum += num;
-                            globalPDen += den;
-                            categorySovs[cat].prev = den > 0 ? (num * 100 / den) : 0;
-                        }
-                    });
-
-                    Object.values(categorySovs).forEach(c => c.delta = c.current - c.prev);
-
-                    globalSov = globalCDen > 0 ? (globalCNum * 100 / globalCDen) : 0;
-                    prevGlobalSov = globalPDen > 0 ? (globalPNum * 100 / globalPDen) : 0;
+                // Build CTE filter clause for rb_pdp_olap
+                let pdpFilterConditions = ['1=1'];
+                if (filters.channel && filters.channel !== 'All') {
+                    const ch = filters.channel.toLowerCase();
+                    if (['ecommerce', 'e-commerce', 'ecom'].includes(ch)) {
+                        pdpFilterConditions.push(`lower(${channelCol}) = 'ecommerce'`);
+                    } else if (ch.includes('quick')) {
+                        pdpFilterConditions.push(`lower(${channelCol}) = 'quickcomm'`);
+                    }
                 }
+                pdpFilterConditions.push(`lower(${pltCol}) = lower('${escapeCH(targetPlatform)}')`);
+                if (filters.brand && filters.brand !== 'All') {
+                    pdpFilterConditions.push(`lower(${brdCol}) = lower('${escapeCH(filters.brand)}')`);
+                }
+                if (filters.location && filters.location !== 'All') {
+                    pdpFilterConditions.push(`lower(${locCol}) = lower('${escapeCH(filters.location)}')`);
+                }
+                if (filters.category && filters.category !== 'All') {
+                    pdpFilterConditions.push(`lower(${catCol}) = lower('${escapeCH(filters.category)}')`);
+                }
+                const pdpFilterClauseForSOS = pdpFilterConditions.join(' AND ');
+
+                // Build filter clause for rb_kw_olap
+                const kwPlatformCond = buildCHCondition(targetPlatform, 'platform_name');
+                const kwChannelCond = buildChannelCondition(filters.channel, 'platform_name', targetPlatform);
+                const kwCategoryCond = buildCHCondition(filters.category, 'keyword_category', { isCategory: true });
+                const kwLocationCond = buildCHCondition(filters.location, 'location_name');
+
+                const kwFilterClauseList = [kwPlatformCond, kwChannelCond, kwCategoryCond, kwLocationCond].filter(c => c && c !== '1=1');
+                const kwFilterClause = kwFilterClauseList.length > 0 ? kwFilterClauseList.join(' AND ') : '1=1';
+
+                const prevStartDate = filters.compareStartDate && filters.compareEndDate
+                    ? dayjs(filters.compareStartDate).format('YYYY-MM-DD')
+                    : dayjs(startDate).subtract(dayjs(endDate).diff(dayjs(startDate), 'day') + 1, 'day').format('YYYY-MM-DD');
+                const prevEndDate = filters.compareStartDate && filters.compareEndDate
+                    ? dayjs(filters.compareEndDate).format('YYYY-MM-DD')
+                    : dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
+
+                const newSovQuery = `
+                    WITH current_bsr_pids AS (
+                        SELECT DISTINCT ${pidCol} as Web_Pid
+                        FROM rb_pdp_olap
+                        WHERE ${dateCol} BETWEEN '${startDate}' AND '${endDate}'
+                          AND ${flagCol} = 0
+                          AND ${pdpFilterClauseForSOS}
+                          AND ${pidCol} IS NOT NULL AND ${pidCol} != ''
+                          AND toInt64OrZero(${bsrCol}) > 0
+                    ),
+                    previous_bsr_pids AS (
+                        SELECT DISTINCT ${pidCol} as Web_Pid
+                        FROM rb_pdp_olap
+                        WHERE ${dateCol} BETWEEN '${prevStartDate}' AND '${prevEndDate}'
+                          AND ${flagCol} = 0
+                          AND ${pdpFilterClauseForSOS}
+                          AND ${pidCol} IS NOT NULL AND ${pidCol} != ''
+                          AND toInt64OrZero(${bsrCol}) > 0
+                    )
+                    SELECT
+                        'current' as period,
+                        multiIf(keyword_category = '', 'Uncategorized', keyword_category) as category,
+                        COUNT(*) AS total_rows,
+                        COUNTIf(web_pid IN (SELECT Web_Pid FROM current_bsr_pids)) AS bsr_rows
+                    FROM rb_kw_olap
+                    WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
+                      AND ${kwFilterClause}
+                    GROUP BY category
+
+                    UNION ALL
+
+                    SELECT
+                        'previous' as period,
+                        multiIf(keyword_category = '', 'Uncategorized', keyword_category) as category,
+                        COUNT(*) AS total_rows,
+                        COUNTIf(web_pid IN (SELECT Web_Pid FROM previous_bsr_pids)) AS bsr_rows
+                    FROM rb_kw_olap
+                    WHERE DATE BETWEEN '${prevStartDate}' AND '${prevEndDate}'
+                      AND ${kwFilterClause}
+                    GROUP BY category
+                `;
+
+                console.log('[BSR] Executing BSR SOS Query...');
+                const newSovResults = await queryClickHouse(newSovQuery);
+
+                let globalCNum = 0, globalCDen = 0, globalPNum = 0, globalPDen = 0;
+
+                newSovResults.forEach(r => {
+                    const period = r.period;
+                    const cat = r.category || 'Uncategorized';
+                    const num = Number(r.bsr_rows) || 0;
+                    const den = Number(r.total_rows) || 0;
+
+                    if (!categorySovs[cat]) categorySovs[cat] = { current: 0, prev: 0, delta: 0 };
+
+                    if (period === 'current') {
+                        globalCNum += num;
+                        globalCDen += den;
+                        categorySovs[cat].current = den > 0 ? (num * 100 / den) : 0;
+                    } else {
+                        globalPNum += num;
+                        globalPDen += den;
+                        categorySovs[cat].prev = den > 0 ? (num * 100 / den) : 0;
+                    }
+                });
+
+                Object.keys(categorySovs).forEach(cat => {
+                    categorySovs[cat].delta = categorySovs[cat].current - categorySovs[cat].prev;
+                });
+
+                globalSov = globalCDen > 0 ? (globalCNum * 100 / globalCDen) : 0;
+                prevGlobalSov = globalPDen > 0 ? (globalPNum * 100 / globalPDen) : 0;
 
                 return {
                     skus: skusResult,
@@ -4595,49 +4640,69 @@ class VisibilityService {
                 const bsrResults = await queryClickHouse(bsrTrendQuery);
                 console.log('[BSR Trends] Got', bsrResults.length, 'rows');
 
-                // Query 2: Daily BSR SOS % — from rb_kw_olap
-                // Get own SKUs from rb_pdp_olap for the period
-                const ownSkusQuery = `
-                    SELECT DISTINCT ${skuCol} as sku, ${catCol} as category
-                    FROM rb_pdp_olap
-                    WHERE ${dateCol} BETWEEN '${startDate}' AND '${endDate}'
-                      AND ${filterClause}
-                      AND ${flagCol} = 0
-                      AND ${skuCol} IS NOT NULL AND ${skuCol} != ''
-                      AND toInt64OrZero(${bsrCol}) > 0
-                `;
-                const ownSkus = await queryClickHouse(ownSkusQuery);
-                const ownSkuNames = ownSkus.map(r => escapeCH(r.sku));
+                // Query 2: Daily BSR SOS % — from rb_kw_olap using the new logic
+                const pidCol = r('Web_Pid', 'Web_Pid');
+                const targetPlatform = (filters.platform && filters.platform !== 'All') ? filters.platform : 'amazon';
 
-                let sosTrendData = [];
-                if (ownSkuNames.length > 0) {
-                    const skuTokens = ownSkuNames.map(s => `'${s}'`).join(',');
-
-                    // Build kw_olap specific filter 
-                    const kwChannelCond = buildChannelCondition(filters.channel, 'platform_name', filters.platform);
-                    const kwPlatformCond = buildCHCondition(filters.platform, 'platform_name');
-                    const kwCategoryCond = buildCHCondition(filters.category, 'keyword_category', { isCategory: true });
-                    const kwLocationCond = buildCHCondition(filters.location, 'location_name');
-                    const kwFilterList = [kwChannelCond, kwPlatformCond, kwCategoryCond, kwLocationCond].filter(c => c && c !== '1=1');
-                    const kwFilterClause = kwFilterList.length > 0 ? kwFilterList.join(' AND ') : '1=1';
-
-                    const sosTrendQuery = `
-                        SELECT
-                            toDate(DATE) as day,
-                            'Aggregate' as category,
-                            SUM(toInt32(overall)) as total_overall,
-                            SUM(IF(keyword_search_product IN (${skuTokens}), toInt32(overall), 0)) as bsr_overall
-                        FROM rb_kw_olap
-                        WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
-                          AND ${kwFilterClause}
-                        GROUP BY day
-                        ORDER BY day ASC
-                    `;
-
-                    console.log('[BSR Trends] Executing SOS trend query...');
-                    sosTrendData = await queryClickHouse(sosTrendQuery);
-                    console.log('[BSR Trends] SOS got', sosTrendData.length, 'rows');
+                // Build CTE filter clause for rb_pdp_olap
+                let pdpFilterConditions = ['1=1'];
+                if (filters.channel && filters.channel !== 'All') {
+                    const ch = filters.channel.toLowerCase();
+                    if (['ecommerce', 'e-commerce', 'ecom'].includes(ch)) {
+                        pdpFilterConditions.push(`lower(${channelCol}) = 'ecommerce'`);
+                    } else if (ch.includes('quick')) {
+                        pdpFilterConditions.push(`lower(${channelCol}) = 'quickcomm'`);
+                    }
                 }
+                pdpFilterConditions.push(`lower(${pltCol}) = lower('${escapeCH(targetPlatform)}')`);
+                if (filters.brand && filters.brand !== 'All') {
+                    pdpFilterConditions.push(`lower(${brdCol}) = lower('${escapeCH(filters.brand)}')`);
+                }
+                if (filters.location && filters.location !== 'All') {
+                    pdpFilterConditions.push(`lower(${locCol}) = lower('${escapeCH(filters.location)}')`);
+                }
+                if (filters.category && filters.category !== 'All') {
+                    pdpFilterConditions.push(`lower(${catCol}) = lower('${escapeCH(filters.category)}')`);
+                }
+                if (filters.sku && filters.sku !== 'All') {
+                    pdpFilterConditions.push(`lower(${skuCol}) = lower('${escapeCH(filters.sku)}')`);
+                }
+                const pdpFilterClauseForSOS = pdpFilterConditions.join(' AND ');
+
+                // Build kw_olap specific filter
+                const kwChannelCond = buildChannelCondition(filters.channel, 'platform_name', targetPlatform);
+                const kwPlatformCond = buildCHCondition(targetPlatform, 'platform_name');
+                const kwCategoryCond = buildCHCondition(filters.category, 'keyword_category', { isCategory: true });
+                const kwLocationCond = buildCHCondition(filters.location, 'location_name');
+                const kwFilterList = [kwChannelCond, kwPlatformCond, kwCategoryCond, kwLocationCond].filter(c => c && c !== '1=1');
+                const kwFilterClause = kwFilterList.length > 0 ? kwFilterList.join(' AND ') : '1=1';
+
+                const sosTrendQuery = `
+                    WITH daily_bsr_pids AS (
+                        SELECT DISTINCT toDate(${dateCol}) as day, ${pidCol} as Web_Pid
+                        FROM rb_pdp_olap
+                        WHERE ${dateCol} BETWEEN '${startDate}' AND '${endDate}'
+                          AND ${flagCol} = 0
+                          AND ${pdpFilterClauseForSOS}
+                          AND ${pidCol} IS NOT NULL AND ${pidCol} != ''
+                          AND toInt64OrZero(${bsrCol}) > 0
+                    )
+                    SELECT
+                        toDate(kw.DATE) as day,
+                        'Aggregate' as category,
+                        COUNT(*) AS total_overall,
+                        COUNTIf(isNotNull(p.Web_Pid)) AS bsr_overall
+                    FROM rb_kw_olap kw
+                    LEFT JOIN daily_bsr_pids p ON toDate(kw.DATE) = p.day AND kw.web_pid = p.Web_Pid
+                    WHERE kw.DATE BETWEEN '${startDate}' AND '${endDate}'
+                      AND ${kwFilterClause}
+                    GROUP BY day
+                    ORDER BY day ASC
+                `;
+
+                console.log('[BSR Trends] Executing SOS trend query using new logic...');
+                const sosTrendData = await queryClickHouse(sosTrendQuery);
+                console.log('[BSR Trends] SOS got', sosTrendData.length, 'rows');
 
                 // Build SOS lookup: { day_category: sosPercent }
                 const sosLookup = {};
