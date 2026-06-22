@@ -2197,6 +2197,28 @@ class VisibilityService {
         }, CACHE_TTL.ONE_HOUR);
     }
 
+    async getMaxPosition() {
+        console.log('[VisibilityService] getMaxPosition (ClickHouse) called');
+        const dbName = getCurrentDbName();
+        const cacheKey = `visibility_max_position_db_${dbName}`;
+
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                const results = await queryClickHouse(`
+                    SELECT MAX(toInt32(POSITION)) as maxPos
+                    FROM rb_kw_olap
+                    WHERE POSITION IS NOT NULL AND toInt32(POSITION) > 0
+                `);
+                const maxPos = Number(results[0]?.maxPos) || 0;
+                console.log('[VisibilityService] Found max position (ClickHouse):', maxPos);
+                return { maxPos };
+            } catch (error) {
+                console.error('[VisibilityService] Error getting max position (ClickHouse):', error);
+                return { maxPos: 0, error: error.message };
+            }
+        }, CACHE_TTL.SHORT);
+    }
+
     /**
      * Get Visibility KPI Trends for chart display
      * Returns daily SOS trends for Overall, Sponsored, Organic, and Display metrics
