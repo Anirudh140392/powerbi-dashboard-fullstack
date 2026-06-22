@@ -675,8 +675,8 @@ function WatchTowerFilterModal({
    ═══════════════════════════════════════════════════════════════════ */
 const MS_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
+  { key: "category", label: "Category", icon: LayoutGrid },
 ];
 
 const DEFAULT_EMPTY_ARRAY = [];
@@ -702,17 +702,17 @@ function MarketShareFilterModal({
   const MS_FILTER_TABS_DYNAMIC = React.useMemo(() => {
     const tabs = [
       { key: "channel", label: "Channel", icon: Layers },
+      { key: "brand", label: "Brand", icon: Tag },
       { key: "category", label: "Category", icon: LayoutGrid },
     ];
     if (isMamaearth) {
       tabs.push({ key: "subCategory", label: "Sub Category", icon: ListFilter });
     }
-    tabs.push({ key: "brand", label: "Brand", icon: Tag });
     return tabs;
   }, [isMamaearth]);
 
   const availableTabs = hideChannel ? MS_FILTER_TABS_DYNAMIC.filter(t => t.key !== "channel") : MS_FILTER_TABS_DYNAMIC;
-  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "brand" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
@@ -735,7 +735,7 @@ function MarketShareFilterModal({
       setDynamicCategories(categories);
       setDynamicBrands(osaBrands);
       setDynamicSubCategories(subCategories);
-      setActiveTab(hideChannel ? "category" : "channel");
+      setActiveTab(hideChannel ? "brand" : "channel");
       setSearchTerm("");
     }
   }, [open, selectedChannel, platform, selectedCategory, selectedOsaBrand, selectedSubCategory, categories, osaBrands, subCategories, hideChannel]);
@@ -2348,7 +2348,7 @@ function VisibilityFilterModal({
   const [localLocations, setLocalLocations] = React.useState(locations);
   const [localKeywordTypes, setLocalKeywordTypes] = React.useState(keywordTypes);
   const [localKeywords, setLocalKeywords] = React.useState(keywords);
-  const [localRanks] = React.useState(["Top 10", "Top 20", "Top 30", "Top 40"]);
+  const [localRanks, setLocalRanks] = React.useState([]);
 
   React.useEffect(() => {
     if (open) {
@@ -2365,8 +2365,33 @@ function VisibilityFilterModal({
       setLocalLocations(locations);
       setLocalKeywordTypes(keywordTypes);
       setLocalKeywords(keywords);
+      setLocalRanks([]);
       setActiveTab("platform");
       setSearchTerm("");
+
+      // Fetch Max Position from DB to dynamically filter rank options
+      axiosInstance.get("/visibility-analysis/max-position")
+        .then(res => {
+          if (res.data && typeof res.data.maxPos === 'number') {
+            const maxPos = res.data.maxPos;
+            let ranks = ["Top 10"];
+            if (maxPos > 10) ranks.push("Top 20");
+            if (maxPos > 20) ranks.push("Top 30");
+            if (maxPos > 30) ranks.push("Top 40");
+            setLocalRanks(ranks);
+
+            // Validate and reset draft & selected rank if currently selected is invalid
+            let currentSelected = selectedRank;
+            if (!ranks.includes(currentSelected)) {
+              currentSelected = ranks[ranks.length - 1];
+              setSelectedRank(currentSelected);
+            }
+            setDraftRank(currentSelected);
+          }
+        })
+        .catch(err => {
+          console.error("Error fetching max position:", err);
+        });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -2638,10 +2663,19 @@ function VisibilityFilterModal({
           <Divider sx={{ borderColor: "#f1f5f9" }} />
           <Box sx={{ flex: 1, overflowY: "auto", px: 1.5, py: 0.5, "&::-webkit-scrollbar": { width: "5px" }, "&::-webkit-scrollbar-track": { bgcolor: "transparent" }, "&::-webkit-scrollbar-thumb": { bgcolor: "#d1d5db", borderRadius: "10px" }, "&::-webkit-scrollbar-thumb:hover": { bgcolor: "#9ca3af" } }}>
             {filteredOptions.length === 0 ? (
-              <Box sx={{ textAlign: "center", py: 6 }}>
-                <Search size={32} color="#cbd5e1" style={{ marginBottom: 8 }} />
-                <Typography sx={{ color: "#94a3b8", fontSize: "0.85rem", fontFamily: "'Inter', 'Roboto', sans-serif" }}>No results found</Typography>
-              </Box>
+              activeTab === "rank" && localRanks.length === 0 ? (
+                <Box sx={{ py: 1.5, px: 0.5 }}>
+                  <Skeleton height={40} sx={{ mb: 1, borderRadius: "10px" }} />
+                  <Skeleton height={40} sx={{ mb: 1, borderRadius: "10px" }} />
+                  <Skeleton height={40} sx={{ mb: 1, borderRadius: "10px" }} />
+                  <Skeleton height={40} sx={{ borderRadius: "10px" }} />
+                </Box>
+              ) : (
+                <Box sx={{ textAlign: "center", py: 6 }}>
+                  <Search size={32} color="#cbd5e1" style={{ marginBottom: 8 }} />
+                  <Typography sx={{ color: "#94a3b8", fontSize: "0.85rem", fontFamily: "'Inter', 'Roboto', sans-serif" }}>No results found</Typography>
+                </Box>
+              )
             ) : (
               filteredOptions.map((opt) => {
                 const isChecked = selected.includes(opt);

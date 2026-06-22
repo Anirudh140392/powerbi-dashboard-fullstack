@@ -1,5 +1,5 @@
 // src/routes/admin.js
-import { getUsers, deleteUser, getLiveUsers, getPendingRequests, updateUserAccess, getPermissionsUsers, updateDbStatus, updateTabPermissions, getDatabases, createDatabase, createUser, createWalkthroughNotification } from '../controllers/adminController.js';
+import { getUsers, deleteUser, getLiveUsers, getPendingRequests, updateUserAccess, getPermissionsUsers, updateDbStatus, updateTabPermissions, getDatabases, updateDatabaseLogo, createDatabase, createUser, createWalkthroughNotification } from '../controllers/adminController.js';
 
 export default (app) => {
     // Middleware to log Admin API calls
@@ -158,6 +158,7 @@ export default (app) => {
      *         description: Successful response
      */
     app.get('/api/admin/databases', getDatabases);
+    app.patch('/api/admin/databases/logo', updateDatabaseLogo);
 
     /**
      * @swagger

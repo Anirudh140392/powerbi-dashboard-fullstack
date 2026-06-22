@@ -257,3 +257,17 @@ export const fetchVisibilityFilterOptions = async (params) => {
         throw error;
     }
 };
+
+/**
+ * Fetch maximum position value in the db to dynamic filter rank options
+ */
+export const fetchVisibilityMaxPosition = async () => {
+    try {
+        const response = await axiosInstance.get('/visibility-analysis/max-position');
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching visibility max position:", error);
+        throw error;
+    }
+};
+
