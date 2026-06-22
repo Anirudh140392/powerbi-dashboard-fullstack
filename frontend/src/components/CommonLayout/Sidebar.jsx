@@ -18,6 +18,8 @@ import titanSkinLogo from "../../assets/titanskin.png";
 import titanPerfumeLogo from "../../assets/titanperfume.jpeg";
 import drlLogo from "../../assets/drl.png";
 import emamiLogo from "../../assets/emami.jpg";
+import amazonDeviceLogo from "../../assets/amazondevice.jpeg";
+import hmstahlLogo from "../../assets/hmstahl.jpeg";
 
 const getStaticFallbackLogo = (dbName) => {
     const name = String(dbName || '').toLowerCase().trim();
@@ -37,6 +39,8 @@ const getStaticFallbackLogo = (dbName) => {
     if (name === 'drl') return drlLogo;
     if (name === 'emami') return emamiLogo;
     if (name === 'mars') return marsLogo;
+    if (name === 'hm_amz_dev') return amazonDeviceLogo;
+    if (name === 'hm_stahl') return hmstahlLogo;
     return null;
 };
 
@@ -128,6 +132,47 @@ const SidebarStatusBadge = ({ type }) => {
       {type}
     </span>
   );
+};
+
+const getLogoDimensions = (dbName, isCollapsed) => {
+  const name = String(dbName || '').toLowerCase().trim();
+  if (isCollapsed) {
+    return { containerHeight: 50, imageHeight: '32px', imageWidth: '100%', maxWidth: '42px' };
+  }
+  
+  // Default sizes for specific databases (when expanded)
+  let containerHeight = 110;
+  let imageHeight = '100px';
+  let maxWidth = '230px';
+
+  if (name === 'mars_petcare') {
+    containerHeight = 160;
+    imageHeight = '150px';
+    maxWidth = '240px';
+  } else if (name === 'hm_titan_skinn' || name === 'hm_titan_perfume') {
+    containerHeight = 130;
+    imageHeight = '120px';
+    maxWidth = '240px';
+  } else if (name === 'mamaearth') {
+    containerHeight = 120;
+    imageHeight = '110px';
+    maxWidth = '240px';
+  } else if (name === 'boat') {
+    containerHeight = 110;
+    imageHeight = '100px';
+    maxWidth = '230px';
+  } else if (name === 'zydus' || name === 'hm_zydus' || name === 'hm_titan_bags' || name === 'emami' || name === 'sugar' || name === 'pidilite' || name === 'cheffin' || name === 'drl' || name === 'hm_amz_dev' || name === 'hm_stahl') {
+    containerHeight = 110;
+    imageHeight = '100px';
+    maxWidth = '230px';
+  } else {
+    // Default fallback
+    containerHeight = 100;
+    imageHeight = '90px';
+    maxWidth = '210px';
+  }
+
+  return { containerHeight, imageHeight, imageWidth: 'auto', maxWidth };
 };
 
 
@@ -249,6 +294,10 @@ const Sidebar = ({
     if (user?.dbName === 'hm_stahl') return 'HM Stahl Logo';
     return 'Mars Logo';
   }, [user?.dbName]);
+
+  const logoDimensions = useMemo(() => {
+    return getLogoDimensions(user?.dbName, isCollapsed);
+  }, [user?.dbName, isCollapsed]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
@@ -392,7 +441,8 @@ const Sidebar = ({
             alignItems: 'center',
             justifyContent: 'center',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            width: '100%',            height: isCollapsed ? 50 : ((dbLogoUrl || activeLogo) ? (user?.dbName === 'mars_petcare' ? 150 : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? 120 : (user?.dbName === 'mamaearth' ? 100 : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami') ? 80 : (user?.dbName === 'sugar' ? 80 : (user?.dbName === 'pidilite' ? 80 : (user?.dbName === 'cheffin' ? 80 : (user?.dbName === 'drl' ? 80 : 60)))))))) : 50),
+            width: '100%',
+            height: logoDimensions.containerHeight,
           }}
         >
           <Box
@@ -412,9 +462,9 @@ const Sidebar = ({
                 src={dbLogoUrl || activeLogo}
                 alt={activeLogoAlt}
                 style={{
-                  maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mars_petcare' ? '150px' : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? '120px' : (user?.dbName === 'mamaearth' ? '100px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami') ? '80px' : (user?.dbName === 'sugar' ? 80 : (user?.dbName === 'pidilite' ? 80 : (user?.dbName === 'cheffin' ? 80 : (user?.dbName === 'drl' ? 80 : '45px')))))))),
-                  width: isCollapsed ? '100%' : 'auto',
-                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mars_petcare' ? '250px' : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? '240px' : (user?.dbName === 'mamaearth' ? '240px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami' || user?.dbName === 'hm_amz_dev' || user?.dbName === 'hm_stahl') ? '220px' : (user?.dbName === 'sugar' ? '220px' : (user?.dbName === 'pidilite' ? '220px' : (user?.dbName === 'cheffin' ? '220px' : (user?.dbName === 'drl' ? '220px' : '180px')))))))),
+                  maxHeight: logoDimensions.imageHeight,
+                  width: logoDimensions.imageWidth,
+                  maxWidth: logoDimensions.maxWidth,
                   objectFit: 'contain',
                   padding: '0',
                   display: 'block',

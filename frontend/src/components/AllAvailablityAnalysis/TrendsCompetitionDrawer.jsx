@@ -703,8 +703,38 @@ export default function TrendsCompetitionDrawer({
     Format: "All",
     Brand: "All",
     City: "All",
-    SKU: "All"
+    SKU: "All",
+    ResellerName: "All"
   });
+
+  // --- Reseller Name filter (DRL only) ---
+  const drlUser = useMemo(() => {
+    try { return JSON.parse(sessionStorage.getItem('user')); } catch { return null; }
+  }, []);
+  const isDrl = drlUser?.dbName?.toLowerCase() === 'drl';
+  const [resellerOptions, setResellerOptions] = useState([]);
+
+  // Fetch reseller name options for DRL - cascaded by platform
+  useEffect(() => {
+    if (!open || !isDrl) return;
+    let cancelled = false;
+    const platformParam = toApiParam(drawerFilters.Platform);
+    const fetchResellerOptions = async () => {
+      try {
+        const res = await axiosInstance.get('/watchtower/trends-filter-options', {
+          params: { filterType: 'resellerNames', platform: platformParam }
+        });
+        if (cancelled) return;
+        if (res.data?.options) {
+          setResellerOptions(res.data.options);
+        }
+      } catch (err) {
+        console.error('[TrendsDrawer] Error fetching reseller names:', err);
+      }
+    };
+    fetchResellerOptions();
+    return () => { cancelled = true; };
+  }, [open, drawerFilters.Platform, isDrl]);
 
   const prevPropsRef = useRef({
     open: false,
@@ -794,6 +824,7 @@ export default function TrendsCompetitionDrawer({
       Brand: "All",
       Format: "All",
       SKU: "All",
+      ResellerName: "All",
     };
 
     // 1. Apply initialPlatform if provided (may be array from sidebar multi-select)
@@ -928,17 +959,22 @@ export default function TrendsCompetitionDrawer({
     return () => { cancelled = true; };
   }, [open]);
 
-  // Effect 2: Fetch categories + brands when platform changes (cascading)
+  // Effect 2: Fetch categories + brands when platform + resellerName changes (cascading)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const platformParam = toApiParam(drawerFilters.Platform);
+    const resellerParam = isDrl ? toApiParam(drawerFilters.ResellerName) : undefined;
     const fetchCascaded = async () => {
       try {
-        console.log("[TrendsDrawer] Cascading: fetching categories/brands for platform:", platformParam || 'All');
+        console.log("[TrendsDrawer] Cascading: fetching categories/brands for platform:", platformParam || 'All', "resellerName:", resellerParam || 'All');
         const [formatsRes, brandsRes] = await Promise.all([
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'categories', platform: platformParam } }),
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'brands', platform: platformParam } }),
+          axiosInstance.get('/watchtower/trends-filter-options', { 
+            params: { filterType: 'categories', platform: platformParam, resellerName: resellerParam } 
+          }),
+          axiosInstance.get('/watchtower/trends-filter-options', { 
+            params: { filterType: 'brands', platform: platformParam, resellerName: resellerParam } 
+          }),
         ]);
         if (cancelled) return;
         const formats = (formatsRes.data?.options || []).filter(f => f !== 'All' && f !== 'Others' && f.trim()).sort();
@@ -950,18 +986,19 @@ export default function TrendsCompetitionDrawer({
     };
     fetchCascaded();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform]);
+  }, [open, drawerFilters.Platform, drawerFilters.ResellerName, isDrl]);
 
-  // Effect 3: Fetch cities when platform + brand changes (cascading)
+  // Effect 3: Fetch cities when platform + brand + resellerName changes (cascading)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const platformParam = toApiParam(drawerFilters.Platform);
     const brandParam = toApiParam(drawerFilters.Brand);
+    const resellerParam = isDrl ? toApiParam(drawerFilters.ResellerName) : undefined;
     const fetchCities = async () => {
       try {
         const citiesRes = await axiosInstance.get('/watchtower/trends-filter-options', {
-          params: { filterType: 'cities', platform: platformParam, brand: brandParam }
+          params: { filterType: 'cities', platform: platformParam, brand: brandParam, resellerName: resellerParam }
         });
         if (cancelled) return;
         const defaultCities = (citiesRes.data?.options || [])
@@ -975,19 +1012,20 @@ export default function TrendsCompetitionDrawer({
     };
     fetchCities();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.Brand, TIER_1_CITIES]);
+  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.ResellerName, isDrl, TIER_1_CITIES]);
 
-  // Effect 4: Fetch SKUs when platform + brand + category changes (cascading)
+  // Effect 4: Fetch SKUs when platform + brand + category + resellerName changes (cascading)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const platformParam = toApiParam(drawerFilters.Platform);
     const brandParam = toApiParam(drawerFilters.Brand);
     const categoryParam = toApiParam(drawerFilters.Format);
+    const resellerParam = isDrl ? toApiParam(drawerFilters.ResellerName) : undefined;
     const fetchSkus = async () => {
       try {
         const skusRes = await axiosInstance.get('/watchtower/trends-filter-options', {
-          params: { filterType: 'skus', platform: platformParam, brand: brandParam, category: categoryParam }
+          params: { filterType: 'skus', platform: platformParam, brand: brandParam, category: categoryParam, resellerName: resellerParam }
         });
         if (cancelled) return;
         const skus = (skusRes.data?.options || []).filter(s => s !== 'All' && s.trim()).sort();
@@ -998,7 +1036,7 @@ export default function TrendsCompetitionDrawer({
     };
     fetchSkus();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format]);
+  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format, drawerFilters.ResellerName, isDrl]);
 
   const [trendError, setTrendError] = useState(null);
 
@@ -1046,6 +1084,7 @@ export default function TrendsCompetitionDrawer({
           category: toApiParam(drawerFilters.Format),
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
+          resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
         };
 
         console.log('[TrendsDrawer] Fetching PRICING trends with params:', params);
@@ -1077,6 +1116,7 @@ export default function TrendsCompetitionDrawer({
           category: toApiParam(drawerFilters.Format),
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
+          resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
           subCategory: selectedSubCategory === 'All' ? undefined : (Array.isArray(selectedSubCategory) ? selectedSubCategory.join(",") : selectedSubCategory),
         };
 
@@ -1103,7 +1143,8 @@ export default function TrendsCompetitionDrawer({
           category: toApiParam(drawerFilters.Format),
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
-          ownBrandsOnly: 'true'
+          ownBrandsOnly: 'true',
+          resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
         };
 
         const response = await axiosInstance.get('/availability-analysis/kpi-trends', { params });
@@ -1130,6 +1171,7 @@ export default function TrendsCompetitionDrawer({
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
           channel: derivedChannel || undefined,
+          resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
         };
 
         const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
@@ -1155,7 +1197,7 @@ export default function TrendsCompetitionDrawer({
     } finally {
       setLoading(false);
     }
-  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel, selectedSubCategory]);
+  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel, selectedSubCategory, isDrl]);
 
   useEffect(() => {
     if (view !== "Trends" || !open) return;
@@ -1175,6 +1217,7 @@ export default function TrendsCompetitionDrawer({
         brand: toApiParam(drawerFilters.Brand),
         category: toApiParam(drawerFilters.Format),
         sku: toApiParam(drawerFilters.SKU),
+        resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
       };
 
       const response = await axiosInstance.get('/watchtower/competition', { params });
@@ -2595,10 +2638,10 @@ export default function TrendsCompetitionDrawer({
           />
 
           {/* Clear All Drawer Filters */}
-          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All') && (
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All' || drawerFilters.ResellerName !== 'All') && (
             <Button
               size="small"
-              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All" })}
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All", ResellerName: "All" })}
               sx={{
                 ml: 'auto',
                 fontSize: '11px',
@@ -2646,7 +2689,7 @@ export default function TrendsCompetitionDrawer({
                   value={drawerFilters.Platform}
                   options={PLATFORM_OPTIONS}
                   onChange={(v) => {
-                    setDrawerFilters(prev => ({...prev, Platform: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All'}));
+                    setDrawerFilters(prev => ({...prev, Platform: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All', ResellerName: 'All'}));
                   }}
                 />
                 <DrawerMultiSelect
@@ -2673,6 +2716,17 @@ export default function TrendsCompetitionDrawer({
                     setDrawerFilters(prev => ({...prev, City: v}));
                   }}
                 />
+                {/* Reseller Name dropdown - DRL only */}
+                {isDrl && resellerOptions.length > 0 && (
+                  <DrawerMultiSelect
+                    title="Reseller"
+                    value={drawerFilters.ResellerName}
+                    options={resellerOptions}
+                    onChange={(v) => {
+                      setDrawerFilters(prev => ({...prev, ResellerName: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All'}));
+                    }}
+                  />
+                )}
                 
                 <Button
                   onClick={() => setIsMoreFiltersOpen(prev => !prev)}

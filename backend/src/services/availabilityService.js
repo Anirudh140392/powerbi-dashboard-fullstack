@@ -337,6 +337,19 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
         conditions.push(`${prefix}Comp_flag = 0`);
     }
 
+    // Reseller_Name filter (DRL DB context only)
+    const dbName = getCurrentDbName();
+    if (dbName === 'drl') {
+        const resellerVal = filters.resellerName || filters.resellerNames;
+        if (resellerVal && resellerVal !== 'All' && resellerVal !== 'all') {
+            const rArr = Array.isArray(resellerVal) ? resellerVal : [resellerVal];
+            const filteredR = rArr.filter(r => r && r !== 'All' && r !== 'all');
+            if (filteredR.length > 0) {
+                conditions.push(`${prefix}Reseller_Name IN (${filteredR.map(r => `'${escapeStr(r)}'`).join(',')})`);
+            }
+        }
+    }
+
     return conditions.length > 0 ? conditions.join(' AND ') : '1=1';
 };
 
@@ -2365,6 +2378,21 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                 `;
                 const results = await queryClickHouse(query);
                 return { options: results.map(r => r.value).filter(Boolean) };
+            }
+
+            if (filterType === 'resellerNames') {
+                const dbName = getCurrentDbName();
+                if (dbName === 'drl') {
+                    const query = `
+                        SELECT DISTINCT Reseller_Name as value
+                        FROM rb_pdp_olap
+                        WHERE Reseller_Name IS NOT NULL AND Reseller_Name != ''
+                        ORDER BY value
+                    `;
+                    const results = await queryClickHouse(query);
+                    return { options: results.map(r => r.value).filter(Boolean) };
+                }
+                return { options: [] };
             }
 
             return { options: [] };

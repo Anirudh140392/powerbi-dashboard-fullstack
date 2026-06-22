@@ -521,7 +521,7 @@ const DATA_MODEL = buildDataModel();
 /*                               Filter Dialog                                */
 /* -------------------------------------------------------------------------- */
 
-const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location, dynamicKey }) => {
+const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location, dynamicKey, resellerName, isDrl }) => {
   // initial tab: brand view starts with category, sku view starts with sku
   const [activeTab, setActiveTab] = useState(
     mode === "brand" ? "category" : "sku"
@@ -555,6 +555,9 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
         if (value.brands.length > 0) {
           params.append('brand', value.brands.join(','));
         }
+        if (isDrl && resellerName && resellerName !== 'All') {
+          params.append('resellerName', resellerName);
+        }
         let endpoint = '/watchtower/competition-filter-options';
         if (dynamicKey === 'marketshare') {
           endpoint = '/market-share/competition-filter-options';
@@ -587,7 +590,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
     };
 
     fetchFilterOptions();
-  }, [open, value.categories, value.brands, platform, location, dynamicKey]); // Refetch when categories, brands, platform or location change (cascading filters)
+  }, [open, value.categories, value.brands, platform, location, dynamicKey, resellerName, isDrl]); // Refetch when categories, brands, platform or location change (cascading filters)
 
   // Use API-fetched options instead of hardcoded ones
   const getCategoryOptions = () => filterOptions.categories;
@@ -1437,6 +1440,48 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
   });
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
+  // --- Reseller Name filter (DRL only) ---
+  const user = useMemo(() => {
+    try { return JSON.parse(sessionStorage.getItem('user')); } catch { return null; }
+  }, []);
+  const isDrl = user?.dbName?.toLowerCase() === 'drl';
+  const [resellerName, setResellerName] = useState('All');
+  const [resellerOptions, setResellerOptions] = useState([]);
+
+  // Fetch reseller name options for DRL - cascaded by platform
+  useEffect(() => {
+    if (!isDrl) return;
+    const fetchResellerOptions = async () => {
+      try {
+        const platformParam = platform && platform !== 'All' ? platform : undefined;
+        const res = await axiosInstance.get('/watchtower/trends-filter-options', {
+          params: { filterType: 'resellerNames', platform: platformParam }
+        });
+        if (res.data?.options) {
+          setResellerOptions(res.data.options);
+        }
+      } catch (err) {
+        console.error('[KpiTrendShowcase] Error fetching reseller names:', err);
+      }
+    };
+    fetchResellerOptions();
+  }, [isDrl, platform]);
+
+  // Reset resellerName when platform changes
+  useEffect(() => {
+    setResellerName('All');
+  }, [platform]);
+
+  // Reset downstream filters (categories, brands, skus, city) when resellerName changes
+  useEffect(() => {
+    setFilters({
+      categories: [],
+      brands: [],
+      skus: [],
+    });
+    setCity('All India');
+  }, [resellerName]);
+
   const [selectedBrandIds, setSelectedBrandIds] = useState([]);
   const [selectedSkuIds, setSelectedSkuIds] = useState([]);
 
@@ -1517,6 +1562,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
             endDate: timeEnd?.format('YYYY-MM-DD'),
             compareStartDate: compareStart?.format('YYYY-MM-DD'),
             compareEndDate: compareEnd?.format('YYYY-MM-DD'),
+            ...(isDrl && resellerName && resellerName !== 'All' ? { resellerName } : {}),
           };
           console.log('[KpiTrendShowcase] Fetching watchtower competition data with params:', params);
           const response = await axiosInstance.get('/watchtower/competition', { params });
@@ -1532,7 +1578,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
       }
     };
     fetchCompetitionData();
-  }, [city, filters, platform, timeStart, timeEnd, compareStart, compareEnd, dynamicKey, dimensionValue, dimensionType]);
+  }, [city, filters, platform, timeStart, timeEnd, compareStart, compareEnd, dynamicKey, dimensionValue, dimensionType, isDrl, resellerName]);
 
 
 
@@ -1748,6 +1794,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
             period: '1M',
             startDate: timeStart?.format('YYYY-MM-DD'),
             endDate: timeEnd?.format('YYYY-MM-DD'),
+            ...(isDrl && resellerName && resellerName !== 'All' ? { resellerName } : {}),
           };
           res = await axiosInstance.get('/watchtower/competition-brand-trends', { params });
           if (res.data && res.data.brands) {
@@ -1780,7 +1827,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
       }
     };
     fetchTrendData();
-  }, [viewMode, trendTargets, platform, timeStart, timeEnd, city, filters, dynamicKey, dimensionValue, dimensionType, tab]);
+  }, [viewMode, trendTargets, platform, timeStart, timeEnd, city, filters, dynamicKey, dimensionValue, dimensionType, tab, isDrl, resellerName]);
   // --- END TREND LOGIC ---
 
   return (
@@ -1832,6 +1879,23 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Reseller Name dropdown - DRL only */}
+          {isDrl && resellerOptions.length > 0 && (
+            <Select value={resellerName} onValueChange={setResellerName}>
+              <SelectTrigger className="h-9 w-48 bg-white">
+                <SelectValue placeholder="Reseller Name" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Resellers</SelectItem>
+                {resellerOptions.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {r}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           <Select value={city} onValueChange={setCity}>
             <SelectTrigger className="h-9 w-40 bg-white">
               <SelectValue placeholder="Select city" />
@@ -1982,6 +2046,8 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
         platform={platform}
         location={city}
         dynamicKey={dynamicKey}
+        resellerName={resellerName}
+        isDrl={isDrl}
       />
     </div>
   );

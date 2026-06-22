@@ -7956,9 +7956,9 @@ const getKpiTrends = async (filters) => {
  * @param {string} platform - Selected platform filter
  * @param {string} brand - Selected brand filter (for cities)
  */
-const getTrendsFilterOptions = async ({ filterType, platform, brand, category }) => {
+const getTrendsFilterOptions = async ({ filterType, platform, brand, category, resellerName }) => {
     try {
-        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, category=${category}`);
+        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, category=${category}, resellerName=${resellerName}`);
         const src = await getWatchtowerSource();
 
         // Normalize arrays for multi-select support
@@ -7966,12 +7966,37 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category })
         const brandArr = normalizeFilterArray(brand);
         const catArr = normalizeFilterArray(category);
 
+        // Reseller_Name filter (DRL DB context only)
+        const dbName = getCurrentDbName();
+        const resellerArr = (dbName === 'drl' && resellerName && resellerName !== 'All' && resellerName !== 'all')
+            ? normalizeFilterArray(resellerName)
+            : null;
+
+        // Helper to add reseller condition to a conditions array
+        const addResellerCondition = (conditions) => {
+            if (resellerArr && resellerArr.length > 0) {
+                conditions.push(`Reseller_Name IN (${resellerArr.map(r => `'${escapeStr(r)}'`).join(',')})`);
+            }
+        };
+
         if (filterType === 'platforms') {
             // Fetch unique platforms
             const query = `SELECT DISTINCT ${src.f.platform} as platform FROM ${src.table} WHERE ${src.f.platform} IS NOT NULL AND ${src.f.platform} != '' ORDER BY platform`;
             const results = await queryClickHouse(query);
             const platformList = results.map(p => p.platform).filter(p => p && p.trim()).sort();
             return { options: [...platformList] };
+        }
+
+        if (filterType === 'resellerNames') {
+            // Fetch unique reseller names for DRL only — cascaded by platform
+            if (dbName !== 'drl') return { options: [] };
+            const conditions = [`Reseller_Name IS NOT NULL`, `Reseller_Name != ''`];
+            if (platArr && platArr.length > 0) {
+                conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+            }
+            const query = `SELECT DISTINCT Reseller_Name as value FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY value`;
+            const results = await queryClickHouse(query);
+            return { options: results.map(r => r.value).filter(Boolean) };
         }
 
         if (filterType === 'categories') {
@@ -7985,6 +8010,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category })
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
+            addResellerCondition(conditions);
 
             const query = `SELECT DISTINCT ${catCol} as category FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY category`;
             const results = await queryClickHouse(query);
@@ -7998,6 +8024,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category })
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
+            addResellerCondition(conditions);
 
             const query = `SELECT DISTINCT ${src.f.brand} as brand FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY brand`;
             const results = await queryClickHouse(query);
@@ -8017,6 +8044,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category })
             if (catArr && catArr.length > 0) {
                 conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
             }
+            addResellerCondition(conditions);
 
             const query = `SELECT DISTINCT ${src.f.location} as city FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY city`;
             const results = await queryClickHouse(query);
@@ -8036,6 +8064,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category })
             if (catArr && catArr.length > 0) {
                 conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
             }
+            addResellerCondition(conditions);
 
             const query = `SELECT DISTINCT ${src.f.product} as sku FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY sku`;
             const results = await queryClickHouse(query);
@@ -8083,6 +8112,13 @@ const getCompetitionData = async (filters = {}) => {
         const skuArr = normalizeFilterArray(sku);
 
         const src = await getWatchtowerSource();
+
+        // Reseller_Name filter (DRL DB context only)
+        const dbName = getCurrentDbName();
+        const resellerArr = (dbName === 'drl' && filters.resellerName && filters.resellerName !== 'All')
+            ? normalizeFilterArray(filters.resellerName)
+            : null;
+
         // Build base conditions for ClickHouse
         const buildCompConds = (startDt, endDt) => {
             const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
@@ -8107,6 +8143,11 @@ const getCompetitionData = async (filters = {}) => {
 
             if (skuArr && skuArr.length > 0) {
                 conds.push(`lower(${src.f.product}) IN (${skuArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(', ')})`);
+            }
+
+            // Reseller_Name filter for DRL
+            if (resellerArr && resellerArr.length > 0) {
+                conds.push(`Reseller_Name IN (${resellerArr.map(r => `'${escapeStr(r)}'`).join(', ')})`);
             }
 
             // conds.push(`toString(${src.f.compFlag}) = '1'`); // Show both our brands and competitors
@@ -8771,8 +8812,8 @@ const getCompetitionData = async (filters = {}) => {
  */
 const getCompetitionFilterOptions = async (filters = {}) => {
     try {
-        const { platform = 'All', location = 'All', category = 'All', brand = 'All', context } = filters;
-        console.log('[getCompetitionFilterOptions] Cascading filters:', { platform, location, category, brand, context });
+        const { platform = 'All', location = 'All', category = 'All', brand = 'All', context, resellerName } = filters;
+        console.log('[getCompetitionFilterOptions] Cascading filters:', { platform, location, category, brand, context, resellerName });
 
         // Helper to escape strings for ClickHouse
         const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
@@ -8782,11 +8823,29 @@ const getCompetitionFilterOptions = async (filters = {}) => {
         const catArr = normalizeFilterArray(category);
         const brandArr = normalizeFilterArray(brand);
 
+        const dbName = getCurrentDbName();
+        const resellerArr = (dbName === 'drl' && resellerName && resellerName !== 'All' && resellerName !== 'all')
+            ? normalizeFilterArray(resellerName)
+            : null;
+
+        const addResellerCondition = (conds) => {
+            if (resellerArr && resellerArr.length > 0) {
+                conds.push(`Reseller_Name IN (${resellerArr.map(r => `'${escapeStr(r)}'`).join(',')})`);
+            }
+        };
+
         const src = await getWatchtowerSource();
         // Run all queries in parallel using ClickHouse
         const [locationResults, categoryResults, brandResults, skuResults] = await Promise.all([
             // Fetch distinct locations from dynamic source
-            queryClickHouse(`SELECT DISTINCT ${src.f.location} as location FROM ${src.table} WHERE ${src.f.location} IS NOT NULL AND ${src.f.location} != '' ORDER BY location`),
+            (() => {
+                const conds = [`${src.f.location} IS NOT NULL`, `${src.f.location} != ''`];
+                if (platArr.length > 0) {
+                    conds.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+                }
+                addResellerCondition(conds);
+                return queryClickHouse(`SELECT DISTINCT ${src.f.location} as location FROM ${src.table} WHERE ${conds.join(' AND ')} ORDER BY location`);
+            })(),
 
             // Fetch distinct product categories filtered by platform/location
             (() => {
@@ -8799,6 +8858,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 }
                 const catCol = src.f.category;
                 conds.push(`${catCol} IS NOT NULL`, `${catCol} != ''`, `${catCol} != 'Others'`);
+                addResellerCondition(conds);
                 return queryClickHouse(`SELECT DISTINCT ${catCol} as category FROM ${src.table} WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY category`);
             })(),
 
@@ -8821,6 +8881,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                     const catCol = src.f.category;
                     conds.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
                 }
+                addResellerCondition(conds);
                 return queryClickHouse(`SELECT DISTINCT ${src.f.brand} as brand FROM ${src.table} WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY brand`);
             })(),
 
@@ -8842,6 +8903,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 }
                 // No comp_flag filter for SKUs - show all products from rb_pdp_olap
                 conds.push(`${src.f.product} IS NOT NULL`, `${src.f.product} != ''`, `${src.f.skuCode} IS NOT NULL`, `${src.f.skuCode} != ''`);
+                addResellerCondition(conds);
                 return queryClickHouse(`SELECT DISTINCT ${src.f.product} as skuName, toString(${src.f.skuCode}) as skuCode FROM ${src.table} WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY skuName`);
             })()
         ]);
@@ -9088,6 +9150,15 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
         if (locArr && locArr.length > 0) {
             baseConds.push(`${src.f.location} IN(${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+        }
+
+        // Reseller_Name filter for DRL
+        const dbNameForTrends = getCurrentDbName();
+        const resellerArrTrends = (dbNameForTrends === 'drl' && filters.resellerName && filters.resellerName !== 'All')
+            ? normalizeFilterArray(filters.resellerName)
+            : null;
+        if (resellerArrTrends && resellerArrTrends.length > 0) {
+            baseConds.push(`Reseller_Name IN (${resellerArrTrends.map(r => `'${escapeStr(r)}'`).join(', ')})`);
         }
 
         // Market Share conditions for rb_brand_ms table (platform-level totals)

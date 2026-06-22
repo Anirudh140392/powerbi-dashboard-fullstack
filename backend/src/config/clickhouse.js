@@ -4,7 +4,7 @@ import { createClient } from '@clickhouse/client';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 // AsyncLocalStorage to store the current user's database name per request
-const dbStorage = new AsyncLocalStorage();
+export const dbStorage = new AsyncLocalStorage();
 
 // Cache of ClickHouse clients per database name
 const clientCache = new Map();

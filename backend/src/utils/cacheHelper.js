@@ -94,12 +94,16 @@ export function generateCacheKey(section, filters) {
         ownBrandsOnly = '',
         groupBy = '',
         poNumber = '',
-        facilityName = ''
+        facilityName = '',
+        resellerName = '',
+        resellerNames = ''
     } = filters;
 
     if (poNumber) key += `:ponum_${normalize(poNumber)}`;
     if (facilityName) key += `:fac_${normalize(facilityName)}`;
     if (ownBrandsOnly) key += `:obo_${ownBrandsOnly}`;
+    const rName = resellerName || resellerNames;
+    if (rName && rName !== 'all' && rName !== 'All') key += `:reseller_${normalize(rName)}`;
     if (groupBy) key += `:gb_${normalize(groupBy)}`;
     if (dimension) key += `:dim_${normalize(dimension)}`;
     if (dimensionValue) key += `:dimval_${normalize(dimensionValue)}`;

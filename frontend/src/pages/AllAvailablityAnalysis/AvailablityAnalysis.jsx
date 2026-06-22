@@ -405,7 +405,9 @@ export default function AvailablityAnalysis() {
   const fetchKpiTrends = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, kpiTrends: null }));
-      const res = await fetch(`/api/availability-analysis/kpi-trends?${queryParams}`, { headers: getAuthHeaders() });
+      const params = new URLSearchParams(queryParams);
+      params.set('timeStep', 'Daily');
+      const res = await fetch(`/api/availability-analysis/kpi-trends?${params.toString()}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, kpiTrends: data }));
