@@ -1,8 +1,7 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import {
-    UploadCloud,
     Trash2,
     CheckCircle,
     AlertCircle,
@@ -57,7 +56,7 @@ const CompanyLogo = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [toast, setToast] = useState(null);
-    const fileInputRef = useRef(null);
+    const [imgError, setImgError] = useState(false);
 
     // Fetch available databases on mount
     useEffect(() => {
@@ -97,53 +96,27 @@ const CompanyLogo = () => {
         fetchDatabases();
     }, []);
 
+    // Reset image error state whenever URL or database changes
+    useEffect(() => {
+        setImgError(false);
+    }, [logoUrl, selectedDb]);
+
     // Show toast message helper
     const showToast = (message, type = "success") => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3000);
     };
 
-    // Helper to get active logo image path/base64
+    // Helper to get active logo image path/URL
     const getDisplayLogo = () => {
         if (logoUrl) return logoUrl;
         return getStaticFallbackLogo(selectedDb?.db_name);
     };
 
-    // Parse image file details
-    const processFile = (file) => {
-        if (!file) return;
-
-        const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml"];
-        if (!validTypes.includes(file.type)) {
-            showToast("Invalid file type. Please upload PNG, JPG, or SVG.", "error");
-            return;
-        }
-
-        if (file.size > 5 * 1024 * 1024) {
-            showToast("File size too large. Maximum size is 5MB.", "error");
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            setLogoUrl(e.target.result);
-            showToast("Logo selected. Click Update Logo to save changes.", "success");
-        };
-        reader.readAsDataURL(file);
-    };
-
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        processFile(file);
-    };
-
-    const triggerFileSelect = () => {
-        fileInputRef.current.click();
-    };
-
     const handleReset = () => {
         setLogoUrl("");
-        showToast("Logo reset. Click Update Logo to save changes.", "info");
+        setImgError(false);
+        showToast("Logo URL cleared. Click Update Logo to save changes.", "info");
     };
 
     const handleSave = async () => {
@@ -268,47 +241,67 @@ const CompanyLogo = () => {
                 </div>
             </div>
 
-            {/* Single Large Preview & Upload Area */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col items-center space-y-6">
+            {/* Preview & URL Input Area */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col space-y-6">
                 <div className="w-full flex items-center gap-2 border-b border-slate-100 pb-3">
                     <ImageIcon className="w-4 h-4 text-indigo-600" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Logo Live Preview</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Logo Branding Configuration</span>
+                </div>
+
+                {/* Logo URL Input Field */}
+                <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Logo URL</label>
+                    <input
+                        type="text"
+                        value={logoUrl}
+                        onChange={(e) => setLogoUrl(e.target.value)}
+                        placeholder="Enter logo image URL (e.g. https://example.com/logo.png)"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 rounded-2xl text-xs font-medium text-slate-700 outline-none transition-all placeholder-slate-400"
+                    />
                 </div>
 
                 {/* Live Logo Preview Box */}
-                <div 
-                    onClick={triggerFileSelect}
-                    className="relative w-full max-w-md h-52 bg-slate-50 hover:bg-slate-100/50 rounded-2xl border border-slate-150 flex flex-col items-center justify-center overflow-hidden cursor-pointer transition-all p-6 group"
-                >
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        accept=".png,.jpeg,.jpg,.svg"
-                        className="hidden"
-                    />
-
-                    {hasLogo ? (
-                        <div className="flex flex-col items-center justify-center h-full w-full">
-                            <img src={hasLogo} alt="Client Branding Logo" className="max-w-full max-h-36 object-contain transition-transform group-hover:scale-105" />
-                            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span className="text-[10px] font-bold text-white uppercase tracking-wider bg-indigo-600/90 px-3 py-1.5 rounded-lg">Click to Change Logo</span>
+                <div className="space-y-2 flex flex-col items-center w-full">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider self-start">Live Preview</span>
+                    
+                    <div className="relative w-full max-w-md h-52 bg-slate-50 rounded-2xl border border-slate-150 flex flex-col items-center justify-center overflow-hidden p-6">
+                        {hasLogo && !imgError ? (
+                            <div className="flex flex-col items-center justify-center h-full w-full">
+                                <img 
+                                    src={hasLogo} 
+                                    alt="Client Branding Logo" 
+                                    onError={() => setImgError(true)}
+                                    className="max-w-full max-h-36 object-contain transition-transform" 
+                                />
+                                {logoUrl ? (
+                                    <span className="absolute bottom-3 text-[9px] text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-full">
+                                        Custom URL Logo
+                                    </span>
+                                ) : (
+                                    <span className="absolute bottom-3 text-[9px] text-slate-500 font-semibold bg-slate-100 px-2 py-0.5 rounded-full">
+                                        Default Fallback Logo
+                                    </span>
+                                )}
                             </div>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center gap-2 text-slate-400">
-                            <UploadCloud className="w-10 h-10 text-slate-300 group-hover:scale-110 transition-transform" />
-                            <span className="text-xs font-bold text-slate-500">please upload the image for this database</span>
-                            <span className="text-[9px] uppercase tracking-wider text-slate-400">Click to Select File</span>
-                        </div>
-                    )}
+                        ) : (
+                            <div className="flex flex-col items-center gap-2 text-slate-400">
+                                <AlertCircle className="w-10 h-10 text-rose-300" />
+                                <span className="text-xs font-bold text-slate-500">
+                                    {imgError ? "Failed to load logo from URL" : "No logo configured"}
+                                </span>
+                                <span className="text-[9px] uppercase tracking-wider text-slate-400">
+                                    {imgError ? "Verify image URL is valid and accessible" : "Enter a URL above to preview"}
+                                </span>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Control Action Buttons */}
                 <div className="flex items-center gap-3 w-full pt-2">
                     <button
                         onClick={handleReset}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 hover:border-rose-100 rounded-2xl text-xs font-bold transition-all"
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 hover:border-rose-100 rounded-2xl text-xs font-bold transition-all cursor-pointer"
                     >
                         <Trash2 className="w-3.5 h-3.5" />
                         Reset
@@ -316,7 +309,7 @@ const CompanyLogo = () => {
                     <button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-2xl text-xs font-bold transition-all shadow-md shadow-indigo-100 disabled:shadow-none"
+                        className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-2xl text-xs font-bold transition-all shadow-md shadow-indigo-100 disabled:shadow-none cursor-pointer"
                     >
                         {isSaving ? (
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
