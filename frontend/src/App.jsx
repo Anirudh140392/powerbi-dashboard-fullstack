@@ -34,6 +34,7 @@ import HelpDrawer from "./components/CommonLayout/HelpDrawer";
 import WalkthroughModal from "./components/CommonLayout/WalkthroughModal";
 import AdminPanel from "./pages/Admin/AdminPanel";
 import PriorityAction from "./pages/SupplyChain/PriorityAction";
+import ReviewRatingsPage from "./pages/ReviewRatings/ReviewRatingsPage";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -175,6 +176,12 @@ function AppContent() {
             <Route path="/priority-action" element={
               <ProtectedRoute>
                 <PriorityAction />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/review-ratings" element={
+              <ProtectedRoute>
+                <ReviewRatingsPage />
               </ProtectedRoute>
             } />
 

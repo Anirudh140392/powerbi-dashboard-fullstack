@@ -14,6 +14,7 @@ export default function CommonContainer({
   onFiltersChange,
   hideFilters = false,
   disablePadding = false,
+  hideHeader = false,
   children,
 }) {
   const { channels, selectedChannel, setSelectedChannel, platforms, platformMetadata, setPlatform, platform } = React.useContext(FilterContext);
@@ -28,6 +29,7 @@ export default function CommonContainer({
       onFiltersChange={onFiltersChange}
       hideFilters={hideFilters}
       disablePadding={disablePadding}
+      hideHeader={hideHeader}
       channels={channels}
       selectedChannel={selectedChannel}
       setSelectedChannel={setSelectedChannel}
@@ -52,6 +54,7 @@ function CommonLayoutContent({
   onFiltersChange,
   hideFilters,
   disablePadding,
+  hideHeader,
   channels,
   selectedChannel,
   setSelectedChannel,
@@ -122,18 +125,20 @@ function CommonLayoutContent({
           minHeight: 0, // Ensure flex child shrinking works
         }}
       >
-        <NotificationScroller />
+        {!hideHeader && <NotificationScroller />}
 
-        <Header
-          title={title}
-          onMenuClick={() => setMobileMenuOpen(true)}
-          filters={filters}
-          onFiltersChange={onFiltersChange}
-          hideFilters={hideFilters}
-          sx={{
-            overflowX: "hidden", // <-- prevents header small horizontal shift
-          }}
-        />
+        {!hideHeader && (
+          <Header
+            title={title}
+            onMenuClick={() => setMobileMenuOpen(true)}
+            filters={filters}
+            onFiltersChange={onFiltersChange}
+            hideFilters={hideFilters}
+            sx={{
+              overflowX: "hidden", // <-- prevents header small horizontal shift
+            }}
+          />
+        )}
 
         {/* Scrollable only vertically */}
         <Box

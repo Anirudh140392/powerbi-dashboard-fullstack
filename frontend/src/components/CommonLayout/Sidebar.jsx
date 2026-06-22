@@ -67,6 +67,7 @@ import {
   KeyboardArrowLeft as KeyboardArrowLeftIcon,
   KeyboardArrowRight as KeyboardArrowRightIcon,
   CloudDownload as CloudDownloadIcon,
+  Grade as GradeIcon,
 } from "@mui/icons-material";
 
 const getPlatformColors = (platformName) => {
@@ -225,6 +226,7 @@ const Sidebar = ({
       // { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       { label: "Ad Auto", path: "https://frontend-mamaearth.onrender.com", icon: <CampaignIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars', 'boat', 'zydus', 'hm_zydus', 'mars_petcare'] },
       { label: "Download Report", path: "/download-report", icon: <CloudDownloadIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Review Rating", path: "/review-ratings", icon: <GradeIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['prestige'] },
     ],
   };
 
