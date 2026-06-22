@@ -1,32 +1,29 @@
-import dotenv from 'dotenv';
-dotenv.config({ path: './.env' });
-import { queryAdminDB } from './src/config/adminClickhouse.js';
-import fs from 'fs';
+import { queryClickHouse, dbStorage } from './src/config/clickhouse.js';
 
-async function check() {
-    try {
-        let results = {};
-        console.error("Checking zydus...");
+async function run() {
+    dbStorage.run({ dbName: 'drl' }, async () => {
         try {
-            const zydusDate = await queryAdminDB("SELECT max(DATE) as max_date FROM zydus.rb_pdp_olap");
-            results.zydus = zydusDate[0]?.max_date;
+            console.log('--- Amazon OSA Comparison by Date ---');
+            const data = await queryClickHouse(`
+                SELECT DATE,
+                       SUM(toFloat64OrZero(toString(neno_osa))) as amz_neno,
+                       SUM(toFloat64OrZero(toString(deno_osa))) as amz_deno,
+                       SUM(IF(Reseller_Name = 'buy more', toFloat64OrZero(toString(neno_osa)), 0)) as buymore_neno,
+                       SUM(IF(Reseller_Name = 'buy more', toFloat64OrZero(toString(deno_osa)), 0)) as buymore_deno
+                FROM rb_pdp_olap
+                WHERE lower(Platform) = 'amazon'
+                GROUP BY DATE
+                ORDER BY DATE DESC
+                LIMIT 15
+            `);
+            data.forEach(r => {
+                const amzOsa = r.amz_deno > 0 ? (r.amz_neno / r.amz_deno) * 100 : 0;
+                const buyMoreOsa = r.buymore_deno > 0 ? (r.buymore_neno / r.buymore_deno) * 100 : 0;
+                console.log(`${r.DATE} | Amazon: ${amzOsa.toFixed(2)}% (${r.amz_neno}/${r.amz_deno}) | Buy More: ${buyMoreOsa.toFixed(2)}% (${r.buymore_neno}/${r.buymore_deno})`);
+            });
         } catch (e) {
-            results.zydus_error = e.message;
+            console.error('Error:', e);
         }
-
-        console.error("Checking hm_zydus...");
-        try {
-            const hmZydusDate = await queryAdminDB("SELECT max(DATE) as max_date FROM hm_zydus.rb_pdp_olap");
-            results.hm_zydus = hmZydusDate[0]?.max_date;
-        } catch (e) {
-            results.hm_zydus_error = e.message;
-        }
-
-        fs.writeFileSync('dates_debug.json', JSON.stringify(results, null, 2));
-        console.error("Done writing dates_debug.json");
-    } catch (err) {
-        console.error("Error:", err.message);
-    }
-    process.exit(0);
+    });
 }
-check();
+run();

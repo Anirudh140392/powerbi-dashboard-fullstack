@@ -334,9 +334,9 @@ export const getKpiTrends = async (req, res) => {
  */
 export const getTrendsFilterOptions = async (req, res) => {
     try {
-        const { filterType, platform, brand, category } = req.query;
-        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand, category });
-        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand, category });
+        const { filterType, platform, brand, category, resellerName } = req.query;
+        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand, category, resellerName });
+        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand, category, resellerName });
         res.json(data);
     } catch (error) {
         console.error('[getTrendsFilterOptions] Error:', error);
@@ -358,7 +358,8 @@ export const getCompetition = async (req, res) => {
             brand: req.query.brand || 'All',
             sku: req.query.sku || 'All',
             channel: req.query.channel,
-            period: req.query.period || '1M'
+            period: req.query.period || '1M',
+            resellerName: req.query.resellerName || undefined
         };
 
         console.log('[getCompetition] Request:', filters);
@@ -377,15 +378,16 @@ export const getCompetition = async (req, res) => {
 export const getCompetitionFilterOptions = async (req, res) => {
     try {
         const filters = { ...req.query, ...req.body };
-        const { platform, location, category, brand, context } = filters;
+        const { platform, location, category, brand, context, resellerName } = filters;
         const resolvedLocation = location && location !== 'All India' ? location : 'All';
-        console.log('[getCompetitionFilterOptions] API call with:', { platform, location: resolvedLocation, category, brand, context });
+        console.log('[getCompetitionFilterOptions] API call with:', { platform, location: resolvedLocation, category, brand, context, resellerName });
         const data = await watchTowerService.getCompetitionFilterOptions({
             platform: platform || 'All',
             location: resolvedLocation,
             category: category || 'All',
             brand: brand || 'All',
-            context: context || undefined
+            context: context || undefined,
+            resellerName: resellerName || undefined
         });
 
         res.json(data);
@@ -414,7 +416,8 @@ export const getCompetitionBrandTrends = async (req, res) => {
             platform: platform || 'All',
             category,
             period,
-            timeStep
+            timeStep,
+            resellerName: params.resellerName || undefined
         });
 
         res.json(data);
