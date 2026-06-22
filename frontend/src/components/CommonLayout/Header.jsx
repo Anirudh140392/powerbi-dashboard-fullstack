@@ -675,8 +675,8 @@ function WatchTowerFilterModal({
    ═══════════════════════════════════════════════════════════════════ */
 const MS_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
+  { key: "category", label: "Category", icon: LayoutGrid },
 ];
 
 const DEFAULT_EMPTY_ARRAY = [];
@@ -702,17 +702,17 @@ function MarketShareFilterModal({
   const MS_FILTER_TABS_DYNAMIC = React.useMemo(() => {
     const tabs = [
       { key: "channel", label: "Channel", icon: Layers },
+      { key: "brand", label: "Brand", icon: Tag },
       { key: "category", label: "Category", icon: LayoutGrid },
     ];
     if (isMamaearth) {
       tabs.push({ key: "subCategory", label: "Sub Category", icon: ListFilter });
     }
-    tabs.push({ key: "brand", label: "Brand", icon: Tag });
     return tabs;
   }, [isMamaearth]);
 
   const availableTabs = hideChannel ? MS_FILTER_TABS_DYNAMIC.filter(t => t.key !== "channel") : MS_FILTER_TABS_DYNAMIC;
-  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "brand" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
@@ -735,7 +735,7 @@ function MarketShareFilterModal({
       setDynamicCategories(categories);
       setDynamicBrands(osaBrands);
       setDynamicSubCategories(subCategories);
-      setActiveTab(hideChannel ? "category" : "channel");
+      setActiveTab(hideChannel ? "brand" : "channel");
       setSearchTerm("");
     }
   }, [open, selectedChannel, platform, selectedCategory, selectedOsaBrand, selectedSubCategory, categories, osaBrands, subCategories, hideChannel]);
