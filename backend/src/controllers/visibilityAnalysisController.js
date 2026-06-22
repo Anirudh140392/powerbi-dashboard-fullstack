@@ -811,4 +811,21 @@ export const getVisibilityBSRTrends = async (req, res) => {
     }
 };
 
+export const getVisibilityMaxPosition = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        console.log('\n========== VISIBILITY MAX POSITION API ==========');
+        const cacheKey = generateCacheKey('visibility_max_position', {});
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getMaxPosition();
+        }, CACHE_TTL.SHORT);
+        console.log('[RESPONSE] Max Position:', data.maxPos, 'Duration:', Date.now() - startTime, 'ms');
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility Max Position:', error);
+        res.status(500).json({ error: 'Internal Server Error', maxPos: 0 });
+    }
+};
+
+
 

@@ -19,7 +19,8 @@ import {
     getSearchTermsLocationDrilldown,
     getSearchTermsBrandBreakdown,
     getVisibilityBSRData,
-    getVisibilityBSRTrends
+    getVisibilityBSRTrends,
+    getVisibilityMaxPosition
 } from '../controllers/visibilityAnalysisController.js';
 import { getSalesVisibilitySignalCityDetails, getSalesVisibilitySignals } from '../controllers/salesSignalLabController.js';
 import accessControlMiddleware from '../middleware/accessControlMiddleware.js';
@@ -57,6 +58,7 @@ export default (app) => {
      *         description: Date range for available visibility data
      */
     app.get('/api/visibility-analysis/latest-available-dates', getVisibilityLatestAvailableDates);
+    app.get('/api/visibility-analysis/max-position', getVisibilityMaxPosition);
 
     // ==================== Visibility Analysis APIs ====================
 
