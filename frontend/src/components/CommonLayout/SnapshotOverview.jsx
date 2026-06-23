@@ -758,8 +758,21 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                 </div>
 
                 <div className="mb-4">
-                    <div className="text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
-                        {kpi.value}
+                    <div className="text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2 flex items-center gap-3">
+                        <span>{kpi.value}</span>
+                        {kpi.subCategoryShare !== undefined && kpi.subCategoryShare !== null && (
+                            <>
+                                <div className="w-[1.5px] h-6 bg-slate-200 self-center" />
+                                <div className="flex flex-col justify-center">
+                                    <span className="text-lg font-extrabold text-emerald-600 leading-none">
+                                        {kpi.subCategoryShare}
+                                    </span>
+                                    <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider mt-0.5">
+                                        Sub-Cat Share
+                                    </span>
+                                </div>
+                            </>
+                        )}
                     </div>
                     <p className="text-xs text-slate-500 font-medium line-clamp-2 min-h-[2.5em]">
                         {kpi.subtitle}

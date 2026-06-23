@@ -890,9 +890,113 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
 };
 
 /**
+ * Helper to calculate sub-category share for our brands in categories they sell in
+ */
+const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEndStr, brandsSql, baseCond, subCatWhere = '') => {
+    try {
+        const queryCurrent = `
+            WITH
+                our_subcategories AS (
+                    SELECT DISTINCT
+                        ms.category as category,
+                        ms.sub_category as sub_category
+                    FROM rb_ms_olap as ms
+                    WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
+                      AND lower(ms.group_brand) IN (${brandsSql.toLowerCase()})
+                      AND toFloat64OrZero(toString(ms.sales)) > 0
+                      ${baseCond}
+                      ${subCatWhere}
+                ),
+                our_sales AS (
+                    SELECT
+                        SUM(toFloat64OrZero(toString(ms.sales))) AS brand_sales
+                    FROM rb_ms_olap as ms
+                    WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
+                      AND lower(ms.group_brand) IN (${brandsSql.toLowerCase()})
+                      AND (ms.category, ms.sub_category) IN (SELECT category, sub_category FROM our_subcategories)
+                      ${baseCond}
+                      ${subCatWhere}
+                ),
+                total_sales_in_subcats AS (
+                    SELECT
+                        SUM(toFloat64OrZero(toString(ms.sales))) AS total_subcat_sales
+                    FROM rb_ms_olap as ms
+                    WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
+                      AND (ms.category, ms.sub_category) IN (SELECT category, sub_category FROM our_subcategories)
+                      ${baseCond}
+                      ${subCatWhere}
+                )
+            SELECT
+                brand_sales,
+                total_subcat_sales
+            FROM our_sales, total_sales_in_subcats
+        `;
+
+        const queryPrev = `
+            WITH
+                our_subcategories AS (
+                    SELECT DISTINCT
+                        ms.category as category,
+                        ms.sub_category as sub_category
+                    FROM rb_ms_olap as ms
+                    WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+                      AND lower(ms.group_brand) IN (${brandsSql.toLowerCase()})
+                      AND toFloat64OrZero(toString(ms.sales)) > 0
+                      ${baseCond}
+                      ${subCatWhere}
+                ),
+                our_sales AS (
+                    SELECT
+                        SUM(toFloat64OrZero(toString(ms.sales))) AS brand_sales
+                    FROM rb_ms_olap as ms
+                    WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+                      AND lower(ms.group_brand) IN (${brandsSql.toLowerCase()})
+                      AND (ms.category, ms.sub_category) IN (SELECT category, sub_category FROM our_subcategories)
+                      ${baseCond}
+                      ${subCatWhere}
+                ),
+                total_sales_in_subcats AS (
+                    SELECT
+                        SUM(toFloat64OrZero(toString(ms.sales))) AS total_subcat_sales
+                    FROM rb_ms_olap as ms
+                    WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+                      AND (ms.category, ms.sub_category) IN (SELECT category, sub_category FROM our_subcategories)
+                      ${baseCond}
+                      ${subCatWhere}
+                )
+            SELECT
+                brand_sales,
+                total_subcat_sales
+            FROM our_sales, total_sales_in_subcats
+        `;
+
+        const [curRes, prevRes] = await Promise.all([
+            queryClickHouse(queryCurrent),
+            queryClickHouse(queryPrev)
+        ]);
+
+        const curBrandSales = parseFloat(curRes?.[0]?.brand_sales || 0);
+        const curTotalSales = parseFloat(curRes?.[0]?.total_subcat_sales || 0);
+        const curShare = curTotalSales > 0 ? (curBrandSales / curTotalSales) * 100 : null;
+
+        const prevBrandSales = parseFloat(prevRes?.[0]?.brand_sales || 0);
+        const prevTotalSales = parseFloat(prevRes?.[0]?.total_subcat_sales || 0);
+        const prevShare = prevTotalSales > 0 ? (prevBrandSales / prevTotalSales) * 100 : null;
+
+        return {
+            subCategoryShare: curShare !== null ? parseFloat(curShare.toFixed(2)) : null,
+            prevSubCategoryShare: prevShare !== null ? parseFloat(prevShare.toFixed(2)) : null
+        };
+    } catch (err) {
+        console.error('[calculateSubCategoryShare] Error:', err.message);
+        return { subCategoryShare: null, prevSubCategoryShare: null };
+    }
+};
+
+/**
  * Get Market Share KPI
  * Logic: (Our Sales / Total Category Sales) * 100
- * Returns: { share, prevShare, delta, trend }
+ * Returns: { share, prevShare, delta, subCategoryShare, prevSubCategoryShare, trend }
  */
 export const getMarketShareKPI = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly', subCategoryFilter = null) => {
     try {
@@ -1033,10 +1137,27 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
             }
         }
 
+        let subCategoryShare = null;
+        let prevSubCategoryShare = null;
+        if (ourBrands.length > 0 && ourBrands[0] !== 'dummy_no_brands') {
+            try {
+                const subCatRes = await calculateSubCategoryShare(
+                    startStr, endStr, prevStartStr, prevEndStr,
+                    brandsSql, baseCond, subCat.where
+                );
+                subCategoryShare = subCatRes.subCategoryShare;
+                prevSubCategoryShare = subCatRes.prevSubCategoryShare;
+            } catch (err) {
+                console.error('[getMarketShareKPI] Error calculating sub-category share:', err);
+            }
+        }
+
         return {
             share: share !== null ? parseFloat(share.toFixed(2)) : null,
             prevShare: prevShare !== null ? parseFloat(prevShare.toFixed(2)) : null,
             delta: delta !== null ? parseFloat(delta.toFixed(2)) : null,
+            subCategoryShare,
+            prevSubCategoryShare,
             trend
         };
     } catch (error) {
