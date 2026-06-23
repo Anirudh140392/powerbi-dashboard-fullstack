@@ -129,7 +129,13 @@ async function getBrandMsSource() {
 
 /**
  * Helper to parse multiselect filter values
- * Handles: arrays, comma-separated strings, or single values
+ * Handles: arrays, ;; -separated strings (for SKUs that may contain commas),
+ * comma-separated strings, or single values.
+ *
+ * IMPORTANT: When filter values can themselves contain commas (e.g. SKU names),
+ * the frontend must join multiple selections with ';;' so we can split safely here.
+ * For other filters whose values never contain commas, the legacy ',' delimiter still works.
+ *
  * @param {string|array} value - Filter value(s)
  * @returns {array|null} - Array of values or null if empty/All
  */
@@ -139,8 +145,34 @@ const parseMultiSelectFilter = (value) => {
         const filtered = value.filter(v => v && v !== 'All');
         return filtered.length > 0 ? filtered : null;
     }
-    if (typeof value === 'string') { // Modified this line
-        const filtered = value.split(',').map(v => v.trim()).filter(v => v && v !== 'All');
+    if (typeof value === 'string') {
+        // Use ;; as delimiter when present (safe for values that contain commas, e.g. SKU names).
+        // Fall back to comma for legacy / simple filters.
+        const delimiter = value.includes(';;') ? ';;' : ',';
+        const filtered = value.split(delimiter).map(v => v.trim()).filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    return [value];
+};
+
+/**
+ * Dedicated parser for SKU filter values.
+ * SKU names can contain commas (e.g. ingredient lists in product titles), so we MUST NOT
+ * split by comma.  The frontend joins multiple selected SKUs with ';;'.
+ * A single selected SKU is passed as-is (no separator needed).
+ *
+ * @param {string|string[]} value
+ * @returns {string[]|null}
+ */
+const parseSkuFilter = (value) => {
+    if (!value || value === 'All') return null;
+    if (Array.isArray(value)) {
+        const filtered = value.filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    if (typeof value === 'string') {
+        // Split ONLY by ;; — safe even when the individual SKU name contains commas
+        const filtered = value.split(';;').map(v => v.trim()).filter(v => v && v !== 'All');
         return filtered.length > 0 ? filtered : null;
     }
     return [value];
@@ -953,7 +985,7 @@ const getDimensionOverview = async (filters = {}) => {
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
             if (channels) whereConditions.push(buildInClause(`p.${f.channel}`, channels));
 
-            const skus = parseMultiSelectFilter(filters.sku);
+            const skus = parseSkuFilter(filters.sku);
             if (skus) whereConditions.push(buildInClause(`p.${f.product}`, skus));
 
             // ✅ Only show own brands for SKU dimension unless explicitly filtered
@@ -1135,7 +1167,7 @@ const getDimensionTrends = async (filters = {}) => {
             whereConditions.push(buildInClause(`p.${f.channel}`, channels));
         }
 
-        const skus = parseMultiSelectFilter(filters.sku);
+        const skus = parseSkuFilter(filters.sku);
         if (skus) whereConditions.push(buildInClause(`p.${f.product}`, skus));
 
         if (dimensionValue) {
@@ -1475,7 +1507,7 @@ const getPricingCompetition = async (filters) => {
             whereConditions.push(`lower(${groupByExpr}) = lower('${escapeStr(dimensionValue)}')`);
         }
 
-        const skus = parseMultiSelectFilter(filters.sku);
+        const skus = parseSkuFilter(filters.sku);
         if (skus) whereConditions.push(buildInClause(`p.${f.product}`, skus));
 
         const whereClause = whereConditions.join(' AND ');
