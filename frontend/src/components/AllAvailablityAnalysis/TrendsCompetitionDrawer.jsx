@@ -656,6 +656,7 @@ export default function TrendsCompetitionDrawer({
   initialPlatform = "Blinkit",
   defaultView = "Trends",
   initialAudience = "Platform",
+  showResellerFilter = true,
 }) {
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
@@ -716,7 +717,7 @@ export default function TrendsCompetitionDrawer({
 
   // Fetch reseller name options for DRL - cascaded by platform
   useEffect(() => {
-    if (!open || !isDrl) return;
+    if (!open || !isDrl || !showResellerFilter) return;
     let cancelled = false;
     const platformParam = toApiParam(drawerFilters.Platform);
     const fetchResellerOptions = async () => {
@@ -2717,7 +2718,7 @@ export default function TrendsCompetitionDrawer({
                   }}
                 />
                 {/* Reseller Name dropdown - DRL only */}
-                {isDrl && resellerOptions.length > 0 && (
+                {isDrl && showResellerFilter && resellerOptions.length > 0 && (
                   <DrawerMultiSelect
                     title="Reseller"
                     value={drawerFilters.ResellerName}
@@ -2887,7 +2888,7 @@ export default function TrendsCompetitionDrawer({
                     .filter(opt => !skuSearchTerm || opt.toLowerCase().includes(skuSearchTerm.toLowerCase()))
                     .map(opt => {
                       const isSelected = drawerFilters.SKU !== 'All' && 
-                        drawerFilters.SKU.split(',').map(s => s.trim().toLowerCase()).includes(opt.toLowerCase());
+                        drawerFilters.SKU.split(';;').map(s => s.trim().toLowerCase()).includes(opt.toLowerCase());
                       // Truncate display: show last part in parentheses as variant hint
                       const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
                       const variant = parenMatch ? parenMatch[1] : '';
@@ -2900,7 +2901,7 @@ export default function TrendsCompetitionDrawer({
                             if (drawerFilters.SKU === 'All') {
                               setDrawerFilters(prev => ({...prev, SKU: opt}));
                             } else {
-                              const selected = drawerFilters.SKU.split(',').map(s => s.trim());
+                              const selected = drawerFilters.SKU.split(';;').map(s => s.trim());
                               const exists = selected.some(s => s.toLowerCase() === opt.toLowerCase());
                               let nextSelected;
                               if (exists) {
@@ -2910,7 +2911,7 @@ export default function TrendsCompetitionDrawer({
                               }
                               setDrawerFilters(prev => ({
                                 ...prev, 
-                                SKU: nextSelected.length > 0 ? nextSelected.join(',') : 'All'
+                                SKU: nextSelected.length > 0 ? nextSelected.join(';;') : 'All'
                               }));
                             }
                           }}
