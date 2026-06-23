@@ -93,7 +93,7 @@ const KPI_LABELS = {
     soh: "SOH",
     doi: "DOI",
     stockoutRisk: "Stock-out Risk",
-    weightedOsa: "Wt. OSA",
+    weightedOsa: "OSA",
     potentialSalesLoss: "Potential Sales Loss",
     fillrate: "Fillrate",
     offtakeShare: "MS (Offtake Share)",
