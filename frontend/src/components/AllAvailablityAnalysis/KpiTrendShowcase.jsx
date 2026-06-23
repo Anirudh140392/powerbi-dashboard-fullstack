@@ -890,11 +890,23 @@ const TrendView = ({
 
   const formatValue = (v) => {
     if (v === null || v === undefined) return "–";
+    if (metricMeta.fmt) return metricMeta.fmt(v);
     if (metricMeta.isCurrency) return formatNumber(v);
-    if (metricMeta.unit) return `${v}${metricMeta.unit}`;
-    if (metricMeta.prefix) return `${metricMeta.prefix}${v}`;
-    if (metricMeta.suffix) return `${v}${metricMeta.suffix}`;
-    return v;
+
+    let formattedVal = v;
+    if (typeof v === 'number') {
+      formattedVal = Number(v.toFixed(2));
+    } else {
+      const num = parseFloat(v);
+      if (!isNaN(num)) {
+        formattedVal = Number(num.toFixed(2));
+      }
+    }
+
+    if (metricMeta.unit) return `${formattedVal}${metricMeta.unit}`;
+    if (metricMeta.prefix) return `${metricMeta.prefix}${formattedVal}`;
+    if (metricMeta.suffix) return `${formattedVal}${metricMeta.suffix}`;
+    return formattedVal;
   };
 
   return (
@@ -1045,21 +1057,21 @@ const PRICING_KPI_KEYS = [
     label: "Discount %",
     color: "#6366F1",
     unit: "%",
-    fmt: (v) => `${v.toFixed(1)}%`,
+    fmt: (v) => `${Number(v).toFixed(2)}%`,
   },
   {
     key: "PricePerUnit",
     label: "Price/Unit 1g / 1 piece",
     color: "#14B8A6",
     prefix: "₹",
-    fmt: (v) => `₹${v < 10 ? v.toFixed(2) : v.toFixed(0)}`,
+    fmt: (v) => `₹${Number(v).toFixed(2)}`,
   },
   {
     key: "ASP",
     label: "Average Selling Price",
     color: "#8B5CF6",
     prefix: "₹",
-    fmt: (v) => `₹${v.toFixed(0)}`,
+    fmt: (v) => `₹${Number(v).toFixed(2)}`,
   },
 ];
 
@@ -1153,17 +1165,41 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, kpiKeys = KPI_KEYS
                     fontSize={10}
                     width={45}
                     tickFormatter={(v) => {
+                      if (kpi.fmt) return kpi.fmt(v);
                       if (kpi.isCurrency) return formatNumber(v);
-                      if (kpi.unit) return `${v}${kpi.unit}`;
-                      if (kpi.prefix) return `${kpi.prefix}${v}`;
-                      return v;
+                      
+                      let formattedVal = v;
+                      if (typeof v === 'number') {
+                        formattedVal = Number(v.toFixed(2));
+                      } else {
+                        const num = parseFloat(v);
+                        if (!isNaN(num)) {
+                          formattedVal = Number(num.toFixed(2));
+                        }
+                      }
+                      
+                      if (kpi.unit) return `${formattedVal}${kpi.unit}`;
+                      if (kpi.prefix) return `${kpi.prefix}${formattedVal}`;
+                      return formattedVal;
                     }}
                   />
                   <Tooltip formatter={(v) => {
+                    if (kpi.fmt) return kpi.fmt(v);
                     if (kpi.isCurrency) return formatNumber(v);
-                    if (kpi.unit) return `${v}${kpi.unit}`;
-                    if (kpi.prefix) return `${kpi.prefix}${v}`;
-                    return v;
+                    
+                    let formattedVal = v;
+                    if (typeof v === 'number') {
+                      formattedVal = Number(v.toFixed(2));
+                    } else {
+                      const num = parseFloat(v);
+                      if (!isNaN(num)) {
+                        formattedVal = Number(num.toFixed(2));
+                      }
+                    }
+                    
+                    if (kpi.unit) return `${formattedVal}${kpi.unit}`;
+                    if (kpi.prefix) return `${kpi.prefix}${formattedVal}`;
+                    return formattedVal;
                   }} />
                   {selectedIds.map((id, idx) => (
                     <Line
@@ -1404,15 +1440,17 @@ const SkuTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSelec
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } = {}) => {
+export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, platform: propPlatform } = {}) => {
   const {
-    platform,
+    platform: contextPlatform,
     timeStart,
     timeEnd,
     compareStart,
     compareEnd,
     selectedChannel
   } = useContext(FilterContext);
+
+  const platform = propPlatform !== undefined ? propPlatform : contextPlatform;
 
   const kpiKeys = useMemo(() => {
     let keys;
@@ -1448,9 +1486,12 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
   const [resellerName, setResellerName] = useState('All');
   const [resellerOptions, setResellerOptions] = useState([]);
 
+  // Only show reseller dropdown on Availability Analysis Competition page
+  const showResellerDropdown = isDrl && dynamicKey === 'availability';
+
   // Fetch reseller name options for DRL - cascaded by platform
   useEffect(() => {
-    if (!isDrl) return;
+    if (!showResellerDropdown) return;
     const fetchResellerOptions = async () => {
       try {
         const platformParam = platform && platform !== 'All' ? platform : undefined;
@@ -1465,7 +1506,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
       }
     };
     fetchResellerOptions();
-  }, [isDrl, platform]);
+  }, [showResellerDropdown, platform]);
 
   // Reset resellerName when platform changes
   useEffect(() => {
@@ -1879,8 +1920,8 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Reseller Name dropdown - DRL only */}
-          {isDrl && resellerOptions.length > 0 && (
+          {/* Reseller Name dropdown - DRL + Availability Analysis only */}
+          {showResellerDropdown && resellerOptions.length > 0 && (
             <Select value={resellerName} onValueChange={setResellerName}>
               <SelectTrigger className="h-9 w-48 bg-white">
                 <SelectValue placeholder="Reseller Name" />

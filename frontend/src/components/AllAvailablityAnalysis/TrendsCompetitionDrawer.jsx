@@ -3143,6 +3143,7 @@ export default function TrendsCompetitionDrawer({
                 dynamicKey={dynamicKey}
                 period={range}
                 timeStep={timeStep}
+                platform={drawerFilters.Platform !== 'All' ? drawerFilters.Platform : 'All'}
                 dimensionValue={selectedColumn}
                 dimensionType={
                   dimensionType || (
