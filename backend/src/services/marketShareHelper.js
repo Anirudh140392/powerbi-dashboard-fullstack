@@ -3112,7 +3112,21 @@ export const getMarketShareShareTable = async (start, end, platformFilter, categ
                 WHERE ${dateFilter}
                 ${platformCond}
                 ${categoryCond}
+                ${subCatCond}
                 GROUP BY category, sub_category
+            ),
+            brand_sub_category_sales AS (
+                SELECT
+                    category,
+                    sub_category,
+                    brand,
+                    SUM(toFloat64OrZero(toString(sales))) AS brand_sub_category_sales
+                FROM rb_ms_olap
+                WHERE ${dateFilter}
+                ${platformCond}
+                ${categoryCond}
+                ${subCatCond}
+                GROUP BY category, sub_category, brand
             ),
             base AS (
                 SELECT
@@ -3131,21 +3145,25 @@ export const getMarketShareShareTable = async (start, end, platformFilter, categ
                 bc.brand_category_sales,
                 c.category_sales,
                 s.sub_category_sales,
-                ROUND(bc.brand_category_sales * 100.0 / c.category_sales, 2) AS ms_category,
-                ROUND(SUM(r.sales) * 100.0 / s.sub_category_sales, 2)        AS ms_sub_category
+                bsc.brand_sub_category_sales,
+                ROUND(bc.brand_category_sales * 100.0 / c.category_sales, 2)         AS ms_category,
+                ROUND(bsc.brand_sub_category_sales * 100.0 / s.sub_category_sales, 2) AS ms_sub_category
             FROM base r
             JOIN category_sales c  ON r.category    = c.category
             JOIN brand_category_sales bc
                 ON r.category = bc.category AND r.brand = bc.brand
             JOIN sub_category_sales s
                 ON r.category = s.category AND r.sub_category = s.sub_category
+            JOIN brand_sub_category_sales bsc
+                ON r.category = bsc.category AND r.sub_category = bsc.sub_category AND r.brand = bsc.brand
             GROUP BY
                 r.category,
                 r.sub_category,
                 r.brand,
                 bc.brand_category_sales,
                 c.category_sales,
-                s.sub_category_sales
+                s.sub_category_sales,
+                bsc.brand_sub_category_sales
             ORDER BY
                 r.category,
                 ms_category DESC,
@@ -3156,13 +3174,14 @@ export const getMarketShareShareTable = async (start, end, platformFilter, categ
         const rows = await queryClickHouse(query);
 
         return rows.map(row => ({
-            category:         row['category']      || row['r.category']      || '',
-            brand:            row['brand']         || row['r.brand']         || '',
-            subCategory:      row['sub_category']  || row['r.sub_category']  || '',
-            categoryShare:    parseFloat(row['ms_category']    || 0),
-            subCategoryShare: parseFloat(row['ms_sub_category'] || 0),
-            brandCategorySales: parseFloat(row['brand_category_sales'] || row['bc.brand_category_sales'] || 0),
-            subCategorySales:   parseFloat(row['sub_category_sales'] || row['s.sub_category_sales'] || 0),
+            category:              row['category']     || row['r.category']     || '',
+            brand:                 row['brand']        || row['r.brand']        || '',
+            subCategory:           row['sub_category'] || row['r.sub_category'] || '',
+            categoryShare:         parseFloat(row['ms_category']    || 0),
+            subCategoryShare:      parseFloat(row['ms_sub_category'] || 0),
+            brandCategorySales:    parseFloat(row['brand_category_sales']     || row['bc.brand_category_sales']  || 0),
+            subCategorySales:      parseFloat(row['sub_category_sales']       || row['s.sub_category_sales']     || 0),
+            brandSubCategorySales: parseFloat(row['brand_sub_category_sales'] || row['bsc.brand_sub_category_sales'] || 0),
         }));
     } catch (error) {
         console.error('[getMarketShareShareTable] Error:', error.message);
