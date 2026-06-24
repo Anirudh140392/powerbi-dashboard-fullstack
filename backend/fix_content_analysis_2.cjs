@@ -11,7 +11,6 @@ let content = fs.readFileSync(filePath, 'utf8');
             ...
         }
 */
-
 // We can just use string replacements to comment them out or remove them.
 content = content.replace(/\/\/ Brand filter[\s\S]*?if\s*\(brandConditions\.length\s*>\s*0\)\s*\{\s*query\s*\+=\s*` AND \(\$\{brandConditions\.join\(' OR '\)\}\)`;\s*\}\s*\}/g, '/* Brand filter removed as column does not exist */');
 
