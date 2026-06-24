@@ -1899,7 +1899,23 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
 
         // Process Market Share Data
+        const tier1Cities = [
+            'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+            'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+        ];
+        let hasTier23 = false;
+        if (locationArr && locationArr.length > 0) {
+            hasTier23 = locationArr.some(loc => {
+                const lowerLoc = String(loc).trim().toLowerCase();
+                if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+                return !tier1Cities.includes(lowerLoc);
+            });
+        }
+
         const marketShareChart = weekBuckets.map(b => {
+            if (hasTier23) {
+                return { label: b.label, value: 0 };
+            }
             const bStart = dayjs(b.date).startOf('isoWeek');
             const bEnd = dayjs(b.date).endOf('isoWeek');
             let sumMs = 0, count = 0;
@@ -1913,12 +1929,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             return { label: b.label, value: count > 0 ? sumMs / count : 0 };
         });
 
-        const totalMarketShare = totalMarketShareResult?.avg_market_share !== undefined && totalMarketShareResult?.avg_market_share !== null ? parseFloat(totalMarketShareResult.avg_market_share) : null;
+        let totalMarketShare = totalMarketShareResult?.avg_market_share !== undefined && totalMarketShareResult?.avg_market_share !== null ? parseFloat(totalMarketShareResult.avg_market_share) : null;
+        if (hasTier23) totalMarketShare = null;
         const formattedMarketShare = totalMarketShare !== null ? totalMarketShare.toFixed(2) + "%" : "N/A";
 
         const prevMarketShareVal = parseFloat(prevMarketShareResult?.avg_ms || 0);
-        const marketShareChange = totalMarketShare !== null ? totalMarketShare - prevMarketShareVal : 0;
-        const marketShareTrendStr = totalMarketShare !== null ? (marketShareChange >= 0 ? "+" : "") + marketShareChange.toFixed(2) + "%" : "N/A";
+        const marketShareChange = (totalMarketShare !== null && !hasTier23) ? totalMarketShare - prevMarketShareVal : 0;
+        const marketShareTrendStr = (totalMarketShare !== null && !hasTier23) ? (marketShareChange >= 0 ? "+" : "") + marketShareChange.toFixed(2) + "%" : "N/A";
+
 
         // Process Availability Data
         const availabilityChart = weekBuckets.map(b => {
@@ -5063,6 +5081,20 @@ const getPlatformOverview = async (filters) => {
     const category = categoryArr ? (categoryArr.length === 1 ? categoryArr[0] : categoryArr) : null;
     const platform = platformArr ? (platformArr.length === 1 ? platformArr[0] : platformArr) : null;
 
+    // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
+    const tier1Cities = [
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    if (locationArr && locationArr.length > 0) {
+        hasTier23 = locationArr.some(loc => {
+            const lowerLoc = String(loc).trim().toLowerCase();
+            if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+            return !tier1Cities.includes(lowerLoc);
+        });
+    }
+
     const monthsBack = parseInt(months, 10) || 1;
 
     // Calculate date range
@@ -5871,8 +5903,8 @@ const getPlatformOverview = async (filters) => {
         prevSumMsDenom += prevMsDenomMap.get(key) || 0;
     });
 
-    const allMarketShare = await getMarketShare(startDate, endDate, 'All', rawCategory, null, locationArr, channel);
-    const prevAllMarketShare = await getMarketShare(momStart, momEnd, 'All', rawCategory, null, locationArr, channel);
+    const allMarketShare = hasTier23 ? null : await getMarketShare(startDate, endDate, 'All', rawCategory, null, locationArr, channel);
+    const prevAllMarketShare = hasTier23 ? null : await getMarketShare(momStart, momEnd, 'All', rawCategory, null, locationArr, channel);
 
     platformOverview.push({
         key: 'all',
@@ -5972,7 +6004,7 @@ const getPlatformOverview = async (filters) => {
         const totalOrders = hasPm ? (metrics.curr.orders || 0) : null;
 
         // Hardcode Market Share values as requested by user
-        let marketShare = await getMarketShare(startDate, endDate, p.label, rawCategory, null, locationArr, channel);
+        let marketShare = hasTier23 ? null : await getMarketShare(startDate, endDate, p.label, rawCategory, null, locationArr, channel);
 
         console.log(`[getPlatformOverview] DEBUG MS - Platform: ${p.label}, key: ${key}, hasMsCheck: ${hasMsCheck}, marketShare: ${marketShare}, currMsMap.has(key): ${currMsMap.has(key)}, currMsDenomMap.has(key): ${currMsDenomMap.has(key)}`);
 
@@ -6009,7 +6041,7 @@ const getPlatformOverview = async (filters) => {
         const prevClicks = prevHasPm ? (metrics.prev.clicks || 0) : null;
         const prevOrders = prevHasPm ? (metrics.prev.orders || 0) : null;
 
-        let prevMarketShare = await getMarketShare(momStart, momEnd, p.label, rawCategory, null, locationArr, channel);
+        let prevMarketShare = hasTier23 ? null : await getMarketShare(momStart, momEnd, p.label, rawCategory, null, locationArr, channel);
 
         const prevSos = prevHasSosCheck ? (metrics.prev.sos ?? null) : null;
         const prevAdSov = prevHasSosCheck ? (metrics.prev.adSov ?? null) : null;
@@ -6079,6 +6111,20 @@ const getMonthOverview = async (filters) => {
     const categoryArr = normalizeFilterArray(rawCategory);
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
+
+    // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
+    const tier1Cities = [
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    if (locationArr && locationArr.length > 0) {
+        hasTier23 = locationArr.some(loc => {
+            const lowerLoc = String(loc).trim().toLowerCase();
+            if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+            return !tier1Cities.includes(lowerLoc);
+        });
+    }
 
     const monthsBack = parseInt(months, 10) || 1;
     const moPlatform = monthOverviewPlatform || filters.platform || null;
@@ -6354,7 +6400,7 @@ const getMonthOverview = async (filters) => {
         const buyBoxPct = hasPdp ? (deno > 0 ? (parseFloat(data.total_buy_box_neno || 0) * 1.0 / deno) * 100 : null) : null;
         const deliveryTime = hasPdp ? (parseFloat(data.avg_delivery_days || null)) : null;
 
-        const marketShare = hasMsCheck ? (msMonthMap.get(monthKey) ?? null) : null;
+        const marketShare = (hasMsCheck && !hasTier23) ? (msMonthMap.get(monthKey) ?? null) : null;
 
         const sosNum = sosNumMonthMap.get(monthKey) || 0;
         const sosDenom = sosDenomMonthMap.get(monthKey) || 0;
@@ -6408,7 +6454,7 @@ const getMonthOverview = async (filters) => {
             ? ((parseFloat(prevData.comp_mrp_val) - parseFloat(prevData.comp_actual_sales)) / parseFloat(prevData.comp_mrp_val)) * 100
             : null) : null;
 
-        const prevMarketShare = prevHasMsCheck ? (msMonthMap.get(prevMonthKey) ?? null) : null;
+        const prevMarketShare = (prevHasMsCheck && !hasTier23) ? (msMonthMap.get(prevMonthKey) ?? null) : null;
 
         const prevSosNum = sosNumMonthMap.get(prevMonthKey) || 0;
         const prevSosDenom = sosDenomMonthMap.get(prevMonthKey) || 0;
@@ -6470,6 +6516,20 @@ const getCategoryOverview = async (filters) => {
     const categoryArr = normalizeFilterArray(rawCategory)?.map(c => c.toLowerCase());
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
+
+    // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
+    const tier1Cities = [
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    if (locationArr && locationArr.length > 0) {
+        hasTier23 = locationArr.some(loc => {
+            const lowerLoc = String(loc).trim().toLowerCase();
+            if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+            return !tier1Cities.includes(lowerLoc);
+        });
+    }
 
     const monthsBack = parseInt(months, 10) || 1;
     const catPlatform = categoryOverviewPlatform || filters.platform || 'All';
@@ -6826,7 +6886,7 @@ const getCategoryOverview = async (filters) => {
         const sos = hasSosCheck ? (sosDataObj.den > 0 ? (sosDataObj.num / sosDataObj.den) * 100 : null) : null;
 
         // Market Share via rb_ms_olap results (respected platform filter)
-        const marketShare = hasMsCheck ? (currMsMap.get(catKey) || null) : null;
+        const marketShare = (hasMsCheck && !hasTier23) ? (currMsMap.get(catKey) || null) : null;
 
         // Previous
         const prevOfftake = prevHasPdp ? parseFloat(prev.total_sales || 0) : null;
@@ -6850,7 +6910,7 @@ const getCategoryOverview = async (filters) => {
         const prevSosDataObj = prevSosMap.get(catKey) || { num: 0, den: 0 };
         const prevSos = prevHasSosCheck ? (prevSosDataObj.den > 0 ? (prevSosDataObj.num / prevSosDataObj.den) * 100 : null) : null;
 
-        const prevMarketShare = prevHasMsCheck ? (prevMsMap.get(catKey) || null) : null;
+        const prevMarketShare = (prevHasMsCheck && !hasTier23) ? (prevMsMap.get(catKey) || null) : null;
 
         const promoMyBrand = hasPdp ? (parseFloat(curr.my_mrp_val || 0) > 0
             ? ((parseFloat(curr.my_mrp_val) - parseFloat(curr.my_actual_sales)) / parseFloat(curr.my_mrp_val)) * 100
@@ -6920,6 +6980,20 @@ const getBrandsOverview = async (filters) => {
     const locationArr = normalizeFilterArray(rawLocation);
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
+
+    // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
+    const tier1Cities = [
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    if (locationArr && locationArr.length > 0) {
+        hasTier23 = locationArr.some(loc => {
+            const lowerLoc = String(loc).trim().toLowerCase();
+            if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+            return !tier1Cities.includes(lowerLoc);
+        });
+    }
 
     const monthsBack = parseInt(months, 10) || 1;
     const boPlatform = brandsOverviewPlatform || filters.platform || 'All';
@@ -7290,7 +7364,7 @@ const getBrandsOverview = async (filters) => {
         const sosNum = currSosMap.get(brandKey) || 0;
         const sos = hasSosCheck ? (currTotalOverall > 0 ? (sosNum / currTotalOverall) * 100 : null) : null;
 
-        const marketShare = hasMsCheck ? (currMsMap.get(brandKey) || null) : null;
+        const marketShare = (hasMsCheck && !hasTier23) ? (currMsMap.get(brandKey) || null) : null;
 
         // Previous
         const prevOfftake = prevHasPdp ? parseFloat(prev.total_sales || 0) : null;
@@ -7321,7 +7395,7 @@ const getBrandsOverview = async (filters) => {
         const prevSosNum = prevSosMap.get(brandKey) || 0;
         const prevSos = prevHasSosCheck ? (prevTotalOverall > 0 ? (prevSosNum / prevTotalOverall) * 100 : null) : null;
 
-        const prevMarketShare = prevHasMsCheck ? (prevMsMap.get(brandKey) || null) : null;
+        const prevMarketShare = (prevHasMsCheck && !hasTier23) ? (prevMsMap.get(brandKey) || null) : null;
 
         // Ad SOV (spons)
         const adSovNum = currAdSovMap.get(brandKey) || 0;
@@ -11207,6 +11281,20 @@ const getSkuOverview = async (filters) => {
     const categoryArr = normalizeFilterArray(rawCategory);
     const skuPlatform = skuOverviewPlatform || filters.platform || 'All';
 
+    // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
+    const tier1Cities = [
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    if (locationArr && locationArr.length > 0) {
+        hasTier23 = locationArr.some(loc => {
+            const lowerLoc = String(loc).trim().toLowerCase();
+            if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+            return !tier1Cities.includes(lowerLoc);
+        });
+    }
+
     const monthsBack = parseInt(months, 10) || 1;
 
     // Calculate current date range
@@ -11556,8 +11644,8 @@ const getSkuOverview = async (filters) => {
             ? ((parseFloat(prevData.comp_mrp_val) - parseFloat(prevData.comp_actual_sales)) / parseFloat(prevData.comp_mrp_val)) * 100
             : null) : null;
 
-        const marketShare = hasMsCheck ? (currMarketSize > 0 ? (offtake / currMarketSize) * 100 : null) : null;
-        const prevMarketShare = prevHasMsCheck ? (prevMarketSize > 0 ? (prevOfftake / prevMarketSize) * 100 : null) : null;
+        const marketShare = (hasMsCheck && !hasTier23) ? (currMarketSize > 0 ? (offtake / currMarketSize) * 100 : null) : null;
+        const prevMarketShare = (prevHasMsCheck && !hasTier23) ? (prevMarketSize > 0 ? (prevOfftake / prevMarketSize) * 100 : null) : null;
 
         // SOS, Ad SOV, Organic SOV by keyword_search_product
         const sosNum = currSosNumSkuMap.get(skuKeyLower) || 0;
@@ -11868,8 +11956,14 @@ const getCityOverview = async (filters) => {
         const currCityMarket = currMsMap.get(cityName.toLowerCase()) || 0;
         const prevCityMarket = prevMsMap.get(cityName.toLowerCase()) || 0;
 
-        const marketShare = hasMsCheck ? (currCityMarket > 0 ? (offtake / currCityMarket) * 100 : null) : null;
-        const prevMarketShare = prevHasMsCheck ? (prevCityMarket > 0 ? (prevOfftake / prevCityMarket) * 100 : null) : null;
+        const tier1Cities = [
+            'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+            'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+        ];
+        const lowerCityName = cityName ? cityName.toLowerCase().trim() : '';
+        const isCityTier1 = tier1Cities.includes(lowerCityName);
+        const marketShare = (isCityTier1 && hasMsCheck) ? (currCityMarket > 0 ? (offtake / currCityMarket) * 100 : null) : null;
+        const prevMarketShare = (isCityTier1 && prevHasMsCheck) ? (prevCityMarket > 0 ? (prevOfftake / prevCityMarket) * 100 : null) : null;
 
         return {
             key: cityName.toLowerCase().replace(/\s+/g, '_'),
