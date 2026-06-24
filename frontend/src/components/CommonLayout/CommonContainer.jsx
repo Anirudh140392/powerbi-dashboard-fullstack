@@ -149,7 +149,8 @@ function CommonLayoutContent({
             maxWidth={false}
             disableGutters
             sx={{
-              py: disablePadding ? 0 : 2,
+              pt: disablePadding ? 0 : 4,
+              pb: disablePadding ? 0 : 2,
               px: disablePadding ? 0 : { xs: 2, sm: 3 },
               width: "100%",
               boxSizing: "border-box",
