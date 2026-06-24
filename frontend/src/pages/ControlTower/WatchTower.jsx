@@ -327,6 +327,22 @@ export default function WatchTower() {
   const COMPARISON_KPIS = useMemo(() => {
     const topMetrics = dashboardData?.topMetrics;
 
+    const tier1Cities = [
+      'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+      'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    if (selectedLocation && selectedLocation !== "All") {
+      const locs = Array.isArray(selectedLocation) 
+        ? selectedLocation 
+        : (typeof selectedLocation === 'string' ? selectedLocation.split(',').map(s => s.trim()) : []);
+      hasTier23 = locs.some(loc => {
+        const lowerLoc = String(loc).trim().toLowerCase();
+        if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+        return !tier1Cities.includes(lowerLoc);
+      });
+    }
+
     // If real data available from backend, use it
     if (topMetrics && Array.isArray(topMetrics) && topMetrics.length > 0) {
       return topMetrics.map((metric) => {
@@ -359,7 +375,16 @@ export default function WatchTower() {
           finalValue = 'N/A';
           finalDelta = 0;
           finalDeltaLabel = 'N/A';
+        } else if (normalizedTitle.toLowerCase() === 'market share' && hasTier23) {
+          finalValue = 'N/A';
+          finalDelta = 0;
+          finalDeltaLabel = 'N/A';
         }
+
+        const rawTrend = metric.chart || getLogicalKpiTrend(meta.id, context);
+        const finalTrendArray = (normalizedTitle.toLowerCase() === 'market share' && hasTier23)
+          ? (Array.isArray(rawTrend) ? rawTrend.map(() => 0) : [])
+          : rawTrend;
 
         return {
           id: meta.id,
@@ -369,7 +394,7 @@ export default function WatchTower() {
           deltaLabel: finalDeltaLabel,
           icon: meta.icon,
           gradient: meta.gradient,
-          trend: metric.chart || getLogicalKpiTrend(meta.id, context),
+          trend: finalTrendArray,
           subtitle: metric.subtitle || undefined,
           infoTooltip: KPI_INFO_TOOLTIPS[normalizedTitle] || undefined,
         };
@@ -404,11 +429,13 @@ export default function WatchTower() {
       },
       {
         id: 'market', title: 'Market Share',
-        value: `${getJitter(getLogicalKpiValue('market', context), 'market')}%`,
-        delta: getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta'),
-        deltaLabel: `+${(getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta') / 8).toFixed(2)}%`,
+        value: hasTier23 ? 'N/A' : `${getJitter(getLogicalKpiValue('market', context), 'market')}%`,
+        delta: hasTier23 ? 0 : getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta'),
+        deltaLabel: hasTier23 ? 'N/A' : `+${(getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta') / 8).toFixed(2)}%`,
         icon: PieChart, gradient: ['#8b5cf6', '#a855f7'],
-        trend: getLogicalKpiTrend('market', context),
+        trend: hasTier23 
+          ? (Array.isArray(getLogicalKpiTrend('market', context)) ? getLogicalKpiTrend('market', context).map(() => 0) : [])
+          : getLogicalKpiTrend('market', context),
         infoTooltip: KPI_INFO_TOOLTIPS['Market Share'],
       },
       {
