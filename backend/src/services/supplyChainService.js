@@ -1062,25 +1062,25 @@ WITH
         cfa LIKE '%vijayawada%' OR cfa = 'vjd', 'Vijayawada',
         cfa LIKE '%jaipur%', 'Jaipur',
         cfa LIKE '%lucknow%', 'Lucknow',
-        cfa LIKE '%chandigarh%', 'Chandigarh',
+        cfa LIKE '%chandigarh%' OR cfa LIKE '%baddi%', 'Chandigarh',
         cfa LIKE '%indore%', 'Indore',
         cfa LIKE '%nagpur%', 'Nagpur',
         cfa LIKE '%surat%', 'Surat',
         cfa LIKE '%patna%', 'Patna',
         cfa LIKE '%bhopal%', 'Bhopal',
         cfa LIKE '%coimbatore%', 'Coimbatore',
-        cfa LIKE '%guwahati%', 'Guwahati',
+        cfa LIKE '%guwahati%' OR cfa LIKE '%assam%', 'Guwahati',
         cfa LIKE '%visakhapatnam%' OR cfa LIKE '%vizag%', 'Visakhapatnam',
         cfa LIKE '%ghaziabad%', 'Ghaziabad',
         cfa LIKE '%noida%', 'Noida',
         cfa LIKE '%vadodara%' OR cfa LIKE '%baroda%', 'Vadodara',
         cfa LIKE '%kanpur%', 'Kanpur',
         cfa LIKE '%varanasi%', 'Varanasi',
-        cfa LIKE '%ludhiana%', 'Ludhiana',
+        cfa LIKE '%ludhiana%' OR cfa LIKE '%punjab%', 'Ludhiana',
         cfa LIKE '%agra%', 'Agra',
         cfa LIKE '%nashik%', 'Nashik',
         cfa LIKE '%ranchi%', 'Ranchi',
-        cfa LIKE '%bhubaneswar%', 'Bhubaneswar',
+        cfa LIKE '%bhubaneswar%' OR cfa LIKE '%bhubneshwar%', 'Bhubaneswar',
         cfa LIKE '%dehradun%', 'Dehradun',
         cfa LIKE '%raipur%', 'Raipur',
         cfa LIKE '%thiruvananthapuram%' OR cfa LIKE '%trivandrum%', 'Thiruvananthapuram',
@@ -1202,7 +1202,7 @@ WITH
 SELECT * 
 FROM best_transfers
 WHERE 1=1 ${cityFilterSql}
-ORDER BY safe100Pct DESC, distanceKm ASC, transferQty DESC
+ORDER BY if((toDoi + fromDoi) > 30, 1, 0) DESC, (toDoi + fromDoi) DESC
 LIMIT 500
 `;
 

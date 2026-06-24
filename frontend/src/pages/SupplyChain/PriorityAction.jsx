@@ -633,6 +633,7 @@ export default function PriorityAction() {
             setTrendData(null);
         }
     }, [activePO]);
+
     const getFilteredData = () => {
         if (activeTab === "prioritize-po") {
             // Apply priority client-side so it's super snappy
@@ -647,12 +648,6 @@ export default function PriorityAction() {
                     (item.skuName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (item.fromCfa || '').toLowerCase().includes(searchTerm.toLowerCase());
                 return matchesSearch;
-            }).sort((a, b) => {
-                if (!a || !b) return 0;
-                const aSurplus = ((a.doiFe || 0) + (a.doiBe || 0)) > 30 ? 1 : 0;
-                const bSurplus = ((b.doiFe || 0) + (b.doiBe || 0)) > 30 ? 1 : 0;
-                if (bSurplus !== aSurplus) return bSurplus - aSurplus;
-                return ((b.doiFe || 0) + (b.doiBe || 0)) - ((a.doiFe || 0) + (a.doiBe || 0));
             });
         } else {
             return surplusData.filter(item => {
@@ -669,6 +664,7 @@ export default function PriorityAction() {
     };
 
     const filteredData = getFilteredData();
+
 
     // Paginated subset calculations
     const startIndex = (currentPage - 1) * itemsPerPage;
