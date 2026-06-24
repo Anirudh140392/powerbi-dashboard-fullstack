@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     LayoutDashboard,
@@ -11,7 +11,8 @@ import {
     ChevronRight,
     User,
     Inbox,
-    RefreshCw
+    RefreshCw,
+    Image as ImageIcon
 } from "lucide-react";
 import { useAuth } from "../../utils/AuthContext";
 import AdminDashboard from "./tabs/AdminDashboard";
@@ -21,16 +22,31 @@ import AccessMapping from "./tabs/AccessMapping";
 import AllUsersTable from "./tabs/AllUsersTable";
 import NewRequests from "./tabs/NewRequests";
 import Updates from "./tabs/Updates";
+import CompanyLogo from "./tabs/CompanyLogo";
 
 const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState(() => {
         return sessionStorage.getItem("adminActiveTab") || "users";
     });
 
+    const [logoUrl, setLogoUrl] = useState(() => {
+        return localStorage.getItem("company_logo_url") || "";
+    });
+
     // Persist tab selection
-    React.useEffect(() => {
+    useEffect(() => {
         sessionStorage.setItem("adminActiveTab", activeTab);
     }, [activeTab]);
+
+    // Handle reactive update of company logo in sidebar
+    useEffect(() => {
+        const handleLogoUpdate = () => {
+            setLogoUrl(localStorage.getItem("company_logo_url") || "");
+        };
+        window.addEventListener("company_logo_updated", handleLogoUpdate);
+        return () => window.removeEventListener("company_logo_updated", handleLogoUpdate);
+    }, []);
+
     const { logout, user } = useAuth();
 
     const menuItems = [
@@ -38,7 +54,8 @@ const AdminPanel = () => {
         { id: "all-users", label: "All Users", icon: Users },
         { id: "roles", label: "Permissions", icon: ShieldAlert },
         { id: "new-requests", label: "New Requests", icon: Inbox },
-        { id: "updates", label: "Updates", icon: RefreshCw }
+        { id: "updates", label: "Updates", icon: RefreshCw },
+        { id: "company-logo", label: "Company Logo", icon: ImageIcon }
     ];
 
     const renderContent = () => {
@@ -48,6 +65,7 @@ const AdminPanel = () => {
             case "new-requests": return <NewRequests />;
             case "roles": return <RolesPermissions />;
             case "updates": return <Updates />;
+            case "company-logo": return <CompanyLogo />;
             default: return null;
         }
     };

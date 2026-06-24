@@ -423,6 +423,8 @@ export default function MarketShareAnalysis() {
                 deltaLabel: `${arrow} ${Math.abs(pctChange).toFixed(2)}% (${Number(prevShareVal).toFixed(2)}%)`,
                 extraChangeColor: pctChange >= 0 ? "green" : "red",
                 trend: msData.trend,
+                subCategoryShare: msData.subCategoryShare !== null && msData.subCategoryShare !== undefined ? `${Number(msData.subCategoryShare).toFixed(2)}%` : undefined,
+                prevSubCategoryShare: msData.prevSubCategoryShare !== null && msData.prevSubCategoryShare !== undefined ? `${Number(msData.prevSubCategoryShare).toFixed(2)}%` : undefined,
               };
             }
 
@@ -626,6 +628,7 @@ export default function MarketShareAnalysis() {
         onClose={() => setTrendsDrawer({ open: false, entity: '', dimension: '' })}
         selectedColumn={trendsDrawer.entity}
         selectedLevel={trendsDrawer.dimension}
+        showResellerFilter={false}
       />
     </div>
   );

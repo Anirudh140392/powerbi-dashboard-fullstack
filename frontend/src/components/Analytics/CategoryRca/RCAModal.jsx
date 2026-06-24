@@ -466,6 +466,7 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                 initialPlatform={platform}
                 defaultView="Competition"
                 brandOptions={brandOptions.filter(b => b !== 'All Brands')}
+                showResellerFilter={false}
             />
         </Dialog>
     );

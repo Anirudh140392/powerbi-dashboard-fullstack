@@ -4,6 +4,14 @@
  */
 
 import dayjs from 'dayjs';
+import isoWeek from 'dayjs/plugin/isoWeek.js';
+import weekOfYear from 'dayjs/plugin/weekOfYear.js';
+import customParseFormat from 'dayjs/plugin/customParseFormat.js';
+
+dayjs.extend(isoWeek);
+dayjs.extend(weekOfYear);
+dayjs.extend(customParseFormat);
+
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 import { getTableColumns, columnExists, resolveColumn } from '../utils/schemaHelper.js';
@@ -327,6 +335,19 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
 
     if (ownBrandsOnly === 'true' || ownBrandsOnly === true) {
         conditions.push(`${prefix}Comp_flag = 0`);
+    }
+
+    // Reseller_Name filter (DRL DB context only)
+    const dbName = getCurrentDbName();
+    if (dbName === 'drl') {
+        const resellerVal = filters.resellerName || filters.resellerNames;
+        if (resellerVal && resellerVal !== 'All' && resellerVal !== 'all') {
+            const rArr = Array.isArray(resellerVal) ? resellerVal : [resellerVal];
+            const filteredR = rArr.filter(r => r && r !== 'All' && r !== 'all');
+            if (filteredR.length > 0) {
+                conditions.push(`${prefix}Reseller_Name IN (${filteredR.map(r => `'${escapeStr(r)}'`).join(',')})`);
+            }
+        }
     }
 
     return conditions.length > 0 ? conditions.join(' AND ') : '1=1';
@@ -2359,6 +2380,21 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                 return { options: results.map(r => r.value).filter(Boolean) };
             }
 
+            if (filterType === 'resellerNames') {
+                const dbName = getCurrentDbName();
+                if (dbName === 'drl') {
+                    const query = `
+                        SELECT DISTINCT Reseller_Name as value
+                        FROM rb_pdp_olap
+                        WHERE Reseller_Name IS NOT NULL AND Reseller_Name != ''
+                        ORDER BY value
+                    `;
+                    const results = await queryClickHouse(query);
+                    return { options: results.map(r => r.value).filter(Boolean) };
+                }
+                return { options: [] };
+            }
+
             return { options: [] };
         } catch (error) {
             console.error('[getAvailabilityFilterOptions] Error:', error);
@@ -2522,7 +2558,7 @@ const getAvailabilityKpiTrends = async (filters) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            let { platform, brand, location, category, period = '1M', timeStep = 'daily', startDate: filterStart, endDate: filterEnd, dimension, dimensionValue } = filters;
+            let { platform, brand, location, category, period = '1M', timeStep = 'Daily', startDate: filterStart, endDate: filterEnd, dimension, dimensionValue } = filters;
 
             // Dimension overrides have been removed here.
             // The frontend explicitly sends all necessary filters.
@@ -2575,11 +2611,25 @@ const getAvailabilityKpiTrends = async (filters) => {
                 console.warn('[getAvailabilityKpiTrends] Could not check columns, using defaults:', colCheckErr.message);
             }
 
-            console.log(`[getAvailabilityKpiTrends] Querying for period ${currentStartDate.format('YYYY-MM-DD')} to ${currentEndDate.format('YYYY-MM-DD')}`);
+            // Determine Grouping for ClickHouse
+            let groupExpression;
+            const normTimeStep = timeStep && typeof timeStep === 'string'
+                ? timeStep.charAt(0).toUpperCase() + timeStep.slice(1).toLowerCase()
+                : 'Daily';
+
+            if (normTimeStep === 'Monthly') {
+                groupExpression = `formatDateTime(toDate(DATE), '%Y-%m-01')`;
+            } else if (normTimeStep === 'Weekly') {
+                groupExpression = `toYearWeek(toDate(DATE), 1)`;
+            } else { // Daily
+                groupExpression = `formatDateTime(toDate(DATE), '%Y-%m-%d')`;
+            }
+
+            console.log(`[getAvailabilityKpiTrends] Querying for period ${currentStartDate.format('YYYY-MM-DD')} to ${currentEndDate.format('YYYY-MM-DD')} with timeStep=${normTimeStep}`);
 
             const query = `
                 SELECT 
-                    DATE as ref_date,
+                    ${groupExpression} as date_group,
                     SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
                     SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
                     ${buyBoxSQL} as total_buybox_neno,
@@ -2592,13 +2642,17 @@ const getAvailabilityKpiTrends = async (filters) => {
                     AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
-                GROUP BY DATE
-                ORDER BY DATE ASC
+                GROUP BY date_group
+                ORDER BY date_group ASC
             `;
 
             const results = await queryClickHouse(query);
 
-            const timeSeries = results.map(row => {
+            const buckets = generateTimeBuckets(currentStartDate, currentEndDate, normTimeStep);
+
+            const timeSeries = buckets.map(bucket => {
+                const row = results.find(r => String(r.date_group) === String(bucket.groupKey)) || {};
+
                 const neno = parseFloat(row.total_neno) || 0;
                 const deno = parseFloat(row.total_deno) || 0;
                 const buyboxNeno = parseFloat(row.total_buybox_neno) || 0;
@@ -2607,7 +2661,7 @@ const getAvailabilityKpiTrends = async (filters) => {
                 const osa = deno > 0 ? (neno / deno) * 100 : 0;
                 const fillrate = deno > 0 ? (buyboxNeno / deno) * 100 : 0;
                 const listing = parseFloat(row.avg_listing_percent) || 0;
-                const delivery = row.avg_delivery_days !== null ? parseFloat(row.avg_delivery_days) : 0;
+                const delivery = row.avg_delivery_days !== null && row.avg_delivery_days !== undefined ? parseFloat(row.avg_delivery_days) : 0;
 
                 const totalSales = parseFloat(row.sum_sales) || 0;
                 const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
@@ -2619,7 +2673,7 @@ const getAvailabilityKpiTrends = async (filters) => {
                 const doi = drr > 0 ? totalInventory / drr : 0;
 
                 return {
-                    date: dayjs(row.ref_date).format("DD MMM'YY"),
+                    date: bucket.label,
                     Osa: parseFloat(osa.toFixed(1)),
                     Doi: parseFloat(doi.toFixed(1)),
                     Fillrate: parseFloat(fillrate.toFixed(1)),
@@ -2848,6 +2902,68 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
     }
 };
 
+const generateTimeBuckets = (startDate, endDate, timeStep) => {
+    const buckets = [];
+    let current = startDate.clone().startOf('day');
+    const end = endDate.clone().endOf('day');
+
+    while (current.isBefore(end) || current.isSame(end, 'day')) {
+        let label;
+        let groupKey;
+
+        if (timeStep === 'Monthly') {
+            label = current.format("DD MMM'YY");
+            groupKey = current.format('YYYY-MM-01');
+            current = current.add(1, 'month');
+        } else if (timeStep === 'Weekly') {
+            label = current.format("DD MMM'YY");
+            const year = current.isoWeekYear();
+            const week = current.isoWeek();
+            groupKey = year * 100 + week;
+            current = current.add(1, 'week');
+        } else { // Daily
+            label = current.format("DD MMM'YY");
+            groupKey = current.format('YYYY-MM-DD');
+            current = current.add(1, 'day');
+        }
+
+        buckets.push({
+            label,
+            groupKey,
+            date: current.clone().subtract(1, timeStep === 'Daily' ? 'day' : timeStep === 'Weekly' ? 'week' : 'month').toDate()
+        });
+    }
+
+    if (buckets.length > 0) {
+        const lastBucket = buckets[buckets.length - 1];
+        let endGroupKey;
+        let endLabel;
+
+        if (timeStep === 'Monthly') {
+            endGroupKey = endDate.format('YYYY-MM-01');
+            endLabel = endDate.format("DD MMM'YY");
+        } else if (timeStep === 'Weekly') {
+            const year = endDate.isoWeekYear();
+            const week = endDate.isoWeek();
+            endGroupKey = year * 100 + week;
+            endLabel = endDate.format("DD MMM'YY");
+        } else {
+            endGroupKey = endDate.format('YYYY-MM-DD');
+            endLabel = endDate.format("DD MMM'YY");
+        }
+
+        if (String(lastBucket.groupKey) !== String(endGroupKey)) {
+            buckets.push({
+                label: endLabel,
+                groupKey: endGroupKey,
+                date: endDate.toDate()
+            });
+        }
+    }
+
+    return buckets;
+};
+
 const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
     console.log('[getAvailabilityCompetitionBrandTrends] Request with filters:', filters);
 
@@ -2855,7 +2971,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            let { brands = 'All', location = 'All', category = 'All', period = '1M', startDate: fStart, endDate: fEnd } = filters;
+            let { brands = 'All', location = 'All', category = 'All', period = '1M', startDate: fStart, endDate: fEnd, timeStep = 'Daily' } = filters;
             if (location === 'All India') location = 'All';
 
             let brandList = [];
@@ -2912,10 +3028,20 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
 
             const whereClause = await buildAvailabilityWhereClause({ ...filters, startDate, endDate });
 
+            // Determine Grouping for ClickHouse
+            let groupExpression;
+            if (timeStep === 'Monthly') {
+                groupExpression = `formatDateTime(toDate(DATE), '%Y-%m-01')`;
+            } else if (timeStep === 'Weekly') {
+                groupExpression = `toYearWeek(toDate(DATE), 1)`;
+            } else { // Daily
+                groupExpression = `formatDateTime(toDate(DATE), '%Y-%m-%d')`;
+            }
+
             const query = `
                 SELECT 
                     Brand,
-                    DATE as ref_date,
+                    ${groupExpression} as date_group,
                     SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
                     SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
                     SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
@@ -2926,18 +3052,14 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                   AND Brand IN (${brandList.map(b => `'${escapeStr(b)}'`).join(',')})
-                GROUP BY Brand, DATE
-                ORDER BY DATE ASC
+                GROUP BY Brand, date_group
+                ORDER BY date_group ASC
             `;
 
             const results = await queryClickHouse(query);
 
-            // Get all unique dates in the results
-            const uniqueDates = Array.from(new Set(results.map(r => dayjs(r.ref_date).format("DD MMM'YY")))).sort((a, b) => {
-                const dateA = dayjs(a, "DD MMM'YY");
-                const dateB = dayjs(b, "DD MMM'YY");
-                return dateA.diff(dateB);
-            });
+            const buckets = generateTimeBuckets(startDate, endDate, timeStep);
+            const uniqueDates = buckets.map(b => b.label);
 
             // Prepare the response in the format expected by TrendView
             const response = {
@@ -2963,10 +3085,9 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
             // Map results into the prefilled response arrays
             results.forEach(row => {
                 const brandName = row.Brand;
-                const dateStr = dayjs(row.ref_date).format("DD MMM'YY");
-                const dateIndex = uniqueDates.indexOf(dateStr);
+                const bucketIndex = buckets.findIndex(b => String(b.groupKey) === String(row.date_group));
 
-                if (dateIndex !== -1 && response.osa[brandName]) {
+                if (bucketIndex !== -1 && response.osa[brandName]) {
                     const neno = parseFloat(row.total_neno) || 0;
                     const deno = parseFloat(row.total_deno) || 0;
                     const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
@@ -2981,11 +3102,11 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                     // PSL = (SUM(Sales) / (OSA_Percentage / 100)) - SUM(Sales)  [currency format]
                     const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
 
-                    response.osa[brandName][dateIndex] = parseFloat(osa.toFixed(1));
-                    response.listing[brandName][dateIndex] = parseFloat(listing.toFixed(1));
-                    response.assortment[brandName][dateIndex] = dailyUniquePids;
-                    response.doi[brandName][dateIndex] = parseFloat(doi.toFixed(1));
-                    response.psl[brandName][dateIndex] = parseFloat(psl.toFixed(2));
+                    response.osa[brandName][bucketIndex] = parseFloat(osa.toFixed(1));
+                    response.listing[brandName][bucketIndex] = parseFloat(listing.toFixed(1));
+                    response.assortment[brandName][bucketIndex] = dailyUniquePids;
+                    response.doi[brandName][bucketIndex] = parseFloat(doi.toFixed(1));
+                    response.psl[brandName][bucketIndex] = parseFloat(psl.toFixed(2));
                 }
             });
 
@@ -3004,7 +3125,7 @@ const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            let { skus = 'All', location = 'All', category = 'All', period = '1M', startDate: fStart, endDate: fEnd } = filters;
+            let { skus = 'All', location = 'All', category = 'All', period = '1M', startDate: fStart, endDate: fEnd, timeStep = 'Daily' } = filters;
             if (location === 'All India') location = 'All';
 
             let skuList = [];
@@ -3061,10 +3182,20 @@ const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
 
             const whereClause = await buildAvailabilityWhereClause({ ...filters, startDate, endDate });
 
+            // Determine Grouping for ClickHouse
+            let groupExpression;
+            if (timeStep === 'Monthly') {
+                groupExpression = `formatDateTime(toDate(DATE), '%Y-%m-01')`;
+            } else if (timeStep === 'Weekly') {
+                groupExpression = `toYearWeek(toDate(DATE), 1)`;
+            } else { // Daily
+                groupExpression = `formatDateTime(toDate(DATE), '%Y-%m-%d')`;
+            }
+
             const query = `
                 SELECT 
                     Product,
-                    DATE as ref_date,
+                    ${groupExpression} as date_group,
                     SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
                     SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
                     SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
@@ -3075,18 +3206,14 @@ const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                   AND Product IN (${skuList.map(s => `'${escapeStr(s)}'`).join(',')})
-                GROUP BY Product, DATE
-                ORDER BY DATE ASC
+                GROUP BY Product, date_group
+                ORDER BY date_group ASC
             `;
 
             const results = await queryClickHouse(query);
 
-            // Get all unique dates in the results
-            const uniqueDates = Array.from(new Set(results.map(r => dayjs(r.ref_date).format("DD MMM'YY")))).sort((a, b) => {
-                const dateA = dayjs(a, "DD MMM'YY");
-                const dateB = dayjs(b, "DD MMM'YY");
-                return dateA.diff(dateB);
-            });
+            const buckets = generateTimeBuckets(startDate, endDate, timeStep);
+            const uniqueDates = buckets.map(b => b.label);
 
             // Prepare response keyed by SKU name
             const response = {
@@ -3112,10 +3239,9 @@ const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
             // Map results into the prefilled response arrays
             results.forEach(row => {
                 const skuName = row.Product;
-                const dateStr = dayjs(row.ref_date).format("DD MMM'YY");
-                const dateIndex = uniqueDates.indexOf(dateStr);
+                const bucketIndex = buckets.findIndex(b => String(b.groupKey) === String(row.date_group));
 
-                if (dateIndex !== -1 && response.osa[skuName]) {
+                if (bucketIndex !== -1 && response.osa[skuName]) {
                     const neno = parseFloat(row.total_neno) || 0;
                     const deno = parseFloat(row.total_deno) || 0;
                     const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
@@ -3128,11 +3254,11 @@ const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
                     const totalSales = parseFloat(row.total_sales) || 0;
                     const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
 
-                    response.osa[skuName][dateIndex] = parseFloat(osa.toFixed(1));
-                    response.listing[skuName][dateIndex] = parseFloat(listing.toFixed(1));
-                    response.assortment[skuName][dateIndex] = dailyUniquePids;
-                    response.doi[skuName][dateIndex] = parseFloat(doi.toFixed(1));
-                    response.psl[skuName][dateIndex] = parseFloat(psl.toFixed(2));
+                    response.osa[skuName][bucketIndex] = parseFloat(osa.toFixed(1));
+                    response.listing[skuName][bucketIndex] = parseFloat(listing.toFixed(1));
+                    response.assortment[skuName][bucketIndex] = dailyUniquePids;
+                    response.doi[skuName][bucketIndex] = parseFloat(doi.toFixed(1));
+                    response.psl[skuName][bucketIndex] = parseFloat(psl.toFixed(2));
                 }
             });
 

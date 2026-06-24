@@ -440,7 +440,8 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             endDate: req.query.endDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
             dimension: req.query.dimension,
-            dimensionValue: req.query.dimensionValue
+            dimensionValue: req.query.dimensionValue,
+            resellerName: parseFilter(req.query.resellerName)
         };
         console.log('\n========== AVAILABILITY KPI TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -472,7 +473,8 @@ export const getAvailabilityCompetition = async (req, res) => {
             period: req.query.period || '1M',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            ownBrandsOnly: req.query.ownBrandsOnly
+            ownBrandsOnly: req.query.ownBrandsOnly,
+            resellerName: parseFilter(req.query.resellerName)
         };
         console.log('\n========== AVAILABILITY COMPETITION API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -523,9 +525,9 @@ export const getAvailabilityCompetitionFilterOptions = async (req, res) => {
  */
 export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
     try {
-        const { brands, location, category, period, startDate, endDate, channel } = { ...req.query, ...req.body };
+        const { brands, location, category, period, startDate, endDate, channel, timeStep } = { ...req.query, ...req.body };
         console.log('\n========== AVAILABILITY COMPETITION BRAND TRENDS API ==========');
-        console.log('[REQUEST] brands:', brands, 'location:', location, 'category:', category, 'period:', period, 'startDate:', startDate, 'endDate:', endDate);
+        console.log('[REQUEST] brands:', brands, 'location:', location, 'category:', category, 'period:', period, 'startDate:', startDate, 'endDate:', endDate, 'timeStep:', timeStep);
 
         const data = await availabilityService.getAvailabilityCompetitionBrandTrends({
             brands: parseFilter(brands || 'All'),
@@ -534,7 +536,9 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
             period: period || '1M',
             channel: channel,
             startDate,
-            endDate
+            endDate,
+            timeStep: timeStep || 'Daily',
+            resellerName: parseFilter(req.query.resellerName || req.body.resellerName)
         });
 
         console.log('[RESPONSE]:', Object.keys(data.timeSeries || {}).length, 'brands with trends');
@@ -553,9 +557,9 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
  */
 export const getAvailabilityCompetitionSkuTrends = async (req, res) => {
     try {
-        const { skus, location, category, period, startDate, endDate, channel } = { ...req.query, ...req.body };
+        const { skus, location, category, period, startDate, endDate, channel, timeStep } = { ...req.query, ...req.body };
         console.log('\n========== AVAILABILITY COMPETITION SKU TRENDS API ==========');
-        console.log('[REQUEST] skus:', skus, 'location:', location, 'category:', category, 'period:', period);
+        console.log('[REQUEST] skus:', skus, 'location:', location, 'category:', category, 'period:', period, 'timeStep:', timeStep);
 
         const data = await availabilityService.getAvailabilityCompetitionSkuTrends({
             skus: parseFilter(skus || 'All'),
@@ -564,7 +568,9 @@ export const getAvailabilityCompetitionSkuTrends = async (req, res) => {
             period: period || '1M',
             channel: channel,
             startDate,
-            endDate
+            endDate,
+            timeStep: timeStep || 'Daily',
+            resellerName: parseFilter(req.query.resellerName || req.body.resellerName)
         });
 
         console.log('[RESPONSE]:', Object.keys(data.osa || {}).length, 'SKUs with trends');

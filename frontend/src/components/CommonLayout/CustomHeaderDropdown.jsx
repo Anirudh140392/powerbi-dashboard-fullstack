@@ -229,7 +229,7 @@ const CustomHeaderDropdown = ({
                             >
                                 <Checkbox
                                     size="small"
-                                    checked={currentSelected.length === options.length && options.length > 0}
+                                    checked={currentSelected.length === options.length && currentSelected.length > 0}
                                     indeterminate={currentSelected.length > 0 && currentSelected.length < options.length}
                                     sx={{ p: 0.5 }}
                                 />

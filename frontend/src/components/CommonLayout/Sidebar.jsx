@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+
+// Import system-default client logos for preview fallback
 import trailLogo from "../../assets/trailytics.png";
 import marsLogo from "../../assets/mars2.svg";
 import mamaearthLogo from "../../assets/mamaearth.jpeg";
@@ -18,6 +20,30 @@ import drlLogo from "../../assets/drl.png";
 import emamiLogo from "../../assets/emami.jpg";
 import amazonDeviceLogo from "../../assets/amazondevice.jpeg";
 import hmstahlLogo from "../../assets/hmstahl.jpeg";
+
+const getStaticFallbackLogo = (dbName) => {
+    const name = String(dbName || '').toLowerCase().trim();
+    if (name === 'mamaearth') return mamaearthLogo;
+    if (name === 'mars_petcare') return marsPetcareLogo;
+    if (name === 'mars_dmart') return marsLogo; // use marsLogo since marsDmartLogo was imported as mars2.svg
+    if (name === 'boat') return boatLogo;
+    if (name === 'zydus' || name === 'hm_zydus') return zydusLogo;
+    if (name === 'demo') return demoLogo;
+    if (name === 'sugar') return sugarLogo;
+    if (name === 'pidilite') return pidiliteLogo;
+    if (name === 'trailytics') return trailLogo;
+    if (name === 'cheffin') return cheffinLogo;
+    if (name === 'hm_titan_bags') return fastrackLogo;
+    if (name === 'hm_titan_skinn') return titanSkinLogo;
+    if (name === 'hm_titan_perfume') return titanPerfumeLogo;
+    if (name === 'drl') return drlLogo;
+    if (name === 'emami') return emamiLogo;
+    if (name === 'mars') return marsLogo;
+    if (name === 'hm_amz_dev') return amazonDeviceLogo;
+    if (name === 'hm_stahl') return hmstahlLogo;
+    return null;
+};
+
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -108,6 +134,47 @@ const SidebarStatusBadge = ({ type }) => {
   );
 };
 
+const getLogoDimensions = (dbName, isCollapsed) => {
+  const name = String(dbName || '').toLowerCase().trim();
+  if (isCollapsed) {
+    return { containerHeight: 50, imageHeight: '32px', imageWidth: '100%', maxWidth: '42px' };
+  }
+  
+  // Default sizes for specific databases (when expanded)
+  let containerHeight = 110;
+  let imageHeight = '100px';
+  let maxWidth = '230px';
+
+  if (name === 'mars_petcare') {
+    containerHeight = 160;
+    imageHeight = '150px';
+    maxWidth = '240px';
+  } else if (name === 'hm_titan_skinn' || name === 'hm_titan_perfume') {
+    containerHeight = 130;
+    imageHeight = '120px';
+    maxWidth = '240px';
+  } else if (name === 'mamaearth') {
+    containerHeight = 120;
+    imageHeight = '110px';
+    maxWidth = '240px';
+  } else if (name === 'boat') {
+    containerHeight = 110;
+    imageHeight = '100px';
+    maxWidth = '230px';
+  } else if (name === 'zydus' || name === 'hm_zydus' || name === 'hm_titan_bags' || name === 'emami' || name === 'sugar' || name === 'pidilite' || name === 'cheffin' || name === 'drl' || name === 'hm_amz_dev' || name === 'hm_stahl') {
+    containerHeight = 110;
+    imageHeight = '100px';
+    maxWidth = '230px';
+  } else {
+    // Default fallback
+    containerHeight = 100;
+    imageHeight = '90px';
+    maxWidth = '210px';
+  }
+
+  return { containerHeight, imageHeight, imageWidth: 'auto', maxWidth };
+};
+
 
 
 const Sidebar = ({
@@ -135,6 +202,55 @@ const Sidebar = ({
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuth();
+  console.log("DEBUG_SIDEBAR: user=", user);
+
+  const [dbLogoUrl, setDbLogoUrl] = useState(() => {
+    return user?.dbLogoUrl || "";
+  });
+
+  useEffect(() => {
+    const handleLogoUpdate = () => {
+      const updatedUser = sessionStorage.getItem("user");
+      if (updatedUser) {
+        try {
+          const parsed = JSON.parse(updatedUser);
+          setDbLogoUrl(parsed.dbLogoUrl || "");
+        } catch (e) {}
+      }
+    };
+    window.addEventListener("company_logo_updated", handleLogoUpdate);
+    return () => window.removeEventListener("company_logo_updated", handleLogoUpdate);
+  }, []);
+
+  useEffect(() => {
+    setDbLogoUrl(user?.dbLogoUrl || "");
+
+    const fetchLatestLogo = async () => {
+      const token = sessionStorage.getItem("token");
+      if (token) {
+        try {
+          const response = await fetch("/api/auth/verify", {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const data = await response.json();
+          if (data.success && data.user?.dbLogoUrl) {
+            setDbLogoUrl(data.user.dbLogoUrl);
+            const currentUserStr = sessionStorage.getItem("user");
+            if (currentUserStr) {
+              try {
+                const currentUser = JSON.parse(currentUserStr);
+                currentUser.dbLogoUrl = data.user.dbLogoUrl;
+                sessionStorage.setItem("user", JSON.stringify(currentUser));
+              } catch (e) {}
+            }
+          }
+        } catch (err) {
+          console.warn("[Sidebar] Failed to fetch latest logo:", err);
+        }
+      }
+    };
+    fetchLatestLogo();
+  }, [user]);
 
   // Dynamic logo based on user's database
   const activeLogo = useMemo(() => {
@@ -178,6 +294,10 @@ const Sidebar = ({
     if (user?.dbName === 'hm_stahl') return 'HM Stahl Logo';
     return 'Mars Logo';
   }, [user?.dbName]);
+
+  const logoDimensions = useMemo(() => {
+    return getLogoDimensions(user?.dbName, isCollapsed);
+  }, [user?.dbName, isCollapsed]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
@@ -322,7 +442,7 @@ const Sidebar = ({
             justifyContent: 'center',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             width: '100%',
-            height: isCollapsed ? 50 : (user?.dbName === 'mars_petcare' ? 150 : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? 120 : (user?.dbName === 'mamaearth' ? 100 : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami' || user?.dbName === 'hm_amz_dev' || user?.dbName === 'hm_stahl') ? 80 : (user?.dbName === 'sugar' ? 80 : (user?.dbName === 'pidilite' ? 80 : (user?.dbName === 'cheffin' ? 80 : (user?.dbName === 'drl' ? 80 : 60)))))))),
+            height: logoDimensions.containerHeight,
           }}
         >
           <Box
@@ -337,14 +457,14 @@ const Sidebar = ({
               filter: 'drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.05))'
             }}
           >
-            {user?.dbName !== 'mars' && (
+            {dbLogoUrl || activeLogo ? (
               <img
-                src={activeLogo}
+                src={dbLogoUrl || activeLogo}
                 alt={activeLogoAlt}
                 style={{
-                  maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mars_petcare' ? '150px' : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? '120px' : (user?.dbName === 'mamaearth' ? '100px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami' || user?.dbName === 'hm_amz_dev' || user?.dbName === 'hm_stahl') ? '80px' : (user?.dbName === 'sugar' ? '80px' : (user?.dbName === 'pidilite' ? '80px' : (user?.dbName === 'cheffin' ? '80px' : (user?.dbName === 'drl' ? '80px' : '45px')))))))),
-                  width: isCollapsed ? '100%' : 'auto',
-                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mars_petcare' ? '250px' : ((user?.dbName === 'hm_titan_skinn' || user?.dbName === 'hm_titan_perfume') ? '240px' : (user?.dbName === 'mamaearth' ? '240px' : ((user?.dbName === 'zydus' || user?.dbName === 'hm_zydus' || user?.dbName === 'hm_titan_bags' || user?.dbName === 'emami' || user?.dbName === 'hm_amz_dev' || user?.dbName === 'hm_stahl') ? '220px' : (user?.dbName === 'sugar' ? '220px' : (user?.dbName === 'pidilite' ? '220px' : (user?.dbName === 'cheffin' ? '220px' : (user?.dbName === 'drl' ? '220px' : '180px')))))))),
+                  maxHeight: logoDimensions.imageHeight,
+                  width: logoDimensions.imageWidth,
+                  maxWidth: logoDimensions.maxWidth,
                   objectFit: 'contain',
                   padding: '0',
                   display: 'block',
@@ -352,23 +472,50 @@ const Sidebar = ({
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
               />
-            )}
-
-            {user?.dbName === 'mars' && (
-              <img
-                src={marsLogo}
-                alt="Mars Logo"
-                style={{
-                  maxHeight: isCollapsed ? '32px' : '45px',
-                  width: isCollapsed ? '100%' : 'auto',
-                  maxWidth: isCollapsed ? '42px' : '180px',
-                  objectFit: 'contain',
-                  padding: '0',
-                  display: 'block',
-                  borderRadius: '2px',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                }}
-              />
+            ) : (
+              !isCollapsed ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Box sx={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '8px',
+                    backgroundColor: '#4f46e5',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffffff',
+                    fontWeight: 'bold',
+                    fontSize: '1rem',
+                    boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)'
+                  }}>
+                    {user?.dbName ? user.dbName.charAt(0).toUpperCase() : 'C'}
+                  </Box>
+                  <Typography sx={{
+                    fontWeight: 800,
+                    fontSize: '14px',
+                    color: '#1e293b',
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase'
+                  }}>
+                    {user?.dbName ? user.dbName.replace(/_/g, ' ') : 'Client'}
+                  </Typography>
+                </Box>
+              ) : (
+                <Box sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '6px',
+                  backgroundColor: '#4f46e5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ffffff',
+                  fontWeight: 'bold',
+                  fontSize: '0.9rem'
+                }}>
+                  {user?.dbName ? user.dbName.charAt(0).toUpperCase() : 'C'}
+                </Box>
+              )
             )}
           </Box>
         </Box>
