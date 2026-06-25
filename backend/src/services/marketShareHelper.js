@@ -406,6 +406,22 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
+        const tier1Cities = [
+            'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+            'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+        ];
+        let hasTier23 = false;
+        if (locationArr && locationArr.length > 0) {
+            hasTier23 = locationArr.some(loc => {
+                const lowerLoc = String(loc).trim().toLowerCase();
+                if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+                return !tier1Cities.includes(lowerLoc);
+            });
+        }
+        if (hasTier23) {
+            return new Map();
+        }
+
         const platformCond = buildPlatformChannelCondForMs(platformFilter, channelFilter, 'platform');
 
         let locationCond = '';
