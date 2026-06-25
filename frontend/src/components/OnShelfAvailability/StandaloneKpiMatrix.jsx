@@ -99,6 +99,7 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
     const [selectedSubCat, setSelectedSubCat] = useState([]); // Array for multi-select
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
+    const lastFetchedRef = useRef(null);
 
     // Backend data state
     const [subCategories, setSubCategories] = useState([]);
@@ -136,6 +137,14 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
     // Fetch sub-category KPI data from backend
     useEffect(() => {
         const fetchSubCategoryKpi = async () => {
+            const subCategoryParam = selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined;
+            const brandParam = selectedBrand === 'All' ? 'all' : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand || 'all');
+            const paramKey = `${platform || 'All'}-${selectedCategory || 'All'}-${subCategoryParam || 'all'}-${brandParam}-${timeStart ? timeStart.format("YYYYMMDD") : ''}-${timeEnd ? timeEnd.format("YYYYMMDD") : ''}`;
+
+            if (lastFetchedRef.current === paramKey) {
+                return;
+            }
+
             setDataLoading(true);
             try {
                 const params = {
@@ -146,7 +155,7 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
                     endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
                     compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
                     compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
-                    subCategory: selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined,
+                    subCategory: subCategoryParam,
                     brand: selectedBrand === 'All' ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
                 };
 
@@ -162,8 +171,14 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
                         setBrandsData(brands);
                     }
                     // Set default selected sub-category on first load if none selected
-                    if (selectedSubCat.length === 0 && selectedSubCategory) {
-                        setSelectedSubCat(Array.isArray(selectedSubCategory) ? selectedSubCategory : [selectedSubCategory]);
+                    if (selectedSubCat.length === 0 && selectedSubCategory && selectedSubCategory.length > 0) {
+                        const defaultSelection = Array.isArray(selectedSubCategory) ? selectedSubCategory : [selectedSubCategory];
+                        const newSubCatParam = defaultSelection.join(",");
+                        const newParamKey = `${platform || 'All'}-${selectedCategory || 'All'}-${newSubCatParam}-${brandParam}-${timeStart ? timeStart.format("YYYYMMDD") : ''}-${timeEnd ? timeEnd.format("YYYYMMDD") : ''}`;
+                        lastFetchedRef.current = newParamKey;
+                        setSelectedSubCat(defaultSelection);
+                    } else {
+                        lastFetchedRef.current = paramKey;
                     }
                 }
             } catch (error) {
