@@ -870,6 +870,29 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
   const { selectedRank: globalRank, compareStart, compareEnd } = useContext(FilterContext);
   const [localRank, setLocalRank] = useState(globalRank || 'Top 10');
 
+  // Dynamic rank options fetched from DB (max position)
+  const [rankOptions, setRankOptions] = useState(RANK_OPTIONS);
+
+  useEffect(() => {
+    axiosInstance.get('/visibility-analysis/max-position')
+      .then(res => {
+        if (res.data && typeof res.data.maxPos === 'number' && res.data.maxPos > 0) {
+          const maxPos = res.data.maxPos;
+          let ranks = [{ label: 'Top 10', value: 'Top 10' }];
+          if (maxPos > 10) ranks.push({ label: 'Top 20', value: 'Top 20' });
+          if (maxPos > 20) ranks.push({ label: 'Top 30', value: 'Top 30' });
+          if (maxPos > 30) ranks.push({ label: 'Top 40', value: 'Top 40' });
+          setRankOptions(ranks);
+
+          // Validate current rank selection
+          if (localRank && !ranks.some(r => r.value === localRank)) {
+            setLocalRank(ranks[ranks.length - 1].value);
+          }
+        }
+      })
+      .catch(err => console.error('[TrendView] Error fetching max-position:', err));
+  }, []);
+
   // Keep local rank in sync with global filter context (from sidebar/drawer)
   useEffect(() => {
     if (globalRank) {
@@ -1126,7 +1149,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
                 minWidth: 130,
               }}
             >
-              {RANK_OPTIONS.map(opt => (
+              {rankOptions.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
@@ -1196,6 +1219,29 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
 
   const { selectedRank: globalRank, compareStart, compareEnd } = useContext(FilterContext);
   const [localRank, setLocalRank] = useState(globalRank || 'All');
+
+  // Dynamic rank options fetched from DB (max position)
+  const [rankOptions, setRankOptions] = useState(RANK_OPTIONS);
+
+  useEffect(() => {
+    axiosInstance.get('/visibility-analysis/max-position')
+      .then(res => {
+        if (res.data && typeof res.data.maxPos === 'number' && res.data.maxPos > 0) {
+          const maxPos = res.data.maxPos;
+          let ranks = [{ label: 'Top 10', value: 'Top 10' }];
+          if (maxPos > 10) ranks.push({ label: 'Top 20', value: 'Top 20' });
+          if (maxPos > 20) ranks.push({ label: 'Top 30', value: 'Top 30' });
+          if (maxPos > 30) ranks.push({ label: 'Top 40', value: 'Top 40' });
+          setRankOptions(ranks);
+
+          // Validate current rank selection
+          if (localRank && localRank !== 'All' && !ranks.some(r => r.value === localRank)) {
+            setLocalRank(ranks[ranks.length - 1].value);
+          }
+        }
+      })
+      .catch(err => console.error('[KpiCompareView] Error fetching max-position:', err));
+  }, []);
 
   const activeKpiKeys = useMemo(() => getKpiKeys(mode, filters), [mode, filters]);
 
@@ -1388,7 +1434,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
                 minWidth: 130,
               }}
             >
-              {RANK_OPTIONS.map(opt => (
+              {rankOptions.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
