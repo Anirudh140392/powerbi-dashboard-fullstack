@@ -204,7 +204,6 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
                         activeTab={reportType}
                         onChange={(t) => {
                             setReportType(t);
-                            setExpandedRows([]);
                         }}
                     />
                 </div>
