@@ -246,12 +246,12 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
             animate={{ opacity: 1, y: 0 }}
         >
             {/* Header */}
-            <div className="px-6 py-6 flex items-center justify-between">
+            <div className="px-6 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-xl font-bold text-slate-900">Market Visibility & Share</h2>
                     <p className="text-[13px] text-slate-500 mt-0.5">Hover on any value to see trend sparkline.</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                     <div className="relative" ref={dropdownRef}>
                         <button
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -312,8 +312,8 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
                         </AnimatePresence>
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                    <div className="flex items-center gap-2">
+                    <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Healthy
                         </span>

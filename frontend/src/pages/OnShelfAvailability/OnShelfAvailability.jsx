@@ -224,7 +224,7 @@ export default function OnShelfAvailability() {
         filters={filters}
         onFiltersChange={handleFiltersChange}
       >
-        <div className="max-w-7xl mx-auto space-y-5">
+        <div className="w-full space-y-5">
           {/* Segment 1: Market Coverage Analysis */}
           <StandaloneOsaOverview filters={filters} loading={isLoading} />
 

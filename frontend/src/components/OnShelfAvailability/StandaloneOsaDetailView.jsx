@@ -225,7 +225,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                 <div className="flex-1 overflow-auto p-0 pr-0">
                     <div className="rounded-3xl border bg-white p-4 shadow">
                         {/* Title + Legend */}
-                        <div className="mb-4 flex items-center justify-between font-bold text-slate-900">
+                        <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-bold text-slate-900">
                             <div className="flex flex-col gap-0.5">
                                 <div className="text-base font-semibold text-slate-900">
                                     OSA % Detail View
@@ -235,7 +235,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-3">
                                 {/* Filter Button */}
                                 <button
                                     onClick={() => setShowFilterPanel(true)}
@@ -246,7 +246,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                 </button>
 
                                 {/* Status Legend - Moved from body */}
-                                <div className="flex items-center gap-2 ml-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-100">
                                         <span className="h-2 w-2 rounded-full bg-emerald-500" /> Healthy
                                     </span>
