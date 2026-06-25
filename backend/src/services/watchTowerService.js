@@ -5308,10 +5308,11 @@ const getPlatformOverview = async (filters) => {
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`lower(keyword_category) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
         }
-        // Apply brand filter (rb_kw_olap uses brand column)
-        if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `lower(brand) LIKE lower('%${escapeStr(b)}%')`).join(' OR ')})`);
-        }
+        // NOTE: Do NOT apply brand filter here for SOS/Ad SOV/Organic SOV.
+        // SOS numerator uses flag='1' to identify our brands, and the denominator
+        // must count ALL brands to compute market share of search correctly.
+        // Applying a brand LIKE filter here would restrict both numerator and
+        // denominator to the same brand, always yielding 100%.
 
         // Apply platform filter (rb_kw_olap uses platform_name column)
         if (platformArr && platformArr.length > 0) {
@@ -5375,6 +5376,17 @@ const getPlatformOverview = async (filters) => {
 
     console.log('[getPlatformOverview] Executing ClickHouse platform queries with SOS and Market Share...');
 
+    // Build the SOS/SOV numerator condition: when a specific brand is selected,
+    // filter by that brand name in the numerator; otherwise use flag='1' for all our brands.
+    // This mirrors the pattern in computeSummaryMetrics.
+    let sosNumCondition;
+    if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+        const brandConds = brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
+        sosNumCondition = `lower(brand) IN (${brandConds})`;
+    } else {
+        sosNumCondition = "toString(flag) = '1'";
+    }
+
     const [currData, prevData, currPmData, prevPmData, currSosOurBrands, currSosTotal, prevSosOurBrands, prevSosTotal, currMsNum, currMsDenom, prevMsNum, prevMsDenom, currCatSizeByPlatform, prevCatSizeByPlatform, currAdSovOur, currAdSovTotal, prevAdSovOur, prevAdSovTotal, currOrgSovOur, currOrgSovTotal, prevOrgSovOur, prevOrgSovTotal] = await Promise.all([
         // Query 1: Current period offtake metrics by platform
         queryClickHouse(`
@@ -5430,9 +5442,9 @@ const getPlatformOverview = async (filters) => {
                     WHERE ${prevPmConds}
                     GROUP BY Platform
                 `),
-        // Query 3: Current SOS - sumIf(overall) and sum(overall) per platform (flag=0 for our brands)
+        // Query 3: Current SOS - sumIf(overall) per platform (our brands via sosNumCondition)
         queryClickHouse(`
-                    SELECT platform_name, sumIf(toInt32(overall), toString(flag) = '1') as count
+                    SELECT platform_name, sumIf(toInt32(overall), ${sosNumCondition}) as count
                     FROM rb_kw_olap
                     WHERE ${currSosConds}
                     GROUP BY platform_name
@@ -5444,9 +5456,9 @@ const getPlatformOverview = async (filters) => {
                     WHERE ${currSosConds}
                     GROUP BY platform_name
                 `),
-        // Query 5: Previous SOS - sumIf(overall) per platform (flag=0 for our brands)
+        // Query 5: Previous SOS - sumIf(overall) per platform (our brands via sosNumCondition)
         queryClickHouse(`
-                    SELECT platform_name, sumIf(toInt32(overall), toString(flag) = '1') as count
+                    SELECT platform_name, sumIf(toInt32(overall), ${sosNumCondition}) as count
                     FROM rb_kw_olap
                     WHERE ${prevSosConds}
                     GROUP BY platform_name
@@ -5500,9 +5512,9 @@ const getPlatformOverview = async (filters) => {
                     WHERE ${prevMsDenomConds}
                     GROUP BY platform
                 `),
-        // Query 13: Current Spons SOS (Ad SOV) - sumIf(spons) per platform (flag=0 for our brands)
+        // Query 13: Current Spons SOS (Ad SOV) - sumIf(spons) per platform (our brands via sosNumCondition)
         queryClickHouse(`
-                    SELECT platform_name, sumIf(toInt32(spons), toString(flag) = '1') as count
+                    SELECT platform_name, sumIf(toInt32(spons), ${sosNumCondition}) as count
                     FROM rb_kw_olap
                     WHERE ${currSosConds}
                     GROUP BY platform_name
@@ -5514,9 +5526,9 @@ const getPlatformOverview = async (filters) => {
                     WHERE ${currSosConds}
                     GROUP BY platform_name
                 `),
-        // Query 15: Previous Spons SOS (Ad SOV) - sumIf(spons) per platform (flag=0 for our brands)
+        // Query 15: Previous Spons SOS (Ad SOV) - sumIf(spons) per platform (our brands via sosNumCondition)
         queryClickHouse(`
-                    SELECT platform_name, sumIf(toInt32(spons), toString(flag) = '1') as count
+                    SELECT platform_name, sumIf(toInt32(spons), ${sosNumCondition}) as count
                     FROM rb_kw_olap
                     WHERE ${prevSosConds}
                     GROUP BY platform_name
@@ -5528,9 +5540,9 @@ const getPlatformOverview = async (filters) => {
                     WHERE ${prevSosConds}
                     GROUP BY platform_name
                 `),
-        // Query 17: Current Organic SOS - sumIf(organic) per platform (flag=0 for our brands)
+        // Query 17: Current Organic SOS - sumIf(organic) per platform (our brands via sosNumCondition)
         queryClickHouse(`
-                    SELECT platform_name, sumIf(toInt32(organic), toString(flag) = '1') as count
+                    SELECT platform_name, sumIf(toInt32(organic), ${sosNumCondition}) as count
                     FROM rb_kw_olap
                     WHERE ${currSosConds}
                     GROUP BY platform_name
@@ -5542,9 +5554,9 @@ const getPlatformOverview = async (filters) => {
                     WHERE ${currSosConds}
                     GROUP BY platform_name
                 `),
-        // Query 19: Previous Organic SOS - sumIf(organic) per platform (flag=0 for our brands)
+        // Query 19: Previous Organic SOS - sumIf(organic) per platform (our brands via sosNumCondition)
         queryClickHouse(`
-                    SELECT platform_name, sumIf(toInt32(organic), toString(flag) = '1') as count
+                    SELECT platform_name, sumIf(toInt32(organic), ${sosNumCondition}) as count
                     FROM rb_kw_olap
                     WHERE ${prevSosConds}
                     GROUP BY platform_name
@@ -6611,14 +6623,23 @@ const getCategoryOverview = async (filters) => {
             const locCond = buildLocationQueryCond(locationArr, catPlatform, 'location_name', 'platform_name');
             if (locCond) conds.push(locCond);
         }
-        if (brandArr && brandArr.length > 0) {
-            conds.push(`LOWER(brand) IN (${brandArr.map(b => `'${escapeStr(b)}'`).join(', ')})`);
-        }
+        // NOTE: Do NOT apply brand filter here for SOS/Ad SOV/Organic SOV.
+        // SOS numerator uses flag='1' or brand-specific sumIf condition, and the denominator
+        // must count ALL brands to compute share of search correctly.
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`LOWER(keyword_category) IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         return conds.join(' AND ');
     };
+
+    // Build SOS numerator condition: brand-specific or flag-based
+    let sosCatNumCondition;
+    if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+        const brandConds = brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
+        sosCatNumCondition = `LOWER(brand) IN (${brandConds})`;
+    } else {
+        sosCatNumCondition = "toString(flag) = '1'";
+    }
 
     // Build PM conditions for rb_pm_olap
     const buildPmCatConds = (sDate, eDate) => {
@@ -6766,26 +6787,26 @@ const getCategoryOverview = async (filters) => {
 
     // SOS Current - Simple sumIf(overall) / sum(overall) per category
     const currSosData = await queryClickHouse(`
-        SELECT keyword_category, sumIf(toInt32(overall), toString(flag) = '1') as num, sum(toInt32(overall)) as den
+        SELECT keyword_category, sumIf(toInt32(overall), ${sosCatNumCondition}) as num, sum(toInt32(overall)) as den
         FROM rb_kw_olap
         WHERE ${currSosConds}
         GROUP BY keyword_category
     `);
     const prevSosData = await queryClickHouse(`
-        SELECT keyword_category, sumIf(toInt32(overall), toString(flag) = '1') as num, sum(toInt32(overall)) as den
+        SELECT keyword_category, sumIf(toInt32(overall), ${sosCatNumCondition}) as num, sum(toInt32(overall)) as den
         FROM rb_kw_olap
         WHERE ${prevSosConds}
         GROUP BY keyword_category
     `);
     // Spons SOS (Ad SOV) Current - sumIf(spons) per category
     const currAdSovData = await queryClickHouse(`
-        SELECT keyword_category, sumIf(toInt32(spons), toString(flag) = '1') as num, sum(toInt32(spons)) as den
+        SELECT keyword_category, sumIf(toInt32(spons), ${sosCatNumCondition}) as num, sum(toInt32(spons)) as den
         FROM rb_kw_olap
         WHERE ${currSosConds}
         GROUP BY keyword_category
     `);
     const prevAdSovData = await queryClickHouse(`
-        SELECT keyword_category, sumIf(toInt32(spons), toString(flag) = '1') as num, sum(toInt32(spons)) as den
+        SELECT keyword_category, sumIf(toInt32(spons), ${sosCatNumCondition}) as num, sum(toInt32(spons)) as den
         FROM rb_kw_olap
         WHERE ${prevSosConds}
         GROUP BY keyword_category
@@ -6793,13 +6814,13 @@ const getCategoryOverview = async (filters) => {
 
     // Organic SOS Current - sumIf(organic) per category
     const currOrgSovData = await queryClickHouse(`
-        SELECT keyword_category, sumIf(toInt32(organic), toString(flag) = '1') as num, sum(toInt32(organic)) as den
+        SELECT keyword_category, sumIf(toInt32(organic), ${sosCatNumCondition}) as num, sum(toInt32(organic)) as den
         FROM rb_kw_olap
         WHERE ${currSosConds}
         GROUP BY keyword_category
     `);
     const prevOrgSovData = await queryClickHouse(`
-        SELECT keyword_category, sumIf(toInt32(organic), toString(flag) = '1') as num, sum(toInt32(organic)) as den
+        SELECT keyword_category, sumIf(toInt32(organic), ${sosCatNumCondition}) as num, sum(toInt32(organic)) as den
         FROM rb_kw_olap
         WHERE ${prevSosConds}
         GROUP BY keyword_category
@@ -7518,6 +7539,24 @@ const getKpiTrends = async (filters) => {
     const brandArr = normalizeFilterArray(brand);
     const platArr = normalizeFilterArray(platform);
 
+    // Check for Tier-2/Tier-3 city selections
+    const tier1Cities = [
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    const allLocations = [...locArr];
+    if (dimension && (dimension.toLowerCase() === 'city' || dimension.toLowerCase() === 'location') && dimensionValue && dimensionValue !== 'All') {
+        allLocations.push(dimensionValue);
+    }
+    if (allLocations.length > 0) {
+        hasTier23 = allLocations.some(loc => {
+            const lowerLoc = String(loc).trim().toLowerCase();
+            if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+            return !tier1Cities.includes(lowerLoc);
+        });
+    }
+
     const src = await getWatchtowerSource();
     // 3. Build WHERE conditions for dynamic source
     const buildKpiConds = () => {
@@ -7696,9 +7735,9 @@ const getKpiTrends = async (filters) => {
         const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         // Only consider top 10 ranked positions for SOS
         conds.push(`POSITION <= 10`);
-        if (catArr && catArr.length > 0) conds.push(`keyword_category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
-        if (locArr && locArr.length > 0) conds.push(`location_name IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
-        if (platArr && platArr.length > 0) conds.push(`platform_name IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+        if (catArr && catArr.length > 0) conds.push(`lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+        if (locArr && locArr.length > 0) conds.push(`lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        if (platArr && platArr.length > 0) conds.push(`lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
 
         return conds;
     };
@@ -7849,7 +7888,7 @@ const getKpiTrends = async (filters) => {
     const hasSosDenominatorData = sosDenominator.some(r => parseInt(r.count || 0, 10) > 0);
     const hasSosFinalData = hasSosNumeratorData && hasSosDenominatorData;
 
-    const hasMsData = msTimeSeriesMap.size > 0 && Array.from(msTimeSeriesMap.values()).some(v => v > 0);
+    const hasMsData = !hasTier23 && msTimeSeriesMap.size > 0 && Array.from(msTimeSeriesMap.values()).some(v => v > 0);
 
     // Legacy generic table-level flags still used for KPI Availability status map
     const hasPdpData = kpiResults.length > 0;
@@ -7957,7 +7996,7 @@ const getKpiTrends = async (filters) => {
         // 9. CPC (Cost Per Click)
         const cpc = effectiveCpcClicks > 0 ? effectiveCpcSpend / effectiveCpcClicks : 0;
 
-        const marketShare = msTimeSeriesMap.get(String(bucket.groupKey)) || 0;
+        const marketShare = hasTier23 ? 0 : (msTimeSeriesMap.get(String(bucket.groupKey)) || 0);
         const categoryShare = marketShare;
 
         // Build data point with all KPIs
