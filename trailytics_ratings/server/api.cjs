@@ -460,6 +460,8 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(403).json({ error: 'No active company membership for this user' });
         }
 
+        // MFA disabled temporarily
+        /*
         if (!user.mfa_enabled) {
             const { token } = await challengeLib.mintChallenge(pool, {
                 userId: user.id,
@@ -489,6 +491,10 @@ app.post('/api/auth/login', async (req, res) => {
             step: 'verify',
             challengeToken: token,
         });
+        */
+
+        const sessionPayload = await createFullSession(user, membership, req);
+        return res.json(sessionPayload);
     } catch (error) {
         console.error('Login failed:', error);
         return res.status(500).json({ error: 'Login failed' });

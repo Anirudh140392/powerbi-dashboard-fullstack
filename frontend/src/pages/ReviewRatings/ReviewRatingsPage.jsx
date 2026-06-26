@@ -261,7 +261,7 @@ const ReviewRatingsPage = () => {
         {/* The actual iframe — fills the full content area */}
         <iframe
           ref={iframeRef}
-          src={RATINGS_APP_URL}
+          src={`${RATINGS_APP_URL}?autoLoginEmail=${encodeURIComponent('prestige@trailytics.com')}&autoLoginPassword=${encodeURIComponent('Prestige@123#')}`}
           title="Review Rating Intelligence Dashboard"
           onLoad={handleLoad}
           onError={handleError}

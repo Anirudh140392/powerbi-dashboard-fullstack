@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 
 import { MLControlCenter } from './pages/MLControlCenter'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
+import { GlobalLoader } from './components/GlobalLoader'
 
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -26,14 +27,7 @@ function AppContent() {
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-white text-slate-900 flex items-center justify-center">
-        <div className="flex items-center gap-3 text-sm text-slate-600">
-          <div className="w-4 h-4 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
-          Loading Session..
-        </div>
-      </div>
-    );
+    return <GlobalLoader />;
   }
 
   if (!isAuthenticated) return <LoginPage />;

@@ -7,7 +7,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Moon, Sun, Settings, LogOut, ChevronDown, Shield, ShieldCheck, User as UserIcon, Crown } from 'lucide-react';
+import { Moon, Sun, Settings, ChevronDown, Shield, ShieldCheck, User as UserIcon, Crown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { SecurityModal } from './auth/SecurityModal';
 
@@ -25,7 +25,7 @@ function initialsFor(name: string | undefined | null): string {
 }
 
 export function AvatarMenu({ isDarkMode, onToggleTheme, onOpenRules }: Props) {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
     const [open, setOpen] = useState(false);
     const [securityOpen, setSecurityOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
@@ -130,13 +130,6 @@ export function AvatarMenu({ isDarkMode, onToggleTheme, onOpenRules }: Props) {
                             <span className="flex-1">Rules &amp; Settings</span>
                         </button>
 
-                        <button
-                            onClick={() => { setOpen(false); logout(); }}
-                            className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/15 transition-colors border-t border-slate-100 dark:border-slate-800"
-                        >
-                            <LogOut size={15} />
-                            <span className="flex-1">Sign out</span>
-                        </button>
                     </motion.div>
                 )}
             </AnimatePresence>
