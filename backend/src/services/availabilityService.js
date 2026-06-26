@@ -2666,10 +2666,19 @@ const getAvailabilityKpiTrends = async (filters) => {
                 const totalSales = parseFloat(row.sum_sales) || 0;
                 const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
 
-                // DOI = (Current Inventory / Daily Run Rate) where DRR = Qty_Sold / 30
+                // DOI = (Current Inventory / Daily Run Rate) where DRR = Qty_Sold / divisor
+                // The divisor scales based on the time step (Daily = 1, Weekly = 7, Monthly = 30)
                 const totalInventory = parseFloat(row.total_inventory) || 0;
                 const totalQtySold = parseFloat(row.total_qty_sold) || 0;
-                const drr = totalQtySold / 30;
+                let divisor = 30;
+                if (normTimeStep === 'Daily') {
+                    divisor = 1;
+                } else if (normTimeStep === 'Weekly') {
+                    divisor = 7;
+                } else if (normTimeStep === 'Monthly') {
+                    divisor = 30;
+                }
+                const drr = totalQtySold / divisor;
                 const doi = drr > 0 ? totalInventory / drr : 0;
 
                 return {
@@ -3096,7 +3105,16 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
 
                     const osa = deno > 0 ? (neno / deno) * 100 : 0;
                     const listing = parseFloat(row.avg_listing_percent) || 0;
-                    const doi = totalQtySold > 0 ? (totalInv / totalQtySold) * 30 : 0;
+                    let divisor = 30;
+                    if (timeStep === 'Daily') {
+                        divisor = 1;
+                    } else if (timeStep === 'Weekly') {
+                        divisor = 7;
+                    } else if (timeStep === 'Monthly') {
+                        divisor = 30;
+                    }
+                    const drr = totalQtySold / divisor;
+                    const doi = drr > 0 ? totalInv / drr : 0;
                     const totalSales = parseFloat(row.total_sales) || 0;
 
                     // PSL = (SUM(Sales) / (OSA_Percentage / 100)) - SUM(Sales)  [currency format]
@@ -3250,7 +3268,16 @@ const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
 
                     const osa = deno > 0 ? (neno / deno) * 100 : 0;
                     const listing = parseFloat(row.avg_listing_percent) || 0;
-                    const doi = totalQtySold > 0 ? (totalInv / totalQtySold) * 30 : 0;
+                    let divisor = 30;
+                    if (timeStep === 'Daily') {
+                        divisor = 1;
+                    } else if (timeStep === 'Weekly') {
+                        divisor = 7;
+                    } else if (timeStep === 'Monthly') {
+                        divisor = 30;
+                    }
+                    const drr = totalQtySold / divisor;
+                    const doi = drr > 0 ? totalInv / drr : 0;
                     const totalSales = parseFloat(row.total_sales) || 0;
                     const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
 
