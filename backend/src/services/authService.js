@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { queryAdminDB, insertAdminDB } from '../config/adminClickhouse.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'trailytics_jwt_secret_2026';
-const JWT_EXPIRY = '24h';
+const JWT_EXPIRY = '7d';
 
 /**
  * Authenticate user by email and password

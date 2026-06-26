@@ -155,7 +155,11 @@ export default function OnShelfAvailability() {
       // Handle both direct array and wrapped responses
       const osaRows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : data?.rows || data);
       console.log('[OnShelfAvailability][OsaDetail] Parsed rows count:', Array.isArray(osaRows) ? osaRows.length : 'not-array');
-      setApiData(prev => ({ ...prev, osaDetail: osaRows }));
+      setApiData(prev => ({
+        ...prev,
+        osaDetail: osaRows,
+        osaDates: data?.dates || []
+      }));
       return true;
     } catch (err) {
       console.error('[OnShelfAvailability][OsaDetail] API error:', err);
@@ -220,11 +224,7 @@ export default function OnShelfAvailability() {
         filters={filters}
         onFiltersChange={handleFiltersChange}
       >
-        <div className="max-w-7xl mx-auto space-y-5">
-          {/* Segment 1: Market Coverage Analysis */}
-          <StandaloneOsaOverview filters={filters} loading={isLoading} />
-
-          {/* Segment 2: Platform KPI Matrix */}
+        <div className="w-full space-y-5">
           <StandaloneOsaKpiMatrix filters={filters} loading={isLoading} />
 
           {/* Segment 3: Market Visibility & Share (formerly KPI Matrix) */}

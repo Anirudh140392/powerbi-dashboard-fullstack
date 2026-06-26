@@ -1017,19 +1017,38 @@ export const getSignalLabData = async (req, res) => {
 
             /* ================= STEP 6: City level data (Current & Comparison) ================= */
             const cityAggQuery = `
+                WITH daily_city_stats AS (
+                    SELECT
+                        ${groupCol},
+                        Location,
+                        DATE,
+                        sum(toFloat64OrZero(toString(Inventory))) as daily_inventory,
+                        sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) as daily_neno,
+                        sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) as daily_comp_neno,
+                        sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)) as daily_deno,
+                        sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)) as daily_comp_deno,
+                        avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adSalesCol}) / nullIf(toFloat64(${adSpendCol}), 0), 0.0)) as daily_roas,
+                        sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adClicksCol}), 0.0)) as daily_clicks,
+                        sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adImpressionsCol}), 0.0)) as daily_impressions,
+                        sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) as daily_qty_sold,
+                        sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', abs(toFloat64(Sales)), 0.0)) as daily_sales
+                    FROM rb_pdp_olap
+                    WHERE ${filterCol} IN (${webPidsStr})
+                        AND ${await buildWhereClause(true, true)}
+                    GROUP BY ${groupCol}, Location, DATE
+                )
                 SELECT
-                    ${groupCol}, Location,
-                    (sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS osa,
-                    (sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS prev_osa,
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adSalesCol}) / nullIf(toFloat64(${adSpendCol}), 0), 0.0)) as roas,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adClicksCol}), 0.0)) as clicks,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adImpressionsCol}), 0.0)) as impressions,
-                    GREATEST(0, avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0))) as inventory,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) as qtySold,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', abs(toFloat64(Sales)), 0.0)) as citySales
-                FROM rb_pdp_olap
-                WHERE ${filterCol} IN (${webPidsStr})
-                    AND ${await buildWhereClause(true, true)}
+                    ${groupCol},
+                    Location,
+                    (sum(daily_neno) / nullIf(sum(daily_deno), 0)) * 100 AS osa,
+                    (sum(daily_comp_neno) / nullIf(sum(daily_comp_deno), 0)) * 100 AS prev_osa,
+                    avg(daily_roas) as roas,
+                    sum(daily_clicks) as clicks,
+                    sum(daily_impressions) as impressions,
+                    GREATEST(0, argMax(if(toDate(DATE) BETWEEN '${start}' AND '${end}', daily_inventory, null), DATE)) as inventory,
+                    sum(daily_qty_sold) as qtySold,
+                    sum(daily_sales) as citySales
+                FROM daily_city_stats
                 GROUP BY ${groupCol}, Location
             `;
             const cityRows = await queryClickHouse(cityAggQuery);
@@ -1145,7 +1164,12 @@ export const getSignalLabData = async (req, res) => {
                 const price = Number(scaledItem.avgPrice || 0);
                 const currSalesVal = Number(scaledItem.currSales || 0);
                 const revenue = currSalesVal;
-                const inventory = scaledItem.avgInventory === null ? null : Number(scaledItem.avgInventory);
+                
+                const podCities = cityRows.filter(c => c[groupCol] === item[groupCol]);
+                const inventory = podCities.length > 0
+                    ? podCities.reduce((sum, c) => sum + (c.inventory || 0), 0)
+                    : (scaledItem.avgInventory === null ? null : Number(scaledItem.avgInventory));
+
                 const drr = qty / daysInPeriod;
                 const doi = (inventory !== null && drr > 0) ? inventory / drr : (inventory === null ? null : 0);
 
@@ -1203,7 +1227,6 @@ export const getSignalLabData = async (req, res) => {
                     };
                 }
 
-                const podCities = cityRows.filter(c => c[groupCol] === item[groupCol]);
                 const sortedByImpact = podCities
                     .filter(c => {
                         const diff = Number(c.osa || 0) - Number(c.prev_osa || 0);
@@ -1387,7 +1410,7 @@ export const getCityDetailsForProduct = async (req, res) => {
                         DATE,
                         any(Brand) as brand_name,
                         any(Comp_flag) as comp_flag,
-                        sum(toFloat64OrNull(toString(Inventory))) as daily_inventory,
+                        sum(toFloat64OrZero(toString(Inventory))) as daily_inventory,
                         GREATEST(0, sum(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0.0))) as daily_qty_sold,
                         sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0.0)) as daily_neno,
                         sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0.0)) as daily_deno,
@@ -1415,7 +1438,7 @@ export const getCityDetailsForProduct = async (req, res) => {
                     sumIf(daily_sales, toDate(DATE) BETWEEN '${start}' AND '${end}') AS offtake,
                     sumIf(daily_sales, toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}') AS compOfftake,
                     -- Inventory metrics (Latest daily city-total inventory, picking latest non-null available)
-                    argMax(daily_inventory, if(daily_inventory > 0, toUnixTimestamp(DATE), 0)) AS soh,
+                    argMax(if(toDate(DATE) BETWEEN '${start}' AND '${end}', daily_inventory, null), DATE) AS soh,
                     sumIf(daily_qty_sold, toDate(DATE) BETWEEN '${start}' AND '${end}') AS qty_sold,
                     sumIf(daily_ad_sales, toDate(DATE) BETWEEN '${start}' AND '${end}') AS ad_sales,
                     sumIf(daily_ad_spend, toDate(DATE) BETWEEN '${start}' AND '${end}') AS ad_spend,

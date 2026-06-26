@@ -1226,7 +1226,6 @@ function MarketShareFilterModal({
 const PA_FILTER_TABS = [
   { key: "priority", label: "Priority", icon: Layers },
   { key: "status", label: "Status", icon: LayoutGrid },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "city", label: "City", icon: MapPin },
 ];
@@ -4115,7 +4114,6 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                 flexWrap: { xs: "wrap", md: "nowrap" },
                 width: { xs: "100%", md: "auto" },
                 overflow: "visible",
-                pb: 1.5,
               }}
             >
 
