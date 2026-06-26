@@ -217,7 +217,8 @@ const getMapIntellectData = async (filters) => {
         if (!src) return '1=0';
         const conds = [`toDate(${src.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         if (platform && platform !== 'All') {
-            conds.push(`lower(${src.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'`);
+            const list = platform.split(',').map(p => p.trim().toLowerCase());
+            conds.push(`lower(${src.f.platform}) IN (${list.map(p => `'${escapeStr(p)}'`).join(',')})`);
         } else if (channel && channel !== 'All') {
             conds.push(`${src.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`);
         }
@@ -301,7 +302,7 @@ const getMapIntellectData = async (filters) => {
                 WHERE toDate(${msSrc.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'
                   AND (${cityConditions})
                   AND ${msSrc.f.location} IS NOT NULL AND ${msSrc.f.location} != ''
-                  ${platform && platform !== 'All' ? `AND lower(${msSrc.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'` : (channel && channel !== 'All' ? `AND ${msSrc.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')` : '')}
+                  ${platform && platform !== 'All' ? `AND lower(${msSrc.f.platform}) IN (${platform.split(',').map(p => `'${escapeStr(p.trim().toLowerCase())}'`).join(',')})` : (channel && channel !== 'All' ? `AND ${msSrc.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')` : '')}
                   ${category && category !== 'All' ? `AND lower(${msSrc.f.category}) = '${escapeStr(category.toLowerCase())}'` : ''}
                 GROUP BY location
             `;
@@ -431,7 +432,8 @@ const getMapIntellectCategories = async (metric, platform, channel) => {
     let query = `SELECT DISTINCT ${src.f.category} as category FROM ${src.table} WHERE ${src.f.category} IS NOT NULL AND ${src.f.category} != ''`;
 
     if (platform && platform !== 'All') {
-        query += ` AND lower(${src.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'`;
+        const list = platform.split(',').map(p => p.trim().toLowerCase());
+        query += ` AND lower(${src.f.platform}) IN (${list.map(p => `'${escapeStr(p)}'`).join(',')})`;
     } else if (channel && channel !== 'All') {
         query += ` AND ${src.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`;
     }

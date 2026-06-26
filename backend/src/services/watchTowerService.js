@@ -885,6 +885,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
     try {
         console.log("Processing Watch Tower request with filters:", filters);
+        const pmSrc = await getPmSource();
 
         const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate } = filters;
         const channel = extractChannel(filters);
@@ -1393,7 +1394,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             conditions.push(`lower(${pmSrc.f.brand}) IN (${brandConds})`);
                         }
                         const platformCol = pmSrc.f.platform;
-                        const platformCond = buildPlatformChannelCond(null, channel, platformCol);
+                        const platformCond = buildPlatformChannelCond((platformArr && platformArr.length > 0) ? platformArr : 'All', channel, platformCol);
                         if (platformCond) conditions.push(platformCond);
 
                         const catArrLocal = normalizeFilterArray(category);
@@ -1435,7 +1436,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         }
 
                         const platformCol = src.isAgg ? 'platform' : 'Platform';
-                        const platformCond = buildPlatformChannelCond(null, channel, platformCol);
+                        const platformCond = buildPlatformChannelCond((platformArr && platformArr.length > 0) ? platformArr : 'All', channel, platformCol);
                         if (platformCond) {
                             conditions.push(platformCond);
                         }
@@ -2727,6 +2728,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             ];
         }
 
+        // Apply platform permissions filter from platformArr (if present)
+        if (platformArr && platformArr.length > 0) {
+            platformDefinitions = platformDefinitions.filter(p =>
+                platformArr.some(pa => p.label.toLowerCase() === pa.toLowerCase() || p.key.toLowerCase() === pa.toLowerCase().replace(/\s+/g, '_'))
+            );
+        }
+
         const platformOverview = [];
 
         // Helper functions for change calculations
@@ -3406,7 +3414,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     `${pmSrc.f.date} BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`
                 ];
                 if (moPlatform) {
-                    pmMoConds.push(`${pmSrc.f.platform} = '${escapeStrMain(moPlatform)}'`);
+                    const cond = buildPlatformChannelCond(moPlatform, null, pmSrc.f.platform);
+                    if (cond) pmMoConds.push(cond);
                 }
                 if (brandArr && brandArr.length > 0) {
                     const bConds = brandArr.map(b => `lower(${pmSrc.f.brand}) LIKE lower('%${escapeStrMain(b)}%')`).join(' OR ');
@@ -3657,7 +3666,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
         const catDataConds = [`${dateCol} BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
-            catDataConds.push(`${src.f.platform} = '${escapeStrMain(categoryOverviewPlatform)}'`);
+            const cond = buildPlatformChannelCond(categoryOverviewPlatform, null, src.f.platform);
+            if (cond) catDataConds.push(cond);
         }
         const bBrands = normalizeFilterArray(brand);
         if (bBrands && bBrands.length > 0) {
@@ -3692,7 +3702,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     catConds.push(`${src.f.location} IN (${locArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
                 }
                 if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
-                    catConds.push(`${src.f.platform} = '${escapeStrMain(categoryOverviewPlatform)}'`);
+                    const cond = buildPlatformChannelCond(categoryOverviewPlatform, null, src.f.platform);
+                    if (cond) catConds.push(cond);
                 }
                 const catCondStr = catConds.join(' AND ');
 
@@ -3758,7 +3769,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             pmCatConds.push(`lower(${pmSrc.f.location}) IN (${locArrPm.map(l => `'${escapeStrMain(l.toLowerCase())}'`).join(', ')})`);
                         }
                         if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
-                            pmCatConds.push(`${pmSrc.f.platform} = '${escapeStrMain(categoryOverviewPlatform)}'`);
+                            const cond = buildPlatformChannelCond(categoryOverviewPlatform, null, pmSrc.f.platform);
+                            if (cond) pmCatConds.push(cond);
                         }
                         const pmResult = await queryClickHouse(`
                             SELECT SUM(${pmSrc.f.orders}) as total_orders, SUM(${pmSrc.f.impressions}) as total_impressions, SUM(${pmSrc.f.clicks}) as total_clicks
@@ -3952,10 +3964,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // Category filter handled via normalized array in ClickHouse conditions below
 
         // Priority: brandsOverviewCategoryArr > category > All
+        const boPlatCondDistinct = (brandsOverviewPlatform && brandsOverviewPlatform !== 'All')
+            ? `AND ${buildPlatformChannelCond(brandsOverviewPlatform, null, src.f.platform)}`
+            : '';
+
         const distinctBrands = await queryClickHouse(`
             SELECT DISTINCT ${src.f.brand} as brand FROM ${src.table}
             WHERE ${dateCol} BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
-            ${brandsOverviewPlatform && brandsOverviewPlatform !== 'All' ? `AND ${src.f.platform} = '${escapeStrMain(brandsOverviewPlatform)}'` : ''}
+            ${boPlatCondDistinct}
             ${brandsOverviewCategoryArr.length > 0 ? `AND ${src.f.category} IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})` : ''}
             ORDER BY brand
         `);
@@ -3968,7 +3984,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             boOfftakeConds.push(`${src.f.brand} LIKE '%${escapeStrMain(brand)}%'`);
         }
         if (brandsOverviewPlatform && brandsOverviewPlatform !== 'All') {
-            boOfftakeConds.push(`${src.f.platform} = '${escapeStrMain(brandsOverviewPlatform)}'`);
+            const cond = buildPlatformChannelCond(brandsOverviewPlatform, null, src.f.platform);
+            if (cond) boOfftakeConds.push(cond);
         }
         if (brandsOverviewCategoryArr && brandsOverviewCategoryArr.length > 0) {
             boOfftakeConds.push(`${PRODUCT_CATEGORY_SQL} IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
@@ -4029,7 +4046,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             `${src.f.compFlag} = '0'`
         ];
         if (brandsOverviewPlatform && brandsOverviewPlatform !== 'All') {
-            boPrevOfftakeConds.push(`${src.f.platform} = '${escapeStrMain(brandsOverviewPlatform)}'`);
+            const cond = buildPlatformChannelCond(brandsOverviewPlatform, null, src.f.platform);
+            if (cond) boPrevOfftakeConds.push(cond);
         }
         if (brandsOverviewCategoryArr && brandsOverviewCategoryArr.length > 0) {
             if (brandsOverviewCategoryArr.length === 1) {
@@ -4048,7 +4066,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // Brand list conditions for ClickHouse
         const rcaBrandConds = [`toString(comp_flag) = '0'`, `brand_name IS NOT NULL`, `brand_name != ''`];
         if (brandsOverviewPlatform && brandsOverviewPlatform !== 'All') {
-            rcaBrandConds.push(`platform = '${escapeStrMain(brandsOverviewPlatform)}'`);
+            const cond = buildPlatformChannelCond(brandsOverviewPlatform, null, 'platform');
+            if (cond) rcaBrandConds.push(cond);
         }
         if (brandsOverviewCategoryArr && brandsOverviewCategoryArr.length > 0) {
             if (brandsOverviewCategoryArr.length === 1) {
@@ -5166,6 +5185,13 @@ const getPlatformOverview = async (filters) => {
         }
     }
 
+    // Apply platform permissions filter from platformArr (if present)
+    if (platformArr && platformArr.length > 0) {
+        platformDefinitions = platformDefinitions.filter(p =>
+            platformArr.some(pa => p.label.toLowerCase() === pa.toLowerCase() || p.key.toLowerCase() === pa.toLowerCase().replace(/\s+/g, '_'))
+        );
+    }
+
     // Calculate MoM dates or use provided comparison dates
     let momStart = startDate.clone().subtract(1, 'month');
     let momEnd = endDate.clone().subtract(1, 'month');
@@ -5874,82 +5900,85 @@ const getPlatformOverview = async (filters) => {
     const allMarketShare = await getMarketShare(startDate, endDate, 'All', rawCategory, null, locationArr, channel);
     const prevAllMarketShare = await getMarketShare(momStart, momEnd, 'All', rawCategory, null, locationArr, channel);
 
-    platformOverview.push({
-        key: 'all',
-        label: 'All',
-        type: 'Overall',
-        logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
-        columns: generateKpiColumns({
-            offtake: allOfftake, availability: allAvailability, sos: allSos, marketShare: allMarketShare, spend: allSpend, roas: allRoas, inorgSales: allInorgSales, conversion: allConversion, cpm: allCpm, cpc: allCpc, asp: allAsp, aov: (allOrders > 0 ? allAdSales / allOrders : 0), promoMyBrand: allPromoMyBrand, promoCompete: allPromoCompete, categorySize: sumCatSize, adSov: allAdSov, organicSov: allOrganicSov,
-            prevOfftake: prevAllOfftake, prevAvailability: prevAllAvailability, prevSos: prevAllSos, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllInorgSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc, prevAsp: prevAllAsp, prevAov: (prevAllOrders > 0 ? prevAllAdSales / prevAllOrders : 0), prevPromoMyBrand: prevAllPromoMyBrand, prevPromoCompete: prevAllPromoCompete, prevCategorySize: prevSumCatSize, prevAdSov: prevAllAdSov, prevOrganicSov: prevAllOrganicSov,
-            offtakeUnits: allOfftakeUnits, inorgUnits: allInorgUnits, prevOfftakeUnits: prevAllOfftakeUnits, prevInorgUnits: prevAllInorgUnits
-        })
-    });
-
-    // ===== SYNC All row % changes with Watch Tower Overview =====
-    // The Watch Tower Overview (computeSummaryMetrics) and Platform Overview compute
-    // metrics via separate queries. To guarantee the "All" row shows identical % changes,
-    // call computeSummaryMetrics and overlay its change values onto the All row's columns.
-    try {
-        console.log('[getPlatformOverview] Syncing All row % changes with Watch Tower Overview...');
-        const overviewResult = await computeSummaryMetrics(filters, { onlyOverview: true, skipPerformanceKpis: true });
-        const topMetrics = overviewResult.topMetrics || [];
-
-        // Build a map from metric name -> { trend, trendType }
-        const overviewChangeMap = {};
-        topMetrics.forEach(m => {
-            overviewChangeMap[m.name] = { trend: m.trend, trendType: m.trendType };
+    const hasPlatformFilter = platformArr && platformArr.length > 0;
+    if (!hasPlatformFilter) {
+        platformOverview.push({
+            key: 'all',
+            label: 'All',
+            type: 'Overall',
+            logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
+            columns: generateKpiColumns({
+                offtake: allOfftake, availability: allAvailability, sos: allSos, marketShare: allMarketShare, spend: allSpend, roas: allRoas, inorgSales: allInorgSales, conversion: allConversion, cpm: allCpm, cpc: allCpc, asp: allAsp, aov: (allOrders > 0 ? allAdSales / allOrders : 0), promoMyBrand: allPromoMyBrand, promoCompete: allPromoCompete, categorySize: sumCatSize, adSov: allAdSov, organicSov: allOrganicSov,
+                prevOfftake: prevAllOfftake, prevAvailability: prevAllAvailability, prevSos: prevAllSos, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllInorgSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc, prevAsp: prevAllAsp, prevAov: (prevAllOrders > 0 ? prevAllAdSales / prevAllOrders : 0), prevPromoMyBrand: prevAllPromoMyBrand, prevPromoCompete: prevAllPromoCompete, prevCategorySize: prevSumCatSize, prevAdSov: prevAllAdSov, prevOrganicSov: prevAllOrganicSov,
+                offtakeUnits: allOfftakeUnits, inorgUnits: allInorgUnits, prevOfftakeUnits: prevAllOfftakeUnits, prevInorgUnits: prevAllInorgUnits
+            })
         });
 
-        // Map Watch Tower Overview metric names to Platform Overview column titles
-        const nameToTitle = {
-            'Offtake': 'Offtakes',
-            'Availability': 'Availability',
-            'Share of Search': 'SOS',
-            'Market Share': 'Market Share',
-            'Promo': 'Promo My Brand'
-        };
+        // ===== SYNC All row % changes with Watch Tower Overview =====
+        // The Watch Tower Overview (computeSummaryMetrics) and Platform Overview compute
+        // metrics via separate queries. To guarantee the "All" row shows identical % changes,
+        // call computeSummaryMetrics and overlay its change values onto the All row's columns.
+        try {
+            console.log('[getPlatformOverview] Syncing All row % changes with Watch Tower Overview...');
+            const overviewResult = await computeSummaryMetrics(filters, { onlyOverview: true, skipPerformanceKpis: true });
+            const topMetrics = overviewResult.topMetrics || [];
 
-        // Override the "All" row's change values
-        const allRow = platformOverview[0];
-        if (allRow && allRow.key === 'all' && allRow.columns) {
-            for (const [overviewName, colTitle] of Object.entries(nameToTitle)) {
-                const overviewMetric = overviewChangeMap[overviewName];
-                if (!overviewMetric) continue;
+            // Build a map from metric name -> { trend, trendType }
+            const overviewChangeMap = {};
+            topMetrics.forEach(m => {
+                overviewChangeMap[m.name] = { trend: m.trend, trendType: m.trendType };
+            });
 
-                const col = allRow.columns.find(c => c.title === colTitle);
-                if (col && col.change) {
-                    col.change.text = overviewMetric.trend;
-                    col.change.positive = overviewMetric.trendType === 'positive';
+            // Map Watch Tower Overview metric names to Platform Overview column titles
+            const nameToTitle = {
+                'Offtake': 'Offtakes',
+                'Availability': 'Availability',
+                'Share of Search': 'SOS',
+                'Market Share': 'Market Share',
+                'Promo': 'Promo My Brand'
+            };
+
+            // Override the "All" row's change values
+            const allRow = platformOverview.find(r => r.key === 'all');
+            if (allRow && allRow.columns) {
+                for (const [overviewName, colTitle] of Object.entries(nameToTitle)) {
+                    const overviewMetric = overviewChangeMap[overviewName];
+                    if (!overviewMetric) continue;
+
+                    const col = allRow.columns.find(c => c.title === colTitle);
+                    if (col && col.change) {
+                        col.change.text = overviewMetric.trend;
+                        col.change.positive = overviewMetric.trendType === 'positive';
+                    }
                 }
-            }
 
-            // Also sync the Actionable Intelligence KPIs (Inorganic Sales, Conversion, ROAS, Orders)
-            // from the performanceMetricsKpis if available
-            const summaryMetrics = overviewResult.summaryMetrics || {};
-            // Update the All row's main values to also match the overview values
-            const offtakeCol = allRow.columns.find(c => c.title === 'Offtakes');
-            if (offtakeCol && summaryMetrics.offtakes) {
-                offtakeCol.value = summaryMetrics.offtakes;
-            }
-            const availCol = allRow.columns.find(c => c.title === 'Availability');
-            if (availCol && summaryMetrics.stockAvailability) {
-                availCol.value = summaryMetrics.stockAvailability;
-            }
-            const sosCol = allRow.columns.find(c => c.title === 'SOS');
-            if (sosCol && summaryMetrics.shareOfSearch) {
-                sosCol.value = summaryMetrics.shareOfSearch;
-            }
-            const msCol = allRow.columns.find(c => c.title === 'Market Share');
-            if (msCol && summaryMetrics.marketShare) {
-                msCol.value = summaryMetrics.marketShare;
-            }
+                // Also sync the Actionable Intelligence KPIs (Inorganic Sales, Conversion, ROAS, Orders)
+                // from the performanceMetricsKpis if available
+                const summaryMetrics = overviewResult.summaryMetrics || {};
+                // Update the All row's main values to also match the overview values
+                const offtakeCol = allRow.columns.find(c => c.title === 'Offtakes');
+                if (offtakeCol && summaryMetrics.offtakes) {
+                    offtakeCol.value = summaryMetrics.offtakes;
+                }
+                const availCol = allRow.columns.find(c => c.title === 'Availability');
+                if (availCol && summaryMetrics.stockAvailability) {
+                    availCol.value = summaryMetrics.stockAvailability;
+                }
+                const sosCol = allRow.columns.find(c => c.title === 'SOS');
+                if (sosCol && summaryMetrics.shareOfSearch) {
+                    sosCol.value = summaryMetrics.shareOfSearch;
+                }
+                const msCol = allRow.columns.find(c => c.title === 'Market Share');
+                if (msCol && summaryMetrics.marketShare) {
+                    msCol.value = summaryMetrics.marketShare;
+                }
 
-            console.log('[getPlatformOverview] All row synced with Watch Tower Overview successfully');
+                console.log('[getPlatformOverview] All row synced with Watch Tower Overview successfully');
+            }
+        } catch (syncError) {
+            console.error('[getPlatformOverview] Failed to sync All row with Overview (non-fatal):', syncError.message);
+            // Non-fatal: the All row keeps its independently computed values
         }
-    } catch (syncError) {
-        console.error('[getPlatformOverview] Failed to sync All row with Overview (non-fatal):', syncError.message);
-        // Non-fatal: the All row keeps its independently computed values
     }
 
     // Process each platform from bulk data

@@ -556,3 +556,50 @@ export const createDatabase = async (dbName) => {
         throw error;
     }
 };
+
+const dbPlatformsCache = new Map();
+export const clearDbPlatformsCache = () => {
+    dbPlatformsCache.clear();
+    console.log("🧹 [Cache Clear] Cleared dbPlatformsCache completely");
+};
+const PLATFORMS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Fetch unique active platforms from ClickHouse rb_platform table for a specific database
+ */
+export const getAdminPlatforms = async (dbName) => {
+    const db = (dbName || 'mars').trim().toLowerCase();
+    
+    // Check in-memory cache
+    const cached = dbPlatformsCache.get(db);
+    if (cached && (Date.now() - cached.timestamp) < PLATFORMS_CACHE_TTL) {
+        return cached.data;
+    }
+
+    try {
+        const checkQuery = `EXISTS TABLE ${db}.rb_platform`;
+        const existsRes = await queryAdminDB(checkQuery);
+        if (existsRes && existsRes[0] && existsRes[0].result === 1) {
+            const query = `
+                SELECT DISTINCT pf_name 
+                FROM ${db}.rb_platform 
+                WHERE status = 1 
+                ORDER BY pf_name ASC
+            `;
+            const result = await queryAdminDB(query);
+            if (result && result.length > 0) {
+                const platforms = result.map(row => row.pf_name.toLowerCase());
+                dbPlatformsCache.set(db, { data: platforms, timestamp: Date.now() });
+                return platforms;
+            }
+        }
+        const fallback = ["amazon", "flipkart", "bigbasket", "blinkit", "instamart", "zepto", "dmart"];
+        dbPlatformsCache.set(db, { data: fallback, timestamp: Date.now() });
+        return fallback;
+    } catch (error) {
+        console.error(`[AdminService] getAdminPlatforms failed for ${db}:`, error.message);
+        const fallback = ["amazon", "flipkart", "bigbasket", "blinkit", "instamart", "zepto", "dmart"];
+        return fallback;
+    }
+};
+

@@ -188,6 +188,7 @@ export default function WatchTower() {
     compareStart,
     compareEnd,
     platform: _sidebarPlatform,
+    platforms,
     selectedKeyword,
     selectedLocation,
     selectedChannel: _sidebarChannel,
@@ -200,6 +201,29 @@ export default function WatchTower() {
     refreshFilters,
     refreshDates
   } = filterContext;
+
+  const hasRestrictedPlatforms = useMemo(() => {
+    try {
+      const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      const tabPerms = storedUser?.tabPermissions || {};
+      return Object.keys(tabPerms).some(
+        key => key.startsWith('platform_') && tabPerms[key] === false
+      );
+    } catch (_) {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (platformsFetched && hasRestrictedPlatforms) {
+      const allowed = platforms || [];
+      const defaultPlatform = allowed.filter(p => p !== 'All')[0] || _sidebarPlatform;
+      if (defaultPlatform && defaultPlatform !== "All" && filters.platform === "All") {
+        setFilters(prev => ({ ...prev, platform: defaultPlatform }));
+        setTrendParams(prev => ({ ...prev, platform: defaultPlatform }));
+      }
+    }
+  }, [platformsFetched, platforms, _sidebarPlatform, hasRestrictedPlatforms, filters.platform]);
 
   const overriddenContextRef = React.useRef(null);
   const prevFilterContextRef = React.useRef(null);
@@ -478,6 +502,15 @@ export default function WatchTower() {
   const [fetchError, setFetchError] = useState(null);
   const [categoryPlatform, setCategoryPlatform] = useState("All");
   const [pdpPlatforms, setPdpPlatforms] = useState([]);
+
+  useEffect(() => {
+    if (hasRestrictedPlatforms && pdpPlatforms?.length > 0) {
+      const allowed = pdpPlatforms.filter(p => p !== 'All');
+      if (allowed.length > 0 && categoryPlatform === "All") {
+        setCategoryPlatform(allowed[0]);
+      }
+    }
+  }, [pdpPlatforms, hasRestrictedPlatforms, categoryPlatform]);
   const overviewFetchIdRef = useRef(0);
   const categoryFetchIdRef = useRef(0);
 
@@ -894,6 +927,7 @@ export default function WatchTower() {
               pdpPlatforms={pdpPlatforms}
               categoryPlatform={categoryPlatform}
               setCategoryPlatform={setCategoryPlatform}
+              hasRestrictedPlatforms={hasRestrictedPlatforms}
             />
 
             {/* {activeTab === "sku" && (
@@ -946,7 +980,7 @@ export default function WatchTower() {
   );
 }
 
-const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms, categoryPlatform, setCategoryPlatform }) => {
+const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms, categoryPlatform, setCategoryPlatform, hasRestrictedPlatforms }) => {
   const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
 
@@ -1112,7 +1146,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
               className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
               style={{ fontFamily: 'Roboto, sans-serif' }}
             >
-              <option value="All">All Platforms</option>
+              {!hasRestrictedPlatforms && <option value="All">All Platforms</option>}
               {pdpPlatforms?.map(p => (
                 <option key={p} value={p}>{p}</option>
               ))}
