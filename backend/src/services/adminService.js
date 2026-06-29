@@ -294,6 +294,53 @@ export const updateUserAccess = async (id, status, userName) => {
 };
 
 /**
+ * Helper to convert flat permissions (e.g. platform_blinkit: true) to nested format:
+ * {
+ *   "Business Overview": true,
+ *   "platform": {
+ *     "blinkit": true
+ *   }
+ * }
+ */
+export const toNestedPermissions = (flatPerms) => {
+    if (!flatPerms) return {};
+    const nested = {};
+    const platform = {};
+    Object.keys(flatPerms).forEach(key => {
+        if (key.startsWith('platform_')) {
+            const platName = key.replace('platform_', '').toLowerCase();
+            platform[platName] = flatPerms[key];
+        } else if (key !== 'platform') {
+            nested[key] = flatPerms[key];
+        }
+    });
+    nested.platform = platform;
+    return nested;
+};
+
+/**
+ * Helper to convert nested permissions (e.g. platform: { blinkit: true }) back to flat format:
+ * {
+ *   "Business Overview": true,
+ *   "platform_blinkit": true
+ * }
+ */
+export const toFlatPermissions = (nestedPerms) => {
+    if (!nestedPerms) return {};
+    const flat = {};
+    Object.keys(nestedPerms).forEach(key => {
+        if (key === 'platform' && nestedPerms.platform && typeof nestedPerms.platform === 'object') {
+            Object.keys(nestedPerms.platform).forEach(plat => {
+                flat[`platform_${plat}`] = nestedPerms.platform[plat];
+            });
+        } else {
+            flat[key] = nestedPerms[key];
+        }
+    });
+    return flat;
+};
+
+/**
  * Fetch unique users for the Permissions tab with their latest db_status and tab_permissions
  */
 export const getPermissionsUsers = async () => {
@@ -350,7 +397,7 @@ export const getPermissionsUsers = async () => {
             let tabPermissions = {};
             try {
                 if (user.tab_permissions && user.tab_permissions.trim()) {
-                    tabPermissions = JSON.parse(user.tab_permissions);
+                    tabPermissions = toFlatPermissions(JSON.parse(user.tab_permissions));
                 }
             } catch (e) { /* ignore parse errors */ }
 
@@ -401,8 +448,36 @@ export const updateUserDbStatus = async (userIdOrEmail, dbStatus) => {
  */
 export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions) => {
     try {
-        const jsonStr = JSON.stringify(tabPermissions).replace(/'/g, "\\'");
+        // 1. Fetch user's db_id
         const isEmail = userIdOrEmail.includes('@');
+        const userQuery = isEmail 
+            ? `SELECT toString(db_id) as db_id FROM tb_user WHERE user_email = '${userIdOrEmail.replace(/'/g, "\\'")}' LIMIT 1`
+            : `SELECT toString(db_id) as db_id FROM tb_user WHERE toString(user_id) = '${userIdOrEmail}' LIMIT 1`;
+        const userRows = await queryAdminDB(userQuery);
+        
+        let cleanedPermissions = { ...tabPermissions };
+        
+        if (userRows && userRows.length > 0) {
+            const dbId = userRows[0].db_id;
+            // 2. Fetch db_name from tb_database
+            const dbRows = await queryAdminDB(`SELECT db_name FROM tb_database WHERE toString(db_id) = '${dbId}' LIMIT 1`);
+            if (dbRows && dbRows.length > 0) {
+                const dbName = dbRows[0].db_name;
+                // 3. Get active platforms for this database
+                const activePlatforms = await getAdminPlatforms(dbName);
+                const activePlatformKeys = new Set(activePlatforms.map(p => `platform_${p.toLowerCase()}`));
+                
+                // 4. Remove all platform_* keys that are not active in this DB
+                Object.keys(cleanedPermissions).forEach(key => {
+                    if (key.startsWith('platform_') && !activePlatformKeys.has(key)) {
+                        delete cleanedPermissions[key];
+                    }
+                });
+            }
+        }
+
+        const nestedPermissions = toNestedPermissions(cleanedPermissions);
+        const jsonStr = JSON.stringify(nestedPermissions).replace(/'/g, "\\'");
         const query = isEmail ? `
             ALTER TABLE tb_user 
             UPDATE tab_permissions = '${jsonStr}' 

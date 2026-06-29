@@ -1,8 +1,8 @@
 // update_tab_permissions.js
 // Updates tab_permissions column in tb_user to include flat platform keys
 // like: "platform_amazon": true, "platform_flipkart": true, etc.
-// Only the platforms that exist in each client's own database are added.
-// Write-access via ClickHouse IP: 13.203.251.97
+// Only the platforms that exist in each client's own database (rb_platform) are added.
+// Existing user permission selections are preserved; new platforms default to true.
 
 import 'dotenv/config';
 import { createClient } from '@clickhouse/client';
@@ -66,27 +66,52 @@ function platformKey(name) {
         `);
         console.log(`Found ${users.length} distinct users.`);
 
-        // 3. Cache: db_name -> platforms list (so we don't query the same DB multiple times)
+        // 3. Cache: db_name -> platforms list
         const platformCache = new Map();
 
         async function getPlatformsForDB(dbName) {
-            if (platformCache.has(dbName)) return platformCache.get(dbName);
+            const db = dbName.trim().toLowerCase();
+            if (platformCache.has(db)) return platformCache.get(db);
             try {
-                // Try to get platforms from rca_sku_dim
-                const rows = await queryClientDB(dbName, `
-                    SELECT DISTINCT platform 
-                    FROM rca_sku_dim 
-                    WHERE platform IS NOT NULL AND platform != '' 
-                    ORDER BY platform
-                `);
-                const platforms = rows.map(r => r.platform).filter(Boolean);
-                platformCache.set(dbName, platforms);
-                console.log(`  DB "${dbName}" has platforms: [${platforms.join(', ')}]`);
-                return platforms;
+                // Check if rb_platform exists first
+                const existsRes = await queryAdmin(`EXISTS TABLE ${db}.rb_platform`);
+                if (existsRes && existsRes[0] && existsRes[0].result === 1) {
+                    const rows = await queryClientDB(db, `
+                        SELECT DISTINCT pf_name 
+                        FROM rb_platform 
+                        WHERE status = 1 
+                        ORDER BY pf_name ASC
+                    `);
+                    const platforms = rows.map(r => r.pf_name).filter(Boolean);
+                    platformCache.set(db, platforms);
+                    console.log(`  DB "${db}" has platforms from rb_platform: [${platforms.join(', ')}]`);
+                    return platforms;
+                }
+
+                // Fallback: Try rca_sku_dim
+                const rcaExistsRes = await queryAdmin(`EXISTS TABLE ${db}.rca_sku_dim`);
+                if (rcaExistsRes && rcaExistsRes[0] && rcaExistsRes[0].result === 1) {
+                    const rows = await queryClientDB(db, `
+                        SELECT DISTINCT platform 
+                        FROM rca_sku_dim 
+                        WHERE platform IS NOT NULL AND platform != '' 
+                        ORDER BY platform
+                    `);
+                    const platforms = rows.map(r => r.platform).filter(Boolean);
+                    platformCache.set(db, platforms);
+                    console.log(`  DB "${db}" has platforms from rca_sku_dim: [${platforms.join(', ')}]`);
+                    return platforms;
+                }
+
+                const fallback = ["amazon", "flipkart", "bigbasket", "blinkit", "instamart", "zepto", "dmart"];
+                platformCache.set(db, fallback);
+                console.log(`  DB "${db}" — tables not found, using fallback: [${fallback.join(', ')}]`);
+                return fallback;
             } catch (err) {
-                console.warn(`  DB "${dbName}" — could not fetch platforms: ${err.message}`);
-                platformCache.set(dbName, []);
-                return [];
+                const fallback = ["amazon", "flipkart", "bigbasket", "blinkit", "instamart", "zepto", "dmart"];
+                console.warn(`  DB "${db}" — could not fetch platforms, using fallback: ${err.message}`);
+                platformCache.set(db, fallback);
+                return fallback;
             }
         }
 
@@ -118,28 +143,56 @@ function platformKey(name) {
 
                 // Get the platforms that exist for this client's DB
                 const platforms = await getPlatformsForDB(dbName);
+                const activePlatformKeys = new Set(platforms.map(p => platformKey(p)));
 
                 // Parse existing tab_permissions
                 let perms = {};
                 if (user.tab_permissions && user.tab_permissions.trim()) {
-                    try { perms = JSON.parse(user.tab_permissions); } catch (_) {}
+                    try {
+                        const parsed = JSON.parse(user.tab_permissions);
+                        if (parsed.platform && typeof parsed.platform === 'object') {
+                            Object.keys(parsed.platform).forEach(plat => {
+                                parsed[`platform_${plat}`] = parsed.platform[plat];
+                            });
+                            delete parsed.platform;
+                        }
+                        perms = parsed;
+                    } catch (_) {}
                 }
 
                 // Remove old nested platform_permissions key if it exists
                 delete perms.platform_permissions;
 
-                // Remove any old platform_xxx keys to start clean
+                // Remove any flat platform keys that are not active for this DB
                 for (const key of Object.keys(perms)) {
-                    if (key.startsWith('platform_')) delete perms[key];
+                    if (key.startsWith('platform_') && !activePlatformKeys.has(key)) {
+                        delete perms[key];
+                    }
                 }
 
-                // Add flat platform keys for this client's platforms (all default to true)
+                // Add or preserve flat platform keys for this client's platforms (default new ones to true)
                 for (const p of platforms) {
-                    perms[platformKey(p)] = true;
+                    const key = platformKey(p);
+                    if (perms[key] === undefined) {
+                        perms[key] = true;
+                    }
                 }
+
+                // Convert to nested format
+                const nestedPerms = {};
+                const platformObj = {};
+                for (const key of Object.keys(perms)) {
+                    if (key.startsWith('platform_')) {
+                        const platName = key.replace('platform_', '').toLowerCase();
+                        platformObj[platName] = perms[key];
+                    } else if (key !== 'platform') {
+                        nestedPerms[key] = perms[key];
+                    }
+                }
+                nestedPerms.platform = platformObj;
 
                 // Escape and update
-                const jsonStr = JSON.stringify(perms).replace(/'/g, "\\'");
+                const jsonStr = JSON.stringify(nestedPerms).replace(/'/g, "\\'");
                 await queryAdmin(`
                     ALTER TABLE tb_user 
                     UPDATE tab_permissions = '${jsonStr}' 
@@ -147,7 +200,7 @@ function platformKey(name) {
                 `);
                 updatedCount++;
 
-                const platKeys = platforms.map(p => platformKey(p)).join(', ');
+                const platKeys = [...activePlatformKeys].join(', ');
                 console.log(`  ✓ ${user.user_email} (${dbName}): ${platKeys || '(no platforms)'}`);
             } catch (err) {
                 console.error(`  ✗ ${user.user_email}: ${err.message}`);

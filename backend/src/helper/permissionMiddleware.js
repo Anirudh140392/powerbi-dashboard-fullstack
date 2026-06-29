@@ -1,6 +1,6 @@
 // src/helper/permissionMiddleware.js
 import { queryAdminDB } from '../config/adminClickhouse.js';
-import { getAdminPlatforms } from '../services/adminService.js';
+import { getAdminPlatforms, toFlatPermissions } from '../services/adminService.js';
 
 // In-memory cache for tab permissions per user (TTL: 60 seconds)
 const permissionsCache = new Map();
@@ -39,7 +39,7 @@ async function getFreshTabPermissions(email) {
         let tabPerms = {};
         if (rows[0].tab_permissions && rows[0].tab_permissions.trim()) {
             try {
-                tabPerms = JSON.parse(rows[0].tab_permissions);
+                tabPerms = toFlatPermissions(JSON.parse(rows[0].tab_permissions));
             } catch (e) { /* ignore parse errors */ }
         }
         permissionsCache.set(email, { data: tabPerms, timestamp: Date.now() });

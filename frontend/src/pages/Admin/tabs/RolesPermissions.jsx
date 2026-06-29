@@ -193,12 +193,25 @@ const RolesPermissions = () => {
         }));
     };
 
+    const getCleanedTabs = (user, tabsObject) => {
+        const dbPlats = dbPlatformsMap[(user.dbName || '').toLowerCase()] || [];
+        const activePlatformKeys = new Set(dbPlats.map(p => `platform_${p.toLowerCase()}`));
+        const cleaned = {};
+        Object.keys(tabsObject).forEach(key => {
+            if (!key.startsWith('platform_') || activePlatformKeys.has(key)) {
+                cleaned[key] = tabsObject[key];
+            }
+        });
+        return cleaned;
+    };
+
     const handleTabStatusChange = async (userEmail, tabName) => {
         const user = usersData.find(u => u.email === userEmail);
         if (!user) return;
 
         const newTabValue = !user.tabs[tabName];
-        const updatedTabs = { ...user.tabs, [tabName]: newTabValue };
+        const rawTabs = { ...user.tabs, [tabName]: newTabValue };
+        const updatedTabs = getCleanedTabs(user, rawTabs);
 
         // Optimistic update
         setUsersData(prev => prev.map(u => {
@@ -235,7 +248,8 @@ const RolesPermissions = () => {
 
         const permKey = `platform_${platformName.toLowerCase()}`;
         const newTabValue = !user.tabs[permKey];
-        const updatedTabs = { ...user.tabs, [permKey]: newTabValue };
+        const rawTabs = { ...user.tabs, [permKey]: newTabValue };
+        const updatedTabs = getCleanedTabs(user, rawTabs);
 
         // Optimistic update
         setUsersData(prev => prev.map(u => {
@@ -273,10 +287,11 @@ const RolesPermissions = () => {
 
         const allActive = tabsList.every(tab => user.tabs[tab]);
         const newValue = !allActive;
-        const updatedTabs = tabsList.reduce((acc, tab) => {
-            acc[tab] = newValue;
-            return acc;
-        }, {});
+        const rawTabs = { ...user.tabs };
+        tabsList.forEach(tab => {
+            rawTabs[tab] = newValue;
+        });
+        const updatedTabs = getCleanedTabs(user, rawTabs);
 
         // Optimistic update
         setUsersData(prev => prev.map(u => {
@@ -304,7 +319,7 @@ const RolesPermissions = () => {
             }, {});
             setUsersData(prev => prev.map(u => {
                 if (u.email === userEmail) {
-                    return { ...u, tabs: revertedTabs };
+                    return { ...u, tabs: { ...user.tabs, ...revertedTabs } };
                 }
                 return u;
             }));
@@ -621,7 +636,9 @@ const RolesPermissions = () => {
                                                                                         // Optimistic update for filtered users
                                                                                         setUsersData(prev => prev.map(u => {
                                                                                             if (u.dbName.toLowerCase() === selectedAllDb.toLowerCase()) {
-                                                                                                return { ...u, tabs: { ...u.tabs, [tab]: newVal } };
+                                                                                                const rawTabs = { ...u.tabs, [tab]: newVal };
+                                                                                                const updatedTabs = getCleanedTabs(u, rawTabs);
+                                                                                                return { ...u, tabs: updatedTabs };
                                                                                             }
                                                                                             return u;
                                                                                         }));
@@ -629,7 +646,8 @@ const RolesPermissions = () => {
                                                                                         try {
                                                                                             const token = sessionStorage.getItem("token");
                                                                                             await Promise.all(filteredByDb.map(u => {
-                                                                                                const updatedTabs = { ...u.tabs, [tab]: newVal };
+                                                                                                const rawTabs = { ...u.tabs, [tab]: newVal };
+                                                                                                const updatedTabs = getCleanedTabs(u, rawTabs);
                                                                                                 return axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
                                                                                                     email: u.email,
                                                                                                     tabPermissions: updatedTabs
@@ -680,14 +698,17 @@ const RolesPermissions = () => {
                                                                                                     const newVal = !allUsersHavePlat;
                                                                                                     setUsersData(prev => prev.map(u => {
                                                                                                         if (u.dbName.toLowerCase() === selectedAllDb.toLowerCase()) {
-                                                                                                            return { ...u, tabs: { ...u.tabs, [permKey]: newVal } };
+                                                                                                            const rawTabs = { ...u.tabs, [permKey]: newVal };
+                                                                                                            const updatedTabs = getCleanedTabs(u, rawTabs);
+                                                                                                            return { ...u, tabs: updatedTabs };
                                                                                                         }
                                                                                                         return u;
                                                                                                     }));
                                                                                                     try {
                                                                                                         const token = sessionStorage.getItem("token");
                                                                                                         await Promise.all(filteredByDb.map(u => {
-                                                                                                            const updatedTabs = { ...u.tabs, [permKey]: newVal };
+                                                                                                            const rawTabs = { ...u.tabs, [permKey]: newVal };
+                                                                                                            const updatedTabs = getCleanedTabs(u, rawTabs);
                                                                                                             return axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
                                                                                                                 email: u.email,
                                                                                                                 tabPermissions: updatedTabs

@@ -2,6 +2,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { queryAdminDB, insertAdminDB } from '../config/adminClickhouse.js';
+import { toFlatPermissions } from './adminService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'trailytics_jwt_secret_2026';
 const JWT_EXPIRY = '7d';
@@ -223,7 +224,7 @@ export async function loginUser(email, password, clientIp = '') {
             dbStatusBool = (!permRows[0].db_status || permRows[0].db_status === '' || permRows[0].db_status === 'active');
             try {
                 if (permRows[0].tab_permissions && permRows[0].tab_permissions.trim()) {
-                    tabPermissions = JSON.parse(permRows[0].tab_permissions);
+                    tabPermissions = toFlatPermissions(JSON.parse(permRows[0].tab_permissions));
                 }
             } catch (e) { /* ignore parse errors */ }
         }
@@ -334,7 +335,7 @@ export async function verifySession(token) {
             dbStatus = (!permRows[0].db_status || permRows[0].db_status === '' || permRows[0].db_status === 'active');
             try {
                 if (permRows[0].tab_permissions && permRows[0].tab_permissions.trim()) {
-                    tabPermissions = JSON.parse(permRows[0].tab_permissions);
+                    tabPermissions = toFlatPermissions(JSON.parse(permRows[0].tab_permissions));
                 }
             } catch (e) { /* ignore */ }
         }
