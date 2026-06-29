@@ -78,12 +78,39 @@ const RolesPermissions = () => {
     const [usersData, setUsersData] = useState([]);
     const [allDatabases, setAllDatabases] = useState([]);
     const [selectedAllDb, setSelectedAllDb] = useState("mars");
+    const [dbPlatformsMap, setDbPlatformsMap] = useState({});
 
-    // Fetch users and databases from the API on mount
+    // Fetch users and databases on mount
     useEffect(() => {
         fetchPermissionsUsers();
         fetchDatabases();
     }, []);
+
+    useEffect(() => {
+        fetchPlatformsForDb(selectedAllDb);
+    }, [selectedAllDb]);
+
+    const fetchPlatformsForDb = async (dbName) => {
+        if (!dbName || dbName === 'N/A') return;
+        const dbKey = dbName.toLowerCase();
+        if (dbPlatformsMap[dbKey]) return; // already loaded
+
+        try {
+            const token = sessionStorage.getItem("token");
+            const response = await axios.get(`${API_BASE}/admin/platforms?dbName=${dbKey}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (response.data.success) {
+                setDbPlatformsMap(prev => ({
+                    ...prev,
+                    [dbKey]: response.data.data
+                }));
+            }
+        } catch (err) {
+            console.error(`[RolesPermissions] Failed to fetch platforms for database ${dbName}:`, err);
+        }
+    };
+
 
     const fetchDatabases = async () => {
         try {
@@ -126,6 +153,14 @@ const RolesPermissions = () => {
                         return acc;
                     }, {});
 
+                    // Add platform permissions to the same tabs object
+                    const allKnownPlatforms = ["amazon", "flipkart", "bigbasket", "blinkit", "instamart", "zepto", "dmart"];
+                    allKnownPlatforms.forEach(plat => {
+                        const key = `platform_${plat.toLowerCase()}`;
+                        tabs[key] = hasAnyPerm ? (tabPerms[key] !== undefined ? tabPerms[key] : true) : true;
+                    });
+
+
                     return {
                         id: user.id, // Use actual device/user_id from backend
                         email: user.email,
@@ -138,6 +173,10 @@ const RolesPermissions = () => {
                     };
                 });
                 setUsersData(users);
+
+                // Fetch platforms for all unique database names
+                const uniqueDbs = [...new Set(users.map(u => u.dbName).filter(d => d && d !== 'N/A'))];
+                uniqueDbs.forEach(db => fetchPlatformsForDb(db));
             }
         } catch (err) {
             console.error('[RolesPermissions] Failed to fetch users:', err);
@@ -189,6 +228,44 @@ const RolesPermissions = () => {
             }));
         }
     };
+
+    const handlePlatformStatusChange = async (userEmail, platformName) => {
+        const user = usersData.find(u => u.email === userEmail);
+        if (!user) return;
+
+        const permKey = `platform_${platformName.toLowerCase()}`;
+        const newTabValue = !user.tabs[permKey];
+        const updatedTabs = { ...user.tabs, [permKey]: newTabValue };
+
+        // Optimistic update
+        setUsersData(prev => prev.map(u => {
+            if (u.email === userEmail) {
+                return { ...u, tabs: updatedTabs };
+            }
+            return u;
+        }));
+
+        // Persist to backend
+        try {
+            const token = sessionStorage.getItem("token");
+            await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
+                email: user.email,
+                tabPermissions: updatedTabs
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+        } catch (err) {
+            console.error('[RolesPermissions] Failed to update platform permissions:', err);
+            // Revert on error
+            setUsersData(prev => prev.map(u => {
+                if (u.email === userEmail) {
+                    return { ...u, tabs: { ...updatedTabs, [permKey]: !newTabValue } };
+                }
+                return u;
+            }));
+        }
+    };
+
 
     const handleAllTabsToggle = async (userEmail) => {
         const user = usersData.find(u => u.email === userEmail);
@@ -570,7 +647,69 @@ const RolesPermissions = () => {
                                                                 );
                                                             })}
                                                         </div>
+                                                        {(() => {
+                                                            const dbPlats = dbPlatformsMap[selectedAllDb.toLowerCase()] || [];
+                                                            if (dbPlats.length === 0) return null;
+                                                            return (
+                                                                <>
+                                                                    <div className="col-span-full pt-4 border-t border-slate-100">
+                                                                        <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2">All Platform Access</h3>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                                                        {dbPlats.map((plat) => {
+                                                                            const permKey = `platform_${plat.toLowerCase()}`;
+                                                                            const displayName = plat.charAt(0).toUpperCase() + plat.slice(1);
+                                                                            const filteredByDb = usersData.filter(u => u.dbName.toLowerCase() === selectedAllDb.toLowerCase());
+                                                                            const allUsersHavePlat = filteredByDb.length > 0 && filteredByDb.every(u => u.tabs[permKey]);
+                                                                            return (
+                                                                                <div
+                                                                                    key={plat}
+                                                                                    className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-all"
+                                                                                >
+                                                                                    <div className="flex flex-col gap-1">
+                                                                                        <span className="text-[11px] font-semibold text-slate-600">{displayName}</span>
+                                                                                    </div>
+                                                                                    <div className="flex flex-col items-end gap-1">
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <span className={`text-[9px] font-bold uppercase tracking-wider ${allUsersHavePlat ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                                                                {allUsersHavePlat ? 'Active' : 'Inactive'}
+                                                                                            </span>
+                                                                                            <Switch
+                                                                                                checked={allUsersHavePlat}
+                                                                                                onChange={async () => {
+                                                                                                    const newVal = !allUsersHavePlat;
+                                                                                                    setUsersData(prev => prev.map(u => {
+                                                                                                        if (u.dbName.toLowerCase() === selectedAllDb.toLowerCase()) {
+                                                                                                            return { ...u, tabs: { ...u.tabs, [permKey]: newVal } };
+                                                                                                        }
+                                                                                                        return u;
+                                                                                                    }));
+                                                                                                    try {
+                                                                                                        const token = sessionStorage.getItem("token");
+                                                                                                        await Promise.all(filteredByDb.map(u => {
+                                                                                                            const updatedTabs = { ...u.tabs, [permKey]: newVal };
+                                                                                                            return axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
+                                                                                                                email: u.email,
+                                                                                                                tabPermissions: updatedTabs
+                                                                                                            }, { headers: { Authorization: `Bearer ${token}` } });
+                                                                                                        }));
+                                                                                                    } catch (err) {
+                                                                                                        console.error('[RolesPermissions] Failed to toggle platform permission for selected database:', err);
+                                                                                                        fetchPermissionsUsers();
+                                                                                                    }
+                                                                                                }}
+                                                                                            />
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </>
+                                                            );
+                                                        })()}
                                                     </div>
+
                                                 </motion.div>
                                             </TableCell>
                                         </TableRow>
@@ -689,7 +828,47 @@ const RolesPermissions = () => {
                                                                 </div>
                                                             ))}
                                                         </div>
+                                                        {(() => {
+                                                            const dbPlats = dbPlatformsMap[(user.dbName || '').toLowerCase()] || [];
+                                                            if (dbPlats.length === 0) return null;
+                                                            return (
+                                                                <>
+                                                                    <div className="pt-4 border-t border-slate-100">
+                                                                        <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-3">Platform Access</h3>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                                                        {dbPlats.map((plat) => {
+                                                                            const permKey = `platform_${plat.toLowerCase()}`;
+                                                                            const displayName = plat.charAt(0).toUpperCase() + plat.slice(1);
+                                                                            const isActive = user.tabs[permKey] !== false;
+                                                                            return (
+                                                                                <div
+                                                                                    key={plat}
+                                                                                    className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-all"
+                                                                                >
+                                                                                    <div className="flex flex-col gap-1">
+                                                                                        <span className="text-[11px] font-semibold text-slate-600">{displayName}</span>
+                                                                                    </div>
+                                                                                    <div className="flex flex-col items-end gap-1">
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <span className={`text-[9px] font-bold uppercase tracking-wider ${isActive ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                                                                {isActive ? 'Active' : 'Inactive'}
+                                                                                            </span>
+                                                                                            <Switch
+                                                                                                checked={isActive}
+                                                                                                onChange={() => handlePlatformStatusChange(user.email, plat)}
+                                                                                            />
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </>
+                                                            );
+                                                        })()}
                                                     </div>
+
                                                 </motion.div>
                                             </TableCell>
                                         </TableRow>

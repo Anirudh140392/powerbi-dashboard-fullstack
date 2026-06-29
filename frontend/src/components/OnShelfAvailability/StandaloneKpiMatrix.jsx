@@ -99,7 +99,6 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
     const [selectedSubCat, setSelectedSubCat] = useState([]); // Array for multi-select
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
-    const lastFetchedRef = useRef(null);
 
     // Backend data state
     const [subCategories, setSubCategories] = useState([]);
@@ -137,14 +136,9 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
     // Fetch sub-category KPI data from backend
     useEffect(() => {
         const fetchSubCategoryKpi = async () => {
-            const subCategoryParam = selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined;
-
-            if (lastFetchedRef.current === paramKey) {
-                return;
-            }
-
             setDataLoading(true);
             try {
+                const params = {
                     platform: platform === 'All' ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
                     category: selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
                     location: undefined, // Enforced isolation from global location filter
@@ -152,7 +146,7 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
                     endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
                     compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
                     compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
-                    subCategory: subCategoryParam,
+                    subCategory: selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined,
                     brand: selectedBrand === 'All' ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
                 };
 
@@ -168,14 +162,8 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
                         setBrandsData(brands);
                     }
                     // Set default selected sub-category on first load if none selected
-                    if (selectedSubCat.length === 0 && selectedSubCategory && selectedSubCategory.length > 0) {
-                        const defaultSelection = Array.isArray(selectedSubCategory) ? selectedSubCategory : [selectedSubCategory];
-                        const newSubCatParam = defaultSelection.join(",");
-                        const newParamKey = `${platform || 'All'}-${selectedCategory || 'All'}-${newSubCatParam}-${brandParam}-${timeStart ? timeStart.format("YYYYMMDD") : ''}-${timeEnd ? timeEnd.format("YYYYMMDD") : ''}`;
-                        lastFetchedRef.current = newParamKey;
-                        setSelectedSubCat(defaultSelection);
-                    } else {
-                        lastFetchedRef.current = paramKey;
+                    if (selectedSubCat.length === 0 && selectedSubCategory) {
+                        setSelectedSubCat(Array.isArray(selectedSubCategory) ? selectedSubCategory : [selectedSubCategory]);
                     }
                 }
             } catch (error) {
@@ -243,12 +231,12 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
             animate={{ opacity: 1, y: 0 }}
         >
             {/* Header */}
-            <div className="px-6 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="px-6 py-6 flex items-center justify-between">
                 <div>
                     <h2 className="text-xl font-bold text-slate-900">Market Visibility & Share</h2>
                     <p className="text-[13px] text-slate-500 mt-0.5">Hover on any value to see trend sparkline.</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-3">
                     <div className="relative" ref={dropdownRef}>
                         <button
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -309,8 +297,8 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
                         </AnimatePresence>
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="h-6 w-px bg-slate-200 mx-1"></div>
+                    <div className="flex items-center gap-2">
                         <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Healthy
                         </span>

@@ -1,5 +1,6 @@
 // src/controllers/adminController.js
 import * as adminService from '../services/adminService.js';
+import { clearPermissionsCache } from '../helper/permissionMiddleware.js';
 
 /**
  * GET /api/admin/users
@@ -205,6 +206,10 @@ export const updateDbStatus = async (req, res) => {
 
         await adminService.updateUserDbStatus(targetIdentifier, dbStatus);
 
+        // Clear permissions and platforms cache so changes apply instantly
+        clearPermissionsCache(email);
+        adminService.clearDbPlatformsCache();
+
         return res.status(200).json({
             success: true,
             message: `DB status updated for ${targetIdentifier}`
@@ -242,6 +247,10 @@ export const updateTabPermissions = async (req, res) => {
         }
 
         await adminService.updateUserTabPermissions(targetIdentifier, tabPermissions);
+
+        // Clear permissions and platforms cache so changes apply instantly
+        clearPermissionsCache(email);
+        adminService.clearDbPlatformsCache();
 
         return res.status(200).json({
             success: true,
@@ -431,3 +440,33 @@ export const createWalkthroughNotification = async (req, res) => {
         });
     }
 };
+
+/**
+ * GET /api/admin/platforms
+ * Returns list of unique active platforms
+ */
+export const getAdminPlatforms = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const { dbName } = req.query;
+        const platforms = await adminService.getAdminPlatforms(dbName);
+
+        return res.status(200).json({
+            success: true,
+            data: platforms
+        });
+    } catch (error) {
+        console.error('[AdminController] getAdminPlatforms failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};
+

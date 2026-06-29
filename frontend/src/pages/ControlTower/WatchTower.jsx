@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../../components/CommonLayout/ErrorRetryOverlay";
@@ -188,6 +189,7 @@ export default function WatchTower() {
     compareStart,
     compareEnd,
     platform: _sidebarPlatform,
+    platforms,
     selectedKeyword,
     selectedLocation,
     selectedChannel: _sidebarChannel,
@@ -200,6 +202,29 @@ export default function WatchTower() {
     refreshFilters,
     refreshDates
   } = filterContext;
+
+  const hasRestrictedPlatforms = useMemo(() => {
+    try {
+      const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      const tabPerms = storedUser?.tabPermissions || {};
+      return Object.keys(tabPerms).some(
+        key => key.startsWith('platform_') && tabPerms[key] === false
+      );
+    } catch (_) {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (platformsFetched && hasRestrictedPlatforms) {
+      const allowed = platforms || [];
+      const defaultPlatform = allowed.filter(p => p !== 'All')[0] || _sidebarPlatform;
+      if (defaultPlatform && defaultPlatform !== "All" && filters.platform === "All") {
+        setFilters(prev => ({ ...prev, platform: defaultPlatform }));
+        setTrendParams(prev => ({ ...prev, platform: defaultPlatform }));
+      }
+    }
+  }, [platformsFetched, platforms, _sidebarPlatform, hasRestrictedPlatforms, filters.platform]);
 
   const overriddenContextRef = React.useRef(null);
   const prevFilterContextRef = React.useRef(null);
@@ -327,22 +352,6 @@ export default function WatchTower() {
   const COMPARISON_KPIS = useMemo(() => {
     const topMetrics = dashboardData?.topMetrics;
 
-    const tier1Cities = [
-      'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
-      'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
-    ];
-    let hasTier23 = false;
-    if (selectedLocation && selectedLocation !== "All") {
-      const locs = Array.isArray(selectedLocation) 
-        ? selectedLocation 
-        : (typeof selectedLocation === 'string' ? selectedLocation.split(',').map(s => s.trim()) : []);
-      hasTier23 = locs.some(loc => {
-        const lowerLoc = String(loc).trim().toLowerCase();
-        if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
-        return !tier1Cities.includes(lowerLoc);
-      });
-    }
-
     // If real data available from backend, use it
     if (topMetrics && Array.isArray(topMetrics) && topMetrics.length > 0) {
       return topMetrics.map((metric) => {
@@ -375,16 +384,7 @@ export default function WatchTower() {
           finalValue = 'N/A';
           finalDelta = 0;
           finalDeltaLabel = 'N/A';
-        } else if (normalizedTitle.toLowerCase() === 'market share' && hasTier23) {
-          finalValue = 'N/A';
-          finalDelta = 0;
-          finalDeltaLabel = 'N/A';
         }
-
-        const rawTrend = metric.chart || getLogicalKpiTrend(meta.id, context);
-        const finalTrendArray = (normalizedTitle.toLowerCase() === 'market share' && hasTier23)
-          ? (Array.isArray(rawTrend) ? rawTrend.map(() => 0) : [])
-          : rawTrend;
 
         return {
           id: meta.id,
@@ -394,7 +394,7 @@ export default function WatchTower() {
           deltaLabel: finalDeltaLabel,
           icon: meta.icon,
           gradient: meta.gradient,
-          trend: finalTrendArray,
+          trend: metric.chart || getLogicalKpiTrend(meta.id, context),
           subtitle: metric.subtitle || undefined,
           infoTooltip: KPI_INFO_TOOLTIPS[normalizedTitle] || undefined,
         };
@@ -429,13 +429,11 @@ export default function WatchTower() {
       },
       {
         id: 'market', title: 'Market Share',
-        value: hasTier23 ? 'N/A' : `${getJitter(getLogicalKpiValue('market', context), 'market')}%`,
-        delta: hasTier23 ? 0 : getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta'),
-        deltaLabel: hasTier23 ? 'N/A' : `+${(getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta') / 8).toFixed(2)}%`,
+        value: `${getJitter(getLogicalKpiValue('market', context), 'market')}%`,
+        delta: getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta'),
+        deltaLabel: `+${(getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta') / 8).toFixed(2)}%`,
         icon: PieChart, gradient: ['#8b5cf6', '#a855f7'],
-        trend: hasTier23 
-          ? (Array.isArray(getLogicalKpiTrend('market', context)) ? getLogicalKpiTrend('market', context).map(() => 0) : [])
-          : getLogicalKpiTrend('market', context),
+        trend: getLogicalKpiTrend('market', context),
         infoTooltip: KPI_INFO_TOOLTIPS['Market Share'],
       },
       {
@@ -505,6 +503,15 @@ export default function WatchTower() {
   const [fetchError, setFetchError] = useState(null);
   const [categoryPlatform, setCategoryPlatform] = useState("All");
   const [pdpPlatforms, setPdpPlatforms] = useState([]);
+
+  useEffect(() => {
+    if (hasRestrictedPlatforms && pdpPlatforms?.length > 0) {
+      const allowed = pdpPlatforms.filter(p => p !== 'All');
+      if (allowed.length > 0 && categoryPlatform === "All") {
+        setCategoryPlatform(allowed[0]);
+      }
+    }
+  }, [pdpPlatforms, hasRestrictedPlatforms, categoryPlatform]);
   const overviewFetchIdRef = useRef(0);
   const categoryFetchIdRef = useRef(0);
 
@@ -742,11 +749,11 @@ export default function WatchTower() {
             onViewTrends={handleViewTrends}
           />
         )} */}
-<<<<<<< HEAD
 
-        {fetchError && !loading && !dashboardData?.performanceMetricsKpis?.length ? (
-          <ErrorRetryOverlay onRetry={retryFetch} message={fetchError} />
-        ) : (
+          {fetchError && !loading && !dashboardData?.performanceMetricsKpis?.length ? (
+            <ErrorRetryOverlay onRetry={retryFetch} message={fetchError} />
+          ) : (
+            <SnapshotOverview
               title="Business Overview"
               icon={LayoutGrid}
               chip="All Platforms"
@@ -804,11 +811,11 @@ export default function WatchTower() {
           {/* Platform Overview */}
           {/* Tabs */}
           {/* <Box
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
           sx={{
             bgcolor: (theme) => theme.palette.background.paper,
             borderRadius: 2,
             boxShadow: 1,
+            mb: 4,
           }}
         >
           <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
@@ -917,20 +924,18 @@ export default function WatchTower() {
             <FormatPerformanceStudio
               rows={FORMAT_ROWS}
               loading={categoryDataLoading}
-        </Box>
+              openHelpWithMenu={openHelpWithMenu}
+              pdpPlatforms={pdpPlatforms}
+              categoryPlatform={categoryPlatform}
+              setCategoryPlatform={setCategoryPlatform}
+              hasRestrictedPlatforms={hasRestrictedPlatforms}
+            />
 
-        {/* Performance Breakdown Section */}
-        <Box sx={{ mb: 4 }}>
-          <PerformanceBreakdownProvider
-            darkMode={false}
-            filters={perfBreakdownFilters}
-          >
-            <AggregatedViewTable />
-          </PerformanceBreakdownProvider>
-        </Box>
-
-        <SalesOverview />
-=======
+            {/* {activeTab === "sku" && (
+            <Box sx={{ p: 3 }}>
+              <SKUTable data={dashboardData.skuTable} />
+            </Box>
+          )} */}
           </Box>
 
           {/* Performance Breakdown Section */}
@@ -944,7 +949,6 @@ export default function WatchTower() {
           </Box>
 
           <SalesOverview />
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
         </FilterContext.Provider>
       </CommonContainer>
 
@@ -977,7 +981,7 @@ export default function WatchTower() {
   );
 }
 
-const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms, categoryPlatform, setCategoryPlatform }) => {
+const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms, categoryPlatform, setCategoryPlatform, hasRestrictedPlatforms }) => {
   const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
 
@@ -1143,7 +1147,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
               className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
               style={{ fontFamily: 'Roboto, sans-serif' }}
             >
-              <option value="All">All Platforms</option>
+              {!hasRestrictedPlatforms && <option value="All">All Platforms</option>}
               {pdpPlatforms?.map(p => (
                 <option key={p} value={p}>{p}</option>
               ))}

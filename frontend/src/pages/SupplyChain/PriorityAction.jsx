@@ -54,6 +54,48 @@ const formatINR = (n) => {
     }).format(num);
 };
 
+const formatLakhs = (n) => {
+    if (n === null || n === undefined || n === "") return "N/A";
+    const num = Number(n);
+    if (isNaN(num)) return "N/A";
+    const lakhs = num / 100000;
+    return `₹${lakhs.toFixed(2)} L`;
+};
+
+const FillWaterfall = ({ confirm, pick, bill, grn }) => {
+    const getBadgeStyle = (val) => {
+        if (val === null || val === undefined) return { bg: "bg-slate-50", text: "text-slate-400" };
+        if (val >= 95) return { bg: "bg-emerald-50", text: "text-emerald-700" };
+        if (val >= 90) return { bg: "bg-amber-50", text: "text-amber-700" };
+        return { bg: "bg-red-50", text: "text-red-700" };
+    };
+
+    const items = [
+        { label: "C", value: confirm, title: "Confirm Fill" },
+        { label: "P", value: pick, title: "Pick Fill" },
+        { label: "B", value: bill, title: "Bill Fill" },
+        { label: "G", value: grn, title: "GRN Fill" }
+    ];
+
+    return (
+        <div className="flex items-center justify-end gap-0.5 mt-0.5">
+            {items.map((item, idx) => {
+                const style = getBadgeStyle(item.value);
+                return (
+                    <React.Fragment key={item.label}>
+                        {idx > 0 && <span className="text-slate-300 text-[8px] mx-0.5">›</span>}
+                        <Tooltip title={`${item.title}: ${formatOrNA(item.value, (v) => `${v}%`)}`} arrow placement="top">
+                            <span className={`px-1 py-0.5 rounded text-[8px] font-bold ${style.bg} ${style.text} cursor-help border border-slate-100`}>
+                                {item.label}:{formatOrNA(item.value, (v) => `${Math.round(v)}%`)}
+                            </span>
+                        </Tooltip>
+                    </React.Fragment>
+                );
+            })}
+        </div>
+    );
+};
+
 const formatOrNA = (val, formatter = (v) => v) => {
     if (val === null || val === undefined || val === "") {
         return "N/A";
@@ -254,10 +296,19 @@ export default function PriorityAction() {
     // State for search (filters come from FilterContext)
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("All");
+    const version = "v2";
 
     const [activePO, setActivePO] = useState(null);
     const [activePODetail, setActivePODetail] = useState(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 50;
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeTab, searchTerm, selectedCategory, selectedPriority, selectedStatus, selectedPlatform, selectedBrand, selectedCity, timeStart, timeEnd]);
 
     // SKU Trend states
     const [trendSku, setTrendSku] = useState(null); // { webPid, skuName }
@@ -292,6 +343,7 @@ export default function PriorityAction() {
             setPaFilters(poFilters);
         }
     }, [poFilters, setPaFilters]);
+
     const [loading, setLoading] = useState(false);
 
     // Fetch PO dynamic filter options from backend
@@ -316,7 +368,7 @@ export default function PriorityAction() {
         const fetchPOData = async () => {
             setLoading(true);
             try {
-                const params = {};
+                const params = { version };
                 if (searchTerm) params.search = searchTerm;
                 if (selectedStatus !== "All") params.status = selectedStatus;
                 if (selectedPlatform !== "All") params.platform = selectedPlatform;
@@ -350,7 +402,7 @@ export default function PriorityAction() {
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [activeTab, searchTerm, selectedStatus, selectedPlatform, selectedBrand, selectedCategory, selectedCity, timeStart, timeEnd]);
+    }, [activeTab, searchTerm, selectedStatus, selectedPlatform, selectedBrand, selectedCategory, selectedCity, timeStart, timeEnd, version]);
 
     // Fetch Surplus data from backend with debounced search
     useEffect(() => {
@@ -359,7 +411,7 @@ export default function PriorityAction() {
         const fetchSurplusData = async () => {
             setLoading(true);
             try {
-                const params = {};
+                const params = { version };
                 if (searchTerm) params.search = searchTerm;
                 if (selectedPlatform !== "All") params.platform = selectedPlatform;
                 if (selectedBrand !== "All") params.brand = selectedBrand;
@@ -384,7 +436,7 @@ export default function PriorityAction() {
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [activeTab, searchTerm, selectedPlatform, selectedBrand, selectedCategory, selectedCity, timeStart, timeEnd]);
+    }, [activeTab, searchTerm, selectedPlatform, selectedBrand, selectedCategory, selectedCity, timeStart, timeEnd, version]);
 
     // Fetch Stock Transfer data from backend with debounced search
     useEffect(() => {
@@ -393,7 +445,7 @@ export default function PriorityAction() {
         const fetchStockTransferData = async () => {
             setLoading(true);
             try {
-                const params = {};
+                const params = { version };
                 if (searchTerm) params.search = searchTerm;
                 if (selectedPlatform !== "All") params.platform = selectedPlatform;
                 if (selectedBrand !== "All") params.brand = selectedBrand;
@@ -418,7 +470,7 @@ export default function PriorityAction() {
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [activeTab, searchTerm, selectedPlatform, selectedBrand, selectedCategory, selectedCity, timeStart, timeEnd]);
+    }, [activeTab, searchTerm, selectedPlatform, selectedBrand, selectedCategory, selectedCity, timeStart, timeEnd, version]);
 
     // Handle Know More modal click to fetch SKU level details dynamically
     const handleKnowMore = async (po) => {
@@ -428,6 +480,7 @@ export default function PriorityAction() {
         try {
             const params = {
                 poNumber: po.poNumber,
+                version,
                 ...(po.facilityName ? { facilityName: po.facilityName } : {})
             };
             if (searchTerm) params.search = searchTerm;
@@ -580,29 +633,30 @@ export default function PriorityAction() {
             setTrendData(null);
         }
     }, [activePO]);
+
     const getFilteredData = () => {
         if (activeTab === "prioritize-po") {
             // Apply priority client-side so it's super snappy
             return poData.filter(po => {
+                if (!po) return false;
                 return selectedPriority === "All" || po.priority === selectedPriority;
             });
         } else if (activeTab === "stock-transfer") {
             return stockTransferData.filter(item => {
+                if (!item) return false;
                 const matchesSearch = !searchTerm ||
-                    item.skuName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (item.skuName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (item.fromCfa || '').toLowerCase().includes(searchTerm.toLowerCase());
                 return matchesSearch;
-            }).sort((a, b) => {
-                const aSurplus = ((a.doiFe || 0) + (a.doiBe || 0)) > 30 ? 1 : 0;
-                const bSurplus = ((b.doiFe || 0) + (b.doiBe || 0)) > 30 ? 1 : 0;
-                if (bSurplus !== aSurplus) return bSurplus - aSurplus;
-                return ((b.doiFe || 0) + (b.doiBe || 0)) - ((a.doiFe || 0) + (a.doiBe || 0));
             });
         } else {
             return surplusData.filter(item => {
+                if (!item) return false;
+                const skuSearchStr = item.sku || item.skuName || '';
+                const warehouseSearchStr = item.warehouse || '';
                 const matchesSearch = !searchTerm ||
-                    item.skuName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.warehouse.toLowerCase().includes(searchTerm.toLowerCase());
+                    skuSearchStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    warehouseSearchStr.toLowerCase().includes(searchTerm.toLowerCase());
                 const matchesPriority = selectedPriority === "All" || item.priority === selectedPriority;
                 return matchesSearch && matchesPriority;
             });
@@ -610,6 +664,13 @@ export default function PriorityAction() {
     };
 
     const filteredData = getFilteredData();
+
+
+    // Paginated subset calculations
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedData = filteredData.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
     return (
         <CommonContainer title="Priority Action">
@@ -637,6 +698,7 @@ export default function PriorityAction() {
                     border-bottom: 2px solid #cbd5e1;
                     height: 38px;
                     padding: 0 12px;
+                    white-space: nowrap;
                 }
                 .insight-grid td {
                     padding: 12px;
@@ -644,6 +706,17 @@ export default function PriorityAction() {
                     color: #334155;
                     vertical-align: middle;
                     border-bottom: 1px solid #e2e8f0;
+                    white-space: nowrap;
+                }
+                .priority-badge-critical {
+                    background-color: #ffe4e6;
+                    color: #9f1239;
+                    border: 1px solid #fecdd3;
+                    animation: pulse-border 2s infinite;
+                }
+                @keyframes pulse-border {
+                    0%, 100% { border-color: #fecdd3; }
+                    50% { border-color: #f43f5e; }
                 }
                 .priority-badge-high {
                     background-color: #fef2f2;
@@ -721,7 +794,7 @@ export default function PriorityAction() {
                 }
             `}} />
 
-            <div className="space-y-6 animate-in fade-in duration-500 pb-12">
+            <div className="space-y-6 animate-in fade-in duration-500 pb-12" style={{ marginTop: "24px" }}>
                 {/* ─── Premium Tab Navigation Switch with Filters on Top ─── */}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
@@ -805,11 +878,29 @@ export default function PriorityAction() {
                     {/* Table View */}
                     <div className="w-full overflow-auto max-h-[600px] scrollbar-thin">
                         {activeTab === "prioritize-po" && (
-                            <table className="insight-grid w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                            <table className="insight-grid w-full text-sm" style={{ borderCollapse: "collapse", minWidth: "1550px" }}>
                                 <thead>
                                     <TableRow style={{ borderBottom: "2px solid #cbd5e1" }}>
-                                        <TableHead className="px-3 py-3 text-left">PO Number</TableHead>
-                                        <TableHead className="px-3 py-3 text-left">Priority</TableHead>
+                                        <TableHead className="px-3 py-3 text-left">
+                                            <div className="flex items-center gap-1">
+                                                <span>PO Number</span>
+                                                <Tooltip title="Unique identifier for the Purchase Order raised by the platform." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-left">
+                                            <div className="flex items-center gap-1">
+                                                <span>Priority</span>
+                                                <Tooltip title="Calculated priority level (Critical, High, Medium, Low) based on stockout risk and expiry." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
                                         <TableHead className="px-3 py-3 text-right">
                                             <div className="flex items-center justify-end gap-1">
                                                 <span>Projected Sales At Risk</span>
@@ -830,11 +921,66 @@ export default function PriorityAction() {
                                                 </Tooltip>
                                             </div>
                                         </TableHead>
-                                        <TableHead className="px-3 py-3 text-left">Status</TableHead>
-                                        <TableHead className="px-3 py-3 text-right">Order Value</TableHead>
-                                        <TableHead className="px-3 py-3 text-left">Raised On</TableHead>
-                                        <TableHead className="px-3 py-3 text-left">Appt Date</TableHead>
-                                        <TableHead className="px-3 py-3 text-left">Expiry</TableHead>
+                                        <TableHead className="px-3 py-3 text-left">
+                                            <div className="flex items-center gap-1">
+                                                <span>Status</span>
+                                                <Tooltip title="Current logistical status of the Purchase Order (e.g. Delayed, In Transit, Appointed, Pending)." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span>Billed Value</span>
+                                                <Tooltip title="The total value of the items in this PO that have already been billed (in Lakhs)." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span>Order Value</span>
+                                                <Tooltip title="The total ordered value of the PO when it was raised (in Lakhs)." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-left">
+                                            <div className="flex items-center gap-1">
+                                                <span>Raised On</span>
+                                                <Tooltip title="The date when the platform raised the Purchase Order." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-left">
+                                            <div className="flex items-center gap-1">
+                                                <span>Appt Date</span>
+                                                <Tooltip title="Appointment date and time confirmed for delivery at the warehouse." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-left">
+                                            <div className="flex items-center gap-1">
+                                                <span>Expiry</span>
+                                                <Tooltip title="The expiry date/cancellation date of the Purchase Order set by the platform." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
                                         <TableHead className="px-3 py-3 text-right">
                                             <div className="flex items-center justify-end gap-1">
                                                 <span>Avg DOI</span>
@@ -845,8 +991,26 @@ export default function PriorityAction() {
                                                 </Tooltip>
                                             </div>
                                         </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">LT (days)</TableHead>
-                                        <TableHead className="px-3 py-3 text-right">Fill Rate</TableHead>
+                                        <TableHead className="px-3 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span>LT (days)</span>
+                                                <Tooltip title="Lead Time (LT) is the number of days taken from PO creation to GRN delivery." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span>Fill C·P·B·G</span>
+                                                <Tooltip title="Reconciliation Waterfall: Confirm Fill -> Pick Fill -> Bill Fill -> GRN Fill percentages." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
                                         <TableHead className="px-3 py-3 text-right">
                                             <div className="flex items-center justify-end gap-1">
                                                 <span>Consumption/Day</span>
@@ -876,8 +1040,8 @@ export default function PriorityAction() {
                                             </TableCell>
                                         </TableRow>
                                     ) : (
-                                        filteredData.map((po) => (
-                                            <TableRow key={`${po.poNumber}-${po.facilityName}`} className="hover:bg-blue-50/30 transition-colors duration-200">
+                                        paginatedData.map((po) => (
+                                            <TableRow key={`${po.poNumber}-${po.facilityName}`} className="hover:bg-blue-50/30 transition-colors duration-200 whitespace-nowrap">
                                                 {/* PO Number */}
                                                 <TableCell className="px-3 py-3">
                                                     <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-start" }}>
@@ -894,8 +1058,13 @@ export default function PriorityAction() {
                                                                 borderRadius: "4px",
                                                                 padding: "2px 6px", cursor: "pointer",
                                                                 display: "inline-flex", alignItems: "center", gap: "3px",
+                                                                transition: "all 0.2s ease",
+                                                                letterSpacing: "0.01em",
+                                                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                                                                minWidth: "max-content",
                                                                 flexShrink: 0,
                                                                 whiteSpace: "nowrap"
+                                                            }}
                                                         >
                                                             <BoxIcon size={7} />
                                                             Show SKUs
@@ -905,16 +1074,18 @@ export default function PriorityAction() {
 
                                                 {/* Priority */}
                                                 <TableCell className="px-3 py-3">
-                                                    <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md ${po.priority === "High" ? "priority-badge-high" :
+                                                    <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md ${
+                                                        po.priority === "Critical" ? "priority-badge-critical" :
+                                                        po.priority === "High" ? "priority-badge-high" :
                                                         po.priority === "Medium" ? "priority-badge-medium" : "priority-badge-low"
-                                                        }`}>
+                                                    }`}>
                                                         {po.priority}
                                                     </span>
                                                 </TableCell>
 
                                                 {/* Projected Sales at Risk */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-red-600">
-                                                    {formatOrNA(po.projectedSalesAtRisk, formatINR)}
+                                                    {formatOrNA(po.projectedSalesAtRisk, formatLakhs)}
                                                 </TableCell>
 
                                                 {/* Platform Warehouse */}
@@ -932,9 +1103,14 @@ export default function PriorityAction() {
                                                     </span>
                                                 </TableCell>
 
+                                                {/* Billed Value */}
+                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-900">
+                                                    {formatOrNA(po.billedValue, formatLakhs)}
+                                                </TableCell>
+
                                                 {/* Order Value */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-900">
-                                                    {formatOrNA(po.orderValue, formatINR)}
+                                                    {formatOrNA(po.orderValue, formatLakhs)}
                                                 </TableCell>
 
                                                 {/* Raised On */}
@@ -962,9 +1138,9 @@ export default function PriorityAction() {
                                                     {formatOrNA(po.lt, (v) => `${v} days`)}
                                                 </TableCell>
 
-                                                {/* Fill Rate */}
-                                                <TableCell className={`px-3 py-3 text-right text-[11px] font-bold ${po.fillRate >= 95 ? "text-emerald-600" : po.fillRate >= 90 ? "text-amber-600" : "text-red-600"}`}>
-                                                    {formatOrNA(po.fillRate, (v) => `${v}%`)}
+                                                {/* Fill Rate / Recon Waterfall */}
+                                                <TableCell className="px-3 py-3 text-right text-[11px] font-bold">
+                                                    <FillWaterfall confirm={po.confirmFill} pick={po.pickFill} bill={po.billFill} grn={po.grnFill} />
                                                 </TableCell>
 
                                                 {/* Consumption per Day */}
@@ -979,41 +1155,119 @@ export default function PriorityAction() {
                         )}
 
                         {activeTab === "stock-transfer" && (
-                            <table className="insight-grid w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                            <table className="insight-grid w-full text-sm" style={{ borderCollapse: "collapse", minWidth: "1200px" }}>
                                 <thead>
                                     <TableRow style={{ borderBottom: "2px solid #cbd5e1" }}>
-                                        <TableHead className="px-3 py-3 text-left">SKU Name</TableHead>
-                                        <TableHead className="px-3 py-3 text-left">CFA (Surplus)</TableHead>
-
-                                        <TableHead className="px-3 py-3 text-right">City OSA %</TableHead>
-                                        <TableHead className="px-3 py-3 text-right">DOI (FE)</TableHead>
-                                        <TableHead className="px-3 py-3 text-right">DOI (BE)</TableHead>
-                                        <TableHead className="px-3 py-3 text-right">SOH (FE)</TableHead>
-                                        <TableHead className="px-3 py-3 text-right">SOH (BE)</TableHead>
-
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>CPD</span>
-                                                <Tooltip title="Consumption Per Day (CPD) in units." arrow placement="top">
+                                        <TableHead className="px-3 py-3 text-left">
+                                            <div className="flex items-center gap-1">
+                                                <span>SKU Name</span>
+                                                <Tooltip title="Name and SAP code of the SKU recommended for stock transfer." arrow placement="top">
                                                     <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
                                                         <Info size={12} className="inline-block" />
                                                     </span>
                                                 </Tooltip>
                                             </div>
                                         </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">PSL Recovery</TableHead>
-
+                                        <TableHead className="px-3 py-3 text-left">
+                                            <div className="flex items-center gap-1">
+                                                <span>From CFA (Surplus)</span>
+                                                <Tooltip title="Source CFA warehouse containing excess inventory." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-left">
+                                            <div className="flex items-center gap-1">
+                                                <span>To CFA (Deficit)</span>
+                                                <Tooltip title="Destination CFA warehouse facing inventory shortage." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span>Distance (km)</span>
+                                                <Tooltip title="Straight-line geographic distance between source and destination warehouses." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span>DOI (Deficit)</span>
+                                                <Tooltip title="Days of Inventory (DOI) coverage at the destination warehouse before transfer." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span>DOI (Surplus)</span>
+                                                <Tooltip title="Days of Inventory (DOI) coverage at the source warehouse before transfer." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span>SOH (Deficit)</span>
+                                                <Tooltip title="Stock On Hand (SOH) quantity currently at the destination warehouse (in Units)." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span>SOH (Surplus)</span>
+                                                <Tooltip title="Stock On Hand (SOH) quantity currently at the source warehouse (in Units)." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span>CPD (Deficit)</span>
+                                                <Tooltip title="Cases/Units Per Day sold on average at the destination warehouse." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
+                                        <TableHead className="px-3 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span>Transfer Qty</span>
+                                                <Tooltip title="Recommended transfer quantity (Units) to bring the destination to a safe 7-day cover." arrow placement="top">
+                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                        <Info size={12} className="inline-block" />
+                                                    </span>
+                                                </Tooltip>
+                                            </div>
+                                        </TableHead>
                                     </TableRow>
                                 </thead>
                                 <TableBody>
                                     {filteredData.length === 0 ? (
                                         <TableRow>
-<<<<<<< HEAD
                                             <TableCell colSpan={10} className="text-center py-12 text-slate-400 text-[11px] font-semibold">
-=======
+                                                No stock transfers matching search found.
                                             </TableCell>
+                                        </TableRow>
                                     ) : (
-<<<<<<< HEAD
                                         paginatedData.map((item) => (
                                             <TableRow key={item.id} className="hover:bg-blue-50/30 transition-colors duration-200">
                                                 {/* SKU Name */}
@@ -1022,18 +1276,10 @@ export default function PriorityAction() {
                                                         <span className="text-[11px] font-bold text-slate-900">{item.skuName}</span>
                                                         {item.sapCode && <span className="text-[9px] text-slate-500 font-normal">SAP: {item.sapCode}</span>}
                                                     </div>
-=======
-                                        filteredData.map((item) => (
-                                            <TableRow key={item.id} className="hover:bg-blue-50/30 transition-colors duration-200">
-                                                {/* SKU Name */}
-                                                <TableCell className="px-3 py-3">
-                                                    <span className="text-[11px] font-bold text-slate-900">{item.skuName}</span>
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                                 </TableCell>
 
                                                 {/* From CFA */}
                                                 <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-800">
-<<<<<<< HEAD
                                                     {formatOrNA(item.fromCfa)}
                                                 </TableCell>
 
@@ -1058,73 +1304,24 @@ export default function PriorityAction() {
                                                 </TableCell>
 
                                                 {/* SOH Deficit */}
-=======
-                                                    <div className="flex items-center gap-1.5">
-                                                        {formatOrNA(item.fromCfa)}
-                                                        {((item.doiFe || 0) + (item.doiBe || 0)) > 30 && (
-                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">
-                                                                Surplus
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </TableCell>
-
-
-
-                                                {/* City OSA % */}
-                                                <TableCell className={`px-3 py-3 text-right text-[11px] font-bold ${item.cityOsa < 80 ? "text-red-500" : "text-emerald-600"}`}>
-                                                    {formatOrNA(item.cityOsa, (v) => `${v}%`)}
-                                                </TableCell>
-
-                                                {/* DOI (FE) */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(item.doiFe, (v) => `${v} days`)}
-                                                </TableCell>
-
-                                                {/* DOI (BE) */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(item.doiBe, (v) => `${v} days`)}
-                                                </TableCell>
-
-                                                {/* SOH (FE) */}
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-medium text-slate-800">
                                                     {formatOrNA(item.sohFe)}
                                                 </TableCell>
 
-<<<<<<< HEAD
                                                 {/* SOH Surplus */}
-=======
-                                                {/* SOH (BE) */}
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-medium text-slate-800">
                                                     {formatOrNA(item.sohBe)}
                                                 </TableCell>
 
-<<<<<<< HEAD
                                                 {/* CPD Deficit */}
-=======
-
-
-                                                {/* CPD */}
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
                                                     {formatOrNA(item.cpd)}
                                                 </TableCell>
 
-<<<<<<< HEAD
                                                 {/* Transfer Qty */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-bold text-indigo-600">
                                                     {formatOrNA(item.transferQty, (v) => `${v} units`)}
                                                 </TableCell>
-=======
-                                                {/* PSL Recovery */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-bold text-indigo-600">
-                                                    {formatOrNA(item.pslRecovery, (v) => formatINR(v * 1000))}
-                                                </TableCell>
-
-
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                             </TableRow>
                                         ))
                                     )}
@@ -1133,7 +1330,6 @@ export default function PriorityAction() {
                         )}
 
                         {activeTab === "manage-surplus" && (
-<<<<<<< HEAD
                             <table className="insight-grid w-full text-sm" style={{ borderCollapse: "collapse", minWidth: "1200px" }}>
                                 <thead>
                                     <TableRow style={{ borderBottom: "2px solid #cbd5e1" }}>
@@ -1227,20 +1423,6 @@ export default function PriorityAction() {
                                                 </Tooltip>
                                             </div>
                                         </TableHead>
-=======
-                            <table className="insight-grid w-full text-sm" style={{ borderCollapse: "collapse" }}>
-                                <thead>
-                                    <TableRow style={{ borderBottom: "2px solid #cbd5e1" }}>
-                                        <TableHead className="px-3 py-3 text-left">SKU Name</TableHead>
-                                        <TableHead className="px-3 py-3 text-left">Platform</TableHead>
-                                        <TableHead className="px-3 py-3 text-left">Warehouse</TableHead>
-                                        <TableHead className="px-3 py-3 text-left">Priority</TableHead>
-                                        <TableHead className="px-3 py-3 text-right">SOH (BE)</TableHead>
-                                        <TableHead className="px-3 py-3 text-right">SOH (FE)</TableHead>
-                                        <TableHead className="px-3 py-3 text-right">DOI</TableHead>
-                                        <TableHead className="px-3 py-3 text-right">CPD</TableHead>
-                                        <TableHead className="px-3 py-3 text-right">City OSA</TableHead>
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                     </TableRow>
                                 </thead>
                                 <TableBody>
@@ -1260,7 +1442,6 @@ export default function PriorityAction() {
                                             </TableCell>
                                         </TableRow>
                                     ) : (
-<<<<<<< HEAD
                                         paginatedData.map((item) => (
                                             <TableRow key={item.id} className="hover:bg-blue-50/30 transition-colors duration-200">
                                                 {/* SKU Name */}
@@ -1275,35 +1456,10 @@ export default function PriorityAction() {
                                                         item.priority === "High" ? "priority-badge-high" :
                                                         item.priority === "Medium" ? "priority-badge-medium" : "priority-badge-low"
                                                     }`}>
-=======
-                                        filteredData.map((item) => (
-                                            <TableRow key={item.id} className="hover:bg-blue-50/30 transition-colors duration-200">
-                                                {/* SKU Name */}
-                                                <TableCell className="px-3 py-3">
-                                                    <span className="text-[11px] font-bold text-slate-900">{item.skuName}</span>
-                                                </TableCell>
-
-                                                {/* Platform */}
-                                                <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-500">
-                                                    {formatOrNA(item.platform)}
-                                                </TableCell>
-
-                                                {/* Warehouse */}
-                                                <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-800">
-                                                    {formatOrNA(item.warehouse)}
-                                                </TableCell>
-
-                                                {/* Priority */}
-                                                <TableCell className="px-3 py-3">
-                                                    <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md ${item.priority === "High" ? "priority-badge-high" :
-                                                        item.priority === "Medium" ? "priority-badge-medium" : "priority-badge-low"
-                                                        }`}>
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                                         {formatOrNA(item.priority)}
                                                     </span>
                                                 </TableCell>
 
-<<<<<<< HEAD
                                                 {/* Surplus (EA) */}
                                                 <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-800">
                                                     {formatOrNA(item.surplusEa)}
@@ -1337,31 +1493,6 @@ export default function PriorityAction() {
                                                 {/* Team / Action */}
                                                 <TableCell className="px-3 py-3 text-left text-[11px] text-slate-700 font-semibold whitespace-normal">
                                                     {formatOrNA(item.teamAction)}
-=======
-                                                {/* SOH (BE) */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-medium text-slate-800">
-                                                    {formatOrNA(item.sohBe)}
-                                                </TableCell>
-
-                                                {/* SOH (FE) */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-medium text-slate-800">
-                                                    {formatOrNA(item.sohFe)}
-                                                </TableCell>
-
-                                                {/* DOI */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(item.doi, (v) => `${Math.round(Number(v))} days`)}
-                                                </TableCell>
-
-                                                {/* CPD */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(item.cpd, (v) => Math.round(Number(v)))}
-                                                </TableCell>
-
-                                                {/* City OSA */}
-                                                <TableCell className={`px-3 py-3 text-right text-[11px] font-bold ${item.cityOsa < 80 ? "text-red-500" : "text-emerald-600"}`}>
-                                                    {formatOrNA(item.cityOsa, (v) => `${v}%`)}
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                                 </TableCell>
                                             </TableRow>
                                         ))
@@ -1370,7 +1501,6 @@ export default function PriorityAction() {
                             </table>
                         )}
                     </div>
-<<<<<<< HEAD
 
                     {/* Pagination Controls */}
                     {totalPages > 1 && (
@@ -1430,22 +1560,14 @@ export default function PriorityAction() {
                             </div>
                         </div>
                     )}
-=======
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                 </div>
             </div>
 
             {/* ─── Show SKUs Modal ─── */}
             <Dialog open={activePO !== null} onOpenChange={(open) => { if (!open) setActivePO(null); }}>
-<<<<<<< HEAD
                 <DialogContent hideCloseButton className="p-0 overflow-hidden rounded-[18px] border-none shadow-2xl transition-all duration-300 max-h-[85vh] flex flex-col sm:max-w-3xl top-[50%] translate-y-[-50%]">
                     {activePO && (
                         <div className="flex flex-col bg-white overflow-hidden max-h-full">
-=======
-                <DialogContent className={`p-0 overflow-hidden rounded-[18px] border-none shadow-2xl transition-all duration-300 ${trendSku ? 'sm:max-w-5xl' : 'sm:max-w-2xl'}`}>
-                    {activePO && (
-                        <div className="flex flex-col bg-white">
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                             {/* Header */}
                             <div style={{
                                 background: "linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)",
@@ -1480,11 +1602,7 @@ export default function PriorityAction() {
                             </div>
 
                             {/* SKU Table */}
-<<<<<<< HEAD
                             <div style={{ overflowY: "auto", transition: "max-height 0.3s ease", paddingBottom: "10px" }}>
-=======
-                            <div style={{ maxHeight: trendSku ? "280px" : "520px", overflowY: "auto", transition: "max-height 0.3s ease" }}>
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                 <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
                                     <thead style={{ position: "sticky", top: 0, zIndex: 2 }}>
                                         <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
@@ -1492,20 +1610,12 @@ export default function PriorityAction() {
                                             <th style={{ padding: "10px 12px", fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "right" }}>Units Ordered</th>
                                             <th style={{ padding: "10px 12px", fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "right" }}>Units Delivered</th>
                                             <th style={{ padding: "10px 12px", fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "right" }}>Fill Rate</th>
-<<<<<<< HEAD
-=======
-                                            <th style={{ padding: "10px 8px", fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "center", width: "44px" }}>Trend</th>
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {loadingDetail ? (
                                             <tr>
-<<<<<<< HEAD
                                                 <td colSpan={4} style={{ padding: "32px 16px", textAlign: "center" }}>
-=======
-                                                <td colSpan={5} style={{ padding: "32px 16px", textAlign: "center" }}>
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                                     <div className="flex justify-center items-center gap-2">
                                                         <RefreshCw size={16} className="animate-spin text-indigo-600" />
                                                         <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Loading SKUs...</span>
@@ -1514,15 +1624,10 @@ export default function PriorityAction() {
                                             </tr>
                                         ) : activePODetail?.skus?.length > 0 ? (
                                             activePODetail.skus.map((sku, sIdx) => {
-<<<<<<< HEAD
-=======
-                                                const isActiveTrend = trendSku?.webPid === sku.webPid;
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                                 return (
                                                     <tr key={sIdx} style={{
                                                         borderBottom: "1px solid #f1f5f9",
                                                         transition: "background 0.15s",
-<<<<<<< HEAD
                                                     }} className="hover:bg-blue-50/40">
                                                         <td style={{ padding: "10px 16px", fontSize: "11px", fontWeight: 600, color: "#1e293b", maxWidth: "220px" }}>
                                                             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1535,16 +1640,6 @@ export default function PriorityAction() {
                                                                         </div>
                                                                     )}
                                                                 </div>
-=======
-                                                        background: isActiveTrend ? "#eff6ff" : undefined
-                                                    }} className={isActiveTrend ? "" : "hover:bg-blue-50/40"}>
-                                                        <td style={{ padding: "10px 16px", fontSize: "11px", fontWeight: 600, color: "#1e293b", maxWidth: "220px" }}>
-                                                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                                                {sku.imageUrl && (
-                                                                    <img src={sku.imageUrl} alt="" style={{ width: "28px", height: "28px", borderRadius: "6px", border: "1px solid #e2e8f0", objectFit: "contain", background: "#fff", flexShrink: 0 }} />
-                                                                )}
-                                                                <span className="line-clamp-2">{sku.skuName}</span>
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                                             </div>
                                                         </td>
                                                         <td style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 600, color: "#475569", textAlign: "right" }}>
@@ -1553,7 +1648,6 @@ export default function PriorityAction() {
                                                         <td style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 600, color: "#475569", textAlign: "right" }}>
                                                             {formatOrNA(sku.unitsDelivered, (v) => v.toLocaleString())}
                                                         </td>
-<<<<<<< HEAD
                                                         <td style={{ padding: "10px 12px", textAlign: "right" }}>
                                                             <div className="flex flex-col items-end">
                                                                 <span style={{
@@ -1564,45 +1658,13 @@ export default function PriorityAction() {
                                                                     {formatOrNA(sku.fillRate, (v) => `${v}%`)}
                                                                 </span>
                                                             </div>
-=======
-                                                        <td style={{
-                                                            padding: "10px 12px", fontSize: "11px", fontWeight: 700, textAlign: "right",
-                                                            color: !sku.fillRate ? "#64748b" : sku.fillRate >= 95 ? "#16a34a" : sku.fillRate >= 50 ? "#d97706" : "#dc2626"
-                                                        }}>
-                                                            {formatOrNA(sku.fillRate, (v) => `${v}%`)}
-                                                        </td>
-                                                        <td style={{ padding: "6px 8px", textAlign: "center" }}>
-                                                            <button
-                                                                onClick={() => fetchSKUTrend(sku.webPid, sku.skuName)}
-                                                                disabled={!sku.webPid}
-                                                                title={sku.webPid ? "View KPI Trends" : "No web_pid available"}
-                                                                style={{
-                                                                    background: isActiveTrend ? "#2563eb" : "#f1f5f9",
-                                                                    border: "none",
-                                                                    borderRadius: "6px",
-                                                                    padding: "5px",
-                                                                    cursor: sku.webPid ? "pointer" : "not-allowed",
-                                                                    display: "inline-flex",
-                                                                    alignItems: "center",
-                                                                    justifyContent: "center",
-                                                                    transition: "all 0.2s",
-                                                                    opacity: sku.webPid ? 1 : 0.35,
-                                                                }}
-                                                            >
-                                                                <BarChart3 size={14} color={isActiveTrend ? "#fff" : "#64748b"} />
-                                                            </button>
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                                         </td>
                                                     </tr>
                                                 );
                                             })
                                         ) : (
                                             <tr>
-<<<<<<< HEAD
                                                 <td colSpan={4} style={{ padding: "24px 16px", textAlign: "center", fontSize: "11px", color: "#94a3b8", fontWeight: 600 }}>
-=======
-                                                <td colSpan={5} style={{ padding: "24px 16px", textAlign: "center", fontSize: "11px", color: "#94a3b8", fontWeight: 600 }}>
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                                                     No SKU data available for this PO.
                                                 </td>
                                             </tr>
@@ -1611,250 +1673,6 @@ export default function PriorityAction() {
                                 </table>
                             </div>
 
-<<<<<<< HEAD
-=======
-                            {/* ─── SKU Trend Panel (Multi-KPI) ─── */}
-                            {trendSku && (
-                                <div style={{
-                                    borderTop: "2px solid #e2e8f0",
-                                    background: "linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)",
-                                    padding: "16px 20px 18px",
-                                    animation: "fadeIn 0.25s ease-out",
-                                }}>
-                                    {/* Trend Header */}
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px" }}>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
-                                                <BarChart3 size={14} color="#2563eb" />
-                                                <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>KPI Trend</span>
-                                            </div>
-                                            <p style={{ fontSize: "10px", color: "#64748b", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                                {trendSku.skuName}
-                                            </p>
-                                        </div>
-
-                                        {/* Time Step Segmented Controls */}
-                                        <div style={{ display: "flex", background: "#f1f5f9", borderRadius: "8px", padding: "2px", gap: "2px", flexShrink: 0 }}>
-                                            {['daily', 'weekly', 'monthly'].map(step => (
-                                                <button
-                                                    key={step}
-                                                    onClick={() => setTimeStep(step)}
-                                                    style={{
-                                                        padding: "4px 10px",
-                                                        borderRadius: "6px",
-                                                        border: "none",
-                                                        background: timeStep === step ? "#fff" : "transparent",
-                                                        color: timeStep === step ? "#1e293b" : "#64748b",
-                                                        fontSize: "10px",
-                                                        fontWeight: 700,
-                                                        cursor: "pointer",
-                                                        boxShadow: timeStep === step ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                                                        textTransform: "capitalize",
-                                                        transition: "all 0.15s ease",
-                                                    }}
-                                                >
-                                                    {step}
-                                                </button>
-                                            ))}
-                                        </div>
-
-                                        <button
-                                            onClick={() => { setTrendSku(null); setTrendData(null); }}
-                                            style={{
-                                                background: "#f1f5f9",
-                                                border: "none",
-                                                borderRadius: "6px",
-                                                padding: "4px",
-                                                cursor: "pointer",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                flexShrink: 0,
-                                            }}
-                                        >
-                                            <X size={12} color="#64748b" />
-                                        </button>
-                                    </div>
-
-                                    {/* Multi-Select KPI Toggle Buttons */}
-                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "14px" }}>
-                                        {Object.entries(KPI_CONFIG).map(([key, cfg]) => {
-                                            const isActive = activeKpis.has(key);
-                                            return (
-                                                <button
-                                                    key={key}
-                                                    onClick={() => toggleKpi(key)}
-                                                    style={{
-                                                        padding: "5px 14px",
-                                                        borderRadius: "20px",
-                                                        border: isActive ? `1.5px solid ${cfg.color}` : "1.5px solid #e2e8f0",
-                                                        background: isActive ? cfg.color : "#fff",
-                                                        color: isActive ? "#fff" : "#64748b",
-                                                        fontSize: "11px",
-                                                        fontWeight: 700,
-                                                        cursor: "pointer",
-                                                        transition: "all 0.2s",
-                                                        letterSpacing: "0.01em",
-                                                        boxShadow: isActive ? `0 2px 8px ${cfg.color}40` : "none",
-                                                    }}
-                                                >
-                                                    {cfg.label}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-
-                                    {/* Chart Area */}
-                                    {trendLoading ? (
-                                        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "220px", gap: "8px" }}>
-                                            <RefreshCw size={16} className="animate-spin text-indigo-600" />
-                                            <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>Loading trend data...</span>
-                                        </div>
-                                    ) : trendData?.dates?.length > 0 ? (() => {
-                                        // Build chart data with all active KPIs as separate keys
-                                        const activeList = [...activeKpis];
-                                        const chartData = trendData.dates.map((date, i) => {
-                                            const d = new Date(date);
-                                            let labelDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-                                            let tooltipDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-
-                                            if (timeStep === 'monthly') {
-                                                labelDate = d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-                                                tooltipDate = d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-                                            } else if (timeStep === 'weekly') {
-                                                labelDate = 'W/C ' + d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-                                                const nextWeek = new Date(d);
-                                                nextWeek.setDate(nextWeek.getDate() + 6);
-                                                tooltipDate = `Week of ${d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} - ${nextWeek.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`;
-                                            }
-
-                                            const point = {
-                                                date: labelDate,
-                                                fullDate: tooltipDate,
-                                            };
-                                            activeList.forEach(key => {
-                                                point[key] = trendData.kpis[key]?.[i] ?? null;
-                                            });
-                                            return point;
-                                        });
-
-                                        // Determine if we need dual Y-axis
-                                        const hasLeftAxis = activeList.some(k => KPI_CONFIG[k].axis === 'left');
-                                        const hasRightAxis = activeList.some(k => KPI_CONFIG[k].axis === 'right');
-
-                                        // Custom tooltip
-                                        const CustomTooltip = ({ active, payload, label }) => {
-                                            if (!active || !payload?.length) return null;
-                                            return (
-                                                <div style={{
-                                                    background: "#fff",
-                                                    border: "1px solid #e2e8f0",
-                                                    borderRadius: "10px",
-                                                    padding: "10px 14px",
-                                                    boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-                                                    minWidth: "140px",
-                                                }}>
-                                                    <p style={{ fontSize: "11px", fontWeight: 700, color: "#1e293b", marginBottom: "6px", borderBottom: "1px solid #f1f5f9", paddingBottom: "4px" }}>
-                                                        {payload[0]?.payload?.fullDate || label}
-                                                    </p>
-                                                    {payload.map((entry, idx) => {
-                                                        const cfg = KPI_CONFIG[entry.dataKey];
-                                                        if (!cfg) return null;
-                                                        return (
-                                                            <div key={idx} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 0" }}>
-                                                                <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: cfg.color, flexShrink: 0 }} />
-                                                                <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", flex: 1 }}>{cfg.label}</span>
-                                                                <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>
-                                                                    {entry.value !== null && entry.value !== undefined ? cfg.format(entry.value) : 'N/A'}
-                                                                </span>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            );
-                                        };
-
-                                        return (
-                                            <div style={{ width: "100%", height: "240px" }}>
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <AreaChart data={chartData} margin={{ top: 8, right: hasRightAxis ? 10 : 12, left: 0, bottom: 4 }}>
-                                                        <defs>
-                                                            {activeList.map(key => (
-                                                                <linearGradient key={key} id={`gradient-${key}`} x1="0" y1="0" x2="0" y2="1">
-                                                                    <stop offset="5%" stopColor={KPI_CONFIG[key].gradient[0]} stopOpacity={0.2} />
-                                                                    <stop offset="95%" stopColor={KPI_CONFIG[key].gradient[1]} stopOpacity={0.02} />
-                                                                </linearGradient>
-                                                            ))}
-                                                        </defs>
-                                                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                                                        <XAxis
-                                                            dataKey="date"
-                                                            tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 500 }}
-                                                            tickLine={false}
-                                                            axisLine={{ stroke: "#e2e8f0" }}
-                                                            interval={Math.max(0, Math.floor(chartData.length / 7) - 1)}
-                                                        />
-                                                        {hasLeftAxis && (
-                                                            <YAxis
-                                                                yAxisId="left"
-                                                                orientation="left"
-                                                                tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 500 }}
-                                                                tickLine={false}
-                                                                axisLine={false}
-                                                                width={48}
-                                                                tickFormatter={(v) => {
-                                                                    const activeLeftKpis = activeList.filter(k => KPI_CONFIG[k].axis === 'left');
-                                                                    const isCurrencyOnly = activeLeftKpis.length > 0 && activeLeftKpis.every(k => k === 'offtake' || k === 'drr' || k === 'price');
-                                                                    const formatted = formatK_Lac_Cr(v);
-                                                                    if (formatted === "N/A") return "";
-                                                                    return isCurrencyOnly ? `₹${formatted}` : formatted;
-                                                                }}
-                                                            />
-                                                        )}
-                                                        {hasRightAxis && (
-                                                            <YAxis
-                                                                yAxisId="right"
-                                                                orientation="right"
-                                                                tick={{ fontSize: 9, fill: "#94a3b8", fontWeight: 500 }}
-                                                                tickLine={false}
-                                                                axisLine={false}
-                                                                width={40}
-                                                                domain={[0, 100]}
-                                                                tickFormatter={(v) => `${v}%`}
-                                                            />
-                                                        )}
-                                                        <RechartsTooltip content={<CustomTooltip />} />
-                                                        {activeList.map(key => {
-                                                            const cfg = KPI_CONFIG[key];
-                                                            const yId = cfg.axis === 'right' && hasRightAxis ? 'right'
-                                                                : cfg.axis === 'left' && hasLeftAxis ? 'left'
-                                                                    : hasLeftAxis ? 'left' : 'right';
-                                                            return (
-                                                                <Area
-                                                                    key={key}
-                                                                    type="monotone"
-                                                                    dataKey={key}
-                                                                    yAxisId={yId}
-                                                                    stroke={cfg.color}
-                                                                    strokeWidth={2.5}
-                                                                    fill={`url(#gradient-${key})`}
-                                                                    dot={false}
-                                                                    activeDot={{ r: 4, fill: cfg.color, stroke: "#fff", strokeWidth: 2 }}
-                                                                />
-                                                            );
-                                                        })}
-                                                    </AreaChart>
-                                                </ResponsiveContainer>
-                                            </div>
-                                        );
-                                    })() : (
-                                        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "220px" }}>
-                                            <span style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8" }}>No trend data available for this SKU.</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
->>>>>>> a99f57ee9b9a2917531132e38ce846e365fb7ec8
                             {/* Footer summary */}
                             {activePODetail?.skus?.length > 0 && (
                                 <div style={{

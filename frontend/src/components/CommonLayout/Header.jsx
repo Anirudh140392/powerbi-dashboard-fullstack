@@ -82,6 +82,18 @@ function WatchTowerFilterModal({
   brands, selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
 }) {
+  const hasRestrictedPlatforms = React.useMemo(() => {
+    try {
+      const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      const tabPerms = storedUser?.tabPermissions || {};
+      return Object.keys(tabPerms).some(
+        key => key.startsWith('platform_') && tabPerms[key] === false
+      );
+    } catch (_) {
+      return false;
+    }
+  }, []);
+
   const [activeTab, setActiveTab] = React.useState(hideChannelPlatform ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
@@ -234,11 +246,14 @@ function WatchTowerFilterModal({
     } else {
       next = [...selected.filter(s => s !== "All"), opt];
     }
-    if (next.length === options.length && options.length > 0) onChange("All");
-    else onChange(next);
+    if (next.length === options.length && options.length > 0) {
+      onChange(hasRestrictedPlatforms && activeTab === "platform" ? next : "All");
+    } else {
+      onChange(next);
+    }
   };
 
-  const selectAll = () => onChange("All");
+  const selectAll = () => onChange(hasRestrictedPlatforms && activeTab === "platform" ? options : "All");
   const clearAll = () => onChange([]);
 
   const tabMeta = availableTabs.find(t => t.key === activeTab);
@@ -265,7 +280,11 @@ function WatchTowerFilterModal({
 
     if (!hideChannelPlatform) {
       setSelectedChannel(normalize(draftChannel));
-      setPlatform(normalize(draftPlatform));
+      let finalPlatform = draftPlatform;
+      if (hasRestrictedPlatforms && (finalPlatform === "All" || (Array.isArray(finalPlatform) && finalPlatform.includes("All")))) {
+        finalPlatform = localPlatforms.filter(p => p !== 'All');
+      }
+      setPlatform(normalize(finalPlatform));
     }
     setSelectedCategory(normalize(draftCategory));
     setSelectedBrand(normalize(draftBrand));
@@ -282,7 +301,7 @@ function WatchTowerFilterModal({
   const handleResetAll = () => {
     if (!hideChannelPlatform) {
       setDraftChannel("All");
-      setDraftPlatform("All");
+      setDraftPlatform(hasRestrictedPlatforms ? localPlatforms.filter(p => p !== 'All') : "All");
     }
     setDraftCategory("All");
     setDraftBrand("All");
@@ -3856,6 +3875,18 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     setPaFilters,
   } = React.useContext(FilterContext);
 
+  const hasRestrictedPlatforms = React.useMemo(() => {
+    try {
+      const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      const tabPerms = storedUser?.tabPermissions || {};
+      return Object.keys(tabPerms).some(
+        key => key.startsWith('platform_') && tabPerms[key] === false
+      );
+    } catch (_) {
+      return false;
+    }
+  }, []);
+
   const { socketMaxDates } = useSocket();
 
   const currentChannel = filters?.channel || selectedChannel;
@@ -3904,10 +3935,14 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
   };
 
   const localSetPlatform = (val) => {
+    let finalVal = val;
+    if (hasRestrictedPlatforms && (val === "All" || (Array.isArray(val) && val.includes("All")))) {
+      finalVal = platforms.filter(p => p !== 'All');
+    }
     if (onFiltersChange) {
-      onFiltersChange(prev => ({ ...prev, platform: val }));
+      onFiltersChange(prev => ({ ...prev, platform: finalVal }));
     } else {
-      setPlatform(val);
+      setPlatform(finalVal);
     }
   };
 
