@@ -103,6 +103,11 @@ const formatOrNA = (val, formatter = (v) => v) => {
     return formatter(val);
 };
 
+const formatFilterParam = (val) => {
+    if (val === "All") return undefined;
+    return Array.isArray(val) ? val.join(",") : val;
+};
+
 export default function PriorityAction() {
     const {
         refreshFilters,
@@ -119,7 +124,6 @@ export default function PriorityAction() {
         setPaFilters,
         timeStart,
         timeEnd,
-        platform,
     } = useContext(FilterContext);
 
     useEffect(() => {
@@ -128,14 +132,10 @@ export default function PriorityAction() {
         }
     }, [refreshFilters]);
 
-    // Sync global sidebar platform selection to page-specific platform filter
-    useEffect(() => {
-        if (platform) {
-            setSelectedPlatform(platform);
-        } else {
-            setSelectedPlatform("All");
-        }
-    }, [platform, setSelectedPlatform]);
+    // NOTE: No global platform sync here — Priority Action page uses its own
+    // PriorityActionFilterModal (with paPlatform state) which is independent of
+    // the global sidebar platform dropdown. paPlatform is initialized to "All"
+    // in FilterContext and only changed by the modal's Apply button.
 
     // Active tab: prioritize-po, stock-transfer, manage-surplus
     const [activeTab, setActiveTab] = useState("prioritize-po");
@@ -370,13 +370,24 @@ export default function PriorityAction() {
             try {
                 const params = { version };
                 if (searchTerm) params.search = searchTerm;
-                if (selectedStatus !== "All") params.status = selectedStatus;
-                if (selectedPlatform !== "All") params.platform = selectedPlatform;
-                if (selectedBrand !== "All") params.brand = selectedBrand;
-                if (selectedCategory !== "All") params.category = selectedCategory;
-                if (selectedCity !== "All") params.city = selectedCity;
-                if (timeStart) params.startDate = timeStart;
-                if (timeEnd) params.endDate = timeEnd;
+                
+                const statusParam = formatFilterParam(selectedStatus);
+                if (statusParam) params.status = statusParam;
+                
+                const platformParam = formatFilterParam(selectedPlatform);
+                if (platformParam) params.platform = platformParam;
+                
+                const brandParam = formatFilterParam(selectedBrand);
+                if (brandParam) params.brand = brandParam;
+                
+                const categoryParam = formatFilterParam(selectedCategory);
+                if (categoryParam) params.category = categoryParam;
+                
+                const cityParam = formatFilterParam(selectedCity);
+                if (cityParam) params.city = cityParam;
+                
+                if (timeStart) params.startDate = typeof timeStart.format === 'function' ? timeStart.format('YYYY-MM-DD') : timeStart;
+                if (timeEnd) params.endDate = typeof timeEnd.format === 'function' ? timeEnd.format('YYYY-MM-DD') : timeEnd;
 
                 const response = await axiosInstance.get('/supply-chain/prioritize-po', { params });
                 if (response.data) {
@@ -413,12 +424,21 @@ export default function PriorityAction() {
             try {
                 const params = { version };
                 if (searchTerm) params.search = searchTerm;
-                if (selectedPlatform !== "All") params.platform = selectedPlatform;
-                if (selectedBrand !== "All") params.brand = selectedBrand;
-                if (selectedCategory !== "All") params.category = selectedCategory;
-                if (selectedCity !== "All") params.city = selectedCity;
-                if (timeStart) params.startDate = timeStart;
-                if (timeEnd) params.endDate = timeEnd;
+                
+                const platformParam = formatFilterParam(selectedPlatform);
+                if (platformParam) params.platform = platformParam;
+                
+                const brandParam = formatFilterParam(selectedBrand);
+                if (brandParam) params.brand = brandParam;
+                
+                const categoryParam = formatFilterParam(selectedCategory);
+                if (categoryParam) params.category = categoryParam;
+                
+                const cityParam = formatFilterParam(selectedCity);
+                if (cityParam) params.city = cityParam;
+                
+                if (timeStart) params.startDate = typeof timeStart.format === 'function' ? timeStart.format('YYYY-MM-DD') : timeStart;
+                if (timeEnd) params.endDate = typeof timeEnd.format === 'function' ? timeEnd.format('YYYY-MM-DD') : timeEnd;
 
                 const response = await axiosInstance.get('/supply-chain/manage-surplus', { params });
                 if (response.data) {
@@ -447,12 +467,21 @@ export default function PriorityAction() {
             try {
                 const params = { version };
                 if (searchTerm) params.search = searchTerm;
-                if (selectedPlatform !== "All") params.platform = selectedPlatform;
-                if (selectedBrand !== "All") params.brand = selectedBrand;
-                if (selectedCategory !== "All") params.category = selectedCategory;
-                if (selectedCity !== "All") params.city = selectedCity;
-                if (timeStart) params.startDate = timeStart;
-                if (timeEnd) params.endDate = timeEnd;
+                
+                const platformParam = formatFilterParam(selectedPlatform);
+                if (platformParam) params.platform = platformParam;
+                
+                const brandParam = formatFilterParam(selectedBrand);
+                if (brandParam) params.brand = brandParam;
+                
+                const categoryParam = formatFilterParam(selectedCategory);
+                if (categoryParam) params.category = categoryParam;
+                
+                const cityParam = formatFilterParam(selectedCity);
+                if (cityParam) params.city = cityParam;
+                
+                if (timeStart) params.startDate = typeof timeStart.format === 'function' ? timeStart.format('YYYY-MM-DD') : timeStart;
+                if (timeEnd) params.endDate = typeof timeEnd.format === 'function' ? timeEnd.format('YYYY-MM-DD') : timeEnd;
 
                 const response = await axiosInstance.get('/supply-chain/stock-transfer', { params });
                 if (response.data) {
@@ -484,11 +513,22 @@ export default function PriorityAction() {
                 ...(po.facilityName ? { facilityName: po.facilityName } : {})
             };
             if (searchTerm) params.search = searchTerm;
-            if (selectedStatus !== "All") params.status = selectedStatus;
-            if (selectedPlatform !== "All") params.platform = selectedPlatform;
-            if (selectedBrand !== "All") params.brand = selectedBrand;
-            if (selectedCategory !== "All") params.category = selectedCategory;
-            if (selectedCity !== "All") params.city = selectedCity;
+            
+            const statusParam = formatFilterParam(selectedStatus);
+            if (statusParam) params.status = statusParam;
+            
+            const platformParam = formatFilterParam(selectedPlatform);
+            if (platformParam) params.platform = platformParam;
+            
+            const brandParam = formatFilterParam(selectedBrand);
+            if (brandParam) params.brand = brandParam;
+            
+            const categoryParam = formatFilterParam(selectedCategory);
+            if (categoryParam) params.category = categoryParam;
+            
+            const cityParam = formatFilterParam(selectedCity);
+            if (cityParam) params.city = cityParam;
+            
             if (timeStart) params.startDate = timeStart;
             if (timeEnd) params.endDate = timeEnd;
 

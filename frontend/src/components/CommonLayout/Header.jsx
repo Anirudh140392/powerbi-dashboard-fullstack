@@ -1245,6 +1245,7 @@ function MarketShareFilterModal({
 const PA_FILTER_TABS = [
   { key: "priority", label: "Priority", icon: Layers },
   { key: "status", label: "Status", icon: LayoutGrid },
+  { key: "platform", label: "Platform", icon: Monitor },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "city", label: "City", icon: MapPin },
 ];
@@ -1321,7 +1322,7 @@ function PriorityActionFilterModal({
       next = [...selected.filter(s => s !== "All"), opt];
     }
     if (next.length === options.length && options.length > 0) onChange("All");
-    else onChange(next.length === 1 ? next[0] : (next.length === 0 ? "All" : next));
+    else onChange(next);
   };
 
   const selectAll = () => onChange("All");
@@ -1630,11 +1631,14 @@ function PriorityActionFilterModal({
                     <Checkbox
                       size="small"
                       checked={isChecked}
+                      onChange={() => {}}
+                      onClick={(e) => e.stopPropagation()}
                       sx={{
                         p: 0.3,
                         color: "#cbd5e1",
                         "&.Mui-checked": { color: "#2563eb" },
                         transition: "all 0.15s ease",
+                        pointerEvents: "none",
                       }}
                     />
                     <Typography
