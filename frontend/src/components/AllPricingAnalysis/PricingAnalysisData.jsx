@@ -2525,6 +2525,7 @@ export default function PricingAnalysisData() {
         selectedLevel={trendsDrawer.dimension}
         dimensionType={trendsDrawer.dimensionType}
         showResellerFilter={false}
+        initialPlatform={globalPlatform}
       />
 
       {/* Pricing RCA Drawer */}

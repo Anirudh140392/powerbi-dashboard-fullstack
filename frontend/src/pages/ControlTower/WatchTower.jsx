@@ -37,9 +37,6 @@ function TabButton({ label, active, onClick }) {
 import PlatformOverview from "../../components/ControlTower/WatchTower/PlatformOverview";
 import CategoryTable from "../../components/ControlTower/WatchTower/CategoryTable";
 import SKUTable from "../../components/ControlTower/WatchTower/SKUTable";
-import MyTrendsDrawer from "../../components/ControlTower/WatchTower/MyTrendsDrawer";
-import CardMetric from "../../components/ControlTower/WatchTower/CardMetric";
-import SalesOverview from "../../components/ControlTower/WatchTower/SalesOverview";
 import {
   allCategories,
   allProducts,
@@ -77,9 +74,13 @@ import PerformanceMatrixNew from "@/components/ControlTower/WatchTower/Performan
 import PlatformOverviewNew from "@/components/ControlTower/WatchTower/PlatformOverviewNew";
 import { AggregatedViewTable, PerformanceBreakdownProvider } from "@/components/ControlTower/WatchTower/PerformanceBreakdown";
 import { useHelp } from "../../utils/HelpContext";
+import { useAuth } from "../../utils/AuthContext";
+import PrimarySummary from "../../components/ControlTower/WatchTower/PrimarySummary";
 
 export default function WatchTower() {
   const { toggleHelp, openHelpWithMenu } = useHelp();
+  const { user } = useAuth();
+  const isDrl = user?.dbName?.toLowerCase() === "drl";
   const [showTrends, setShowTrends] = useState(false);
   const [selectedTrendName, setSelectedTrendName] = useState("All");
   const [selectedTrendLevel, setSelectedTrendLevel] = useState("MRP");
@@ -940,7 +941,7 @@ export default function WatchTower() {
             </PerformanceBreakdownProvider>
           </Box>
 
-          <SalesOverview />
+          {isDrl && <PrimarySummary />}
         </FilterContext.Provider>
       </CommonContainer>
 
