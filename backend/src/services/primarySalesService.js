@@ -67,6 +67,41 @@ const buildFilterClause = (filters) => {
 
     return conditions.length > 0 ? conditions.join(' AND ') : '1=1';
 };
+
+/**
+ * Build WHERE clause from filters excluding a specific key
+ */
+const buildFilterClauseExcluding = (filters, excludeKey) => {
+    const conditions = [];
+
+    if (excludeKey !== 'location' && filters.location && filters.location !== 'All') {
+        conditions.push(buildMultiCondition(filters.location, 'location'));
+    }
+    if (excludeKey !== 'brandName' && filters.brandName && filters.brandName !== 'All') {
+        conditions.push(buildMultiCondition(filters.brandName, 'brand'));
+    }
+    if (excludeKey !== 'channel' && filters.channel && filters.channel !== 'All') {
+        conditions.push(buildMultiCondition(filters.channel, 'channel'));
+    }
+    if (excludeKey !== 'platform' && filters.platform && filters.platform !== 'All') {
+        conditions.push(buildMultiCondition(filters.platform, 'platform'));
+    }
+    if (excludeKey !== 'retailerName' && filters.retailerName && filters.retailerName !== 'All') {
+        conditions.push(buildMultiCondition(filters.retailerName, 'customer_name'));
+    }
+    if (excludeKey !== 'product' && filters.product && filters.product !== 'All') {
+        conditions.push(buildMultiCondition(filters.product, 'product_description'));
+    }
+    if (excludeKey !== 'division' && filters.division && filters.division !== 'All') {
+        conditions.push(buildMultiCondition(filters.division, 'division'));
+    }
+    if (excludeKey !== 'zone' && filters.zone && filters.zone !== 'All') {
+        conditions.push(buildMultiCondition(filters.zone, 'zone'));
+    }
+
+    return conditions.length > 0 ? conditions.join(' AND ') : '1=1';
+};
+
 const getMetricColumn = (metricType) => {
     return metricType === 'Units' ? 'quantity' : 'amount_inr';
 };
@@ -239,16 +274,25 @@ export const getPrimaryPivotTable = async (filters = {}, xAxis = 'customer_name'
  * Get filter options for the PRIMARY SUMMARY segment
  * Returns distinct values for each filter dropdown
  */
-export const getPrimaryFilterOptions = async () => {
+export const getPrimaryFilterOptions = async (filters = {}) => {
+    const brandClause = buildFilterClauseExcluding(filters, 'brandName');
+    const retailerClause = buildFilterClauseExcluding(filters, 'retailerName');
+    const productClause = buildFilterClauseExcluding(filters, 'product');
+    const divisionClause = buildFilterClauseExcluding(filters, 'division');
+    const zoneClause = buildFilterClauseExcluding(filters, 'zone');
+    const locationClause = buildFilterClauseExcluding(filters, 'location');
+    const channelClause = buildFilterClauseExcluding(filters, 'channel');
+    const platformClause = buildFilterClauseExcluding(filters, 'platform');
+
     const [brands, retailers, products, divisions, zones, locations, channels, platforms] = await Promise.all([
-        queryClickHouse(`SELECT DISTINCT toString(brand) AS val FROM drl.drl_primary_sales_olap WHERE brand IS NOT NULL AND toString(brand) != '' ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(customer_name) AS val FROM drl.drl_primary_sales_olap WHERE customer_name IS NOT NULL AND toString(customer_name) != '' ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(product_description) AS val FROM drl.drl_primary_sales_olap WHERE product_description IS NOT NULL AND toString(product_description) != '' ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(division) AS val FROM drl.drl_primary_sales_olap WHERE division IS NOT NULL AND toString(division) != '' ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(zone) AS val FROM drl.drl_primary_sales_olap WHERE zone IS NOT NULL AND toString(zone) != '' ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(location) AS val FROM drl.drl_primary_sales_olap WHERE location IS NOT NULL AND toString(location) != '' ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(channel) AS val FROM drl.drl_primary_sales_olap WHERE channel IS NOT NULL AND toString(channel) != '' ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(platform) AS val FROM drl.drl_primary_sales_olap WHERE platform IS NOT NULL AND toString(platform) != '' ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(brand) AS val FROM drl.drl_primary_sales_olap WHERE brand IS NOT NULL AND toString(brand) != '' AND ${brandClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(customer_name) AS val FROM drl.drl_primary_sales_olap WHERE customer_name IS NOT NULL AND toString(customer_name) != '' AND ${retailerClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(product_description) AS val FROM drl.drl_primary_sales_olap WHERE product_description IS NOT NULL AND toString(product_description) != '' AND ${productClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(division) AS val FROM drl.drl_primary_sales_olap WHERE division IS NOT NULL AND toString(division) != '' AND ${divisionClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(zone) AS val FROM drl.drl_primary_sales_olap WHERE zone IS NOT NULL AND toString(zone) != '' AND ${zoneClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(location) AS val FROM drl.drl_primary_sales_olap WHERE location IS NOT NULL AND toString(location) != '' AND ${locationClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(channel) AS val FROM drl.drl_primary_sales_olap WHERE channel IS NOT NULL AND toString(channel) != '' AND ${channelClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(platform) AS val FROM drl.drl_primary_sales_olap WHERE platform IS NOT NULL AND toString(platform) != '' AND ${platformClause} ORDER BY val`),
     ]);
 
     return {

@@ -30,9 +30,9 @@ export const fetchPrimarySalesAll = async (params) => {
 /**
  * Fetch distinct options for filters
  */
-export const fetchPrimaryFilterOptions = async () => {
+export const fetchPrimaryFilterOptions = async (params = {}) => {
     try {
-        const response = await axiosInstance.get("/primary-sales/filters");
+        const response = await axiosInstance.get("/primary-sales/filters", { params: formatParams(params) });
         return response.data;
     } catch (error) {
         console.error("fetchPrimaryFilterOptions error:", error);

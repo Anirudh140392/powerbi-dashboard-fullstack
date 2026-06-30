@@ -96,7 +96,11 @@ export function generateCacheKey(section, filters) {
         poNumber = '',
         facilityName = '',
         resellerName = '',
-        resellerNames = ''
+        resellerNames = '',
+        brandName = '',
+        retailerName = '',
+        product = '',
+        division = ''
     } = filters;
 
     if (poNumber) key += `:ponum_${normalize(poNumber)}`;
@@ -111,6 +115,10 @@ export function generateCacheKey(section, filters) {
     if (viewMode) key += `:vm_${normalize(viewMode)}`;
     if (level) key += `:lv_${normalize(level)}`;
     if (region && region !== 'all') key += `:reg_${normalize(region)}`;
+    if (brandName) key += `:brn_${normalize(brandName)}`;
+    if (retailerName) key += `:ret_${normalize(retailerName)}`;
+    if (product) key += `:prod_${normalize(product)}`;
+    if (division) key += `:div_${normalize(division)}`;
 
     // Availability/Visibility filters
     if (cities && cities !== 'all' && cities !== 'All') key += `:cts_${normalize(cities)}`;

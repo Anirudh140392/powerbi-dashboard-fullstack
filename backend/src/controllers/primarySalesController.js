@@ -108,12 +108,13 @@ export const getPrimaryPivotTableHandler = async (req, res) => {
  */
 export const getPrimaryFiltersHandler = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('primary_sales_filters', {});
+        const filters = extractFilters(req.query);
+        const cacheKey = generateCacheKey('primary_sales_filters', filters);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
-            console.log('[getPrimaryFilters] Fetching filter options');
-            return await getPrimaryFilterOptions();
-        }, 86400); // Cache filters for 24 hours
+            console.log('[getPrimaryFilters] Fetching filter options with:', filters);
+            return await getPrimaryFilterOptions(filters);
+        }, 300); // Cache dynamic filters for 5 minutes
 
         res.json({ success: true, data });
     } catch (error) {

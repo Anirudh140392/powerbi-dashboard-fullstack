@@ -88,31 +88,9 @@ export default function PrimarySummary() {
   const [tableRows, setTableRows] = useState([]);
   const [monthsHeaders, setMonthsHeaders] = useState([]);
 
-  // Fetch filter options on mount
+  // Fetch primary sales data and update filter options dynamically
   useEffect(() => {
-    const loadFilters = async () => {
-      try {
-        const res = await fetchPrimaryFilterOptions();
-        if (res.success && res.data) {
-          setFilterOptions({
-            brandName: ["All", ...res.data.brandName],
-            retailerName: ["All", ...res.data.retailerName],
-            product: ["All", ...res.data.product],
-            division: ["All", ...res.data.division],
-            zone: ["All", ...res.data.zone],
-            xAxis: ["Retailer Name", "Brand Name", "Product", "Division", "Zone"],
-          });
-        }
-      } catch (err) {
-        console.error("Error loading filter options:", err);
-      }
-    };
-    loadFilters();
-  }, []);
-
-  // Fetch primary sales data on filters, metricType, and xAxis changes
-  useEffect(() => {
-    const loadData = async () => {
+    const loadDataAndFilters = async () => {
       setLoading(true);
       setError(null);
       try {
@@ -128,24 +106,86 @@ export default function PrimarySummary() {
           xAxis: filters.xAxis,
           metricType: metricType,
         };
-        const res = await fetchPrimarySalesAll(params);
-        if (res.success && res.data) {
-          setMomData(res.data.mom || []);
-          setQuarterData(res.data.quarterly || []);
-          setTableRows(res.data.pivotTable?.data || []);
-          setMonthsHeaders(res.data.pivotTable?.months || []);
+
+        const [dataRes, filterRes] = await Promise.all([
+          fetchPrimarySalesAll(params),
+          fetchPrimaryFilterOptions(params),
+        ]);
+
+        if (dataRes.success && dataRes.data) {
+          setMomData(dataRes.data.mom || []);
+          setQuarterData(dataRes.data.quarterly || []);
+          setTableRows(dataRes.data.pivotTable?.data || []);
+          setMonthsHeaders(dataRes.data.pivotTable?.months || []);
         } else {
           setError("Failed to load primary sales data");
         }
+
+        if (filterRes.success && filterRes.data) {
+          const newBrandOptions = ["All", ...filterRes.data.brandName];
+          const newRetailerOptions = ["All", ...filterRes.data.retailerName];
+          const newProductOptions = ["All", ...filterRes.data.product];
+          const newDivisionOptions = ["All", ...filterRes.data.division];
+          const newZoneOptions = ["All", ...filterRes.data.zone];
+
+          setFilters((prev) => {
+            const updated = { ...prev };
+            let changed = false;
+
+            if (prev.brandName !== "All" && !newBrandOptions.includes(prev.brandName)) {
+              updated.brandName = "All";
+              changed = true;
+            }
+            if (prev.retailerName !== "All" && !newRetailerOptions.includes(prev.retailerName)) {
+              updated.retailerName = "All";
+              changed = true;
+            }
+            if (prev.product !== "All" && !newProductOptions.includes(prev.product)) {
+              updated.product = "All";
+              changed = true;
+            }
+            if (prev.division !== "All" && !newDivisionOptions.includes(prev.division)) {
+              updated.division = "All";
+              changed = true;
+            }
+            if (prev.zone !== "All" && !newZoneOptions.includes(prev.zone)) {
+              updated.zone = "All";
+              changed = true;
+            }
+
+            return changed ? updated : prev;
+          });
+
+          setFilterOptions({
+            brandName: newBrandOptions,
+            retailerName: newRetailerOptions,
+            product: newProductOptions,
+            division: newDivisionOptions,
+            zone: newZoneOptions,
+            xAxis: ["Retailer Name", "Brand Name", "Product", "Division", "Zone"],
+          });
+        }
       } catch (err) {
-        console.error("Error loading sales data:", err);
-        setError("Error loading sales data from server");
+        console.error("Error loading sales data/filters:", err);
+        setError("Error loading data from server");
       } finally {
         setLoading(false);
       }
     };
-    loadData();
-  }, [filters, metricType]);
+
+    loadDataAndFilters();
+  }, [
+    filters.brandName,
+    filters.retailerName,
+    filters.product,
+    filters.division,
+    filters.zone,
+    filters.location,
+    filters.channel,
+    filters.platform,
+    filters.xAxis,
+    metricType,
+  ]);
 
   const handleFilterChange = (key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
