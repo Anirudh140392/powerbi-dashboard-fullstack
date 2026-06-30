@@ -198,8 +198,8 @@ const LatestOverivewCatCity = ({
             try {
                 const params = new URLSearchParams();
                 
-                // Use advanced filters if sets, do not fall back to global context filter
-                const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : null); 
+                // Use advanced filters if set, otherwise fall back to global sidebar platform
+                const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : (globalPlatform && globalPlatform !== 'All' ? globalPlatform : null)); 
                 if (pl) params.append('platform', pl);
                 
                 const br = toParam(advancedFilters.brands?.length > 0 ? advancedFilters.brands : selectedBrand); 
@@ -248,12 +248,12 @@ const LatestOverivewCatCity = ({
         };
         fetchData();
         return () => { isMounted = false; };
-    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.dateFrom, advancedFilters.dateTo]);
+    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, globalPlatform, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.dateFrom, advancedFilters.dateTo]);
 
     // Reset pagination when dimension or filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [dimension, advancedFilters, selectedBrand, selectedCategory, expandedSku]);
+    }, [dimension, advancedFilters, selectedBrand, selectedCategory, globalPlatform, expandedSku]);
 
     const handleApplyFilters = (filters) => {
         setAdvancedFilters(filters)
@@ -274,7 +274,7 @@ const LatestOverivewCatCity = ({
             const params = new URLSearchParams();
             
             // Re-use logic for filters but target 'city' dimension for specific SKU
-            const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : null); 
+            const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : (globalPlatform && globalPlatform !== 'All' ? globalPlatform : null)); 
             if (pl) params.append('platform', pl);
             
             const br = toParam(advancedFilters.brands?.length > 0 ? advancedFilters.brands : selectedBrand); 

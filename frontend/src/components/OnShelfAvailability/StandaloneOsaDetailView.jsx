@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { SlidersHorizontal, X, ChevronRight, ChevronDown } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
+import dayjs from "dayjs";
 
 // Single-file React component (JSX)
 // Light theme, paginated (default 5 rows/page), sortable columns.
@@ -111,7 +112,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
         if (!apiData?.osaDetail || apiData.osaDetail.length === 0) return [];
 
         return apiData.osaDetail.map(row => {
-            const values = row.values || DAYS.map(d => row[String(d)] || 0);
+            const values = row.values || [];
             return {
                 name: row.name || row.productName || "Unknown Product",
                 sku: row.sku || "N/A",
@@ -168,7 +169,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
 
         const getVal = (r) => {
             if (dayIndex != null) {
-                const idx = clamp(dayIndex - 1, 0, 30);
+                const idx = clamp(dayIndex, 0, r.values.length - 1);
                 return r.values[idx];
             }
             return r[sortKey];
@@ -211,7 +212,12 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
         });
     };
 
-    const dayCols = DAYS;
+    const dayCols = useMemo(() => {
+        if (apiData?.osaDates && apiData.osaDates.length > 0) {
+            return apiData.osaDates;
+        }
+        return Array.from({ length: 31 }, (_, i) => `DAY ${i + 1}`);
+    }, [apiData]);
 
     return (
         <div className="rounded-3xl flex-col bg-slate-50 relative">
@@ -219,7 +225,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                 <div className="flex-1 overflow-auto p-0 pr-0">
                     <div className="rounded-3xl border bg-white p-4 shadow">
                         {/* Title + Legend */}
-                        <div className="mb-4 flex items-center justify-between font-bold text-slate-900">
+                        <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-bold text-slate-900">
                             <div className="flex flex-col gap-0.5">
                                 <div className="text-base font-semibold text-slate-900">
                                     OSA % Detail View
@@ -229,7 +235,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-3">
                                 {/* Filter Button */}
                                 <button
                                     onClick={() => setShowFilterPanel(true)}
@@ -240,7 +246,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                 </button>
 
                                 {/* Status Legend - Moved from body */}
-                                <div className="flex items-center gap-2 ml-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-100">
                                         <span className="h-2 w-2 rounded-full bg-emerald-500" /> Healthy
                                     </span>
@@ -282,15 +288,15 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                 <div className="flex items-center justify-center h-full">STATUS</div>
                                             </th>
 
-                                            {dayCols.map((d) => (
+                                            {dayCols.map((col, idx) => (
                                                 <th
-                                                    key={d}
+                                                    key={col}
                                                     className="border-b border-r border-slate-100 last:border-r-0 bg-slate-100 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 whitespace-nowrap cursor-pointer select-none"
-                                                    onClick={() => headerSort(`day_${d}`)}
+                                                    onClick={() => headerSort(`day_${idx}`)}
                                                 >
                                                     <div className="flex items-center justify-center gap-1 h-full">
-                                                        DAY {d}
-                                                        <SortIcon dir={sortKey === `day_${d}` ? sortDir : undefined} />
+                                                        {/^\d{4}-\d{2}-\d{2}$/.test(col) ? dayjs(col).format('DD MMM') : col}
+                                                        <SortIcon dir={sortKey === `day_${idx}` ? sortDir : undefined} />
                                                     </div>
                                                 </th>
                                             ))}
@@ -351,13 +357,16 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                             </span>
                                                         </td>
 
-                                                        {dayCols.map((d) => {
-                                                            const v = r.values[d - 1];
+                                                        {dayCols.map((col, idx) => {
+                                                            const v = r.values[idx];
+                                                            const displayHeader = /^\d{4}-\d{2}-\d{2}$/.test(col)
+                                                                ? dayjs(col).format('DD MMM')
+                                                                : col;
                                                             return (
                                                                 <td
-                                                                    key={d}
+                                                                    key={col}
                                                                     className="px-2 py-2 border-b border-slate-100 text-center"
-                                                                    title={`${r.name} • Day ${d}: ${v !== null ? `${v}%` : 'N/A'}`}
+                                                                    title={`${r.name} • ${displayHeader}: ${v !== null && v !== undefined ? `${v}%` : 'N/A'}`}
                                                                 >
                                                                     <span
                                                                         className={
@@ -365,7 +374,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                                             cellTone(v)
                                                                         }
                                                                     >
-                                                                        {v !== null ? `${v}%` : 'N/A'}
+                                                                        {v !== null && v !== undefined ? `${v}%` : 'N/A'}
                                                                     </span>
                                                                 </td>
                                                             );
@@ -397,11 +406,11 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                                     <td className="px-3 py-1.5 border-b border-slate-100 text-center">
                                                                         <span className="text-[10px] text-slate-400">-</span>
                                                                     </td>
-                                                                    {dayCols.map((d) => {
-                                                                        const v = cityData.values[d - 1];
+                                                                    {dayCols.map((col, idx) => {
+                                                                        const v = cityData.values[idx];
                                                                         return (
                                                                             <td
-                                                                                key={d}
+                                                                                key={col}
                                                                                 className="px-2 py-1.5 border-b border-slate-100 text-center"
                                                                             >
                                                                                 <span className="text-[10px] text-slate-500 font-medium">
@@ -419,7 +428,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
 
                                         {pageRows.length === 0 && (
                                             <tr>
-                                                <td colSpan={4 + dayCols.length} className="px-4 py-8 text-center text-[11px] text-slate-500">
+                                                <td colSpan={3 + dayCols.length} className="px-4 py-8 text-center text-[11px] text-slate-500">
                                                     No rows found.
                                                 </td>
                                             </tr>

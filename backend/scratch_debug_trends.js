@@ -14,11 +14,13 @@ async function run() {
                 resellerName: 'buy more'
             });
             console.log('Result date range:', result.dateRange);
-            console.log('TimeSeries (first 10):');
-            console.log(result.timeSeries.slice(0, 10));
+            const nonZeroDoi = result.timeSeries.filter(t => t.Doi > 0);
+            console.log('Non-zero DOI points:', nonZeroDoi.length, '/', result.timeSeries.length);
+            nonZeroDoi.forEach(t => console.log(`  ${t.date} -> Doi: ${t.Doi}`));
         } catch (e) {
             console.error('Error calling getAvailabilityKpiTrends:', e);
         }
     });
 }
 run();
+

@@ -1900,7 +1900,23 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
 
         // Process Market Share Data
+        const tier1Cities = [
+            'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+            'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+        ];
+        let hasTier23 = false;
+        if (locationArr && locationArr.length > 0) {
+            hasTier23 = locationArr.some(loc => {
+                const lowerLoc = String(loc).trim().toLowerCase();
+                if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+                return !tier1Cities.includes(lowerLoc);
+            });
+        }
+
         const marketShareChart = weekBuckets.map(b => {
+            if (hasTier23) {
+                return { label: b.label, value: 0 };
+            }
             const bStart = dayjs(b.date).startOf('isoWeek');
             const bEnd = dayjs(b.date).endOf('isoWeek');
             let sumMs = 0, count = 0;
@@ -1914,12 +1930,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             return { label: b.label, value: count > 0 ? sumMs / count : 0 };
         });
 
-        const totalMarketShare = totalMarketShareResult?.avg_market_share !== undefined && totalMarketShareResult?.avg_market_share !== null ? parseFloat(totalMarketShareResult.avg_market_share) : null;
+        let totalMarketShare = totalMarketShareResult?.avg_market_share !== undefined && totalMarketShareResult?.avg_market_share !== null ? parseFloat(totalMarketShareResult.avg_market_share) : null;
+        if (hasTier23) totalMarketShare = null;
         const formattedMarketShare = totalMarketShare !== null ? totalMarketShare.toFixed(2) + "%" : "N/A";
 
         const prevMarketShareVal = parseFloat(prevMarketShareResult?.avg_ms || 0);
-        const marketShareChange = totalMarketShare !== null ? totalMarketShare - prevMarketShareVal : 0;
-        const marketShareTrendStr = totalMarketShare !== null ? (marketShareChange >= 0 ? "+" : "") + marketShareChange.toFixed(2) + "%" : "N/A";
+        const marketShareChange = (totalMarketShare !== null && !hasTier23) ? totalMarketShare - prevMarketShareVal : 0;
+        const marketShareTrendStr = (totalMarketShare !== null && !hasTier23) ? (marketShareChange >= 0 ? "+" : "") + marketShareChange.toFixed(2) + "%" : "N/A";
+
 
         // Process Availability Data
         const availabilityChart = weekBuckets.map(b => {
@@ -5082,6 +5100,20 @@ const getPlatformOverview = async (filters) => {
     const category = categoryArr ? (categoryArr.length === 1 ? categoryArr[0] : categoryArr) : null;
     const platform = platformArr ? (platformArr.length === 1 ? platformArr[0] : platformArr) : null;
 
+    // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
+    const tier1Cities = [
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    if (locationArr && locationArr.length > 0) {
+        hasTier23 = locationArr.some(loc => {
+            const lowerLoc = String(loc).trim().toLowerCase();
+            if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+            return !tier1Cities.includes(lowerLoc);
+        });
+    }
+
     const monthsBack = parseInt(months, 10) || 1;
 
     // Calculate date range
@@ -5302,10 +5334,11 @@ const getPlatformOverview = async (filters) => {
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`lower(keyword_category) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
         }
-        // Apply brand filter (rb_kw_olap uses brand column)
-        if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `lower(brand) LIKE lower('%${escapeStr(b)}%')`).join(' OR ')})`);
-        }
+        // NOTE: Do NOT apply brand filter here for SOS/Ad SOV/Organic SOV.
+        // SOS numerator uses flag='1' to identify our brands, and the denominator
+        // must count ALL brands to compute market share of search correctly.
+        // Applying a brand LIKE filter here would restrict both numerator and
+        // denominator to the same brand, always yielding 100%.
 
         // Apply platform filter (rb_kw_olap uses platform_name column)
         if (platformArr && platformArr.length > 0) {
@@ -5369,6 +5402,17 @@ const getPlatformOverview = async (filters) => {
 
     console.log('[getPlatformOverview] Executing ClickHouse platform queries with SOS and Market Share...');
 
+    // Build the SOS/SOV numerator condition: when a specific brand is selected,
+    // filter by that brand name in the numerator; otherwise use flag='1' for all our brands.
+    // This mirrors the pattern in computeSummaryMetrics.
+    let sosNumCondition;
+    if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+        const brandConds = brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
+        sosNumCondition = `lower(brand) IN (${brandConds})`;
+    } else {
+        sosNumCondition = "toString(flag) = '1'";
+    }
+
     const [currData, prevData, currPmData, prevPmData, currSosOurBrands, currSosTotal, prevSosOurBrands, prevSosTotal, currMsNum, currMsDenom, prevMsNum, prevMsDenom, currCatSizeByPlatform, prevCatSizeByPlatform, currAdSovOur, currAdSovTotal, prevAdSovOur, prevAdSovTotal, currOrgSovOur, currOrgSovTotal, prevOrgSovOur, prevOrgSovTotal] = await Promise.all([
         // Query 1: Current period offtake metrics by platform
         queryClickHouse(`
@@ -5424,9 +5468,9 @@ const getPlatformOverview = async (filters) => {
                     WHERE ${prevPmConds}
                     GROUP BY Platform
                 `),
-        // Query 3: Current SOS - sumIf(overall) and sum(overall) per platform (flag=0 for our brands)
+        // Query 3: Current SOS - sumIf(overall) per platform (our brands via sosNumCondition)
         queryClickHouse(`
-                    SELECT platform_name, sumIf(toInt32(overall), toString(flag) = '1') as count
+                    SELECT platform_name, sumIf(toInt32(overall), ${sosNumCondition}) as count
                     FROM rb_kw_olap
                     WHERE ${currSosConds}
                     GROUP BY platform_name
@@ -5438,9 +5482,9 @@ const getPlatformOverview = async (filters) => {
                     WHERE ${currSosConds}
                     GROUP BY platform_name
                 `),
-        // Query 5: Previous SOS - sumIf(overall) per platform (flag=0 for our brands)
+        // Query 5: Previous SOS - sumIf(overall) per platform (our brands via sosNumCondition)
         queryClickHouse(`
-                    SELECT platform_name, sumIf(toInt32(overall), toString(flag) = '1') as count
+                    SELECT platform_name, sumIf(toInt32(overall), ${sosNumCondition}) as count
                     FROM rb_kw_olap
                     WHERE ${prevSosConds}
                     GROUP BY platform_name
@@ -5494,9 +5538,9 @@ const getPlatformOverview = async (filters) => {
                     WHERE ${prevMsDenomConds}
                     GROUP BY platform
                 `),
-        // Query 13: Current Spons SOS (Ad SOV) - sumIf(spons) per platform (flag=0 for our brands)
+        // Query 13: Current Spons SOS (Ad SOV) - sumIf(spons) per platform (our brands via sosNumCondition)
         queryClickHouse(`
-                    SELECT platform_name, sumIf(toInt32(spons), toString(flag) = '1') as count
+                    SELECT platform_name, sumIf(toInt32(spons), ${sosNumCondition}) as count
                     FROM rb_kw_olap
                     WHERE ${currSosConds}
                     GROUP BY platform_name
@@ -5508,9 +5552,9 @@ const getPlatformOverview = async (filters) => {
                     WHERE ${currSosConds}
                     GROUP BY platform_name
                 `),
-        // Query 15: Previous Spons SOS (Ad SOV) - sumIf(spons) per platform (flag=0 for our brands)
+        // Query 15: Previous Spons SOS (Ad SOV) - sumIf(spons) per platform (our brands via sosNumCondition)
         queryClickHouse(`
-                    SELECT platform_name, sumIf(toInt32(spons), toString(flag) = '1') as count
+                    SELECT platform_name, sumIf(toInt32(spons), ${sosNumCondition}) as count
                     FROM rb_kw_olap
                     WHERE ${prevSosConds}
                     GROUP BY platform_name
@@ -5522,9 +5566,9 @@ const getPlatformOverview = async (filters) => {
                     WHERE ${prevSosConds}
                     GROUP BY platform_name
                 `),
-        // Query 17: Current Organic SOS - sumIf(organic) per platform (flag=0 for our brands)
+        // Query 17: Current Organic SOS - sumIf(organic) per platform (our brands via sosNumCondition)
         queryClickHouse(`
-                    SELECT platform_name, sumIf(toInt32(organic), toString(flag) = '1') as count
+                    SELECT platform_name, sumIf(toInt32(organic), ${sosNumCondition}) as count
                     FROM rb_kw_olap
                     WHERE ${currSosConds}
                     GROUP BY platform_name
@@ -5536,9 +5580,9 @@ const getPlatformOverview = async (filters) => {
                     WHERE ${currSosConds}
                     GROUP BY platform_name
                 `),
-        // Query 19: Previous Organic SOS - sumIf(organic) per platform (flag=0 for our brands)
+        // Query 19: Previous Organic SOS - sumIf(organic) per platform (our brands via sosNumCondition)
         queryClickHouse(`
-                    SELECT platform_name, sumIf(toInt32(organic), toString(flag) = '1') as count
+                    SELECT platform_name, sumIf(toInt32(organic), ${sosNumCondition}) as count
                     FROM rb_kw_olap
                     WHERE ${prevSosConds}
                     GROUP BY platform_name
@@ -5897,8 +5941,8 @@ const getPlatformOverview = async (filters) => {
         prevSumMsDenom += prevMsDenomMap.get(key) || 0;
     });
 
-    const allMarketShare = await getMarketShare(startDate, endDate, 'All', rawCategory, null, locationArr, channel);
-    const prevAllMarketShare = await getMarketShare(momStart, momEnd, 'All', rawCategory, null, locationArr, channel);
+    const allMarketShare = hasTier23 ? null : await getMarketShare(startDate, endDate, 'All', rawCategory, null, locationArr, channel);
+    const prevAllMarketShare = hasTier23 ? null : await getMarketShare(momStart, momEnd, 'All', rawCategory, null, locationArr, channel);
 
     const hasPlatformFilter = platformArr && platformArr.length > 0;
     if (!hasPlatformFilter) {
@@ -6001,7 +6045,7 @@ const getPlatformOverview = async (filters) => {
         const totalOrders = hasPm ? (metrics.curr.orders || 0) : null;
 
         // Hardcode Market Share values as requested by user
-        let marketShare = await getMarketShare(startDate, endDate, p.label, rawCategory, null, locationArr, channel);
+        let marketShare = hasTier23 ? null : await getMarketShare(startDate, endDate, p.label, rawCategory, null, locationArr, channel);
 
         console.log(`[getPlatformOverview] DEBUG MS - Platform: ${p.label}, key: ${key}, hasMsCheck: ${hasMsCheck}, marketShare: ${marketShare}, currMsMap.has(key): ${currMsMap.has(key)}, currMsDenomMap.has(key): ${currMsDenomMap.has(key)}`);
 
@@ -6038,8 +6082,7 @@ const getPlatformOverview = async (filters) => {
         const prevClicks = prevHasPm ? (metrics.prev.clicks || 0) : null;
         const prevOrders = prevHasPm ? (metrics.prev.orders || 0) : null;
 
-        let prevMarketShare = await getMarketShare(momStart, momEnd, p.label, rawCategory, null, locationArr, channel);
-
+        let prevMarketShare = hasTier23 ? null : await getMarketShare(momStart, momEnd, p.label, rawCategory, null, locationArr, channel);
         const prevSos = prevHasSosCheck ? (metrics.prev.sos ?? null) : null;
         const prevAdSov = prevHasSosCheck ? (metrics.prev.adSov ?? null) : null;
         const prevOrganicSov = prevHasSosCheck ? (metrics.prev.organicSov ?? null) : null;
@@ -6108,6 +6151,20 @@ const getMonthOverview = async (filters) => {
     const categoryArr = normalizeFilterArray(rawCategory);
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
+
+    // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
+    const tier1Cities = [
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    if (locationArr && locationArr.length > 0) {
+        hasTier23 = locationArr.some(loc => {
+            const lowerLoc = String(loc).trim().toLowerCase();
+            if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+            return !tier1Cities.includes(lowerLoc);
+        });
+    }
 
     const monthsBack = parseInt(months, 10) || 1;
     const moPlatform = monthOverviewPlatform || filters.platform || null;
@@ -6383,7 +6440,7 @@ const getMonthOverview = async (filters) => {
         const buyBoxPct = hasPdp ? (deno > 0 ? (parseFloat(data.total_buy_box_neno || 0) * 1.0 / deno) * 100 : null) : null;
         const deliveryTime = hasPdp ? (parseFloat(data.avg_delivery_days || null)) : null;
 
-        const marketShare = hasMsCheck ? (msMonthMap.get(monthKey) ?? null) : null;
+        const marketShare = (hasMsCheck && !hasTier23) ? (msMonthMap.get(monthKey) ?? null) : null;
 
         const sosNum = sosNumMonthMap.get(monthKey) || 0;
         const sosDenom = sosDenomMonthMap.get(monthKey) || 0;
@@ -6437,7 +6494,7 @@ const getMonthOverview = async (filters) => {
             ? ((parseFloat(prevData.comp_mrp_val) - parseFloat(prevData.comp_actual_sales)) / parseFloat(prevData.comp_mrp_val)) * 100
             : null) : null;
 
-        const prevMarketShare = prevHasMsCheck ? (msMonthMap.get(prevMonthKey) ?? null) : null;
+        const prevMarketShare = (prevHasMsCheck && !hasTier23) ? (msMonthMap.get(prevMonthKey) ?? null) : null;
 
         const prevSosNum = sosNumMonthMap.get(prevMonthKey) || 0;
         const prevSosDenom = sosDenomMonthMap.get(prevMonthKey) || 0;
@@ -6499,7 +6556,19 @@ const getCategoryOverview = async (filters) => {
     const categoryArr = normalizeFilterArray(rawCategory)?.map(c => c.toLowerCase());
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
-
+    // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
+    const tier1Cities = [
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    if (locationArr && locationArr.length > 0) {
+        hasTier23 = locationArr.some(loc => {
+            const lowerLoc = String(loc).trim().toLowerCase();
+            if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+            return !tier1Cities.includes(lowerLoc);
+        });
+    }
     const monthsBack = parseInt(months, 10) || 1;
     const catPlatform = categoryOverviewPlatform || filters.platform || 'All';
 
@@ -6580,15 +6649,23 @@ const getCategoryOverview = async (filters) => {
             const locCond = buildLocationQueryCond(locationArr, catPlatform, 'location_name', 'platform_name');
             if (locCond) conds.push(locCond);
         }
-        if (brandArr && brandArr.length > 0) {
-            conds.push(`LOWER(brand) IN (${brandArr.map(b => `'${escapeStr(b)}'`).join(', ')})`);
-        }
+        // NOTE: Do NOT apply brand filter here for SOS/Ad SOV/Organic SOV.
+        // SOS numerator uses flag='1' or brand-specific sumIf condition, and the denominator
+        // must count ALL brands to compute share of search correctly.
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`LOWER(keyword_category) IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         return conds.join(' AND ');
     };
 
+    // Build SOS numerator condition: brand-specific or flag-based
+    let sosCatNumCondition;
+    if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+        const brandConds = brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
+        sosCatNumCondition = `LOWER(brand) IN (${brandConds})`;
+    } else {
+        sosCatNumCondition = "toString(flag) = '1'";
+    }
     // Build PM conditions for rb_pm_olap
     const buildPmCatConds = (sDate, eDate) => {
         const conds = [`${pmSrc.f.date} BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
@@ -6735,26 +6812,26 @@ const getCategoryOverview = async (filters) => {
 
     // SOS Current - Simple sumIf(overall) / sum(overall) per category
     const currSosData = await queryClickHouse(`
-        SELECT keyword_category, sumIf(toInt32(overall), toString(flag) = '1') as num, sum(toInt32(overall)) as den
+        SELECT keyword_category, sumIf(toInt32(overall), ${sosCatNumCondition}) as num, sum(toInt32(overall)) as den
         FROM rb_kw_olap
         WHERE ${currSosConds}
         GROUP BY keyword_category
     `);
     const prevSosData = await queryClickHouse(`
-        SELECT keyword_category, sumIf(toInt32(overall), toString(flag) = '1') as num, sum(toInt32(overall)) as den
+        SELECT keyword_category, sumIf(toInt32(overall), ${sosCatNumCondition}) as num, sum(toInt32(overall)) as den
         FROM rb_kw_olap
         WHERE ${prevSosConds}
         GROUP BY keyword_category
     `);
     // Spons SOS (Ad SOV) Current - sumIf(spons) per category
     const currAdSovData = await queryClickHouse(`
-        SELECT keyword_category, sumIf(toInt32(spons), toString(flag) = '1') as num, sum(toInt32(spons)) as den
+        SELECT keyword_category, sumIf(toInt32(spons), ${sosCatNumCondition}) as num, sum(toInt32(spons)) as den
         FROM rb_kw_olap
         WHERE ${currSosConds}
         GROUP BY keyword_category
     `);
     const prevAdSovData = await queryClickHouse(`
-        SELECT keyword_category, sumIf(toInt32(spons), toString(flag) = '1') as num, sum(toInt32(spons)) as den
+        SELECT keyword_category, sumIf(toInt32(spons), ${sosCatNumCondition}) as num, sum(toInt32(spons)) as den
         FROM rb_kw_olap
         WHERE ${prevSosConds}
         GROUP BY keyword_category
@@ -6762,13 +6839,13 @@ const getCategoryOverview = async (filters) => {
 
     // Organic SOS Current - sumIf(organic) per category
     const currOrgSovData = await queryClickHouse(`
-        SELECT keyword_category, sumIf(toInt32(organic), toString(flag) = '1') as num, sum(toInt32(organic)) as den
+        SELECT keyword_category, sumIf(toInt32(organic), ${sosCatNumCondition}) as num, sum(toInt32(organic)) as den
         FROM rb_kw_olap
         WHERE ${currSosConds}
         GROUP BY keyword_category
     `);
     const prevOrgSovData = await queryClickHouse(`
-        SELECT keyword_category, sumIf(toInt32(organic), toString(flag) = '1') as num, sum(toInt32(organic)) as den
+        SELECT keyword_category, sumIf(toInt32(organic), ${sosCatNumCondition}) as num, sum(toInt32(organic)) as den
         FROM rb_kw_olap
         WHERE ${prevSosConds}
         GROUP BY keyword_category
@@ -6855,7 +6932,7 @@ const getCategoryOverview = async (filters) => {
         const sos = hasSosCheck ? (sosDataObj.den > 0 ? (sosDataObj.num / sosDataObj.den) * 100 : null) : null;
 
         // Market Share via rb_ms_olap results (respected platform filter)
-        const marketShare = hasMsCheck ? (currMsMap.get(catKey) || null) : null;
+        const marketShare = (hasMsCheck && !hasTier23) ? (currMsMap.get(catKey) || null) : null;
 
         // Previous
         const prevOfftake = prevHasPdp ? parseFloat(prev.total_sales || 0) : null;
@@ -6878,8 +6955,7 @@ const getCategoryOverview = async (filters) => {
 
         const prevSosDataObj = prevSosMap.get(catKey) || { num: 0, den: 0 };
         const prevSos = prevHasSosCheck ? (prevSosDataObj.den > 0 ? (prevSosDataObj.num / prevSosDataObj.den) * 100 : null) : null;
-
-        const prevMarketShare = prevHasMsCheck ? (prevMsMap.get(catKey) || null) : null;
+        const prevMarketShare = (prevHasMsCheck && !hasTier23) ? (prevMsMap.get(catKey) || null) : null;
 
         const promoMyBrand = hasPdp ? (parseFloat(curr.my_mrp_val || 0) > 0
             ? ((parseFloat(curr.my_mrp_val) - parseFloat(curr.my_actual_sales)) / parseFloat(curr.my_mrp_val)) * 100
@@ -6949,7 +7025,19 @@ const getBrandsOverview = async (filters) => {
     const locationArr = normalizeFilterArray(rawLocation);
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
-
+    // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
+    const tier1Cities = [
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    if (locationArr && locationArr.length > 0) {
+        hasTier23 = locationArr.some(loc => {
+            const lowerLoc = String(loc).trim().toLowerCase();
+            if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+            return !tier1Cities.includes(lowerLoc);
+        });
+    }
     const monthsBack = parseInt(months, 10) || 1;
     const boPlatform = brandsOverviewPlatform || filters.platform || 'All';
     const boCategory = brandsOverviewCategory || filters.category || 'All';
@@ -7319,7 +7407,7 @@ const getBrandsOverview = async (filters) => {
         const sosNum = currSosMap.get(brandKey) || 0;
         const sos = hasSosCheck ? (currTotalOverall > 0 ? (sosNum / currTotalOverall) * 100 : null) : null;
 
-        const marketShare = hasMsCheck ? (currMsMap.get(brandKey) || null) : null;
+        const marketShare = (hasMsCheck && !hasTier23) ? (currMsMap.get(brandKey) || null) : null;
 
         // Previous
         const prevOfftake = prevHasPdp ? parseFloat(prev.total_sales || 0) : null;
@@ -7349,8 +7437,7 @@ const getBrandsOverview = async (filters) => {
 
         const prevSosNum = prevSosMap.get(brandKey) || 0;
         const prevSos = prevHasSosCheck ? (prevTotalOverall > 0 ? (prevSosNum / prevTotalOverall) * 100 : null) : null;
-
-        const prevMarketShare = prevHasMsCheck ? (prevMsMap.get(brandKey) || null) : null;
+        const prevMarketShare = (prevHasMsCheck && !hasTier23) ? (prevMsMap.get(brandKey) || null) : null;
 
         // Ad SOV (spons)
         const adSovNum = currAdSovMap.get(brandKey) || 0;
@@ -7472,6 +7559,24 @@ const getKpiTrends = async (filters) => {
     const locArr = normalizeFilterArray(location);
     const brandArr = normalizeFilterArray(brand);
     const platArr = normalizeFilterArray(platform);
+
+    // Check for Tier-2/Tier-3 city selections
+    const tier1Cities = [
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    const allLocations = [...locArr];
+    if (dimension && (dimension.toLowerCase() === 'city' || dimension.toLowerCase() === 'location') && dimensionValue && dimensionValue !== 'All') {
+        allLocations.push(dimensionValue);
+    }
+    if (allLocations.length > 0) {
+        hasTier23 = allLocations.some(loc => {
+            const lowerLoc = String(loc).trim().toLowerCase();
+            if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+            return !tier1Cities.includes(lowerLoc);
+        });
+    }
 
     const src = await getWatchtowerSource();
     // 3. Build WHERE conditions for dynamic source
@@ -7651,9 +7756,9 @@ const getKpiTrends = async (filters) => {
         const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         // Only consider top 10 ranked positions for SOS
         conds.push(`POSITION <= 10`);
-        if (catArr && catArr.length > 0) conds.push(`keyword_category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
-        if (locArr && locArr.length > 0) conds.push(`location_name IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
-        if (platArr && platArr.length > 0) conds.push(`platform_name IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+        if (catArr && catArr.length > 0) conds.push(`lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+        if (locArr && locArr.length > 0) conds.push(`lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        if (platArr && platArr.length > 0) conds.push(`lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
 
         return conds;
     };
@@ -7804,7 +7909,7 @@ const getKpiTrends = async (filters) => {
     const hasSosDenominatorData = sosDenominator.some(r => parseInt(r.count || 0, 10) > 0);
     const hasSosFinalData = hasSosNumeratorData && hasSosDenominatorData;
 
-    const hasMsData = msTimeSeriesMap.size > 0 && Array.from(msTimeSeriesMap.values()).some(v => v > 0);
+    const hasMsData = !hasTier23 && msTimeSeriesMap.size > 0 && Array.from(msTimeSeriesMap.values()).some(v => v > 0);
 
     // Legacy generic table-level flags still used for KPI Availability status map
     const hasPdpData = kpiResults.length > 0;
@@ -7912,7 +8017,7 @@ const getKpiTrends = async (filters) => {
         // 9. CPC (Cost Per Click)
         const cpc = effectiveCpcClicks > 0 ? effectiveCpcSpend / effectiveCpcClicks : 0;
 
-        const marketShare = msTimeSeriesMap.get(String(bucket.groupKey)) || 0;
+        const marketShare = hasTier23 ? 0 : (msTimeSeriesMap.get(String(bucket.groupKey)) || 0);
         const categoryShare = marketShare;
 
         // Build data point with all KPIs
@@ -11236,6 +11341,19 @@ const getSkuOverview = async (filters) => {
     const categoryArr = normalizeFilterArray(rawCategory);
     const skuPlatform = skuOverviewPlatform || filters.platform || 'All';
 
+    // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
+    const tier1Cities = [
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ];
+    let hasTier23 = false;
+    if (locationArr && locationArr.length > 0) {
+        hasTier23 = locationArr.some(loc => {
+            const lowerLoc = String(loc).trim().toLowerCase();
+            if (lowerLoc === 'all' || lowerLoc === '' || lowerLoc === 'all india') return false;
+            return !tier1Cities.includes(lowerLoc);
+        });
+    }
     const monthsBack = parseInt(months, 10) || 1;
 
     // Calculate current date range
@@ -11584,9 +11702,8 @@ const getSkuOverview = async (filters) => {
         const prevPromoCompete = prevHasPdp ? (parseFloat(prevData.comp_mrp_val || 0) > 0
             ? ((parseFloat(prevData.comp_mrp_val) - parseFloat(prevData.comp_actual_sales)) / parseFloat(prevData.comp_mrp_val)) * 100
             : null) : null;
-
-        const marketShare = hasMsCheck ? (currMarketSize > 0 ? (offtake / currMarketSize) * 100 : null) : null;
-        const prevMarketShare = prevHasMsCheck ? (prevMarketSize > 0 ? (prevOfftake / prevMarketSize) * 100 : null) : null;
+        const marketShare = (hasMsCheck && !hasTier23) ? (currMarketSize > 0 ? (offtake / currMarketSize) * 100 : null) : null;
+        const prevMarketShare = (prevHasMsCheck && !hasTier23) ? (prevMarketSize > 0 ? (prevOfftake / prevMarketSize) * 100 : null) : null;
 
         // SOS, Ad SOV, Organic SOV by keyword_search_product
         const sosNum = currSosNumSkuMap.get(skuKeyLower) || 0;
@@ -11896,9 +12013,14 @@ const getCityOverview = async (filters) => {
 
         const currCityMarket = currMsMap.get(cityName.toLowerCase()) || 0;
         const prevCityMarket = prevMsMap.get(cityName.toLowerCase()) || 0;
-
-        const marketShare = hasMsCheck ? (currCityMarket > 0 ? (offtake / currCityMarket) * 100 : null) : null;
-        const prevMarketShare = prevHasMsCheck ? (prevCityMarket > 0 ? (prevOfftake / prevCityMarket) * 100 : null) : null;
+        const tier1Cities = [
+            'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+            'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+        ];
+        const lowerCityName = cityName ? cityName.toLowerCase().trim() : '';
+        const isCityTier1 = tier1Cities.includes(lowerCityName);
+        const marketShare = (isCityTier1 && hasMsCheck) ? (currCityMarket > 0 ? (offtake / currCityMarket) * 100 : null) : null;
+        const prevMarketShare = (isCityTier1 && prevHasMsCheck) ? (prevCityMarket > 0 ? (prevOfftake / prevCityMarket) * 100 : null) : null;
 
         return {
             key: cityName.toLowerCase().replace(/\s+/g, '_'),

@@ -225,6 +225,10 @@ export default function OnShelfAvailability() {
         onFiltersChange={handleFiltersChange}
       >
         <div className="w-full space-y-5">
+          {/* Segment 1: Market Coverage Analysis */}
+          <StandaloneOsaOverview filters={filters} loading={isLoading} />
+
+          {/* Segment 2: Platform KPI Matrix */}
           <StandaloneOsaKpiMatrix filters={filters} loading={isLoading} />
 
           {/* Segment 3: Market Visibility & Share (formerly KPI Matrix) */}
