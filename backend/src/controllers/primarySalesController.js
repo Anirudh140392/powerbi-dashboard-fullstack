@@ -21,7 +21,9 @@ const extractFilters = (query) => ({
     product: query.product || 'All',
     division: query.division || 'All',
     zone: query.zone || 'All',
+    xAxis: query.xAxis || 'Retailer Name',
 });
+
 
 
 /**
@@ -30,16 +32,11 @@ const extractFilters = (query) => ({
  */
 export const getPrimaryMOMHandler = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('primary_sales_mom', req.query);
+        const filters = extractFilters(req.query);
+        const metricType = req.query.metricType || 'MRP';
+        console.log('[getPrimaryMOM] Filters:', filters, '| metricType:', metricType);
 
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            const filters = extractFilters(req.query);
-            const metricType = req.query.metricType || 'MRP';
-            console.log('[getPrimaryMOM] Filters:', filters, '| metricType:', metricType);
-
-            return await getPrimaryMOM(filters, metricType);
-        }, CACHE_TTL.METRICS);
-
+        const data = await getPrimaryMOM(filters, metricType);
         res.json({ success: true, data });
     } catch (error) {
         console.error('[getPrimaryMOM] Error:', error.message);
@@ -56,16 +53,11 @@ export const getPrimaryMOMHandler = async (req, res) => {
  */
 export const getPrimaryQuarterlyHandler = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('primary_sales_quarterly', req.query);
+        const filters = extractFilters(req.query);
+        const metricType = req.query.metricType || 'MRP';
+        console.log('[getPrimaryQuarterly] Filters:', filters, '| metricType:', metricType);
 
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            const filters = extractFilters(req.query);
-            const metricType = req.query.metricType || 'MRP';
-            console.log('[getPrimaryQuarterly] Filters:', filters, '| metricType:', metricType);
-
-            return await getPrimaryQuarterly(filters, metricType);
-        }, CACHE_TTL.METRICS);
-
+        const data = await getPrimaryQuarterly(filters, metricType);
         res.json({ success: true, data });
     } catch (error) {
         console.error('[getPrimaryQuarterly] Error:', error.message);
@@ -82,17 +74,12 @@ export const getPrimaryQuarterlyHandler = async (req, res) => {
  */
 export const getPrimaryPivotTableHandler = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('primary_sales_pivot', req.query);
+        const filters = extractFilters(req.query);
+        const xAxis = req.query.xAxis || 'Retailer Name';
+        const metricType = req.query.metricType || 'MRP';
+        console.log('[getPrimaryPivotTable] Filters:', filters, '| xAxis:', xAxis, '| metricType:', metricType);
 
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            const filters = extractFilters(req.query);
-            const xAxis = req.query.xAxis || 'Retailer Name';
-            const metricType = req.query.metricType || 'MRP';
-            console.log('[getPrimaryPivotTable] Filters:', filters, '| xAxis:', xAxis, '| metricType:', metricType);
-
-            return await getPrimaryPivotTable(filters, xAxis, metricType);
-        }, CACHE_TTL.METRICS);
-
+        const data = await getPrimaryPivotTable(filters, xAxis, metricType);
         res.json({ success: true, data });
     } catch (error) {
         console.error('[getPrimaryPivotTable] Error:', error.message);
@@ -109,13 +96,9 @@ export const getPrimaryPivotTableHandler = async (req, res) => {
 export const getPrimaryFiltersHandler = async (req, res) => {
     try {
         const filters = extractFilters(req.query);
-        const cacheKey = generateCacheKey('primary_sales_filters', filters);
+        console.log('[getPrimaryFilters] Fetching filter options with:', filters);
 
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            console.log('[getPrimaryFilters] Fetching filter options with:', filters);
-            return await getPrimaryFilterOptions(filters);
-        }, 300); // Cache dynamic filters for 5 minutes
-
+        const data = await getPrimaryFilterOptions(filters);
         res.json({ success: true, data });
     } catch (error) {
         console.error('[getPrimaryFilters] Error:', error.message);
@@ -132,24 +115,21 @@ export const getPrimaryFiltersHandler = async (req, res) => {
  */
 export const getPrimaryAllHandler = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('primary_sales_all', req.query);
+        const filters = extractFilters(req.query);
+        const xAxis = req.query.xAxis || 'Retailer Name';
+        const metricType = req.query.metricType || 'MRP';
+        console.log('[getPrimaryAll] Filters:', filters, '| xAxis:', xAxis, '| metricType:', metricType);
 
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            const filters = extractFilters(req.query);
-            const xAxis = req.query.xAxis || 'Retailer Name';
-            const metricType = req.query.metricType || 'MRP';
-            console.log('[getPrimaryAll] Filters:', filters, '| xAxis:', xAxis, '| metricType:', metricType);
+        const [mom, quarterly, pivotTable] = await Promise.all([
+            getPrimaryMOM(filters, metricType),
+            getPrimaryQuarterly(filters, metricType),
+            getPrimaryPivotTable(filters, xAxis, metricType),
+        ]);
 
-            const [mom, quarterly, pivotTable] = await Promise.all([
-                getPrimaryMOM(filters, metricType),
-                getPrimaryQuarterly(filters, metricType),
-                getPrimaryPivotTable(filters, xAxis, metricType),
-            ]);
-
-            return { mom, quarterly, pivotTable };
-        }, CACHE_TTL.METRICS);
-
-        res.json({ success: true, data });
+        res.json({
+            success: true,
+            data: { mom, quarterly, pivotTable }
+        });
     } catch (error) {
         console.error('[getPrimaryAll] Error:', error.message);
         console.error('[getPrimaryAll] Stack:', error.stack);

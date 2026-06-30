@@ -619,7 +619,7 @@ export default function PrimarySummary() {
                 letterSpacing: "0.03em",
               }}
             >
-              BRAND WISE PRIMARY
+              {`${filters.xAxis.toUpperCase()} WISE PRIMARY`}
             </Typography>
           </Box>
 

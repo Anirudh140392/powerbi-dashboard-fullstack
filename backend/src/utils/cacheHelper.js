@@ -100,7 +100,8 @@ export function generateCacheKey(section, filters) {
         brandName = '',
         retailerName = '',
         product = '',
-        division = ''
+        division = '',
+        xAxis = ''
     } = filters;
 
     if (poNumber) key += `:ponum_${normalize(poNumber)}`;
@@ -119,6 +120,7 @@ export function generateCacheKey(section, filters) {
     if (retailerName) key += `:ret_${normalize(retailerName)}`;
     if (product) key += `:prod_${normalize(product)}`;
     if (division) key += `:div_${normalize(division)}`;
+    if (xAxis) key += `:xax_${normalize(xAxis)}`;
 
     // Availability/Visibility filters
     if (cities && cities !== 'all' && cities !== 'All') key += `:cts_${normalize(cities)}`;
