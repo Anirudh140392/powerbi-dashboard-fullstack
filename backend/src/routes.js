@@ -16,6 +16,7 @@ import insights from './routes/insights.js';
 import admin from './routes/admin.js';
 import walkthrough from './routes/walkthrough.js';
 import supplyChain from './routes/supplyChain.js';
+import primarySales from './routes/primarySales.js';
 
 export default (app) => {
     // Admin routes
@@ -72,4 +73,7 @@ export default (app) => {
 
     // Insights routes
     insights(app);
+
+    // Primary Sales routes
+    primarySales(app);
 };
