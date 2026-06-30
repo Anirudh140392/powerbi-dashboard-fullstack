@@ -171,7 +171,7 @@ const AMAZON_DATA = [
     }
   },
   {
-    scoreId: 2,
+    scoreId: 3,
     dmmhLever: "Search",
     dmmhSubLever: "Onsite generic search",
     weight: 15.0,
@@ -185,7 +185,7 @@ const AMAZON_DATA = [
     }
   },
   {
-    scoreId: 3,
+    scoreId: 4,
     dmmhLever: "Search",
     dmmhSubLever: "Onsite branded search",
     weight: 10.0,
@@ -199,7 +199,7 @@ const AMAZON_DATA = [
     }
   },
   {
-    scoreId: 4,
+    scoreId: 6,
     dmmhLever: "Content",
     dmmhSubLever: "Quality hero image",
     weight: 7.0,
@@ -213,7 +213,7 @@ const AMAZON_DATA = [
     }
   },
   {
-    scoreId: 5,
+    scoreId: 7,
     dmmhLever: "Content",
     dmmhSubLever: "Secondary images",
     weight: 5.0,
@@ -227,7 +227,7 @@ const AMAZON_DATA = [
     }
   },
   {
-    scoreId: 6,
+    scoreId: 8,
     dmmhLever: "Content",
     dmmhSubLever: "Enhanced content",
     weight: 3.0,
@@ -241,7 +241,7 @@ const AMAZON_DATA = [
     }
   },
   {
-    scoreId: 7,
+    scoreId: 9,
     dmmhLever: "Content",
     dmmhSubLever: "Features & Benefits",
     weight: 3.0,
@@ -255,7 +255,7 @@ const AMAZON_DATA = [
     }
   },
   {
-    scoreId: 8,
+    scoreId: 10,
     dmmhLever: "Content",
     dmmhSubLever: "Title full usage",
     weight: 7.0,
@@ -269,7 +269,7 @@ const AMAZON_DATA = [
     }
   },
   {
-    scoreId: 9,
+    scoreId: 11,
     dmmhLever: "Content",
     dmmhSubLever: "Ratings & Reviews",
     weight: 5.0,
@@ -283,7 +283,7 @@ const AMAZON_DATA = [
     }
   },
   {
-    scoreId: 10,
+    scoreId: 14,
     dmmhLever: "Data",
     dmmhSubLever: "Sell-out Data by SKU",
     weight: 5.0,
@@ -297,7 +297,7 @@ const AMAZON_DATA = [
     }
   },
   {
-    scoreId: 11,
+    scoreId: 15,
     dmmhLever: "Data",
     dmmhSubLever: "Search term frequency",
     weight: 5.0,
@@ -328,7 +328,7 @@ const FKN_DATA = [
     }
   },
   {
-    scoreId: 2,
+    scoreId: 3,
     dmmhLever: "Search",
     dmmhSubLever: "Onsite generic search",
     weight: 15.0,
@@ -342,7 +342,7 @@ const FKN_DATA = [
     }
   },
   {
-    scoreId: 3,
+    scoreId: 4,
     dmmhLever: "Search",
     dmmhSubLever: "Onsite branded search",
     weight: 10.0,
@@ -356,7 +356,7 @@ const FKN_DATA = [
     }
   },
   {
-    scoreId: 4,
+    scoreId: 6,
     dmmhLever: "Content",
     dmmhSubLever: "Quality hero image",
     weight: 8.0,
@@ -370,7 +370,7 @@ const FKN_DATA = [
     }
   },
   {
-    scoreId: 5,
+    scoreId: 7,
     dmmhLever: "Content",
     dmmhSubLever: "Secondary images",
     weight: 6.0,
@@ -383,22 +383,9 @@ const FKN_DATA = [
       "Period 6": { target: "90%", weightedTarget: "5.40", score: "90.00%", weightedScore: "5.40" },
     }
   },
+
   {
-    scoreId: 6,
-    dmmhLever: "Content",
-    dmmhSubLever: "Enhanced content",
-    weight: 0.0,
-    periods: {
-      "Period 1": { target: "-", weightedTarget: "-", score: "-", weightedScore: "0.00" },
-      "Period 2": { target: "-", weightedTarget: "-", score: "-", weightedScore: "0.00" },
-      "Period 3": { target: "-", weightedTarget: "-", score: "-", weightedScore: "0.00" },
-      "Period 4": { target: "-", weightedTarget: "-", score: "-", weightedScore: "0.00" },
-      "Period 5": { target: "-", weightedTarget: "-", score: "-", weightedScore: "0.00" },
-      "Period 6": { target: "-", weightedTarget: "-", score: "-", weightedScore: "0.00" },
-    }
-  },
-  {
-    scoreId: 7,
+    scoreId: 9,
     dmmhLever: "Content",
     dmmhSubLever: "Features & Benefits",
     weight: 3.0,
@@ -412,7 +399,7 @@ const FKN_DATA = [
     }
   },
   {
-    scoreId: 8,
+    scoreId: 10,
     dmmhLever: "Content",
     dmmhSubLever: "Title full usage",
     weight: 8.0,
@@ -426,7 +413,7 @@ const FKN_DATA = [
     }
   },
   {
-    scoreId: 9,
+    scoreId: 11,
     dmmhLever: "Content",
     dmmhSubLever: "Ratings & Reviews",
     weight: 5.0,
@@ -440,7 +427,7 @@ const FKN_DATA = [
     }
   },
   {
-    scoreId: 10,
+    scoreId: 14,
     dmmhLever: "Data",
     dmmhSubLever: "Sell-out Data by SKU",
     weight: 5.0,
@@ -454,7 +441,7 @@ const FKN_DATA = [
     }
   },
   {
-    scoreId: 11,
+    scoreId: 15,
     dmmhLever: "Data",
     dmmhSubLever: "Search term frequency",
     weight: 5.0,
@@ -485,7 +472,7 @@ const BIGBASKET_DATA = [
     }
   },
   {
-    scoreId: 2,
+    scoreId: 3,
     dmmhLever: "Search",
     dmmhSubLever: "Onsite generic search",
     weight: 15.0,
@@ -499,7 +486,7 @@ const BIGBASKET_DATA = [
     }
   },
   {
-    scoreId: 3,
+    scoreId: 4,
     dmmhLever: "Search",
     dmmhSubLever: "Onsite branded search",
     weight: 10.0,
@@ -513,7 +500,7 @@ const BIGBASKET_DATA = [
     }
   },
   {
-    scoreId: 4,
+    scoreId: 6,
     dmmhLever: "Content",
     dmmhSubLever: "Quality hero image",
     weight: 8.0,
@@ -527,7 +514,7 @@ const BIGBASKET_DATA = [
     }
   },
   {
-    scoreId: 5,
+    scoreId: 7,
     dmmhLever: "Content",
     dmmhSubLever: "Secondary images",
     weight: 6.0,
@@ -541,7 +528,7 @@ const BIGBASKET_DATA = [
     }
   },
   {
-    scoreId: 7,
+    scoreId: 9,
     dmmhLever: "Content",
     dmmhSubLever: "Features & Benefits",
     weight: 3.0,
@@ -555,7 +542,7 @@ const BIGBASKET_DATA = [
     }
   },
   {
-    scoreId: 8,
+    scoreId: 10,
     dmmhLever: "Content",
     dmmhSubLever: "Title full usage",
     weight: 8.0,
@@ -569,7 +556,7 @@ const BIGBASKET_DATA = [
     }
   },
   {
-    scoreId: 9,
+    scoreId: 11,
     dmmhLever: "Content",
     dmmhSubLever: "Ratings & Reviews",
     weight: 5.0,
@@ -583,7 +570,7 @@ const BIGBASKET_DATA = [
     }
   },
   {
-    scoreId: 10,
+    scoreId: 14,
     dmmhLever: "Data",
     dmmhSubLever: "Sell-out Data by SKU",
     weight: 5.0,
@@ -597,7 +584,7 @@ const BIGBASKET_DATA = [
     }
   },
   {
-    scoreId: 11,
+    scoreId: 15,
     dmmhLever: "Data",
     dmmhSubLever: "Search term frequency",
     weight: 5.0,
@@ -628,7 +615,7 @@ const BLINKIT_DATA = [
     }
   },
   {
-    scoreId: 2,
+    scoreId: 3,
     dmmhLever: "Search",
     dmmhSubLever: "Onsite generic search",
     weight: 15.0,
@@ -642,7 +629,7 @@ const BLINKIT_DATA = [
     }
   },
   {
-    scoreId: 3,
+    scoreId: 4,
     dmmhLever: "Search",
     dmmhSubLever: "Onsite branded search",
     weight: 10.0,
@@ -656,7 +643,7 @@ const BLINKIT_DATA = [
     }
   },
   {
-    scoreId: 4,
+    scoreId: 6,
     dmmhLever: "Content",
     dmmhSubLever: "Quality hero image",
     weight: 9.0,
@@ -670,7 +657,7 @@ const BLINKIT_DATA = [
     }
   },
   {
-    scoreId: 5,
+    scoreId: 7,
     dmmhLever: "Content",
     dmmhSubLever: "Secondary images",
     weight: 5.0,
@@ -684,7 +671,7 @@ const BLINKIT_DATA = [
     }
   },
   {
-    scoreId: 6,
+    scoreId: 9,
     dmmhLever: "Content",
     dmmhSubLever: "Features & Benefits",
     weight: 3.0,
@@ -698,7 +685,7 @@ const BLINKIT_DATA = [
     }
   },
   {
-    scoreId: 7,
+    scoreId: 10,
     dmmhLever: "Content",
     dmmhSubLever: "Title full usage",
     weight: 8.0,
@@ -712,7 +699,7 @@ const BLINKIT_DATA = [
     }
   },
   {
-    scoreId: 8,
+    scoreId: 13,
     dmmhLever: "interruption",
     dmmhSubLever: "Dual Sitting & Tagging",
     weight: 5.0,
@@ -726,7 +713,7 @@ const BLINKIT_DATA = [
     }
   },
   {
-    scoreId: 9,
+    scoreId: 14,
     dmmhLever: "Data",
     dmmhSubLever: "Sell-out Data by SKU",
     weight: 5.0,
@@ -740,7 +727,7 @@ const BLINKIT_DATA = [
     }
   },
   {
-    scoreId: 10,
+    scoreId: 15,
     dmmhLever: "Data",
     dmmhSubLever: "Search term frequency",
     weight: 5.0,
@@ -771,7 +758,7 @@ const ZEPTO_DATA = [
     }
   },
   {
-    scoreId: 2,
+    scoreId: 3,
     dmmhLever: "Search",
     dmmhSubLever: "Onsite generic search",
     weight: 15.0,
@@ -785,7 +772,7 @@ const ZEPTO_DATA = [
     }
   },
   {
-    scoreId: 3,
+    scoreId: 4,
     dmmhLever: "Search",
     dmmhSubLever: "Onsite branded search",
     weight: 10.0,
@@ -799,7 +786,7 @@ const ZEPTO_DATA = [
     }
   },
   {
-    scoreId: 4,
+    scoreId: 6,
     dmmhLever: "Content",
     dmmhSubLever: "Quality hero image",
     weight: 10.0,
@@ -813,7 +800,7 @@ const ZEPTO_DATA = [
     }
   },
   {
-    scoreId: 5,
+    scoreId: 7,
     dmmhLever: "Content",
     dmmhSubLever: "Secondary images",
     weight: 6.0,
@@ -827,7 +814,7 @@ const ZEPTO_DATA = [
     }
   },
   {
-    scoreId: 6,
+    scoreId: 10,
     dmmhLever: "Content",
     dmmhSubLever: "Title full usage",
     weight: 9.0,
@@ -841,7 +828,7 @@ const ZEPTO_DATA = [
     }
   },
   {
-    scoreId: 7,
+    scoreId: 13,
     dmmhLever: "interruption",
     dmmhSubLever: "Dual Sitting & Tagging",
     weight: 5.0,
@@ -855,7 +842,7 @@ const ZEPTO_DATA = [
     }
   },
   {
-    scoreId: 8,
+    scoreId: 14,
     dmmhLever: "Data",
     dmmhSubLever: "Sell-out Data by SKU",
     weight: 5.0,
@@ -869,7 +856,7 @@ const ZEPTO_DATA = [
     }
   },
   {
-    scoreId: 9,
+    scoreId: 15,
     dmmhLever: "Data",
     dmmhSubLever: "Search term frequency",
     weight: 5.0,
@@ -900,7 +887,7 @@ const INSTAMART_DATA = [
     }
   },
   {
-    scoreId: 2,
+    scoreId: 3,
     dmmhLever: "Search",
     dmmhSubLever: "Onsite generic search",
     weight: 14.0,
@@ -914,7 +901,7 @@ const INSTAMART_DATA = [
     }
   },
   {
-    scoreId: 3,
+    scoreId: 4,
     dmmhLever: "Search",
     dmmhSubLever: "Onsite branded search",
     weight: 10.0,
@@ -928,7 +915,7 @@ const INSTAMART_DATA = [
     }
   },
   {
-    scoreId: 4,
+    scoreId: 6,
     dmmhLever: "Content",
     dmmhSubLever: "Quality hero image",
     weight: 10.0,
@@ -942,7 +929,7 @@ const INSTAMART_DATA = [
     }
   },
   {
-    scoreId: 5,
+    scoreId: 7,
     dmmhLever: "Content",
     dmmhSubLever: "Secondary images",
     weight: 6.0,
@@ -956,7 +943,7 @@ const INSTAMART_DATA = [
     }
   },
   {
-    scoreId: 6,
+    scoreId: 10,
     dmmhLever: "Content",
     dmmhSubLever: "Title full usage",
     weight: 9.0,
@@ -970,7 +957,7 @@ const INSTAMART_DATA = [
     }
   },
   {
-    scoreId: 7,
+    scoreId: 13,
     dmmhLever: "interruption",
     dmmhSubLever: "Dual Sitting & Tagging",
     weight: 5.0,
@@ -984,7 +971,7 @@ const INSTAMART_DATA = [
     }
   },
   {
-    scoreId: 8,
+    scoreId: 14,
     dmmhLever: "Data",
     dmmhSubLever: "Sell-out Data by SKU",
     weight: 5.0,
@@ -998,7 +985,7 @@ const INSTAMART_DATA = [
     }
   },
   {
-    scoreId: 9,
+    scoreId: 15,
     dmmhLever: "Data",
     dmmhSubLever: "Search term frequency",
     weight: 5.0,
