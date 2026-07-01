@@ -782,6 +782,9 @@ export default function VisibilityTrendsCompetitionDrawer({
   const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
   const [showPlatformPills, setShowPlatformPills] = useState(false);
 
+  // Dynamic rank options fetched from DB (max position)
+  const [rankOptions, setRankOptions] = useState(["Top 10", "Top 20", "Top 30", "Top 40"]);
+
   // Drawer-specific filters for the Effective Filters bar
   const [drawerFilters, setDrawerFilters] = useState({
     Platform: globalPlatform || "All",
@@ -889,14 +892,18 @@ export default function VisibilityTrendsCompetitionDrawer({
           return p;
         };
 
-        const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes, keywordTypesRes, keywordsRes] = await Promise.all([
+        const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes, keywordTypesRes, keywordsRes, maxPosRes] = await Promise.all([
           axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'platforms', ...getBaseParams('platform') } }),
           axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'formats', ...getBaseParams('format') } }),
           axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'cities', ...getBaseParams('city') } }),
           axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands', ...getBaseParams('brand'), ownBrandsOnly: true } }),
           axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'skus', ...getBaseParams('sku'), ownBrandsOnly: true } }),
           axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'keywordTypes', ...getBaseParams('keywordType') } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'keywords', ...getBaseParams('keyword'), ownBrandsOnly: true } })
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'keywords', ...getBaseParams('keyword'), ownBrandsOnly: true } }),
+          axiosInstance.get('/visibility-analysis/max-position').catch(err => {
+            console.error('[VisibilityTrendsDrawer] Error fetching max-position:', err);
+            return { data: { maxPos: 40 } };
+          })
         ]);
 
         const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
@@ -937,6 +944,21 @@ export default function VisibilityTrendsCompetitionDrawer({
           keywords: keywords.length > 0 ? keywords : [],
           loading: false
         });
+
+        // Dynamic rank options based on max position from DB
+        const maxPos = maxPosRes?.data?.maxPos;
+        if (typeof maxPos === 'number' && maxPos > 0) {
+          let ranks = ["Top 10"];
+          if (maxPos > 10) ranks.push("Top 20");
+          if (maxPos > 20) ranks.push("Top 30");
+          if (maxPos > 30) ranks.push("Top 40");
+          setRankOptions(ranks);
+
+          // Validate current rank selection against new options
+          if (drawerFilters.rank && drawerFilters.rank !== "All" && !ranks.includes(drawerFilters.rank)) {
+            setDrawerFilters(prev => ({ ...prev, rank: ranks[ranks.length - 1] }));
+          }
+        }
 
         // Set default selected platform to first available
         if (platforms.length > 0) {
@@ -1522,7 +1544,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                 <FilterDropdown
                   title="Rank"
                   value={drawerFilters.rank}
-                  options={RANK_OPTIONS}
+                  options={rankOptions}
                   onChange={(v) => setDrawerFilters(prev => ({ ...prev, rank: v }))}
                   searchable={false}
                 />

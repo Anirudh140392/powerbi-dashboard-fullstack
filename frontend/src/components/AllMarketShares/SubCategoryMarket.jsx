@@ -171,7 +171,7 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                         setBrandsData(brands);
                     }
                     // Set default selected category on first load or category reset
-                    if (selectedSubCat.length === 0 && selectedSubCategory) {
+                    if (selectedSubCat.length === 0 && selectedSubCategory && selectedSubCategory.length > 0) {
                         const defaultSelection = Array.isArray(selectedSubCategory) ? selectedSubCategory : [selectedSubCategory];
                         
                         // Update ref to prevent duplicate fetch after state update

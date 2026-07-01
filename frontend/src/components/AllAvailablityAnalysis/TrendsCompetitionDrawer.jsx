@@ -653,7 +653,7 @@ export default function TrendsCompetitionDrawer({
   selectedLevel,
   dimensionType,
   brandOptions,
-  initialPlatform = "Blinkit",
+  initialPlatform,
   defaultView = "Trends",
   initialAudience = "Platform",
   showResellerFilter = true,

@@ -381,6 +381,9 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
         error: null
     });
 
+    // Dynamic rank options fetched from DB (max position)
+    const [rankOptions, setRankOptions] = useState(["Top 10", "Top 20", "Top 30", "Top 40"]);
+
     useEffect(() => {
         if (!open) return;
 
@@ -404,10 +407,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
                 if (localValue.brands.length) kwParams.append('brand', localValue.brands.join(','));
                 const keywordPromise = axiosInstance.get(`/visibility-analysis/keywords?${kwParams.toString()}`);
 
-                const [watchtowerRes, keywordTypeRes, keywordRes] = await Promise.all([
+                const [watchtowerRes, keywordTypeRes, keywordRes, maxPosRes] = await Promise.all([
                     watchtowerPromise,
                     keywordTypePromise,
-                    keywordPromise
+                    keywordPromise,
+                    axiosInstance.get('/visibility-analysis/max-position').catch(err => {
+                        console.error('[FilterDialog Visibility] Error fetching max-position:', err);
+                        return { data: { maxPos: 40 } };
+                    })
                 ]);
 
                 if (watchtowerRes.data) {
@@ -420,6 +427,21 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
                         loading: false,
                         error: null
                     });
+                }
+
+                // Dynamic rank options based on max position from DB
+                const maxPos = maxPosRes?.data?.maxPos;
+                if (typeof maxPos === 'number' && maxPos > 0) {
+                    let ranks = ["Top 10"];
+                    if (maxPos > 10) ranks.push("Top 20");
+                    if (maxPos > 20) ranks.push("Top 30");
+                    if (maxPos > 30) ranks.push("Top 40");
+                    setRankOptions(ranks);
+
+                    // Validate current rank selection against new options
+                    if (localValue.rank && localValue.rank !== 'All' && !ranks.includes(localValue.rank)) {
+                        setLocalValue(prev => ({ ...prev, rank: ranks[ranks.length - 1] }));
+                    }
                 }
             } catch (error) {
                 console.error('[FilterDialog Visibility] Error fetching filter options:', error);
@@ -440,7 +462,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
         if (activeTab === "sku") return filterOptions.skus;
         if (activeTab === "keywordType") return filterOptions.keywordTypes;
         if (activeTab === "keyword") return filterOptions.keywords;
-        if (activeTab === "rank") return RANK_OPTIONS;
+        if (activeTab === "rank") return rankOptions;
         return [];
     };
 

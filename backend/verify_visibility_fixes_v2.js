@@ -1,6 +1,7 @@
 
 import visibilityService from './src/services/visibilityService.js';
 
+
 async function verifyFixes() {
     try {
         console.log('--- Verifying Visibility Service Fixes (Round 2) ---');
