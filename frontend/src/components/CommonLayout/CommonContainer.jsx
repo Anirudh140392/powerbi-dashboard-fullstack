@@ -150,6 +150,7 @@ function CommonLayoutContent({
             disableGutters
             sx={{
               px: disablePadding ? 0 : { xs: 2, sm: 3 },
+              py: disablePadding ? 0 : { xs: 2, sm: 3 },
               width: "100%",
               flexDirection: "column",
               overflowX: "hidden", // 🔥 no horizontal scroll inside content

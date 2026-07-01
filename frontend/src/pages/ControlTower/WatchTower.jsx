@@ -413,6 +413,7 @@ export default function WatchTower() {
           : rawTrend;
         return {
           id: meta.id,
+          title: normalizedTitle,
           value: finalValue,
           delta: finalDelta,
           deltaLabel: finalDeltaLabel,
