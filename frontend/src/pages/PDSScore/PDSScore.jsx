@@ -1102,7 +1102,7 @@ export default function PDSScore() {
   const { platform, selectedBrand } = useContext(FilterContext);
 
   const [selectedPlatform, setSelectedPlatform] = useState("Amazon");
-  const [selectedYear, setSelectedYear] = useState("2025");
+  const [selectedYear, setSelectedYear] = useState("2026");
   const [selectedPeriod, setSelectedPeriod] = useState("Period 1");
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState("compact");
@@ -1208,7 +1208,7 @@ export default function PDSScore() {
   const totalAchievement = calculateTotal("weightedScore");
 
   return (
-    <CommonContainer title="PDS Score">
+    <CommonContainer title="PDS Score" hideFilters={true}>
       <Box sx={{ p: 2 }}>
         <Paper
           elevation={0}
@@ -1335,7 +1335,7 @@ export default function PDSScore() {
                   minWidth: 110,
                 }}
               >
-                <MenuItem value="2025" sx={{ fontSize: "0.75rem" }}>2025</MenuItem>
+                <MenuItem value="2026" sx={{ fontSize: "0.75rem" }}>2026</MenuItem>
               </Select>
 
               {/* Period Filter */}

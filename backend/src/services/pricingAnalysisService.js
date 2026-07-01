@@ -1078,6 +1078,7 @@ const getDimensionOverview = async (filters = {}) => {
                 WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
                   AND ${whereClause}
                 GROUP BY dimension
+                HAVING countIf(p.${f.compFlag} = '0') > 0
                 ORDER BY Discount DESC
             `;
 
