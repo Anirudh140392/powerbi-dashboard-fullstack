@@ -156,18 +156,19 @@ const MOCK_PDS_DATA = [
 ];
 
 const AMAZON_DATA = [
+
   {
     scoreId: 1,
     dmmhLever: "Assortment",
     dmmhSubLever: "Blockbuster Availability",
     weight: 35.0,
     periods: {
-      "Period 1": { target: "92%", weightedTarget: "32.20", score: "94.55%", weightedScore: "33.09" },
-      "Period 2": { target: "95%", weightedTarget: "33.25", score: "92.29%", weightedScore: "32.30" },
-      "Period 3": { target: "95%", weightedTarget: "33.25", score: "86.54%", weightedScore: "30.29" },
-      "Period 4": { target: "88%", weightedTarget: "30.80", score: "94.74%", weightedScore: "33.16" },
-      "Period 5": { target: "89%", weightedTarget: "31.15", score: "94.94%", weightedScore: "33.23" },
-      "Period 6": { target: "90%", weightedTarget: "31.50", score: "94.93%", weightedScore: "33.23" },
+      "Period 1": { target: "95%", weightedTarget: "33.25", score: "94.55%", weightedScore: "33.09" },
+      "Period 2": { target: "97%", weightedTarget: "33.95", score: "92.29%", weightedScore: "32.30" },
+      "Period 3": { target: "97%", weightedTarget: "33.95", score: "86.54%", weightedScore: "30.29" },
+      "Period 4": { target: "95%", weightedTarget: "33.25", score: "94.74%", weightedScore: "33.16" },
+      "Period 5": { target: "98%", weightedTarget: "34.30", score: "94.94%", weightedScore: "33.23" },
+      "Period 6": { target: "98%", weightedTarget: "34.30", score: "94.93%", weightedScore: "33.23" }
     }
   },
   {
@@ -177,11 +178,11 @@ const AMAZON_DATA = [
     weight: 15.0,
     periods: {
       "Period 1": { target: "25.00%", weightedTarget: "3.75", score: "21.13%", weightedScore: "3.17" },
-      "Period 2": { target: "23.00%", weightedTarget: "3.45", score: "18.43%", weightedScore: "2.76" },
-      "Period 3": { target: "23.00%", weightedTarget: "3.45", score: "17.23%", weightedScore: "2.58" },
-      "Period 4": { target: "16.00%", weightedTarget: "2.40", score: "18.51%", weightedScore: "2.78" },
+      "Period 2": { target: "30.00%", weightedTarget: "4.50", score: "18.43%", weightedScore: "2.76" },
+      "Period 3": { target: "25.00%", weightedTarget: "3.75", score: "17.23%", weightedScore: "2.58" },
+      "Period 4": { target: "25.00%", weightedTarget: "3.75", score: "18.51%", weightedScore: "2.78" },
       "Period 5": { target: "20.00%", weightedTarget: "3.00", score: "15.00%", weightedScore: "2.25" },
-      "Period 6": { target: "21.00%", weightedTarget: "3.15", score: "15.51%", weightedScore: "2.33" },
+      "Period 6": { target: "25.00%", weightedTarget: "3.75", score: "15.51%", weightedScore: "2.33" }
     }
   },
   {
@@ -191,11 +192,11 @@ const AMAZON_DATA = [
     weight: 10.0,
     periods: {
       "Period 1": { target: "85.00%", weightedTarget: "8.50", score: "72.02%", weightedScore: "7.20" },
-      "Period 2": { target: "75.00%", weightedTarget: "7.50", score: "76.82%", weightedScore: "7.68" },
-      "Period 3": { target: "80.00%", weightedTarget: "8.00", score: "85.90%", weightedScore: "8.59" },
-      "Period 4": { target: "88.00%", weightedTarget: "8.80", score: "70.00%", weightedScore: "7.00" },
-      "Period 5": { target: "75.00%", weightedTarget: "7.50", score: "76.11%", weightedScore: "7.61" },
-      "Period 6": { target: "76.00%", weightedTarget: "7.60", score: "83.20%", weightedScore: "8.32" },
+      "Period 2": { target: "85.00%", weightedTarget: "8.50", score: "76.82%", weightedScore: "7.68" },
+      "Period 3": { target: "90.00%", weightedTarget: "9.00", score: "85.90%", weightedScore: "8.59" },
+      "Period 4": { target: "90.00%", weightedTarget: "9.00", score: "70.00%", weightedScore: "7.00" },
+      "Period 5": { target: "85.00%", weightedTarget: "8.50", score: "76.11%", weightedScore: "7.61" },
+      "Period 6": { target: "90.00%", weightedTarget: "9.00", score: "83.20%", weightedScore: "8.32" }
     }
   },
   {
@@ -209,7 +210,7 @@ const AMAZON_DATA = [
       "Period 3": { target: "100%", weightedTarget: "7.00", score: "100%", weightedScore: "7.00" },
       "Period 4": { target: "100%", weightedTarget: "7.00", score: "100%", weightedScore: "7.00" },
       "Period 5": { target: "100%", weightedTarget: "7.00", score: "100%", weightedScore: "7.00" },
-      "Period 6": { target: "100%", weightedTarget: "7.00", score: "100%", weightedScore: "7.00" },
+      "Period 6": { target: "100%", weightedTarget: "7.00", score: "100%", weightedScore: "7.00" }
     }
   },
   {
@@ -223,7 +224,7 @@ const AMAZON_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "97.60%", weightedScore: "4.88" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "98.25%", weightedScore: "4.91" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "87.70%", weightedScore: "4.39" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "92.00%", weightedScore: "4.60" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "92.00%", weightedScore: "4.60" }
     }
   },
   {
@@ -237,7 +238,7 @@ const AMAZON_DATA = [
       "Period 3": { target: "100%", weightedTarget: "3.00", score: "100%", weightedScore: "3.00" },
       "Period 4": { target: "100%", weightedTarget: "3.00", score: "100%", weightedScore: "3.00" },
       "Period 5": { target: "100%", weightedTarget: "3.00", score: "100%", weightedScore: "3.00" },
-      "Period 6": { target: "100%", weightedTarget: "3.00", score: "100%", weightedScore: "3.00" },
+      "Period 6": { target: "100%", weightedTarget: "3.00", score: "100%", weightedScore: "3.00" }
     }
   },
   {
@@ -246,12 +247,12 @@ const AMAZON_DATA = [
     dmmhSubLever: "Features & Benefits",
     weight: 3.0,
     periods: {
-      "Period 1": { target: "60%", weightedTarget: "1.80", score: "64.13%", weightedScore: "1.92" },
-      "Period 2": { target: "70%", weightedTarget: "2.10", score: "63.45%", weightedScore: "1.90" },
-      "Period 3": { target: "70%", weightedTarget: "2.10", score: "59.52%", weightedScore: "1.79" },
+      "Period 1": { target: "70%", weightedTarget: "2.10", score: "64.13%", weightedScore: "1.92" },
+      "Period 2": { target: "75%", weightedTarget: "2.25", score: "63.45%", weightedScore: "1.90" },
+      "Period 3": { target: "75%", weightedTarget: "2.25", score: "59.52%", weightedScore: "1.79" },
       "Period 4": { target: "70%", weightedTarget: "2.10", score: "63.16%", weightedScore: "1.89" },
-      "Period 5": { target: "65%", weightedTarget: "1.95", score: "58.00%", weightedScore: "1.74" },
-      "Period 6": { target: "69%", weightedTarget: "2.07", score: "76.00%", weightedScore: "2.28" },
+      "Period 5": { target: "75%", weightedTarget: "2.25", score: "58.00%", weightedScore: "1.74" },
+      "Period 6": { target: "80%", weightedTarget: "2.40", score: "76.00%", weightedScore: "2.28" }
     }
   },
   {
@@ -262,10 +263,10 @@ const AMAZON_DATA = [
     periods: {
       "Period 1": { target: "90%", weightedTarget: "6.30", score: "84.40%", weightedScore: "5.91" },
       "Period 2": { target: "90%", weightedTarget: "6.30", score: "84.42%", weightedScore: "5.91" },
-      "Period 3": { target: "90%", weightedTarget: "6.30", score: "92.79%", weightedScore: "6.50" },
+      "Period 3": { target: "95%", weightedTarget: "6.65", score: "92.79%", weightedScore: "6.50" },
       "Period 4": { target: "100%", weightedTarget: "7.00", score: "94.74%", weightedScore: "6.63" },
       "Period 5": { target: "96%", weightedTarget: "6.72", score: "84.00%", weightedScore: "5.88" },
-      "Period 6": { target: "93%", weightedTarget: "6.51", score: "74.00%", weightedScore: "5.18" },
+      "Period 6": { target: "93%", weightedTarget: "6.51", score: "74.00%", weightedScore: "5.18" }
     }
   },
   {
@@ -277,9 +278,9 @@ const AMAZON_DATA = [
       "Period 1": { target: "75%", weightedTarget: "3.75", score: "69.54%", weightedScore: "3.48" },
       "Period 2": { target: "75%", weightedTarget: "3.75", score: "69.38%", weightedScore: "3.47" },
       "Period 3": { target: "75%", weightedTarget: "3.75", score: "63.53%", weightedScore: "3.18" },
-      "Period 4": { target: "75%", weightedTarget: "3.75", score: "63.16%", weightedScore: "3.16" },
-      "Period 5": { target: "64%", weightedTarget: "3.20", score: "74.00%", weightedScore: "3.70" },
-      "Period 6": { target: "65%", weightedTarget: "3.25", score: "68.00%", weightedScore: "3.40" },
+      "Period 4": { target: "80%", weightedTarget: "4.00", score: "63.16%", weightedScore: "3.16" },
+      "Period 5": { target: "80%", weightedTarget: "4.00", score: "74.00%", weightedScore: "3.70" },
+      "Period 6": { target: "85%", weightedTarget: "4.25", score: "68.00%", weightedScore: "3.40" }
     }
   },
   {
@@ -293,7 +294,7 @@ const AMAZON_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" }
     }
   },
   {
@@ -307,12 +308,13 @@ const AMAZON_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" }
     }
   }
 ];
 
 const FKN_DATA = [
+
   {
     scoreId: 1,
     dmmhLever: "Assortment",
@@ -320,11 +322,11 @@ const FKN_DATA = [
     weight: 35.0,
     periods: {
       "Period 1": { target: "90%", weightedTarget: "31.50", score: "81.19%", weightedScore: "28.42" },
-      "Period 2": { target: "85%", weightedTarget: "29.75", score: "68.05%", weightedScore: "23.82" },
-      "Period 3": { target: "70%", weightedTarget: "24.50", score: "51.67%", weightedScore: "18.08" },
-      "Period 4": { target: "60%", weightedTarget: "21.00", score: "51.18%", weightedScore: "17.91" },
-      "Period 5": { target: "65%", weightedTarget: "22.75", score: "64.89%", weightedScore: "22.71" },
-      "Period 6": { target: "70%", weightedTarget: "24.50", score: "59.30%", weightedScore: "20.75" },
+      "Period 2": { target: "95%", weightedTarget: "33.25", score: "68.05%", weightedScore: "23.82" },
+      "Period 3": { target: "80%", weightedTarget: "28.00", score: "51.67%", weightedScore: "18.08" },
+      "Period 4": { target: "70%", weightedTarget: "24.50", score: "51.18%", weightedScore: "17.91" },
+      "Period 5": { target: "75%", weightedTarget: "26.25", score: "64.89%", weightedScore: "22.71" },
+      "Period 6": { target: "80%", weightedTarget: "28.00", score: "59.30%", weightedScore: "20.75" }
     }
   },
   {
@@ -334,11 +336,11 @@ const FKN_DATA = [
     weight: 15.0,
     periods: {
       "Period 1": { target: "23.00%", weightedTarget: "3.45", score: "22.40%", weightedScore: "3.36" },
-      "Period 2": { target: "25.00%", weightedTarget: "3.75", score: "23.01%", weightedScore: "3.45" },
-      "Period 3": { target: "26.00%", weightedTarget: "3.90", score: "21.94%", weightedScore: "3.29" },
-      "Period 4": { target: "18.00%", weightedTarget: "2.70", score: "12.83%", weightedScore: "1.92" },
-      "Period 5": { target: "15.00%", weightedTarget: "2.25", score: "8.50%", weightedScore: "1.28" },
-      "Period 6": { target: "18.00%", weightedTarget: "2.70", score: "11.20%", weightedScore: "1.68" },
+      "Period 2": { target: "27.00%", weightedTarget: "4.05", score: "23.01%", weightedScore: "3.45" },
+      "Period 3": { target: "30.00%", weightedTarget: "4.50", score: "21.94%", weightedScore: "3.29" },
+      "Period 4": { target: "30.00%", weightedTarget: "4.50", score: "12.83%", weightedScore: "1.92" },
+      "Period 5": { target: "20.00%", weightedTarget: "3.00", score: "8.50%", weightedScore: "1.28" },
+      "Period 6": { target: "20%", weightedTarget: "3.00", score: "11.20%", weightedScore: "1.68" }
     }
   },
   {
@@ -348,11 +350,11 @@ const FKN_DATA = [
     weight: 10.0,
     periods: {
       "Period 1": { target: "90.00%", weightedTarget: "9.00", score: "83.88%", weightedScore: "8.39" },
-      "Period 2": { target: "90.00%", weightedTarget: "9.00", score: "85.13%", weightedScore: "8.51" },
+      "Period 2": { target: "95.00%", weightedTarget: "9.50", score: "85.13%", weightedScore: "8.51" },
       "Period 3": { target: "90.00%", weightedTarget: "9.00", score: "70.31%", weightedScore: "7.03" },
-      "Period 4": { target: "75.00%", weightedTarget: "7.50", score: "63.18%", weightedScore: "6.32" },
-      "Period 5": { target: "63.00%", weightedTarget: "6.30", score: "42.30%", weightedScore: "4.23" },
-      "Period 6": { target: "73.00%", weightedTarget: "7.30", score: "47.00%", weightedScore: "4.70" },
+      "Period 4": { target: "85%", weightedTarget: "8.50", score: "63.18%", weightedScore: "6.32" },
+      "Period 5": { target: "80.00%", weightedTarget: "8.00", score: "42.30%", weightedScore: "4.23" },
+      "Period 6": { target: "73%", weightedTarget: "7.30", score: "47.00%", weightedScore: "4.70" }
     }
   },
   {
@@ -366,7 +368,7 @@ const FKN_DATA = [
       "Period 3": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" },
       "Period 4": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" },
       "Period 5": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" },
-      "Period 6": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" },
+      "Period 6": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" }
     }
   },
   {
@@ -379,11 +381,10 @@ const FKN_DATA = [
       "Period 2": { target: "100%", weightedTarget: "6.00", score: "99.52%", weightedScore: "5.97" },
       "Period 3": { target: "100%", weightedTarget: "6.00", score: "89.07%", weightedScore: "5.34" },
       "Period 4": { target: "100%", weightedTarget: "6.00", score: "86.67%", weightedScore: "5.20" },
-      "Period 5": { target: "88%", weightedTarget: "5.28", score: "88.00%", weightedScore: "5.28" },
-      "Period 6": { target: "90%", weightedTarget: "5.40", score: "90.00%", weightedScore: "5.40" },
+      "Period 5": { target: "95%", weightedTarget: "5.70", score: "88%", weightedScore: "5.28" },
+      "Period 6": { target: "100%", weightedTarget: "6.00", score: "90%", weightedScore: "5.40" }
     }
   },
-
   {
     scoreId: 9,
     dmmhLever: "Content",
@@ -392,10 +393,10 @@ const FKN_DATA = [
     periods: {
       "Period 1": { target: "80%", weightedTarget: "2.40", score: "72.87%", weightedScore: "2.19" },
       "Period 2": { target: "80%", weightedTarget: "2.40", score: "73.11%", weightedScore: "2.19" },
-      "Period 3": { target: "80%", weightedTarget: "2.40", score: "84.04%", weightedScore: "2.52" },
-      "Period 4": { target: "90%", weightedTarget: "2.70", score: "85.00%", weightedScore: "2.55" },
-      "Period 5": { target: "86%", weightedTarget: "2.58", score: "80.00%", weightedScore: "2.40" },
-      "Period 6": { target: "84%", weightedTarget: "2.52", score: "90.00%", weightedScore: "2.70" },
+      "Period 3": { target: "90%", weightedTarget: "2.70", score: "84.04%", weightedScore: "2.52" },
+      "Period 4": { target: "95%", weightedTarget: "2.85", score: "85%", weightedScore: "2.55" },
+      "Period 5": { target: "95%", weightedTarget: "2.85", score: "80%", weightedScore: "2.40" },
+      "Period 6": { target: "95%", weightedTarget: "2.85", score: "90%", weightedScore: "2.70" }
     }
   },
   {
@@ -407,9 +408,9 @@ const FKN_DATA = [
       "Period 1": { target: "100%", weightedTarget: "8.00", score: "98.96%", weightedScore: "7.92" },
       "Period 2": { target: "100%", weightedTarget: "8.00", score: "98.99%", weightedScore: "7.92" },
       "Period 3": { target: "100%", weightedTarget: "8.00", score: "95.96%", weightedScore: "7.68" },
-      "Period 4": { target: "100%", weightedTarget: "8.00", score: "95.00%", weightedScore: "7.60" },
-      "Period 5": { target: "97%", weightedTarget: "7.76", score: "100%", weightedScore: "8.00" },
-      "Period 6": { target: "96%", weightedTarget: "7.68", score: "100%", weightedScore: "8.00" },
+      "Period 4": { target: "100%", weightedTarget: "8.00", score: "95%", weightedScore: "7.60" },
+      "Period 5": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" },
+      "Period 6": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" }
     }
   },
   {
@@ -418,12 +419,12 @@ const FKN_DATA = [
     dmmhSubLever: "Ratings & Reviews",
     weight: 5.0,
     periods: {
-      "Period 1": { target: "80%", weightedTarget: "4.00", score: "81.74%", weightedScore: "4.09" },
+      "Period 1": { target: "85%", weightedTarget: "4.25", score: "81.74%", weightedScore: "4.09" },
       "Period 2": { target: "85%", weightedTarget: "4.25", score: "81.34%", weightedScore: "4.07" },
-      "Period 3": { target: "85%", weightedTarget: "4.25", score: "94.23%", weightedScore: "4.71" },
+      "Period 3": { target: "95%", weightedTarget: "4.75", score: "94.23%", weightedScore: "4.71" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 5": { target: "100%", weightedTarget: "5.00", score: "90.00%", weightedScore: "4.50" },
-      "Period 6": { target: "91%", weightedTarget: "4.55", score: "95.00%", weightedScore: "4.75" },
+      "Period 5": { target: "100%", weightedTarget: "5.00", score: "90%", weightedScore: "4.50" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "95%", weightedScore: "4.75" }
     }
   },
   {
@@ -437,7 +438,7 @@ const FKN_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" }
     }
   },
   {
@@ -451,12 +452,13 @@ const FKN_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" }
     }
   }
 ];
 
 const BIGBASKET_DATA = [
+
   {
     scoreId: 1,
     dmmhLever: "Assortment",
@@ -464,11 +466,11 @@ const BIGBASKET_DATA = [
     weight: 35.0,
     periods: {
       "Period 1": { target: "90%", weightedTarget: "31.50", score: "86.62%", weightedScore: "30.32" },
-      "Period 2": { target: "88%", weightedTarget: "30.80", score: "86.51%", weightedScore: "30.28" },
-      "Period 3": { target: "88%", weightedTarget: "30.80", score: "83.80%", weightedScore: "29.33" },
-      "Period 4": { target: "85%", weightedTarget: "29.75", score: "58.36%", weightedScore: "20.43" },
+      "Period 2": { target: "95%", weightedTarget: "33.25", score: "86.51%", weightedScore: "30.28" },
+      "Period 3": { target: "95%", weightedTarget: "33.25", score: "83.80%", weightedScore: "29.33" },
+      "Period 4": { target: "90%", weightedTarget: "31.50", score: "58.36%", weightedScore: "20.43" },
       "Period 5": { target: "87%", weightedTarget: "30.45", score: "78.41%", weightedScore: "27.44" },
-      "Period 6": { target: "88%", weightedTarget: "30.80", score: "88.25%", weightedScore: "30.89" },
+      "Period 6": { target: "95%", weightedTarget: "33.25", score: "88.25%", weightedScore: "30.89" }
     }
   },
   {
@@ -477,12 +479,12 @@ const BIGBASKET_DATA = [
     dmmhSubLever: "Onsite generic search",
     weight: 15.0,
     periods: {
-      "Period 1": { target: "13.00%", weightedTarget: "1.95", score: "13.46%", weightedScore: "2.02" },
-      "Period 2": { target: "15.00%", weightedTarget: "2.25", score: "13.23%", weightedScore: "1.98" },
-      "Period 3": { target: "15.00%", weightedTarget: "2.25", score: "11.97%", weightedScore: "1.80" },
-      "Period 4": { target: "13.00%", weightedTarget: "1.95", score: "12.53%", weightedScore: "1.88" },
-      "Period 5": { target: "13.00%", weightedTarget: "1.95", score: "11.17%", weightedScore: "1.68" },
-      "Period 6": { target: "14.00%", weightedTarget: "2.10", score: "14.90%", weightedScore: "2.24" },
+      "Period 1": { target: "15.00%", weightedTarget: "2.25", score: "13.46%", weightedScore: "2.02" },
+      "Period 2": { target: "20.00%", weightedTarget: "3.00", score: "13.23%", weightedScore: "1.98" },
+      "Period 3": { target: "20.00%", weightedTarget: "3.00", score: "11.97%", weightedScore: "1.80" },
+      "Period 4": { target: "17.00%", weightedTarget: "2.55", score: "12.53%", weightedScore: "1.88" },
+      "Period 5": { target: "18.00%", weightedTarget: "2.70", score: "11.17%", weightedScore: "1.68" },
+      "Period 6": { target: "18%", weightedTarget: "2.70", score: "14.90%", weightedScore: "2.24" }
     }
   },
   {
@@ -494,9 +496,9 @@ const BIGBASKET_DATA = [
       "Period 1": { target: "90.00%", weightedTarget: "9.00", score: "87.28%", weightedScore: "8.73" },
       "Period 2": { target: "90.00%", weightedTarget: "9.00", score: "87.18%", weightedScore: "8.72" },
       "Period 3": { target: "90.00%", weightedTarget: "9.00", score: "86.22%", weightedScore: "8.62" },
-      "Period 4": { target: "89.00%", weightedTarget: "8.90", score: "86.63%", weightedScore: "8.66" },
-      "Period 5": { target: "88.00%", weightedTarget: "8.80", score: "85.91%", weightedScore: "8.59" },
-      "Period 6": { target: "89.00%", weightedTarget: "8.90", score: "78.06%", weightedScore: "7.81" },
+      "Period 4": { target: "95.00%", weightedTarget: "9.50", score: "86.63%", weightedScore: "8.66" },
+      "Period 5": { target: "95.00%", weightedTarget: "9.50", score: "85.91%", weightedScore: "8.59" },
+      "Period 6": { target: "90%", weightedTarget: "9.00", score: "78.06%", weightedScore: "7.81" }
     }
   },
   {
@@ -507,10 +509,10 @@ const BIGBASKET_DATA = [
     periods: {
       "Period 1": { target: "100%", weightedTarget: "8.00", score: "97.32%", weightedScore: "7.79" },
       "Period 2": { target: "100%", weightedTarget: "8.00", score: "97.24%", weightedScore: "7.78" },
-      "Period 3": { target: "100%", weightedTarget: "8.00", score: "99.00%", weightedScore: "7.92" },
-      "Period 4": { target: "100%", weightedTarget: "8.00", score: "95.00%", weightedScore: "7.60" },
-      "Period 5": { target: "97%", weightedTarget: "7.76", score: "100%", weightedScore: "8.00" },
-      "Period 6": { target: "98%", weightedTarget: "7.84", score: "100%", weightedScore: "8.00" },
+      "Period 3": { target: "100%", weightedTarget: "8.00", score: "99%", weightedScore: "7.92" },
+      "Period 4": { target: "100%", weightedTarget: "8.00", score: "95%", weightedScore: "7.60" },
+      "Period 5": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" },
+      "Period 6": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" }
     }
   },
   {
@@ -523,8 +525,8 @@ const BIGBASKET_DATA = [
       "Period 2": { target: "100%", weightedTarget: "6.00", score: "94.11%", weightedScore: "5.65" },
       "Period 3": { target: "100%", weightedTarget: "6.00", score: "89.35%", weightedScore: "5.36" },
       "Period 4": { target: "100%", weightedTarget: "6.00", score: "83.33%", weightedScore: "5.00" },
-      "Period 5": { target: "85%", weightedTarget: "5.10", score: "91.00%", weightedScore: "5.46" },
-      "Period 6": { target: "89%", weightedTarget: "5.34", score: "99.00%", weightedScore: "5.94" },
+      "Period 5": { target: "95%", weightedTarget: "5.70", score: "91%", weightedScore: "5.46" },
+      "Period 6": { target: "100%", weightedTarget: "6.00", score: "99%", weightedScore: "5.94" }
     }
   },
   {
@@ -534,11 +536,11 @@ const BIGBASKET_DATA = [
     weight: 3.0,
     periods: {
       "Period 1": { target: "75%", weightedTarget: "2.25", score: "71.25%", weightedScore: "2.14" },
-      "Period 2": { target: "75%", weightedTarget: "2.25", score: "71.21%", weightedScore: "2.14" },
-      "Period 3": { target: "75%", weightedTarget: "2.25", score: "76.06%", weightedScore: "2.28" },
-      "Period 4": { target: "80%", weightedTarget: "2.40", score: "77.50%", weightedScore: "2.33" },
-      "Period 5": { target: "79%", weightedTarget: "2.37", score: "75.00%", weightedScore: "2.25" },
-      "Period 6": { target: "76%", weightedTarget: "2.28", score: "85.00%", weightedScore: "2.55" },
+      "Period 2": { target: "80%", weightedTarget: "2.40", score: "71.21%", weightedScore: "2.14" },
+      "Period 3": { target: "80%", weightedTarget: "2.40", score: "76.06%", weightedScore: "2.28" },
+      "Period 4": { target: "85%", weightedTarget: "2.55", score: "77.50%", weightedScore: "2.33" },
+      "Period 5": { target: "85%", weightedTarget: "2.55", score: "75%", weightedScore: "2.25" },
+      "Period 6": { target: "90%", weightedTarget: "2.70", score: "85%", weightedScore: "2.55" }
     }
   },
   {
@@ -551,8 +553,8 @@ const BIGBASKET_DATA = [
       "Period 2": { target: "100%", weightedTarget: "8.00", score: "99.83%", weightedScore: "7.99" },
       "Period 3": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" },
       "Period 4": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" },
-      "Period 5": { target: "90%", weightedTarget: "7.20", score: "100%", weightedScore: "8.00" },
-      "Period 6": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" },
+      "Period 5": { target: "100%", weightedTarget: "8.00", score: "90%", weightedScore: "7.20" },
+      "Period 6": { target: "100%", weightedTarget: "8.00", score: "100%", weightedScore: "8.00" }
     }
   },
   {
@@ -564,9 +566,9 @@ const BIGBASKET_DATA = [
       "Period 1": { target: "60%", weightedTarget: "3.00", score: "53.04%", weightedScore: "2.65" },
       "Period 2": { target: "60%", weightedTarget: "3.00", score: "52.76%", weightedScore: "2.64" },
       "Period 3": { target: "60%", weightedTarget: "3.00", score: "40.96%", weightedScore: "2.05" },
-      "Period 4": { target: "55%", weightedTarget: "2.75", score: "40.00%", weightedScore: "2.00" },
-      "Period 5": { target: "43%", weightedTarget: "2.15", score: "40.00%", weightedScore: "2.00" },
-      "Period 6": { target: "45%", weightedTarget: "2.25", score: "80.00%", weightedScore: "4.00" },
+      "Period 4": { target: "80%", weightedTarget: "4.00", score: "70%", weightedScore: "3.60" },
+      "Period 5": { target: "90%", weightedTarget: "4.50", score: "40%", weightedScore: "2.00" },
+      "Period 6": { target: "90%", weightedTarget: "4.50", score: "80%", weightedScore: "4.00" }
     }
   },
   {
@@ -580,7 +582,7 @@ const BIGBASKET_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" }
     }
   },
   {
@@ -594,24 +596,25 @@ const BIGBASKET_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" }
     }
   }
 ];
 
 const BLINKIT_DATA = [
+
   {
     scoreId: 1,
     dmmhLever: "Assortment",
     dmmhSubLever: "Blockbuster Availability",
     weight: 35.0,
     periods: {
-      "Period 1": { target: "85%", weightedTarget: "29.75", score: "85.15%", weightedScore: "29.80" },
-      "Period 2": { target: "88%", weightedTarget: "30.80", score: "85.33%", weightedScore: "29.87" },
-      "Period 3": { target: "88%", weightedTarget: "30.80", score: "82.22%", weightedScore: "28.78" },
-      "Period 4": { target: "85%", weightedTarget: "29.75", score: "90.58%", weightedScore: "31.70" },
-      "Period 5": { target: "85%", weightedTarget: "29.75", score: "88.58%", weightedScore: "31.00" },
-      "Period 6": { target: "86%", weightedTarget: "30.10", score: "90.59%", weightedScore: "31.71" },
+      "Period 1": { target: "90%", weightedTarget: "31.50", score: "85.15%", weightedScore: "29.80" },
+      "Period 2": { target: "92%", weightedTarget: "32.20", score: "85.33%", weightedScore: "29.87" },
+      "Period 3": { target: "95%", weightedTarget: "33.25", score: "82.22%", weightedScore: "28.78" },
+      "Period 4": { target: "95%", weightedTarget: "33.25", score: "90.58%", weightedScore: "31.70" },
+      "Period 5": { target: "97%", weightedTarget: "33.95", score: "88.58%", weightedScore: "31.00" },
+      "Period 6": { target: "95%", weightedTarget: "33.25", score: "90.60%", weightedScore: "31.71" }
     }
   },
   {
@@ -622,10 +625,10 @@ const BLINKIT_DATA = [
     periods: {
       "Period 1": { target: "21.00%", weightedTarget: "3.15", score: "13.72%", weightedScore: "2.06" },
       "Period 2": { target: "16.00%", weightedTarget: "2.40", score: "12.37%", weightedScore: "1.86" },
-      "Period 3": { target: "15.00%", weightedTarget: "2.25", score: "13.76%", weightedScore: "2.06" },
+      "Period 3": { target: "15.00%", weightedTarget: "2.25", score: "11.76%", weightedScore: "1.76" },
       "Period 4": { target: "12.00%", weightedTarget: "1.80", score: "11.69%", weightedScore: "1.75" },
-      "Period 5": { target: "14.00%", weightedTarget: "2.10", score: "16.20%", weightedScore: "2.43" },
-      "Period 6": { target: "16.00%", weightedTarget: "2.40", score: "14.54%", weightedScore: "2.18" },
+      "Period 5": { target: "18.00%", weightedTarget: "2.70", score: "16.20%", weightedScore: "2.43" },
+      "Period 6": { target: "20%", weightedTarget: "3.00", score: "14.54%", weightedScore: "2.18" }
     }
   },
   {
@@ -637,9 +640,9 @@ const BLINKIT_DATA = [
       "Period 1": { target: "70.00%", weightedTarget: "7.00", score: "59.43%", weightedScore: "5.94" },
       "Period 2": { target: "70.00%", weightedTarget: "7.00", score: "69.72%", weightedScore: "6.97" },
       "Period 3": { target: "80.00%", weightedTarget: "8.00", score: "67.15%", weightedScore: "6.72" },
-      "Period 4": { target: "70.00%", weightedTarget: "7.00", score: "69.33%", weightedScore: "6.93" },
-      "Period 5": { target: "72.00%", weightedTarget: "7.20", score: "71.50%", weightedScore: "7.15" },
-      "Period 6": { target: "76.00%", weightedTarget: "7.60", score: "73.00%", weightedScore: "7.30" },
+      "Period 4": { target: "80.00%", weightedTarget: "8.00", score: "69.33%", weightedScore: "6.93" },
+      "Period 5": { target: "80.00%", weightedTarget: "8.00", score: "71.50%", weightedScore: "7.15" },
+      "Period 6": { target: "80%", weightedTarget: "8.00", score: "73.00%", weightedScore: "7.30" }
     }
   },
   {
@@ -653,7 +656,7 @@ const BLINKIT_DATA = [
       "Period 3": { target: "100%", weightedTarget: "9.00", score: "100%", weightedScore: "9.00" },
       "Period 4": { target: "100%", weightedTarget: "9.00", score: "100%", weightedScore: "9.00" },
       "Period 5": { target: "100%", weightedTarget: "9.00", score: "100%", weightedScore: "9.00" },
-      "Period 6": { target: "100%", weightedTarget: "9.00", score: "100%", weightedScore: "9.00" },
+      "Period 6": { target: "100%", weightedTarget: "9.00", score: "100%", weightedScore: "9.00" }
     }
   },
   {
@@ -666,8 +669,8 @@ const BLINKIT_DATA = [
       "Period 2": { target: "95%", weightedTarget: "4.75", score: "92.99%", weightedScore: "4.65" },
       "Period 3": { target: "95%", weightedTarget: "4.75", score: "93.25%", weightedScore: "4.66" },
       "Period 4": { target: "95%", weightedTarget: "4.75", score: "92.98%", weightedScore: "4.65" },
-      "Period 5": { target: "93%", weightedTarget: "4.65", score: "91.00%", weightedScore: "4.55" },
-      "Period 6": { target: "94%", weightedTarget: "4.70", score: "98.00%", weightedScore: "4.90" },
+      "Period 5": { target: "93%", weightedTarget: "4.55", score: "91%", weightedScore: "4.65" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "98%", weightedScore: "4.90" }
     }
   },
   {
@@ -680,8 +683,8 @@ const BLINKIT_DATA = [
       "Period 2": { target: "95%", weightedTarget: "2.85", score: "91.50%", weightedScore: "2.75" },
       "Period 3": { target: "95%", weightedTarget: "2.85", score: "74.85%", weightedScore: "2.25" },
       "Period 4": { target: "90%", weightedTarget: "2.70", score: "71.05%", weightedScore: "2.13" },
-      "Period 5": { target: "75%", weightedTarget: "2.25", score: "74.00%", weightedScore: "2.22" },
-      "Period 6": { target: "78%", weightedTarget: "2.34", score: "95.00%", weightedScore: "2.85" },
+      "Period 5": { target: "80%", weightedTarget: "2.40", score: "74%", weightedScore: "2.22" },
+      "Period 6": { target: "97%", weightedTarget: "2.91", score: "95%", weightedScore: "2.85" }
     }
   },
   {
@@ -694,14 +697,14 @@ const BLINKIT_DATA = [
       "Period 2": { target: "90%", weightedTarget: "7.20", score: "80.50%", weightedScore: "6.44" },
       "Period 3": { target: "90%", weightedTarget: "7.20", score: "69.94%", weightedScore: "5.60" },
       "Period 4": { target: "85%", weightedTarget: "6.80", score: "63.16%", weightedScore: "5.05" },
-      "Period 5": { target: "65%", weightedTarget: "5.20", score: "84.20%", weightedScore: "6.74" },
-      "Period 6": { target: "69%", weightedTarget: "5.52", score: "84.00%", weightedScore: "6.72" },
+      "Period 5": { target: "90%", weightedTarget: "7.20", score: "84.20%", weightedScore: "6.74" },
+      "Period 6": { target: "95%", weightedTarget: "7.60", score: "84%", weightedScore: "6.72" }
     }
   },
   {
     scoreId: 13,
-    dmmhLever: "interruption",
-    dmmhSubLever: "Dual Sitting & Tagging",
+    dmmhLever: "Interruption",
+    dmmhSubLever: "Dual Siting & Tagging",
     weight: 5.0,
     periods: {
       "Period 1": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
@@ -709,7 +712,7 @@ const BLINKIT_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" }
     }
   },
   {
@@ -723,7 +726,7 @@ const BLINKIT_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" }
     }
   },
   {
@@ -737,12 +740,13 @@ const BLINKIT_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" }
     }
   }
 ];
 
 const ZEPTO_DATA = [
+
   {
     scoreId: 1,
     dmmhLever: "Assortment",
@@ -750,11 +754,11 @@ const ZEPTO_DATA = [
     weight: 35.0,
     periods: {
       "Period 1": { target: "82%", weightedTarget: "28.70", score: "90.17%", weightedScore: "31.56" },
-      "Period 2": { target: "92%", weightedTarget: "32.20", score: "88.44%", weightedScore: "30.95" },
-      "Period 3": { target: "90%", weightedTarget: "31.50", score: "86.93%", weightedScore: "30.43" },
-      "Period 4": { target: "88%", weightedTarget: "30.80", score: "86.69%", weightedScore: "30.34" },
-      "Period 5": { target: "89%", weightedTarget: "31.15", score: "96.35%", weightedScore: "33.72" },
-      "Period 6": { target: "90%", weightedTarget: "31.50", score: "98.20%", weightedScore: "34.37" },
+      "Period 2": { target: "95%", weightedTarget: "33.25", score: "88.44%", weightedScore: "30.95" },
+      "Period 3": { target: "95%", weightedTarget: "33.25", score: "86.93%", weightedScore: "30.43" },
+      "Period 4": { target: "93%", weightedTarget: "32.55", score: "86.69%", weightedScore: "30.34" },
+      "Period 5": { target: "97%", weightedTarget: "33.95", score: "96.35%", weightedScore: "33.72" },
+      "Period 6": { target: "100%", weightedTarget: "35.00", score: "98.20%", weightedScore: "34.37" }
     }
   },
   {
@@ -766,9 +770,9 @@ const ZEPTO_DATA = [
       "Period 1": { target: "23.00%", weightedTarget: "3.45", score: "18.51%", weightedScore: "2.78" },
       "Period 2": { target: "21.00%", weightedTarget: "3.15", score: "16.35%", weightedScore: "2.45" },
       "Period 3": { target: "20.00%", weightedTarget: "3.00", score: "17.36%", weightedScore: "2.60" },
-      "Period 4": { target: "16.00%", weightedTarget: "2.40", score: "16.43%", weightedScore: "2.46" },
-      "Period 5": { target: "19.00%", weightedTarget: "2.85", score: "15.00%", weightedScore: "2.25" },
-      "Period 6": { target: "20.00%", weightedTarget: "3.00", score: "13.10%", weightedScore: "1.97" },
+      "Period 4": { target: "22.00%", weightedTarget: "3.30", score: "16.43%", weightedScore: "2.46" },
+      "Period 5": { target: "22.00%", weightedTarget: "3.30", score: "15%", weightedScore: "2.25" },
+      "Period 6": { target: "20%", weightedTarget: "3.00", score: "13.10%", weightedScore: "1.97" }
     }
   },
   {
@@ -778,11 +782,11 @@ const ZEPTO_DATA = [
     weight: 10.0,
     periods: {
       "Period 1": { target: "55.00%", weightedTarget: "5.50", score: "58.16%", weightedScore: "5.82" },
-      "Period 2": { target: "70.00%", weightedTarget: "7.00", score: "72.12%", weightedScore: "7.21" },
+      "Period 2": { target: "75.00%", weightedTarget: "7.50", score: "72.12%", weightedScore: "7.21" },
       "Period 3": { target: "80.00%", weightedTarget: "8.00", score: "71.14%", weightedScore: "7.11" },
-      "Period 4": { target: "75.00%", weightedTarget: "7.50", score: "70.74%", weightedScore: "7.07" },
-      "Period 5": { target: "70.00%", weightedTarget: "7.00", score: "55.20%", weightedScore: "5.52" },
-      "Period 6": { target: "76.00%", weightedTarget: "7.60", score: "54.00%", weightedScore: "5.40" },
+      "Period 4": { target: "75%", weightedTarget: "7.50", score: "70.74%", weightedScore: "7.07" },
+      "Period 5": { target: "75.00%", weightedTarget: "7.50", score: "55.20%", weightedScore: "5.52" },
+      "Period 6": { target: "76%", weightedTarget: "7.60", score: "54.00%", weightedScore: "5.40" }
     }
   },
   {
@@ -794,9 +798,9 @@ const ZEPTO_DATA = [
       "Period 1": { target: "100%", weightedTarget: "10.00", score: "100%", weightedScore: "10.00" },
       "Period 2": { target: "100%", weightedTarget: "10.00", score: "100%", weightedScore: "10.00" },
       "Period 3": { target: "100%", weightedTarget: "10.00", score: "95.75%", weightedScore: "9.58" },
-      "Period 4": { target: "100%", weightedTarget: "10.00", score: "95.00%", weightedScore: "9.50" },
-      "Period 5": { target: "97%", weightedTarget: "9.70", score: "100%", weightedScore: "10.00" },
-      "Period 6": { target: "98%", weightedTarget: "9.80", score: "100%", weightedScore: "10.00" },
+      "Period 4": { target: "100%", weightedTarget: "10.00", score: "95%", weightedScore: "9.50" },
+      "Period 5": { target: "100%", weightedTarget: "10.00", score: "100%", weightedScore: "10.00" },
+      "Period 6": { target: "100%", weightedTarget: "10.00", score: "100%", weightedScore: "10.00" }
     }
   },
   {
@@ -806,11 +810,11 @@ const ZEPTO_DATA = [
     weight: 6.0,
     periods: {
       "Period 1": { target: "85%", weightedTarget: "5.10", score: "84.01%", weightedScore: "5.04" },
-      "Period 2": { target: "85%", weightedTarget: "5.10", score: "84.11%", weightedScore: "5.05" },
-      "Period 3": { target: "85%", weightedTarget: "5.10", score: "88.26%", weightedScore: "5.30" },
+      "Period 2": { target: "90%", weightedTarget: "5.40", score: "84.11%", weightedScore: "5.05" },
+      "Period 3": { target: "95%", weightedTarget: "5.70", score: "88.26%", weightedScore: "5.30" },
       "Period 4": { target: "95%", weightedTarget: "5.70", score: "88.60%", weightedScore: "5.32" },
-      "Period 5": { target: "90%", weightedTarget: "5.40", score: "93.00%", weightedScore: "5.58" },
-      "Period 6": { target: "88%", weightedTarget: "5.28", score: "97.00%", weightedScore: "5.82" },
+      "Period 5": { target: "95%", weightedTarget: "5.70", score: "93%", weightedScore: "5.58" },
+      "Period 6": { target: "99%", weightedTarget: "5.94", score: "97%", weightedScore: "5.82" }
     }
   },
   {
@@ -823,14 +827,14 @@ const ZEPTO_DATA = [
       "Period 2": { target: "100%", weightedTarget: "9.00", score: "100%", weightedScore: "9.00" },
       "Period 3": { target: "100%", weightedTarget: "9.00", score: "100%", weightedScore: "9.00" },
       "Period 4": { target: "100%", weightedTarget: "9.00", score: "100%", weightedScore: "9.00" },
-      "Period 5": { target: "100%", weightedTarget: "9.00", score: "95.00%", weightedScore: "8.55" },
-      "Period 6": { target: "100%", weightedTarget: "9.00", score: "94.00%", weightedScore: "8.46" },
+      "Period 5": { target: "100%", weightedTarget: "9.00", score: "95%", weightedScore: "8.55" },
+      "Period 6": { target: "100%", weightedTarget: "9.00", score: "94%", weightedScore: "8.46" }
     }
   },
   {
     scoreId: 13,
-    dmmhLever: "interruption",
-    dmmhSubLever: "Dual Sitting & Tagging",
+    dmmhLever: "Interruption",
+    dmmhSubLever: "Dual Siting & Tagging",
     weight: 5.0,
     periods: {
       "Period 1": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
@@ -838,7 +842,7 @@ const ZEPTO_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" }
     }
   },
   {
@@ -852,7 +856,7 @@ const ZEPTO_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" }
     }
   },
   {
@@ -866,7 +870,7 @@ const ZEPTO_DATA = [
       "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
       "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
-      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
+      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" }
     }
   }
 ];
@@ -881,9 +885,9 @@ const INSTAMART_DATA = [
       "Period 1": { target: "75%", weightedTarget: "26.25", score: "76.66%", weightedScore: "26.83" },
       "Period 2": { target: "80%", weightedTarget: "28.00", score: "76.88%", weightedScore: "26.91" },
       "Period 3": { target: "80%", weightedTarget: "28.00", score: "67.38%", weightedScore: "23.58" },
-      "Period 4": { target: "72%", weightedTarget: "25.20", score: "72.35%", weightedScore: "25.32" },
-      "Period 5": { target: "73%", weightedTarget: "25.55", score: "78.10%", weightedScore: "27.34" },
-      "Period 6": { target: "74%", weightedTarget: "25.90", score: "79.72%", weightedScore: "27.90" },
+      "Period 4": { target: "75%", weightedTarget: "25.20", score: "72.35%", weightedScore: "25.32" },
+      "Period 5": { target: "80%", weightedTarget: "25.55", score: "78.10%", weightedScore: "27.34" },
+      "Period 6": { target: "85%", weightedTarget: "25.90", score: "79.72%", weightedScore: "27.90" },
     }
   },
   {
@@ -892,7 +896,7 @@ const INSTAMART_DATA = [
     dmmhSubLever: "Onsite generic search",
     weight: 14.0,
     periods: {
-      "Period 1": { target: "14.00%", weightedTarget: "1.96", score: "15.19%", weightedScore: "2.13" },
+      "Period 1": { target: "19.00%", weightedTarget: "1.96", score: "15.19%", weightedScore: "2.13" },
       "Period 2": { target: "17.00%", weightedTarget: "2.38", score: "14.20%", weightedScore: "1.99" },
       "Period 3": { target: "17.00%", weightedTarget: "2.38", score: "9.85%", weightedScore: "1.38" },
       "Period 4": { target: "10.00%", weightedTarget: "1.40", score: "8.50%", weightedScore: "1.19" },
@@ -909,8 +913,8 @@ const INSTAMART_DATA = [
       "Period 1": { target: "80.00%", weightedTarget: "8.00", score: "79.15%", weightedScore: "7.92" },
       "Period 2": { target: "85.00%", weightedTarget: "8.50", score: "73.71%", weightedScore: "7.37" },
       "Period 3": { target: "85.00%", weightedTarget: "8.50", score: "83.72%", weightedScore: "8.37" },
-      "Period 4": { target: "80%", weightedTarget: "8.00", score: "84.12%", weightedScore: "8.41" },
-      "Period 5": { target: "80.00%", weightedTarget: "8.00", score: "85.08%", weightedScore: "8.51" },
+      "Period 4": { target: "86%", weightedTarget: "8.00", score: "84.12%", weightedScore: "8.41" },
+      "Period 5": { target: "85.00%", weightedTarget: "8.00", score: "85.08%", weightedScore: "8.51" },
       "Period 6": { target: "84%", weightedTarget: "8.40", score: "88.12%", weightedScore: "8.81" },
     }
   },
@@ -921,11 +925,11 @@ const INSTAMART_DATA = [
     weight: 10.0,
     periods: {
       "Period 1": { target: "96%", weightedTarget: "9.60", score: "97.02%", weightedScore: "9.70" },
-      "Period 2": { target: "96%", weightedTarget: "9.60", score: "97.13%", weightedScore: "9.71" },
-      "Period 3": { target: "96%", weightedTarget: "9.60", score: "100%", weightedScore: "10.00" },
-      "Period 4": { target: "96%", weightedTarget: "9.60", score: "100%", weightedScore: "10.00" },
-      "Period 5": { target: "94%", weightedTarget: "9.40", score: "100%", weightedScore: "10.00" },
-      "Period 6": { target: "96%", weightedTarget: "9.60", score: "100%", weightedScore: "10.00" },
+      "Period 2": { target: "100%", weightedTarget: "9.60", score: "97.13%", weightedScore: "9.71" },
+      "Period 3": { target: "100%", weightedTarget: "9.60", score: "100%", weightedScore: "10.00" },
+      "Period 4": { target: "100%", weightedTarget: "9.60", score: "100%", weightedScore: "10.00" },
+      "Period 5": { target: "100%", weightedTarget: "9.40", score: "100%", weightedScore: "10.00" },
+      "Period 6": { target: "95%", weightedTarget: "9.60", score: "100%", weightedScore: "10.00" },
     }
   },
   {
@@ -934,12 +938,12 @@ const INSTAMART_DATA = [
     dmmhSubLever: "Secondary images",
     weight: 6.0,
     periods: {
-      "Period 1": { target: "60%", weightedTarget: "3.60", score: "77.53%", weightedScore: "4.65" },
-      "Period 2": { target: "60%", weightedTarget: "3.60", score: "78.16%", weightedScore: "4.69" },
-      "Period 3": { target: "90%", weightedTarget: "5.40", score: "97.14%", weightedScore: "5.83" },
+      "Period 1": { target: "80%", weightedTarget: "3.60", score: "77.53%", weightedScore: "4.65" },
+      "Period 2": { target: "80%", weightedTarget: "3.60", score: "78.16%", weightedScore: "4.69" },
+      "Period 3": { target: "100%", weightedTarget: "5.40", score: "97.14%", weightedScore: "5.83" },
       "Period 4": { target: "100%", weightedTarget: "6.00", score: "97.80%", weightedScore: "5.87" },
-      "Period 5": { target: "69%", weightedTarget: "4.14", score: "96.70%", weightedScore: "5.80" },
-      "Period 6": { target: "68%", weightedTarget: "4.08", score: "95%", weightedScore: "5.70" },
+      "Period 5": { target: "100%", weightedTarget: "4.14", score: "96.70%", weightedScore: "5.80" },
+      "Period 6": { target: "100%", weightedTarget: "4.08", score: "95%", weightedScore: "5.70" },
     }
   },
   {
@@ -950,10 +954,10 @@ const INSTAMART_DATA = [
     periods: {
       "Period 1": { target: "98%", weightedTarget: "8.82", score: "97.02%", weightedScore: "8.73" },
       "Period 2": { target: "98%", weightedTarget: "8.82", score: "97.13%", weightedScore: "8.74" },
-      "Period 3": { target: "98%", weightedTarget: "8.82", score: "100%", weightedScore: "9.00" },
+      "Period 3": { target: "100%", weightedTarget: "8.82", score: "100%", weightedScore: "9.00" },
       "Period 4": { target: "100%", weightedTarget: "9.00", score: "100%", weightedScore: "9.00" },
       "Period 5": { target: "100%", weightedTarget: "9.00", score: "100%", weightedScore: "9.00" },
-      "Period 6": { target: "94%", weightedTarget: "8.46", score: "94%", weightedScore: "8.46" },
+      "Period 6": { target: "100%", weightedTarget: "8.46", score: "94%", weightedScore: "8.46" },
     }
   },
   {
@@ -1166,13 +1170,29 @@ export default function PDSScore() {
 
   const sortedFilteredData = sortData(filteredData);
 
-  const getScoreBadgeColor = (score) => {
-    if (score === "-") return { bg: "#f3f4f6", text: "#6b7280" };
+  const getScoreBadgeColor = (score, target) => {
+    if (score === "-" || !target || target === "-") return { bg: "#f3f4f6", text: "#6b7280" };
     const numScore = parseFloat(score);
-    if (numScore >= 90) return { bg: "#d1fae5", text: "#065f46" };
-    if (numScore >= 75) return { bg: "#dbeafe", text: "#0c4a6e" };
-    if (numScore >= 60) return { bg: "#fed7aa", text: "#92400e" };
-    return { bg: "#fee2e2", text: "#991b1b" };
+    const numTarget = parseFloat(target);
+    
+    if (isNaN(numScore) || isNaN(numTarget)) return { bg: "#f3f4f6", text: "#6b7280" };
+
+    const diff = numTarget - numScore;
+    
+    // if target-score >= 10 then dark red
+    if (diff >= 10) return { bg: "#fca5a5", text: "#7f1d1d" };
+    
+    // if target-score >= 8 then light red
+    if (diff >= 8) return { bg: "#fecaca", text: "#991b1b" };
+    
+    // if target-score >= 5 then yellow
+    if (diff >= 5) return { bg: "#fef08a", text: "#713f12" };
+    
+    // if slight miss (diff > 0) then light green
+    if (diff > 0) return { bg: "#dcfce7", text: "#15803d" };
+    
+    // exact match or higher (diff <= 0) then dark green
+    return { bg: "#86efac", text: "#14532d" };
   };
 
   const leverBackgroundColors = {
@@ -1552,8 +1572,8 @@ export default function PDSScore() {
                         <Box
                           sx={{
                             display: "inline-block",
-                            bgcolor: getScoreBadgeColor(row.score).bg,
-                            color: getScoreBadgeColor(row.score).text,
+                            bgcolor: getScoreBadgeColor(row.score, row.target).bg,
+                            color: getScoreBadgeColor(row.score, row.target).text,
                             px: 2,
                             py: 0.4,
                             borderRadius: 1,
