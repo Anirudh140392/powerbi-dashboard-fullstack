@@ -1317,7 +1317,7 @@ class VisibilityService {
     async getTopSearchTerms(filters = {}) {
         console.log('[VisibilityService] getTopSearchTerms called with filters:', filters);
         console.log(`[VisibilityService] getTopSearchTerms called for platform=${filters.platform}, category=${filters.category}, startDate=${filters.startDate}, endDate=${filters.endDate}`);
-        const cacheKey = generateCacheKey('visibility_top_search_terms_v3', filters);
+        const cacheKey = generateCacheKey('visibility_top_search_terms_v4', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
             console.log(`[VisibilityService] [CACHE MISS] Computing top search terms for key: ${cacheKey}`);
@@ -1574,21 +1574,24 @@ class VisibilityService {
                         ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)`
                         : `0`;
 
+                    // Get own brand names from rb_pdp_olap (Comp_flag=0) for accurate SOS numerator
+                    const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM rb_pdp_olap WHERE Comp_flag = 0 AND Brand IS NOT NULL AND Brand != ''`;
+
                     const metricsQuery = `
                         SELECT 
                             keyword,
                             MAX(keyword_type) as type,
-                            sumIf(toInt32(overall), flag = 1) as rb_overall,
-                            sumIf(toInt32(organic), flag = 1) as rb_organic,
-                            sumIf(toInt32(spons), flag = 1) as rb_sponsored,
-                            sum(toInt32(overall)) as total_overall,
-                            sum(toInt32(organic)) as total_organic,
-                            sum(toInt32(spons)) as total_spons,
-                            sumIf(toInt32(overall), ${brandSOSCondition}) as brand_filter_overall,
+                            COUNTIf(lower(brand) IN (${ownBrandSubquery})) as rb_overall,
+                            COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 0) as rb_organic,
+                            COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 1) as rb_sponsored,
+                            COUNT(*) as total_overall,
+                            COUNTIf(toInt32(spons) = 0) as total_organic,
+                            COUNTIf(toInt32(spons) = 1) as total_spons,
+                            COUNTIf(${brandSOSCondition}) as brand_filter_overall,
                             ${searchVolumeSelect} as search_volume,
                             ROUND(AVG(POSITION), 1) as avg_overall_pos,
-                            ROUND(avgIf(POSITION, toInt32(organic) = 1 AND flag = 1), 1) as avg_org_pos,
-                            ROUND(avgIf(POSITION, toInt32(spons) = 1 AND flag = 1), 1) as avg_ad_pos
+                            ROUND(avgIf(POSITION, toInt32(organic) = 1 AND lower(brand) IN (${ownBrandSubquery})), 1) as avg_org_pos,
+                            ROUND(avgIf(POSITION, toInt32(spons) = 1 AND lower(brand) IN (${ownBrandSubquery})), 1) as avg_ad_pos
                         FROM rb_kw_olap
                         WHERE ${dateCondition}
                           AND ${platformCondition}
@@ -1612,12 +1615,12 @@ class VisibilityService {
                     const prevMetricsQuery = `
                         SELECT 
                             keyword,
-                            sum(toInt32(overall)) as total_overall,
-                            sum(toInt32(organic)) as total_organic,
-                            sum(toInt32(spons)) as total_spons,
-                            sumIf(toInt32(overall), ${brandSOSCondition}) as rb_overall,
-                            sumIf(toInt32(organic), ${brandSOSCondition}) as rb_organic,
-                            sumIf(toInt32(spons), ${brandSOSCondition}) as rb_sponsored
+                            COUNT(*) as total_overall,
+                            COUNTIf(toInt32(spons) = 0) as total_organic,
+                            COUNTIf(toInt32(spons) = 1) as total_spons,
+                            COUNTIf(lower(brand) IN (${ownBrandSubquery})) as rb_overall,
+                            COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 0) as rb_organic,
+                            COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 1) as rb_sponsored
                         FROM rb_kw_olap
                         WHERE ${prevDateCondition}
                           AND ${platformCondition}
@@ -1634,7 +1637,7 @@ class VisibilityService {
                         prevMap[p.keyword] = {
                             overallSos: Number(((Number(p.rb_overall) / (Number(p.total_overall) || 1)) * 100).toFixed(1)),
                             organicSos: Number(((Number(p.rb_organic) / (Number(p.total_organic) || 1)) * 100).toFixed(1)),
-                            paidSos: Number(((Number(p.rb_sponsored) / (Number(p.total_overall) || 1)) * 100).toFixed(1))
+                            paidSos: Number(((Number(p.rb_sponsored) / (Number(p.total_spons) || 1)) * 100).toFixed(1))
                         };
                     });
 
@@ -1672,7 +1675,7 @@ class VisibilityService {
 
                         const currOverallSos = Number(((Number(km.rb_overall) / tOverall) * 100).toFixed(1));
                         const currOrganicSos = Number(((Number(km.rb_organic) / tOrganic) * 100).toFixed(1));
-                        const currPaidSos = Number(((Number(km.rb_sponsored) / tOverall) * 100).toFixed(1));
+                        const currPaidSos = Number(((Number(km.rb_sponsored) / tSpons) * 100).toFixed(1));
 
                         const prev = prevMap[km.keyword] || { overallSos: currOverallSos, organicSos: currOrganicSos, paidSos: currPaidSos };
 
@@ -3688,9 +3691,11 @@ class VisibilityService {
             }
 
             const dimColumn = viewMode === 'keyword' ? 'keyword' : (viewMode === 'brand' ? 'brand' : 'keyword_search_product');
+            // Use own brand names from rb_pdp_olap (Comp_flag=0) instead of flag=1
+            const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM rb_pdp_olap WHERE Comp_flag = 0 AND Brand IS NOT NULL AND Brand != ''`;
             const numeratorCondition = (sku && sku !== 'All')
                 ? `lowerUTF8(t1.keyword_search_product) = lowerUTF8('${escapeCH(sku)}')`
-                : ((brand && brand !== 'All') || viewMode === 'brand' || viewMode === 'sku') ? '1=1' : 't1.flag = 1';
+                : ((brand && brand !== 'All') || viewMode === 'brand' || viewMode === 'sku') ? '1=1' : `lower(t1.brand) IN (${ownBrandSubquery})`;
 
             const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'rb_kw_olap'`);
             const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
@@ -3745,13 +3750,13 @@ class VisibilityService {
                             t1.keyword as keyword,
                             any(t1.web_pid) as web_pid,
                             arrayElement(arrayFilter(x -> lowerUTF8(x) NOT IN ('other', 'others', ''), topK(5)(t1.brand)), 1) as brand_name,
-                            sumIf(toInt32(t1.overall), ${numeratorCondition}) as num_keyword,
+                            COUNTIf(${numeratorCondition}) as num_keyword,
                             any(t2.total_overall) as den_keyword,
                             
-                            sumIf(toInt32(t1.organic), ${numeratorCondition}) as num_organic_keyword,
+                            COUNTIf((${numeratorCondition}) AND toInt32(t1.spons) = 0) as num_organic_keyword,
                             any(t2.total_organic) as den_organic_keyword,
                             
-                            sumIf(toInt32(t1.spons), ${numeratorCondition}) as num_spons_keyword,
+                            COUNTIf((${numeratorCondition}) AND toInt32(t1.spons) = 1) as num_spons_keyword,
                             any(t2.total_spons) as den_spons_keyword,
                             
                             count(*) as impressions_keyword,
@@ -3761,9 +3766,9 @@ class VisibilityService {
                         FROM rb_kw_olap t1
                         LEFT JOIN (
                             SELECT keyword, 
-                                   sum(toInt32(overall)) as total_overall,
-                                   sum(toInt32(organic)) as total_organic,
-                                   sum(toInt32(spons)) as total_spons
+                                   COUNT(*) as total_overall,
+                                   COUNTIf(toInt32(spons) = 0) as total_organic,
+                                   COUNTIf(toInt32(spons) = 1) as total_spons
                             FROM rb_kw_olap
                             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                               AND ${platformCondition}
@@ -3893,17 +3898,17 @@ class VisibilityService {
                                 arrayElement(arrayFilter(x -> lowerUTF8(x) NOT IN ('other', 'others', ''), topK(5)(brand)), 1) as leading_brand,
                                 count(DISTINCT keyword) as total_keywords,
                                 count(*) as total_impressions,
-                                ${hasSearchVolPct ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)` : `sum(toInt32(overall))`} as total_search_volume,
-                                sumIf(toInt32(overall), flag = 1) as num_overall,
-                                sum(toInt32(overall)) as den_overall,
+                                ${hasSearchVolPct ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)` : `COUNT(*)`} as total_search_volume,
+                                COUNTIf(lower(brand) IN (${ownBrandSubquery})) as num_overall,
+                                COUNT(*) as den_overall,
                                 ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
 
-                                sumIf(toInt32(organic), flag = 1) as num_organic,
-                                sum(toInt32(organic)) as den_organic,
+                                COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 0) as num_organic,
+                                COUNTIf(toInt32(spons) = 0) as den_organic,
                                 ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
 
-                                sumIf(toInt32(spons), flag = 1) as num_spons,
-                                sum(toInt32(spons)) as den_spons,
+                                COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 1) as num_spons,
+                                COUNTIf(toInt32(spons) = 1) as den_spons,
                                 ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos
                             FROM rb_kw_olap
                             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
@@ -3925,16 +3930,16 @@ class VisibilityService {
                     const summaryLocQuery = `
                             SELECT
                                 location_name as city,
-                                sumIf(toInt32(overall), flag = 1) as num_overall,
-                                sum(toInt32(overall)) as den_overall,
+                                COUNTIf(lower(brand) IN (${ownBrandSubquery})) as num_overall,
+                                COUNT(*) as den_overall,
                                 ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
 
-                                sumIf(toInt32(organic), flag = 1) as num_organic,
-                                sum(toInt32(organic)) as den_organic,
+                                COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 0) as num_organic,
+                                COUNTIf(toInt32(spons) = 0) as den_organic,
                                 ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
 
-                                sumIf(toInt32(spons), flag = 1) as num_spons,
-                                sum(toInt32(spons)) as den_spons,
+                                COUNTIf(lower(brand) IN (${ownBrandSubquery}) AND toInt32(spons) = 1) as num_spons,
+                                COUNTIf(toInt32(spons) = 1) as den_spons,
                                 ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos
                             FROM rb_kw_olap
                             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
