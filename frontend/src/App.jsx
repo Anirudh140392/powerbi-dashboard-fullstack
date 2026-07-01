@@ -34,6 +34,7 @@ import HelpDrawer from "./components/CommonLayout/HelpDrawer";
 import WalkthroughModal from "./components/CommonLayout/WalkthroughModal";
 import AdminPanel from "./pages/Admin/AdminPanel";
 import PriorityAction from "./pages/SupplyChain/PriorityAction";
+import PDSScore from "./pages/PDSScore/PDSScore";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -175,6 +176,12 @@ function AppContent() {
             <Route path="/priority-action" element={
               <ProtectedRoute>
                 <PriorityAction />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/pds-score" element={
+              <ProtectedRoute>
+                <PDSScore />
               </ProtectedRoute>
             } />
 

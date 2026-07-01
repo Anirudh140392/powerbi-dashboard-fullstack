@@ -29,6 +29,7 @@ import {
   Tooltip as ChartTooltip,
   ResponsiveContainer,
 } from "recharts";
+import { fetchPrimarySalesAll, fetchPrimaryFilterOptions } from "../../../api/primarySalesService";
 
 // Helper to format values for display
 const formatCurrency = (val) => {
@@ -56,6 +57,17 @@ const formatShortValue = (val, isMRP) => {
 export default function PrimarySummary() {
   const [metricType, setMetricType] = useState("Units"); // "Units" | "MRP"
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Dynamic filter options state
+  const [filterOptions, setFilterOptions] = useState({
+    brandName: ["All"],
+    retailerName: ["All"],
+    product: ["All"],
+    division: ["All"],
+    zone: ["All"],
+    xAxis: ["Retailer Name", "Brand Name", "Product", "Division", "Zone"],
+  });
 
   // Filter States
   const [filters, setFilters] = useState({
@@ -64,177 +76,132 @@ export default function PrimarySummary() {
     product: "All",
     division: "All",
     zone: "All",
+    location: "All",
+    channel: "All",
+    platform: "All",
     xAxis: "Retailer Name",
   });
 
-  // Simulated state change to add premium feel
+  // Data states
+  const [momData, setMomData] = useState([]);
+  const [quarterData, setQuarterData] = useState([]);
+  const [tableRows, setTableRows] = useState([]);
+  const [monthsHeaders, setMonthsHeaders] = useState([]);
+
+  // Fetch primary sales data and update filter options dynamically
+  useEffect(() => {
+    const loadDataAndFilters = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = {
+          brandName: filters.brandName,
+          retailerName: filters.retailerName,
+          product: filters.product,
+          division: filters.division,
+          zone: filters.zone,
+          location: filters.location,
+          channel: filters.channel,
+          platform: filters.platform,
+          xAxis: filters.xAxis,
+          metricType: metricType,
+        };
+
+        const [dataRes, filterRes] = await Promise.all([
+          fetchPrimarySalesAll(params),
+          fetchPrimaryFilterOptions(params),
+        ]);
+
+        if (dataRes.success && dataRes.data) {
+          setMomData(dataRes.data.mom || []);
+          setQuarterData(dataRes.data.quarterly || []);
+          setTableRows(dataRes.data.pivotTable?.data || []);
+          setMonthsHeaders(dataRes.data.pivotTable?.months || []);
+        } else {
+          setError("Failed to load primary sales data");
+        }
+
+        if (filterRes.success && filterRes.data) {
+          const newBrandOptions = ["All", ...filterRes.data.brandName];
+          const newRetailerOptions = ["All", ...filterRes.data.retailerName];
+          const newProductOptions = ["All", ...filterRes.data.product];
+          const newDivisionOptions = ["All", ...filterRes.data.division];
+          const newZoneOptions = ["All", ...filterRes.data.zone];
+
+          setFilters((prev) => {
+            const updated = { ...prev };
+            let changed = false;
+
+            if (prev.brandName !== "All" && !newBrandOptions.includes(prev.brandName)) {
+              updated.brandName = "All";
+              changed = true;
+            }
+            if (prev.retailerName !== "All" && !newRetailerOptions.includes(prev.retailerName)) {
+              updated.retailerName = "All";
+              changed = true;
+            }
+            if (prev.product !== "All" && !newProductOptions.includes(prev.product)) {
+              updated.product = "All";
+              changed = true;
+            }
+            if (prev.division !== "All" && !newDivisionOptions.includes(prev.division)) {
+              updated.division = "All";
+              changed = true;
+            }
+            if (prev.zone !== "All" && !newZoneOptions.includes(prev.zone)) {
+              updated.zone = "All";
+              changed = true;
+            }
+
+            return changed ? updated : prev;
+          });
+
+          setFilterOptions({
+            brandName: newBrandOptions,
+            retailerName: newRetailerOptions,
+            product: newProductOptions,
+            division: newDivisionOptions,
+            zone: newZoneOptions,
+            xAxis: ["Retailer Name", "Brand Name", "Product", "Division", "Zone"],
+          });
+        }
+      } catch (err) {
+        console.error("Error loading sales data/filters:", err);
+        setError("Error loading data from server");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDataAndFilters();
+  }, [
+    filters.brandName,
+    filters.retailerName,
+    filters.product,
+    filters.division,
+    filters.zone,
+    filters.location,
+    filters.channel,
+    filters.platform,
+    filters.xAxis,
+    metricType,
+  ]);
+
   const handleFilterChange = (key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
-    setLoading(true);
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 400000 / 1000000); // 400ms loading simulation
-    return () => clearTimeout(timer);
   };
 
   const handleMetricChange = (event, newMetric) => {
     if (newMetric !== null) {
       setMetricType(newMetric);
-      setLoading(true);
-      const timer = setTimeout(() => {
-        setLoading(false);
-      }, 300);
-      return () => clearTimeout(timer);
     }
-  };
-
-  // Mock Dropdown Options
-  const filterOptions = {
-    brandName: ["All", "Dettol", "Lysol", "Harpic", "Vanish", "Strepsils"],
-    retailerName: [
-      "All",
-      "Amazon Retail",
-      "Counfreedise Retail",
-      "Ean Enterprises",
-      "Hasmukh Agency",
-      "Katalysst Cpg",
-      "Nykaa E-Retail",
-      "Rk Worldinfocom",
-    ],
-    product: [
-      "All",
-      "Dettol Handwash 200ml",
-      "Lysol Cleaner 1L",
-      "Harpic Liquid 750ml",
-      "Vanish Powder 400g",
-    ],
-    division: ["All", "Health Care", "Home Care", "Personal Care"],
-    zone: ["All", "North", "South", "East", "West"],
-    xAxis: ["Retailer Name", "Brand Name", "Product", "Division", "Zone"],
-  };
-
-  // Chart data based on Metric Type & filters
-  const getMomChartData = () => {
-    const isMRP = metricType === "MRP";
-    const multiplier = isMRP ? 85000 : 850;
-
-    return [
-      { month: "Dec-23", value: Math.round(75.99 * multiplier) },
-      { month: "Jan-24", value: Math.round(19.19 * multiplier) },
-      { month: "Feb-24", value: Math.round(27.81 * multiplier) },
-      { month: "Mar-24", value: Math.round(73.4 * multiplier) },
-      { month: "Apr-24", value: Math.round(1050 * multiplier) },
-      { month: "May-24", value: Math.round(1150 * multiplier) },
-      { month: "Jun-24", value: Math.round(850 * multiplier) },
-      { month: "Jul-24", value: Math.round(920 * multiplier) },
-      { month: "Aug-24", value: Math.round(1100 * multiplier) },
-      { month: "Sep-24", value: Math.round(1250 * multiplier) },
-      { month: "Oct-24", value: Math.round(1080 * multiplier) },
-      { month: "Nov-24", value: Math.round(1180 * multiplier) },
-      { month: "Dec-24", value: Math.round(1320 * multiplier) },
-      { month: "Jan-25", value: Math.round(950 * multiplier) },
-      { month: "Feb-25", value: Math.round(1020 * multiplier) },
-      { month: "Mar-25", value: Math.round(1120 * multiplier) },
-      { month: "Apr-25", value: Math.round(1280 * multiplier) },
-      { month: "May-25", value: Math.round(1350 * multiplier) },
-      { month: "Jun-25", value: Math.round(1420 * multiplier) },
-      { month: "Jul-25", value: Math.round(1380 * multiplier) },
-      { month: "Aug-25", value: Math.round(1450 * multiplier) },
-    ];
-  };
-
-  const getQuarterChartData = () => {
-    const isMRP = metricType === "MRP";
-    const multiplier = isMRP ? 85000 : 850;
-
-    return [
-      { quarter: "Q3 2022", value: Math.round(19.19 * multiplier) },
-      { quarter: "Q4 2022", value: Math.round(1680 * multiplier) },
-      { quarter: "Q1 2023", value: Math.round(2610 * multiplier) },
-      { quarter: "Q2 2023", value: Math.round(4100 * multiplier) },
-      { quarter: "Q3 2023", value: Math.round(5120 * multiplier) },
-      { quarter: "Q4 2023", value: Math.round(6850 * multiplier) },
-      { quarter: "Q1 2024", value: Math.round(8200 * multiplier) },
-      { quarter: "Q2 2024", value: Math.round(9500 * multiplier) },
-      { quarter: "Q3 2024", value: Math.round(10800 * multiplier) },
-      { quarter: "Q4 2024", value: Math.round(12100 * multiplier) },
-      { quarter: "Q1 2025", value: Math.round(11500 * multiplier) },
-    ];
-  };
-
-  // Table columns & rows based on X-Axis choice
-  const monthsHeaders = [
-    "DEC-22",
-    "JAN-23",
-    "FEB-23",
-    "MAR-23",
-    "APR-23",
-    "MAY-23",
-    "JUN-23",
-    "JUL-23",
-    "AUG-23",
-    "SEP-23",
-    "OCT-23",
-    "NOV-23",
-    "DEC-23",
-  ];
-
-  const getTableRows = () => {
-    const isMRP = metricType === "MRP";
-    const valMultiplier = isMRP ? 1 : 0.01;
-
-    let items = [];
-    if (filters.xAxis === "Retailer Name") {
-      items = [
-        "Amazon Retail India Pvt Limited",
-        "Counfreedise Retail Services L",
-        "Ean Enterprises",
-        "Hasmukh Agency",
-        "Katalysst Cpg Consultants Llp",
-        "Nykaa E-Retail Limited",
-        "Rk Worldinfocom Private Limited",
-      ];
-    } else if (filters.xAxis === "Brand Name") {
-      items = ["Dettol", "Lysol", "Harpic", "Vanish", "Strepsils"];
-    } else if (filters.xAxis === "Product") {
-      items = [
-        "Dettol Handwash 200ml",
-        "Lysol Cleaner 1L",
-        "Harpic Liquid 750ml",
-        "Vanish Powder 400g",
-      ];
-    } else if (filters.xAxis === "Division") {
-      items = ["Health Care", "Home Care", "Personal Care"];
-    } else {
-      items = ["North", "South", "East", "West"];
-    }
-
-    // Generate random but deterministic seed values matching the screenshot aesthetics
-    return items.map((name, idx) => {
-      const rowData = { name };
-      monthsHeaders.forEach((month, mIdx) => {
-        // Deterministic mock values
-        const base = (idx + 1) * 350000 + (mIdx + 1) * 85000;
-        const seed = Math.sin(idx * 7 + mIdx * 13);
-        const finalVal = Math.round((base + seed * 150000) * valMultiplier);
-
-        // Add some empty values to look real
-        if ((idx + mIdx) % 7 === 5 && idx > 0) {
-          rowData[month] = null;
-        } else {
-          rowData[month] = finalVal;
-        }
-      });
-      return rowData;
-    });
   };
 
   const handleDownload = () => {
-    const rows = getTableRows();
     const headers = [filters.xAxis, ...monthsHeaders];
     let csvContent = headers.join(",") + "\n";
 
-    rows.forEach((row) => {
+    tableRows.forEach((row) => {
       const line = [
         `"${row.name}"`,
         ...monthsHeaders.map((m) => (row[m] === null ? "-" : row[m])),
@@ -254,10 +221,6 @@ export default function PrimarySummary() {
     link.click();
     document.body.removeChild(link);
   };
-
-  const momData = getMomChartData();
-  const quarterData = getQuarterChartData();
-  const tableRows = getTableRows();
 
   return (
     <Box sx={{ mt: 4, width: "100%" }}>
@@ -656,7 +619,7 @@ export default function PrimarySummary() {
                 letterSpacing: "0.03em",
               }}
             >
-              BRAND WISE PRIMARY
+              {`${filters.xAxis.toUpperCase()} WISE PRIMARY`}
             </Typography>
           </Box>
 
