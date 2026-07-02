@@ -71,6 +71,7 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
  * @returns {Promise<string|null>} - The SQL condition for platform/channel
  */
 export const buildPlatformChannelCond = async (platform, channel, prefix = '') => {
+    const formattedPrefix = (prefix && !prefix.endsWith('.')) ? `${prefix}.` : prefix;
     let pArr = [];
     if (platform && platform !== 'All') {
         pArr = Array.isArray(platform) ? platform : [platform];
@@ -98,7 +99,7 @@ export const buildPlatformChannelCond = async (platform, channel, prefix = '') =
     }
 
     if (pArr.length > 0) {
-        return `lower(replace(${prefix}Platform, ' ', '_')) IN (${pArr.map(p => `'${escapeStr(p.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`;
+        return `lower(replace(${formattedPrefix}Platform, ' ', '_')) IN (${pArr.map(p => `'${escapeStr(p.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`;
     }
     
     // Fallback if no platforms resolved but channel is selected (prevent empty return which acts as NO filter)
@@ -111,7 +112,7 @@ export const buildPlatformChannelCond = async (platform, channel, prefix = '') =
             const rbpCols = await getTableColumns('rb_pdp_olap');
             if (columnExists(rbpCols, 'channel')) {
                 const rbpChannelCol = resolveColumn(rbpCols, 'channel');
-                return `lower(${prefix}${rbpChannelCol}) LIKE '${searchPattern}'`;
+                return `lower(${formattedPrefix}${rbpChannelCol}) LIKE '${searchPattern}'`;
             }
         } catch (e) {
             console.error(`[buildPlatformChannelCond] fallback col resolution failed:`, e.message);
