@@ -3722,7 +3722,79 @@ class VisibilityService {
             const landscapeRes = await queryClickHouse(landscapeVolQuery);
             const totalLandscapeVol = Number(landscapeRes[0]?.total_vol) || 0;
 
-            const mainQuery = `
+            // For SKU mode, use platform-level denominator (PARTITION BY platform_name pattern)
+            // so that SOS = SKU's row count / total rows on that platform.
+            // For keyword/brand modes, keep per-keyword denominator which is correct.
+            // Build outer WHERE conditions for SKU mode (applied AFTER denominator is computed)
+            const skuOuterFilters = [];
+            if (ownBrandsOnly) skuOuterFilters.push('is_own_sku = 1');
+            if (sku && sku !== 'All') {
+                const skuVals = sku.split(',').map(s => `'${escapeCH(s.trim())}'`).join(',');
+                skuOuterFilters.push(`lowerUTF8(keyword_search_product) IN (${skuVals.toLowerCase()})`);
+            }
+            const skuOuterWhere = skuOuterFilters.length > 0 ? `WHERE ${skuOuterFilters.join(' AND ')}` : '';
+
+            const mainQuery = viewMode === 'sku' ? `
+                    WITH product_counts AS (
+                        SELECT
+                            platform_name,
+                            keyword_search_product,
+                            any(web_pid) as web_pid,
+                            arrayElement(arrayFilter(x -> lowerUTF8(x) NOT IN ('other', 'others', ''), topK(5)(brand)), 1) as brand_name,
+                            COUNT(*) AS product_rows,
+                            COUNTIf(toInt32(spons) = 1) AS ad_rows,
+                            COUNTIf(toInt32(spons) = 0) AS organic_rows,
+                            count(*) as impressions,
+                            ${searchVolumeSelect} as search_volume,
+                            arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1), 1) AS ad_position,
+                            arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1), 1) AS organic_position,
+                            max(toInt32(flag)) as is_own_sku
+                        FROM rb_kw_olap
+                        WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${platformCondition}
+                          AND ${channelCondition}
+                          AND ${locationCondition}
+                          AND ${categoryCondition}
+                          AND ${globalKeywordTypeCondition}
+                          AND ${localKeywordTypeCondition}
+                          AND ${keywordCondition}
+                          ${rankCondition}
+                          AND keyword_search_product IS NOT NULL AND keyword_search_product != ''
+                        GROUP BY platform_name, keyword_search_product
+                    )
+                    SELECT
+                        keyword_search_product as name,
+                        any(brand_name) as brand_name,
+                        any(web_pid) as web_pid,
+                        sum(product_rows) as num_overall,
+                        any(total_visible_rows) as den_overall,
+                        ROUND(sum(product_rows) * 100.0 / nullIf(any(total_visible_rows), 0), 2) AS overall_sos,
+                        
+                        sum(organic_rows) as num_organic,
+                        any(total_organic_rows) as den_organic,
+                        ROUND(sum(organic_rows) * 100.0 / nullIf(any(total_organic_rows), 0), 2) AS organic_sos,
+                        
+                        sum(ad_rows) as num_spons,
+                        any(total_ad_rows) as den_spons,
+                        ROUND(sum(ad_rows) * 100.0 / nullIf(any(total_ad_rows), 0), 2) AS paid_sos,
+                        
+                        sum(impressions) as impressions,
+                        any(search_volume) as search_volume,
+                        ROUND(sum(product_rows) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
+                        arrayElement(topK(1)(ad_position), 1) as ad_position,
+                        arrayElement(topK(1)(organic_position), 1) as organic_position
+                    FROM (
+                        SELECT
+                            *,
+                            SUM(product_rows) OVER (PARTITION BY platform_name) AS total_visible_rows,
+                            SUM(ad_rows) OVER (PARTITION BY platform_name) AS total_ad_rows,
+                            SUM(organic_rows) OVER (PARTITION BY platform_name) AS total_organic_rows
+                        FROM product_counts
+                    )
+                    ${skuOuterWhere}
+                    GROUP BY keyword_search_product
+                    ORDER BY impressions DESC
+                ` : `
                     SELECT 
                         name,
                         any(brand_name) as brand_name,
