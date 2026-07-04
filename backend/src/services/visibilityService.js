@@ -3690,7 +3690,7 @@ class VisibilityService {
                 }
             }
 
-            const dimColumn = viewMode === 'keyword' ? 'keyword' : (viewMode === 'brand' ? 'brand' : 'keyword_search_product');
+             const dimColumn = viewMode === 'keyword' ? 'keyword' : (viewMode === 'brand' ? 'brand_name_th' : 'keyword_search_product');
             // Use own brand names from rb_pdp_olap (Comp_flag=0) instead of flag=1
             const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM rb_pdp_olap WHERE Comp_flag = 0 AND Brand IS NOT NULL AND Brand != ''`;
             const numeratorCondition = (sku && sku !== 'All')
@@ -3793,6 +3793,64 @@ class VisibilityService {
                     )
                     ${skuOuterWhere}
                     GROUP BY keyword_search_product
+                    ORDER BY impressions DESC
+                ` : viewMode === 'brand' ? `
+                    WITH brand_counts AS (
+                        SELECT
+                            platform_name,
+                            brand_name_th,
+                            SUM(overall) AS brand_overall,
+                            SUM(spons) AS brand_sponsored,
+                            SUM(organic) AS brand_organic,
+                            count(*) as impressions,
+                            ${searchVolumeSelect} as search_volume,
+                            arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1), 1) AS ad_position,
+                            arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1), 1) AS organic_position
+                        FROM rb_kw_olap
+                        WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${platformCondition}
+                          AND ${channelCondition}
+                          AND ${locationCondition}
+                          AND ${categoryCondition}
+                          AND ${globalKeywordTypeCondition}
+                          AND ${localKeywordTypeCondition}
+                          AND ${keywordCondition}
+                          AND ${brandCondition}
+                          ${rankCondition}
+                          ${ownBrandsCondition}
+                          AND brand_name_th IS NOT NULL AND brand_name_th != ''
+                        GROUP BY platform_name, brand_name_th
+                    )
+                    SELECT
+                        brand_name_th as name,
+                        brand_name_th as brand_name,
+                        '' as web_pid,
+                        sum(brand_overall) as num_overall,
+                        any(total_visible_rows) as den_overall,
+                        ROUND(sum(brand_overall) * 100.0 / nullIf(any(total_visible_rows), 0), 2) AS overall_sos,
+                        
+                        sum(brand_organic) as num_organic,
+                        any(total_organic_rows) as den_organic,
+                        ROUND(sum(brand_organic) * 100.0 / nullIf(any(total_organic_rows), 0), 2) AS organic_sos,
+                        
+                        sum(brand_sponsored) as num_spons,
+                        any(total_ad_rows) as den_spons,
+                        ROUND(sum(brand_sponsored) * 100.0 / nullIf(any(total_ad_rows), 0), 2) AS paid_sos,
+                        
+                        sum(impressions) as impressions,
+                        any(search_volume) as search_volume,
+                        ROUND(sum(brand_overall) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
+                        arrayElement(topK(1)(ad_position), 1) as ad_position,
+                        arrayElement(topK(1)(organic_position), 1) as organic_position
+                    FROM (
+                        SELECT
+                            *,
+                            SUM(brand_overall) OVER (PARTITION BY platform_name) AS total_visible_rows,
+                            SUM(brand_sponsored) OVER (PARTITION BY platform_name) AS total_ad_rows,
+                            SUM(brand_organic) OVER (PARTITION BY platform_name) AS total_organic_rows
+                        FROM brand_counts
+                    )
+                    GROUP BY brand_name_th
                     ORDER BY impressions DESC
                 ` : `
                     SELECT 
@@ -4146,6 +4204,11 @@ class VisibilityService {
             if (viewMode === 'sku' && sku && sku !== 'All') {
                 const skuCond = buildCHCondition(sku, 'keyword_search_product', { isDimension: true, noSplit: true });
                 numCondition = `${skuCond}`;
+            } else if (brand && brand !== 'All') {
+                numCondition = buildCHCondition(brand, 'brand', { isBrand: false });
+            } else {
+                const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM rb_pdp_olap WHERE Comp_flag = 0 AND Brand IS NOT NULL AND Brand != ''`;
+                numCondition = `lower(brand) IN (${ownBrandSubquery})`;
             }
 
             const query = `
