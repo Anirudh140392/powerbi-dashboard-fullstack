@@ -1899,7 +1899,7 @@ class VisibilityService {
                 platformWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
                 platformWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
                 platformWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
-                platformWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                platformWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
                 if (ownBrandsOnly) platformWhere += ` AND flag = 1`;
 
                 const results = await queryClickHouse(`
@@ -1967,7 +1967,7 @@ class VisibilityService {
                 formatWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
                 formatWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
                 formatWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
-                formatWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                formatWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
                 formatWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
 
                 const results = await queryClickHouse(`
@@ -1990,7 +1990,7 @@ class VisibilityService {
                 brandWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
                 brandWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
                 brandWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
-                brandWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                brandWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
                 brandWhere += ` AND flag = 1`; // Only show our brands as requested
 
                 const results = await queryClickHouse(`
@@ -2036,7 +2036,7 @@ class VisibilityService {
                 cityWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
                 cityWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
                 cityWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
-                cityWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                cityWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
                 cityWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
 
                 const results = await queryClickHouse(`
@@ -2068,7 +2068,7 @@ class VisibilityService {
                 typeWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
                 typeWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
                 typeWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
-                typeWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                typeWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
                 typeWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
                 typeWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
                 if (ownBrandsOnly) typeWhere += ` AND flag = 1`;
@@ -2092,7 +2092,7 @@ class VisibilityService {
                 keywordWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
                 keywordWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
                 keywordWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
-                keywordWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                keywordWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
                 if (ownBrandsOnly) keywordWhere += ` AND flag = 1`;
 
                 const results = await queryClickHouse(`
@@ -2115,7 +2115,7 @@ class VisibilityService {
                 typeWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
                 typeWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
                 typeWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
-                typeWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                typeWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
 
                 const results = await queryClickHouse(`
                         SELECT DISTINCT keyword_type as type
@@ -2272,7 +2272,7 @@ class VisibilityService {
             const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
             const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
             const formatCondition = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
-            const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product');
+            const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product', { noSplit: true });
             // const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
             const brandSOSCondition = buildCHCondition(filters.brand || 'All', 'brand', { isBrand: true }); // Dynamic SOS
 
@@ -2509,7 +2509,7 @@ class VisibilityService {
             const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
             const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
             const brandCondition = buildCHCondition(brandFilter, 'brand');
-            const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product');
+            const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product', { noSplit: true });
 
             let rankCondition = '';
             if (filters.rank && filters.rank !== 'All') {
@@ -3678,7 +3678,7 @@ class VisibilityService {
             const localKeywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
             const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
             const keywordCondition = buildCHCondition(keyword, 'keyword');
-            const skuCondition = buildCHCondition(sku, 'keyword_search_product');
+            const skuCondition = buildCHCondition(sku, 'keyword_search_product', { noSplit: true });
             const ownBrandsCondition = ownBrandsOnly ? 'AND toInt32(flag) = 1' : 'AND 1=1';
 
             let rankCondition = '';
@@ -3729,8 +3729,7 @@ class VisibilityService {
             const skuOuterFilters = [];
             if (ownBrandsOnly) skuOuterFilters.push('is_own_sku = 1');
             if (sku && sku !== 'All') {
-                const skuVals = sku.split(',').map(s => `'${escapeCH(s.trim())}'`).join(',');
-                skuOuterFilters.push(`lowerUTF8(keyword_search_product) IN (${skuVals.toLowerCase()})`);
+                skuOuterFilters.push(`lowerUTF8(keyword_search_product) = lowerUTF8('${escapeCH(sku)}')`);
             }
             const skuOuterWhere = skuOuterFilters.length > 0 ? `WHERE ${skuOuterFilters.join(' AND ')}` : '';
 
