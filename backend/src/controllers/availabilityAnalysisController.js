@@ -665,52 +665,47 @@ export const getSignalLabData = async (req, res) => {
             const dynamicCatCol = hasCategoryCol ? 'Category' : 'Product_type';
 
             // Build WHERE clause for ClickHouse
-            const buildWhereClause = async (includeCompDates = false, ignoreBrand = false) => {
+            const buildFilterConditions = async (ignoreBrand = false, prefix = '') => {
                 const conditions = [];
+                const p = prefix ? `${prefix}.` : '';
 
-                if (includeCompDates) {
-                    conditions.push(`(toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')`);
-                } else {
-                    conditions.push(`toDate(DATE) BETWEEN '${start}' AND '${end}'`);
-                }
-
-                const platformCond = await buildPlatformChannelCond(platformFilter, channel);
+                const platformCond = await buildPlatformChannelCond(platformFilter, channel, p);
                 if (platformCond) {
                     conditions.push(platformCond);
                 }
 
                 if (locationFilter) {
                     if (Array.isArray(locationFilter)) {
-                        conditions.push(`Location IN (${locationFilter.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                        conditions.push(`${p}Location IN (${locationFilter.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                     } else {
-                        conditions.push(`Location = '${escapeStr(locationFilter)}'`);
+                        conditions.push(`${p}Location = '${escapeStr(locationFilter)}'`);
                     }
                 }
 
                 // Tier 1/2 filter for all Signal Lab queries (only if table exists and has data)
                 if (hasTierFilter) {
-                    conditions.push(`LOWER(Location) IN (SELECT DISTINCT LOWER(location) FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
+                    conditions.push(`LOWER(${p}Location) IN (SELECT DISTINCT LOWER(location) FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
                 }
 
                 if (categoryFilter) {
                     const catCol = dynamicCatCol;
                     if (Array.isArray(categoryFilter)) {
-                        conditions.push(`LOWER(${catCol}) IN (${categoryFilter.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+                        conditions.push(`LOWER(${p}${catCol}) IN (${categoryFilter.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
                     } else {
-                        conditions.push(`${catCol} ILIKE '${escapeStr(categoryFilter)}'`);
+                        conditions.push(`${p}${catCol} ILIKE '${escapeStr(categoryFilter)}'`);
                     }
                 }
 
                 if (!ignoreBrand) {
                     if (brandFilter) {
                         if (Array.isArray(brandFilter)) {
-                            conditions.push(`LOWER(Brand) IN (${brandFilter.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+                            conditions.push(`LOWER(${p}Brand) IN (${brandFilter.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
                         } else {
-                            conditions.push(`Brand ILIKE '%${escapeStr(brandFilter)}%'`);
+                            conditions.push(`${p}Brand ILIKE '%${escapeStr(brandFilter)}%'`);
                         }
                     } else {
                         // For my brand only
-                        conditions.push(`(Comp_flag = 0 OR Comp_flag = '0')`);
+                        conditions.push(`(${p}Comp_flag = 0 OR ${p}Comp_flag = '0')`);
                     }
                 }
 
@@ -722,15 +717,28 @@ export const getSignalLabData = async (req, res) => {
 
                 if (keywordFilter && !isAll(keywordFilter)) {
                     if (Array.isArray(keywordFilter)) {
-                        const kwConds = keywordFilter.map(k => `Product ILIKE '%${escapeStr(k)}%'`);
+                        const kwConds = keywordFilter.map(k => `${p}Product ILIKE '%${escapeStr(k)}%'`);
                         conditions.push(`(${kwConds.join(' OR ')})`);
                     } else {
-                        conditions.push(`Product ILIKE '%${escapeStr(keywordFilter)}%'`);
+                        conditions.push(`${p}Product ILIKE '%${escapeStr(keywordFilter)}%'`);
                     }
                 }
 
                 // Exclude 'Nation', 'National', 'All India', 'Pan India' rollup locations
-                conditions.push(`Location NOT IN ('Nation', 'National', 'All India', 'Pan India', 'all india', 'pan india', 'nation', 'national')`);
+                conditions.push(`${p}Location NOT IN ('Nation', 'National', 'All India', 'Pan India', 'all india', 'pan india', 'nation', 'national')`);
+
+                return conditions;
+            };
+
+            const buildWhereClause = async (includeCompDates = false, ignoreBrand = false, prefix = '') => {
+                const p = prefix ? `${prefix}.` : '';
+                const conditions = await buildFilterConditions(ignoreBrand, prefix);
+
+                if (includeCompDates) {
+                    conditions.unshift(`(toDate(${p}DATE) BETWEEN '${start}' AND '${end}' OR toDate(${p}DATE) BETWEEN '${compStart}' AND '${compEnd}')`);
+                } else {
+                    conditions.unshift(`toDate(${p}DATE) BETWEEN '${start}' AND '${end}'`);
+                }
 
                 return conditions.join(' AND ');
             };
@@ -1053,6 +1061,102 @@ export const getSignalLabData = async (req, res) => {
             `;
             const cityRows = await queryClickHouse(cityAggQuery);
 
+            /* ================= STEP 6.2: FETCH DOI DATA (SKU & City level) ================= */
+            let doiDataMap = {};
+            let cityDoiMap = {};
+            if ((metricType === 'inventory' || metricType === 'availability') && webPids.length > 0) {
+                try {
+                    const nonDateFilterWithBrand = (await buildFilterConditions(false, 'p')).join(' AND ');
+
+                    // SKU level DOI Query
+                    const doiQuery = `
+                        WITH
+                            latest_dates AS (
+                                SELECT
+                                    ${groupCol},
+                                    max(toDate(DATE)) AS latest_date
+                                FROM rb_pdp_olap
+                                WHERE ${filterCol} IN (${webPidsStr})
+                                  AND toDate(DATE) BETWEEN '${start}' AND '${end}'
+                                  AND ${(await buildFilterConditions(false)).join(' AND ')}
+                                GROUP BY ${groupCol}
+                            )
+                        SELECT
+                            l.${groupCol} AS groupColVal,
+                            l.latest_date AS latest_date,
+                            sum(if(toDate(p.DATE) = l.latest_date, ifNull(toFloat64OrZero(toString(p.Inventory)), 0.0), 0.0)) AS latest_inventory,
+                            sum(if(toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date, ifNull(toFloat64OrZero(toString(p.Qty_Sold)), 0.0), 0.0)) AS total_qty_sold_30d
+                        FROM latest_dates l
+                        LEFT JOIN rb_pdp_olap p ON p.${filterCol} = l.${groupCol}
+                        WHERE toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date
+                          AND ${nonDateFilterWithBrand}
+                        GROUP BY l.${groupCol}, l.latest_date
+                    `;
+
+                    const doiRows = await queryClickHouse(doiQuery);
+                    doiRows.forEach(row => {
+                        const key = String(row.groupColVal).toLowerCase();
+                        const latestInv = Number(row.latest_inventory || 0);
+                        const qty30 = Number(row.total_qty_sold_30d || 0);
+                        const drr30 = qty30 / 30;
+                        const calculatedDoi = drr30 > 0 ? latestInv / drr30 : 0;
+                        doiDataMap[key] = {
+                            latestInventory: latestInv,
+                            totalQty30d: qty30,
+                            drr30d: drr30,
+                            doi: calculatedDoi
+                        };
+                    });
+
+                    // City level DOI Query
+                    const cityDoiQuery = `
+                        WITH
+                            latest_dates AS (
+                                SELECT
+                                    ${groupCol},
+                                    Location,
+                                    max(toDate(DATE)) AS latest_date
+                                FROM rb_pdp_olap
+                                WHERE ${filterCol} IN (${webPidsStr})
+                                  AND toDate(DATE) BETWEEN '${start}' AND '${end}'
+                                  AND ${(await buildFilterConditions(false)).join(' AND ')}
+                                GROUP BY ${groupCol}, Location
+                            )
+                        SELECT
+                            l.${groupCol} AS groupColVal,
+                            l.Location AS cityVal,
+                            l.latest_date AS latest_date,
+                            sum(if(toDate(p.DATE) = l.latest_date, ifNull(toFloat64OrZero(toString(p.Inventory)), 0.0), 0.0)) AS latest_inventory,
+                            sum(if(toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date, ifNull(toFloat64OrZero(toString(p.Qty_Sold)), 0.0), 0.0)) AS total_qty_sold_30d
+                        FROM latest_dates l
+                        LEFT JOIN rb_pdp_olap p ON p.${filterCol} = l.${groupCol} AND p.Location = l.Location
+                        WHERE toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date
+                          AND ${nonDateFilterWithBrand}
+                        GROUP BY l.${groupCol}, l.Location, l.latest_date
+                    `;
+
+                    const cityDoiRows = await queryClickHouse(cityDoiQuery);
+                    cityDoiRows.forEach(row => {
+                        const pidKey = String(row.groupColVal).toLowerCase();
+                        const cityKey = String(row.cityVal).toLowerCase();
+                        const latestInv = Number(row.latest_inventory || 0);
+                        const qty30 = Number(row.total_qty_sold_30d || 0);
+                        const drr30 = qty30 / 30;
+                        const calculatedDoi = drr30 > 0 ? latestInv / drr30 : 0;
+
+                        if (!cityDoiMap[pidKey]) cityDoiMap[pidKey] = {};
+                        cityDoiMap[pidKey][cityKey] = {
+                            latestInventory: latestInv,
+                            totalQty30d: qty30,
+                            drr30d: drr30,
+                            doi: calculatedDoi
+                        };
+                    });
+                } catch (e) {
+                    console.error('[SignalLab] Error fetching DOI/City DOI using new logic:', e);
+                }
+            }
+
             /* ================= STEP 6.5: FETCH SOS FOR VISIBILITY ================= */
             let sosMap = {};
             if (metricType === 'visibility' && webPids.length > 0) {
@@ -1159,19 +1263,24 @@ export const getSignalLabData = async (req, res) => {
 
                 // Apply Scaling Fix for Mars items
                 const scaledItem = scaleMarsMetrics({ ...item }, isBrandGroup ? item[groupCol] : (item.aggBrand || item.BrandCol));
-                
+
                 const qty = Number(scaledItem.totalQtySold || 0);
                 const price = Number(scaledItem.avgPrice || 0);
                 const currSalesVal = Number(scaledItem.currSales || 0);
                 const revenue = currSalesVal;
-                
+
                 const podCities = cityRows.filter(c => c[groupCol] === item[groupCol]);
                 const inventory = podCities.length > 0
                     ? podCities.reduce((sum, c) => sum + (c.inventory || 0), 0)
                     : (scaledItem.avgInventory === null ? null : Number(scaledItem.avgInventory));
 
                 const drr = qty / daysInPeriod;
-                const doi = (inventory !== null && drr > 0) ? inventory / drr : (inventory === null ? null : 0);
+                const oldDoi = (inventory !== null && drr > 0) ? inventory / drr : (inventory === null ? null : 0);
+
+                const key = String(item[groupCol] || '').toLowerCase();
+                const newDoiInfo = doiDataMap[key];
+                const doi = (newDoiInfo && newDoiInfo.doi !== null) ? newDoiInfo.doi : oldDoi;
+                const displayDrr = (newDoiInfo && newDoiInfo.drr30d !== null) ? newDoiInfo.drr30d : drr;
 
                 const offtakeShare = (totalMarketSales > 0) ? (revenue / totalMarketSales * 100) : 0;
 
@@ -1191,7 +1300,7 @@ export const getSignalLabData = async (req, res) => {
                 } else if (metricType === 'inventory') {
                     const risk = doi > 30 ? 'High' : (doi > 15 ? 'Med' : 'Low');
                     kpis = {
-                        drr: drr > 1000 ? `${(drr / 1000).toFixed(1)}k` : Math.round(drr).toString(),
+                        drr: displayDrr > 1000 ? `${(displayDrr / 1000).toFixed(1)}k` : Math.round(displayDrr).toString(),
                         doi: doi !== null ? doi.toFixed(1) : '-',
                         oos: `${(100 - osa).toFixed(0)}%`,
                         expiryRisk: risk
@@ -1248,13 +1357,21 @@ export const getSignalLabData = async (req, res) => {
                     const salesWeightage = currSalesVal > 0 ? (citySales / currSalesVal) * 100 : 0;
 
                     if (metricType === 'inventory') {
+                        const pidKey = String(item[groupCol] || '').toLowerCase();
+                        const cityKey = String(c.Location || '').toLowerCase();
+                        const newCityDoiInfo = cityDoiMap[pidKey]?.[cityKey];
+
                         const cityQty = Number(c.qtySold || 0);
                         const cityInventory = Number(c.inventory || 0);
                         const cityDrr = cityQty / daysInPeriod;
                         const cityDoi = cityDrr > 0 ? cityInventory / cityDrr : 0;
+
+                        const displayCityDoi = newCityDoiInfo ? newCityDoiInfo.doi : cityDoi;
+                        const displayCityDrr = newCityDoiInfo ? newCityDoiInfo.drr30d : cityDrr;
+
                         return {
                             city: c.Location,
-                            metric: idx === 0 ? `DOI ${cityDoi.toFixed(1)}` : `DRR ${Math.round(cityDrr)}`,
+                            metric: idx === 0 ? `DOI ${displayCityDoi.toFixed(1)}` : `DRR ${Math.round(displayCityDrr)}`,
                             change: `${impactSign}${cityOsaChange.toFixed(1)}%`,
                             weightage: salesWeightage.toFixed(1) + '%'
                         };
@@ -1292,7 +1409,7 @@ export const getSignalLabData = async (req, res) => {
                     groupBy: groupBy,
                     type: signalType,
                     metricType,
-                    offtakeValue: metricType === 'inventory' ? doi.toFixed(1) : `₹${(revenue / 100000).toFixed(1)} lac`,
+                    offtakeValue: metricType === 'inventory' ? (doi !== null ? doi.toFixed(1) : '-') : `₹${(revenue / 100000).toFixed(1)} lac`,
                     offtakeShare: totalMarketSales > 0 ? ((revenue / totalMarketSales) * 100).toFixed(2) + '%' : '0.00%',
                     impact: `${metricChange >= 0 ? '+' : ''}${metricChange.toFixed(1)}%`,
                     kpis,
@@ -1402,6 +1519,83 @@ export const getCityDetailsForProduct = async (req, res) => {
                 return conds.join(' AND ');
             };
 
+            const buildNonDateConditions = (prefix = '') => {
+                const p = prefix ? `${prefix}.` : '';
+                const conds = [`${p}${filterCol} = '${escapeStr(webPid)}'`];
+
+                if (hasTierFilter) {
+                    conds.push(`LOWER(${p}Location) IN (SELECT DISTINCT LOWER(location) FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
+                }
+                if (platformFilter) {
+                    if (Array.isArray(platformFilter)) conds.push(`LOWER(${p}Platform) IN (${platformFilter.map(pl => `'${escapeStr(pl.toLowerCase())}'`).join(', ')})`);
+                    else conds.push(`${p}Platform ILIKE '${escapeStr(platformFilter)}'`);
+                }
+                if (locationFilter) {
+                    if (Array.isArray(locationFilter)) conds.push(`${p}Location IN (${locationFilter.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                    else conds.push(`${p}Location = '${escapeStr(locationFilter)}'`);
+                }
+                if (brandFilter) {
+                    if (Array.isArray(brandFilter)) conds.push(`LOWER(${p}Brand) IN (${brandFilter.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+                    else conds.push(`${p}Brand ILIKE '%${escapeStr(brandFilter)}%'`);
+                }
+                if (categoryFilter) {
+                    const catCol = dynamicCatCol;
+                    if (Array.isArray(categoryFilter)) conds.push(`LOWER(${p}${catCol}) IN (${categoryFilter.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+                    else conds.push(`${p}${catCol} ILIKE '${escapeStr(categoryFilter)}'`);
+                }
+                conds.push(`${p}Location NOT IN ('Nation', 'National', 'All India', 'Pan India', 'all india', 'pan india', 'nation', 'national')`);
+                return conds.join(' AND ');
+            };
+
+            // Fetch DOI data at city level if requested
+            let cityDoiMap = {};
+            if (metricType === 'inventory' || metricType === 'availability') {
+                try {
+                    const nonDateFilterWithBrand = buildNonDateConditions('p');
+
+                    const cityDoiQuery = `
+                        WITH
+                            latest_dates AS (
+                                SELECT
+                                    Location,
+                                    max(toDate(DATE)) AS latest_date
+                                FROM rb_pdp_olap
+                                WHERE ${filterCol} = '${escapeStr(webPid)}'
+                                  AND toDate(DATE) BETWEEN '${start}' AND '${end}'
+                                  AND ${buildNonDateConditions()}
+                                GROUP BY Location
+                            )
+                        SELECT
+                            l.Location AS cityVal,
+                            l.latest_date AS latest_date,
+                            sum(if(toDate(p.DATE) = l.latest_date, ifNull(toFloat64OrZero(toString(p.Inventory)), 0.0), 0.0)) AS latest_inventory,
+                            sum(if(toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date, ifNull(toFloat64OrZero(toString(p.Qty_Sold)), 0.0), 0.0)) AS total_qty_sold_30d
+                        FROM latest_dates l
+                        LEFT JOIN rb_pdp_olap p ON p.${filterCol} = '${escapeStr(webPid)}' AND p.Location = l.Location
+                        WHERE toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date
+                          AND ${nonDateFilterWithBrand}
+                        GROUP BY l.Location, l.latest_date
+                    `;
+
+                    const cityDoiRows = await queryClickHouse(cityDoiQuery);
+                    cityDoiRows.forEach(row => {
+                        const cityKey = String(row.cityVal).toLowerCase();
+                        const latestInv = Number(row.latest_inventory || 0);
+                        const qty30 = Number(row.total_qty_sold_30d || 0);
+                        const drr30 = qty30 / 30;
+                        const calculatedDoi = drr30 > 0 ? latestInv / drr30 : 0;
+                        cityDoiMap[cityKey] = {
+                            latestInventory: latestInv,
+                            totalQty30d: qty30,
+                            drr30d: drr30,
+                            doi: calculatedDoi
+                        };
+                    });
+                } catch (e) {
+                    console.error('[SignalLab-City] Error fetching City DOI using new logic:', e);
+                }
+            }
+
             // Main query with all metrics - Aggregating by city and date first to get correct city-level SOH
             const query = `
                 WITH daily_city_stats AS (
@@ -1477,7 +1671,12 @@ export const getCityDetailsForProduct = async (req, res) => {
                 const soh = (scaledRow.soh === null || scaledRow.soh === undefined) ? null : Number(scaledRow.soh);
                 const qtySold = Number(scaledRow.qty_sold || 0);
                 const drr = qtySold / daysInPeriod;
-                const doi = (soh !== null && drr > 0) ? soh / drr : (soh === null ? null : 0);
+                const oldDoi = (soh !== null && drr > 0) ? soh / drr : (soh === null ? null : 0);
+
+                const cityKey = String(row.city).toLowerCase();
+                const cityDoiInfo = cityDoiMap[cityKey];
+                const doi = (cityDoiInfo && cityDoiInfo.doi !== null) ? cityDoiInfo.doi : oldDoi;
+                const displayDrr = (cityDoiInfo && cityDoiInfo.drr30d !== null) ? cityDoiInfo.drr30d : drr;
 
                 const adSales = Number(scaledRow.ad_sales || 0);
                 const adSpend = Number(scaledRow.ad_spend || 0);
@@ -1504,7 +1703,7 @@ export const getCityDetailsForProduct = async (req, res) => {
                     wtDisc: discount,
                     soh: soh,
                     doi: doi,
-                    drr: drr
+                    drr: displayDrr
                 };
             });
 

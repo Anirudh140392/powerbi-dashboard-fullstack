@@ -639,8 +639,19 @@ const PlatformOverviewNew = ({
             })
         }
 
+        // Check if user has any platform restriction in their tabPermissions
+        const ALL_ROW_IDENTIFIERS = ['all', 'overall', 'odd_overall'];
+        let hasRestrictedPlatforms = false;
+        try {
+            const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+            const tabPerms = storedUser?.tabPermissions || {};
+            hasRestrictedPlatforms = Object.keys(tabPerms).some(
+                key => key.startsWith('platform_') && tabPerms[key] === false
+            );
+        } catch (_) { /* ignore */ }
+
         // When dimension is 'platform' and a specific platform is selected,
-        // only show the 'All' row + selected platform rows (remove unselected 0-value rows)
+        // only show the selected platform rows (remove the 'All' row)
         if (dimension === 'platform' && globalPlatform && globalPlatform !== 'All') {
             const selectedPlatforms = Array.isArray(globalPlatform)
                 ? globalPlatform.map(p => p.toLowerCase())
@@ -649,10 +660,18 @@ const PlatformOverviewNew = ({
             result = result.filter(e => {
                 const entityKey = e.key.toLowerCase()
                 const entityName = e.name.toLowerCase()
-                // Always keep the 'All' row
-                if (entityKey === 'all' || entityName === 'all') return true
+                // Exclude the 'All' row when a specific platform is selected
+                if (ALL_ROW_IDENTIFIERS.includes(entityKey) || ALL_ROW_IDENTIFIERS.includes(entityName)) return false
                 // Keep rows matching selected platforms
                 return selectedPlatforms.some(p => entityKey.includes(p) || entityName.includes(p) || p.includes(entityKey))
+            })
+        } else if (dimension === 'platform' && hasRestrictedPlatforms) {
+            // Even if globalPlatform is 'All', hide the 'All' aggregate row
+            // when the user does not have access to all platforms
+            result = result.filter(e => {
+                const entityKey = e.key.toLowerCase()
+                const entityName = e.name.toLowerCase()
+                return !ALL_ROW_IDENTIFIERS.includes(entityKey) && !ALL_ROW_IDENTIFIERS.includes(entityName)
             })
         }
 
@@ -668,6 +687,7 @@ const PlatformOverviewNew = ({
 
         return result
     }, [apiData, dimension, globalPlatform])
+
 
     // Pagination logic
     const totalPages = Math.ceil(entities.length / pageSize)

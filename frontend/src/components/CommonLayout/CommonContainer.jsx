@@ -149,12 +149,9 @@ function CommonLayoutContent({
             maxWidth={false}
             disableGutters
             sx={{
-              py: disablePadding ? 0 : 2,
               px: disablePadding ? 0 : { xs: 2, sm: 3 },
+              py: disablePadding ? 0 : { xs: 2, sm: 3 },
               width: "100%",
-              boxSizing: "border-box",
-              minHeight: "100%", // Ensures it stretches to fill the flex Box height
-              display: "flex",
               flexDirection: "column",
               overflowX: "hidden", // 🔥 no horizontal scroll inside content
             }}

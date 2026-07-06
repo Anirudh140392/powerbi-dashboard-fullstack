@@ -11,6 +11,7 @@ import redisClient from "./config/redis.js";
 import cacheRoutes from "./routes/cache.js";
 import authRoutes from "./routes/auth.js";
 import { authMiddleware } from "./helper/authMiddleware.js";
+import { platformPermissionMiddleware } from "./helper/permissionMiddleware.js";
 import { initSocket } from "./config/socket.js";
 import "./models/associations.js";
 
@@ -149,6 +150,7 @@ app.use("/api/cache", cacheRoutes);
 
 // JWT Authentication middleware - protects all /api/* routes below this point
 app.use("/api", authMiddleware);
+app.use("/api", platformPermissionMiddleware);
 
 // all Routes (PROTECTED - JWT required)
 AllRoutes(app);

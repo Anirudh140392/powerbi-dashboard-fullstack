@@ -45,7 +45,8 @@ async function getVisibilitySignals(filters = {}) {
         let whereConditions = [`toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'`, `POSITION < 11`];
 
         if (platform && platform !== 'All') {
-            whereConditions.push(`lower(platform_name) = lower('${escapeCH(platform)}')`);
+            const list = platform.split(',').map(p => p.trim().toLowerCase());
+            whereConditions.push(`lower(platform_name) IN (${list.map(p => `'${escapeCH(p)}'`).join(',')})`);
         }
 
         if (location && location !== 'All') {
@@ -88,7 +89,7 @@ async function getVisibilitySignals(filters = {}) {
                 ROUND(countIf(flag = 1) * 100.0 / nullIf(count(), 0), 2) as overall_sos
             FROM rb_kw_olap
             WHERE toDate(DATE) BETWEEN '${prevStartDate}' AND '${prevEndDate}'
-                ${platform && platform !== 'All' ? ` AND lower(platform_name) = lower('${escapeCH(platform)}')` : ''}
+                ${platform && platform !== 'All' ? ` AND lower(platform_name) IN (${platform.split(',').map(p => `'${escapeCH(p.trim().toLowerCase())}'`).join(',')})` : ''}
                 ${location && location !== 'All' ? ` AND lower(location_name) = lower('${escapeCH(location)}')` : ''}
                 ${filters.keyword && filters.keyword !== 'All' ? ` AND lower(keyword) = lower('${escapeCH(filters.keyword)}')` : ''}
             GROUP BY ${groupColumn}
@@ -199,7 +200,8 @@ async function getVisibilitySignalCityDetails(params = {}) {
         let whereConditions = [`toDate(DATE) BETWEEN '${currentStart}' AND '${currentEnd}'`, `POSITION < 11`];
 
         if (platform && platform !== 'All') {
-            whereConditions.push(`lower(platform_name) = lower('${escapeCH(platform)}')`);
+            const list = platform.split(',').map(p => p.trim().toLowerCase());
+            whereConditions.push(`lower(platform_name) IN (${list.map(p => `'${escapeCH(p)}'`).join(',')})`);
         }
 
         // Add filter - use positionCaseInsensitive for LIKE equivalent on keyword/sku, but exact/lower match on brand

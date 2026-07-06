@@ -71,6 +71,7 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
  * @returns {Promise<string|null>} - The SQL condition for platform/channel
  */
 export const buildPlatformChannelCond = async (platform, channel, prefix = '') => {
+    const formattedPrefix = (prefix && !prefix.endsWith('.')) ? `${prefix}.` : prefix;
     let pArr = [];
     if (platform && platform !== 'All') {
         pArr = Array.isArray(platform) ? platform : [platform];
@@ -98,7 +99,7 @@ export const buildPlatformChannelCond = async (platform, channel, prefix = '') =
     }
 
     if (pArr.length > 0) {
-        return `lower(replace(${prefix}Platform, ' ', '_')) IN (${pArr.map(p => `'${escapeStr(p.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`;
+        return `lower(replace(${formattedPrefix}Platform, ' ', '_')) IN (${pArr.map(p => `'${escapeStr(p.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`;
     }
     
     // Fallback if no platforms resolved but channel is selected (prevent empty return which acts as NO filter)
@@ -111,7 +112,7 @@ export const buildPlatformChannelCond = async (platform, channel, prefix = '') =
             const rbpCols = await getTableColumns('rb_pdp_olap');
             if (columnExists(rbpCols, 'channel')) {
                 const rbpChannelCol = resolveColumn(rbpCols, 'channel');
-                return `lower(${prefix}${rbpChannelCol}) LIKE '${searchPattern}'`;
+                return `lower(${formattedPrefix}${rbpChannelCol}) LIKE '${searchPattern}'`;
             }
         } catch (e) {
             console.error(`[buildPlatformChannelCond] fallback col resolution failed:`, e.message);
@@ -779,9 +780,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
 
             // Calculate KPIs for all columns in a single optimized query
             // OSA uses the selected period
-            // DOI uses latest inventory and a 30-day sales lookback (from currentEndDate)
-            const doiLookbackDate = currentEndDate.subtract(29, 'day').format('YYYY-MM-DD');
-            const prevDoiLookbackDate = prevEndDate.subtract(29, 'day').format('YYYY-MM-DD');
+            // DOI uses latest inventory (argMax on latest date) and 30-day sales lookback from that date
 
             // Check if delivery_date column exists before using it
             let deliveryDaysSQL = 'NULL';
@@ -820,9 +819,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 latest_inv_stats AS (
                     SELECT 
                         col_value,
-                        argMax(daily_inv, DATE) as latest_inventory
+                        argMax(daily_inv, DATE) as latest_inventory,
+                        max(DATE) as latest_date
                     FROM daily_stats
-                    WHERE daily_inv > 0
                     GROUP BY col_value
                 )
                 SELECT 
@@ -836,6 +835,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_metro_deno,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
                     any(l.latest_inventory) as latest_inventory,
+                    any(l.latest_date) as latest_date,
                     avg(${deliveryDaysSQL}) as avg_delivery_days
                 FROM rb_pdp_olap t1
                 LEFT JOIN latest_inv_stats l ON t1.${groupColumn} = l.col_value
@@ -860,9 +860,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 latest_inv_stats AS (
                     SELECT 
                         col_value,
-                        argMax(daily_inv, DATE) as latest_inventory
+                        argMax(daily_inv, DATE) as latest_inventory,
+                        max(DATE) as latest_date
                     FROM daily_stats
-                    WHERE daily_inv > 0
                     GROUP BY col_value
                 )
                 SELECT 
@@ -876,6 +876,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_metro_deno,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
                     any(l.latest_inventory) as latest_inventory,
+                    any(l.latest_date) as latest_date,
                     avg(${deliveryDaysSQL}) as avg_delivery_days
                 FROM rb_pdp_olap t1
                 LEFT JOIN latest_inv_stats l ON t1.${groupColumn} = l.col_value
@@ -885,27 +886,48 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 GROUP BY col_value
             `;
 
-            // DOI sales queries (30-day lookback for current and prev)
+            // DOI sales queries: 30-day lookback anchored to each column's latest inventory date
+            // Using a CTE to find the latest date per column, then summing Qty_Sold for 30 days back from that date
             const doiSalesQuery = `
+                WITH latest_dates AS (
+                    SELECT
+                        ${groupColumn} as col_value,
+                        max(DATE) as latest_date
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                      AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                      ${baseFilter}
+                    GROUP BY ${groupColumn}
+                )
                 SELECT 
-                    ${groupColumn} as col_value,
-                    SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty_sold
-                FROM rb_pdp_olap
-                WHERE DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                  AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                    t.${groupColumn} as col_value,
+                    SUM(ifNull(toFloat64OrZero(toString(t.Qty_Sold)), 0)) as total_qty_sold
+                FROM rb_pdp_olap t
+                INNER JOIN latest_dates ld ON t.${groupColumn} = ld.col_value
+                WHERE t.DATE BETWEEN dateSub(DAY, 29, ld.latest_date) AND ld.latest_date
                   ${baseFilter}
-                GROUP BY ${groupColumn}
+                GROUP BY col_value
             `;
 
             const prevDoiSalesQuery = `
+                WITH latest_dates AS (
+                    SELECT
+                        ${groupColumn} as col_value,
+                        max(DATE) as latest_date
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
+                      AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                      ${baseFilter}
+                    GROUP BY ${groupColumn}
+                )
                 SELECT 
-                    ${groupColumn} as col_value,
-                    SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty_sold
-                FROM rb_pdp_olap
-                WHERE DATE BETWEEN '${prevDoiLookbackDate}' AND '${prevEndDate.format('YYYY-MM-DD')}'
-                  AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
+                    t.${groupColumn} as col_value,
+                    SUM(ifNull(toFloat64OrZero(toString(t.Qty_Sold)), 0)) as total_qty_sold
+                FROM rb_pdp_olap t
+                INNER JOIN latest_dates ld ON t.${groupColumn} = ld.col_value
+                WHERE t.DATE BETWEEN dateSub(DAY, 29, ld.latest_date) AND ld.latest_date
                   ${baseFilter}
-                GROUP BY ${groupColumn}
+                GROUP BY col_value
             `;
 
             const [currentResults, prevResults, currentSales, prevSales] = await Promise.all([
@@ -1951,76 +1973,96 @@ const getDOI = async (filters) => {
             const baseWhere = await buildAvailabilityWhereClause(baseParams);
             const baseFilter = baseWhere !== '1=1' ? ` AND ${baseWhere}` : '';
 
-            // Get latest non-zero total inventory and 30-day sales
-            // This query follows the exact logic requested:
-            // Latest Inventory (where total > 0) divided by 30rd Qty_Sold, times 30.
-            const thirtyDaysAgo = currentEndDate.subtract(29, 'day');
+            // DOI formula (matching reference query):
+            // 1. daily_inventory: GROUP BY DATE, SUM(Inventory) within the selected date range
+            // 2. latest_inventory_stats: argMax(total_inventory, DATE) => inventory on the latest date
+            //    Also get max(DATE) as latest_date
+            // 3. sales_stats: SUM(Qty_Sold) over 30 days ending at latest_date
+            // 4. DOI = (latest_inventory / total_qty_sold_30d) * 30
 
             const mainDoiQuery = `
-                SELECT
-                    latest_inventory,
-                    total_qty_sold_30d,
-                    if(total_qty_sold_30d > 0, (latest_inventory / total_qty_sold_30d) * 30, 0) AS DOI
-                FROM
-                (
-                    -- Latest Inventory (non-zero, latest date)
-                    SELECT
-                        argMax(total_inventory, DATE) AS latest_inventory
-                    FROM
-                    (
+                WITH
+                    daily_inventory AS (
                         SELECT
                             DATE,
-                            sum(ifNull(toFloat64OrZero(toString(Inventory)), 0)) AS total_inventory
+                            SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) AS total_inventory
                         FROM rb_pdp_olap
                         WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                         ${baseFilter}
                         GROUP BY DATE
+                    ),
+                    latest_inventory_stats AS (
+                        SELECT
+                            argMax(total_inventory, DATE) AS latest_inventory,
+                            max(DATE) AS latest_date
+                        FROM daily_inventory
+                    ),
+                    sales_stats AS (
+                        SELECT
+                            SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS total_qty_sold_30d
+                        FROM rb_pdp_olap
+                        WHERE DATE BETWEEN
+                              dateSub(DAY, 29, (SELECT latest_date FROM latest_inventory_stats))
+                              AND (SELECT latest_date FROM latest_inventory_stats)
+                        ${baseFilter}
                     )
-                    WHERE total_inventory > 0
-                ) inv
-                CROSS JOIN
-                (
-                    -- Total Qty Sold in last 30 days
-                    SELECT
-                        sum(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS total_qty_sold_30d
-                    FROM rb_pdp_olap
-                    WHERE DATE BETWEEN '${thirtyDaysAgo.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                    ${baseFilter}
-                ) sales
-            `;
-
-            // Previous period DOI query
-            const prevDoiQuery = `
                 SELECT
+                    latest_date,
                     latest_inventory,
                     total_qty_sold_30d,
-                    if(total_qty_sold_30d > 0, (latest_inventory / total_qty_sold_30d) * 30, 0) AS DOI
-                FROM
-                (
-                    -- Latest Inventory (non-zero, latest date)
-                    SELECT
-                        argMax(total_inventory, DATE) AS latest_inventory
-                    FROM
-                    (
+                    ROUND(
+                        IF(
+                            total_qty_sold_30d > 0,
+                            (latest_inventory / total_qty_sold_30d) * 30,
+                            0
+                        ),
+                        2
+                    ) AS DOI
+                FROM latest_inventory_stats
+                CROSS JOIN sales_stats
+            `;
+
+            // Previous period DOI query (same logic, different date range)
+            const prevDoiQuery = `
+                WITH
+                    daily_inventory AS (
                         SELECT
                             DATE,
-                            sum(ifNull(toFloat64OrZero(toString(Inventory)), 0)) AS total_inventory
+                            SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) AS total_inventory
                         FROM rb_pdp_olap
                         WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
                         ${baseFilter}
                         GROUP BY DATE
+                    ),
+                    latest_inventory_stats AS (
+                        SELECT
+                            argMax(total_inventory, DATE) AS latest_inventory,
+                            max(DATE) AS latest_date
+                        FROM daily_inventory
+                    ),
+                    sales_stats AS (
+                        SELECT
+                            SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS total_qty_sold_30d
+                        FROM rb_pdp_olap
+                        WHERE DATE BETWEEN
+                              dateSub(DAY, 29, (SELECT latest_date FROM latest_inventory_stats))
+                              AND (SELECT latest_date FROM latest_inventory_stats)
+                        ${baseFilter}
                     )
-                    WHERE total_inventory > 0
-                ) inv
-                CROSS JOIN
-                (
-                    -- Total Qty Sold in last 30 days
-                    SELECT
-                        sum(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS total_qty_sold_30d
-                    FROM rb_pdp_olap
-                    WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
-                    ${baseFilter}
-                ) sales
+                SELECT
+                    latest_date,
+                    latest_inventory,
+                    total_qty_sold_30d,
+                    ROUND(
+                        IF(
+                            total_qty_sold_30d > 0,
+                            (latest_inventory / total_qty_sold_30d) * 30,
+                            0
+                        ),
+                        2
+                    ) AS DOI
+                FROM latest_inventory_stats
+                CROSS JOIN sales_stats
             `;
 
             const [mainDoiResult, prevDoiResult] = await Promise.all([
@@ -2028,10 +2070,12 @@ const getDOI = async (filters) => {
                 queryClickHouse(prevDoiQuery)
             ]);
 
+            const latestDate = mainDoiResult[0]?.latest_date || currentEndDate.format('YYYY-MM-DD');
             const todayInventory = parseFloat(mainDoiResult[0]?.latest_inventory) || 0;
             const totalQtySold = parseFloat(mainDoiResult[0]?.total_qty_sold_30d) || 0;
             const currentDOI = parseFloat(mainDoiResult[0]?.DOI) || 0;
 
+            const prevLatestDate = prevDoiResult[0]?.latest_date || prevEndDate.format('YYYY-MM-DD');
             const prevInventory = parseFloat(prevDoiResult[0]?.latest_inventory) || 0;
             const prevTotalQtySold = parseFloat(prevDoiResult[0]?.total_qty_sold_30d) || 0;
             const prevDOI = parseFloat(prevDoiResult[0]?.DOI) || 0;
@@ -2047,14 +2091,14 @@ const getDOI = async (filters) => {
                 totalQtySold: totalQtySold,
                 filters: filters,
                 currentPeriod: {
-                    inventoryDate: currentEndDate.format('YYYY-MM-DD'),
-                    qtySoldStart: thirtyDaysAgo.format('YYYY-MM-DD'),
-                    qtySoldEnd: currentEndDate.format('YYYY-MM-DD')
+                    inventoryDate: latestDate,
+                    qtySoldStart: dayjs(latestDate).subtract(29, 'day').format('YYYY-MM-DD'),
+                    qtySoldEnd: latestDate
                 },
                 comparisonPeriod: {
-                    inventoryDate: prevEndDate.format('YYYY-MM-DD'),
-                    qtySoldStart: prevStartDate.format('YYYY-MM-DD'),
-                    qtySoldEnd: prevEndDate.format('YYYY-MM-DD')
+                    inventoryDate: prevLatestDate,
+                    qtySoldStart: dayjs(prevLatestDate).subtract(29, 'day').format('YYYY-MM-DD'),
+                    qtySoldEnd: prevLatestDate
                 },
                 timestamp: new Date().toISOString()
             };
@@ -2580,9 +2624,14 @@ const getAvailabilityKpiTrends = async (filters) => {
             // Build filter conditions using the enhanced where clause
             // CRITICAL: We MUST pass the calculated startDate and endDate to buildAvailabilityWhereClause
             // so that the SQL query is restricted to the selected period.
-            const whereClause = await buildAvailabilityWhereClause({
-                ...filters,
-                startDate: currentStartDate.format('YYYY-MM-DD'),
+            const extendedStartDate = currentStartDate.subtract(30, 'day');
+            const extendedParams = { ...filters };
+            delete extendedParams.dates;
+            delete extendedParams.months;
+
+            const extendedWhereClause = await buildAvailabilityWhereClause({
+                ...extendedParams,
+                startDate: extendedStartDate.format('YYYY-MM-DD'),
                 endDate: currentEndDate.format('YYYY-MM-DD')
             });
 
@@ -2628,20 +2677,56 @@ const getAvailabilityKpiTrends = async (filters) => {
             console.log(`[getAvailabilityKpiTrends] Querying for period ${currentStartDate.format('YYYY-MM-DD')} to ${currentEndDate.format('YYYY-MM-DD')} with timeStep=${normTimeStep}`);
 
             const query = `
+                WITH daily_metrics AS (
+                    SELECT 
+                        DATE,
+                        SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
+                        SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
+                        ${buyBoxSQL} as total_buybox_neno,
+                        AVG(${deliveryDaysSQL}) as avg_delivery_days,
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sum_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as total_inventory,
+                        SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty_sold,
+                        SUM(toFloat64OrZero(toString(MSL))) as total_msl,
+                        COUNT(DISTINCT Web_Pid) as assortment_count,
+                        AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
+                    FROM rb_pdp_olap
+                    WHERE ${extendedWhereClause}
+                    GROUP BY DATE
+                ),
+                daily_rolling AS (
+                    SELECT
+                        DATE,
+                        total_neno,
+                        total_deno,
+                        total_buybox_neno,
+                        avg_delivery_days,
+                        sum_sales,
+                        total_inventory,
+                        total_qty_sold,
+                        total_msl,
+                        assortment_count,
+                        avg_listing_percent,
+                        SUM(total_qty_sold) OVER (
+                            ORDER BY DATE 
+                            ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
+                        ) AS rolling_qty_sold_30d
+                    FROM daily_metrics
+                )
                 SELECT 
                     ${groupExpression} as date_group,
-                    SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
-                    SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
-                    ${buyBoxSQL} as total_buybox_neno,
-                    AVG(${deliveryDaysSQL}) as avg_delivery_days,
-                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sum_sales,
-                    SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
-                    SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
-                    SUM(toFloat64OrZero(toString(MSL))) as total_msl,
-                    COUNT(DISTINCT Web_Pid) as assortment_count,
-                    AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
-                FROM rb_pdp_olap
-                WHERE ${whereClause}
+                    SUM(total_neno) as total_neno,
+                    SUM(total_deno) as total_deno,
+                    SUM(total_buybox_neno) as total_buybox_neno,
+                    AVG(avg_delivery_days) as avg_delivery_days,
+                    SUM(sum_sales) as sum_sales,
+                    argMax(total_inventory, DATE) as latest_inventory,
+                    argMax(rolling_qty_sold_30d, DATE) as latest_rolling_qty_sold_30d,
+                    SUM(total_msl) as total_msl,
+                    MAX(assortment_count) as assortment_count,
+                    AVG(avg_listing_percent) as avg_listing_percent
+                FROM daily_rolling
+                WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                 GROUP BY date_group
                 ORDER BY date_group ASC
             `;
@@ -2666,20 +2751,10 @@ const getAvailabilityKpiTrends = async (filters) => {
                 const totalSales = parseFloat(row.sum_sales) || 0;
                 const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
 
-                // DOI = (Current Inventory / Daily Run Rate) where DRR = Qty_Sold / divisor
-                // The divisor scales based on the time step (Daily = 1, Weekly = 7, Monthly = 30)
-                const totalInventory = parseFloat(row.total_inventory) || 0;
-                const totalQtySold = parseFloat(row.total_qty_sold) || 0;
-                let divisor = 30;
-                if (normTimeStep === 'Daily') {
-                    divisor = 1;
-                } else if (normTimeStep === 'Weekly') {
-                    divisor = 7;
-                } else if (normTimeStep === 'Monthly') {
-                    divisor = 30;
-                }
-                const drr = totalQtySold / divisor;
-                const doi = drr > 0 ? totalInventory / drr : 0;
+                // DOI = (latest_inventory / latest_rolling_qty_sold_30d) * 30
+                const latestInventory = parseFloat(row.latest_inventory) || 0;
+                const rollingQtySold30d = parseFloat(row.latest_rolling_qty_sold_30d) || 0;
+                const doi = rollingQtySold30d > 0 ? (latestInventory / rollingQtySold30d) * 30 : 0;
 
                 return {
                     date: bucket.label,

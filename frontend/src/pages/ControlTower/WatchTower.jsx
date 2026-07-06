@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../../components/CommonLayout/ErrorRetryOverlay";
@@ -189,6 +190,7 @@ export default function WatchTower() {
     compareStart,
     compareEnd,
     platform: _sidebarPlatform,
+    platforms,
     selectedKeyword,
     selectedLocation,
     selectedChannel: _sidebarChannel,
@@ -201,6 +203,50 @@ export default function WatchTower() {
     refreshFilters,
     refreshDates
   } = filterContext;
+
+  const hasRestrictedPlatforms = useMemo(() => {
+    try {
+      const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      const tabPerms = storedUser?.tabPermissions || {};
+      return Object.keys(tabPerms).some(
+        key => key.startsWith('platform_') && tabPerms[key] === false
+      );
+    } catch (_) {
+      return false;
+    }
+  }, []);
+
+  // Commented out to prevent dashboard from shifting to single-select when restricted platforms are present
+  // useEffect(() => {
+  //   if (platformsFetched && hasRestrictedPlatforms) {
+  //     const allowed = platforms || [];
+  //     const allowedPlatforms = allowed.filter(p => p !== 'All');
+  //     if (allowedPlatforms.length > 0 && (filters.platform === "All" || (Array.isArray(filters.platform) && filters.platform.includes("All")))) {
+  //       setFilters(prev => ({ ...prev, platform: allowedPlatforms }));
+  //       setTrendParams(prev => ({ ...prev, platform: allowedPlatforms }));
+  //     }
+  //   }
+  // }, [platformsFetched, platforms, _sidebarPlatform, hasRestrictedPlatforms, filters.platform]);
+
+  const [localPlatformsList, setLocalPlatformsList] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchLocalPlatforms = async () => {
+      try {
+        const res = await axiosInstance.get("/watchtower/platforms", {
+          params: { channel: filters.channel === "All" ? undefined : filters.channel }
+        });
+        if (active && res.data && Array.isArray(res.data)) {
+          setLocalPlatformsList(res.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch local platforms", err);
+      }
+    };
+    fetchLocalPlatforms();
+    return () => { active = false; };
+  }, [filters.channel]);
 
   const overriddenContextRef = React.useRef(null);
   const prevFilterContextRef = React.useRef(null);
@@ -221,11 +267,9 @@ export default function WatchTower() {
     const buildOverride = () => {
       const overrides = {
         selectedChannel: filters.channel || "All",
-        platform: filters.platform || "All"
+        platform: filters.platform || "All",
+        platforms: localPlatformsList.length > 0 ? localPlatformsList : (allPlatformNames || filterContext.platforms || [])
       };
-      if (allPlatformNames) {
-        overrides.platforms = allPlatformNames;
-      }
       return { ...filterContext, ...overrides };
     };
 
@@ -264,7 +308,7 @@ export default function WatchTower() {
     }
 
     return overriddenContextRef.current;
-  }, [filterContext, allPlatformNames, filters.channel, filters.platform]);
+  }, [filterContext, allPlatformNames, filters.channel, filters.platform, localPlatformsList]);
 
   // Business Overview now uses local filter state for channel/platform
   const selectedChannel = filters.channel || "All";
@@ -386,7 +430,6 @@ export default function WatchTower() {
         const finalTrendArray = (normalizedTitle.toLowerCase() === 'market share' && hasTier23)
           ? (Array.isArray(rawTrend) ? rawTrend.map(() => 0) : [])
           : rawTrend;
-
         return {
           id: meta.id,
           title: normalizedTitle,
@@ -506,6 +549,15 @@ export default function WatchTower() {
   const [fetchError, setFetchError] = useState(null);
   const [categoryPlatform, setCategoryPlatform] = useState("All");
   const [pdpPlatforms, setPdpPlatforms] = useState([]);
+
+  useEffect(() => {
+    if (hasRestrictedPlatforms && pdpPlatforms?.length > 0) {
+      const allowed = pdpPlatforms.filter(p => p !== 'All');
+      if (allowed.length > 0 && categoryPlatform === "All") {
+        setCategoryPlatform(allowed[0]);
+      }
+    }
+  }, [pdpPlatforms, hasRestrictedPlatforms, categoryPlatform]);
   const overviewFetchIdRef = useRef(0);
   const categoryFetchIdRef = useRef(0);
 
@@ -849,7 +901,7 @@ export default function WatchTower() {
             <PlatformOverview
               onViewTrends={handleViewTrends}
               onViewRca={(label) => {
-                setRcaModalTitle(`${label} x ${filters.platform}`);
+                setRcaModalTitle(`${label} x ${Array.isArray(filters.platform) ? filters.platform.join(', ') : filters.platform}`);
                 setRcaModalOpen(true);
               }}
               data={
@@ -922,6 +974,7 @@ export default function WatchTower() {
               pdpPlatforms={pdpPlatforms}
               categoryPlatform={categoryPlatform}
               setCategoryPlatform={setCategoryPlatform}
+              hasRestrictedPlatforms={hasRestrictedPlatforms}
             />
 
             {/* {activeTab === "sku" && (
@@ -974,7 +1027,7 @@ export default function WatchTower() {
   );
 }
 
-const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms, categoryPlatform, setCategoryPlatform }) => {
+const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms, categoryPlatform, setCategoryPlatform, hasRestrictedPlatforms }) => {
   const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
 
@@ -1140,7 +1193,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
               className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
               style={{ fontFamily: 'Roboto, sans-serif' }}
             >
-              <option value="All">All Platforms</option>
+              {!hasRestrictedPlatforms && <option value="All">All Platforms</option>}
               {pdpPlatforms?.map(p => (
                 <option key={p} value={p}>{p}</option>
               ))}

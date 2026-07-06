@@ -181,65 +181,175 @@ const supplyChainService = {
      */
     async getPrioritizePOData(filters = {}) {
         console.log('[SupplyChain] getPrioritizePOData called with filters:', filters);
-        const cacheKey = generateCacheKey('supply_chain_prioritize_po_v1', filters);
+        const cacheKey = generateCacheKey('supply_chain_prioritize_po_v2', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                const whereClause = buildPOWhereClause(filters);
+                // Build dynamic filter conditions with prefix 'v2'
+                const conditions = ["(NOT (v2.po_status IN ('fulfilled','completed','grn_done','expired','rejected') OR v2.po_status LIKE 'cancelled%'))"];
+                conditions.push("lower(coalesce(nullIf(v2.brand,''), pdp.brand_pdp)) NOT IN ('whiskas','pedigree','sheba','temptations','chappi','catsan')");
 
-                // Default filter: exclude terminal PO statuses unless user explicitly filters by status
-                let statusFilter = '';
-                if (!filters.status || filters.status === 'All') {
-                    statusFilter = `AND lower(po_status) NOT IN ('completed', 'fulfilled', 'expired', 'cancelled', 'rejected', 'cancelled post creation')`;
+                if (filters.platform && filters.platform !== 'All') {
+                    const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
+                    conditions.push(`lower(v2.platform) IN (${platforms})`);
+                }
+                if (filters.brand && filters.brand !== 'All') {
+                    const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
+                    conditions.push(`lower(coalesce(nullIf(v2.brand,''), pdp.brand_pdp)) IN (${brands})`);
+                }
+                if (filters.city && filters.city !== 'All') {
+                    const cities = filters.city.split(',').map(c => `'${c.trim().toLowerCase()}'`).join(',');
+                    conditions.push(`lower(v2.city) IN (${cities})`);
+                }
+                if (filters.status && filters.status !== 'All') {
+                    const statuses = filters.status.split(',').map(s => `'${s.trim().toLowerCase()}'`).join(',');
+                    conditions.push(`lower(v2.po_status) IN (${statuses})`);
+                }
+                if (filters.search) {
+                    const searchTerm = filters.search.trim().toLowerCase();
+                    conditions.push(`(lower(v2.po_number) LIKE '%${searchTerm}%' OR lower(v2.facility_name) LIKE '%${searchTerm}%' OR lower(v2.sku_description) LIKE '%${searchTerm}%')`);
+                }
+                if (filters.startDate) {
+                    const d = new Date(filters.startDate);
+                    if (!isNaN(d.getTime())) {
+                        const formatted = d.toISOString().split('T')[0];
+                        conditions.push(`toDate(v2.po_raised_date) >= toDate('${formatted}')`);
+                    }
+                }
+                if (filters.endDate) {
+                    const d = new Date(filters.endDate);
+                    if (!isNaN(d.getTime())) {
+                        const formatted = d.toISOString().split('T')[0];
+                        conditions.push(`toDate(v2.po_raised_date) <= toDate('${formatted}')`);
+                    }
                 }
 
+                const whereClause = conditions.join(' AND ');
+
                 const query = `
-                    SELECT
-                        po_number,
-                        any(platform) as platform_val,
-                        any(facility_name) as facility_name_val,
-                        any(city) as city_val,
-                        any(distributor_name) as distributor_name_val,
-                        any(po_raised_date) as po_raised_date_val,
-                        any(po_appointment_date) as po_appointment_date_val,
-                        any(po_expiry_date) as po_expiry_date_val,
-                        any(po_status) as po_status_val,
-                        any(brand) as brand_val,
-                        any(category) as category_val,
-
-                        -- Order Value: sum of total_po_value across SKUs in this PO
-                        SUM(total_po_value) as order_value,
-
-                        -- Fill Rate: computed from raw units
-                        SUM(units_ordered) as total_units_ordered,
-                        SUM(units_delivered) as total_fulfilled_qty,
-
-                        -- AVG DOI (Days of Inventory on Hand)
-                        avg(DIH) as avg_doi,
-
-                        -- Lead Time (max across SKUs in PO)
-                        max(delivery_time) as lead_time,
-
-                        -- Consumption Per Day (avg DRR)
-                        avg(DRR) as consumption_per_day,
-
-                        -- PSL Components
-                        SUM(ifNull(DRR, 0) * 7 * ifNull(cost_per_unit, 0)) as expected_7day_sales,
-                        SUM(ifNull(neno_osa, 0)) as total_neno_osa,
-                        SUM(ifNull(deno_osa, 0)) as total_deno_osa,
-
-                        -- Remaining value
-                        SUM(remaining_po_value) as remaining_value,
-
-                        -- SKU count
-                        count() as sku_count
-
-                    FROM rb_po_olap
-                    WHERE ${whereClause}
-                    ${statusFilter}
-                    GROUP BY po_number, lower(facility_name)
-                    ORDER BY po_number
-                `;
+WITH
+  pdp AS (
+    SELECT
+      lower(Platform) AS plat,
+      coalesce(nullIf(joinGet('mars._j_city_alias', 'canonical_city', lower(toString(Location))), ''),
+               lower(toString(Location))) AS city,
+      if(lower(Platform)='zepto', Web_Pid, Item_Id) AS sku_key,
+      argMax(Brand, DATE) AS brand_pdp,
+      argMax(image_url, DATE) AS image_url,
+      if(sum(deno_osa) > 0, 100.0 * sum(neno_osa) / sum(deno_osa), NULL) AS osa_pct,
+      sum(neno_osa) AS neno,
+      sum(deno_osa) AS deno,
+      argMax(PPU, if(PPU > 0, DATE, toDate('1970-01-01'))) AS ppu,
+      argMax(toFloat64OrNull(listing_percent), DATE) AS listing_pct,
+      count() AS pdp_obs
+    FROM mars.rb_pdp_olap
+    WHERE DATE >= today() - 7
+    GROUP BY plat, city, sku_key
+  ),
+  chain AS (
+    SELECT platform AS plat,
+           lower(city)                                              AS key,
+           sap_sku_code                                             AS sap_sku,
+           drr_ea,
+           drr_sustained,
+           chain_fe, chain_be, chain_total,
+           chain_total / nullIf(drr_sustained, 0)                   AS dih,
+           chain_total / nullIf(drr_sustained, 0)                   AS doi,
+           qty_sold_l30d, days_with_sales
+    FROM mars.po_chain_kpi_daily
+    WHERE snapshot_date = (SELECT max(snapshot_date) FROM mars.po_chain_kpi_daily)
+ 
+    UNION ALL
+ 
+    SELECT f.platform                                               AS plat,
+           lower(f.facility_name)                                   AS key,
+           c.sap_sku_code                                           AS sap_sku,
+           sum(c.drr_ea)                                            AS drr_ea,
+           sum(c.drr_sustained)                                     AS drr_sustained,
+           sum(c.chain_fe)                                          AS chain_fe,
+           sum(c.chain_be)                                          AS chain_be,
+           sum(c.chain_total)                                       AS chain_total,
+           sum(c.chain_total) / nullIf(sum(c.drr_sustained), 0)     AS dih,
+           sum(c.chain_total) / nullIf(sum(c.drr_sustained), 0)     AS doi,
+           sum(c.qty_sold_l30d)                                     AS qty_sold_l30d,
+           max(c.days_with_sales)                                   AS days_with_sales
+    FROM mars.po_feeder_serving_area f
+    INNER JOIN mars.po_chain_kpi_daily c
+      ON c.platform = f.platform
+      AND lower(c.city) = lower(f.served_city)
+      AND c.snapshot_date = (SELECT max(snapshot_date) FROM mars.po_chain_kpi_daily)
+    WHERE f.served_city != ''
+    GROUP BY f.platform, lower(f.facility_name), c.sap_sku_code
+  ),
+  sku_cs AS (
+    SELECT sku_code, argMax(case_size, valid_from) AS cs
+    FROM mars.po_sku_attributes
+    WHERE case_size > 0
+    GROUP BY sku_code
+  ),
+  cfa_soh AS (
+    SELECT
+      lower(p.cfa_name) AS city_match,
+      sku_cs.sku_code AS sap_sku,
+      sum(toFloat64(soh.unrestricted) * sku_cs.cs) AS eaches
+    FROM mars.po_stock_on_hand_v2 soh
+    INNER JOIN mars.po_v_sap_plant_master_v2 p
+      ON p.plant = soh.plant AND p.storage_type = 'CFA'
+    INNER JOIN sku_cs
+      ON sku_cs.sku_code = replaceRegexpOne(soh.material_code, '[.]0+$', '')
+    WHERE soh.saleable_stock = 'Normal sale' AND soh.unrestricted > 0
+    GROUP BY city_match, sap_sku
+  ),
+  lt_master AS (
+    SELECT lower(platform) AS plat, argMax(lead_time_days, valid_from) AS lt_days
+    FROM mars.po_lead_time_master
+    WHERE platform NOT LIKE 'test-%'
+    GROUP BY plat
+  )
+ 
+SELECT
+  v2.po_number AS poNo,
+  any(rb_plat.pf_name) AS platform,
+  v2.facility_name AS warehouse,
+  any(v2.po_status) AS dbStatus,
+  toString(max(v2.po_raised_date)) AS poDate,
+  toString(max(v2.po_expiry_date)) AS expiryDate,
+  if(lower(v2.platform) IN ('zepto','instamart'), NULL, toString(max(v2.appointment_date))) AS appointmentDate,
+  any(coalesce(nullIf(v2.brand,''), pdp.brand_pdp)) AS brandWarehouse,
+  sum(toFloat64(v2.line_value_with_tax)) AS order_value,
+  sum(toFloat64(v2.line_value_with_tax)) / 100000.0 AS totalOrderValue,
+  sum(toFloat64(if(v2.po_status IN ('completed','fulfilled'),
+       v2.line_value_with_tax, v2.line_value_with_tax * v2.units_received / nullIf(v2.units_ordered, 0)))) / 100000.0 AS totalBilledValue,
+  sum(toFloat64(v2.units_ordered)) AS totalOrderedQty,
+  sum(toFloat64(v2.units_received)) AS totalFulfilledQty,
+  100.0 * sum(toFloat64(v2.units_received)) / nullIf(sum(toFloat64(v2.units_ordered)), 0) AS fillRate,
+  argMax(toFloat64(chain.chain_total) / nullIf(toFloat64(chain.drr_sustained), 0), v2.po_raised_date) AS avg_doi,
+  sum(
+    least(
+      toFloat64(v2.line_value_with_tax),
+      if(chain.chain_total IS NULL OR toFloat64(chain.drr_ea) <= 0, 0,
+        greatest(0,
+          coalesce(toFloat64(lt_master.lt_days), 4.0)
+          - toFloat64(chain.chain_total) / nullIf(toFloat64(chain.drr_sustained), 0)
+        )
+        * toFloat64(chain.drr_ea)
+        * coalesce(nullIf(toFloat64(v2.unit_cost_landed), 0), 0)
+      )
+    )
+  ) / 100000.0 AS potential_sales_loss,
+  if(sum(pdp.deno) > 0, 100.0 * sum(pdp.neno) / sum(pdp.deno), NULL) AS avgOSA,
+  count(distinct v2.sku_code) AS skuCount,
+  sum(toFloat64(chain.drr_ea)) AS consumptionPerDay
+FROM mars.rb_po_olap_v2_latest v2
+LEFT JOIN mars.rb_platform rb_plat ON lower(rb_plat.pf_name) = lower(v2.platform)
+LEFT JOIN pdp   ON pdp.plat   = v2.platform AND pdp.sku_key   = v2.sku_code      AND pdp.city   = coalesce(nullIf(joinGet('mars._j_city_alias', 'canonical_city', lower(if(v2.city != '', v2.city, joinGet('mars._j_feeder_city', 'city', lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))), ''), lower(if(v2.city != '', v2.city, joinGet('mars._j_feeder_city', 'city', lower(v2.platform) || ':' || lower(trim(v2.facility_name))))))
+LEFT JOIN chain ON chain.plat = v2.platform AND chain.sap_sku = coalesce(nullIf(joinGet('mars._j_article_to_sap', 'sap_sku', lower(v2.platform) || ':' || lower(v2.sku_code)), ''), nullIf(joinGet('mars._j_ean_to_dcom', 'sku', v2.ean), ''), nullIf(v2.sap_sku_code, ''))  AND chain.key = coalesce(nullIf(coalesce(nullIf(joinGet('mars._j_city_alias', 'canonical_city', lower(if(v2.city != '', v2.city, joinGet('mars._j_feeder_city', 'city', lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))), ''), lower(if(v2.city != '', v2.city, joinGet('mars._j_feeder_city', 'city', lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))), ''), lower(v2.facility_name))
+LEFT JOIN cfa_soh ON coalesce(nullIf(joinGet('mars._j_city_alias', 'canonical_city', lower(if(v2.city != '', v2.city, joinGet('mars._j_feeder_city', 'city', lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))), ''), lower(if(v2.city != '', v2.city, joinGet('mars._j_feeder_city', 'city', lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))) = coalesce(nullIf(joinGet('mars._j_city_alias', 'canonical_city', lower(cfa_soh.city_match)), ''), lower(cfa_soh.city_match)) AND coalesce(nullIf(joinGet('mars._j_article_to_sap', 'sap_sku', lower(v2.platform) || ':' || lower(v2.sku_code)), ''), nullIf(joinGet('mars._j_ean_to_dcom', 'sku', v2.ean), ''), nullIf(v2.sap_sku_code, '')) = cfa_soh.sap_sku
+LEFT JOIN lt_master ON lt_master.plat = v2.platform
+WHERE ${whereClause}
+GROUP BY poNo, v2.platform, warehouse
+ORDER BY potential_sales_loss DESC
+`;
 
                 console.log('[SupplyChain] Executing Prioritize PO query...');
                 const rows = await queryClickHouse(query);
@@ -248,42 +358,38 @@ const supplyChainService = {
                 // Post-process: compute PSL, Priority, format fields
                 const data = rows.map(row => {
                     const orderValue = row.order_value === null ? null : parseFloat(row.order_value);
-                    const totalOrdered = row.total_units_ordered === null ? null : parseFloat(row.total_units_ordered);
-                    const totalFulfilled = row.total_fulfilled_qty === null ? null : parseFloat(row.total_fulfilled_qty);
-                    const fillRate = (totalOrdered !== null && totalOrdered > 0 && totalFulfilled !== null) ? (totalFulfilled / totalOrdered) * 100 : null;
                     const avgDoi = row.avg_doi === null ? null : parseFloat(row.avg_doi);
-                    const leadTime = row.lead_time === null ? null : parseInt(row.lead_time);
-                    const cpd = row.consumption_per_day === null ? null : parseFloat(row.consumption_per_day);
-                    const expected7DaySales = parseFloat(row.expected_7day_sales) || 0;
-                    const totalNenoOsa = parseFloat(row.total_neno_osa) || 0;
-                    const totalDenoOsa = parseFloat(row.total_deno_osa) || 0;
-
-                    const psl = computePSL(expected7DaySales, totalNenoOsa, totalDenoOsa, avgDoi, leadTime);
-                    const priority = computePriority(avgDoi, fillRate, row.po_expiry_date_val);
+                    const fillRate = row.fillRate === null ? null : parseFloat(row.fillRate);
+                    const priority = computePriority(avgDoi, fillRate, row.expiryDate);
 
                     return {
-                        poNumber: row.po_number,
-                        priority,
-                        projectedSalesAtRisk: Math.round(psl),
-                        platformWarehouse: `${titleCase(row.platform_val || '')} - ${titleCase(row.facility_name_val || '')}`,
-                        platform: row.platform_val,
-                        facilityName: row.facility_name_val,
-                        city: titleCase(row.city_val || ''),
-                        status: titleCase(row.po_status_val || ''),
-                        rawStatus: row.po_status_val,
-                        orderValue: orderValue !== null ? Math.round(orderValue) : null,
-                        raisedOn: formatDate(row.po_raised_date_val),
-                        apptDate: formatDate(row.po_appointment_date_val),
-                        expiry: formatDate(row.po_expiry_date_val),
-                        rawExpiryDate: row.po_expiry_date_val,
-                        avgDoi: avgDoi !== null ? Math.round(avgDoi) : null,
-                        lt: leadTime,
-                        fillRate: fillRate !== null ? parseFloat(fillRate.toFixed(1)) : null,
-                        consumptionPerDay: cpd !== null ? Math.round(cpd) : null,
-                        skuCount: parseInt(row.sku_count) || 0,
-                        brand: titleCase(row.brand_val || ''),
-                        category: titleCase(row.category_val || ''),
-                        distributor: titleCase(row.distributor_name_val || '')
+                         poNumber: row.poNo,
+                         priority,
+                         projectedSalesAtRisk: Math.round(parseFloat(row.potential_sales_loss || 0) * 100000),
+                         platformWarehouse: `${titleCase(row.platform || '')} - ${titleCase(row.warehouse || '')}`,
+                         platform: row.platform,
+                         facilityName: row.warehouse,
+                         city: titleCase(row.warehouse || ''),
+                         status: titleCase(row.dbStatus || ''),
+                         rawStatus: row.dbStatus,
+                         orderValue: orderValue !== null ? Math.round(orderValue) : null,
+                         billedValue: row.totalBilledValue !== null ? Math.round(parseFloat(row.totalBilledValue) * 100000) : null,
+                         raisedOn: formatDate(row.poDate),
+                         apptDate: formatDate(row.appointmentDate),
+                         expiry: formatDate(row.expiryDate),
+                         rawExpiryDate: row.expiryDate,
+                         avgDoi: avgDoi !== null ? Math.round(avgDoi) : null,
+                         lt: 4,
+                         fillRate: fillRate !== null ? parseFloat(fillRate.toFixed(1)) : null,
+                         confirmFill: fillRate !== null ? parseFloat(fillRate.toFixed(1)) : null,
+                         pickFill: fillRate !== null ? parseFloat(fillRate.toFixed(1)) : null,
+                         billFill: fillRate !== null ? parseFloat(fillRate.toFixed(1)) : null,
+                         grnFill: fillRate !== null ? parseFloat(fillRate.toFixed(1)) : null,
+                         consumptionPerDay: row.consumptionPerDay !== null ? parseFloat(row.consumptionPerDay) : null,
+                         skuCount: parseInt(row.skuCount) || 0,
+                         brand: titleCase(row.brandWarehouse || ''),
+                         category: '',
+                         distributor: ''
                     };
                 });
 
@@ -298,7 +404,7 @@ const supplyChainService = {
                 // Summary metrics
                 const totalSalesAtRisk = data.reduce((sum, d) => sum + d.projectedSalesAtRisk, 0);
                 const avgFillRate = data.length > 0
-                    ? data.reduce((sum, d) => sum + d.fillRate, 0) / data.length
+                    ? data.reduce((sum, d) => sum + (d.fillRate || 0), 0) / data.length
                     : 0;
                 const highPriorityCount = data.filter(d => d.priority === 'High').length;
                 const mediumPriorityCount = data.filter(d => d.priority === 'Medium').length;
@@ -685,86 +791,255 @@ const supplyChainService = {
      */
     async getStockTransferData(filters = {}) {
         console.log('[SupplyChain] getStockTransferData called with filters:', filters);
-        const cacheKey = generateCacheKey('supply_chain_stock_transfer_v1', filters);
+        const cacheKey = generateCacheKey('supply_chain_stock_transfer_v2', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                const whereClause = buildSurplusWhereClause(filters);
+                let platformCondition = '';
+                if (filters.platform && filters.platform !== 'All') {
+                    const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
+                    platformCondition = `AND sapCode IN (SELECT DISTINCT sap_sku_code FROM mars.po_chain_kpi_daily WHERE lower(platform) IN (${platforms}))`;
+                }
+
+                let brandCondition = '';
+                if (filters.brand && filters.brand !== 'All') {
+                    const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
+                    brandCondition = `AND lower(brand) IN (${brands})`;
+                }
+
+                let searchCondition = '';
+                if (filters.search) {
+                    const searchTerm = filters.search.trim().toLowerCase();
+                    searchCondition = `AND (lower(skuName) LIKE '%${searchTerm}%' OR lower(fromCfa) LIKE '%${searchTerm}%' OR lower(toCfa) LIKE '%${searchTerm}%')`;
+                }
 
                 const query = `
-                    SELECT
-                        sku_name,
-                        facility_name,
-                        any(platform) as platform_val,
-
-                        -- SOH
-                        SUM(ifNull(front_inventory, 0)) as soh_fe,
-                        SUM(ifNull(toFloat64OrNull(back_inventory), 0)) as soh_be,
-
-                        -- CPD (Consumption Per Day)
-                        SUM(ifNull(DRR, 0)) as cpd,
-
-                        -- DOI (FE) = SUM(front_inventory) / SUM(DRR)
-                        if(SUM(ifNull(DRR, 0)) > 0,
-                           SUM(ifNull(front_inventory, 0)) / SUM(ifNull(DRR, 0)),
-                           0) as doi_fe,
-
-                        -- DOI (BE) = SUM(back_inventory) / SUM(DRR)
-                        if(SUM(ifNull(DRR, 0)) > 0,
-                           SUM(ifNull(toFloat64OrNull(back_inventory), 0)) / SUM(ifNull(DRR, 0)),
-                           0) as doi_be,
-
-                        -- OSA components
-                        SUM(ifNull(neno_osa, 0)) as total_neno_osa,
-                        SUM(ifNull(deno_osa, 0)) as total_deno_osa,
-
-                        -- PSL components
-                        SUM(ifNull(DRR, 0) * 7 * ifNull(cost_per_unit, 0)) as expected_7day_sales,
-                        avg(ifNull(DIH, 0)) as avg_dih,
-                        max(ifNull(delivery_time, 0)) as lead_time
-
-                    FROM rb_po_olap
-                    WHERE ${whereClause}
-                    GROUP BY sku_name, facility_name
-                    HAVING SUM(ifNull(DRR, 0)) > 0
-                    ORDER BY expected_7day_sales DESC
-                `;
+WITH
+  /* City Coordinates Master (from src/lib/india-geo.ts) */
+  city_coords AS (
+    SELECT 'Mumbai' AS city, 72.877 AS lng, 19.076 AS lat UNION ALL
+    SELECT 'Delhi', 77.209, 28.613 UNION ALL
+    SELECT 'Bangalore', 77.594, 12.971 UNION ALL
+    SELECT 'Kolkata', 88.364, 22.573 UNION ALL
+    SELECT 'Chennai', 80.270, 13.083 UNION ALL
+    SELECT 'Hyderabad', 78.487, 17.385 UNION ALL
+    SELECT 'Pune', 73.856, 18.520 UNION ALL
+    SELECT 'Ahmedabad', 72.571, 23.023 UNION ALL
+    SELECT 'Jaipur', 75.787, 26.912 UNION ALL
+    SELECT 'Lucknow', 80.946, 26.846 UNION ALL
+    SELECT 'Chandigarh', 76.779, 30.734 UNION ALL
+    SELECT 'Kochi', 76.267, 9.932 UNION ALL
+    SELECT 'Indore', 75.858, 22.720 UNION ALL
+    SELECT 'Nagpur', 79.088, 21.146 UNION ALL
+    SELECT 'Surat', 72.831, 21.170 UNION ALL
+    SELECT 'Patna', 85.144, 25.612 UNION ALL
+    SELECT 'Bhopal', 77.412, 23.259 UNION ALL
+    SELECT 'Coimbatore', 76.956, 11.017 UNION ALL
+    SELECT 'Guwahati', 91.731, 26.145 UNION ALL
+    SELECT 'Visakhapatnam', 83.218, 17.686 UNION ALL
+    SELECT 'Ghaziabad', 77.438, 28.669 UNION ALL
+    SELECT 'Noida', 77.391, 28.535 UNION ALL
+    SELECT 'Vijayawada', 80.648, 16.506 UNION ALL
+    SELECT 'Vadodara', 73.181, 22.307 UNION ALL
+    SELECT 'Kanpur', 80.332, 26.450 UNION ALL
+    SELECT 'Varanasi', 82.992, 25.318 UNION ALL
+    SELECT 'Ludhiana', 75.857, 30.901 UNION ALL
+    SELECT 'Agra', 78.008, 27.177 UNION ALL
+    SELECT 'Nashik', 73.789, 19.998 UNION ALL
+    SELECT 'Ranchi', 85.310, 23.344 UNION ALL
+    SELECT 'Bhubaneswar', 85.825, 20.297 UNION ALL
+    SELECT 'Dehradun', 78.032, 30.317 UNION ALL
+    SELECT 'Raipur', 81.630, 21.250 UNION ALL
+    SELECT 'Thiruvananthapuram', 76.936, 8.524 UNION ALL
+    SELECT 'Gurugram', 77.027, 28.459 UNION ALL
+    SELECT 'Mysore', 76.639, 12.296 UNION ALL
+    SELECT 'Mangalore', 74.843, 12.871 UNION ALL
+    SELECT 'Rajkot', 70.802, 22.304 UNION ALL
+    SELECT 'Madurai', 78.120, 9.925 UNION ALL
+    SELECT 'Amritsar', 74.873, 31.634 UNION ALL
+    SELECT 'Aurangabad', 75.343, 19.876
+  ),
+  /* Fuzzy City Matcher mapping CFA names to Coordinates */
+  cfa_geo AS (
+    SELECT 
+      cfa,
+      multiIf(
+        cfa LIKE '%mumbai%' OR cfa LIKE '%bombay%' OR cfa = 'bom', 'Mumbai',
+        cfa LIKE '%delhi%' OR cfa LIKE '%ncr%', 'Delhi',
+        cfa LIKE '%bangalore%' OR cfa LIKE '%bengaluru%' OR cfa = 'blr', 'Bangalore',
+        cfa LIKE '%kolkata%' OR cfa LIKE '%calcutta%', 'Kolkata',
+        cfa LIKE '%chennai%' OR cfa LIKE '%madras%', 'Chennai',
+        cfa LIKE '%hyderabad%' OR cfa = 'hyd', 'Hyderabad',
+        cfa LIKE '%pune%' OR cfa LIKE '%poona%', 'Pune',
+        cfa LIKE '%ahmedabad%', 'Ahmedabad',
+        cfa LIKE '%kochi%' OR cfa LIKE '%cochin%', 'Kochi',
+        cfa LIKE '%madurai%', 'Madurai',
+        cfa LIKE '%vijayawada%' OR cfa = 'vjd', 'Vijayawada',
+        cfa LIKE '%jaipur%', 'Jaipur',
+        cfa LIKE '%lucknow%', 'Lucknow',
+        cfa LIKE '%chandigarh%', 'Chandigarh',
+        cfa LIKE '%indore%', 'Indore',
+        cfa LIKE '%nagpur%', 'Nagpur',
+        cfa LIKE '%surat%', 'Surat',
+        cfa LIKE '%patna%', 'Patna',
+        cfa LIKE '%bhopal%', 'Bhopal',
+        cfa LIKE '%coimbatore%', 'Coimbatore',
+        cfa LIKE '%guwahati%', 'Guwahati',
+        cfa LIKE '%visakhapatnam%' OR cfa LIKE '%vizag%', 'Visakhapatnam',
+        cfa LIKE '%ghaziabad%', 'Ghaziabad',
+        cfa LIKE '%noida%', 'Noida',
+        cfa LIKE '%vadodara%' OR cfa LIKE '%baroda%', 'Vadodara',
+        cfa LIKE '%kanpur%', 'Kanpur',
+        cfa LIKE '%varanasi%', 'Varanasi',
+        cfa LIKE '%ludhiana%', 'Ludhiana',
+        cfa LIKE '%agra%', 'Agra',
+        cfa LIKE '%nashik%', 'Nashik',
+        cfa LIKE '%ranchi%', 'Ranchi',
+        cfa LIKE '%bhubaneswar%', 'Bhubaneswar',
+        cfa LIKE '%dehradun%', 'Dehradun',
+        cfa LIKE '%raipur%', 'Raipur',
+        cfa LIKE '%thiruvananthapuram%' OR cfa LIKE '%trivandrum%', 'Thiruvananthapuram',
+        cfa LIKE '%gurugram%' OR cfa LIKE '%gurgaon%', 'Gurugram',
+        cfa LIKE '%mysore%' OR cfa LIKE '%mysuru%', 'Mysore',
+        cfa LIKE '%mangalore%' OR cfa LIKE '%mangaluru%', 'Mangalore',
+        cfa LIKE '%rajkot%', 'Rajkot',
+        cfa LIKE '%amritsar%', 'Amritsar',
+        cfa LIKE '%aurangabad%', 'Aurangabad',
+        ''
+      ) AS city
+    FROM (
+      SELECT DISTINCT lower(cfa_name) AS cfa FROM mars.po_v_primary_billing_latest WHERE cfa_name NOT IN ('', '-')
+      UNION DISTINCT
+      SELECT DISTINCT lower(p.cfa_name) AS cfa FROM mars.po_stock_on_hand_v2 soh INNER JOIN mars.po_v_sap_plant_master_v2 p ON p.plant = soh.plant WHERE cfa_name NOT IN ('', '-')
+    )
+  ),
+  cfa_coords AS (
+    SELECT 
+      g.cfa AS cfa,
+      g.city AS city,
+      c.lat AS lat,
+      c.lng AS lng
+    FROM cfa_geo g
+    INNER JOIN city_coords c ON c.city = g.city
+  ),
+  /* DRR per CFA per SKU (trailing 30-day billing) excluding Petcare */
+  drr AS (
+    SELECT
+      lower(cfa_name) AS cfa,
+      replaceRegexpOne(material_code, '[.]0+$', '') AS sap_sku,
+      argMax(brand, billing_date) AS brand_drr,
+      argMax(parent_sku, billing_date) AS parent_sku_drr,
+      argMax(material_description, billing_date) AS sku_name_drr,
+      sum(bill_qty_eaches) / 30.0 AS drr_ea
+    FROM mars.po_v_primary_billing_latest
+    WHERE billing_date >= today() - 30 AND bill_qty_eaches > 0 AND cfa_name NOT IN ('', '-')
+      AND lower(brand) NOT IN ('whiskas','pedigree','sheba','temptations','chappi','catsan')
+    GROUP BY cfa, sap_sku
+  ),
+  /* Current SOH per CFA per SKU (latest MB52 snapshot) */
+  soh AS (
+    SELECT
+      lower(p.cfa_name) AS cfa,
+      replaceRegexpOne(soh.material_code, '[.]0+$', '') AS sap_sku,
+      sum(toFloat64(soh.unrestricted)) AS soh_cs
+    FROM mars.po_stock_on_hand_v2 soh
+    INNER JOIN mars.po_v_sap_plant_master_v2 p ON p.plant = soh.plant
+    WHERE soh.saleable_stock = 'Normal sale' AND soh.unrestricted > 0
+      AND soh.snapshot_date = (SELECT max(snapshot_date) FROM mars.po_stock_on_hand_v2)
+    GROUP BY cfa, sap_sku
+  ),
+  /* Case size and hierarchy configuration */
+  attrs AS (
+    SELECT sku_code,
+      argMax(case_size, valid_from) AS cs,
+      argMax(parent_description, valid_from) AS parent_sku
+    FROM mars.po_sku_attributes
+    WHERE parent_description != '' AND case_size > 0
+    GROUP BY sku_code
+  ),
+  /* Unified state metrics */
+  cfa_states AS (
+    SELECT
+      drr.cfa AS cfa,
+      drr.sap_sku AS sap_sku,
+      drr.sku_name_drr AS sku_name,
+      drr.brand_drr AS brand,
+      coalesce(attrs.parent_sku, drr.parent_sku_drr) AS parent_sku,
+      coalesce(toFloat64(attrs.cs), 144) AS case_size,
+      drr.drr_ea AS drr_ea,
+      coalesce(soh.soh_cs, 0) * coalesce(toFloat64(attrs.cs), 144) AS soh_ea,
+      (coalesce(soh.soh_cs, 0) * coalesce(toFloat64(attrs.cs), 144)) / nullIf(drr.drr_ea, 0) AS doi
+    FROM drr
+    LEFT JOIN soh ON drr.cfa = soh.cfa AND drr.sap_sku = soh.sap_sku
+    LEFT JOIN attrs ON attrs.sku_code = drr.sap_sku
+    WHERE drr.drr_ea > 0
+  ),
+  deficits AS (
+    SELECT * FROM cfa_states WHERE doi < 7 AND drr_ea > 0
+  ),
+  surpluses AS (
+    SELECT * FROM cfa_states WHERE doi > 22 AND soh_ea > 0
+  ),
+  /* Combine, map distances, and rank */
+  ranked_pairs AS (
+    SELECT
+      d.sap_sku AS sapCode,
+      d.sku_name AS skuName,
+      d.brand AS brand,
+      d.parent_sku AS parentSku,
+      d.cfa AS toCfa,
+      d.doi AS toDoi,
+      d.soh_ea AS toSohEa,
+      d.drr_ea AS toDrrEa,
+      round(greatest(0, d.drr_ea * 7 - d.soh_ea)) AS needEa,
+      s.cfa AS fromCfa,
+      s.doi AS fromDoi,
+      s.soh_ea AS fromSohEa,
+      s.drr_ea AS fromDrrEa,
+      round(greatest(0, s.soh_ea - s.drr_ea * 22)) AS fromSurplusEa,
+      if(d.cfa = s.cfa, 0, round(greatCircleDistance(dc.lng, dc.lat, sc.lng, sc.lat) / 1000)) AS distanceKm,
+      (fromSurplusEa >= needEa) AS safe100Pct,
+      least(needEa, fromSurplusEa) AS transferQty,
+      row_number() OVER (
+        PARTITION BY d.sap_sku, d.cfa 
+        ORDER BY if(fromSurplusEa >= needEa, 0, 1) ASC, distanceKm ASC, fromSurplusEa DESC
+      ) AS rank
+    FROM deficits d
+    INNER JOIN surpluses s ON d.sap_sku = s.sap_sku
+    INNER JOIN cfa_coords dc ON dc.cfa = d.cfa
+    INNER JOIN cfa_coords sc ON sc.cfa = s.cfa
+  ),
+  best_transfers AS (
+    SELECT * EXCEPT(rank)
+    FROM ranked_pairs
+    WHERE rank = 1 AND transferQty > 0
+  )
+SELECT * 
+FROM best_transfers
+WHERE 1=1 ${platformCondition} ${brandCondition} ${searchCondition}
+ORDER BY safe100Pct DESC, distanceKm ASC, transferQty DESC
+LIMIT 500
+`;
 
                 console.log('[SupplyChain] Executing Stock Transfer query...');
                 const rows = await queryClickHouse(query);
                 console.log(`[SupplyChain] Got ${rows.length} stock transfer rows from ClickHouse`);
 
                 const data = rows.map((row, index) => {
-                    const sohFe = row.soh_fe === null ? 0 : Math.round(parseFloat(row.soh_fe));
-                    const sohBe = row.soh_be === null ? 0 : Math.round(parseFloat(row.soh_be));
-                    const doiFe = row.doi_fe === null ? 0 : parseFloat(parseFloat(row.doi_fe).toFixed(1));
-                    const doiBe = row.doi_be === null ? 0 : parseFloat(parseFloat(row.doi_be).toFixed(1));
-                    const cpd = row.cpd === null ? 0 : Math.round(parseFloat(row.cpd));
-
-                    const totalNenoOsa = parseFloat(row.total_neno_osa) || 0;
-                    const totalDenoOsa = parseFloat(row.total_deno_osa) || 0;
-                    const cityOsa = totalDenoOsa > 0
-                        ? parseFloat(((totalNenoOsa / totalDenoOsa) * 100).toFixed(1))
-                        : 0;
-
-                    // PSL Recovery using existing computePSL helper
-                    const expected7DaySales = parseFloat(row.expected_7day_sales) || 0;
-                    const avgDih = parseFloat(row.avg_dih) || 0;
-                    const leadTime = parseInt(row.lead_time) || 0;
-                    const pslRecovery = computePSL(expected7DaySales, totalNenoOsa, totalDenoOsa, avgDih, leadTime);
-
                     return {
                         id: `ST-${String(index + 1).padStart(3, '0')}`,
-                        skuName: row.sku_name || '',
-                        fromCfa: titleCase(row.facility_name || ''),
-                        platform: titleCase(row.platform_val || ''),
-                        cityOsa,
-                        doiFe,
-                        doiBe,
-                        sohFe,
-                        sohBe,
-                        cpd,
-                        pslRecovery: Math.round(pslRecovery)
+                        skuName: row.skuName || '',
+                        sapCode: row.sapCode || '',
+                        fromCfa: titleCase(row.fromCfa || ''),
+                        toCfa: titleCase(row.toCfa || ''),
+                        distanceKm: row.distanceKm !== null ? parseFloat(row.distanceKm) : null,
+                        doiFe: row.toDoi !== null ? Math.round(parseFloat(row.toDoi)) : null,
+                        doiBe: row.fromDoi !== null ? Math.round(parseFloat(row.fromDoi)) : null,
+                        sohFe: row.toSohEa !== null ? Math.round(parseFloat(row.toSohEa)) : null,
+                        sohBe: row.fromSohEa !== null ? Math.round(parseFloat(row.fromSohEa)) : null,
+                        cpd: row.toDrrEa !== null ? Math.round(parseFloat(row.toDrrEa)) : null,
+                        transferQty: row.transferQty !== null ? Math.round(parseFloat(row.transferQty)) : null,
+                        safe100Pct: row.safe100Pct
                     };
                 });
 
@@ -782,68 +1057,60 @@ const supplyChainService = {
      */
     async getManageSurplusData(filters = {}) {
         console.log('[SupplyChain] getManageSurplusData called with filters:', filters);
-        const cacheKey = generateCacheKey('supply_chain_manage_surplus_v3', filters);
+        const cacheKey = generateCacheKey('supply_chain_manage_surplus_v4', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                const whereClause = buildSurplusWhereClause(filters);
+                let platformCondition = '';
+                if (filters.platform && filters.platform !== 'All') {
+                    const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
+                    platformCondition = `AND sap_sku IN (SELECT DISTINCT sap_sku_code FROM mars.po_chain_kpi_daily WHERE lower(platform) IN (${platforms}))`;
+                }
+
+                let brandCondition = '';
+                if (filters.brand && filters.brand !== 'All') {
+                    const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
+                    brandCondition = `AND lower(brand) IN (${brands})`;
+                }
+
+                let searchCondition = '';
+                if (filters.search) {
+                    const searchTerm = filters.search.trim().toLowerCase();
+                    searchCondition = `AND (lower(sku_name) LIKE '%${searchTerm}%' OR lower(sap_sku) LIKE '%${searchTerm}%')`;
+                }
 
                 const query = `
-                    SELECT
-                        sku_name,
-                        platform,
-                        facility_name,
-                        SUM(front_inventory) as soh_fe,
-                        SUM(toFloat64OrNull(back_inventory)) as soh_be,
-                        if(SUM(DRR) > 0, (SUM(front_inventory) + SUM(toFloat64OrNull(back_inventory))) / SUM(DRR), 0) as doi,
-                        SUM(DRR) as cpd,
-                        SUM(ifNull(neno_osa, 0)) as total_neno_osa,
-                        SUM(ifNull(deno_osa, 0)) as total_deno_osa
-                    FROM rb_po_olap
-                    WHERE ${whereClause}
-                    GROUP BY sku_name, platform, facility_name
-                    ORDER BY sku_name ASC
-                `;
+WITH drr AS (SELECT lower(cfa_name) AS cfa, replaceRegexpOne(material_code, '[.]0+$', '') AS sap_sku, argMax(brand, billing_date) AS brand_drr, argMax(parent_sku, billing_date) AS parent_sku_drr, argMax(material_description, billing_date) AS sku_name_drr, sum(bill_qty_eaches) / 30.0 AS drr_ea, sum(net_value) / nullIf(sum(bill_qty_eaches), 0) AS unit_price_ea FROM mars.po_v_primary_billing_latest WHERE billing_date >= today() - 30 AND bill_qty_eaches > 0 AND cfa_name != '' AND lower(brand) NOT IN ('whiskas','pedigree','sheba','temptations','chappi','catsan') GROUP BY cfa, sap_sku), soh AS (SELECT lower(p.cfa_name) AS cfa, replaceRegexpOne(soh.material_code, '[.]0+$', '') AS sap_sku, sum(toFloat64(soh.unrestricted)) AS soh_cs, min(soh.batch_expiry) AS nearest_expiry_dt FROM mars.po_stock_on_hand_v2 soh INNER JOIN mars.po_v_sap_plant_master_v2 p ON p.plant = soh.plant AND p.storage_type = 'CFA' WHERE soh.saleable_stock = 'Normal sale' AND soh.unrestricted > 0 GROUP BY cfa, sap_sku), last_bill AS (SELECT lower(cfa_name) AS cfa, replaceRegexpOne(material_code, '[.]0+$', '') AS sap_sku, max(billing_date) AS last_bill_date FROM mars.po_v_primary_billing_latest WHERE billing_date >= today() - 90 AND bill_qty_eaches > 0 GROUP BY cfa, sap_sku), attrs AS (SELECT sku_code, argMax(case_size, valid_from) AS cs, argMax(parent_description, valid_from) AS parent_sku FROM mars.po_sku_attributes WHERE parent_description != '' AND case_size > 0 GROUP BY sku_code), cfa_states AS (SELECT soh.cfa AS cfa, soh.sap_sku AS sap_sku, coalesce(drr.sku_name_drr, '') AS sku_name, coalesce(drr.brand_drr, '') AS brand, coalesce(attrs.parent_sku, drr.parent_sku_drr, '') AS parent_sku, coalesce(drr.drr_ea, 0) AS drr_ea, coalesce(drr.unit_price_ea, 0) AS price_ea, coalesce(soh.soh_cs, 0) * coalesce(toFloat64(attrs.cs), 144) AS soh_ea, soh.nearest_expiry_dt AS nearest_expiry_dt, if(soh.nearest_expiry_dt IS NOT NULL, dateDiff('day', today(), soh.nearest_expiry_dt), 999) AS days_to_expiry, if(last_bill.last_bill_date IS NULL, 999, dateDiff('day', last_bill.last_bill_date, today())) AS days_since_bill FROM soh LEFT JOIN drr ON drr.cfa = soh.cfa AND drr.sap_sku = soh.sap_sku LEFT JOIN last_bill ON last_bill.cfa = soh.cfa AND last_bill.sap_sku = soh.sap_sku LEFT JOIN attrs ON attrs.sku_code = soh.sap_sku WHERE soh_ea > 0), sku_level_aggregates AS (SELECT sap_sku, any(sku_name) AS sku_name, any(brand) AS brand, sum(soh_ea) AS total_surplus_ea, sum(drr_ea) AS total_drr_ea, if(total_drr_ea > 0, total_surplus_ea / total_drr_ea, 9999) AS net_doi, count() AS cfas_count, countIf(days_since_bill > 30) AS dead_cfa_count, min(days_to_expiry) AS min_days_to_expiry, any(price_ea) AS avg_price_ea, round(((total_surplus_ea * avg_price_ea) / 100000.0), 2) AS value_at_risk_lacs FROM cfa_states GROUP BY sap_sku HAVING countIf(soh_ea / nullIf(drr_ea, 0) < 7) = 0), final_data AS (SELECT sap_sku, sku_name, brand, total_surplus_ea, net_doi, cfas_count, dead_cfa_count, min_days_to_expiry, value_at_risk_lacs, multiIf(min_days_to_expiry <= 30, 'CRITICAL', min_days_to_expiry <= 90 OR dead_cfa_count >= 3, 'HIGH', net_doi > 90 OR dead_cfa_count > 0, 'MEDIUM', 'LOW') AS severity, multiIf(min_days_to_expiry <= 30, 'Expiry Disposal', min_days_to_expiry <= 90, 'Trade Marketing', net_doi = 9999, 'Sales Team', dead_cfa_count >= 3, 'Pricing', 'Sales Team') AS team, multiIf(min_days_to_expiry <= 30, concat(toString(min_days_to_expiry), 'd to nearest batch expiry — escalate to expiry disposal'), min_days_to_expiry <= 90, concat(toString(min_days_to_expiry), 'd to expiry — push promotional POs to chain'), net_doi = 9999, 'No movement anywhere — sales team to find chain demand or return to supplier', dead_cfa_count >= 3, concat('Dead in ', toString(dead_cfa_count), ' CFAs — discount approval to push to chain'), net_doi > 90, concat(toString(round(net_doi)), 'd network cover — push extra POs or discount'), 'High DOI — review forecast / push POs') AS action_label FROM sku_level_aggregates) SELECT concat(sku_name, ' (', sap_sku, ')') AS "SKU", severity AS "SEVERITY", total_surplus_ea AS "SURPLUS EA", if(net_doi = 9999, '999d+', concat(toString(round(net_doi, 1)), 'd')) AS "NET DOI", cfas_count AS "CFAS", dead_cfa_count AS "DEAD CFAS", if(min_days_to_expiry = 999, '—', concat(toString(min_days_to_expiry), 'd')) AS "EXPIRY", concat(toString(value_at_risk_lacs), 'L') AS "₹L RISK", concat(team, ' | ', action_label) AS "TEAM / ACTION" FROM final_data
+WHERE 1=1 ${platformCondition} ${brandCondition} ${searchCondition}
+ORDER BY multiIf(severity = 'CRITICAL', 1, severity = 'HIGH', 2, severity = 'MEDIUM', 3, 4) ASC, value_at_risk_lacs DESC LIMIT 500
+`;
 
                 console.log('[SupplyChain] Executing Manage Surplus query...');
                 const rows = await queryClickHouse(query);
                 console.log(`[SupplyChain] Got ${rows.length} surplus rows from ClickHouse`);
 
                 const data = rows.map((row, index) => {
-                    const sohFe = row.soh_fe === null ? 0 : Math.round(parseFloat(row.soh_fe));
-                    const sohBe = row.soh_be === null ? 0 : Math.round(parseFloat(row.soh_be));
-                    const doi = row.doi === null ? 0 : Math.round(parseFloat(row.doi));
-                    const cpd = row.cpd === null ? 0 : Math.round(parseFloat(row.cpd));
-                    
-                    const totalNenoOsa = parseFloat(row.total_neno_osa) || 0;
-                    const totalDenoOsa = parseFloat(row.total_deno_osa) || 0;
-                    const cityOsa = totalDenoOsa > 0 ? parseFloat(((totalNenoOsa / totalDenoOsa) * 100).toFixed(1)) : 0;
-
-                    // Priority logic: High if doi > 40, Medium if doi > 25, Low otherwise
-                    let priority = 'Low';
-                    if (doi > 40) priority = 'High';
-                    else if (doi > 25) priority = 'Medium';
-
                     return {
                         id: `MS-${String(index + 1).padStart(3, '0')}`,
-                        skuName: row.sku_name || '',
-                        platform: titleCase(row.platform || ''),
-                        warehouse: titleCase(row.facility_name || ''),
-                        priority,
-                        sohBe,
-                        sohFe,
-                        doi,
-                        cpd,
-                        cityOsa
+                        sku: row.SKU,
+                        priority: row.SEVERITY,
+                        surplusEa: row['SURPLUS EA'] !== null ? Math.round(parseFloat(row['SURPLUS EA'])) : null,
+                        netDoi: row['NET DOI'],
+                        cfasCount: row.CFAS !== null ? parseInt(row.CFAS) : null,
+                        deadCfaCount: row['DEAD CFAS'] !== null ? parseInt(row['DEAD CFAS']) : null,
+                        expiry: row.EXPIRY,
+                        valueAtRisk: row['₹L RISK'],
+                        teamAction: row['TEAM / ACTION']
                     };
                 });
 
                 return data;
+
             } catch (error) {
                 console.error('[SupplyChain] Error in getManageSurplusData:', error.message);
                 throw error;
             }
-        });
+        }, CACHE_TTL.SHORT);
     }
 };
 

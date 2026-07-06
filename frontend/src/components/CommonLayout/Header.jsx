@@ -81,7 +81,20 @@ function WatchTowerFilterModal({
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
+  isBusinessOverview = false,
 }) {
+  const hasRestrictedPlatforms = React.useMemo(() => {
+    try {
+      const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      const tabPerms = storedUser?.tabPermissions || {};
+      return Object.keys(tabPerms).some(
+        key => key.startsWith('platform_') && tabPerms[key] === false
+      );
+    } catch (_) {
+      return false;
+    }
+  }, []);
+
   const [activeTab, setActiveTab] = React.useState(hideChannelPlatform ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
@@ -234,11 +247,14 @@ function WatchTowerFilterModal({
     } else {
       next = [...selected.filter(s => s !== "All"), opt];
     }
-    if (next.length === options.length && options.length > 0) onChange("All");
-    else onChange(next);
+    if (next.length === options.length && options.length > 0) {
+      onChange(hasRestrictedPlatforms && !isBusinessOverview && activeTab === "platform" ? next : "All");
+    } else {
+      onChange(next);
+    }
   };
 
-  const selectAll = () => onChange("All");
+  const selectAll = () => onChange(hasRestrictedPlatforms && !isBusinessOverview && activeTab === "platform" ? options : "All");
   const clearAll = () => onChange([]);
 
   const tabMeta = availableTabs.find(t => t.key === activeTab);
@@ -265,7 +281,11 @@ function WatchTowerFilterModal({
 
     if (!hideChannelPlatform) {
       setSelectedChannel(normalize(draftChannel));
-      setPlatform(normalize(draftPlatform));
+      let finalPlatform = draftPlatform;
+      if (hasRestrictedPlatforms && !isBusinessOverview && (finalPlatform === "All" || (Array.isArray(finalPlatform) && finalPlatform.includes("All")))) {
+        finalPlatform = localPlatforms.filter(p => p !== 'All');
+      }
+      setPlatform(normalize(finalPlatform));
     }
     setSelectedCategory(normalize(draftCategory));
     setSelectedBrand(normalize(draftBrand));
@@ -282,7 +302,7 @@ function WatchTowerFilterModal({
   const handleResetAll = () => {
     if (!hideChannelPlatform) {
       setDraftChannel("All");
-      setDraftPlatform("All");
+      setDraftPlatform(hasRestrictedPlatforms && !isBusinessOverview ? localPlatforms.filter(p => p !== 'All') : "All");
     }
     setDraftCategory("All");
     setDraftBrand("All");
@@ -1226,6 +1246,7 @@ function MarketShareFilterModal({
 const PA_FILTER_TABS = [
   { key: "priority", label: "Priority", icon: Layers },
   { key: "status", label: "Status", icon: LayoutGrid },
+  { key: "platform", label: "Platform", icon: Monitor },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "city", label: "City", icon: MapPin },
 ];
@@ -1302,7 +1323,7 @@ function PriorityActionFilterModal({
       next = [...selected.filter(s => s !== "All"), opt];
     }
     if (next.length === options.length && options.length > 0) onChange("All");
-    else onChange(next.length === 1 ? next[0] : (next.length === 0 ? "All" : next));
+    else onChange(next);
   };
 
   const selectAll = () => onChange("All");
@@ -1611,11 +1632,14 @@ function PriorityActionFilterModal({
                     <Checkbox
                       size="small"
                       checked={isChecked}
+                      onChange={() => {}}
+                      onClick={(e) => e.stopPropagation()}
                       sx={{
                         p: 0.3,
                         color: "#cbd5e1",
                         "&.Mui-checked": { color: "#2563eb" },
                         transition: "all 0.15s ease",
+                        pointerEvents: "none",
                       }}
                     />
                     <Typography
@@ -3856,6 +3880,18 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     setPaFilters,
   } = React.useContext(FilterContext);
 
+  const hasRestrictedPlatforms = React.useMemo(() => {
+    try {
+      const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      const tabPerms = storedUser?.tabPermissions || {};
+      return Object.keys(tabPerms).some(
+        key => key.startsWith('platform_') && tabPerms[key] === false
+      );
+    } catch (_) {
+      return false;
+    }
+  }, []);
+
   const { socketMaxDates } = useSocket();
 
   const currentChannel = filters?.channel || selectedChannel;
@@ -3904,10 +3940,14 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
   };
 
   const localSetPlatform = (val) => {
+    let finalVal = val;
+    if (hasRestrictedPlatforms && title !== "Business Overview" && (val === "All" || (Array.isArray(val) && val.includes("All")))) {
+      finalVal = platforms.filter(p => p !== 'All');
+    }
     if (onFiltersChange) {
-      onFiltersChange(prev => ({ ...prev, platform: val }));
+      onFiltersChange(prev => ({ ...prev, platform: finalVal }));
     } else {
-      setPlatform(val);
+      setPlatform(finalVal);
     }
   };
 
@@ -4233,6 +4273,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       locations={title === "Insights" ? ['Chandigarh', 'Delhi', 'Gurugram', 'Faridabad', 'Lucknow', 'Kolkata', 'Ahmedabad', 'Mumbai', 'Pune', 'Hyderabad', 'Bengaluru', 'Chennai'] : locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
+                      isBusinessOverview={title === "Business Overview"}
                     />
                   )}
 

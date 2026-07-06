@@ -1899,7 +1899,7 @@ class VisibilityService {
                 platformWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
                 platformWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
                 platformWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
-                platformWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                platformWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
                 if (ownBrandsOnly) platformWhere += ` AND flag = 1`;
 
                 const results = await queryClickHouse(`
@@ -1967,7 +1967,7 @@ class VisibilityService {
                 formatWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
                 formatWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
                 formatWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
-                formatWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                formatWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
                 formatWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
 
                 const results = await queryClickHouse(`
@@ -1990,7 +1990,7 @@ class VisibilityService {
                 brandWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
                 brandWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
                 brandWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
-                brandWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                brandWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
                 brandWhere += ` AND flag = 1`; // Only show our brands as requested
 
                 const results = await queryClickHouse(`
@@ -2036,7 +2036,7 @@ class VisibilityService {
                 cityWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
                 cityWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
                 cityWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
-                cityWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                cityWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
                 cityWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
 
                 const results = await queryClickHouse(`
@@ -2068,7 +2068,7 @@ class VisibilityService {
                 typeWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
                 typeWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
                 typeWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
-                typeWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                typeWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
                 typeWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
                 typeWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
                 if (ownBrandsOnly) typeWhere += ` AND flag = 1`;
@@ -2092,7 +2092,7 @@ class VisibilityService {
                 keywordWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
                 keywordWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
                 keywordWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
-                keywordWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                keywordWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
                 if (ownBrandsOnly) keywordWhere += ` AND flag = 1`;
 
                 const results = await queryClickHouse(`
@@ -2115,7 +2115,7 @@ class VisibilityService {
                 typeWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
                 typeWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
                 typeWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
-                typeWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                typeWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product', { noSplit: true })}`;
 
                 const results = await queryClickHouse(`
                         SELECT DISTINCT keyword_type as type
@@ -2272,7 +2272,7 @@ class VisibilityService {
             const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
             const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
             const formatCondition = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
-            const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product');
+            const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product', { noSplit: true });
             // const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
             const brandSOSCondition = buildCHCondition(filters.brand || 'All', 'brand', { isBrand: true }); // Dynamic SOS
 
@@ -2509,7 +2509,7 @@ class VisibilityService {
             const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
             const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
             const brandCondition = buildCHCondition(brandFilter, 'brand');
-            const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product');
+            const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product', { noSplit: true });
 
             let rankCondition = '';
             if (filters.rank && filters.rank !== 'All') {
@@ -3678,7 +3678,7 @@ class VisibilityService {
             const localKeywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
             const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
             const keywordCondition = buildCHCondition(keyword, 'keyword');
-            const skuCondition = buildCHCondition(sku, 'keyword_search_product');
+            const skuCondition = buildCHCondition(sku, 'keyword_search_product', { noSplit: true });
             const ownBrandsCondition = ownBrandsOnly ? 'AND toInt32(flag) = 1' : 'AND 1=1';
 
             let rankCondition = '';
@@ -3690,7 +3690,7 @@ class VisibilityService {
                 }
             }
 
-            const dimColumn = viewMode === 'keyword' ? 'keyword' : (viewMode === 'brand' ? 'brand' : 'keyword_search_product');
+             const dimColumn = viewMode === 'keyword' ? 'keyword' : (viewMode === 'brand' ? 'brand_name_th' : 'keyword_search_product');
             // Use own brand names from rb_pdp_olap (Comp_flag=0) instead of flag=1
             const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM rb_pdp_olap WHERE Comp_flag = 0 AND Brand IS NOT NULL AND Brand != ''`;
             const numeratorCondition = (sku && sku !== 'All')
@@ -3722,7 +3722,136 @@ class VisibilityService {
             const landscapeRes = await queryClickHouse(landscapeVolQuery);
             const totalLandscapeVol = Number(landscapeRes[0]?.total_vol) || 0;
 
-            const mainQuery = `
+            // For SKU mode, use platform-level denominator (PARTITION BY platform_name pattern)
+            // so that SOS = SKU's row count / total rows on that platform.
+            // For keyword/brand modes, keep per-keyword denominator which is correct.
+            // Build outer WHERE conditions for SKU mode (applied AFTER denominator is computed)
+            const skuOuterFilters = [];
+            if (ownBrandsOnly) skuOuterFilters.push('is_own_sku = 1');
+            if (sku && sku !== 'All') {
+                skuOuterFilters.push(`lowerUTF8(keyword_search_product) = lowerUTF8('${escapeCH(sku)}')`);
+            }
+            const skuOuterWhere = skuOuterFilters.length > 0 ? `WHERE ${skuOuterFilters.join(' AND ')}` : '';
+
+            const mainQuery = viewMode === 'sku' ? `
+                    WITH product_counts AS (
+                        SELECT
+                            platform_name,
+                            keyword_search_product,
+                            any(web_pid) as web_pid,
+                            arrayElement(arrayFilter(x -> lowerUTF8(x) NOT IN ('other', 'others', ''), topK(5)(brand)), 1) as brand_name,
+                            COUNT(*) AS product_rows,
+                            COUNTIf(toInt32(spons) = 1) AS ad_rows,
+                            COUNTIf(toInt32(spons) = 0) AS organic_rows,
+                            count(*) as impressions,
+                            ${searchVolumeSelect} as search_volume,
+                            arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1), 1) AS ad_position,
+                            arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1), 1) AS organic_position,
+                            max(toInt32(flag)) as is_own_sku
+                        FROM rb_kw_olap
+                        WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${platformCondition}
+                          AND ${channelCondition}
+                          AND ${locationCondition}
+                          AND ${categoryCondition}
+                          AND ${globalKeywordTypeCondition}
+                          AND ${localKeywordTypeCondition}
+                          AND ${keywordCondition}
+                          ${rankCondition}
+                          AND keyword_search_product IS NOT NULL AND keyword_search_product != ''
+                        GROUP BY platform_name, keyword_search_product
+                    )
+                    SELECT
+                        keyword_search_product as name,
+                        any(brand_name) as brand_name,
+                        any(web_pid) as web_pid,
+                        sum(product_rows) as num_overall,
+                        any(total_visible_rows) as den_overall,
+                        ROUND(sum(product_rows) * 100.0 / nullIf(any(total_visible_rows), 0), 2) AS overall_sos,
+                        
+                        sum(organic_rows) as num_organic,
+                        any(total_organic_rows) as den_organic,
+                        ROUND(sum(organic_rows) * 100.0 / nullIf(any(total_organic_rows), 0), 2) AS organic_sos,
+                        
+                        sum(ad_rows) as num_spons,
+                        any(total_ad_rows) as den_spons,
+                        ROUND(sum(ad_rows) * 100.0 / nullIf(any(total_ad_rows), 0), 2) AS paid_sos,
+                        
+                        sum(impressions) as impressions,
+                        any(search_volume) as search_volume,
+                        ROUND(sum(product_rows) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
+                        arrayElement(topK(1)(ad_position), 1) as ad_position,
+                        arrayElement(topK(1)(organic_position), 1) as organic_position
+                    FROM (
+                        SELECT
+                            *,
+                            SUM(product_rows) OVER (PARTITION BY platform_name) AS total_visible_rows,
+                            SUM(ad_rows) OVER (PARTITION BY platform_name) AS total_ad_rows,
+                            SUM(organic_rows) OVER (PARTITION BY platform_name) AS total_organic_rows
+                        FROM product_counts
+                    )
+                    ${skuOuterWhere}
+                    GROUP BY keyword_search_product
+                    ORDER BY impressions DESC
+                ` : viewMode === 'brand' ? `
+                    WITH brand_counts AS (
+                        SELECT
+                            platform_name,
+                            brand_name_th,
+                            SUM(overall) AS brand_overall,
+                            SUM(spons) AS brand_sponsored,
+                            SUM(organic) AS brand_organic,
+                            count(*) as impressions,
+                            ${searchVolumeSelect} as search_volume,
+                            arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1), 1) AS ad_position,
+                            arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1), 1) AS organic_position
+                        FROM rb_kw_olap
+                        WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${platformCondition}
+                          AND ${channelCondition}
+                          AND ${locationCondition}
+                          AND ${categoryCondition}
+                          AND ${globalKeywordTypeCondition}
+                          AND ${localKeywordTypeCondition}
+                          AND ${keywordCondition}
+                          AND ${brandCondition}
+                          ${rankCondition}
+                          ${ownBrandsCondition}
+                          AND brand_name_th IS NOT NULL AND brand_name_th != ''
+                        GROUP BY platform_name, brand_name_th
+                    )
+                    SELECT
+                        brand_name_th as name,
+                        brand_name_th as brand_name,
+                        '' as web_pid,
+                        sum(brand_overall) as num_overall,
+                        any(total_visible_rows) as den_overall,
+                        ROUND(sum(brand_overall) * 100.0 / nullIf(any(total_visible_rows), 0), 2) AS overall_sos,
+                        
+                        sum(brand_organic) as num_organic,
+                        any(total_organic_rows) as den_organic,
+                        ROUND(sum(brand_organic) * 100.0 / nullIf(any(total_organic_rows), 0), 2) AS organic_sos,
+                        
+                        sum(brand_sponsored) as num_spons,
+                        any(total_ad_rows) as den_spons,
+                        ROUND(sum(brand_sponsored) * 100.0 / nullIf(any(total_ad_rows), 0), 2) AS paid_sos,
+                        
+                        sum(impressions) as impressions,
+                        any(search_volume) as search_volume,
+                        ROUND(sum(brand_overall) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
+                        arrayElement(topK(1)(ad_position), 1) as ad_position,
+                        arrayElement(topK(1)(organic_position), 1) as organic_position
+                    FROM (
+                        SELECT
+                            *,
+                            SUM(brand_overall) OVER (PARTITION BY platform_name) AS total_visible_rows,
+                            SUM(brand_sponsored) OVER (PARTITION BY platform_name) AS total_ad_rows,
+                            SUM(brand_organic) OVER (PARTITION BY platform_name) AS total_organic_rows
+                        FROM brand_counts
+                    )
+                    GROUP BY brand_name_th
+                    ORDER BY impressions DESC
+                ` : `
                     SELECT 
                         name,
                         any(brand_name) as brand_name,
@@ -4074,6 +4203,11 @@ class VisibilityService {
             if (viewMode === 'sku' && sku && sku !== 'All') {
                 const skuCond = buildCHCondition(sku, 'keyword_search_product', { isDimension: true, noSplit: true });
                 numCondition = `${skuCond}`;
+            } else if (brand && brand !== 'All') {
+                numCondition = buildCHCondition(brand, 'brand', { isBrand: false });
+            } else {
+                const ownBrandSubquery = `SELECT DISTINCT lower(Brand) FROM rb_pdp_olap WHERE Comp_flag = 0 AND Brand IS NOT NULL AND Brand != ''`;
+                numCondition = `lower(brand) IN (${ownBrandSubquery})`;
             }
 
             const query = `
