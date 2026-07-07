@@ -125,12 +125,19 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
       trend: osaTrendsData?.timeSeries?.map(p => p.Osa || 0) || []
     } : null;
 
-    // 3. Market Share % — Coming Soon
+    // 3. Market Share %
+    const platformKey = (filters?.platform && filters.platform !== 'All')
+      ? filters.platform.toLowerCase()
+      : 'odd_overall';
+
+    const platData = marketShareData?.[platformKey];
+    const hasMsVal = platData?.mwMarketShare?.raw !== null && platData?.mwMarketShare?.raw !== undefined;
+
     const msCardData = {
-      value: "Coming Soon",
-      delta: 0,
-      isComingSoon: true,
-      trend: []
+      value: hasMsVal ? `${Number(platData.mwMarketShare.raw).toFixed(2)}%` : "N/A",
+      delta: hasMsVal && platData.mwMarketShare.delta ? (platData.mwMarketShare.delta.dir === 'up' ? 1 : -1) : 0,
+      deltaLabel: hasMsVal && platData.mwMarketShare.delta ? platData.mwMarketShare.delta.value : "",
+      trend: msTrendsData?.timeSeries?.map(p => p.MWMarketShare || 0) || []
     };
 
     const cards_config = [

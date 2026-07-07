@@ -605,7 +605,9 @@ const getAbsoluteOsaOverview = async (filters) => {
                 }
                 const neno = parseFloat(row.sumNeno) || 0;
                 const deno = parseFloat(row.sumDeno) || 0;
-                const osa = deno > 0 ? Math.round((neno / deno) * 100) : 0;
+                // If deno > 0, this is real data (even if neno is 0, OSA is legitimately 0%)
+                // If deno = 0, there's no data for this SKU on this date
+                const osa = deno > 0 ? Math.round((neno / deno) * 100) : null;
 
                 skuMap[row.sku].dateMap[row.date] = { osa, neno, deno };
             });
@@ -628,7 +630,7 @@ const getAbsoluteOsaOverview = async (filters) => {
                             totalDeno7 += data.deno;
                         }
                     } else {
-                        item.values[index] = 0;
+                        item.values[index] = null;
                     }
                 });
 

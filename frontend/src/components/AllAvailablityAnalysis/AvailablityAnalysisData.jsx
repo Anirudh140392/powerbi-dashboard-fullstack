@@ -1279,8 +1279,9 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     } : null;
 
     const doiCardData = apiData?.doi ? {
-      value: Number(apiData.doi.doi || 0).toFixed(0),
-      delta: Number(apiData.doi.doi || 0) - Number(apiData.doi.prevDoi || 0),
+      value: (!apiData.doi.doi || Number(apiData.doi.doi) === 0) ? "N/A" : Number(apiData.doi.doi).toFixed(0),
+      delta: (!apiData.doi.doi || Number(apiData.doi.doi) === 0) ? 0 : Number(apiData.doi.doi) - Number(apiData.doi.prevDoi || 0),
+      isNA: (!apiData.doi.doi || Number(apiData.doi.doi) === 0),
       trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Doi || p.DOI || 0, label: p.date || '' })) || []
     } : null;
 
@@ -1292,8 +1293,9 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     } : null;
 
     const buyBoxCardData = apiData?.overview ? {
-      value: `${Number(apiData.overview.fillRate || 0).toFixed(2)}%`,
-      delta: Number(apiData.overview.fillRate || 0) - Number(apiData.overview.prevFillRate || 0),
+      value: (!apiData.overview.fillRate || Number(apiData.overview.fillRate) === 0) ? "N/A" : `${Number(apiData.overview.fillRate).toFixed(2)}%`,
+      delta: (!apiData.overview.fillRate || Number(apiData.overview.fillRate) === 0) ? 0 : Number(apiData.overview.fillRate) - Number(apiData.overview.prevFillRate || 0),
+      isNA: (!apiData.overview.fillRate || Number(apiData.overview.fillRate) === 0),
       trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Fillrate || 0, label: p.date || '' })) || []
     } : null;
 
@@ -1371,15 +1373,16 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         ? formatNumber(Number(absDeltaNum.toFixed(fixedDigits))) 
         : absDeltaNum.toFixed(fixedDigits);
 
-      const deltaText = data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${prefixStr}${deltaFormatted}${formatSuffix}`;
-      const prevText = data.isNotMetro ? "" : "vs Previous Period";
+      const isCardNA = data.isNA || data.value === 'N/A';
+      const deltaText = (data.isNotMetro || isCardNA) ? "" : `${delta >= 0 ? '▲' : '▼'} ${prefixStr}${deltaFormatted}${formatSuffix}`;
+      const prevText = (data.isNotMetro || isCardNA) ? "" : "vs Previous Period";
 
       return {
         id: `avail-card-${cfg.key}`,
         title: cfg.title,
         value: data.value,
         subtitle: data.isNotMetro ? `Selected location is not a metro city` : cfg.sub,
-        delta: parseFloat(delta.toFixed(1)),
+        delta: isCardNA ? 0 : parseFloat(delta.toFixed(1)),
         deltaLabel: deltaText,
         icon: cfg.icon,
         gradient: cfg.gradient,
@@ -1387,6 +1390,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         trendSeries: data.trend || [],
         prevText: prevText,
         isNotMetro: data.isNotMetro,
+        isNA: isCardNA,
         infoTooltip: cfg.infoTooltip
       };
     });

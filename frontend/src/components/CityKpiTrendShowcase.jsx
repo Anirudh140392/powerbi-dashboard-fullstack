@@ -154,10 +154,18 @@ function formatKpiValue(kpi, value) {
     return `₹${formatNumber(num, 1)}`;
   }
 
-  // DOI should show 1 decimal
+  // DOI should show 1 decimal; show N/A when data is not present (value is 0)
   if (k.includes("doi")) {
     const num = Number(value);
-    return isNaN(num) ? value : num.toFixed(1);
+    if (isNaN(num) || num === 0) return "N/A";
+    return num.toFixed(1);
+  }
+
+  // Buy Box % should show N/A when data is not present (value is 0)
+  if (k.includes("buy box")) {
+    const num = Number(value);
+    if (isNaN(num) || num === 0) return "N/A";
+    return `${num}%`;
   }
 
   return value.toString();

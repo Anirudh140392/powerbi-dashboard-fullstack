@@ -711,6 +711,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
         });
     }, [kpi.trendSeries]);
 
+    const isCardNA = kpi.value === 'N/A' || kpi.isNA;
     const isPositive = (kpi.delta || 0) >= 0;
     const deltaColor = isPositive ? "text-emerald-600" : "text-rose-600";
     const deltaIcon = isPositive ? "▲" : "▼";
@@ -811,6 +812,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                             </div>
                         );
                     })()}
+                    {!isCardNA && (
                     <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
                         <span className={`text-xs font-bold ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100`}>
                             {kpi.deltaLabel ? (
@@ -823,6 +825,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                             {kpi.prevText || "vs Previous Period"}
                         </span>
                     </div>
+                    )}
 
                     {(kpi.extra || kpi.extraChange) && (
                         <div className="flex flex-col gap-0.5">
