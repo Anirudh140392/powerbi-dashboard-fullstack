@@ -1275,44 +1275,44 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     const osaCardData = apiData?.overview ? {
       value: `${Number(apiData.overview.stockAvailability || 0).toFixed(2)}%`,
       delta: Number(apiData.overview.stockAvailability || 0) - Number(apiData.overview.prevStockAvailability || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Osa || 0, label: p.date || '' })) || []
     } : null;
 
     const doiCardData = apiData?.doi ? {
       value: Number(apiData.doi.doi || 0).toFixed(0),
       delta: Number(apiData.doi.doi || 0) - Number(apiData.doi.prevDoi || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Doi || p.DOI || 0) || []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Doi || p.DOI || 0, label: p.date || '' })) || []
     } : null;
 
     const metroCardData = apiData?.metroCity ? {
       value: apiData.metroCity.isMetroCity === false ? "N/A" : `${Number(apiData.metroCity.stockAvailability || 0).toFixed(2)}%`,
       delta: apiData.metroCity.isMetroCity === false ? 0 : Number(apiData.metroCity.stockAvailability || 0) - Number(apiData.metroCity.prevStockAvailability || 0),
       isNotMetro: apiData.metroCity.isMetroCity === false,
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Osa || 0, label: p.date || '' })) || []
     } : null;
 
     const buyBoxCardData = apiData?.overview ? {
       value: `${Number(apiData.overview.fillRate || 0).toFixed(2)}%`,
       delta: Number(apiData.overview.fillRate || 0) - Number(apiData.overview.prevFillRate || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Fillrate || 0) || []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Fillrate || 0, label: p.date || '' })) || []
     } : null;
 
     const deliveryCardData = apiData?.overview ? {
       value: apiData.overview.deliveryTime !== undefined ? apiData.overview.deliveryTime : "Coming soon",
       delta: (apiData.overview.currAvgDeliveryDays || 0) - (apiData.overview.prevAvgDeliveryDays || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Delivery || 0) || []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Delivery || 0, label: p.date || '' })) || []
     } : null;
 
     const skuCountData = apiData?.overview ? {
       value: formatNumber(apiData.overview.skuCount || 0),
       delta: Number(apiData.overview.skuCount || 0) - Number(apiData.overview.prevSkuCount || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Assortment || 0) || []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Assortment || 0, label: p.date || '' })) || []
     } : null;
 
     const pslCardData = apiData?.overview ? {
       value: `₹${formatNumber(apiData.overview.psl || 0)}`,
       delta: Number(apiData.overview.psl || 0) - Number(apiData.overview.prevPsl || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Psl || 0) || []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Psl || 0, label: p.date || '' })) || []
     } : null;
 
     // Fallback mock logic for single KPI if API missing

@@ -216,16 +216,37 @@ export default function WatchTower() {
     }
   }, []);
 
+  // Commented out to prevent dashboard from shifting to single-select when restricted platforms are present
+  // useEffect(() => {
+  //   if (platformsFetched && hasRestrictedPlatforms) {
+  //     const allowed = platforms || [];
+  //     const allowedPlatforms = allowed.filter(p => p !== 'All');
+  //     if (allowedPlatforms.length > 0 && (filters.platform === "All" || (Array.isArray(filters.platform) && filters.platform.includes("All")))) {
+  //       setFilters(prev => ({ ...prev, platform: allowedPlatforms }));
+  //       setTrendParams(prev => ({ ...prev, platform: allowedPlatforms }));
+  //     }
+  //   }
+  // }, [platformsFetched, platforms, _sidebarPlatform, hasRestrictedPlatforms, filters.platform]);
+
+  const [localPlatformsList, setLocalPlatformsList] = useState([]);
+
   useEffect(() => {
-    if (platformsFetched && hasRestrictedPlatforms) {
-      const allowed = platforms || [];
-      const defaultPlatform = allowed.filter(p => p !== 'All')[0] || _sidebarPlatform;
-      if (defaultPlatform && defaultPlatform !== "All" && filters.platform === "All") {
-        setFilters(prev => ({ ...prev, platform: defaultPlatform }));
-        setTrendParams(prev => ({ ...prev, platform: defaultPlatform }));
+    let active = true;
+    const fetchLocalPlatforms = async () => {
+      try {
+        const res = await axiosInstance.get("/watchtower/platforms", {
+          params: { channel: filters.channel === "All" ? undefined : filters.channel }
+        });
+        if (active && res.data && Array.isArray(res.data)) {
+          setLocalPlatformsList(res.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch local platforms", err);
       }
-    }
-  }, [platformsFetched, platforms, _sidebarPlatform, hasRestrictedPlatforms, filters.platform]);
+    };
+    fetchLocalPlatforms();
+    return () => { active = false; };
+  }, [filters.channel]);
 
   const overriddenContextRef = React.useRef(null);
   const prevFilterContextRef = React.useRef(null);
@@ -246,11 +267,9 @@ export default function WatchTower() {
     const buildOverride = () => {
       const overrides = {
         selectedChannel: filters.channel || "All",
-        platform: filters.platform || "All"
+        platform: filters.platform || "All",
+        platforms: localPlatformsList.length > 0 ? localPlatformsList : (allPlatformNames || filterContext.platforms || [])
       };
-      if (allPlatformNames) {
-        overrides.platforms = allPlatformNames;
-      }
       return { ...filterContext, ...overrides };
     };
 
@@ -289,7 +308,7 @@ export default function WatchTower() {
     }
 
     return overriddenContextRef.current;
-  }, [filterContext, allPlatformNames, filters.channel, filters.platform]);
+  }, [filterContext, allPlatformNames, filters.channel, filters.platform, localPlatformsList]);
 
   // Business Overview now uses local filter state for channel/platform
   const selectedChannel = filters.channel || "All";
@@ -882,7 +901,7 @@ export default function WatchTower() {
             <PlatformOverview
               onViewTrends={handleViewTrends}
               onViewRca={(label) => {
-                setRcaModalTitle(`${label} x ${filters.platform}`);
+                setRcaModalTitle(`${label} x ${Array.isArray(filters.platform) ? filters.platform.join(', ') : filters.platform}`);
                 setRcaModalOpen(true);
               }}
               data={

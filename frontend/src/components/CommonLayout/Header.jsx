@@ -81,6 +81,7 @@ function WatchTowerFilterModal({
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
+  isBusinessOverview = false,
 }) {
   const hasRestrictedPlatforms = React.useMemo(() => {
     try {
@@ -247,13 +248,13 @@ function WatchTowerFilterModal({
       next = [...selected.filter(s => s !== "All"), opt];
     }
     if (next.length === options.length && options.length > 0) {
-      onChange(hasRestrictedPlatforms && activeTab === "platform" ? next : "All");
+      onChange(hasRestrictedPlatforms && !isBusinessOverview && activeTab === "platform" ? next : "All");
     } else {
       onChange(next);
     }
   };
 
-  const selectAll = () => onChange(hasRestrictedPlatforms && activeTab === "platform" ? options : "All");
+  const selectAll = () => onChange(hasRestrictedPlatforms && !isBusinessOverview && activeTab === "platform" ? options : "All");
   const clearAll = () => onChange([]);
 
   const tabMeta = availableTabs.find(t => t.key === activeTab);
@@ -281,7 +282,7 @@ function WatchTowerFilterModal({
     if (!hideChannelPlatform) {
       setSelectedChannel(normalize(draftChannel));
       let finalPlatform = draftPlatform;
-      if (hasRestrictedPlatforms && (finalPlatform === "All" || (Array.isArray(finalPlatform) && finalPlatform.includes("All")))) {
+      if (hasRestrictedPlatforms && !isBusinessOverview && (finalPlatform === "All" || (Array.isArray(finalPlatform) && finalPlatform.includes("All")))) {
         finalPlatform = localPlatforms.filter(p => p !== 'All');
       }
       setPlatform(normalize(finalPlatform));
@@ -301,7 +302,7 @@ function WatchTowerFilterModal({
   const handleResetAll = () => {
     if (!hideChannelPlatform) {
       setDraftChannel("All");
-      setDraftPlatform(hasRestrictedPlatforms ? localPlatforms.filter(p => p !== 'All') : "All");
+      setDraftPlatform(hasRestrictedPlatforms && !isBusinessOverview ? localPlatforms.filter(p => p !== 'All') : "All");
     }
     setDraftCategory("All");
     setDraftBrand("All");
@@ -3940,7 +3941,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
 
   const localSetPlatform = (val) => {
     let finalVal = val;
-    if (hasRestrictedPlatforms && (val === "All" || (Array.isArray(val) && val.includes("All")))) {
+    if (hasRestrictedPlatforms && title !== "Business Overview" && (val === "All" || (Array.isArray(val) && val.includes("All")))) {
       finalVal = platforms.filter(p => p !== 'All');
     }
     if (onFiltersChange) {
@@ -4272,6 +4273,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       locations={title === "Insights" ? ['Chandigarh', 'Delhi', 'Gurugram', 'Faridabad', 'Lucknow', 'Kolkata', 'Ahmedabad', 'Mumbai', 'Pune', 'Hyderabad', 'Bengaluru', 'Chennai'] : locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
+                      isBusinessOverview={title === "Business Overview"}
                     />
                   )}
 
