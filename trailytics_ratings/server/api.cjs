@@ -121,29 +121,61 @@ app.use(express.json({ limit: '10mb' }));
 // the HIT path's res.json call would re-trigger the MISS wrapper and reset
 // the X-Cache header back to MISS.
 const RESPONSE_CACHE = new Map(); // key -> { body, expires }
-const RESPONSE_CACHE_TTL_MS = 60 * 1000;
+// The underlying data only changes on the ~15-day crawl cadence, so heavy
+// aggregation responses can be cached for hours, not a minute. This is the
+// single biggest lever against the shared-DB contention: once an entry is warm,
+// users are served from cache and never wait on the saturated Postgres. Tunable
+// via RESPONSE_CACHE_TTL_MS (ms); default 6h. Lower it if admin edits need to
+// reflect faster, or wire cache invalidation into the write paths.
+const RESPONSE_CACHE_TTL_MS = parseInt(process.env.RESPONSE_CACHE_TTL_MS || String(6 * 60 * 60 * 1000));
 // Filter-OPTION endpoints (platform/category/brand lists etc.) are derived from
 // the full review/snapshot corpus and barely change day-to-day, yet their DISTINCT/
 // GROUP BY scans are among the heaviest. Cache them far longer so the pre-warmer
 // (and users) re-run that SQL rarely instead of every minute.
 const STABLE_CACHE_TTL_MS = parseInt(process.env.STABLE_CACHE_TTL_MS || String(15 * 60 * 1000));
 const STABLE_PATH_RE = /^\/api\/ratings\/(categories|sentiment-categories|platform-options|price-ranges|competitor-brands|brand-config|spec-type-mappings|product-categories|alert-scope-options)$/;
-const RESPONSE_CACHE_MAX = 500;
+const RESPONSE_CACHE_MAX = parseInt(process.env.RESPONSE_CACHE_MAX || '3000');
+
+// ── Shared L2 cache (Dragonfly/Redis on the EC2) ────────────────────────────
+// Survives API redeploys and is shared across instances, so a warm entry keeps
+// serving even right after a deploy — unlike the in-memory L1 above. Fully
+// graceful: if REDIS_URL is unset or the server is unreachable, every call
+// silently falls back to L1 + the DB. Keys are namespaced so we never collide
+// with the ads platform's own keys on the same Dragonfly instance.
+let redis = null;
+if (process.env.REDIS_URL) {
+    try {
+        const IORedis = require('ioredis');
+        redis = new IORedis(process.env.REDIS_URL, {
+            keyPrefix: process.env.REDIS_KEY_PREFIX || 'ratcache:',
+            connectTimeout: 3000,
+            maxRetriesPerRequest: 1,
+            enableOfflineQueue: false, // fail fast to L1/DB instead of queueing when down
+            retryStrategy: (times) => Math.min(times * 300, 5000),
+        });
+        let redisErrLogged = false;
+        redis.on('error', (e) => { if (!redisErrLogged) { console.error('[redis] L2 cache unavailable, using memory/DB:', e.message); redisErrLogged = true; } });
+        redis.on('ready', () => { redisErrLogged = false; console.log('[redis] L2 cache connected'); });
+    } catch (e) { console.error('[redis] init failed:', e.message); redis = null; }
+}
 const CACHEABLE_PATH_RE = /^\/api\/ratings\/(summary|category-health|executive-health|product-health|trends|issues-breakdown|stakeholder-detail|asin-issues|sku-list|timeline|rating-trend|categories|sentiment-categories|platform-options|price-ranges|competitor-brands|brand-config|spec-type-mappings|product-categories|review-timeline|rating-mismatch|star-distribution|price-variance|benchmark-data|competitor-matrix|alert-scope-options|issue\/[^/]+\/drilldown)$/;
 function responseCacheKey(req) {
-    // Drop pre-warmer's `_refresh` flag so prewarmed entries land on the
-    // same key real users hit — otherwise the warm-up wouldn't help anyone.
+    // Normalize so a PRE-WARM request and a real USER request for the same data
+    // produce the SAME key — otherwise the warm-up warms keys nobody hits and
+    // every first load is cold:
+    //  - drop `_refresh` (pre-warmer flag)
+    //  - drop `company_id` (the pre-warmer appends it; it's already the key
+    //    prefix via req.companyId, and users pass it via header, not query)
+    //  - SORT params so `a=1&b=2` and `b=2&a=1` collapse to one key
     const params = new URLSearchParams(req.query);
     params.delete('_refresh');
+    params.delete('company_id');
+    params.delete('companyId');
+    params.sort();
     return `${req.companyId}|${req.path}|${params.toString()}`;
 }
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
-const STATELESS_SESSION_PREFIX = 'st.';
-
-function getStatelessSessionSecret() {
-    return process.env.AUTH_STATELESS_SECRET || process.env.SSO_SECRET || process.env.JWT_SECRET || 'ratings_local_dev_secret';
-}
 
 function createSessionToken() {
     return crypto.randomBytes(48).toString('hex');
@@ -173,74 +205,6 @@ function getClientIp(req) {
         return req.socket.remoteAddress;
     }
     return null;
-}
-
-function isReadOnlyDbError(error) {
-    return error?.code === '25006' || error?.code === '42501' || /read-only transaction|permission denied/i.test(error?.message || '');
-}
-
-function signStatelessSessionPayload(payloadB64) {
-    return crypto
-        .createHmac('sha256', getStatelessSessionSecret())
-        .update(payloadB64)
-        .digest('base64url');
-}
-
-function createStatelessSessionToken(user, membership, expiresAt) {
-    const payload = {
-        userId: user.id,
-        membershipId: membership.id,
-        companyId: membership.company_id,
-        exp: expiresAt.getTime(),
-    };
-    const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    return `${STATELESS_SESSION_PREFIX}${payloadB64}.${signStatelessSessionPayload(payloadB64)}`;
-}
-
-async function loadStatelessSession(rawToken) {
-    if (!rawToken?.startsWith(STATELESS_SESSION_PREFIX)) return null;
-
-    const token = rawToken.slice(STATELESS_SESSION_PREFIX.length);
-    const parts = token.split('.');
-    if (parts.length !== 2) return null;
-
-    const [payloadB64, sigB64] = parts;
-    const expectedSig = signStatelessSessionPayload(payloadB64);
-    if (expectedSig.length !== sigB64.length ||
-        !crypto.timingSafeEqual(Buffer.from(expectedSig), Buffer.from(sigB64))) {
-        return null;
-    }
-
-    let payload;
-    try {
-        payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
-    } catch {
-        return null;
-    }
-
-    if (!payload.userId || !payload.membershipId || !payload.companyId || !payload.exp || Date.now() > payload.exp) {
-        return null;
-    }
-
-    const userResult = await pool.query(`
-        SELECT id, username, email, full_name, role, status
-        FROM ratings.users
-        WHERE id = $1
-          AND status = 'active'
-        LIMIT 1
-    `, [payload.userId]);
-    if (userResult.rowCount === 0) return null;
-
-    const membership = await loadMembershipContext(payload.membershipId);
-    if (!membership || membership.company_id !== payload.companyId || membership.user_id !== payload.userId) {
-        return null;
-    }
-
-    return {
-        user: userResult.rows[0],
-        membership,
-        expiresAt: new Date(payload.exp).toISOString(),
-    };
 }
 
 async function loadMembershipContext(membershipId) {
@@ -317,14 +281,22 @@ async function authenticateApi(req, res, next) {
         return next();
     }
 
-    // Unauthenticated auth endpoints: password login, SSO token exchange,
-    // password-reset request and submit. Each carries its own short-lived token.
+    // Unauthenticated auth endpoints: password login, MFA challenge completion,
+    // password-reset request and submit. Each carries its own short-lived
+    // challenge / reset token verified inline.
     const UNAUTH_AUTH_PATHS = new Set([
         '/api/auth/login',
-        '/api/auth/sso',
+        '/api/auth/sso-login',
+        '/api/auth/mfa/enrol/start',
+        '/api/auth/mfa/enrol/confirm',
+        '/api/auth/mfa/verify',
         '/api/auth/password/forgot',
         '/api/auth/password/reset',
         '/api/auth/password/reset/validate',
+        // Warm-on-crawl trigger: the temporal worker (non-loopback) calls this
+        // after the pipeline; it verifies its own WARM_CACHE_TOKEN inline and
+        // exposes no data, so it bypasses session auth here.
+        '/api/ratings/internal/warm-cache',
     ]);
     if (UNAUTH_AUTH_PATHS.has(req.path)) {
         return next();
@@ -350,56 +322,44 @@ async function authenticateApi(req, res, next) {
     }
 
     try {
-        const statelessSession = await loadStatelessSession(rawToken);
-        if (statelessSession) {
-            const { user, membership, expiresAt } = statelessSession;
-            const requestedCompanyId = req.query.company_id || req.headers['x-company-id'];
-            if (requestedCompanyId && requestedCompanyId !== membership.company_id) {
-                return res.status(403).json({ error: 'Requested company is not permitted for this session' });
-            }
-
-            req.sessionToken = rawToken;
-            req.sessionId = null;
-            req.sessionExpiresAt = expiresAt;
-            req.companyId = membership.company_id;
-            req.authPrincipal = user;
-            req.authUser = buildAuthUser(user, membership);
-            req.authMembership = membership;
-            req.isStatelessSession = true;
-
-            return next();
-        }
-
         const tokenHash = hashSessionToken(rawToken);
-        const result = await pool.query(`
-            SELECT
-                s.id AS session_id,
-                s.user_id,
-                s.membership_id,
-                s.company_id,
-                s.expires_at,
-                u.id,
-                u.username,
-                u.email,
-                u.full_name,
-                u.role,
-                u.status
-            FROM ratings.auth_sessions s
-            JOIN ratings.users u
-              ON u.id = s.user_id
-            WHERE s.session_token_hash = $1
-              AND s.purpose = 'full'
-              AND s.revoked_at IS NULL
-              AND s.expires_at > now()
-              AND u.status = 'active'
-            LIMIT 1
-        `, [tokenHash]);
+        let sessionRow = memorySessions.get(tokenHash);
 
-        if (result.rowCount === 0) {
-            return res.status(401).json({ error: 'Session expired or invalid' });
+        if (!sessionRow) {
+            const result = await pool.query(`
+                SELECT
+                    s.id AS session_id,
+                    s.user_id,
+                    s.membership_id,
+                    s.company_id,
+                    s.expires_at,
+                    u.id,
+                    u.username,
+                    u.email,
+                    u.full_name,
+                    u.role,
+                    u.status
+                FROM ratings.auth_sessions s
+                JOIN ratings.users u
+                  ON u.id = s.user_id
+                WHERE s.session_token_hash = $1
+                  AND s.purpose = 'full'
+                  AND s.revoked_at IS NULL
+                  AND s.expires_at > now()
+                  AND u.status = 'active'
+                LIMIT 1
+            `, [tokenHash]);
+
+            if (result.rowCount === 0) {
+                return res.status(401).json({ error: 'Session expired or invalid' });
+            }
+            sessionRow = result.rows[0];
+        } else {
+            if (new Date(sessionRow.expires_at) < new Date()) {
+                memorySessions.delete(tokenHash);
+                return res.status(401).json({ error: 'Session expired or invalid' });
+            }
         }
-
-        const sessionRow = result.rows[0];
         const membership = await loadMembershipContext(sessionRow.membership_id);
         if (!membership || membership.company_id !== sessionRow.company_id) {
             return res.status(403).json({ error: 'Membership is not active for this session' });
@@ -434,10 +394,14 @@ async function authenticateApi(req, res, next) {
             }
         }
 
-        await pool.query(
-            `UPDATE ratings.auth_sessions SET last_activity_at = now() WHERE id = $1`,
-            [sessionRow.session_id]
-        );
+        try {
+            await pool.query(
+                `UPDATE ratings.auth_sessions SET last_activity_at = now() WHERE id = $1`,
+                [sessionRow.session_id]
+            );
+        } catch (e) {
+            if (e.code !== '25006' && e.code !== '42501') throw e;
+        }
 
         req.sessionToken = rawToken;
         req.sessionId = sessionRow.session_id;
@@ -457,33 +421,59 @@ async function authenticateApi(req, res, next) {
 app.use(authenticateApi);
 
 // ─── Response cache (HIT short-circuit + MISS write-through) ───────────────
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
     if (req.method !== 'GET' || !CACHEABLE_PATH_RE.test(req.path) || !req.companyId) return next();
     const key = responseCacheKey(req);
     // `?_refresh=1` is reserved for the cache pre-warmer — skip HIT lookup so
     // the query always runs and re-writes the cache, guaranteeing fresh TTL.
     const forceRefresh = req.query._refresh === '1';
-    const hit = !forceRefresh && RESPONSE_CACHE.get(key);
-    if (hit && hit.expires > Date.now()) {
-        res.set('Cache-Control', `public, max-age=60, stale-while-revalidate=300`);
-        res.set('X-Cache', 'HIT');
-        // Use the original res.json (not the wrapper below) so a HIT does NOT
-        // re-write the cache or reset the header back to MISS.
-        return res.json(hit.body);
+    const ttl = STABLE_PATH_RE.test(req.path) ? STABLE_CACHE_TTL_MS : RESPONSE_CACHE_TTL_MS;
+    const swrHeader = `public, max-age=60, stale-while-revalidate=300`;
+
+    if (!forceRefresh) {
+        // L1: in-memory (fastest, per-instance)
+        const l1 = RESPONSE_CACHE.get(key);
+        if (l1 && l1.expires > Date.now()) {
+            res.set('Cache-Control', swrHeader);
+            res.set('X-Cache', 'HIT');
+            return res.json(l1.body);
+        }
+        if (l1) RESPONSE_CACHE.delete(key);
+        // L2: Dragonfly/Redis (shared, survives redeploys). Never let it block or
+        // throw — a down cache falls straight through to the DB.
+        if (redis) {
+            try {
+                const raw = await redis.get(key);
+                if (raw) {
+                    const body = JSON.parse(raw);
+                    RESPONSE_CACHE.set(key, { body, expires: Date.now() + ttl }); // promote to L1
+                    res.set('Cache-Control', swrHeader);
+                    res.set('X-Cache', 'HIT-L2');
+                    return res.json(body);
+                }
+            } catch { /* redis unavailable — fall through to compute */ }
+        }
     }
-    if (hit) RESPONSE_CACHE.delete(key);
     // Miss (or forced refresh): wrap res.json to capture the body and stash it.
     const originalJson = res.json.bind(res);
     res.json = (body) => {
         try {
-            if (RESPONSE_CACHE.size >= RESPONSE_CACHE_MAX) {
-                const oldest = RESPONSE_CACHE.keys().next().value;
-                RESPONSE_CACHE.delete(oldest);
+            // NEVER cache non-2xx responses. A single transient 500 (e.g. a DB
+            // timeout under contention) would otherwise be stored for the full
+            // TTL and served to every client — which then crashes on the missing
+            // success shape (e.g. `benchmarks` undefined -> `.find` of undefined).
+            const ok = res.statusCode >= 200 && res.statusCode < 300;
+            if (ok) {
+                if (RESPONSE_CACHE.size >= RESPONSE_CACHE_MAX) {
+                    const oldest = RESPONSE_CACHE.keys().next().value;
+                    RESPONSE_CACHE.delete(oldest);
+                }
+                RESPONSE_CACHE.set(key, { body, expires: Date.now() + ttl });
+                // write-through to L2, fire-and-forget so it never delays the response
+                if (redis) { redis.set(key, JSON.stringify(body), 'PX', ttl).catch(() => {}); }
             }
-            const ttl = STABLE_PATH_RE.test(req.path) ? STABLE_CACHE_TTL_MS : RESPONSE_CACHE_TTL_MS;
-            RESPONSE_CACHE.set(key, { body, expires: Date.now() + ttl });
-            res.set('Cache-Control', `public, max-age=60, stale-while-revalidate=300`);
-            res.set('X-Cache', forceRefresh ? 'REFRESH' : 'MISS');
+            res.set('Cache-Control', swrHeader);
+            res.set('X-Cache', ok ? (forceRefresh ? 'REFRESH' : 'MISS') : 'BYPASS-ERR');
         } catch {}
         return originalJson(body);
     };
@@ -503,6 +493,8 @@ async function logMfaEvent(userId, event, req, { actorId, metadata } = {}) {
     }
 }
 
+const memorySessions = new Map();
+
 async function createFullSession(user, membership, req) {
     const token = createSessionToken();
     const tokenHash = hashSessionToken(token);
@@ -519,16 +511,29 @@ async function createFullSession(user, membership, req) {
             expiresAt.toISOString(), getClientIp(req), req.headers['user-agent'] || null,
         ]);
         await pool.query(`UPDATE ratings.users SET last_login_at = now(), updated_at = now() WHERE id = $1`, [user.id]);
-        return { token, expiresAt: expiresAt.toISOString(), user: buildAuthUser(user, membership) };
-    } catch (error) {
-        if (!isReadOnlyDbError(error)) throw error;
-        console.warn('[auth] DB is read-only; issuing stateless session token for local/dev auth.');
-        return {
-            token: createStatelessSessionToken(user, membership, expiresAt),
-            expiresAt: expiresAt.toISOString(),
-            user: buildAuthUser(user, membership),
-        };
+    } catch (e) {
+        if (e.code === '25006' || e.code === '42501') {
+            console.warn('[Session] Database is read-only. Falling back to memory session.');
+            memorySessions.set(tokenHash, {
+                session_id: sessionId,
+                session_token_hash: tokenHash,
+                expires_at: expiresAt.toISOString(),
+                company_id: membership.company_id,
+                membership_id: membership.id,
+                user_id: user.id,
+                username: user.username,
+                email: user.email,
+                full_name: user.full_name,
+                role: user.role,
+                status: user.status,
+                allowed_platform_uuids: membership.allowed_platform_uuids,
+                platform_scope: membership.platform_scope
+            });
+        } else {
+            throw e;
+        }
     }
+    return { token, expiresAt: expiresAt.toISOString(), user: buildAuthUser(user, membership) };
 }
 
 async function resolveMembershipForLogin(userId, requestedCompanyId) {
@@ -549,8 +554,78 @@ async function resolveMembershipForLogin(userId, requestedCompanyId) {
     return loadMembershipContext(selectedRow.id);
 }
 
-// ─── POST /api/auth/login — verifies password, returns full session ──────────
-// MFA has been removed: a correct password immediately creates a session.
+// ─── POST /api/ratings/internal/warm-cache — warm-on-crawl ──────────────────
+// Called by the temporal worker at the end of the daily/crawl pipeline (data is
+// fresh, DB is relatively free) to pre-compute every heavy dashboard response
+// into the L1+L2 cache, so real users never pay a cold recompute against the
+// ETL-saturated DB. Auth: shared WARM_CACHE_TOKEN header (worker is non-loopback).
+// Exposes no data — only kicks off server-side warming, fire-and-forget.
+app.post('/api/ratings/internal/warm-cache', (req, res) => {
+    if (!process.env.WARM_CACHE_TOKEN || req.headers['x-warm-token'] !== process.env.WARM_CACHE_TOKEN) {
+        return res.status(401).json({ error: 'unauthorized' });
+    }
+    try {
+        const { warmAll } = require('./cachePrewarmer.cjs');
+        const port = process.env.PORT || process.env.API_PORT || 3001;
+        warmAll({ port, pool, internalToken: process.env.INTERNAL_PREWARM_TOKEN, companyId: req.query.company_id })
+            .then(s => console.log('[warm-cache] done:', JSON.stringify(s)))
+            .catch(e => console.error('[warm-cache] failed:', e.message));
+        res.json({ ok: true, started: true });
+    } catch (e) {
+        console.error('[warm-cache] failed:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ─── POST /api/auth/sso-login — seamless login from DS ──────────────────────
+app.post('/api/auth/sso-login', async (req, res) => {
+    try {
+        const { ssoToken, company_id } = req.body;
+        if (!ssoToken) return res.status(400).json({ error: 'ssoToken is required' });
+        
+        const parts = ssoToken.split('.');
+        if (parts.length !== 2) return res.status(400).json({ error: 'Invalid SSO token format' });
+        
+        const payloadB64 = parts[0];
+        const sig = parts[1];
+        
+        const SSO_SECRET = process.env.SSO_SECRET || 'trailytics_sso_shared_secret_2026_xK9mPq';
+        const expectedSig = crypto.createHmac('sha256', SSO_SECRET).update(payloadB64).digest('base64url');
+        
+        if (sig !== expectedSig) return res.status(401).json({ error: 'Invalid SSO token signature' });
+        
+        const payloadStr = Buffer.from(payloadB64, 'base64url').toString('utf8');
+        const payload = JSON.parse(payloadStr);
+        
+        if (Date.now() > payload.exp) return res.status(401).json({ error: 'SSO token expired' });
+        
+        const email = String(payload.email || '').trim().toLowerCase();
+        
+        const userResult = await pool.query(`
+            SELECT id, username, email, full_name, password_hash, role, status,
+                   mfa_enabled, mfa_locked_until
+            FROM ratings.users
+            WHERE lower(email) = $1
+            LIMIT 1
+        `, [email]);
+        
+        if (userResult.rowCount === 0) return res.status(401).json({ error: 'User not found in ratings dashboard' });
+        
+        const user = userResult.rows[0];
+        if (user.status !== 'active') return res.status(403).json({ error: 'User account is not active' });
+        
+        const membership = await resolveMembershipForLogin(user.id, company_id);
+        if (!membership) return res.status(403).json({ error: 'No active company membership for this user' });
+        
+        const sessionPayload = await createFullSession(user, membership, req);
+        return res.json(sessionPayload);
+    } catch (err) {
+        console.error('[SSO] Error verifying SSO token:', err);
+        return res.status(500).json({ error: 'Internal server error during SSO verification' });
+    }
+});
+
+// ─── POST /api/auth/login — verifies password, returns MFA challenge ────────
 app.post('/api/auth/login', async (req, res) => {
     try {
         const username = String(req.body?.username || '').trim().toLowerCase();
@@ -562,7 +637,8 @@ app.post('/api/auth/login', async (req, res) => {
         }
 
         const userResult = await pool.query(`
-            SELECT id, username, email, full_name, password_hash, role, status
+            SELECT id, username, email, full_name, password_hash, role, status,
+                   mfa_enabled, mfa_locked_until
             FROM ratings.users
             WHERE lower(username) = $1 OR lower(email) = $1
             LIMIT 1
@@ -582,94 +658,26 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid username or password' });
         }
 
+        // Lockout from too-many failed MFA codes. Don't burn a challenge token
+        // until the lockout clears — that way we don't leak which users have MFA.
+        if (user.mfa_locked_until && new Date(user.mfa_locked_until) > new Date()) {
+            return res.status(423).json({
+                error: 'Account temporarily locked due to too many failed MFA attempts.',
+                lockedUntil: user.mfa_locked_until,
+            });
+        }
+
+        // Membership is required even at challenge-time so the auth_sessions FK holds.
         const membership = await resolveMembershipForLogin(user.id, requestedCompanyId);
         if (!membership) {
             return res.status(403).json({ error: 'No active company membership for this user' });
         }
 
-        // Create a full session directly (no MFA step)
         const sessionPayload = await createFullSession(user, membership, req);
         return res.json(sessionPayload);
     } catch (error) {
         console.error('Login failed:', error);
         return res.status(500).json({ error: 'Login failed' });
-    }
-});
-
-// ─── POST /api/auth/sso — Digital Shelf single sign-on ──────────────────────
-// The Digital Shelf backend issues a short-lived HMAC-SHA256 signed token
-// (60 s TTL) containing the user's email. This endpoint validates the token
-// and creates a full ratings session — no password required.
-app.post('/api/auth/sso', async (req, res) => {
-    try {
-        const ssoToken = String(req.body?.ssoToken || '');
-        if (!ssoToken) {
-            return res.status(400).json({ error: 'ssoToken is required' });
-        }
-
-        const SSO_SECRET = process.env.SSO_SECRET || '';
-        if (!SSO_SECRET) {
-            console.error('[SSO] SSO_SECRET not configured');
-            return res.status(500).json({ error: 'SSO not configured on server' });
-        }
-
-        // Token format: base64url(<json_payload>).<base64url(hmac_signature)>
-        const parts = ssoToken.split('.');
-        if (parts.length !== 2) {
-            return res.status(401).json({ error: 'Invalid SSO token format' });
-        }
-
-        const [payloadB64, sigB64] = parts;
-        const expectedSig = crypto
-            .createHmac('sha256', SSO_SECRET)
-            .update(payloadB64)
-            .digest('base64url');
-
-        // Constant-time comparison to prevent timing attacks
-        if (expectedSig.length !== sigB64.length ||
-            !crypto.timingSafeEqual(Buffer.from(expectedSig), Buffer.from(sigB64))) {
-            return res.status(401).json({ error: 'Invalid SSO token signature' });
-        }
-
-        let payload;
-        try {
-            payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
-        } catch {
-            return res.status(401).json({ error: 'Malformed SSO token payload' });
-        }
-
-        if (!payload.email || !payload.exp || Date.now() > payload.exp) {
-            return res.status(401).json({ error: 'SSO token has expired' });
-        }
-
-        // Look up the user in ratings DB by email
-        const userResult = await pool.query(`
-            SELECT id, username, email, full_name, password_hash, role, status
-            FROM ratings.users
-            WHERE lower(email) = $1
-            LIMIT 1
-        `, [payload.email.toLowerCase().trim()]);
-
-        if (userResult.rowCount === 0) {
-            return res.status(404).json({ error: 'No ratings account found for this user. Please contact your administrator.' });
-        }
-
-        const user = userResult.rows[0];
-        if (user.status !== 'active') {
-            return res.status(403).json({ error: 'User account is not active in Rating Intelligence' });
-        }
-
-        const membership = await resolveMembershipForLogin(user.id, null);
-        if (!membership) {
-            return res.status(403).json({ error: 'No active company membership for this user' });
-        }
-
-        const sessionPayload = await createFullSession(user, membership, req);
-        console.log(`[SSO] Session created for ${user.email} via Digital Shelf SSO`);
-        return res.json(sessionPayload);
-    } catch (error) {
-        console.error('[SSO] SSO login failed:', error);
-        return res.status(500).json({ error: 'SSO authentication failed' });
     }
 });
 
@@ -1176,7 +1184,7 @@ app.get('/api/notifications', async (req, res) => {
             unreadCount: Number(countRows[0]?.n || 0),
         });
     } catch (err) {
-        if (isReadOnlyDbError(err)) {
+        if (err.code === '42501' || err.code === '25006') {
             return res.json({ notifications: [], unreadCount: 0 });
         }
         console.error('[notifications] list failed:', err);
@@ -1193,6 +1201,7 @@ app.post('/api/notifications/:id/read', async (req, res) => {
         );
         return res.json({ updated: rowCount });
     } catch (err) {
+        if (err.code === '42501' || err.code === '25006') return res.json({ updated: 0 });
         res.status(500).json({ error: err.message });
     }
 });
@@ -1206,6 +1215,7 @@ app.post('/api/notifications/mark-all-read', async (req, res) => {
         );
         return res.json({ updated: rowCount });
     } catch (err) {
+        if (err.code === '42501' || err.code === '25006') return res.json({ updated: 0 });
         res.status(500).json({ error: err.message });
     }
 });
@@ -1219,6 +1229,7 @@ app.post('/api/notifications/:id/dismiss', async (req, res) => {
         );
         return res.json({ updated: rowCount });
     } catch (err) {
+        if (err.code === '42501' || err.code === '25006') return res.json({ updated: 0 });
         res.status(500).json({ error: err.message });
     }
 });
@@ -1553,10 +1564,6 @@ app.get('/api/auth/me', async (req, res) => {
 });
 
 app.post('/api/auth/logout', async (req, res) => {
-    if (req.isStatelessSession || !req.sessionId) {
-        return res.json({ success: true });
-    }
-
     try {
         await pool.query(`
             UPDATE ratings.auth_sessions
@@ -1593,15 +1600,6 @@ app.post('/api/auth/switch-company', async (req, res) => {
         const membership = await loadMembershipContext(membershipRes.rows[0].id);
         if (!membership) {
             return res.status(403).json({ error: 'Membership could not be loaded' });
-        }
-
-        if (req.isStatelessSession || !req.sessionId) {
-            const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-            return res.json({
-                token: createStatelessSessionToken(req.authPrincipal, membership, expiresAt),
-                expiresAt: expiresAt.toISOString(),
-                user: buildAuthUser(req.authPrincipal, membership),
-            });
         }
 
         await pool.query(`
@@ -1793,15 +1791,27 @@ app.get('/api/ratings/reviews', async (req, res) => {
             ? ''
             : ` LIMIT ${limit} OFFSET ${offset}`;
 
+        // Each SKU's latest snapshot computed ONCE (was a per-review correlated
+        // LATERAL — the dominant cost over a large 6-month window). Same selection
+        // as the old LATERAL (latest snapshot_date, then created_at); a SKU with no
+        // snapshot simply has no row, so the LEFT JOIN yields the same NULLs.
+        const latestSnapshotsCTE = `latest_snapshots AS (
+                SELECT DISTINCT ON (web_pid, LOWER(platform))
+                    web_pid, platform, price_rp, price_sp, rating, rating_count, category, pareto_status
+                FROM ratings.product_snapshots
+                WHERE company_id = $1
+                ORDER BY web_pid, LOWER(platform), snapshot_date DESC, created_at DESC NULLS LAST
+            )`;
         const sql = `
-            SELECT 
+            WITH ${latestSnapshotsCTE}
+            SELECT
                 r.id, r.platform, r.web_pid, r.product_name, r.brand,
                 r.rating, r.ml_inferred_rating, r.review_title, r.review_text, r.review_date,
                 r.is_verified_purchase, COALESCE(ps.rating, r.pdp_rating) as pdp_rating, COALESCE(ps.rating_count, r.pdp_rating_count) as pdp_rating_count,
-                r.sentiment, r.sentiment_category, r.sentiment_subcategory, 
+                r.sentiment, r.sentiment_category, r.sentiment_subcategory,
                 r.sentiment_score, r.quality_score, r.specific_issue,
                 COALESCE(NULLIF(ps.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, '')) as category,
-                COALESCE(mp.material, r.material) as material, 
+                COALESCE(mp.material, r.material) as material,
                 COALESCE(mp.wattage, r.wattage) as wattage,
                 r.is_competitor, COALESCE(NULLIF(mp.pareto_status, ''), NULLIF(ps.pareto_status, ''), NULLIF(r.pareto_status, '')) as pareto_status,
                 mua.id as ml_audit_id, mua.ml_sentiment, mua.ml_issue, mua.ml_category,
@@ -1812,12 +1822,7 @@ app.get('/api/ratings/reviews', async (req, res) => {
             FROM ratings.reviews r
             LEFT JOIN ratings.reviews_ml_audit mua ON mua.review_id = r.id AND mua.company_id = r.company_id
             LEFT JOIN masters.products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND LOWER(mp.platform) = LOWER(r.platform)
-            LEFT JOIN LATERAL (
-                SELECT ps2.price_rp, ps2.price_sp, ps2.rating, ps2.rating_count, ps2.category, ps2.pareto_status
-                FROM ratings.product_snapshots ps2
-                WHERE ps2.company_id = r.company_id AND ps2.web_pid = r.web_pid AND LOWER(ps2.platform) = LOWER(r.platform)
-                ORDER BY ps2.snapshot_date DESC, ps2.created_at DESC NULLS LAST LIMIT 1
-            ) ps ON true
+            LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid AND LOWER(ps.platform) = LOWER(r.platform)
             WHERE ${where.join(' AND ')}
             ORDER BY r.review_date DESC NULLS LAST
             ${paginationClause}
@@ -1838,16 +1843,11 @@ app.get('/api/ratings/reviews', async (req, res) => {
 
         // Also get total count for pagination
         const countSql = `
+            WITH ${latestSnapshotsCTE}
             SELECT count(*)
             FROM ratings.reviews r
             LEFT JOIN masters.products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND LOWER(mp.platform) = LOWER(r.platform)
-            LEFT JOIN LATERAL (
-                SELECT ps2.price_rp, ps2.price_sp, ps2.category, ps2.pareto_status
-                FROM ratings.product_snapshots ps2
-                WHERE ps2.company_id = r.company_id AND ps2.web_pid = r.web_pid AND LOWER(ps2.platform) = LOWER(r.platform)
-                ORDER BY ps2.snapshot_date DESC, ps2.created_at DESC NULLS LAST
-                LIMIT 1
-            ) ps ON true
+            LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid AND LOWER(ps.platform) = LOWER(r.platform)
             WHERE ${where.join(' AND ')}
         `;
         const { rows: countRows } = await pool.query(countSql, params);
@@ -1870,36 +1870,35 @@ app.get('/api/ratings/reviews', async (req, res) => {
 app.get('/api/ratings/product-categories', async (req, res) => {
     try {
         const { platform, is_competitor } = req.query;
-        // Dropdown only renders the category NAME; counts are display-only,
-        // not aggregated per date range. We deliberately skip the join across
-        // ratings.reviews (~1M rows) and aggregate from product_snapshots
-        // (~19k rows) so this endpoint returns sub-second instead of 5s+.
-        // The old slow path joined reviews -> snapshots -> masters and was
-        // the reason the Category filter felt empty (5s no-feedback wait).
+        // Count catalogue SKUs per category straight from the MASTER
+        // (masters.products) — the authoritative RB-SKU catalogue — and using
+        // the master's category. Previously this counted from product_snapshots
+        // by the snapshot's category, which undercounted (a SKU with no snapshot
+        // category was dropped) and put SKUs in different categories than the
+        // Overview governance cards. Counting from the master keeps the category
+        // dropdown and the Competition product chips consistent with governance:
+        // one SKU, one category, the same number everywhere. Grain matches the
+        // governance count — DISTINCT product_external_id (deduped across
+        // platforms unless a platform filter is applied). masters.products is
+        // ~21k rows, so this stays sub-second.
         const params = [req.companyId];
-        let where = `ps.company_id = $1 AND ps.category IS NOT NULL AND TRIM(ps.category) <> ''`;
+        let where = `mp.company_id = $1 AND mp.platform IS NOT NULL AND mp.category IS NOT NULL AND TRIM(mp.category) <> ''`;
         let idx = 2;
         if (platform && platform !== 'all') {
-            where += ` AND LOWER(ps.platform) = LOWER($${idx++})`;
+            where += ` AND LOWER(mp.platform) = LOWER($${idx++})`;
             params.push(platform);
         }
         if (is_competitor && is_competitor !== 'all') {
-            where += ` AND ps.is_competitor = $${idx++}`;
+            where += ` AND COALESCE(mp.is_competitor, false) = $${idx++}`;
             params.push(is_competitor === 'true');
         }
         const { rows } = await pool.query(`
-            WITH latest AS (
-                SELECT DISTINCT ON (ps.company_id, LOWER(ps.platform), ps.web_pid)
-                       ps.category
-                FROM ratings.product_snapshots ps
-                WHERE ${where}
-                ORDER BY ps.company_id, LOWER(ps.platform), ps.web_pid, ps.snapshot_date DESC
-            )
             SELECT
-                CASE WHEN TRIM(LOWER(category)) IN ('other','others') THEN 'Others'
-                     ELSE INITCAP(TRIM(category)) END AS category,
-                COUNT(*) AS count
-            FROM latest
+                CASE WHEN TRIM(LOWER(mp.category)) IN ('other','others') THEN 'Others'
+                     ELSE INITCAP(TRIM(mp.category)) END AS category,
+                COUNT(DISTINCT mp.product_external_id) AS count
+            FROM masters.products mp
+            WHERE ${where}
             GROUP BY 1
             ORDER BY 2 DESC
         `, params);
@@ -1945,7 +1944,7 @@ app.get('/api/ratings/products', async (req, res) => {
             // Filter on the resolved category (which now prefers master_category
             // over brand_category when master is specific). master_category is
             // null for ~80% of rows so filtering on it directly hides everything.
-            where.push(`(category = $${idx} OR master_category = $${idx})`);
+            where.push(`(category ILIKE $${idx} OR master_category ILIKE $${idx})`);
             params.push(category);
             idx++;
         }
@@ -2275,6 +2274,12 @@ app.get('/api/ratings/summary', async (req, res) => {
             is_competitor,
             sentiment_category,
         } = req.query;
+        // Review-count window anchor. Standardized on CURRENT_DATE (rolling
+        // "last N months from today") so EVERY surface — header, category strip,
+        // governance cards, benchmark — reports the SAME number. A MAX(review_date)
+        // anchor pulled in a ~5.4K review cluster near the year boundary and made
+        // the strip/cards read ~26.5K while the header read ~21K.
+        const anchorDateExpr = 'CURRENT_DATE';
         let where = ['rs.company_id = $1'];
         let params = [req.companyId];
         let idx = 2;
@@ -2318,7 +2323,7 @@ app.get('/api/ratings/summary', async (req, res) => {
         if (!date_from && !date_to) {
             // Sanitize: req.query.period_months was interpolated raw into SQL — clamp to 1-24.
             const period_months = Math.max(1, Math.min(parseInt(req.query.period_months, 10) || 6, 24));
-            where.push(`rs.review_date >= (CURRENT_DATE - INTERVAL '${period_months} months')`);
+            where.push(`rs.review_date >= (${anchorDateExpr} - INTERVAL '${period_months} months')`);
         }
         const hasPriceFilter = (price_min !== undefined && price_min !== '') || (price_max !== undefined && price_max !== '');
         const reviewScopeParams = [...params];
@@ -2739,6 +2744,12 @@ app.get('/api/ratings/trends', async (req, res) => {
         const periodMonths = parseInt(req.query.period_months) || 6;
         const { category, pareto_status, web_pid, date_from, date_to, platform, price_mode, price_min, price_max, is_competitor } = req.query;
         const safePeriodMonths = Math.max(1, Math.min(periodMonths, 24));
+        // Review-count window anchor. Standardized on CURRENT_DATE (rolling
+        // "last N months from today") so EVERY surface — header, category strip,
+        // governance cards, benchmark — reports the SAME number. A MAX(review_date)
+        // anchor pulled in a ~5.4K review cluster near the year boundary and made
+        // the strip/cards read ~26.5K while the header read ~21K.
+        const anchorDateExpr = 'CURRENT_DATE';
         const params = [req.companyId];
         let idx = 2;
         const extraFilters = [];
@@ -2801,8 +2812,8 @@ app.get('/api/ratings/trends', async (req, res) => {
             priorPeriodFilter = `r.review_date >= $${fromIdx}::date AND r.review_date < ${midpointExpr}`;
             combinedWindowFilter = `r.review_date >= $${fromIdx}::date AND r.review_date <= $${toIdx}::date`;
         } else {
-            const recentStartExpr = `CURRENT_DATE - INTERVAL '${safePeriodMonths} months'`;
-            const priorStartExpr = `CURRENT_DATE - INTERVAL '${safePeriodMonths * 2} months'`;
+            const recentStartExpr = `${anchorDateExpr} - INTERVAL '${safePeriodMonths} months'`;
+            const priorStartExpr = `${anchorDateExpr} - INTERVAL '${safePeriodMonths * 2} months'`;
             recentPeriodFilter = `r.review_date >= ${recentStartExpr}`;
             priorPeriodFilter = `r.review_date >= ${priorStartExpr} AND r.review_date < ${recentStartExpr}`;
             combinedWindowFilter = `r.review_date >= ${priorStartExpr}`;
@@ -2811,7 +2822,14 @@ app.get('/api/ratings/trends', async (req, res) => {
         const extraWhere = extraFilters.length > 0 ? `AND ${extraFilters.join(' AND ')}` : '';
 
         const sql = `
-            WITH scoped_reviews AS (
+            WITH latest_snapshots AS (
+                SELECT DISTINCT ON (web_pid, LOWER(platform))
+                    web_pid, platform, price_rp, price_sp, category, pareto_status
+                FROM ratings.product_snapshots
+                WHERE company_id = $1
+                ORDER BY web_pid, LOWER(platform), snapshot_date DESC, created_at DESC NULLS LAST
+            ),
+            scoped_reviews AS (
                 SELECT
                     REPLACE(COALESCE(NULLIF(r.sentiment_subcategory, ''), NULLIF(r.sentiment_category, ''), 'General'), '_', ' ') AS characteristic,
                     CASE
@@ -2825,15 +2843,7 @@ app.get('/api/ratings/trends', async (req, res) => {
                     ON mp.company_id = r.company_id
                    AND mp.product_external_id = r.web_pid
                    AND LOWER(mp.platform) = LOWER(r.platform)
-                LEFT JOIN LATERAL (
-                    SELECT ps2.price_rp, ps2.price_sp, ps2.category, ps2.pareto_status
-                    FROM ratings.product_snapshots ps2
-                    WHERE ps2.company_id = r.company_id
-                      AND ps2.web_pid = r.web_pid
-                      AND LOWER(ps2.platform) = LOWER(r.platform)
-                    ORDER BY ps2.snapshot_date DESC, ps2.created_at DESC NULLS LAST
-                    LIMIT 1
-                ) ps ON true
+                LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid AND LOWER(ps.platform) = LOWER(r.platform)
                 WHERE r.company_id = $1
                   AND r.review_date IS NOT NULL
                   AND ${combinedWindowFilter}
@@ -2916,6 +2926,12 @@ app.get('/api/ratings/timeline', async (req, res) => {
     try {
         const { category: filterCategory, pareto_status, web_pid, date_from, date_to, platform, price_mode, price_min, price_max } = req.query;
 
+        // Review-count window anchor. Standardized on CURRENT_DATE (rolling
+        // "last N months from today") so EVERY surface — header, category strip,
+        // governance cards, benchmark — reports the SAME number. A MAX(review_date)
+        // anchor pulled in a ~5.4K review cluster near the year boundary and made
+        // the strip/cards read ~26.5K while the header read ~21K.
+        const anchorDateExpr = 'CURRENT_DATE';
         const params = [req.companyId];
         let idx = 2;
         const extraFilters = [];
@@ -2954,7 +2970,7 @@ app.get('/api/ratings/timeline', async (req, res) => {
         // given. pm is a clamped integer, so direct interpolation is safe.
         if (!date_from && !date_to && req.query.period_months) {
             const pm = Math.max(1, Math.min(parseInt(req.query.period_months, 10) || 6, 24));
-            extraFilters.push(`r.review_date >= (CURRENT_DATE - INTERVAL '${pm} months')`);
+            extraFilters.push(`r.review_date >= (${anchorDateExpr} - INTERVAL '${pm} months')`);
         }
         const extraWhere = extraFilters.length > 0 ? 'AND ' + extraFilters.join(' AND ') : '';
 
@@ -3125,13 +3141,13 @@ app.get('/api/ratings/competitor-matrix', async (req, res) => {
         let idx = 2;
 
         if (platform && platform !== 'all') { where.push(`platform ILIKE $${idx++}`); params.push(platform); }
-        if (category) { where.push(`category = $${idx++}`); params.push(category); }
+        if (category) { where.push(`category ILIKE $${idx++}`); params.push(category); }
         if (date_from) { where.push(`review_date >= $${idx++}`); params.push(date_from); }
         if (date_to) { where.push(`review_date <= $${idx++}`); params.push(date_to); }
 
         const sql = `
-            SELECT 
-                brand,
+            SELECT
+                INITCAP(LOWER(brand)) AS brand,
                 is_competitor,
                 COUNT(*) as total_reviews,
                 ROUND(AVG(rating)::numeric, 2) as avg_rating,
@@ -3139,7 +3155,7 @@ app.get('/api/ratings/competitor-matrix', async (req, res) => {
                 category as primary_category
             FROM ratings.reviews
             WHERE ${where.join(' AND ')}
-            GROUP BY brand, is_competitor, category
+            GROUP BY INITCAP(LOWER(brand)), is_competitor, category
             ORDER BY total_reviews DESC
             LIMIT 50
         `;
@@ -3159,6 +3175,12 @@ app.get('/api/ratings/product-health', async (req, res) => {
     try {
         const { category, pareto_status, web_pid, date_from, date_to, platform, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category } = req.query;
         const trendPeriod = Math.max(1, Math.min(parseInt(period_months) || 3, 24));
+        // Review-count window anchor. Standardized on CURRENT_DATE (rolling
+        // "last N months from today") so EVERY surface — header, category strip,
+        // governance cards, benchmark — reports the SAME number. A MAX(review_date)
+        // anchor pulled in a ~5.4K review cluster near the year boundary and made
+        // the strip/cards read ~26.5K while the header read ~21K.
+        const anchorDateExpr = 'CURRENT_DATE';
 
         const params = [req.companyId];
         let idx = 2;
@@ -3214,15 +3236,22 @@ app.get('/api/ratings/product-health', async (req, res) => {
             priorPeriodFilter = `r.review_date >= $${fromIdx}::date AND r.review_date < ${midpointExpr}`;
             combinedWindowFilter = `AND r.review_date >= $${fromIdx}::date AND r.review_date <= $${toIdx}::date`;
         } else {
-            const recentStartExpr = `CURRENT_DATE - INTERVAL '${trendPeriod} months'`;
-            const priorStartExpr = `CURRENT_DATE - INTERVAL '${trendPeriod * 2} months'`;
+            const recentStartExpr = `${anchorDateExpr} - INTERVAL '${trendPeriod} months'`;
+            const priorStartExpr = `${anchorDateExpr} - INTERVAL '${trendPeriod * 2} months'`;
             recentPeriodFilter = `r.review_date >= ${recentStartExpr}`;
             priorPeriodFilter = `r.review_date >= ${priorStartExpr} AND r.review_date < ${recentStartExpr}`;
             combinedWindowFilter = `AND r.review_date >= ${priorStartExpr}`;
         }
 
         const sql = `
-            WITH product_stats AS (
+            WITH latest_snapshots AS (
+                SELECT DISTINCT ON (web_pid)
+                    web_pid, price_rp, price_sp, category, pareto_status
+                FROM ratings.product_snapshots
+                WHERE company_id = $1
+                ORDER BY web_pid, snapshot_date DESC, created_at DESC NULLS LAST
+            ),
+            product_stats AS (
                 SELECT
                     LEFT(r.product_name, 80) AS product,
                     COUNT(*) AS total,
@@ -3235,13 +3264,7 @@ app.get('/api/ratings/product-health', async (req, res) => {
                     COUNT(*) FILTER (WHERE ${priorPeriodFilter} AND r.sentiment = 'Negative') AS older_neg
                 FROM ratings.reviews r
                 LEFT JOIN masters.products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND LOWER(mp.platform) = LOWER(r.platform)
-                LEFT JOIN LATERAL (
-                    SELECT ps2.price_rp, ps2.price_sp, ps2.category, ps2.pareto_status
-                    FROM ratings.product_snapshots ps2
-                    WHERE ps2.company_id = r.company_id AND ps2.web_pid = r.web_pid
-                    ORDER BY ps2.snapshot_date DESC, ps2.created_at DESC NULLS LAST
-                    LIMIT 1
-                ) ps ON true
+                LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid
                 WHERE r.company_id = $1 AND r.product_name IS NOT NULL
                   AND r.review_date IS NOT NULL
                   ${combinedWindowFilter}
@@ -3278,7 +3301,7 @@ app.get('/api/ratings/product-health', async (req, res) => {
             let mIdx = 3;
             const monthFilters = [];
             if (category) {
-                monthFilters.push(`COALESCE(NULLIF(ps.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, '')) = $${mIdx++}`);
+                monthFilters.push(`COALESCE(NULLIF(ps.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, '')) ILIKE $${mIdx++}`);
                 monthParams.push(category);
             }
             if (pareto_status) {
@@ -3447,8 +3470,12 @@ app.get('/api/ratings/category-health', async (req, res) => {
         }
 
         // Get latest review date to anchor trends (prevents 0% trends when data is stale)
-        const latestDateRes = await pool.query('SELECT MAX(review_date) as max_date FROM ratings.reviews WHERE company_id = $1', [req.companyId]);
-        const anchorDateExpr = latestDateRes.rows[0]?.max_date ? `'${latestDateRes.rows[0].max_date.toISOString().split('T')[0]}'::date` : 'CURRENT_DATE';
+        // Review-count window anchor. Standardized on CURRENT_DATE (rolling
+        // "last N months from today") so EVERY surface — header, category strip,
+        // governance cards, benchmark — reports the SAME number. A MAX(review_date)
+        // anchor pulled in a ~5.4K review cluster near the year boundary and made
+        // the strip/cards read ~26.5K while the header read ~21K.
+        const anchorDateExpr = 'CURRENT_DATE';
 
         if (date_from && date_to) {
             sqlParams.push(date_from, date_to);
@@ -3589,11 +3616,33 @@ app.get('/api/ratings/category-health', async (req, res) => {
                   ${sentimentCategoryFilter}
                   ${categoryFilter.replace("COALESCE(NULLIF(ps_latest.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, ''))", "scm.category")}
                 GROUP BY 1
+            ),
+            cat_catalogue AS (
+                -- Authoritative CATALOGUE SKU count per category, straight from the
+                -- master (same source as the governance cards + category dropdown).
+                -- csc.sku_count above is the ACTIVE population (snapshot/review in
+                -- window); this is the full listed catalogue, so the strip can show
+                -- "X listed · Y active" instead of a bare active count.
+                SELECT
+                    CASE WHEN TRIM(LOWER(mp.category)) IN ('other','others') THEN 'Others'
+                         ELSE INITCAP(TRIM(mp.category)) END AS category,
+                    COUNT(DISTINCT mp.product_external_id) AS catalogue_sku_count
+                FROM masters.products mp
+                WHERE mp.company_id = $1 AND mp.platform IS NOT NULL
+                  AND mp.category IS NOT NULL AND TRIM(mp.category) <> ''
+                  ${snapshotCompetitorFilter}
+                  ${snapshotPlatformFilter.replace(/ls\./g, 'mp.')}
+                  ${snapshotCategoryFilter.replace("COALESCE(NULLIF(ls.category, ''), NULLIF(mp.category, ''))", "mp.category")}
+                GROUP BY 1
             )
             SELECT
                 csc.category,
                 COALESCE(cr.review_count, 0) AS review_count,
                 csc.sku_count,
+                COALESCE(cc.catalogue_sku_count, csc.sku_count) AS catalogue_sku_count,
+                -- SKUs with a review in the window (same web_pid grain as the
+                -- catalogue count) — the honest "with recent reviews" number.
+                COALESCE(cr.sku_count, 0) AS review_sku_count,
                 COALESCE(cr.avg_review_rating, 0) AS avg_review_rating,
                 cr.avg_ml_rating,
                 COALESCE(cr.positive_count, 0) AS positive_count,
@@ -3612,6 +3661,7 @@ app.get('/api/ratings/category-health', async (req, res) => {
             LEFT JOIN cat_products cp ON cp.category = csc.category
             LEFT JOIN cat_reviews cr ON cr.category = csc.category
             LEFT JOIN cat_growth cg ON cg.category = csc.category
+            LEFT JOIN cat_catalogue cc ON cc.category = csc.category
             ORDER BY csc.sku_count DESC, COALESCE(cr.review_count, 0) DESC
         `;
         const { rows } = await pool.query(sql, sqlParams);
@@ -3634,6 +3684,8 @@ app.get('/api/ratings/category-health', async (req, res) => {
                 category: r.category,
                 reviewCount: parseInt(r.review_count),
                 skuCount: parseInt(r.sku_count),
+                catalogueSkuCount: parseInt(r.catalogue_sku_count || r.sku_count),
+                reviewSkuCount: parseInt(r.review_sku_count || 0),
                 avgReviewRating: parseFloat(r.avg_review_rating || 0),
                 avgMlRating: r.avg_ml_rating ? parseFloat(r.avg_ml_rating) : null,
                 positiveCount: parseInt(r.positive_count),
@@ -3659,6 +3711,8 @@ app.get('/api/ratings/category-health', async (req, res) => {
         // the sum of category SKUs equals the total unique SKUs.
         // -------------------------------------------------------------
         const totalSkuCount = categories.reduce((sum, c) => sum + (c.skuCount || 0), 0);
+        const totalCatalogueSkuCount = categories.reduce((sum, c) => sum + (c.catalogueSkuCount || 0), 0);
+        const totalReviewSkuCount = categories.reduce((sum, c) => sum + (c.reviewSkuCount || 0), 0);
         const totalReviewCount = categories.reduce((sum, c) => sum + (c.reviewCount || 0), 0);
         const totalRatingsCount = categories.reduce((sum, c) => sum + (c.totalRatings || 0), 0);
         const totalParetoCount = categories.reduce((sum, c) => sum + (c.paretoCount || 0), 0);
@@ -3689,6 +3743,8 @@ app.get('/api/ratings/category-health', async (req, res) => {
             categories,
             total: {
                 skuCount: totalSkuCount,
+                catalogueSkuCount: totalCatalogueSkuCount,
+                reviewSkuCount: totalReviewSkuCount,
                 totalRatings: totalRatingsCount,
                 reviewCount: totalReviewCount,
                 paretoCount: totalParetoCount,
@@ -3847,8 +3903,12 @@ app.get('/api/ratings/executive-health', async (req, res) => {
         } = req.query;
         const trendPeriod = parseInt(period_months) || 3;
 
-        const latestDateRes = await pool.query('SELECT MAX(review_date) as max_date FROM ratings.reviews WHERE company_id = $1', [req.companyId]);
-        const anchorDateExpr = latestDateRes.rows[0]?.max_date ? `'${latestDateRes.rows[0].max_date.toISOString().split('T')[0]}'::date` : 'CURRENT_DATE';
+        // Review-count window anchor. Standardized on CURRENT_DATE (rolling
+        // "last N months from today") so EVERY surface — header, category strip,
+        // governance cards, benchmark — reports the SAME number. A MAX(review_date)
+        // anchor pulled in a ~5.4K review cluster near the year boundary and made
+        // the strip/cards read ~26.5K while the header read ~21K.
+        const anchorDateExpr = 'CURRENT_DATE';
 
         const params = [req.companyId];
         let latestSnapshotFilters = '';
@@ -4250,23 +4310,29 @@ app.get('/api/ratings/executive-health', async (req, res) => {
         // buckets above undercount them. These give the true catalogue denominator.
         const catalogueCounts = { Pareto: 0, 'Non-Pareto': 0, NPD: 0 };
         try {
+            // IMPORTANT: build a DEDICATED param list for this query. Reusing the
+            // main `params` array breaks the bind: `params` accumulates date /
+            // price / sentiment / pareto placeholders that this query never
+            // references, so Postgres rejects it ("bind message supplies N
+            // parameters, but prepared statement requires M") and the counts
+            // silently fall back to 0 for every filter combination that carries a
+            // date range or price band. Only the columns this query actually uses
+            // (company, competitor, platform, category) are bound here.
             const catParams = [req.companyId];
-            let mComp = '';
+            let cCompetitor = '', cPlatform = '', cCategory = '';
             if (is_competitor === 'true' || is_competitor === 'false') {
                 catParams.push(is_competitor === 'true');
-                mComp = `AND COALESCE(mp.is_competitor, false) = $${catParams.length}`;
+                cCompetitor = ` AND COALESCE(mp.is_competitor, false) = $${catParams.length}`;
             } else if (is_competitor !== 'all') {
-                mComp = `AND COALESCE(mp.is_competitor, false) = false`;
+                cCompetitor = ` AND COALESCE(mp.is_competitor, false) = false`;
             }
-            let mPlat = '';
             if (platform && platform !== 'all') {
                 catParams.push(platform);
-                mPlat = `AND mp.platform ILIKE $${catParams.length}`;
+                cPlatform = ` AND mp.platform ILIKE $${catParams.length}`;
             }
-            let mCat = '';
             if (filterCategory) {
                 catParams.push(filterCategory);
-                mCat = `AND COALESCE(NULLIF(mp.category, ''), '') ILIKE $${catParams.length}`;
+                cCategory = ` AND COALESCE(NULLIF(mp.category, ''), '') ILIKE $${catParams.length}`;
             }
             const { rows: catRows } = await pool.query(`
                 SELECT CASE WHEN pareto_status = 'Pareto' THEN 'Pareto'
@@ -4274,17 +4340,79 @@ app.get('/api/ratings/executive-health', async (req, res) => {
                             ELSE 'Non-Pareto' END AS bucket,
                        count(DISTINCT product_external_id) AS skus
                 FROM masters.products mp
-                WHERE mp.company_id = $1 ${mComp}
+                WHERE mp.company_id = $1 ${cCompetitor}
                   AND mp.platform IS NOT NULL
-                  ${mPlat} ${mCat}
+                  ${cPlatform} ${cCategory}
                 GROUP BY 1
             `, catParams);
             catRows.forEach(r => { catalogueCounts[r.bucket] = parseInt(r.skus); });
         } catch (e) { console.error('catalogue count error:', e.message); }
 
+        // Reviews per pareto bucket over the FULL windowed review set (NOT the
+        // active SKU scope), resolved with the SAME snapshot-first category and
+        // pareto logic as the summary header — so Pareto + Non-Pareto + NPD equals
+        // the header/strip total under EVERY filter combination (platform,
+        // category, …), not just the default view. Using review.category alone
+        // over-counted a category filter (e.g. review.category='Cookware' rows
+        // whose latest snapshot says 'Other Cookware' were wrongly counted as
+        // Cookware). Dedicated param list — never reuse `params` (bind footgun).
+        const paretoReviewCounts = { Pareto: 0, 'Non-Pareto': 0, NPD: 0 };
+        try {
+            const prParams = [req.companyId];
+            let prWhere = 'r.company_id = $1';
+            if (is_competitor === 'true' || is_competitor === 'false') {
+                prParams.push(is_competitor === 'true');
+                prWhere += ` AND COALESCE(r.is_competitor, false) = $${prParams.length}`;
+            } else if (is_competitor !== 'all') {
+                prWhere += ` AND COALESCE(r.is_competitor, false) = false`;
+            }
+            if (platform && platform !== 'all') { prParams.push(platform); prWhere += ` AND r.platform ILIKE $${prParams.length}`; }
+            if (date_from && date_to) {
+                prParams.push(date_from, date_to);
+                prWhere += ` AND r.review_date >= $${prParams.length - 1}::date AND r.review_date <= $${prParams.length}::date`;
+            } else {
+                prWhere += ` AND r.review_date >= (${anchorDateExpr} - INTERVAL '${trendPeriod} months')`;
+            }
+            // Category filter applies to the RESOLVED (snapshot-first) category —
+            // exactly like the header — so it counts the same reviews the header does.
+            let prCatClause = '';
+            if (filterCategory) { prParams.push(filterCategory); prCatClause = ` WHERE TRIM(rev.resolved_category) ILIKE $${prParams.length}`; }
+            const { rows: prRows } = await pool.query(`
+                WITH latest_snapshots AS (
+                    SELECT DISTINCT ON (ps.web_pid, LOWER(ps.platform))
+                        ps.web_pid, ps.platform, ps.category, ps.pareto_status
+                    FROM ratings.product_snapshots ps
+                    WHERE ps.company_id = $1
+                    ORDER BY ps.web_pid, LOWER(ps.platform), ps.snapshot_date DESC, ps.created_at DESC NULLS LAST
+                ),
+                rev AS (
+                    SELECT
+                        COALESCE(NULLIF(mp.pareto_status, ''), NULLIF(ls.pareto_status, ''), NULLIF(r.pareto_status, '')) AS resolved_pareto,
+                        CASE WHEN TRIM(LOWER(COALESCE(NULLIF(ls.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, '')))) IN ('other', 'others') THEN 'Others'
+                             ELSE INITCAP(TRIM(COALESCE(NULLIF(ls.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, '')))) END AS resolved_category
+                    FROM ratings.reviews r
+                    LEFT JOIN masters.products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND LOWER(mp.platform) = LOWER(r.platform)
+                    LEFT JOIN latest_snapshots ls ON ls.web_pid = r.web_pid AND LOWER(ls.platform) = LOWER(r.platform)
+                    WHERE ${prWhere}
+                )
+                SELECT CASE WHEN resolved_pareto = 'Pareto' THEN 'Pareto'
+                            WHEN resolved_pareto = 'NPD' THEN 'NPD'
+                            ELSE 'Non-Pareto' END AS bucket,
+                       count(*) AS reviews
+                FROM rev${prCatClause}
+                GROUP BY 1
+            `, prParams);
+            prRows.forEach(x => { paretoReviewCounts[x.bucket] = parseInt(x.reviews); });
+        } catch (e) { console.error('pareto review count error:', e.message); }
+
         const pareto = formatBucket('Pareto', buckets['Pareto']);
         const nonPareto = formatBucket('Non-Pareto', buckets['Non-Pareto']);
         const npd = formatBucket('NPD', buckets['NPD']);
+        // Override the active-scope review count with the full windowed per-bucket
+        // count so the three cards sum to the header/strip total.
+        pareto.totalReviewCount = paretoReviewCounts['Pareto'];
+        nonPareto.totalReviewCount = paretoReviewCounts['Non-Pareto'];
+        npd.totalReviewCount = paretoReviewCounts['NPD'];
         // catalogueTotal = full-catalogue SKU count for the bucket; total = SKUs
         // with review/snapshot activity in the window (the health breakdown).
         pareto.catalogueTotal = catalogueCounts['Pareto'];
@@ -4308,8 +4436,16 @@ app.get('/api/ratings/executive-health', async (req, res) => {
 // ============================================================================
 app.get('/api/ratings/issues-breakdown', async (req, res) => {
     try {
-        const { category: filterCategory, pareto_status: filterParetoStatus, rating_bifurcation, platform, date_from, date_to, price_mode, price_min, price_max, is_competitor, sentiment_category } = req.query;
+        const { category: filterCategory, pareto_status: filterParetoStatus, rating_bifurcation, platform, date_from, date_to, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category } = req.query;
 
+        // Anchor the default window to the latest DATA date (not CURRENT_DATE) so
+        // this tab reconciles with /category-health beside it when ingestion lags.
+        // Review-count window anchor. Standardized on CURRENT_DATE (rolling
+        // "last N months from today") so EVERY surface — header, category strip,
+        // governance cards, benchmark — reports the SAME number. A MAX(review_date)
+        // anchor pulled in a ~5.4K review cluster near the year boundary and made
+        // the strip/cards read ~26.5K while the header read ~21K.
+        const anchorDateExpr = 'CURRENT_DATE';
         const params = [req.companyId];
         let categoryFilter = '';
         let paretoFilter = '';
@@ -4346,6 +4482,12 @@ app.get('/api/ratings/issues-breakdown', async (req, res) => {
         if (date_to) {
             params.push(date_to);
             dateFilter += ` AND r.review_date <= $${params.length}`;
+        }
+        // No explicit range → default window (was previously an all-time scan,
+        // inconsistent with /category-health on the same tab).
+        if (!date_from && !date_to) {
+            const pm = Math.max(1, Math.min(parseInt(period_months) || 6, 24));
+            dateFilter += ` AND r.review_date >= (${anchorDateExpr} - INTERVAL '${pm} months')`;
         }
 
         if (filterCategory) {
@@ -4426,6 +4568,9 @@ app.get('/api/ratings/issues-breakdown', async (req, res) => {
               ${competitorFilter}
               AND r.sentiment_subcategory IS NOT NULL
               AND r.sentiment_subcategory != ''
+              -- Exclude the General_Feedback sink: it's the "no specific aspect"
+              -- bucket, not an actionable issue, and otherwise dominates the ranking.
+              AND r.sentiment_subcategory != 'General_Feedback'
               ${categoryFilter}
               ${paretoFilter}
               ${ratingFilter}
@@ -4674,7 +4819,14 @@ app.get('/api/ratings/stakeholder-detail', async (req, res) => {
         }
 
         const sql = `
-            WITH sku_issues AS (
+            WITH latest_snapshots AS (
+                SELECT DISTINCT ON (web_pid, LOWER(platform))
+                    web_pid, platform, price_rp, price_sp, category, pareto_status, rating
+                FROM ratings.product_snapshots
+                WHERE company_id = $1
+                ORDER BY web_pid, LOWER(platform), snapshot_date DESC, created_at DESC NULLS LAST
+            ),
+            sku_issues AS (
                 SELECT
                     r.sentiment_subcategory,
                     r.web_pid,
@@ -4684,22 +4836,9 @@ app.get('/api/ratings/stakeholder-detail', async (req, res) => {
                     COUNT(*) AS total_count
                 FROM ratings.reviews r
                 LEFT JOIN masters.products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND LOWER(mp.platform) = LOWER(r.platform)
-                LEFT JOIN LATERAL (
-                    SELECT
-                        ps2.price_rp,
-                        ps2.price_sp,
-                        ps2.category,
-                        ps2.pareto_status,
-                        ps2.rating
-                    FROM ratings.product_snapshots ps2
-                    WHERE ps2.company_id = r.company_id
-                      AND ps2.web_pid = r.web_pid
-                      AND LOWER(ps2.platform) = LOWER(r.platform)
-                    ORDER BY ps2.snapshot_date DESC, ps2.created_at DESC NULLS LAST
-                    LIMIT 1
-                ) ps ON true
+                LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid AND LOWER(ps.platform) = LOWER(r.platform)
                 WHERE r.company_id = $1
-                  AND (CASE 
+                  AND (CASE
                     WHEN $${params.length + 1} = 'true' THEN r.is_competitor = true
                     WHEN $${params.length + 1} = 'false' THEN r.is_competitor = false
                     ELSE true
@@ -4792,7 +4931,9 @@ app.get('/api/ratings/sku-list', async (req, res) => {
                 ) snap ON true
                 WHERE rv.company_id = ps.company_id AND rv.web_pid = ps.web_pid
                   AND LOWER(rv.platform) = LOWER(ps.platform)
-                  AND rv.is_competitor = false
+                  -- rv is already tied to this exact SKU (web_pid+platform), whose
+                  -- reviews all share its scope — the hardcoded is_competitor=false
+                  -- wrongly dropped competitor SKUs under a category filter.
                   AND LOWER(TRIM(COALESCE(NULLIF(snap.category, ''), NULLIF(mp2.category, ''), NULLIF(rv.category, '')))) = LOWER(TRIM($${params.length}))
             )`);
         }
@@ -5015,6 +5156,9 @@ app.post('/api/ratings/stakeholder-mappings', async (req, res) => {
             return res.status(400).json({ error: 'sentiment_subcategory is required' });
         }
         const cleanedStakeholder = stakeholder && String(stakeholder).trim() !== '' ? String(stakeholder).trim() : null;
+        // Only overwrite stakeholder when the caller actually sent the key — a
+        // label-only POST must not null out an existing stakeholder assignment.
+        const stakeholderProvided = Object.prototype.hasOwnProperty.call(req.body, 'stakeholder');
         const cleanedLabel = display_label && String(display_label).trim() !== '' ? String(display_label).trim() : null;
         const order = Number.isFinite(parseInt(sort_order, 10)) ? parseInt(sort_order, 10) : 0;
 
@@ -5027,12 +5171,12 @@ app.post('/api/ratings/stakeholder-mappings', async (req, res) => {
         if (existing.rows.length > 0) {
             const { rows } = await pool.query(
                 `UPDATE ratings.stakeholder_mappings
-                 SET stakeholder = $1,
+                 SET stakeholder = CASE WHEN $6 THEN $1 ELSE stakeholder END,
                      display_label = COALESCE($2, display_label),
                      sort_order = $3
                  WHERE id = $4 AND company_id = $5
                  RETURNING *`,
-                [cleanedStakeholder, cleanedLabel, order, existing.rows[0].id, req.companyId]
+                [cleanedStakeholder, cleanedLabel, order, existing.rows[0].id, req.companyId, stakeholderProvided]
             );
             row = rows[0];
         } else {
@@ -5476,12 +5620,12 @@ app.get('/api/ratings/competitor-brands', async (req, res) => {
         // list, and present on at least 3 reviews (to drop one-off noise).
         const { rows } = await pool.query(
             `SELECT brand FROM (
-                SELECT brand, COUNT(*) n FROM ratings.reviews
+                SELECT INITCAP(LOWER(brand)) AS brand, COUNT(*) n FROM ratings.reviews
                 WHERE company_id = $1 AND is_competitor = true
                   AND brand IS NOT NULL AND brand != ''
                   AND LENGTH(brand) >= 3
                   AND LOWER(brand) NOT IN ('the','not','and','gas','extracted','none','null','n/a','other','unknown','etc','for','was','were','our','your','its')
-                GROUP BY brand
+                GROUP BY INITCAP(LOWER(brand))
                 HAVING COUNT(*) >= 3
             ) t ORDER BY brand ASC`,
             [req.companyId]
@@ -5556,7 +5700,14 @@ app.get('/api/ratings/brand-config', async (req, res) => {
 app.get('/api/ratings/benchmark-data', async (req, res) => {
     try {
         const { category, platform, date_from, date_to, period_months, price_mode, price_min, price_max } = req.query;
-        const conditions = [`r.company_id = $1`, `r.brand IS NOT NULL`, `r.brand <> ''`];
+        const conditions = [`r.company_id = $1`,
+            // Our own reviews (is_competitor=false) are ALWAYS Prestige — attribute
+            // ALL of them (below) so the benchmark "Prestige" total reconciles with
+            // the header / strip / governance cards (~21K). The junk-brand guard
+            // (legacy text-extraction noise like "The"/"Gas"/"Extracted", 1-2 char
+            // strings) applies ONLY to competitor rows, so it still stops fake
+            // competitor columns without dropping our own noisy-brand reviews.
+            `(COALESCE(r.is_competitor, false) = false OR (r.brand IS NOT NULL AND r.brand <> '' AND LENGTH(TRIM(r.brand)) >= 3 AND LOWER(TRIM(r.brand)) NOT IN ('the','not','and','gas','extracted','none','null','n/a','other','unknown','etc','for','was','were','our','your','its')))`];
         const params = [req.companyId];
         let idx = 2;
 
@@ -5601,9 +5752,27 @@ app.get('/api/ratings/benchmark-data', async (req, res) => {
         }
 
         const { rows } = await pool.query(
-            `WITH scoped_reviews AS (
+            `WITH latest_snapshots AS (
+                -- Each SKU's latest snapshot computed ONCE (was a per-review
+                -- correlated LATERAL — the dominant cost of this endpoint). Same
+                -- selection as the old LATERAL: latest snapshot_date, then latest
+                -- created_at. A SKU with no snapshot simply has no row here, so the
+                -- LEFT JOIN below yields the same NULLs the LATERAL did.
+                SELECT DISTINCT ON (web_pid, LOWER(platform))
+                    web_pid, platform, price_rp, price_sp, category, rating, rating_count
+                FROM ratings.product_snapshots
+                WHERE company_id = $1
+                ORDER BY web_pid, LOWER(platform), snapshot_date DESC, created_at DESC NULLS LAST
+            ),
+            scoped_reviews AS (
                 SELECT
-                    r.brand,
+                    -- Our side (is_competitor=false) → always 'Prestige' so ALL our
+                    -- reviews aggregate into one row that matches the header/strip
+                    -- (~21K), never fragmented by noisy r.brand text. Competitors keep
+                    -- canonicalised casing so 'Pigeon'/'pigeon', 'BUTTERFLY'/'Butterfly'
+                    -- collapse to ONE brand instead of duplicate matrix columns.
+                    CASE WHEN COALESCE(r.is_competitor, false) = false THEN 'Prestige'
+                         ELSE INITCAP(LOWER(r.brand)) END AS brand,
                     r.is_competitor,
                     COALESCE(r.sentiment_category, 'General') AS sentiment_category,
                     r.rating,
@@ -5618,20 +5787,9 @@ app.get('/api/ratings/benchmark-data', async (req, res) => {
                     ON mp.company_id = r.company_id
                    AND mp.product_external_id = r.web_pid
                    AND LOWER(mp.platform) = LOWER(r.platform)
-                LEFT JOIN LATERAL (
-                    SELECT
-                        ps2.price_rp,
-                        ps2.price_sp,
-                        ps2.category,
-                        ps2.rating,
-                        ps2.rating_count
-                    FROM ratings.product_snapshots ps2
-                    WHERE ps2.company_id = r.company_id
-                      AND ps2.web_pid = r.web_pid
-                      AND LOWER(ps2.platform) = LOWER(r.platform)
-                    ORDER BY ps2.snapshot_date DESC, ps2.created_at DESC NULLS LAST
-                    LIMIT 1
-                ) ps ON true
+                LEFT JOIN latest_snapshots ps
+                    ON ps.web_pid = r.web_pid
+                   AND LOWER(ps.platform) = LOWER(r.platform)
                 WHERE ${conditions.join(' AND ')}
             ),
             brand_totals AS (
@@ -5646,6 +5804,7 @@ app.get('/api/ratings/benchmark-data', async (req, res) => {
                     COUNT(*) FILTER (WHERE sentiment = 'Neutral') AS neutral_count
                 FROM scoped_reviews
                 GROUP BY brand, is_competitor
+                HAVING COUNT(*) >= 3
             ),
             brand_listing_metrics AS (
                 SELECT
@@ -5746,14 +5905,14 @@ app.get('/api/ml-audit/pending', async (req, res) => {
             FROM ratings.reviews_ml_audit m
             JOIN ratings.reviews r ON r.id = m.review_id
             WHERE m.company_id = $1 
+              -- Only flag discrepancies in fields /approve actually merges (category,
+              -- material, wattage, rating). Sentiment / issue fields are owned by the
+              -- in-house classifier and are NOT written on approve, so flagging them
+              -- produced no-op audits that re-appeared in the queue forever.
               AND (
                     COALESCE(m.ml_category, m.rules_category) IS DISTINCT FROM r.category
                  OR COALESCE(m.ml_material, m.rules_material) IS DISTINCT FROM r.material
                  OR COALESCE(m.ml_wattage, m.rules_wattage) IS DISTINCT FROM r.wattage
-                 OR m.ml_sentiment IS DISTINCT FROM r.sentiment
-                 OR COALESCE(m.ml_issue_subcategory, m.ml_issue) IS DISTINCT FROM r.specific_issue
-                 OR m.ml_issue_category IS DISTINCT FROM r.sentiment_category
-                 OR m.ml_issue_subcategory IS DISTINCT FROM r.sentiment_subcategory
                  OR m.ml_inferred_rating IS DISTINCT FROM r.ml_inferred_rating
               )
             ORDER BY m.audit_date DESC
@@ -5786,14 +5945,10 @@ app.post('/api/ml-audit/approve', async (req, res) => {
                                              THEN 'ml_approved' ELSE r.category_source END,
                 material              = COALESCE(NULLIF(a.ml_material,''),    NULLIF(a.rules_material,''),  r.material),
                 wattage               = COALESCE(NULLIF(a.ml_wattage,''),     NULLIF(a.rules_wattage,''),   r.wattage),
-                sentiment             = COALESCE(a.ml_sentiment,                                            r.sentiment),
-                sentiment_source      = CASE WHEN a.ml_sentiment IS NOT NULL
-                                             THEN 'ml_approved' ELSE r.sentiment_source END,
-                specific_issue        = COALESCE(NULLIF(a.ml_issue_subcategory,''), NULLIF(a.ml_issue,''),  r.specific_issue),
-                specific_issue_source = CASE WHEN COALESCE(NULLIF(a.ml_issue_subcategory,''), NULLIF(a.ml_issue,'')) IS NOT NULL
-                                             THEN 'ml_approved' ELSE r.specific_issue_source END,
-                sentiment_category    = COALESCE(a.ml_issue_category,                                       r.sentiment_category),
-                sentiment_subcategory = COALESCE(a.ml_issue_subcategory,                                    r.sentiment_subcategory),
+                -- sentiment / sentiment_category / sentiment_subcategory are now owned by the
+                -- in-house SetFit classifier + gold-star sentiment (loaded directly into reviews).
+                -- Approving the legacy DeBERTa audit must NOT overwrite them, or it reverts the
+                -- new classifications. Approval still curates category / material / wattage / rating.
                 ml_inferred_rating    = COALESCE(CASE WHEN a.ml_inferred_rating BETWEEN 1 AND 5
                                                       THEN a.ml_inferred_rating END,                       r.ml_inferred_rating),
                 updated_at            = NOW()
@@ -6609,9 +6764,11 @@ app.post('/api/ratings/products/bulk-import', async (req, res) => {
                 pi++;
             }
             if (row.is_npd !== undefined) {
-                sets.push(`pareto_status = $${pi}`);
-                params.push(isNpd ? 'NPD' : 'Non-Pareto');
-                pi++;
+                // Setting NPD is fine; CLEARING the flag must revert NPD→Non-Pareto
+                // WITHOUT demoting a genuine Pareto SKU (this toggle only governs NPD).
+                sets.push(isNpd
+                    ? `pareto_status = 'NPD'`
+                    : `pareto_status = CASE WHEN pareto_status = 'NPD' THEN 'Non-Pareto' ELSE pareto_status END`);
             }
             if (sets.length === 0) {
                 results.push({ web_pid: webPid, status: 'skipped', reason: 'no fields provided' });
@@ -6716,7 +6873,7 @@ app.get('/api/ratings/price-variance', async (req, res) => {
         const where = ['mp.company_id = $1', 'mp.mrp IS NOT NULL', 'mp.mrp > 0'];
         const params = [req.companyId];
         let idx = 2;
-        if (category) { where.push(`mp.master_category = $${idx++}`); params.push(category); }
+        if (category) { where.push(`mp.master_category ILIKE $${idx++}`); params.push(category); }
         if (platform && platform !== 'all') {
             where.push(`LOWER(mp.platform) = LOWER($${idx++})`);
             params.push(platform);
@@ -6784,7 +6941,7 @@ app.get('/api/ratings/star-distribution', async (req, res) => {
         const params = [req.companyId];
         let idx = 2;
         if (category) {
-            where.push(`COALESCE(NULLIF(mp.master_category,''), NULLIF(mp.category,''), NULLIF(r.category,'')) = $${idx++}`);
+            where.push(`COALESCE(NULLIF(mp.master_category,''), NULLIF(mp.category,''), NULLIF(r.category,'')) ILIKE $${idx++}`);
             params.push(category);
         }
         if (platform && platform !== 'all') {
@@ -6818,7 +6975,10 @@ app.get('/api/ratings/star-distribution', async (req, res) => {
             }
             const e = byBrand.get(key);
             const s = Math.max(1, Math.min(5, r.star));
-            e.dist[s] = parseInt(r.n, 10);
+            // Accumulate (not overwrite): the SQL groups by (brand, is_competitor, star)
+            // but we key by brand only, so a brand present under both is_competitor
+            // values returns two rows per star — must sum, or the bars won't total 100%.
+            e.dist[s] += parseInt(r.n, 10);
             e.total += parseInt(r.n, 10);
         }
         const result = [...byBrand.values()].map(b => ({
@@ -6858,7 +7018,7 @@ app.get('/api/ratings/rating-mismatch', async (req, res) => {
         const params = [req.companyId];
         const add = (sqlFn, val) => { params.push(val); baseWhere.push(sqlFn(params.length)); };
         if (platform && platform !== 'all') add(i => `LOWER(r.platform) = LOWER($${i})`, platform);
-        if (category) add(i => `COALESCE(NULLIF(mp.master_category,''), NULLIF(mp.category,''), NULLIF(r.category,'')) = $${i}`, category);
+        if (category) add(i => `COALESCE(NULLIF(mp.master_category,''), NULLIF(mp.category,''), NULLIF(r.category,'')) ILIKE $${i}`, category);
         if (web_pid) add(i => `UPPER(r.web_pid) = UPPER($${i})`, web_pid);
         if (is_competitor === 'true' || is_competitor === 'false') add(i => `r.is_competitor = $${i}`, is_competitor === 'true');
         if (date_from) add(i => `r.review_date >= $${i}`, date_from);
@@ -7480,7 +7640,7 @@ app.get('/api/data-lake/export', async (req, res) => {
             where.push(`(TRIM(COALESCE(NULLIF(ps.category, ''), NULLIF(mp.category, ''), NULLIF(r.category, ''))) IS NULL OR TRIM(COALESCE(NULLIF(ps.category, ''), NULLIF(mp.category, ''), NULLIF(r.category, ''))) ILIKE '%Uncategorized%')`);
         }
         if (filterBlankSentiment === 'true') {
-            where.push(`(r.sentiment IS NULL OR r.sentiment = '' OR r.sentiment ILIKE '%Neutral%')`);
+            where.push(`(r.sentiment_subcategory IS NULL OR r.sentiment_subcategory = '')`);
         }
         if (filterCompetitor === 'true') {
             where.push(`r.is_competitor = true`);
@@ -7624,7 +7784,7 @@ app.get('/api/data-lake/reviews', async (req, res) => {
             where.push(`(TRIM(COALESCE(NULLIF(ps.category, ''), NULLIF(mp.category, ''), NULLIF(r.category, ''))) IS NULL OR TRIM(COALESCE(NULLIF(ps.category, ''), NULLIF(mp.category, ''), NULLIF(r.category, ''))) ILIKE '%Uncategorized%')`);
         }
         if (filterBlankSentiment === 'true') {
-            where.push(`(r.sentiment IS NULL OR r.sentiment = '' OR r.sentiment ILIKE '%Neutral%')`);
+            where.push(`(r.sentiment_subcategory IS NULL OR r.sentiment_subcategory = '')`);
         }
         if (filterCompetitor === 'true') {
             where.push(`r.is_competitor = true`);
@@ -7700,7 +7860,7 @@ app.get('/api/data-lake/reviews', async (req, res) => {
                 avg(r.rating) as avg_rating,
                 count(DISTINCT COALESCE(NULLIF(ps.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, ''))) as unique_categories,
                 sum(CASE WHEN COALESCE(NULLIF(ps.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, '')) IS NULL OR COALESCE(NULLIF(ps.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, '')) = '' OR COALESCE(NULLIF(ps.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, '')) ILIKE '%Uncategorized%' THEN 1 ELSE 0 END) as blank_categories,
-                sum(CASE WHEN r.sentiment IS NULL OR r.sentiment = '' OR r.sentiment ILIKE '%Neutral%' THEN 1 ELSE 0 END) as blank_sentiments
+                sum(CASE WHEN r.sentiment_subcategory IS NULL OR r.sentiment_subcategory = '' THEN 1 ELSE 0 END) as blank_sentiments
             FROM ratings.reviews r
               LEFT JOIN masters.products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND LOWER(mp.platform) = LOWER(r.platform)
               LEFT JOIN LATERAL (
@@ -7928,11 +8088,9 @@ if (!process.env.VERCEL) {
         // spawnJob.cjs never fired across the restart boundary.
         try {
             const { reconcileOrphanedJobs } = require('./automation/spawnJob.cjs');
-            reconcileOrphanedJobs({ pool, reason: 'api server restarted' }).catch(e => {
-                if (!isReadOnlyDbError(e)) {
-                    console.error('[ml-jobs] reconcile failed:', e.message);
-                }
-            });
+            reconcileOrphanedJobs({ pool, reason: 'api server restarted' }).catch(e =>
+                console.error('[ml-jobs] reconcile failed:', e.message)
+            );
         } catch (e) {
             console.error('[ml-jobs] reconcile import failed:', e.message);
         }

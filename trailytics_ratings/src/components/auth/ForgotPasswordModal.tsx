@@ -7,7 +7,6 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mail, AlertCircle, Check } from 'lucide-react';
-import { RATINGS_API_BASE } from '../../config/apiBase';
 
 interface Props {
     open: boolean;
@@ -15,7 +14,7 @@ interface Props {
     defaultEmail?: string;
 }
 
-const API_BASE = RATINGS_API_BASE;
+const API_BASE = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
 
 export function ForgotPasswordModal({ open, onClose, defaultEmail }: Props) {
     const [email, setEmail] = useState(defaultEmail || '');

@@ -397,7 +397,7 @@ const Dashboard: React.FC = () => {
 
 
     return (
-        <div className={`flex flex-col min-h-full bg-slate-50 dark:bg-slate-950 transition-colors duration-500`}>
+        <div className={`h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-500`}>
             {/* ===== HEADER ===== */}
             <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/60">
                 <div className="w-full px-4 md:px-4 py-3">
@@ -485,7 +485,7 @@ const Dashboard: React.FC = () => {
             <GlobalFilterBar filterResult={filterResult} headlineMetrics={headlineMetrics} />
 
             {/* ===== MAIN CONTENT ===== */}
-            <main className="flex-1 w-full px-2 md:px-4 py-3 flex flex-col">
+            <main className="flex-1 w-full px-2 md:px-4 py-3 overflow-y-auto flex flex-col">
 
                 {/* Loading state */}
                 {isLoading && <LoadingSkeleton />}

@@ -79,6 +79,19 @@ function canonicalizeCategory(value) {
     return normalized.split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w).join(' ');
 }
 
+function normalizeBrand(value) {
+    const cleaned = cleanString(value);
+    if (!cleaned) return null;
+    // Canonical brand casing: collapse 'prestige' / 'Prestige' / 'PRESTIGE' (and
+    // 'pigeon'/'Pigeon', 'BUTTERFLY'/'butterfly', …) to a single title-cased form.
+    // ClickHouse stores brand uniformly lower-case; legacy Postgres ingestion left
+    // title-cased rows, so without this the same brand splits into duplicate SKUs /
+    // matrix columns. Mirrors the read-side INITCAP(LOWER(brand)) so stored data
+    // matches what the UI groups on.
+    return cleaned.replace(/\s+/g, ' ').split(' ')
+        .map(w => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w)).join(' ');
+}
+
 function normalizePareto(value, existingPareto) {
     if (existingPareto === 'NPD') return 'NPD';
     const cleaned = cleanString(value);
@@ -211,7 +224,7 @@ async function main() {
                 COMPANY_ID, webPid, skuDescription, skuDescription, platform,
                 resolveCategory(product.brand_category, existing?.master_category || null),
                 canonicalizeCategory(product.sub_category),
-                cleanString(product.brand_name), paretoStatus,
+                normalizeBrand(product.brand_name), paretoStatus,
                 cleanString(product.mrp) ? Number(product.mrp) : null,
                 product.mop != null ? Number(product.mop) : null,
                 isCompetitor,
@@ -277,7 +290,7 @@ async function main() {
             const snap = snapByKey.get(key);
             const fallbackName = n.product_name || snap?.product_name || webPid;
             const fallbackCat = canonicalizeCategory(n.category) || canonicalizeCategory(snap?.category) || null;
-            const fallbackBrand = snap?.brand || 'Prestige';
+            const fallbackBrand = normalizeBrand(snap?.brand) || 'Prestige';
             await pgClient.query(`
                 INSERT INTO masters.products (
                     company_id, product_external_id, product_name, description, platform,

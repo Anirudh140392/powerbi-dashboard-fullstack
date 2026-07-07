@@ -57,12 +57,21 @@ const CompetitorBenchmarkPanel: React.FC<CompetitorBenchmarkPanelProps> = ({
         };
     }, [benchmarks]);
 
-    // Market Average (Competitors only)
+    // Market Average (Competitors only) — REVIEW-COUNT-WEIGHTED so a 5-review
+    // brand doesn't count the same as a 5,000-review brand. Our own "score" is a
+    // per-review average, so an unweighted mean of competitor averages made the
+    // "Gap vs Market" an apples-to-oranges comparison.
     const marketAvg = useMemo(() => {
         const comps = benchmarks.filter(b => b.is_competitor);
         if (comps.length === 0) return null;
-        const avg = comps.reduce((sum, c) => sum + parseFloat(c.avg_rating), 0) / comps.length;
-        return Math.round(avg * 10) / 10;
+        let weighted = 0, weight = 0;
+        for (const c of comps) {
+            const n = parseInt(c.total_reviews) || 0;
+            const r = parseFloat(c.avg_rating);
+            if (n > 0 && !isNaN(r)) { weighted += r * n; weight += n; }
+        }
+        if (weight === 0) return null;
+        return Math.round((weighted / weight) * 10) / 10;
     }, [benchmarks]);
 
     // Gap analysis using real category scores from benchmarks

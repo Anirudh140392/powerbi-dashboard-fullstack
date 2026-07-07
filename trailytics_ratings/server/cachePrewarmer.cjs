@@ -150,6 +150,28 @@ async function runCycle({ baseUrl, pool, internalToken }) {
     }
 }
 
+// Full forced warm of EVERY heavy endpoint for every active company (or one).
+// Called once right after the crawl/ML pipeline finishes (warm-on-crawl) — the
+// data is fresh and the DB is relatively free, so users then hit a warm cache
+// instead of paying a cold recompute against the (often ETL-saturated) DB.
+async function warmAll({ port, pool, internalToken, companyId }) {
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const companyIds = companyId ? [companyId] : await fetchActiveCompanyIds(pool);
+    const jobs = [];
+    for (const cid of companyIds) for (const path of PREWARM_QUERIES) jobs.push({ cid, path });
+    let cursor = 0, warmed = 0, failed = 0;
+    const worker = async () => {
+        while (cursor < jobs.length) {
+            const job = jobs[cursor++];
+            const r = await warmOne(baseUrl, job.cid, job.path, internalToken);
+            if (r.ok) warmed++; else failed++;
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENCY, jobs.length || 1) }, worker));
+    console.log(`[warm-cache] warmed ${warmed}/${jobs.length} (${companyIds.length} co × ${PREWARM_QUERIES.length} paths), ${failed} failed`);
+    return { companies: companyIds.length, paths: PREWARM_QUERIES.length, warmed, failed };
+}
+
 function start({ port, pool, internalToken }) {
     const baseUrl = `http://127.0.0.1:${port}`;
     // First cycle 5s after start so the server has finished binding + auth setup.
@@ -160,4 +182,4 @@ function start({ port, pool, internalToken }) {
     console.log(`[prewarm] scheduled — ${PREWARM_QUERIES.length} queries × N companies every ${PREWARM_INTERVAL_MS}ms`);
 }
 
-module.exports = { start, PREWARM_QUERIES };
+module.exports = { start, warmAll, PREWARM_QUERIES };

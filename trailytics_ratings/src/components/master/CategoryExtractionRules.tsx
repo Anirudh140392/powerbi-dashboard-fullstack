@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Edit3, Trash2, Plus, Loader2, X, Check, AlertCircle } from 'lucide-react';
 import { resolveCompanyId } from '../../utils/tenant';
 import { authenticatedFetch, buildAuthHeaders } from '../../utils/auth';
-import { RATINGS_API_BASE } from '../../config/apiBase';
 
 interface DBRule {
     id: number | null;        // null for an unsaved new row
@@ -29,7 +28,7 @@ const CategoryExtractionRules: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const backendUrl = RATINGS_API_BASE;
+    const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
 
     const fetchRules = useCallback(async () => {
         setLoading(true);

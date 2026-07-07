@@ -1,10 +1,5 @@
 /**
  * AuthContext — Ratings-owned server-backed authentication context
- *
- * MFA has been removed from the login flow (backend no longer requires it).
- * A new `ssoLogin` method allows Digital Shelf to pass a short-lived SSO
- * token that the ratings backend exchanges for a full session — enabling
- * seamless single-sign-on when the ratings Dashboard is embedded in DS.
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -17,25 +12,33 @@ import {
     type AuthUser,
 } from '../utils/auth';
 import { clearAllCache } from '../utils/apiCache';
-import { RATINGS_API_BASE } from '../config/apiBase';
 
 export type LoginResult =
     | { status: 'success' }
-    | { status: 'error'; error: string; lockedUntil?: string };
+    | { status: 'error'; error: string; lockedUntil?: string }
+    | { status: 'enrol'; challengeToken: string; email: string; displayName: string }
+    | { status: 'verify'; challengeToken: string };
 
 interface AuthContextType {
     user: AuthUser | null;
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (username: string, password: string) => Promise<LoginResult>;
+    ssoLogin: (ssoToken: string) => Promise<{ ok: true } | { ok: false; error: string }>;
     logout: () => Promise<void>;
     refreshSession: () => Promise<void>;
-    /** Exchange a short-lived DS-issued SSO token for a full ratings session. */
-    ssoLogin: (ssoToken: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+    // MFA handoff: caller passes the challenge token from login() and the
+    // freshly-typed code; on success the full session is persisted + user set.
+    completeMfaVerify: (challengeToken: string, code: string, isBackupCode?: boolean) =>
+        Promise<{ ok: true } | { ok: false; error: string; attemptsRemaining?: number; lockedUntil?: string }>;
+    completeMfaEnrolment: (challengeToken: string, code: string) =>
+        Promise<{ ok: true; backupCodes: string[] } | { ok: false; error: string }>;
+    startMfaEnrolment: (challengeToken: string) =>
+        Promise<{ ok: true; challengeToken: string; qrDataUri: string; manualSecret: string; otpauthUri: string; email: string; issuer: string } | { ok: false; error: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-const API_BASE = RATINGS_API_BASE;
+const API_BASE = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
 
 async function parseJsonSafe(res: Response) {
     try {
@@ -96,11 +99,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         refreshSession();
     }, [refreshSession]);
 
-    /**
-     * Standard username + password login.
-     * Backend now returns { token, expiresAt, user } directly (no MFA step).
-     */
     const login = useCallback(async (username: string, password: string): Promise<LoginResult> => {
+        // NOTE: do NOT flip isLoading here. isLoading is reserved for the
+        // initial session refresh on app mount. Flipping it during the form
+        // submission would unmount LoginPage mid-flight and discard the
+        // step state (password → enrol/verify), trapping the user on the
+        // password screen even after the server returned an MFA challenge.
         try {
             const response = await fetch(`${API_BASE}/api/auth/login`, {
                 method: 'POST',
@@ -115,6 +119,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     lockedUntil: payload?.lockedUntil,
                 };
             }
+            if (payload?.step === 'enrol') {
+                return { status: 'enrol', challengeToken: payload.challengeToken, email: payload.email, displayName: payload.displayName };
+            }
+            if (payload?.step === 'verify') {
+                return { status: 'verify', challengeToken: payload.challengeToken };
+            }
+            // Legacy single-step response (shouldn't happen after MFA rollout but fail safe).
             if (payload?.token && payload?.user) {
                 persistAuthSession({ token: payload.token, expiresAt: payload.expiresAt, user: payload.user });
                 setUser(payload.user);
@@ -126,30 +137,78 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }, []);
 
-    /**
-     * SSO login — called by ReviewRatingPage in Digital Shelf.
-     * Exchanges a short-lived HMAC token (issued by the DS backend) for
-     * a full ratings session without requiring a separate login form.
-     */
-    const ssoLogin = useCallback(async (ssoToken: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const ssoLogin = useCallback(async (ssoToken: string) => {
         try {
-            const response = await fetch(`${API_BASE}/api/auth/sso`, {
+            const response = await fetch(`${API_BASE}/api/auth/sso-login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ssoToken }),
             });
             const payload = await parseJsonSafe(response);
             if (!response.ok) {
-                return { ok: false, error: payload?.error || 'SSO authentication failed' };
+                return { ok: false as const, error: payload?.error || 'SSO Login Failed' };
             }
             if (payload?.token && payload?.user) {
                 persistAuthSession({ token: payload.token, expiresAt: payload.expiresAt, user: payload.user });
                 setUser(payload.user);
-                return { ok: true };
+                return { ok: true as const };
             }
-            return { ok: false, error: 'Unexpected SSO response from server.' };
+            return { ok: false as const, error: 'Unexpected response from authentication service.' };
         } catch {
-            return { ok: false, error: 'Unable to reach the ratings authentication service.' };
+            return { ok: false as const, error: 'Unable to reach the authentication service.' };
+        }
+    }, []);
+
+    const startMfaEnrolment = useCallback(async (challengeToken: string) => {
+        try {
+            const r = await fetch(`${API_BASE}/api/auth/mfa/enrol/start`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ challengeToken }),
+            });
+            const payload = await parseJsonSafe(r);
+            if (!r.ok) return { ok: false as const, error: payload?.error || 'Failed to start MFA enrolment' };
+            return { ok: true as const, ...payload };
+        } catch {
+            return { ok: false as const, error: 'Network error' };
+        }
+    }, []);
+
+    const completeMfaEnrolment = useCallback(async (challengeToken: string, code: string) => {
+        try {
+            const r = await fetch(`${API_BASE}/api/auth/mfa/enrol/confirm`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ challengeToken, code }),
+            });
+            const payload = await parseJsonSafe(r);
+            if (!r.ok) return { ok: false as const, error: payload?.error || 'Could not confirm code' };
+            persistAuthSession({ token: payload.token, expiresAt: payload.expiresAt, user: payload.user });
+            setUser(payload.user);
+            return { ok: true as const, backupCodes: payload.backupCodes || [] };
+        } catch {
+            return { ok: false as const, error: 'Network error' };
+        }
+    }, []);
+
+    const completeMfaVerify = useCallback(async (challengeToken: string, code: string, isBackupCode?: boolean) => {
+        try {
+            const r = await fetch(`${API_BASE}/api/auth/mfa/verify`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ challengeToken, code, isBackupCode: !!isBackupCode }),
+            });
+            const payload = await parseJsonSafe(r);
+            if (!r.ok) {
+                return {
+                    ok: false as const,
+                    error: payload?.error || 'Verification failed',
+                    attemptsRemaining: payload?.attemptsRemaining,
+                    lockedUntil: payload?.lockedUntil,
+                };
+            }
+            persistAuthSession({ token: payload.token, expiresAt: payload.expiresAt, user: payload.user });
+            setUser(payload.user);
+            return { ok: true as const };
+        } catch {
+            return { ok: false as const, error: 'Network error' };
         }
     }, []);
 
@@ -175,10 +234,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAuthenticated: !!user,
         isLoading,
         login,
+        ssoLogin,
         logout,
         refreshSession,
-        ssoLogin,
-    }), [user, isLoading, login, logout, refreshSession, ssoLogin]);
+        startMfaEnrolment,
+        completeMfaEnrolment,
+        completeMfaVerify,
+    }), [user, isLoading, login, ssoLogin, logout, refreshSession, startMfaEnrolment, completeMfaEnrolment, completeMfaVerify]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

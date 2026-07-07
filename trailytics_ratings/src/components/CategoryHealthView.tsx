@@ -182,7 +182,11 @@ function CategoryHealthView({ reviews, onCategoryClick: _onCategoryClick }: Prop
     const enrichedReviews = useMemo(() => {
         let filtered = reviews;
         if (paretoFilter !== 'all') {
-            filtered = reviews.filter(r => r.paretoStatus === paretoFilter);
+            // Match the backend's non-Pareto definition: anything that isn't Pareto
+            // or NPD (incl. 'Non-Pareto (Unclassified)' and NULL) counts as Non-Pareto.
+            filtered = paretoFilter === 'Non-Pareto'
+                ? reviews.filter(r => r.paretoStatus == null || (r.paretoStatus !== 'Pareto' && r.paretoStatus !== 'NPD'))
+                : reviews.filter(r => r.paretoStatus === paretoFilter);
         }
         return filtered.map(r => {
             const productCategory = r.category || 'General';
@@ -712,7 +716,7 @@ function CategoryHealthView({ reviews, onCategoryClick: _onCategoryClick }: Prop
                                         <div>
                                             <p className="text-2xl font-bold text-slate-900 dark:text-white">
                                                 {showPercentMode
-                                                    ? `${reviews.length > 0 ? Math.round((card.totalReviews / reviews.length) * 100) : 0}%`
+                                                    ? `${enrichedReviews.length > 0 ? Math.round((card.totalReviews / enrichedReviews.length) * 100) : 0}%`
                                                     : card.totalReviews.toLocaleString()
                                                 }
                                             </p>

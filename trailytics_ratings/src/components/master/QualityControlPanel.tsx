@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle2, XCircle, BrainCircuit, Loader2, ListChecks, Filter } from 'lucide-react';
 import { resolveCompanyId } from '../../utils/tenant';
 import { authenticatedFetch, buildAuthHeaders } from '../../utils/auth';
-import { RATINGS_API_BASE } from '../../config/apiBase';
 
 interface MLAuditRecord {
     id: string;
@@ -42,7 +41,7 @@ const QualityControlPanel: React.FC = () => {
     const [triggering, setTriggering] = useState(false);
     const [actioning, setActioning] = useState<string | null>(null);
 
-    const backendUrl = RATINGS_API_BASE;
+    const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
     
     const fetchAudits = React.useCallback(async () => {
         setLoading(true);

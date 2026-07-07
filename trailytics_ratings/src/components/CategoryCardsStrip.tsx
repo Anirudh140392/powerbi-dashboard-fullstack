@@ -103,6 +103,8 @@ function RatingColumn({ label, value }: { label: string; value: string }) {
 function CategoryCard({
     category,
     skuCount,
+    catalogueSkuCount,
+    reviewSkuCount,
     avgPlatformRating,
     avgReviewRating,
     avgMlRating,
@@ -194,14 +196,21 @@ function CategoryCard({
                     )}
                 </div>
 
-                {/* Hero: SKU count */}
+                {/* Hero: catalogue SKU count (authoritative), with the active subset
+                    — SKUs that have reviews in the selected window — as a sub-label,
+                    so "listed" vs "active" never look like contradictory numbers. */}
                 <div className="flex items-baseline gap-1.5 -mt-0.5">
                     <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums leading-none">
-                        {skuCount.toLocaleString()}
+                        {(catalogueSkuCount ?? skuCount).toLocaleString()}
                     </span>
                     <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
-                        SKUs
+                        listed
                     </span>
+                    {reviewSkuCount !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-medium tabular-nums" title="SKUs with at least one review in the selected window">
+                            · {reviewSkuCount.toLocaleString()} reviewed
+                        </span>
+                    )}
                 </div>
 
                 {/* Sentiment mix bar — fills the previously-empty middle */}
@@ -270,6 +279,7 @@ function CategoryCard({
 // ─── "All Categories" card ────────────────────────────────────────────────────
 function AllCategoriesCard({
     totalSkus,
+    activeSkus,
     pdpAll,
     mlAll,
     userAll,
@@ -280,6 +290,7 @@ function AllCategoriesCard({
     onClick,
 }: {
     totalSkus: number;
+    activeSkus?: number;
     pdpAll: string;
     mlAll: string;
     userAll: string;
@@ -319,14 +330,19 @@ function AllCategoriesCard({
                     </span>
                 </div>
 
-                {/* Hero: SKU count */}
+                {/* Hero: catalogue SKU count, with active subset as a sub-label */}
                 <div className="flex items-baseline gap-1.5 -mt-0.5">
                     <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums leading-none">
                         {Number(totalSkus).toLocaleString()}
                     </span>
                     <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
-                        SKUs
+                        listed
                     </span>
+                    {activeSkus !== undefined && (
+                        <span className="text-[10px] text-slate-400 font-medium tabular-nums" title="SKUs with at least one review in the selected window">
+                            · {Number(activeSkus).toLocaleString()} reviewed
+                        </span>
+                    )}
                 </div>
 
                 {/* Spacer band — matches the sentiment bar's vertical real-estate so the
@@ -515,7 +531,8 @@ const CategoryCardsStrip: React.FC<CategoryCardsStripProps> = ({
     };
 
     // ── Aggregate "All" stats ─────────────────────────────────────────────────
-    const totalSkusAll = globalMetadata?.skuCount ?? categories.reduce((s, c) => s + c.skuCount, 0);
+    const totalReviewedSkusAll = globalMetadata?.reviewSkuCount ?? categories.reduce((s, c) => s + (c.reviewSkuCount ?? 0), 0);
+    const totalSkusAll = globalMetadata?.catalogueSkuCount ?? categories.reduce((s, c) => s + (c.catalogueSkuCount ?? c.skuCount), 0);
     const totalReviewsAll = globalMetadata?.reviewCount ?? categories.reduce((s, c) => s + c.reviewCount, 0);
     const totalRatingsAll = globalMetadata?.totalRatings ?? categories.reduce((s, c) => s + c.totalRatings, 0);
     const weightedUser = categories.reduce((s, c) => s + (c.avgReviewRating || 0) * c.reviewCount, 0);
@@ -609,6 +626,7 @@ const CategoryCardsStrip: React.FC<CategoryCardsStripProps> = ({
                     {/* "All" card */}
                     <AllCategoriesCard
                         totalSkus={totalSkusAll}
+                        activeSkus={totalReviewedSkusAll}
                         pdpAll={formatRatingValue(allMetrics?.pdp_rating ?? null)}
                         mlAll={formatRatingValue(allMetrics?.ml_rating ?? null)}
                         userAll={formatRatingValue(allMetrics?.user_rating ?? null)}

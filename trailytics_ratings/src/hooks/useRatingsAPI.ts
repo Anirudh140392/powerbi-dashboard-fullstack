@@ -14,9 +14,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { resolveCompanyId } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
 import { getCached, setCached, sessionGet, sessionSet, buildCacheKey, TTL } from '../utils/apiCache';
-import { RATINGS_API_BASE } from '../config/apiBase';
 
-const API_ROOT = RATINGS_API_BASE;
+const API_ROOT = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
 const API_BASE = `${API_ROOT}/api/ratings`;
 
 export interface ReviewRow {
@@ -538,6 +537,9 @@ export interface HealthStatusGroup {
 export interface ParetoBucket {
     name: string;
     total: number;
+    /** Full-catalogue SKU count for this bucket (from masters.products, not gated by
+     *  review/snapshot activity). Preferred for the NPD/Pareto headline counts. */
+    catalogueTotal?: number;
     totalRatings: number;
     totalReviewCount?: number;
     avgPlatformRating: number | null;
@@ -566,6 +568,8 @@ export interface ExecutiveHealthData {
     nonPareto: ParetoBucket;
     npd: ParetoBucket;
     total: number;
+    catalogueCounts?: { Pareto: number; 'Non-Pareto': number; NPD: number };
+    catalogueTotal?: number;
 }
 
 export function useExecutiveHealth(
@@ -625,6 +629,8 @@ export interface CategoryHealthItem {
     category: string;
     reviewCount: number;
     skuCount: number;
+    catalogueSkuCount?: number;
+    reviewSkuCount?: number;
     avgReviewRating: number;
     avgMlRating?: number | null;
     positiveCount: number;
@@ -645,6 +651,8 @@ export interface CategoryHealthItem {
 
 export interface GlobalCategoryMetadata {
     skuCount: number;
+    catalogueSkuCount?: number;
+    reviewSkuCount?: number;
     reviewCount: number;
     totalRatings: number;
     avgReviewRating: number;
@@ -1033,6 +1041,7 @@ export function useSkuList(filters: {
     price_mode?: 'rp' | 'sp';
     price_min?: number | null;
     price_max?: number | null;
+    is_competitor?: string | null;
 } = {}, options: HookOptions = {}) {
     const [data, setData] = useState<SkuListItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -1048,6 +1057,7 @@ export function useSkuList(filters: {
         if (filters.price_mode) params.price_mode = filters.price_mode;
         if (filters.price_min !== null && filters.price_min !== undefined) params.price_min = String(filters.price_min);
         if (filters.price_max !== null && filters.price_max !== undefined) params.price_max = String(filters.price_max);
+        if (filters.is_competitor) params.is_competitor = filters.is_competitor;
         const key = buildCacheKey('/sku-list', params);
         const cached = getCached<{ skus: SkuListItem[] }>(key);
         if (cached) { setData(cached.skus); setLoading(false); return; }
@@ -1056,7 +1066,7 @@ export function useSkuList(filters: {
             .then(result => { setData(result.skus); setCached(key, result, TTL.DRILLDOWN); })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [enabled, filters.category, filters.pareto_status, filters.rating_bifurcation, filters.platform, filters.price_mode, filters.price_min, filters.price_max]);
+    }, [enabled, filters.category, filters.pareto_status, filters.rating_bifurcation, filters.platform, filters.price_mode, filters.price_min, filters.price_max, filters.is_competitor]);
 
     return { data, loading };
 }
@@ -1206,11 +1216,18 @@ export function useBenchmarkData(
     useEffect(() => {
         if (!enabled) { setLoading(false); setBenchmarks([]); return; }
         const cached = getCached<{ benchmarks: BenchmarkRow[] }>(cacheKey);
-        if (cached) { setBenchmarks(cached.benchmarks); setLoading(false); return; }
+        // Guard against a malformed/error payload (e.g. a stale cached error with
+        // no `benchmarks` field) — benchmarks must always be an array or the
+        // consuming `.find`/`.filter` calls crash the whole dashboard.
+        if (cached) { setBenchmarks(Array.isArray(cached.benchmarks) ? cached.benchmarks : []); setLoading(false); return; }
         const params: Record<string, string | number | undefined> = { ...filters };
         if (category) params.category = category;
         fetchAPI<{ benchmarks: BenchmarkRow[] }>('/benchmark-data', params)
-            .then(result => { setBenchmarks(result.benchmarks); setCached(cacheKey, result, TTL.FILTER); })
+            .then(result => {
+                const rows = Array.isArray(result?.benchmarks) ? result.benchmarks : [];
+                setBenchmarks(rows);
+                if (rows.length) setCached(cacheKey, { benchmarks: rows }, TTL.FILTER);
+            })
             .catch(console.error)
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps

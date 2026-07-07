@@ -7,10 +7,6 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Star, ShieldCheck, MessageSquare, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
 import { useReviewsByIssue, type IssueReview } from '../hooks/useRatingsAPI';
-import { Sparkles, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
-import { resolveCompanyId } from '../utils/tenant';
-import { authenticatedFetch, buildAuthHeaders } from '../utils/auth';
-import { RATINGS_API_BASE } from '../config/apiBase';
 
 interface ReviewModalProps {
     isOpen: boolean;
@@ -40,8 +36,6 @@ const sentimentColors: Record<string, string> = {
     Neutral: 'text-slate-500 bg-slate-50 dark:bg-slate-800 dark:text-slate-400',
 };
 
-const backendUrl = RATINGS_API_BASE;
-
 const StarRating = ({ rating }: { rating: number }) => (
     <div className="flex items-center gap-0.5">
         {[1, 2, 3, 4, 5].map(i => (
@@ -57,29 +51,9 @@ const StarRating = ({ rating }: { rating: number }) => (
 
 const ReviewCard = ({ review }: { review: IssueReview }) => {
     const [expanded, setExpanded] = useState(false);
-    const [actioning, setActioning] = useState<string | null>(null);
-    const [hiddenAudit, setHiddenAudit] = useState(false);
-    
+
     const text = review.review_text || '';
     const isLong = text.length > 200;
-
-    const handleQCAction = async (action: 'approve' | 'reject') => {
-        if (!review.ml_audit_id) return;
-        setActioning(action);
-        try {
-            const companyId = resolveCompanyId();
-            await authenticatedFetch(`${backendUrl}/api/ml-audit/${action}?company_id=${companyId}`, {
-                method: 'POST',
-                headers: buildAuthHeaders({ 'Content-Type': 'application/json' }, companyId),
-                body: JSON.stringify({ audit_ids: [review.ml_audit_id] })
-            }, companyId);
-            setHiddenAudit(true);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setActioning(null);
-        }
-    };
 
     return (
         <motion.div
@@ -129,50 +103,12 @@ const ReviewCard = ({ review }: { review: IssueReview }) => {
                 </div>
             )}
             
-            {/* INLINE AI QUALITY CONTROL BANNER */}
-            {review.ml_audit_id && !hiddenAudit && (
-                <div className="mt-4 pt-3 border-t border-slate-200/50 dark:border-slate-700/50 flex flex-col gap-2 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-lg p-3 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-1 opacity-20">
-                        <Sparkles size={40} className="text-indigo-400" />
-                    </div>
-                    <div className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 uppercase tracking-wide">
-                        <Sparkles size={12} />
-                        AI Re-Classification Block
-                    </div>
-                    <div className="text-sm text-slate-700 dark:text-slate-300">
-                        {review.sentiment !== review.ml_sentiment && (
-                            <div className="flex items-center gap-2 mt-1">
-                                <span className="font-medium text-slate-500 line-through">Sentiment: {review.sentiment}</span>
-                                <span className="text-slate-400">→</span>
-                                <span className="font-bold text-emerald-600">{review.ml_sentiment}</span>
-                            </div>
-                        )}
-                        {review.specific_issue !== review.ml_issue && (
-                            <div className="flex items-center gap-2 mt-1">
-                                <span className="font-medium text-slate-500 line-through">Issue: {review.specific_issue || 'None'}</span>
-                                <span className="text-slate-400">→</span>
-                                <span className="font-bold text-emerald-600">{review.ml_issue || 'None'}</span>
-                            </div>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                        <button 
-                            onClick={() => handleQCAction('approve')}
-                            disabled={actioning !== null}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1 transition-colors disabled:opacity-50 z-10"
-                        >
-                            {actioning === 'approve' ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Accept Change
-                        </button>
-                        <button 
-                            onClick={() => handleQCAction('reject')}
-                            disabled={actioning !== null}
-                            className="bg-white dark:bg-slate-800 hover:bg-slate-50 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1 transition-colors disabled:opacity-50 z-10"
-                        >
-                            <XCircle size={12} /> Ignore
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* The legacy DeBERTa "AI Re-Classification" banner was removed here: it
+                only surfaced ml_sentiment / ml_issue suggestions, which are now owned
+                by the in-house SetFit + gold-star sentiment and are NOT applied by
+                /ml-audit/approve — so its "Accept Change" was both wrong (e.g.
+                Negative→Neutral on a clearly negative review) and a no-op. Legitimate
+                category/material/wattage/rating audits still live in the AI-QC Tracker. */}
 
         </motion.div>
     );

@@ -12,7 +12,6 @@ import { useState } from 'react';
 import { Search, Loader2, Filter, X } from 'lucide-react';
 import { resolveCompanyId } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
-import { RATINGS_API_BASE } from '../config/apiBase';
 
 interface SearchResult {
   id: string;
@@ -54,7 +53,7 @@ export function ReviewSearchPanel() {
     setError(null);
     try {
       const companyId = resolveCompanyId();
-      const backendUrl = RATINGS_API_BASE;
+      const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || import.meta.env.VITE_RAILWAY_URL || '';
       const params = new URLSearchParams({ company_id: companyId, q, limit: '100' });
       if (filters.brand_scope !== 'all') params.set('brand_scope', filters.brand_scope);
       if (filters.platform !== 'all') params.set('platform', filters.platform);

@@ -10,9 +10,8 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, UserPlus, AlertCircle, Check, Copy, Crown, Shield, Eye } from 'lucide-react';
 import { authenticatedFetch } from '../../utils/auth';
-import { RATINGS_API_BASE } from '../../config/apiBase';
 
-const API_BASE = RATINGS_API_BASE;
+const API_BASE = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
 
 interface Props {
     open: boolean;

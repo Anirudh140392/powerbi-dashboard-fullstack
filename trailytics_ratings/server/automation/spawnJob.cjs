@@ -57,6 +57,11 @@ function resolveJobCommand(jobName, ids) {
             if (ids && ids.length > 0) args.push(ids.join(','));
             return { command: resolvePythonBin(), args };
         }
+        case 'SetFit Issues':
+            // In-house SetFit issue/feedback classifier (37 aspects) — replaces the
+            // DeBERTa taxonomy for new reviews. Incremental (only unclassified rows),
+            // polarity-correction baked in. Self-installs setfit on first run.
+            return { command: resolvePythonBin(), args: ['scripts/setfit_issue_inference.py'] };
         case 'Competitor Matrix Match':
             return { command: resolvePythonBin(), args: ['scripts/competitor_matching.py'] };
         case 'Master Spec Enrichment':

@@ -10,9 +10,8 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Star, Lock, AlertCircle, Check, Eye, EyeOff } from 'lucide-react';
-import { RATINGS_API_BASE } from '../config/apiBase';
 
-const API_BASE = RATINGS_API_BASE;
+const API_BASE = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
 
 export function ResetPasswordPage() {
     const params = new URLSearchParams(window.location.search);

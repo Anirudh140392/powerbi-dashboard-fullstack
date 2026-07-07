@@ -402,11 +402,11 @@ const ReviewIntelligenceExplorer: React.FC<Props> = ({ reviews, competitorReview
             case 'positive': result = result.filter(r => r.sentiment === 'Positive'); break;
             case 'negative': result = result.filter(r => r.sentiment === 'Negative'); break;
             case 'neutral': result = result.filter(r => r.sentiment === 'Neutral'); break;
-            case '1star': result = result.filter(r => r.rating === 1); break;
-            case '2star': result = result.filter(r => r.rating === 2); break;
-            case '3star': result = result.filter(r => r.rating === 3); break;
-            case '4star': result = result.filter(r => r.rating === 4); break;
-            case '5star': result = result.filter(r => r.rating === 5); break;
+            case '1star': result = result.filter(r => Math.round(r.rating) === 1); break;
+            case '2star': result = result.filter(r => Math.round(r.rating) === 2); break;
+            case '3star': result = result.filter(r => Math.round(r.rating) === 3); break;
+            case '4star': result = result.filter(r => Math.round(r.rating) === 4); break;
+            case '5star': result = result.filter(r => Math.round(r.rating) === 5); break;
             case 'quality': result = result.filter(r => String(r.sentimentCategory) === 'Quality'); break;
             case 'performance': result = result.filter(r => String(r.sentimentCategory) === 'Performance'); break;
             case 'value': result = result.filter(r => String(r.sentimentCategory) === 'Value'); break;
@@ -436,7 +436,9 @@ const ReviewIntelligenceExplorer: React.FC<Props> = ({ reviews, competitorReview
         const neutral = total - positive - negative;
 
         const ratingDist = [0, 0, 0, 0, 0];
-        filteredReviews.forEach(r => { if (r.rating >= 1 && r.rating <= 5) ratingDist[r.rating - 1]++; });
+        // Round so fractional ratings (e.g. 4.5) still land in a bucket instead of
+        // being silently dropped from the distribution.
+        filteredReviews.forEach(r => { const s = Math.round(r.rating); if (s >= 1 && s <= 5) ratingDist[s - 1]++; });
 
         const kwMap = new Map<string, number>();
         filteredReviews.forEach(r => {

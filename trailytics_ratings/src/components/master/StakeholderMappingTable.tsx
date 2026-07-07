@@ -3,7 +3,6 @@ import { Search, Loader2, Factory, ClipboardCheck, Headphones, HelpCircle, Alert
 import { useIssuesBreakdown, type NlpIssue } from '../../hooks/useRatingsAPI';
 import { resolveCompanyId } from '../../utils/tenant';
 import { authenticatedFetch, buildAuthHeaders } from '../../utils/auth';
-import { RATINGS_API_BASE } from '../../config/apiBase';
 
 const STAKEHOLDER_OPTIONS = ['Production', 'QC', 'Customer Service'] as const;
 
@@ -29,7 +28,7 @@ const StakeholderMappingTable: React.FC = () => {
         setSaveState(new Map());
     }, [issues]);
 
-    const backendUrl = RATINGS_API_BASE;
+    const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
 
     const setOverride = (subcat: string, value: string | null) => {
         setOverrides((m) => new Map(m).set(subcat, value));

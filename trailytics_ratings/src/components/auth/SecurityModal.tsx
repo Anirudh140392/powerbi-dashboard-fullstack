@@ -11,14 +11,13 @@ import { X, ShieldCheck, KeyRound, RefreshCw, AlertCircle, Check, HelpCircle, Ey
 import { authenticatedFetch } from '../../utils/auth';
 import { MfaSetupHelp } from './MfaSetupHelp';
 import { MfaBackupCodes } from './MfaBackupCodes';
-import { RATINGS_API_BASE } from '../../config/apiBase';
 
 interface Props {
     open: boolean;
     onClose: () => void;
 }
 
-const API_BASE = RATINGS_API_BASE;
+const API_BASE = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
 
 interface MfaStatus {
     enrolled: boolean;

@@ -6,9 +6,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Notification } from '../types/automation';
 import { authenticatedFetch } from '../utils/auth';
-import { RATINGS_API_BASE } from '../config/apiBase';
 
-const API_BASE = RATINGS_API_BASE;
+const API_BASE = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
 const POLL_MS = 60_000;
 
 interface State {

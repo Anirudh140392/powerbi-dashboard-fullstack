@@ -17,9 +17,8 @@ import { Factory, ClipboardCheck, Headphones, Megaphone, Shield, Package, Users 
 import { fetchAPI } from './useRatingsAPI';
 import { resolveCompanyId } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
-import { RATINGS_API_BASE } from '../config/apiBase';
 
-const API_BASE = `${RATINGS_API_BASE}/api/ratings`;
+const API_BASE = `${(import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || ''}/api/ratings`;
 
 // ─── STAKEHOLDER MAPPINGS ───────────────────────────────────────────────────
 export interface StakeholderMeta {

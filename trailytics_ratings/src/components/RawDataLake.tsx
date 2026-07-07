@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Database, Search, Download, Edit2, Sparkles, CheckSquare, Trash2, ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react';
 import { resolveCompanyId } from '../utils/tenant';
 import { authenticatedFetch, buildAuthHeaders } from '../utils/auth';
-import { RATINGS_API_BASE } from '../config/apiBase';
 
 interface RawRow {
     id: string;
@@ -58,7 +57,7 @@ const RawDataLake: React.FC<RawDataLakeProps> = ({ filters }) => {
     // Edit Modal
     const [editingRow, setEditingRow] = useState<RawRow | null>(null);
 
-    const backendUrl = RATINGS_API_BASE;
+    const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
     const companyId = resolveCompanyId();
 
     const fetchLakeData = async () => {
@@ -275,7 +274,7 @@ const RawDataLake: React.FC<RawDataLakeProps> = ({ filters }) => {
                     </label>
                     <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 cursor-pointer p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">
                         <input type="checkbox" checked={filterBlankSent} onChange={e => { setFilterBlankSent(e.target.checked); setPage(0); }} className="rounded border-slate-300 text-indigo-500" />
-                        Blank Sentiment
+                        Unclassified only
                     </label>
                     <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 cursor-pointer p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">
                         <input type="checkbox" checked={filterCompetitor} onChange={e => { setFilterCompetitor(e.target.checked); setPage(0); }} className="rounded border-slate-300 text-amber-500" />
@@ -310,7 +309,7 @@ const RawDataLake: React.FC<RawDataLakeProps> = ({ filters }) => {
                     <span className="text-lg font-bold text-orange-600">{metrics.blankCategories.toLocaleString()} <span className="text-xs font-normal text-slate-500">({total > 0 ? ((metrics.blankCategories/total)*100).toFixed(1) : 0}%)</span></span>
                 </div>
                 <div className="flex flex-col">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Missing Sentiments</span>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider" title="Reviews not yet aspect-classified (no sub-category) — usually text too short to classify. Not the same as Neutral sentiment.">Unclassified (no aspect)</span>
                     <span className="text-lg font-bold text-rose-600">{metrics.blankSentiments.toLocaleString()} <span className="text-xs font-normal text-slate-500">({total > 0 ? ((metrics.blankSentiments/total)*100).toFixed(1) : 0}%)</span></span>
                 </div>
             </div>

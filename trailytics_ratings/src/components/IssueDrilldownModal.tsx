@@ -16,7 +16,6 @@ import { X, Users, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 import { resolveCompanyId } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
-import { RATINGS_API_BASE } from '../config/apiBase';
 
 interface DrilldownData {
   issue: string;
@@ -34,7 +33,7 @@ export function IssueDrilldownModal({ issue, onClose }: { issue: string; onClose
 
   useEffect(() => {
     const companyId = resolveCompanyId();
-    const backendUrl = RATINGS_API_BASE;
+    const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || import.meta.env.VITE_RAILWAY_URL || '';
     const params = new URLSearchParams({ company_id: companyId });
     setLoading(true);
     fetch(`${backendUrl}/api/ratings/issue/${encodeURIComponent(issue)}/drilldown?${params.toString()}`, {

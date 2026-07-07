@@ -688,9 +688,12 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                     <>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {([
-                                { key: 'npd' as const, label: 'NPD', bucket: executiveHealth.npd, authorativeTotal: globalMetadata?.npdCount ?? executiveHealth.npd.total, color: 'indigo', icon: <Zap size={20} />, desc: 'New Product Development', tooltipDef: TOOLTIPS.npdCard },
-                                { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: globalMetadata?.paretoCount ?? executiveHealth.pareto.total, color: 'indigo', icon: <Target size={20} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
-                                { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total, color: 'slate', icon: <Layers size={20} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
+                                // authorativeTotal prefers the catalogue count (executive-health now returns
+                                // per-bucket catalogueTotal from masters.products) so NPD/Pareto reflect the
+                                // full catalogue, not just SKUs reviewed in the window (NPD was showing 1 vs 19).
+                                { key: 'npd' as const, label: 'NPD', bucket: executiveHealth.npd, authorativeTotal: executiveHealth.npd.catalogueTotal ?? globalMetadata?.npdCount ?? executiveHealth.npd.total, color: 'indigo', icon: <Zap size={20} />, desc: 'New Product Development', tooltipDef: TOOLTIPS.npdCard },
+                                { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: executiveHealth.pareto.catalogueTotal ?? globalMetadata?.paretoCount ?? executiveHealth.pareto.total, color: 'indigo', icon: <Target size={20} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
+                                { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: executiveHealth.nonPareto.catalogueTotal ?? globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total, color: 'slate', icon: <Layers size={20} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
                             ]).map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {
                                 const isExpanded = expandedPareto === key;
                                 // Build a healthy/watch/at-risk health bar from the rating-bifurcation buckets
@@ -740,9 +743,21 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                     </div>
 
                                     {!hasData ? (
-                                        <div className="text-[11px] text-slate-400 dark:text-slate-500 italic py-3">
-                                            {authorativeTotal === 0 ? `No ${label} SKUs yet` : 'No reviews yet'}
-                                        </div>
+                                        authorativeTotal > 0 ? (
+                                            // Catalogue SKUs exist but none have reviews in the window
+                                            // (common for NPD). Show the count, not just an empty message.
+                                            <div className="flex items-baseline gap-1.5 py-3">
+                                                <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums leading-none">
+                                                    {authorativeTotal.toLocaleString()}
+                                                </span>
+                                                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">SKUs</span>
+                                                <span className="text-[11px] text-slate-400 dark:text-slate-500 italic ml-1">· no reviews yet</span>
+                                            </div>
+                                        ) : (
+                                            <div className="text-[11px] text-slate-400 dark:text-slate-500 italic py-3">
+                                                No {label} SKUs yet
+                                            </div>
+                                        )
                                     ) : (
                                     <>
                                     {/* Single dense stats row: hero count · ratings · counts · delta */}

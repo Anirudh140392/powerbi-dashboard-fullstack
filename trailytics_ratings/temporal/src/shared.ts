@@ -36,7 +36,9 @@ export interface AlertSummary {
  *   it's a stub that exits 1 with a "disabled" message. Building the actual
  *   spec-extraction is a separate feature.
  */
-export const DAILY_ML_JOBS = ['Sentiment Backfill', 'BERT Inference', 'DeBERTa Taxonomy'];
+// 'SetFit Issues' (in-house 37-aspect classifier, polarity-corrected) replaces the
+// legacy 'DeBERTa Taxonomy' for classifying new reviews' sentiment_subcategory.
+export const DAILY_ML_JOBS = ['Sentiment Backfill', 'BERT Inference', 'SetFit Issues'];
 
 /** Cost/CPU-heavy LLM jobs — gated behind the runGemini workflow input. */
 export const GEMINI_ML_JOBS = ['Gemini Audit', 'Competitor Matrix Match'];

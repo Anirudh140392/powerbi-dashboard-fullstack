@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { authenticatedFetch } from '../utils/auth';
 import { resolveCompanyId } from '../utils/tenant';
-import { RATINGS_API_BASE } from '../config/apiBase';
 
 export interface ServerCompetitorMention {
     id: number;
@@ -46,7 +45,7 @@ export function useCompetitorMentions(opts: Options = {}) {
 
     useEffect(() => {
         const companyId = resolveCompanyId();
-        const backendUrl = RATINGS_API_BASE;
+        const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
         const q = new URLSearchParams({ company_id: companyId });
         if (opts.brand)    q.set('brand', opts.brand);
         if (opts.platform) q.set('platform', opts.platform);

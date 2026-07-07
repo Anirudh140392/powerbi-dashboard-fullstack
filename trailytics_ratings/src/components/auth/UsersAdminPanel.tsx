@@ -17,9 +17,8 @@ import { motion } from 'framer-motion';
 import { ShieldCheck, ShieldOff, Lock, RefreshCw, AlertCircle, Mail, UserPlus, MailX, MailCheck, MoreHorizontal, Send, UserX, UserCheck } from 'lucide-react';
 import { authenticatedFetch } from '../../utils/auth';
 import { AddUserModal } from './AddUserModal';
-import { RATINGS_API_BASE } from '../../config/apiBase';
 
-const API_BASE = RATINGS_API_BASE;
+const API_BASE = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
 
 interface User {
     id: string;

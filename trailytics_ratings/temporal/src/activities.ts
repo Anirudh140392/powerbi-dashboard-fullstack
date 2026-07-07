@@ -246,3 +246,22 @@ export async function runWeeklyDigest(args: { companyId: string }): Promise<{ ok
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
+
+/** Warm-on-crawl activity — after the pipeline lands fresh, classified data,
+ *  tell the API to pre-compute every heavy dashboard response into its L1+L2
+ *  (Dragonfly) cache, so real users never pay a cold recompute against the
+ *  ETL-saturated shared DB. The warm-cache endpoint is fire-and-forget, so this
+ *  returns as soon as warming is kicked off. Auth via shared WARM_CACHE_TOKEN. */
+export async function warmCache(args: { companyId: string }): Promise<{ ok: boolean; status?: number; error?: string }> {
+  try {
+    const base = process.env.PUBLIC_DASHBOARD_URL || 'https://prestige-review.up.railway.app';
+    const res = await fetch(`${base}/api/ratings/internal/warm-cache?company_id=${encodeURIComponent(args.companyId)}`, {
+      method: 'POST',
+      headers: { 'x-warm-token': process.env.WARM_CACHE_TOKEN || '' },
+    });
+    if (!res.ok) return { ok: false, status: res.status, error: await res.text().catch(() => '') };
+    return { ok: true, status: res.status };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}

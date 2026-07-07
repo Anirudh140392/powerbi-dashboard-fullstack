@@ -10,7 +10,6 @@ import { useEffect, useState } from 'react';
 import { Star, Loader2 } from 'lucide-react';
 import { resolveCompanyId } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
-import { RATINGS_API_BASE } from '../config/apiBase';
 
 interface BrandDistribution {
   brand: string;
@@ -35,7 +34,7 @@ export function StarDistributionChart({ category, platform, webPid }: Props) {
   useEffect(() => {
     if (!category && !webPid) { setBrands([]); return; }
     const companyId = resolveCompanyId();
-    const backendUrl = RATINGS_API_BASE;
+    const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || import.meta.env.VITE_RAILWAY_URL || '';
     const params = new URLSearchParams({ company_id: companyId });
     if (category) params.set('category', category);
     if (platform && platform !== 'all') params.set('platform', platform);

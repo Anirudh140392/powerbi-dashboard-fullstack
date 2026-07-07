@@ -124,6 +124,12 @@ const { runWeeklyDigest } = proxyActivities<typeof activities>({
   retry: { maximumAttempts: 2 },
 });
 
+// Warm-on-crawl: fire-and-forget HTTP call, returns in seconds. Non-fatal.
+const { warmCache } = proxyActivities<typeof activities>({
+  startToCloseTimeout: '2 minutes',
+  retry: { maximumAttempts: 2 },
+});
+
 /** Weekly pulse workflow — wraps the /weekly-digest/send endpoint so a
  *  Temporal cron can fire it every Monday morning. */
 export async function weeklyDigestWorkflow(input: { companyId: string }): Promise<StageStatus> {
@@ -203,6 +209,19 @@ export async function dailyPipelineWorkflow(input: PipelineInput): Promise<{
     stages.mlApply = { status: 'COMPLETED' };
   } catch (e) {
     stages.mlApply = { status: 'FAILED', error: String(e) };
+  }
+
+  // --- Stage 2c: warm the dashboard cache with the fresh data (warm-on-crawl) ---
+  // Data is now final for this run; pre-compute the heavy responses into the
+  // Dragonfly cache while the DB is relatively free, so users never hit a cold
+  // recompute. Non-fatal — a failed warm just means the cache warms lazily.
+  if (syncOk) {
+    try {
+      await warmCache({ companyId: input.companyId });
+      stages.warmCache = { status: 'COMPLETED' };
+    } catch (e) {
+      stages.warmCache = { status: 'FAILED', error: String(e) };
+    }
   }
 
   // --- Stage 3: alert check (skipped if sync failed) ---

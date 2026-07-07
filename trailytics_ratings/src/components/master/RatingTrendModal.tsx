@@ -3,7 +3,6 @@ import { X, Loader2, AlertCircle, TrendingUp } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
 import { resolveCompanyId } from '../../utils/tenant';
 import { authenticatedFetch } from '../../utils/auth';
-import { RATINGS_API_BASE } from '../../config/apiBase';
 
 interface TrendPoint {
     date: string;
@@ -38,7 +37,7 @@ export const RatingTrendModal: React.FC<Props> = ({ webPid, productName, platfor
             setLoading(true); setError(null);
             try {
                 const companyId = resolveCompanyId();
-                const url = `${RATINGS_API_BASE}/api/ratings/rating-trend?company_id=${companyId}&web_pid=${encodeURIComponent(webPid)}${platform && platform !== 'all' ? `&platform=${encodeURIComponent(platform)}` : ''}`;
+                const url = `${(import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || ''}/api/ratings/rating-trend?company_id=${companyId}&web_pid=${encodeURIComponent(webPid)}${platform && platform !== 'all' ? `&platform=${encodeURIComponent(platform)}` : ''}`;
                 const res = await authenticatedFetch(url, {}, companyId);
                 if (!res.ok) throw new Error(await res.text().catch(() => res.statusText));
                 const json = await res.json();

@@ -14,7 +14,6 @@ import { X, Loader2, AlertCircle, MessageSquare } from 'lucide-react';
 import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { resolveCompanyId } from '../../utils/tenant';
 import { buildAuthHeaders } from '../../utils/auth';
-import { RATINGS_API_BASE } from '../../config/apiBase';
 
 interface Review {
   id: string;
@@ -45,7 +44,7 @@ export function ReviewTimelineModal({ webPid, productName, platform, onClose }: 
 
   useEffect(() => {
     const companyId = resolveCompanyId();
-    const backendUrl = RATINGS_API_BASE;
+    const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || import.meta.env.VITE_RAILWAY_URL || '';
     const params = new URLSearchParams({ company_id: companyId, web_pid: webPid });
     if (platform) params.set('platform', platform);
     setLoading(true);

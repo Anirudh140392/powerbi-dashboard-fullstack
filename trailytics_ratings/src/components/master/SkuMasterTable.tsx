@@ -6,7 +6,6 @@ import { RatingSummaryInline } from '../ui/RatingSummary';
 import { createRatingMetrics } from '../../utils/ratingMetrics';
 import { RatingTrendModal } from './RatingTrendModal';
 import { ReviewTimelineModal } from './ReviewTimelineModal';
-import { RATINGS_API_BASE } from '../../config/apiBase';
 
 interface ProductRow extends Record<string, unknown> {
     id: string;
@@ -60,7 +59,7 @@ const SkuMasterTable: React.FC<SkuMasterTableProps> = ({ filters, initialSearch 
     const [timelineFor, setTimelineFor] = useState<ProductRow | null>(null);
     const [savingParetoId, setSavingParetoId] = useState<string | null>(null);
 
-    const backendUrl = RATINGS_API_BASE;
+    const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
     const companyId = resolveCompanyId();
 
     const fetchProducts = useCallback(async () => {

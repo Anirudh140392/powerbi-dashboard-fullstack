@@ -11,7 +11,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Search, X, Loader2, ChevronDown } from 'lucide-react';
 import { resolveCompanyId } from '../../utils/tenant';
 import { buildAuthHeaders } from '../../utils/auth';
-import { RATINGS_API_BASE } from '../../config/apiBase';
 
 interface Option { value: string; label: string; brand?: string; platform?: string; is_competitor?: boolean }
 
@@ -42,7 +41,7 @@ export function ScopeValueCombobox({ scopeType, value, onChange, placeholder }: 
       setLoading(true);
       try {
         const companyId = resolveCompanyId();
-        const backendUrl = RATINGS_API_BASE;
+        const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || import.meta.env.VITE_RAILWAY_URL || '';
         const params = new URLSearchParams({ company_id: companyId, type: scopeType });
         if (query.trim()) params.set('q', query.trim());
         const res = await fetch(`${backendUrl}/api/ratings/alert-scope-options?${params.toString()}`, {

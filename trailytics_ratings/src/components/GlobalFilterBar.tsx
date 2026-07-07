@@ -186,6 +186,9 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, headlin
         price_mode: filters.priceMode,
         price_min: filters.priceRange?.min ?? null,
         price_max: filters.priceRange?.max ?? null,
+        // Honor the active scope so the SKU picker lists competitor SKUs under
+        // Competition/All (previously always Prestige-only).
+        is_competitor: filters.brandScope === 'all' ? 'all' : filters.brandScope === 'prestige' ? 'false' : 'true',
     }, { enabled: shouldLoadSkus });
 
     const { ranges: priceRanges } = usePriceRanges({ enabled: shouldLoadPriceRanges || !!filters.priceRange });
