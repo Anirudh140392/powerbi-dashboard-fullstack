@@ -658,6 +658,16 @@ export default function TrendsCompetitionDrawer({
   initialAudience = "Platform",
   showResellerFilter = true,
 }) {
+  const isHayatna = useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user'));
+      return u?.dbName?.toLowerCase().includes('hayatna');
+    } catch {
+      return false;
+    }
+  }, []);
+  const currencySymbol = isHayatna ? 'AED' : '₹';
+
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
       audience: initialAudience, // default value
@@ -1543,7 +1553,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               id: "Psl",
-              label: "PSL (₹)",
+              label: `PSL (${currencySymbol})`,
               color: "#8B5CF6",
               axis: "left",
               default: false,
@@ -1698,14 +1708,14 @@ export default function TrendsCompetitionDrawer({
             },
             {
               id: "PricePerUnit",
-              label: "Price Per Unit (₹)",
+              label: `Price Per Unit (${currencySymbol})`,
               color: "#14B8A6",
               axis: "left",
               default: true,
             },
             {
               id: "ASP",
-              label: "Avg Selling Price (₹)",
+              label: `Avg Selling Price (${currencySymbol})`,
               color: "#8B5CF6",
               axis: "left",
               default: false,
@@ -2345,8 +2355,8 @@ export default function TrendsCompetitionDrawer({
     if (seriesName.includes('%') || seriesName.toLowerCase().includes('rate')) {
       return `${formatted}%`;
     }
-    if (seriesName.includes('₹') || seriesName.toLowerCase().includes('price') || seriesName.toLowerCase().includes('sales')) {
-      return `₹ ${formatted}`;
+    if (seriesName.includes('₹') || seriesName.includes('AED') || seriesName.toLowerCase().includes('price') || seriesName.toLowerCase().includes('sales')) {
+      return `${currencySymbol} ${formatted}`;
     }
     return formatted;
   };
@@ -2413,7 +2423,7 @@ export default function TrendsCompetitionDrawer({
           scale: true,
           axisLabel: {
             formatter: (value) => {
-              const prefix = "₹ ";
+              const prefix = currencySymbol + " ";
               if (value >= 10000000) return `${prefix}${(value / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
               if (value >= 100000) return `${prefix}${(value / 100000).toFixed(2).replace(/\.?0+$/, '')} lac`;
               if (value >= 1000) return `${prefix}${(value / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;

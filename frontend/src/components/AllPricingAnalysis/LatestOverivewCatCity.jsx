@@ -53,8 +53,18 @@ const formatKpiValue = (value, kpiKey) => {
     const num = parseFloat(value);
     if (isNaN(num)) return "N/A";
 
+    let currency = '₹';
+    try {
+        const u = JSON.parse(sessionStorage.getItem('user'));
+        if (u?.dbName?.toLowerCase().includes('hayatna')) {
+            currency = 'AED ';
+        }
+    } catch (e) {
+        console.error(e);
+    }
+
     if (kpiKey === 'discount') return `${num.toFixed(1)}%`;
-    if (kpiKey === 'pricePerUnit' || kpiKey === 'asp') return `₹${num.toFixed(2)}`;
+    if (kpiKey === 'pricePerUnit' || kpiKey === 'asp') return `${currency}${num.toFixed(2)}`;
     if (kpiKey === 'rpi') return `${num.toFixed(1)}`;
     if (kpiKey === 'offtake') return formatNumber(num, 1);
     

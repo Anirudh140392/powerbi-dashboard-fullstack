@@ -2738,35 +2738,48 @@ const getAvailabilityKpiTrends = async (filters) => {
             const buckets = generateTimeBuckets(currentStartDate, currentEndDate, normTimeStep);
 
             const timeSeries = buckets.map(bucket => {
-                const row = results.find(r => String(r.date_group) === String(bucket.groupKey)) || {};
+                const row = results.find(r => String(r.date_group) === String(bucket.groupKey));
+
+                if (!row) {
+                    return {
+                        date: bucket.label,
+                        Osa: null,
+                        Doi: null,
+                        Fillrate: null,
+                        Listing: null,
+                        Assortment: null,
+                        Delivery: null,
+                        Psl: null
+                    };
+                }
 
                 const neno = parseFloat(row.total_neno) || 0;
                 const deno = parseFloat(row.total_deno) || 0;
                 const buyboxNeno = parseFloat(row.total_buybox_neno) || 0;
                 const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
 
-                const osa = deno > 0 ? (neno / deno) * 100 : 0;
-                const fillrate = deno > 0 ? (buyboxNeno / deno) * 100 : 0;
-                const listing = parseFloat(row.avg_listing_percent) || 0;
-                const delivery = row.avg_delivery_days !== null && row.avg_delivery_days !== undefined ? parseFloat(row.avg_delivery_days) : 0;
+                const osa = deno > 0 ? (neno / deno) * 100 : null;
+                const fillrate = deno > 0 ? (buyboxNeno / deno) * 100 : null;
+                const listing = row.avg_listing_percent !== null && row.avg_listing_percent !== undefined ? parseFloat(row.avg_listing_percent) : null;
+                const delivery = row.avg_delivery_days !== null && row.avg_delivery_days !== undefined ? parseFloat(row.avg_delivery_days) : null;
 
                 const totalSales = parseFloat(row.sum_sales) || 0;
-                const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
+                const psl = (osa !== null && osa > 0) ? (totalSales / (osa / 100)) - totalSales : null;
 
                 // DOI = (latest_inventory / latest_rolling_qty_sold_30d) * 30
                 const latestInventory = parseFloat(row.latest_inventory) || 0;
                 const rollingQtySold30d = parseFloat(row.latest_rolling_qty_sold_30d) || 0;
-                const doi = rollingQtySold30d > 0 ? (latestInventory / rollingQtySold30d) * 30 : 0;
+                const doi = rollingQtySold30d > 0 ? (latestInventory / rollingQtySold30d) * 30 : null;
 
                 return {
                     date: bucket.label,
-                    Osa: parseFloat(osa.toFixed(1)),
-                    Doi: parseFloat(doi.toFixed(1)),
-                    Fillrate: parseFloat(fillrate.toFixed(1)),
-                    Listing: parseFloat(listing.toFixed(1)),
+                    Osa: osa !== null ? parseFloat(osa.toFixed(1)) : null,
+                    Doi: doi !== null ? parseFloat(doi.toFixed(1)) : null,
+                    Fillrate: fillrate !== null ? parseFloat(fillrate.toFixed(1)) : null,
+                    Listing: listing !== null ? parseFloat(listing.toFixed(1)) : null,
                     Assortment: dailyUniquePids,
-                    Delivery: parseFloat(delivery.toFixed(1)),
-                    Psl: parseFloat(psl.toFixed(1))
+                    Delivery: delivery !== null ? parseFloat(delivery.toFixed(1)) : null,
+                    Psl: psl !== null ? parseFloat(psl.toFixed(1)) : null
                 };
             });
 

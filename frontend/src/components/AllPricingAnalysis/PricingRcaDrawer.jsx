@@ -89,6 +89,16 @@ function KpiCard({ title, value, change, icon: Icon, colorClass }) {
 export default function PricingRcaDrawer({ entityName, dimensionType, onClose }) {
     const [showAllCities, setShowAllCities] = useState(false);
 
+    let currencySymbol = '₹';
+    try {
+        const u = JSON.parse(sessionStorage.getItem('user'));
+        if (u?.dbName?.toLowerCase().includes('hayatna')) {
+            currencySymbol = 'AED ';
+        }
+    } catch (e) {
+        console.error(e);
+    }
+
     if (!entityName) return null;
 
     // Mock data for Pricing RCA
@@ -194,8 +204,8 @@ export default function PricingRcaDrawer({ entityName, dimensionType, onClose })
                         />
                         <KpiCard
                             title="Avg Price"
-                            value="₹185.5"
-                            change="-₹10.5"
+                            value={`${currencySymbol}185.5`}
+                            change={`-${currencySymbol}10.5`}
                             icon={DollarSign}
                             colorClass="text-emerald-600"
                         />
@@ -269,25 +279,25 @@ export default function PricingRcaDrawer({ entityName, dimensionType, onClose })
                                                 </TableCell>
                                                 <TableCell align="right" sx={{ py: 3, borderBottom: '1px solid #f8fafc' }}>
                                                     <div className="flex flex-col items-end">
-                                                        <span className="text-[15px] font-black text-slate-800">₹{city.pricePerUnit}</span>
+                                                        <span className="text-[15px] font-black text-slate-800">{currencySymbol}{city.pricePerUnit}</span>
                                                         <span className={cn(
                                                             "text-[11px] font-extrabold flex items-center gap-0.5",
                                                             city.priceChange >= 0 ? "text-emerald-500" : "text-rose-500"
                                                         )}>
                                                             {city.priceChange >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                                                            ₹{Math.abs(city.priceChange).toFixed(1)}
+                                                            {currencySymbol}{Math.abs(city.priceChange).toFixed(1)}
                                                         </span>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell align="right" sx={{ pr: 4, py: 3, borderBottom: '1px solid #f8fafc' }}>
                                                     <div className="flex flex-col items-end">
-                                                        <span className="text-[15px] font-black text-slate-800">₹{city.asp}</span>
+                                                        <span className="text-[15px] font-black text-slate-800">{currencySymbol}{city.asp}</span>
                                                         <span className={cn(
                                                             "text-[11px] font-extrabold flex items-center gap-0.5",
                                                             city.aspChange >= 0 ? "text-emerald-500" : "text-rose-500"
                                                         )}>
                                                             {city.aspChange >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                                                            ₹{Math.abs(city.aspChange).toFixed(1)}
+                                                            {currencySymbol}{Math.abs(city.aspChange).toFixed(1)}
                                                         </span>
                                                     </div>
                                                 </TableCell>

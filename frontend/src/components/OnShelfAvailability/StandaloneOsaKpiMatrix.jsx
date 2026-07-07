@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Fragment } from "react";
+import React, { useState, useEffect, Fragment, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronRight, TrendingUp, LineChartIcon, RefreshCw, AlertTriangle } from "lucide-react";
 import { PlatformKpiMatrixSkeleton } from "../AllAvailablityAnalysis/AvailabilitySkeletons";
@@ -95,6 +95,16 @@ const ErrorWithRefresh = ({ segmentName, errorMessage, onRetry, isRetrying = fal
 export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading: parentLoading }) {
     const [reportType, setReportType] = useState("platform");
     const [loading, setLoading] = useState(true);
+
+    const isHayatna = useMemo(() => {
+        try {
+            const u = JSON.parse(sessionStorage.getItem('user'));
+            return u?.dbName?.toLowerCase().includes('hayatna');
+        } catch {
+            return false;
+        }
+    }, []);
+    const currencySymbol = isHayatna ? 'AED ' : '₹';
     const [error, setError] = useState(null);
     const [apiData, setApiData] = useState(null);
 
@@ -178,7 +188,7 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
     const getCellData = (entity, kpiLabel) => {
         if (!apiData?.rows) return { value: "N/A", delta: 0, isNA: true };
         const row = apiData.rows.find(r => r.kpi.toLowerCase() === kpiLabel.toLowerCase());
-        if (!row || row[entity] === undefined || row[entity] === null) return { value: "N/A", delta: 0, isNA: true };
+        if (!row || row[entity] === undefined || row[entity] === null || row[entity] === "N/A" || row[entity] === "") return { value: "N/A", delta: 0, isNA: true };
         return {
             value: row[entity],
             delta: row.trend && row.trend[entity] !== undefined ? row.trend[entity] : 0,
@@ -266,10 +276,10 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
                                                             whileHover={{ scale: 1.01 }}
                                                         >
                                                             <span className="text-sm font-semibold text-slate-800">
-                                                                {cell.isNA 
+                                                                {cell.isNA || cell.value === null || cell.value === undefined || cell.value === "" || cell.value === "N/A"
                                                                     ? "N/A" 
                                                                     : kpi.key === 'psl' 
-                                                                        ? `₹${formatNumber(cell.value)}` 
+                                                                        ? `${currencySymbol}${formatNumber(cell.value)}` 
                                                                         : `${cell.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`}
                                                             </span>
                                                             {!cell.isNA && (
@@ -280,7 +290,7 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
                                                                     )}
                                                                 >
                                                                     {cell.delta >= 0 ? "↑" : "↓"}
-                                                                    {kpi.key === 'psl' ? formatNumber(Math.abs(cell.delta)) : Math.abs(cell.delta)}
+                                                                    {kpi.key === 'psl' ? `${currencySymbol}${formatNumber(Math.abs(cell.delta))}` : Math.abs(cell.delta)}
                                                                 </span>
                                                             )}
                                                         </motion.div>

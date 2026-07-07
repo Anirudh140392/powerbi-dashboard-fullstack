@@ -705,9 +705,19 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
         if (!kpi.trendSeries) return [];
         return kpi.trendSeries.map((item, i) => {
             if (typeof item === 'object' && item !== null) {
-                return { i, v: item.value, label: item.label };
+                return { 
+                    i, 
+                    v: (item.value === null || item.value === undefined) ? 0 : item.value, 
+                    label: item.label,
+                    isNA: item.value === null || item.value === undefined
+                };
             }
-            return { i, v: item, label: `Day ${i + 1}` };
+            return { 
+                i, 
+                v: (item === null || item === undefined) ? 0 : item, 
+                label: `Day ${i + 1}`,
+                isNA: item === null || item === undefined
+            };
         });
     }, [kpi.trendSeries]);
 
@@ -730,7 +740,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                             title={
                                 <Box>
                                     <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>
-                                    <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                    <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifycontent: 'flex-end' }}>
                                         <Typography
                                             variant="caption"
                                             sx={{
@@ -863,7 +873,13 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                                 }
                                 return label;
                             }}
-                            formatter={(value) => {
+                            formatter={(value, name, props) => {
+                                if (props?.payload?.isNA) {
+                                    return ['N/A', ''];
+                                }
+                                if (value === null || value === undefined || value === 'N/A' || isNaN(value)) {
+                                    return ['N/A', ''];
+                                }
                                 if (typeof value !== 'number') return [value, ''];
                                 let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
                                 let prefix = isCurrency ? '₹ ' : '';
@@ -881,6 +897,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                             strokeWidth={2}
                             fill={`url(#grad-${kpi.id})`}
                             fillOpacity={1}
+                            connectNulls={true}
                         />
                     </AreaChart>
                 </ResponsiveContainer>

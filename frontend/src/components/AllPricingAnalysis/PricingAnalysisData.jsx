@@ -159,7 +159,18 @@ const formatKpiValue = (value, unit = "", format = 1) => {
     if (isNaN(num)) return "N/A";
     
     // If unit is currency, put it in front
-    if (unit === "₹") return `₹${num.toFixed(format)}`;
+    if (unit === "₹") {
+        let currency = '₹';
+        try {
+            const u = JSON.parse(sessionStorage.getItem('user'));
+            if (u?.dbName?.toLowerCase().includes('hayatna')) {
+                currency = 'AED ';
+            }
+        } catch (e) {
+            console.error(e);
+        }
+        return `${currency}${num.toFixed(format)}`;
+    }
     return `${num.toFixed(format)}${unit}`;
 };
 
@@ -1160,6 +1171,11 @@ const DiscountTrendDrillTable = ({ groups, platforms = [], selectedBrand, onBran
 export default function PricingAnalysisData() {
   const [chartTab, setChartTab] = useState("discount");
 
+  const user = JSON.parse(sessionStorage.getItem('user'));
+  const dbName = user?.dbName?.toLowerCase() || '';
+  const isHayatna = dbName.includes('hayatna');
+  const currencySymbol = isHayatna ? 'AED' : '₹';
+
   // Get global filters from FilterContext
   const {
     platform: globalPlatform,
@@ -2120,13 +2136,13 @@ export default function PricingAnalysisData() {
     },
     {
       id: "ecp",
-      label: "ECP (₹)",
+      label: `ECP (${currencySymbol})`,
       sortable: true,
       numeric: true,
     },
     {
       id: "wo",
-      label: "ECP w/o Disc (₹)",
+      label: `ECP w/o Disc (${currencySymbol})`,
       sortable: true,
       numeric: true,
     },
@@ -2153,10 +2169,10 @@ export default function PricingAnalysisData() {
     { id: "format", label: "Category", sortable: true },
     { id: "flavour", label: "Flavour", sortable: true },
     { id: "ml", label: "ML", sortable: true, numeric: true },
-    { id: "mrp", label: "MRP (₹)", sortable: true, numeric: true },
-    { id: "base", label: "Base Price (₹)", sortable: true, numeric: true },
+    { id: "mrp", label: `MRP (${currencySymbol})`, sortable: true, numeric: true },
+    { id: "base", label: `Base Price (${currencySymbol})`, sortable: true, numeric: true },
     { id: "disc", label: "Disc %", sortable: true, numeric: true },
-    { id: "ecp", label: "ECP (₹)", sortable: true, numeric: true },
+    { id: "ecp", label: `ECP (${currencySymbol})`, sortable: true, numeric: true },
   ];
 
   const ecpByBrandColumns = [
@@ -2178,14 +2194,14 @@ export default function PricingAnalysisData() {
     { id: "platform", label: "Platform", sortable: true },
     {
       id: "ecp",
-      label: "ECP (₹)",
+      label: `ECP (${currencySymbol})`,
       sortable: true,
       numeric: true,
       render: (val) => val || 0
     },
     {
       id: "ecpWithoutDisc",
-      label: "ECP w/o Disc (₹)",
+      label: `ECP w/o Disc (${currencySymbol})`,
       sortable: true,
       numeric: true,
       render: (val) => val || 0
@@ -2224,14 +2240,14 @@ export default function PricingAnalysisData() {
     { id: "ml", label: "ML", sortable: true, numeric: true },
     {
       id: "mrp",
-      label: "MRP (₹)",
+      label: `MRP (${currencySymbol})`,
       sortable: true,
       numeric: true,
       render: (val) => val || 0
     },
     {
       id: "basePrice",
-      label: "Base Price (₹)",
+      label: `Base Price (${currencySymbol})`,
       sortable: true,
       numeric: true,
       render: (val) => val || 0
@@ -2245,7 +2261,7 @@ export default function PricingAnalysisData() {
     },
     {
       id: "ecp",
-      label: "ECP (₹)",
+      label: `ECP (${currencySymbol})`,
       sortable: true,
       numeric: true,
       render: (val) => val || 0

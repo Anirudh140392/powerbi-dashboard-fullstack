@@ -20,6 +20,16 @@ const DiscountEcpPricing = ({
     const [brandLoading, setBrandLoading] = useState({}) // category -> loading boolean
     const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
     const [expandedRows, setExpandedRows] = useState([])
+
+    let currencySymbol = '₹';
+    try {
+        const u = JSON.parse(sessionStorage.getItem('user'));
+        if (u?.dbName?.toLowerCase().includes('hayatna')) {
+            currencySymbol = 'AED ';
+        }
+    } catch (e) {
+        console.error(e);
+    }
     const [searchQuery, setSearchQuery] = useState('')
     const [platforms, setPlatforms] = useState(['Blinkit', 'Instamart', 'Zepto']) // Default, updated from API
 
@@ -157,7 +167,7 @@ const DiscountEcpPricing = ({
     }, [dynamicFilterData]);
 
     const METRIC_OPTIONS = [
-        { key: 'ecp', label: 'ECP', suffix: '₹' },
+        { key: 'ecp', label: 'ECP', suffix: currencySymbol },
         { key: 'discount', label: 'Discount', suffix: '%' },
         { key: 'rpi', label: 'RPI', suffix: '' },
     ]
@@ -190,7 +200,7 @@ const DiscountEcpPricing = ({
         if (val === null || val === undefined || val === 0) return '—'
         if (metricType === 'rpi') return val.toFixed(2)
         if (metricType === 'discount') return `${val}%`
-        return `₹${val.toLocaleString()}`
+        return `${currencySymbol}${val.toLocaleString()}`
     }
 
     const getMetricFontColor = (val) => {
