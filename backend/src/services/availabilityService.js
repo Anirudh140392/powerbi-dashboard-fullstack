@@ -2868,7 +2868,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 const totalBrandInv = parseFloat(row.total_inventory) || 0;
                 const totalSales = parseFloat(row.total_sales) || 0;
 
-                const osa = deno > 0 ? (neno / deno) * 100 : 0;
+                const osa = deno > 0 ? (neno / deno) * 100 : null;
                 const listing = parseFloat(row.avg_listing_percent) || 0;
 
                 // DOI = (Current Inventory / Total Sales in Period) * period_days
@@ -2881,7 +2881,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 return {
                     rank: idx + 1,
                     brand: brandName,
-                    osa: parseFloat(osa.toFixed(1)),
+                    osa: osa !== null ? parseFloat(osa.toFixed(1)) : null,
                     osaDelta: 0,
                     listing: parseFloat(listing.toFixed(1)),
                     listingDelta: 0,
@@ -2920,7 +2920,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 const latestInv = parseFloat(s.latest_sku_inventory) || 0;
                 const totalSales = parseFloat(s.total_sales) || 0;
 
-                const osa = deno > 0 ? (neno / deno) * 100 : 0;
+                const osa = deno > 0 ? (neno / deno) * 100 : null;
                 const listing = parseFloat(s.avg_listing_percent) || 0;
                 const doi = totalQtySold > 0 ? (latestInv / totalQtySold) * 30 : 0;
 
@@ -2930,7 +2930,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 return {
                     sku_name: s.sku_name,
                     brand_name: s.brand_name,
-                    osa: parseFloat(osa.toFixed(1)),
+                    osa: osa !== null ? parseFloat(osa.toFixed(1)) : null,
                     osaDelta: 0,
                     doi: parseFloat(doi.toFixed(1)),
                     fillrate: 'Coming Soon',
