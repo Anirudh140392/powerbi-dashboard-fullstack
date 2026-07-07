@@ -7,13 +7,11 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Moon, Sun, Settings, LogOut, ChevronDown, Shield, ShieldCheck, User as UserIcon, Crown } from 'lucide-react';
+import { Settings, LogOut, ChevronDown, Shield, ShieldCheck, User as UserIcon, Crown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { SecurityModal } from './auth/SecurityModal';
 
 interface Props {
-    isDarkMode: boolean;
-    onToggleTheme: () => void;
     onOpenRules: () => void;
 }
 
@@ -24,7 +22,7 @@ function initialsFor(name: string | undefined | null): string {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export function AvatarMenu({ isDarkMode, onToggleTheme, onOpenRules }: Props) {
+export function AvatarMenu({ onOpenRules }: Props) {
     const { user, logout } = useAuth();
     const [open, setOpen] = useState(false);
     const [securityOpen, setSecurityOpen] = useState(false);
@@ -105,14 +103,7 @@ export function AvatarMenu({ isDarkMode, onToggleTheme, onOpenRules }: Props) {
                             )}
                         </div>
 
-                        {/* Action items */}
-                        <button
-                            onClick={() => { setOpen(false); onToggleTheme(); }}
-                            className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                        >
-                            {isDarkMode ? <Sun size={15} className="text-amber-500" /> : <Moon size={15} className="text-indigo-500" />}
-                            <span className="flex-1">{isDarkMode ? 'Light mode' : 'Dark mode'}</span>
-                        </button>
+
 
                         <button
                             onClick={() => { setOpen(false); setSecurityOpen(true); }}

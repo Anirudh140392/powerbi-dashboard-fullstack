@@ -118,15 +118,6 @@ const LoadingSkeleton: React.FC = () => (
 // ============================================================================
 
 const Dashboard: React.FC = () => {
-    // Theme state
-    const [isDarkMode, setIsDarkMode] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('theme') === 'dark' ||
-                (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        }
-        return false;
-    });
-
     // Panel states
     const [selectedCharacteristic, setSelectedCharacteristic] = useState<string | null>(null);
     const [isCompetitorPanelOpen, setIsCompetitorPanelOpen] = useState(false);
@@ -333,14 +324,9 @@ const Dashboard: React.FC = () => {
 
     // Apply theme
     useEffect(() => {
-        if (isDarkMode) {
-            document.documentElement.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-            localStorage.setItem('theme', 'light');
-        }
-    }, [isDarkMode]);
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+    }, []);
 
     // Calculate overview metrics from API summary
     const metrics = useMemo(() => {
@@ -466,8 +452,6 @@ const Dashboard: React.FC = () => {
                         <div className="flex items-center gap-2">
                             <NotificationBell enabled={true} />
                             <AvatarMenu
-                                isDarkMode={isDarkMode}
-                                onToggleTheme={() => setIsDarkMode(!isDarkMode)}
                                 onOpenRules={() => {
                                     setActiveTab('rules');
                                     const params = new URLSearchParams(window.location.search);
