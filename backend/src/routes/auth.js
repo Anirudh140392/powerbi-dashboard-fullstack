@@ -1,6 +1,7 @@
 // src/routes/auth.js
 import express from 'express';
-import { login, verify } from '../controllers/authController.js';
+import { login, verify, ratingssSsoToken } from '../controllers/authController.js';
+import { authMiddleware } from '../helper/authMiddleware.js';
 
 const router = express.Router();
 
@@ -48,5 +49,13 @@ router.post('/login', login);
  */
 router.get('/verify', verify);
 
-export default router;
+/**
+ * GET /api/auth/ratings-sso-token
+ * Protected — requires valid DS JWT.
+ * Generates a short-lived (60s) HMAC-SHA256 token containing the user's email.
+ * The ratings backend (/api/auth/sso) validates and exchanges it for a full
+ * ratings session, enabling single sign-on from Digital Shelf → Ratings.
+ */
+router.get('/ratings-sso-token', authMiddleware, ratingssSsoToken);
 
+export default router;

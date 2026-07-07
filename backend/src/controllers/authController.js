@@ -1,4 +1,5 @@
 // src/controllers/authController.js
+import crypto from 'crypto';
 import { loginUser, verifySession } from '../services/authService.js';
 
 /**
@@ -80,6 +81,50 @@ export const verify = async (req, res) => {
             success: false,
             error: error.message || 'Session invalid',
         });
+    }
+};
+
+/**
+ * GET /api/auth/ratings-sso-token
+ * Requires: valid DS JWT (authMiddleware already decoded req.user)
+ *
+ * Generates a short-lived HMAC-SHA256 signed token so the ratings backend
+ * (/api/auth/sso) can issue a full ratings session without a password.
+ *
+ * Token format: base64url(<json>).<base64url(HMAC-SHA256)>
+ * Payload: { email, exp }   (exp = ms timestamp, 60 s from now)
+ */
+export const ratingssSsoToken = (req, res) => {
+    try {
+        const email = req.user?.email;
+        if (!email) {
+            return res.status(401).json({ success: false, error: 'Not authenticated' });
+        }
+
+        const SSO_SECRET = process.env.SSO_SECRET || '';
+        if (!SSO_SECRET) {
+            return res.status(500).json({ success: false, error: 'SSO not configured on server' });
+        }
+
+        const RATINGS_API_URL = process.env.RATINGS_API_URL || 'http://localhost:3001';
+
+        const payload = { email, exp: Date.now() + 60_000 }; // 60 second TTL
+        const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+        const sig = crypto
+            .createHmac('sha256', SSO_SECRET)
+            .update(payloadB64)
+            .digest('base64url');
+
+        const ssoToken = `${payloadB64}.${sig}`;
+
+        return res.json({
+            success: true,
+            ssoToken,
+            ratingsApiUrl: RATINGS_API_URL,
+        });
+    } catch (error) {
+        console.error('[SSO] Failed to generate SSO token:', error.message);
+        return res.status(500).json({ success: false, error: 'Failed to generate SSO token' });
     }
 };
 
