@@ -29,7 +29,7 @@ function cn(...classes) {
 }
 
 const formatKpiValue = (value, unit = "%") => {
-  if (value === null || value === undefined || value === 0 || value === "0") {
+  if (value === null || value === undefined || value === "" || value === "N/A") {
       return "N/A";
   }
   const num = parseFloat(value);

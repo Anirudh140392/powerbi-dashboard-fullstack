@@ -660,9 +660,19 @@ async function getPricingKpis(filters = {}) {
 
             const r = results[0];
 
-            const formatVal = (val) => parseFloat(val) || 0;
-            const calcChange = (curr, prev) => (prev > 0 ? ((curr - prev) / prev) * 100 : 0);
-            const calcPointsChange = (curr, prev) => curr - prev;
+            const formatVal = (val) => {
+                if (val === null || val === undefined) return null;
+                const parsed = parseFloat(val);
+                return isNaN(parsed) ? null : parsed;
+            };
+            const calcChange = (curr, prev) => {
+                if (curr === null || prev === null || curr === undefined || prev === undefined) return null;
+                return (prev > 0 ? ((curr - prev) / prev) * 100 : 0);
+            };
+            const calcPointsChange = (curr, prev) => {
+                if (curr === null || prev === null || curr === undefined || prev === undefined) return null;
+                return curr - prev;
+            };
 
             const discountTrend = [];
             const weightedDiscountTrend = [];

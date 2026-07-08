@@ -488,6 +488,8 @@ const getAbsoluteOsaOverview = async (filters) => {
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDenoOsa,
                     SUM(ifNull(toFloat64OrZero(toString(buy_box_neno_osa)), 0)) as sumBuyBoxNeno,
                     SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sumSales,
+                    SUM(if(isNull(Sales), 1, 0)) as sales_null_count,
+                    COUNT() as sales_total_count,
                     COUNT(DISTINCT Web_Pid) as skuCount,
                     avg(${deliveryDaysSQL}) as avgDeliveryDays
                 FROM rb_pdp_olap
@@ -522,8 +524,11 @@ const getAbsoluteOsaOverview = async (filters) => {
             const skuCount = curr.skuCount ? parseFloat(curr.skuCount) : 0;
             const prevSkuCount = prev.skuCount ? parseFloat(prev.skuCount) : 0;
 
-            const psl = stockAvailability > 0 ? currSumSales * ((100 / stockAvailability) - 1) : 0;
-            const prevPslValue = prevStockAvailability > 0 ? prevSumSales * ((100 / prevStockAvailability) - 1) : 0;
+            const currSalesNull = !curr.sales_total_count || parseInt(curr.sales_null_count) === parseInt(curr.sales_total_count);
+            const prevSalesNull = !prev.sales_total_count || parseInt(prev.sales_null_count) === parseInt(prev.sales_total_count);
+
+            const psl = (currSalesNull || stockAvailability <= 0) ? null : currSumSales * ((100 / stockAvailability) - 1);
+            const prevPslValue = (prevSalesNull || prevStockAvailability <= 0) ? null : prevSumSales * ((100 / prevStockAvailability) - 1);
 
             const currAvgDeliveryDays = parseFloat(curr.avgDeliveryDays);
             const prevAvgDeliveryDays = parseFloat(prev.avgDeliveryDays);
@@ -543,8 +548,8 @@ const getAbsoluteOsaOverview = async (filters) => {
                 prevFillRate: parseFloat(prevFillRate.toFixed(2)),
                 skuCount: skuCount,
                 prevSkuCount: prevSkuCount,
-                psl: parseFloat(psl.toFixed(2)),
-                prevPsl: parseFloat(prevPslValue.toFixed(2)),
+                psl: psl !== null ? parseFloat(psl.toFixed(2)) : null,
+                prevPsl: prevPslValue !== null ? parseFloat(prevPslValue.toFixed(2)) : null,
                 deliveryTime: deliveryTime,
                 currAvgDeliveryDays: !isNaN(currAvgDeliveryDays) ? currAvgDeliveryDays : 0,
                 prevAvgDeliveryDays: !isNaN(prevAvgDeliveryDays) ? prevAvgDeliveryDays : 0,
@@ -605,7 +610,9 @@ const getAbsoluteOsaOverview = async (filters) => {
                 }
                 const neno = parseFloat(row.sumNeno) || 0;
                 const deno = parseFloat(row.sumDeno) || 0;
-                const osa = deno > 0 ? Math.round((neno / deno) * 100) : 0;
+                // If deno > 0, this is real data (even if neno is 0, OSA is legitimately 0%)
+                // If deno = 0, there's no data for this SKU on this date
+                const osa = deno > 0 ? Math.round((neno / deno) * 100) : null;
 
                 skuMap[row.sku].dateMap[row.date] = { osa, neno, deno };
             });
@@ -628,7 +635,7 @@ const getAbsoluteOsaOverview = async (filters) => {
                             totalDeno7 += data.deno;
                         }
                     } else {
-                        item.values[index] = 0;
+                        item.values[index] = null;
                     }
                 });
 
@@ -831,6 +838,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.MSL)), 0)) as sum_msl,
                     SUM(ifNull(toFloat64OrZero(toString(t1.Sales)), 0)) as sum_sales,
+                    SUM(if(isNull(t1.Sales), 1, 0)) as sales_null_count,
+                    COUNT() as sales_total_count,
                     SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as sum_metro_neno,
                     SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_metro_deno,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
@@ -872,6 +881,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.MSL)), 0)) as sum_msl,
                     SUM(ifNull(toFloat64OrZero(toString(t1.Sales)), 0)) as sum_sales,
+                    SUM(if(isNull(t1.Sales), 1, 0)) as sales_null_count,
+                    COUNT() as sales_total_count,
                     SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as sum_metro_neno,
                     SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_metro_deno,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
@@ -995,11 +1006,14 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 const currSalesTotal = parseFloat(curr.sum_sales) || 0;
                 const prevSalesTotal = parseFloat(prev.sum_sales) || 0;
 
-                const currPsl = currOsa > 0 ? (currSalesTotal / (currOsa / 100)) - currSalesTotal : 0;
-                const prevPsl = prevOsa > 0 ? (prevSalesTotal / (prevOsa / 100)) - prevSalesTotal : 0;
+                const currSalesNull = !curr.sales_total_count || parseInt(curr.sales_null_count) === parseInt(curr.sales_total_count);
+                const prevSalesNull = !prev.sales_total_count || parseInt(prev.sales_null_count) === parseInt(prev.sales_total_count);
 
-                kpiRows.psl[colValue] = parseFloat(currPsl.toFixed(2));
-                kpiRows.psl.trend[colValue] = parseFloat((currPsl - prevPsl).toFixed(2));
+                const currPsl = (currSalesNull || isNaN(currOsa) || currOsa <= 0) ? null : (currSalesTotal / (currOsa / 100)) - currSalesTotal;
+                const prevPsl = (prevSalesNull || isNaN(prevOsa) || prevOsa <= 0) ? null : (prevSalesTotal / (prevOsa / 100)) - prevSalesTotal;
+
+                kpiRows.psl[colValue] = currPsl !== null ? parseFloat(currPsl.toFixed(2)) : null;
+                kpiRows.psl.trend[colValue] = (currPsl !== null && prevPsl !== null) ? parseFloat((currPsl - prevPsl).toFixed(2)) : null;
 
                 // Buy Box (same as fillrate)
                 kpiRows.buybox[colValue] = Math.round(currFillrate);
@@ -1055,6 +1069,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as sum_buybox_neno,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.MSL)), 0), 0)) as sum_msl,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.Sales)), 0), 0)) as sum_sales,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', if(isNull(t1.Sales), 1, 0), 0)) as sales_null_count,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', 1, 0)) as sales_total_count,
                         
                         -- DOI / Sales components (30-day lookback)
                         SUM(if(t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.Qty_Sold)), 0), 0)) as doi_total_qty_sold,
@@ -1114,8 +1130,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     if (kpiRows.psl.breakdown[col_value]) {
                         const salesVal = parseFloat(sum_sales) || 0;
                         const osaVal = kpiRows.osa.breakdown[col_value][item] || 0;
-                        const psl = osaVal > 0 ? (salesVal / (osaVal / 100)) - salesVal : 0;
-                        kpiRows.psl.breakdown[col_value][item] = parseFloat(psl.toFixed(2));
+                        const isNullSales = !r.sales_total_count || parseInt(r.sales_null_count) === parseInt(r.sales_total_count);
+                        const psl = (isNullSales || osaVal <= 0) ? null : (salesVal / (osaVal / 100)) - salesVal;
+                        kpiRows.psl.breakdown[col_value][item] = psl !== null ? parseFloat(psl.toFixed(2)) : null;
                     }
                     if (kpiRows.delivery && kpiRows.delivery.breakdown[col_value]) {
                         const dr = parseFloat(avg_delivery_days);
@@ -1204,8 +1221,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
 
                         // For DOI and PSL, we maintain the overall current value for now in period breakdown 
                         // as they involve complex lookbacks per period
-                        if (kpiRows.doi.breakdown[cv]) kpiRows.doi.breakdown[cv][periodKey] = kpiRows.doi.data?.[cv]?.value || 0;
-                        if (kpiRows.psl.breakdown[cv]) kpiRows.psl.breakdown[cv][periodKey] = kpiRows.psl.data?.[cv]?.value || 0;
+                        if (kpiRows.doi.breakdown[cv]) kpiRows.doi.breakdown[cv][periodKey] = kpiRows.doi[cv] !== undefined ? kpiRows.doi[cv] : 0;
+                        if (kpiRows.psl.breakdown[cv]) kpiRows.psl.breakdown[cv][periodKey] = kpiRows.psl[cv] !== undefined ? kpiRows.psl[cv] : null;
                         if (kpiRows.delivery && kpiRows.delivery.breakdown[cv]) kpiRows.delivery.breakdown[cv][periodKey] = kpiRows.delivery[cv] || "N/A";
                     });
                 });
@@ -2736,35 +2753,48 @@ const getAvailabilityKpiTrends = async (filters) => {
             const buckets = generateTimeBuckets(currentStartDate, currentEndDate, normTimeStep);
 
             const timeSeries = buckets.map(bucket => {
-                const row = results.find(r => String(r.date_group) === String(bucket.groupKey)) || {};
+                const row = results.find(r => String(r.date_group) === String(bucket.groupKey));
+
+                if (!row) {
+                    return {
+                        date: bucket.label,
+                        Osa: null,
+                        Doi: null,
+                        Fillrate: null,
+                        Listing: null,
+                        Assortment: null,
+                        Delivery: null,
+                        Psl: null
+                    };
+                }
 
                 const neno = parseFloat(row.total_neno) || 0;
                 const deno = parseFloat(row.total_deno) || 0;
                 const buyboxNeno = parseFloat(row.total_buybox_neno) || 0;
                 const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
 
-                const osa = deno > 0 ? (neno / deno) * 100 : 0;
-                const fillrate = deno > 0 ? (buyboxNeno / deno) * 100 : 0;
-                const listing = parseFloat(row.avg_listing_percent) || 0;
-                const delivery = row.avg_delivery_days !== null && row.avg_delivery_days !== undefined ? parseFloat(row.avg_delivery_days) : 0;
+                const osa = deno > 0 ? (neno / deno) * 100 : null;
+                const fillrate = deno > 0 ? (buyboxNeno / deno) * 100 : null;
+                const listing = row.avg_listing_percent !== null && row.avg_listing_percent !== undefined ? parseFloat(row.avg_listing_percent) : null;
+                const delivery = row.avg_delivery_days !== null && row.avg_delivery_days !== undefined ? parseFloat(row.avg_delivery_days) : null;
 
                 const totalSales = parseFloat(row.sum_sales) || 0;
-                const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
+                const psl = (osa !== null && osa > 0) ? (totalSales / (osa / 100)) - totalSales : null;
 
                 // DOI = (latest_inventory / latest_rolling_qty_sold_30d) * 30
                 const latestInventory = parseFloat(row.latest_inventory) || 0;
                 const rollingQtySold30d = parseFloat(row.latest_rolling_qty_sold_30d) || 0;
-                const doi = rollingQtySold30d > 0 ? (latestInventory / rollingQtySold30d) * 30 : 0;
+                const doi = rollingQtySold30d > 0 ? (latestInventory / rollingQtySold30d) * 30 : null;
 
                 return {
                     date: bucket.label,
-                    Osa: parseFloat(osa.toFixed(1)),
-                    Doi: parseFloat(doi.toFixed(1)),
-                    Fillrate: parseFloat(fillrate.toFixed(1)),
-                    Listing: parseFloat(listing.toFixed(1)),
+                    Osa: osa !== null ? parseFloat(osa.toFixed(1)) : null,
+                    Doi: doi !== null ? parseFloat(doi.toFixed(1)) : null,
+                    Fillrate: fillrate !== null ? parseFloat(fillrate.toFixed(1)) : null,
+                    Listing: listing !== null ? parseFloat(listing.toFixed(1)) : null,
                     Assortment: dailyUniquePids,
-                    Delivery: parseFloat(delivery.toFixed(1)),
-                    Psl: parseFloat(psl.toFixed(1))
+                    Delivery: delivery !== null ? parseFloat(delivery.toFixed(1)) : null,
+                    Psl: psl !== null ? parseFloat(psl.toFixed(1)) : null
                 };
             });
 
@@ -2853,7 +2883,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 const totalBrandInv = parseFloat(row.total_inventory) || 0;
                 const totalSales = parseFloat(row.total_sales) || 0;
 
-                const osa = deno > 0 ? (neno / deno) * 100 : 0;
+                const osa = deno > 0 ? (neno / deno) * 100 : null;
                 const listing = parseFloat(row.avg_listing_percent) || 0;
 
                 // DOI = (Current Inventory / Total Sales in Period) * period_days
@@ -2866,7 +2896,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 return {
                     rank: idx + 1,
                     brand: brandName,
-                    osa: parseFloat(osa.toFixed(1)),
+                    osa: osa !== null ? parseFloat(osa.toFixed(1)) : null,
                     osaDelta: 0,
                     listing: parseFloat(listing.toFixed(1)),
                     listingDelta: 0,
@@ -2905,7 +2935,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 const latestInv = parseFloat(s.latest_sku_inventory) || 0;
                 const totalSales = parseFloat(s.total_sales) || 0;
 
-                const osa = deno > 0 ? (neno / deno) * 100 : 0;
+                const osa = deno > 0 ? (neno / deno) * 100 : null;
                 const listing = parseFloat(s.avg_listing_percent) || 0;
                 const doi = totalQtySold > 0 ? (latestInv / totalQtySold) * 30 : 0;
 
@@ -2915,7 +2945,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 return {
                     sku_name: s.sku_name,
                     brand_name: s.brand_name,
-                    osa: parseFloat(osa.toFixed(1)),
+                    osa: osa !== null ? parseFloat(osa.toFixed(1)) : null,
                     osaDelta: 0,
                     doi: parseFloat(doi.toFixed(1)),
                     fillrate: 'Coming Soon',

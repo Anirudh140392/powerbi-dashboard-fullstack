@@ -1232,6 +1232,15 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     }
   }, []);
 
+  const currencySymbol = useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user'));
+      return u?.dbName?.toLowerCase().includes('hayatna') ? 'AED ' : '₹';
+    } catch {
+      return '₹';
+    }
+  }, []);
+
   const {
     selectedBrand,
     timeStart,
@@ -1250,7 +1259,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
   // Build real trend sparkline series from kpiTrends API data
   const trendSeriesMap = useMemo(() => {
     if (!apiData?.kpiTrends?.timeSeries?.length) return {};
-    const osaSeries = apiData.kpiTrends.timeSeries.map(p => p.Osa || 0);
+    const osaSeries = apiData.kpiTrends.timeSeries.map(p => (p.Osa !== null && p.Osa !== undefined) ? p.Osa : null);
     return { osa: osaSeries };
   }, [apiData?.kpiTrends]);
 
@@ -1275,44 +1284,48 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     const osaCardData = apiData?.overview ? {
       value: `${Number(apiData.overview.stockAvailability || 0).toFixed(2)}%`,
       delta: Number(apiData.overview.stockAvailability || 0) - Number(apiData.overview.prevStockAvailability || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Osa || 0, label: p.date || '' })) || []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: (p.Osa !== null && p.Osa !== undefined) ? p.Osa : null, label: p.date || '' })) || []
     } : null;
 
     const doiCardData = apiData?.doi ? {
-      value: Number(apiData.doi.doi || 0).toFixed(0),
-      delta: Number(apiData.doi.doi || 0) - Number(apiData.doi.prevDoi || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Doi || p.DOI || 0, label: p.date || '' })) || []
+      value: (!apiData.doi.doi || Number(apiData.doi.doi) === 0) ? "N/A" : Number(apiData.doi.doi).toFixed(0),
+      delta: (!apiData.doi.doi || Number(apiData.doi.doi) === 0) ? 0 : Number(apiData.doi.doi) - Number(apiData.doi.prevDoi || 0),
+      isNA: (!apiData.doi.doi || Number(apiData.doi.doi) === 0),
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: (p.Doi !== null && p.Doi !== undefined) ? p.Doi : ((p.DOI !== null && p.DOI !== undefined) ? p.DOI : null), label: p.date || '' })) || []
     } : null;
 
     const metroCardData = apiData?.metroCity ? {
       value: apiData.metroCity.isMetroCity === false ? "N/A" : `${Number(apiData.metroCity.stockAvailability || 0).toFixed(2)}%`,
       delta: apiData.metroCity.isMetroCity === false ? 0 : Number(apiData.metroCity.stockAvailability || 0) - Number(apiData.metroCity.prevStockAvailability || 0),
       isNotMetro: apiData.metroCity.isMetroCity === false,
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Osa || 0, label: p.date || '' })) || []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: (p.Osa !== null && p.Osa !== undefined) ? p.Osa : null, label: p.date || '' })) || []
     } : null;
 
     const buyBoxCardData = apiData?.overview ? {
-      value: `${Number(apiData.overview.fillRate || 0).toFixed(2)}%`,
-      delta: Number(apiData.overview.fillRate || 0) - Number(apiData.overview.prevFillRate || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Fillrate || 0, label: p.date || '' })) || []
+      value: (!apiData.overview.fillRate || Number(apiData.overview.fillRate) === 0) ? "N/A" : `${Number(apiData.overview.fillRate).toFixed(2)}%`,
+      delta: (!apiData.overview.fillRate || Number(apiData.overview.fillRate) === 0) ? 0 : Number(apiData.overview.fillRate) - Number(apiData.overview.prevFillRate || 0),
+      isNA: (!apiData.overview.fillRate || Number(apiData.overview.fillRate) === 0),
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: (p.Fillrate !== null && p.Fillrate !== undefined) ? p.Fillrate : null, label: p.date || '' })) || []
     } : null;
 
     const deliveryCardData = apiData?.overview ? {
       value: apiData.overview.deliveryTime !== undefined ? apiData.overview.deliveryTime : "Coming soon",
       delta: (apiData.overview.currAvgDeliveryDays || 0) - (apiData.overview.prevAvgDeliveryDays || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Delivery || 0, label: p.date || '' })) || []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: (p.Delivery !== null && p.Delivery !== undefined) ? p.Delivery : null, label: p.date || '' })) || []
     } : null;
 
     const skuCountData = apiData?.overview ? {
       value: formatNumber(apiData.overview.skuCount || 0),
       delta: Number(apiData.overview.skuCount || 0) - Number(apiData.overview.prevSkuCount || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Assortment || 0, label: p.date || '' })) || []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: (p.Assortment !== null && p.Assortment !== undefined) ? p.Assortment : null, label: p.date || '' })) || []
     } : null;
 
+    const isPslNA = apiData?.overview && (apiData.overview.psl === null || apiData.overview.psl === undefined);
     const pslCardData = apiData?.overview ? {
-      value: `₹${formatNumber(apiData.overview.psl || 0)}`,
-      delta: Number(apiData.overview.psl || 0) - Number(apiData.overview.prevPsl || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: p.Psl || 0, label: p.date || '' })) || []
+      value: isPslNA ? 'N/A' : `${currencySymbol}${formatNumber(apiData.overview.psl)}`,
+      delta: isPslNA ? 0 : (Number(apiData.overview.psl || 0) - Number(apiData.overview.prevPsl || 0)),
+      isNA: isPslNA,
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: (p.Psl !== null && p.Psl !== undefined) ? p.Psl : null, label: p.date || '' })) || []
     } : null;
 
     // Fallback mock logic for single KPI if API missing
@@ -1361,7 +1374,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
       if (cfg.key === 'psl' || cfg.key === 'skucount') formatSuffix = '';
 
       let prefixStr = '';
-      if (cfg.key === 'psl') prefixStr = '₹';
+      if (cfg.key === 'psl') prefixStr = currencySymbol;
 
       let fixedDigits = 1;
       if (cfg.key === 'doi' || cfg.key === 'skucount') fixedDigits = 0;
@@ -1371,15 +1384,16 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         ? formatNumber(Number(absDeltaNum.toFixed(fixedDigits))) 
         : absDeltaNum.toFixed(fixedDigits);
 
-      const deltaText = data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${prefixStr}${deltaFormatted}${formatSuffix}`;
-      const prevText = data.isNotMetro ? "" : "vs Previous Period";
+      const isCardNA = data.isNA || data.value === 'N/A';
+      const deltaText = (data.isNotMetro || isCardNA) ? "" : `${delta >= 0 ? '▲' : '▼'} ${prefixStr}${deltaFormatted}${formatSuffix}`;
+      const prevText = (data.isNotMetro || isCardNA) ? "" : "vs Previous Period";
 
       return {
         id: `avail-card-${cfg.key}`,
         title: cfg.title,
         value: data.value,
         subtitle: data.isNotMetro ? `Selected location is not a metro city` : cfg.sub,
-        delta: parseFloat(delta.toFixed(1)),
+        delta: isCardNA ? 0 : parseFloat(delta.toFixed(1)),
         deltaLabel: deltaText,
         icon: cfg.icon,
         gradient: cfg.gradient,
@@ -1387,6 +1401,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         trendSeries: data.trend || [],
         prevText: prevText,
         isNotMetro: data.isNotMetro,
+        isNA: isCardNA,
         infoTooltip: cfg.infoTooltip
       };
     });
