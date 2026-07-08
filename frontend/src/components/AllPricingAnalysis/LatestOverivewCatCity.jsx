@@ -47,7 +47,10 @@ const cardSize = {
 };
 
 const formatKpiValue = (value, kpiKey) => {
-    if (value === null || value === undefined || value === 0 || value === "0") {
+    if (value === null || value === undefined) {
+        return "N/A";
+    }
+    if ((value === 0 || value === "0") && kpiKey !== 'discount') {
         return "N/A";
     }
     const num = parseFloat(value);
@@ -324,8 +327,8 @@ const LatestOverivewCatCity = ({
                             formattedData[kpi.key] = {
                                 value: formatKpiValue(cell.value, kpi.key),
                                 delta: { 
-                                    value: cell.value === 0 ? "N/A" : `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(1)}%`, 
-                                    dir: cell.value === 0 ? 'neutral' : cell.dir 
+                                    value: (cell.value === 0 && kpi.key !== 'discount') ? "N/A" : `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(1)}%`, 
+                                    dir: (cell.value === 0 && kpi.key !== 'discount') ? 'neutral' : cell.dir 
                                 }
                             };
                         } else {
@@ -379,8 +382,8 @@ const LatestOverivewCatCity = ({
                     formattedData[kpi.key] = {
                         value: formatKpiValue(cell.value, kpi.key),
                         delta: { 
-                            value: cell.value === 0 ? "N/A" : (kpi.key === 'rpi' ? `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(2)}%` : `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(1)}%`), 
-                            dir: cell.value === 0 ? 'neutral' : cell.dir 
+                            value: (cell.value === 0 && kpi.key !== 'discount') ? "N/A" : (kpi.key === 'rpi' ? `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(2)}%` : `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(1)}%`), 
+                            dir: (cell.value === 0 && kpi.key !== 'discount') ? 'neutral' : cell.dir 
                         }
                     };
                 } else {

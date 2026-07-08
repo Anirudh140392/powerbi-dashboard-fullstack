@@ -722,6 +722,22 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
     }, [kpi.trendSeries]);
 
     const isCardNA = kpi.value === 'N/A' || kpi.isNA;
+
+    const shouldShowChart = useMemo(() => {
+        if (!isCardNA) return true;
+        if (!kpi.trendSeries || kpi.trendSeries.length === 0) return false;
+
+        // If the trend only contains 0, null, or undefined, don't show the chart
+        const hasValidVal = kpi.trendSeries.some(item => {
+            if (typeof item === 'object' && item !== null) {
+                return item.value !== null && item.value !== undefined && item.value !== 0;
+            }
+            return item !== null && item !== undefined && item !== 0;
+        });
+
+        return hasValidVal;
+    }, [isCardNA, kpi.trendSeries]);
+
     const isPositive = (kpi.delta || 0) >= 0;
     const deltaColor = isPositive ? "text-emerald-600" : "text-rose-600";
     const deltaIcon = isPositive ? "▲" : "▼";
@@ -854,53 +870,55 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
 
             {/* Sparkline Area */}
             <div className="h-16 w-full px-0 mt-auto opacity-80 group-hover:opacity-100 transition-opacity">
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
-                        <defs>
-                            <linearGradient id={`grad-${kpi.id}`} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.08} />
-                                <stop offset="95%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.01} />
-                            </linearGradient>
-                        </defs>
-                        <RechartsTooltip 
-                            contentStyle={{ fontSize: '10px', padding: '4px 8px', borderRadius: '8px', minWidth: 'auto', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
-                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#2563EB", fontWeight: 'bold' }}
-                            labelStyle={{ fontSize: '10px', color: '#64748b', marginBottom: '2px', fontWeight: '500' }}
-                            cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
-                            labelFormatter={(label, payload) => {
-                                if (payload && payload.length > 0 && payload[0].payload.label) {
-                                    return payload[0].payload.label;
-                                }
-                                return label;
-                            }}
-                            formatter={(value, name, props) => {
-                                if (props?.payload?.isNA) {
-                                    return ['N/A', ''];
-                                }
-                                if (value === null || value === undefined || value === 'N/A' || isNaN(value)) {
-                                    return ['N/A', ''];
-                                }
-                                if (typeof value !== 'number') return [value, ''];
-                                let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
-                                let prefix = isCurrency ? '₹ ' : '';
-                                let formatted = value.toFixed(1);
-                                if (Math.abs(value) >= 10000000) formatted = `${(value / 10000000).toFixed(2)} Cr`;
-                                else if (Math.abs(value) >= 100000) formatted = `${(value / 100000).toFixed(2)} L`;
-                                else if (Math.abs(value) >= 1000) formatted = `${(value / 1000).toFixed(2)} K`;
-                                return [`${prefix}${formatted}`, ''];
-                            }}
-                        />
-                        <Area
-                            type="monotone"
-                            dataKey="v"
-                            stroke={kpi.gradient?.[0] || "#2563EB"}
-                            strokeWidth={2}
-                            fill={`url(#grad-${kpi.id})`}
-                            fillOpacity={1}
-                            connectNulls={true}
-                        />
-                    </AreaChart>
-                </ResponsiveContainer>
+                {shouldShowChart ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id={`grad-${kpi.id}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.08} />
+                                    <stop offset="95%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.01} />
+                                </linearGradient>
+                            </defs>
+                            <RechartsTooltip 
+                                contentStyle={{ fontSize: '10px', padding: '4px 8px', borderRadius: '8px', minWidth: 'auto', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+                                itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#2563EB", fontWeight: 'bold' }}
+                                labelStyle={{ fontSize: '10px', color: '#64748b', marginBottom: '2px', fontWeight: '500' }}
+                                cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
+                                labelFormatter={(label, payload) => {
+                                    if (payload && payload.length > 0 && payload[0].payload.label) {
+                                        return payload[0].payload.label;
+                                    }
+                                    return label;
+                                }}
+                                formatter={(value, name, props) => {
+                                    if (props?.payload?.isNA) {
+                                        return ['N/A', ''];
+                                    }
+                                    if (value === null || value === undefined || value === 'N/A' || isNaN(value)) {
+                                        return ['N/A', ''];
+                                    }
+                                    if (typeof value !== 'number') return [value, ''];
+                                    let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
+                                    let prefix = isCurrency ? '₹ ' : '';
+                                    let formatted = value.toFixed(1);
+                                    if (Math.abs(value) >= 10000000) formatted = `${(value / 10000000).toFixed(2)} Cr`;
+                                    else if (Math.abs(value) >= 100000) formatted = `${(value / 100000).toFixed(2)} L`;
+                                    else if (Math.abs(value) >= 1000) formatted = `${(value / 1000).toFixed(2)} K`;
+                                    return [`${prefix}${formatted}`, ''];
+                                }}
+                            />
+                            <Area
+                                type="monotone"
+                                dataKey="v"
+                                stroke={kpi.gradient?.[0] || "#2563EB"}
+                                strokeWidth={2}
+                                fill={`url(#grad-${kpi.id})`}
+                                fillOpacity={1}
+                                connectNulls={true}
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                ) : null}
             </div>
         </div >
     )

@@ -152,7 +152,10 @@ const makeRandom = (a, b, decimals = 1) =>
   Number((Math.random() * (b - a) + a).toFixed(decimals));
 
 const formatKpiValue = (value, unit = "", format = 1) => {
-    if (value === null || value === undefined || value === 0 || value === "0") {
+    if (value === null || value === undefined) {
+        return "N/A";
+    }
+    if ((value === 0 || value === "0") && unit !== "%") {
         return "N/A";
     }
     const num = parseFloat(value);
@@ -2431,7 +2434,7 @@ export default function PricingAnalysisData() {
         value: formatKpiValue(d.discount?.value, "%", 1),
         subtitle: 'Average discount across active SKUs',
         delta: Math.abs(d.discount?.change || 0),
-        deltaLabel: !d.discount?.value || d.discount?.value === 0 ? "N/A" : `${(d.discount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.discount?.change || 0).toFixed(1)}%`,
+        deltaLabel: d.discount?.value === null || d.discount?.value === undefined ? "N/A" : `${(d.discount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.discount?.change || 0).toFixed(1)}%`,
         icon: icons[0],
         gradient: gradients[0],
         trend: d.discount?.sparklineData || [],
@@ -2445,7 +2448,7 @@ export default function PricingAnalysisData() {
         value: formatKpiValue(d.weightedDiscount?.value, "%", 1),
         subtitle: 'Discount weighted by sales',
         delta: Math.abs(d.weightedDiscount?.change || 0),
-        deltaLabel: !d.weightedDiscount?.value || d.weightedDiscount?.value === 0 ? "N/A" : `${(d.weightedDiscount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.weightedDiscount?.change || 0).toFixed(1)}%`,
+        deltaLabel: d.weightedDiscount?.value === null || d.weightedDiscount?.value === undefined ? "N/A" : `${(d.weightedDiscount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.weightedDiscount?.change || 0).toFixed(1)}%`,
         icon: icons[1],
         gradient: gradients[1],
         trend: d.weightedDiscount?.sparklineData || [],
