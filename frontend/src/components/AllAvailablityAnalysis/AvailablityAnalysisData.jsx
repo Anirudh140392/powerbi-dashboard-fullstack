@@ -1232,6 +1232,15 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     }
   }, []);
 
+  const currencySymbol = useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user'));
+      return u?.dbName?.toLowerCase().includes('hayatna') ? 'AED ' : '₹';
+    } catch {
+      return '₹';
+    }
+  }, []);
+
   const {
     selectedBrand,
     timeStart,
@@ -1311,9 +1320,11 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
       trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: (p.Assortment !== null && p.Assortment !== undefined) ? p.Assortment : null, label: p.date || '' })) || []
     } : null;
 
+    const isPslNA = apiData?.overview && (apiData.overview.psl === null || apiData.overview.psl === undefined);
     const pslCardData = apiData?.overview ? {
-      value: `₹${formatNumber(apiData.overview.psl || 0)}`,
-      delta: Number(apiData.overview.psl || 0) - Number(apiData.overview.prevPsl || 0),
+      value: isPslNA ? 'N/A' : `${currencySymbol}${formatNumber(apiData.overview.psl)}`,
+      delta: isPslNA ? 0 : (Number(apiData.overview.psl || 0) - Number(apiData.overview.prevPsl || 0)),
+      isNA: isPslNA,
       trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: (p.Psl !== null && p.Psl !== undefined) ? p.Psl : null, label: p.date || '' })) || []
     } : null;
 
@@ -1363,7 +1374,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
       if (cfg.key === 'psl' || cfg.key === 'skucount') formatSuffix = '';
 
       let prefixStr = '';
-      if (cfg.key === 'psl') prefixStr = '₹';
+      if (cfg.key === 'psl') prefixStr = currencySymbol;
 
       let fixedDigits = 1;
       if (cfg.key === 'doi' || cfg.key === 'skucount') fixedDigits = 0;

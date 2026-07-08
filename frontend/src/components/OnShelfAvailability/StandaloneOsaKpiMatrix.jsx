@@ -282,7 +282,7 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
                                                                         ? `${currencySymbol}${formatNumber(cell.value)}` 
                                                                         : `${cell.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`}
                                                             </span>
-                                                            {!cell.isNA && (
+                                                            {!cell.isNA && cell.delta !== null && cell.delta !== undefined && (
                                                                 <span
                                                                     className={cn(
                                                                         "text-xs font-medium",
