@@ -114,7 +114,10 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
       delta: (overviewData.stockAvailability && overviewData.prevStockAvailability)
         ? Number(overviewData.stockAvailability) - Number(overviewData.prevStockAvailability)
         : 0,
-      trend: osaTrendsData?.timeSeries?.map(p => p.Osa || 0) || []
+      trend: osaTrendsData?.timeSeries?.map(p => ({
+        value: (p.Osa !== null && p.Osa !== undefined) ? p.Osa : null,
+        label: p.date
+      })) || []
     } : null;
 
     // 2. Metro City Stock Availability
@@ -122,7 +125,10 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
       value: (metroData.isMetroCity === false || !metroData.stockAvailability) ? "N/A" : `${Number(metroData.stockAvailability).toFixed(2)}%`,
       delta: (metroData.isMetroCity === false || !metroData.stockAvailability || !metroData.prevStockAvailability) ? 0 : Number(metroData.stockAvailability) - Number(metroData.prevStockAvailability),
       isNotMetro: metroData.isMetroCity === false || !metroData.stockAvailability,
-      trend: osaTrendsData?.timeSeries?.map(p => p.Osa || 0) || []
+      trend: osaTrendsData?.timeSeries?.map(p => ({
+        value: (p.Osa !== null && p.Osa !== undefined) ? p.Osa : null,
+        label: p.date
+      })) || []
     } : null;
 
     // 3. Market Share %
@@ -137,7 +143,10 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
       value: hasMsVal ? `${Number(platData.mwMarketShare.raw).toFixed(2)}%` : "N/A",
       delta: hasMsVal && platData.mwMarketShare.delta ? (platData.mwMarketShare.delta.dir === 'up' ? 1 : -1) : 0,
       deltaLabel: hasMsVal && platData.mwMarketShare.delta ? platData.mwMarketShare.delta.value : "",
-      trend: msTrendsData?.timeSeries?.map(p => p.MWMarketShare || 0) || []
+      trend: msTrendsData?.timeSeries?.map(p => ({
+        value: (p.MWMarketShare !== null && p.MWMarketShare !== undefined) ? p.MWMarketShare : null,
+        label: p.date
+      })) || []
     };
 
     const cards_config = [
