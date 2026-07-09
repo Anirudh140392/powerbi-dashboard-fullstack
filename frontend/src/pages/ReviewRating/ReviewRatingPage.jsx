@@ -16,6 +16,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../utils/AuthContext";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
+import TrailyticsTypewriterLoader from "../../components/insights/TrailyticsTypewriterLoader";
 
 // ─── Lazy-import the ratings components ────────────────────────────────────────
 // Using React.lazy so the ratings bundle chunk is only loaded when this route
@@ -37,6 +38,14 @@ function RatingsContent() {
   const [ssoState, setSsoState] = useState("idle"); // idle | loading | done | error
   const [ssoError, setSsoError] = useState("");
   const attempted = useRef(false);
+  const [showLoader, setShowLoader] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowLoader(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     // Skip if already auth'd in ratings, or SSO already tried, or DS user not available
@@ -75,32 +84,17 @@ function RatingsContent() {
   }, [isAuthenticated, isLoading, dsUser?.email, ssoLogin]);
 
   // ─── Loading state ────────────────────────────────────────────────────────
-  if (isLoading || ssoState === "loading") {
+  if (isLoading || ssoState === "loading" || showLoader) {
     return (
       <div
         style={{
           display: "flex",
-          height: "100%",
           alignItems: "center",
           justifyContent: "center",
-          background: "#020617",
-          color: "#94a3b8",
+          flex: 1,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 14 }}>
-          <div
-            style={{
-              width: 20,
-              height: 20,
-              border: "2px solid rgba(255,255,255,0.2)",
-              borderTop: "2px solid white",
-              borderRadius: "50%",
-              animation: "spin 0.8s linear infinite",
-            }}
-          />
-          Signing you into Rating Intelligence...
-        </div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <TrailyticsTypewriterLoader size={1.1} message="Loading Rating Intelligence..." />
       </div>
     );
   }
@@ -153,14 +147,12 @@ function RatingsContent() {
         <div
           style={{
             display: "flex",
-            height: "100%",
+            flex: 1,
             alignItems: "center",
             justifyContent: "center",
-            background: "#020617",
-            color: "#94a3b8",
           }}
         >
-          Loading Rating Intelligence...
+          <TrailyticsTypewriterLoader size={1.1} message="Loading Rating Intelligence..." />
         </div>
       }
     >
@@ -174,12 +166,13 @@ export default function ReviewRatingPage() {
   return (
     // Wrap in the ratings AuthProvider so ratings auth state is isolated from DS
     <RatingsAuthProvider>
-      <CommonContainer title="Rating Intelligence">
+      <CommonContainer title="Rating Intelligence" disablePadding={true} hideFilters={true}>
         <div
           style={{
             width: "100%",
-            minHeight: "100%",
-            background: "#020617",
+            flex: 1,
+            display: "flex",
+            flexDirection: "column"
           }}
         >
           <RatingsContent />

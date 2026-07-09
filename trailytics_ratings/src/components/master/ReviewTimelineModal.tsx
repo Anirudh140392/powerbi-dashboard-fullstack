@@ -66,7 +66,7 @@ export function ReviewTimelineModal({ webPid, productName, platform, onClose }: 
     : 'border-slate-300 bg-slate-50 dark:bg-slate-800/50';
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1300] flex items-center justify-center p-4" onClick={onClose}>
       <div
         className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 max-w-4xl w-full max-h-[92vh] flex flex-col"
         onClick={e => e.stopPropagation()}

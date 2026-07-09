@@ -8,9 +8,8 @@ import random
 from collections import defaultdict
 from typing import Dict, List, Optional
 from openai import OpenAI
-import os
 
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+OPENAI_API_KEY = "YOUR_OPENAI_API_KEY"
 OPENAI_MODEL = "gpt-4o-mini"
 
 # Rate limiting (OpenAI is more generous but still be careful)

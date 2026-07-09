@@ -86,7 +86,7 @@ const MasterLayout: React.FC<MasterLayoutProps> = ({ productFilters, initialSear
             </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-h-0 bg-white/80 dark:bg-slate-900/80">
+            <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-white/80 dark:bg-slate-900/80">
                 <AnimatePresence mode="wait">
                     {activeTab === 'qcaudit' && (
                         <motion.div key="qcaudit" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="h-full flex flex-col">

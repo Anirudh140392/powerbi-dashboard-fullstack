@@ -8,7 +8,7 @@ from openai import OpenAI
 from tqdm import tqdm
 
 # OpenAI configuration
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', 'YOUR_OPENAI_API_KEY')
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 PROMPT_TEMPLATE = """Classify this product review into ONE category.

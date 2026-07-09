@@ -128,6 +128,33 @@ async function main() {
     const chRows = await rs.json();
     console.log(`ClickHouse returned ${chRows.length} (web_pid, pf_id) groups`);
 
+    // Star breakdown (5/4/3/2/1) lives in prestige.reviews' denormalised PDP
+    // fields, NOT rb_pdp_week — fetch it separately and attach, so
+    // product_snapshots.star_distribution carries the real PDP distribution.
+    // (The dashboard used to count review rows, which under-represented Amazon:
+    //  millions of PDP ratings vs ~7K crawled reviews.)
+    const starRs = await chClient.query({
+        query: `
+            SELECT web_pid, pf_id,
+                toInt64(argMax(five_star,  created_on)) AS s5,
+                toInt64(argMax(four_star,  created_on)) AS s4,
+                toInt64(argMax(three_star, created_on)) AS s3,
+                toInt64(argMax(two_star,   created_on)) AS s2,
+                toInt64(argMax(one_star,   created_on)) AS s1
+            FROM reviews
+            WHERE five_star > 0 OR four_star > 0 OR three_star > 0 OR two_star > 0 OR one_star > 0
+            GROUP BY web_pid, pf_id
+        `,
+        format: 'JSONEachRow',
+    });
+    const starRows = await starRs.json();
+    const starByKey = new Map();
+    for (const r of starRows) {
+        starByKey.set(`${String(r.web_pid || '').toLowerCase()}|${r.pf_id}`,
+            JSON.stringify({ 1: +r.s1, 2: +r.s2, 3: +r.s3, 4: +r.s4, 5: +r.s5 }));
+    }
+    console.log(`ClickHouse star breakdown for ${starByKey.size} SKUs`);
+
     const latest = new Map();
     for (const row of chRows) {
         const webPidRaw = String(row.web_pid || '').trim();
@@ -152,9 +179,10 @@ async function main() {
         const rating = toRating(row.pdp_rating_value);
         const reviewCount = toPositiveNumber(row.pdp_review_count);
         const ratingCount = toPositiveNumber(row.pdp_rating_count);
+        const starDist = starByKey.get(`${webPidLow}|${row.pf_id}`) || null;
         if (priceRp == null && priceSp == null && rating == null &&
-            reviewCount == null && ratingCount == null) continue;
-        latest.set(key, { webPid, platform, priceRp, priceSp, rating, reviewCount, ratingCount });
+            reviewCount == null && ratingCount == null && starDist == null) continue;
+        latest.set(key, { webPid, platform, priceRp, priceSp, rating, reviewCount, ratingCount, starDist });
     }
     await chClient.close();
     console.log(`Captured latest data for ${latest.size} (web_pid, platform) keys`);
@@ -173,9 +201,10 @@ async function main() {
                         price_sp = COALESCE($2, price_sp),
                         rating = COALESCE($3, rating),
                         review_count = COALESCE($4, review_count),
-                        rating_count = COALESCE($5, rating_count)
+                        rating_count = COALESCE($5, rating_count),
+                        star_distribution = COALESCE($7::jsonb, star_distribution)
                     WHERE id = $6
-                `, [v.priceRp, v.priceSp, v.rating, v.reviewCount, v.ratingCount, todayId]);
+                `, [v.priceRp, v.priceSp, v.rating, v.reviewCount, v.ratingCount, todayId, v.starDist]);
                 updated++;
             } else {
                 const m = masterByKey.get(key) || masterByPid.get(v.webPid) || null;
@@ -184,10 +213,10 @@ async function main() {
                         company_id, platform, web_pid, product_name, brand,
                         category, pareto_status, is_competitor,
                         price_rp, price_sp, rating, review_count, rating_count,
-                        snapshot_date, created_at
+                        star_distribution, snapshot_date, created_at
                     ) VALUES (
                         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-                        CURRENT_DATE, NOW()
+                        $14::jsonb, CURRENT_DATE, NOW()
                     )
                 `, [
                     COMPANY_ID, v.platform, v.webPid,
@@ -197,6 +226,7 @@ async function main() {
                     m?.pareto_status || null,
                     !!m?.is_competitor,
                     v.priceRp, v.priceSp, v.rating, v.reviewCount, v.ratingCount,
+                    v.starDist,
                 ]);
                 inserted++;
             }

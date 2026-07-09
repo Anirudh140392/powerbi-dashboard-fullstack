@@ -320,7 +320,7 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+                        className="fixed inset-0 bg-slate-900/10 backdrop-blur-sm z-[1300]"
                     />
 
                     {/* Slide Panel */}
@@ -329,7 +329,7 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                         animate={{ x: 0 }}
                         exit={{ x: '100%' }}
                         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                        className="fixed right-0 top-0 h-full w-full md:w-3/4 bg-white dark:bg-slate-900 shadow-2xl z-50 overflow-y-auto"
+                        className="fixed right-0 top-0 h-full w-full md:w-3/4 bg-white dark:bg-slate-900 shadow-2xl z-[1300] overflow-y-auto"
                     >
                         {/* Header */}
                         <div className="sticky top-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800 p-6 z-10">

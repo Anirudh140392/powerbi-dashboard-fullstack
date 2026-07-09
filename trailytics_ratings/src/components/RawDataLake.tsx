@@ -481,7 +481,7 @@ const RawDataLake: React.FC<RawDataLakeProps> = ({ filters }) => {
 
             {/* Edit Modal Overlay */}
             {editingRow && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[1300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
                     <form onSubmit={handleEditSave} className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95">
                         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
                             <h3 className="font-bold text-lg dark:text-white">Edit Raw Data</h3>

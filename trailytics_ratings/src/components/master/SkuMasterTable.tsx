@@ -201,7 +201,7 @@ const SkuMasterTable: React.FC<SkuMasterTableProps> = ({ filters, initialSearch 
     };
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden">
+        <div className="flex flex-col h-full min-w-0 bg-white dark:bg-slate-900 overflow-hidden">
             {/* Toolbar */}
             <div className="p-4 border-b border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between gap-4 flex-shrink-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
                 <div className="flex-1 max-w-md relative">

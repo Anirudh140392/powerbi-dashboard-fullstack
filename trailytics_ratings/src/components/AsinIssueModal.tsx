@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X,
@@ -89,27 +90,26 @@ const AsinIssueModal: React.FC<AsinIssueModalProps> = ({ isOpen, onClose, webPid
 
     return (
         <>
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[55] flex items-center justify-center p-4"
-                    >
-                        {/* Backdrop */}
-                        <div
-                            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-                            onClick={onClose}
-                        />
-                        {/* Modal */}
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.92, y: 30 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.92, y: 30 }}
-                            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-                            className="relative w-full max-w-2xl max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200/60 dark:border-slate-700/60"
-                        >
+            {createPortal(
+                <AnimatePresence>
+                    {isOpen && (
+                        <div key="asin-modal-root" className="fixed inset-0 z-[1500] flex items-center justify-center p-4 pointer-events-none">
+                            {/* Backdrop */}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 bg-slate-900/10 backdrop-blur-sm pointer-events-auto"
+                                onClick={onClose}
+                            />
+                            {/* Modal */}
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.92, y: 30 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.92, y: 30 }}
+                                transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                                className="relative w-full max-w-2xl max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200/60 dark:border-slate-700/60 pointer-events-auto"
+                            >
                             {/* Header */}
                             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 dark:from-slate-800/50 to-transparent shrink-0">
                                 <div className="flex items-start justify-between gap-4">
@@ -333,9 +333,11 @@ const AsinIssueModal: React.FC<AsinIssueModalProps> = ({ isOpen, onClose, webPid
                                 </div>
                             )}
                         </motion.div>
-                    </motion.div>
+                    </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence>,
+            document.body
+        )}
 
             {/* Nested Review Modal */}
             {reviewModal && (

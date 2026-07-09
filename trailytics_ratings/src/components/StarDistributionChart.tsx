@@ -44,7 +44,11 @@ export function StarDistributionChart({ category, platform, webPid }: Props) {
       headers: buildAuthHeaders({}, companyId),
     })
       .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-      .then(j => { setBrands(j.brands || []); setError(null); })
+      .then(j => {
+        const validBrands = (j.brands || []).filter((b: BrandDistribution) => b.brand !== 'Unknown');
+        setBrands(validBrands);
+        setError(null);
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [category, platform, webPid]);

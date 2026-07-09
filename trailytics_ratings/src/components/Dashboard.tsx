@@ -4,7 +4,7 @@
  * ALL DATA FROM API — no static JSON imports
  */
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
-import { BarChart3, Sparkles, Loader2 } from 'lucide-react';
+import { BarChart3, Sparkles } from 'lucide-react';
 import { AvatarMenu } from './AvatarMenu';
 import { NotificationBell } from './NotificationBell';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -99,17 +99,11 @@ function toReview(row: ReviewRow): Review {
 // UserBadge consolidated into AvatarMenu — theme toggle, settings shortcut,
 // and sign-out all live in one dropdown so the header has room for 6 tabs.
 
+import TrailyticsTypewriterLoader from "./TrailyticsTypewriterLoader";
+
 const LoadingSkeleton: React.FC = () => (
-    <div className="flex items-center justify-center py-16">
-        <div className="flex flex-col items-center gap-4">
-            <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-            >
-                <Loader2 size={32} className="text-indigo-500" />
-            </motion.div>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Loading data from database...</p>
-        </div>
+    <div className="flex items-center justify-center py-16 min-h-[400px]">
+        <TrailyticsTypewriterLoader size={1.1} message="Loading data from database..." />
     </div>
 );
 
@@ -365,13 +359,12 @@ const Dashboard: React.FC = () => {
             uniqueProducts: parseInt(summary.metrics.unique_products || '0'),
         };
     }, [summary]);
-
     const headlineMetrics = useMemo(() => ({
-        pdpRating: metrics.avgActualRating,
-        userRating: metrics.avgUserRating,
-        mlRating: metrics.avgMlRating,
-        reviewCount: parseInt(summary?.metrics.review_count || String(metrics.totalReviews), 10) || metrics.totalReviews || ownReviewTotal,
-        ratingCount: metrics.totalRatings,
+        pdp_rating: metrics.avgActualRating,
+        user_rating: metrics.avgUserRating,
+        ml_rating: metrics.avgMlRating,
+        review_count: parseInt(summary?.metrics.review_count || String(metrics.totalReviews), 10) || metrics.totalReviews || ownReviewTotal,
+        rating_count: metrics.totalRatings,
     }), [metrics, ownReviewTotal, summary]);
 
     // Handle competitor mention click
@@ -383,90 +376,47 @@ const Dashboard: React.FC = () => {
 
 
     return (
-        <div className={`h-screen flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-500`}>
-            {/* ===== HEADER ===== */}
-            <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/60">
-                <div className="w-full px-4 md:px-4 py-3">
-                    <div className="flex items-center justify-between">
-                        {/* Logo */}
-                        <div className="flex items-center gap-3">
-                            <motion.div
-                                whileHover={{ rotate: 5, scale: 1.05 }}
-                                className="p-2.5 bg-indigo-500 rounded-xl shadow-md shadow-indigo-500/20"
-                            >
-                                <BarChart3 className="text-white" size={22} />
-                            </motion.div>
-                            <div>
-                                <h1 className="text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
-                                    Rating Intelligence
-                                </h1>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-500 flex items-center gap-1">
-                                    <Sparkles size={10} className="text-indigo-400" />
-                                    Prestige Product Analytics · V2 · DB-Backed
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Tab Navigation — Premium Animated */}
-                        <nav className="flex items-center gap-0.5 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-1 border border-slate-200/40 dark:border-slate-700/40">
-                            {TABS.map(tab => (
-                                <motion.button
-                                    key={tab.key}
-                                    onClick={() => {
-                                        setActiveTab(tab.key);
-                                        // Keep ?tab=... in sync so reload + bookmarks land on the same view.
-                                        const params = new URLSearchParams(window.location.search);
-                                        params.set('tab', tab.key);
-                                        // Drop sub-tab when switching primary so we don't carry e.g. ?sub=alert-rules into Overview
-                                        if (tab.key !== 'rules') params.delete('sub');
-                                        window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
-                                    }}
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    title={tab.label}
-                                    aria-label={tab.label}
-                                    className={`relative px-3 xl:px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${activeTab === tab.key
-                                        ? 'text-white'
-                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                >
-                                    {activeTab === tab.key && (
-                                        <motion.div
-                                            layoutId="activeTab"
-                                            className="absolute inset-0 bg-indigo-600 rounded-lg shadow-md shadow-indigo-500/20"
-                                            transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                                        />
-                                    )}
-                                    <span className="relative z-10 flex items-center gap-1.5">
-                                        <span className="text-sm">{tab.icon}</span>
-                                        {/* Labels show ≥1280px (xl). Below that the tab is icon-only
-                                            to keep all 6 tabs visible on a 13" laptop; tooltip
-                                            preserves discoverability. */}
-                                        <span className="hidden xl:inline">{tab.label}</span>
-                                    </span>
-                                </motion.button>
-                            ))}
-                        </nav>
-
-                        {/* Right cluster — notifications bell + avatar dropdown */}
-                        <div className="flex items-center gap-2">
-                            <NotificationBell enabled={true} />
-                            <AvatarMenu
-                                onOpenRules={() => {
-                                    setActiveTab('rules');
+        <div className={`h-full flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-500`}>
+            {/* ===== GLOBAL HEADER / FILTER BAR ===== */}
+            <GlobalFilterBar 
+                filterResult={filterResult} 
+                tabsNode={
+                    <nav className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-1 border border-slate-200/40 dark:border-slate-700/40 w-max mx-auto">
+                        {TABS.map(tab => (
+                            <motion.button
+                                key={tab.key}
+                                onClick={() => {
+                                    setActiveTab(tab.key);
                                     const params = new URLSearchParams(window.location.search);
-                                    params.set('tab', 'rules');
-                                    params.set('sub', 'mailer');
+                                    params.set('tab', tab.key);
+                                    if (tab.key !== 'rules') params.delete('sub');
                                     window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
                                 }}
-                            />
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            {/* ===== GLOBAL FILTER BAR ===== */}
-            <GlobalFilterBar filterResult={filterResult} headlineMetrics={headlineMetrics} />
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                title={tab.label}
+                                aria-label={tab.label}
+                                className={`relative px-3 xl:px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${activeTab === tab.key
+                                    ? 'text-white'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                            >
+                                {activeTab === tab.key && (
+                                    <motion.div
+                                        layoutId="activeTab"
+                                        className="absolute inset-0 bg-indigo-600 rounded-lg shadow-md shadow-indigo-500/20"
+                                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                                    />
+                                )}
+                                <span className="relative z-10 flex items-center gap-1.5">
+                                    <span className="text-sm">{tab.icon}</span>
+                                    <span className="hidden xl:inline">{tab.label}</span>
+                                </span>
+                            </motion.button>
+                        ))}
+                    </nav>
+                }
+            />
 
             {/* ===== MAIN CONTENT ===== */}
             <main className="flex-1 w-full px-2 md:px-4 py-3 overflow-y-auto flex flex-col">
@@ -515,6 +465,7 @@ const Dashboard: React.FC = () => {
                                     globalPriceRange={filters.priceRange}
                                     globalBrandScope={filters.brandScope}
                                     globalSentimentCategory={currentSentimentCategory}
+                                    headlineMetrics={headlineMetrics}
                                 />
                             </motion.div>
                         )}

@@ -87,6 +87,7 @@ interface ExecutiveInsightsProps {
     globalPriceRange?: { min: number; max: number } | null;
     globalBrandScope?: string | null;
     globalSentimentCategory?: string | null;
+    headlineMetrics?: any;
 }
 
 // ============================================================================
@@ -187,7 +188,7 @@ const SectionLoadingState: React.FC<{ label: string }> = ({ label }) => (
 // MAIN COMPONENT
 // ============================================================================
 
-const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competitorReviews = [], onCharacteristicClick, serverTrends, serverTrendsLoading = false, serverProductHealth, serverProductHealthLoading = false, onRequestHeavyData, onCategorySelect, externalSelectedCategory, globalParetoStatus, globalRatingBifurcation, onClassificationSelect, externalClassification, globalPlatform, globalTrendPeriodMonths, globalDateFrom, globalDateTo, globalPriceMode, globalPriceRange, globalBrandScope, globalSentimentCategory }) => {
+const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competitorReviews = [], onCharacteristicClick, serverTrends, serverTrendsLoading = false, serverProductHealth, serverProductHealthLoading = false, onRequestHeavyData, onCategorySelect, externalSelectedCategory, globalParetoStatus, globalRatingBifurcation, onClassificationSelect, externalClassification, globalPlatform, globalTrendPeriodMonths, globalDateFrom, globalDateTo, globalPriceMode, globalPriceRange, globalBrandScope, globalSentimentCategory, headlineMetrics }) => {
     const selectedPeriod = globalTrendPeriodMonths || 6;
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
     const [productHealthTab, setProductHealthTab] = useState<'declining' | 'improving'>('declining');
@@ -659,7 +660,16 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
 
 
     return (
-        <>
+        <div className="space-y-6">
+            {/* Top Level Central Ratings & Counts */}
+            {headlineMetrics && (
+                <div className="flex justify-center w-full">
+                    <div className="inline-flex items-center bg-white dark:bg-slate-800 p-2.5 px-6 rounded-full border border-slate-200/80 dark:border-slate-700/80 shadow-sm transition-all hover:shadow-md">
+                        <RatingSummaryInline metrics={headlineMetrics} compact={false} />
+                    </div>
+                </div>
+            )}
+
             <div className="space-y-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 backdrop-blur-sm p-5 shadow-sm">
                 {/* Header */}
                 <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1795,7 +1805,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
             />
 
 
-        </>
+        </div>
     );
 };
 

@@ -3,6 +3,7 @@
  * Flow: Click stakeholder card → Slider with issues list → Expand issue → See SKUs → Click SKU → ReviewModal
  */
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X, Factory, ClipboardCheck, Headphones, Star,
@@ -71,85 +72,88 @@ const StakeholderSlider = ({ isOpen, onClose, stakeholderName, filters }: Stakeh
 
     return (
         <>
-            <AnimatePresence>
-                {isOpen && stakeholderName && (
-                    <>
-                        {/* Backdrop */}
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
-                            onClick={onClose}
-                        />
+            {createPortal(
+                <AnimatePresence>
+                    {isOpen && stakeholderName && (
+                        <div key="stakeholder-slider-root" className="fixed inset-0 z-[1300] pointer-events-none">
+                            {/* Backdrop */}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 bg-slate-900/10 backdrop-blur-sm pointer-events-auto"
+                                onClick={onClose}
+                            />
 
-                        {/* Slider Panel */}
-                        <motion.div
-                            initial={{ x: '100%' }}
-                            animate={{ x: 0 }}
-                            exit={{ x: '100%' }}
-                            transition={{ type: 'spring', damping: 30, stiffness: 350 }}
-                            className="fixed right-0 top-0 bottom-0 w-full md:w-[600px] lg:w-[720px] bg-white dark:bg-slate-900 shadow-2xl z-50 flex flex-col border-l border-slate-200/50 dark:border-slate-700/50"
-                        >
-                            {/* Header */}
-                            <div className={`px-6 py-5 border-b border-slate-200 dark:border-slate-700/50 bg-gradient-to-r ${config.gradient} flex-shrink-0`}>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 shadow-sm ${config.accent}`}>
-                                            <IconComponent size={22} />
+                            {/* Slider Panel */}
+                            <motion.div
+                                initial={{ x: '100%' }}
+                                animate={{ x: 0 }}
+                                exit={{ x: '100%' }}
+                                transition={{ type: 'spring', damping: 30, stiffness: 350 }}
+                                className="absolute right-0 top-0 bottom-0 w-full md:w-[600px] lg:w-[720px] bg-white dark:bg-slate-900 shadow-2xl flex flex-col border-l border-slate-200/50 dark:border-slate-700/50 pointer-events-auto"
+                            >
+                                {/* Header */}
+                                <div className={`px-6 py-5 border-b border-slate-200 dark:border-slate-700/50 bg-gradient-to-r ${config.gradient} flex-shrink-0`}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 shadow-sm ${config.accent}`}>
+                                                <IconComponent size={22} />
+                                            </div>
+                                            <div>
+                                                <h2 className="text-xl font-bold text-slate-900 dark:text-white">{stakeholderName}</h2>
+                                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                                                    {issues.length} issues • {totalSkus.toLocaleString()} SKUs • {totalNegative.toLocaleString()} negative reviews
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">{stakeholderName}</h2>
-                                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                                                {issues.length} issues • {totalSkus.toLocaleString()} SKUs • {totalNegative.toLocaleString()} negative reviews
-                                            </p>
-                                        </div>
+                                        <button
+                                            onClick={onClose}
+                                            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        >
+                                            <X size={20} className="text-slate-500" />
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={onClose}
-                                        className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                    >
-                                        <X size={20} className="text-slate-500" />
-                                    </button>
                                 </div>
-                            </div>
 
-                            {/* Content — Issue list */}
-                            <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                                {loading ? (
-                                    <div className="flex items-center justify-center py-20">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                                            <span className="text-sm text-slate-400">Loading stakeholder data...</span>
+                                {/* Content — Issue list */}
+                                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                                    {loading ? (
+                                        <div className="flex items-center justify-center py-20">
+                                            <div className="flex flex-col items-center gap-3">
+                                                <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                                                <span className="text-sm text-slate-400">Loading stakeholder data...</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                ) : issues.length === 0 ? (
-                                    <div className="text-center py-20 text-slate-400">
-                                        No issues found for this stakeholder
-                                    </div>
-                                ) : (
-                                    issues.map((issue, idx) => (
-                                        <IssueRow
-                                            key={issue.subcategory}
-                                            issue={issue}
-                                            index={idx}
-                                            isExpanded={expandedIssue === issue.subcategory}
-                                            onToggle={() => setExpandedIssue(expandedIssue === issue.subcategory ? null : issue.subcategory)}
-                                            onViewReviews={(sku) => setReviewModal({
-                                                webPid: sku.web_pid,
-                                                subcategory: issue.subcategory,
-                                                productName: sku.product_name,
-                                                issueLabel: issue.label,
-                                            })}
-                                            accentColor={config.accent}
-                                        />
-                                    ))
-                                )}
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+                                    ) : issues.length === 0 ? (
+                                        <div className="text-center py-20 text-slate-400">
+                                            No issues found for this stakeholder
+                                        </div>
+                                    ) : (
+                                        issues.map((issue, idx) => (
+                                            <IssueRow
+                                                key={issue.subcategory}
+                                                issue={issue}
+                                                index={idx}
+                                                isExpanded={expandedIssue === issue.subcategory}
+                                                onToggle={() => setExpandedIssue(expandedIssue === issue.subcategory ? null : issue.subcategory)}
+                                                onViewReviews={(sku) => setReviewModal({
+                                                    webPid: sku.web_pid,
+                                                    subcategory: issue.subcategory,
+                                                    productName: sku.product_name,
+                                                    issueLabel: issue.label,
+                                                })}
+                                                accentColor={config.accent}
+                                            />
+                                        ))
+                                    )}
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
 
             {/* Review Modal */}
             <ReviewModal

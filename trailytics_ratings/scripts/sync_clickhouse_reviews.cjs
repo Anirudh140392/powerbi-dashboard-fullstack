@@ -92,10 +92,30 @@ function normalizeTimestamp(value) {
     return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }
 
+// Canonicalise the rating so a re-crawl's `4` matches Postgres' numeric `"4.0"`.
+// Without this the blank-review dedup key never matched across runs, so every
+// sync re-inserted the same web_review_ID-less (Flipkart) reviews — the cause of
+// millions of duplicate rows.
+function normalizeRatingKey(rating) {
+    if (rating === null || rating === undefined || rating === '') return '';
+    const n = Number(rating);
+    return Number.isFinite(n) ? String(n) : '';   // "4.0" -> "4", 4 -> "4"
+}
+// Canonicalise the date to 'YYYY-MM-DD' with NO timezone shift. The existing-key
+// path used `new Date(dateColumn).toISOString()` which drifted the day by one in
+// a non-UTC context (same review stored as 2015-02-27 AND 2015-02-28), splitting
+// one review into two dedup groups. Accept both a 'YYYY-MM-DD' string (from
+// `review_date::text`) and a Date, and just take the first 10 chars of the string.
+function normalizeDateKey(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value.slice(0, 10);
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
 function buildBlankReviewKey({ platform, webPid, reviewerName, reviewDate, rating, title, text }) {
     return [
-        platform || '', webPid || '', normalizeText(reviewerName),
-        reviewDate || '', rating ?? '', normalizeText(title), normalizeText(text),
+        (platform || '').toLowerCase(), (webPid || '').toUpperCase(), normalizeText(reviewerName),
+        normalizeDateKey(reviewDate), normalizeRatingKey(rating), normalizeText(title), normalizeText(text),
     ].join('|');
 }
 
@@ -218,15 +238,17 @@ async function main() {
     `, [COMPANY_ID]);
     const existingIds = new Set(existingIdRows.map(row => String(row.review_external_id).toLowerCase()));
 
+    // review_date::text / rating::text return canonical strings ('YYYY-MM-DD',
+    // '4.0') so buildBlankReviewKey (which normalises both) produces the SAME key
+    // it builds from the incoming ClickHouse row — the fix for the duplicate blast.
     const { rows: existingBlankRows } = await pgPool.query(`
-        SELECT platform, web_pid, reviewer_name, review_date, rating, review_title, review_text
+        SELECT platform, web_pid, reviewer_name, review_date::text AS review_date, rating::text AS rating, review_title, review_text
         FROM ratings.reviews WHERE company_id = $1 AND review_external_id IS NULL
     `, [COMPANY_ID]);
     const existingBlankKeys = new Set(
         existingBlankRows.map(row => buildBlankReviewKey({
             platform: row.platform, webPid: row.web_pid, reviewerName: row.reviewer_name,
-            reviewDate: row.review_date ? new Date(row.review_date).toISOString().slice(0, 10) : null,
-            rating: row.rating, title: row.review_title, text: row.review_text,
+            reviewDate: row.review_date, rating: row.rating, title: row.review_title, text: row.review_text,
         }))
     );
     console.log(`Existing: ${existingIds.size} id-reviews, ${existingBlankKeys.size} blank-reviews`);

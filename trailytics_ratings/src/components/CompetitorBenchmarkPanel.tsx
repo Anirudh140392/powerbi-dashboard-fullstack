@@ -151,7 +151,7 @@ const CompetitorBenchmarkPanel: React.FC<CompetitorBenchmarkPanelProps> = ({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 0.5 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black z-40"
+                        className="fixed inset-0 bg-slate-900/10 backdrop-blur-sm z-[1300]"
                         onClick={onClose}
                     />
 
@@ -161,7 +161,7 @@ const CompetitorBenchmarkPanel: React.FC<CompetitorBenchmarkPanelProps> = ({
                         animate={{ x: 0 }}
                         exit={{ x: '100%' }}
                         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                        className="fixed right-0 top-0 h-full w-full md:w-3/4 bg-white dark:bg-slate-900 shadow-2xl z-50 overflow-y-auto"
+                        className="fixed right-0 top-0 h-full w-full md:w-3/4 bg-white dark:bg-slate-900 shadow-2xl z-[1400] overflow-y-auto"
                     >
                         {/* Header */}
                         <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between z-10">

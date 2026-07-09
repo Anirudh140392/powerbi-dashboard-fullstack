@@ -150,7 +150,7 @@ const CategoryExtractionRules: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl m-4 overflow-hidden">
+        <div className="flex flex-col h-full min-w-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl m-4 overflow-hidden">
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
                 <div>
                     <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Product Category Matrix</h3>

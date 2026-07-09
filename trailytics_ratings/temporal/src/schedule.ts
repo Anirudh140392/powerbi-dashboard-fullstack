@@ -19,6 +19,7 @@ interface RegisterOpts {
   companyIds: string[];
   hour?: number;
   minute?: number;
+  dayOfWeek?: string;
   weeklyHour?: number;
   weeklyMinute?: number;
 }
@@ -30,12 +31,20 @@ interface RegisterOpts {
 export async function registerSchedules(client: Client, opts: RegisterOpts): Promise<void> {
   const hour = opts.hour ?? 2;
   const minute = opts.minute ?? 0;
+  const dayOfWeek = opts.dayOfWeek ?? 'SUNDAY';
   const weeklyHour = opts.weeklyHour ?? 9;
   const weeklyMinute = opts.weeklyMinute ?? 0;
 
   for (const companyId of opts.companyIds) {
     const dailyId = scheduleIdFor(companyId);
-    const dailySpec = { calendars: [{ hour, minute }] };
+    // WEEKLY (every-7-days) pipeline cadence — was daily. ClickHouse only
+    // refreshes the crawl ~weekly, so daily re-syncs just re-appended the same
+    // reviews (the duplicate-blast). Running the full sync+ML pipeline once a
+    // week matches the source refresh. Trigger a manual run (JobTriggerPanel /
+    // sync API) whenever CH is updated ahead of the weekly slot.
+    // (Schedule id keeps the `rating-daily-` name so the upsert replaces the
+    //  existing schedule in place rather than orphaning it.)
+    const dailySpec = { calendars: [{ dayOfWeek, hour, minute }] };
     const dailyAction = {
       type: 'startWorkflow' as const,
       workflowType: WORKFLOW_TYPE,
@@ -44,7 +53,7 @@ export async function registerSchedules(client: Client, opts: RegisterOpts): Pro
     };
 
     await upsertSchedule(client, dailyId, dailySpec, dailyAction);
-    console.log(`[schedule] ${dailyId} → daily ${pad(hour)}:${pad(minute)}`);
+    console.log(`[schedule] ${dailyId} → weekly ${dayOfWeek} ${pad(hour)}:${pad(minute)}`);
 
     const weeklyId = `rating-weekly-${companyId}`;
     const weeklySpec = {
@@ -111,6 +120,7 @@ async function cliMain() {
       companyIds,
       hour: parseInt(process.env.AUTOMATION_HOUR || '2', 10),
       minute: parseInt(process.env.AUTOMATION_MINUTE || '0', 10),
+      dayOfWeek: process.env.PIPELINE_DAY_OF_WEEK || 'SUNDAY',
       weeklyHour: parseInt(process.env.WEEKLY_DIGEST_HOUR || '9', 10),
       weeklyMinute: parseInt(process.env.WEEKLY_DIGEST_MINUTE || '0', 10),
     });

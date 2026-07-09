@@ -52,7 +52,7 @@ const PeriodFilterPill: React.FC<PeriodFilterPillProps> = ({
     return (
         <div
             ref={pillRef}
-            className="fixed bottom-6 right-6 z-50"
+            className="fixed bottom-6 right-6 z-[1300]"
         >
             <AnimatePresence mode="wait">
                 {!isExpanded ? (

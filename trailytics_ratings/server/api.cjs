@@ -13,6 +13,7 @@
 
 require('dotenv').config();
 const express = require('express');
+const memorySessions = new Map();
 const cors = require('cors');
 const { Pool } = require('pg');
 const crypto = require('crypto');
@@ -272,6 +273,18 @@ function buildAuthUser(userRow, membership) {
     };
 }
 
+// In-memory session cache. Validating the Bearer token against the DB on EVERY
+// request (a SELECT on auth_sessions + a membership load + an UPDATE of
+// last_activity_at) was the dominant per-request cost — on the ETL-contended
+// shared DB it added 1-5s to EVERY call, including cache HITs. We now resolve
+// the session from the DB at most once per SESSION_CACHE_TTL_MS and reuse the
+// cached principal in between; a revoked/expired session is picked up within
+// that window. last_activity_at is written at most once per throttle window,
+// fire-and-forget, off the hot path.
+const SESSION_CACHE_TTL_MS = 60_000;
+const LAST_ACTIVITY_THROTTLE_MS = 5 * 60_000;
+const sessionCache = new Map(); // tokenHash -> { sessionRow, membership, cachedAt, lastActivityAt }
+
 async function authenticateApi(req, res, next) {
     if (!req.path.startsWith('/api/')) {
         return next();
@@ -323,46 +336,50 @@ async function authenticateApi(req, res, next) {
 
     try {
         const tokenHash = hashSessionToken(rawToken);
-        let sessionRow = memorySessions.get(tokenHash);
-
-        if (!sessionRow) {
-            const result = await pool.query(`
-                SELECT
-                    s.id AS session_id,
-                    s.user_id,
-                    s.membership_id,
-                    s.company_id,
-                    s.expires_at,
-                    u.id,
-                    u.username,
-                    u.email,
-                    u.full_name,
-                    u.role,
-                    u.status
-                FROM ratings.auth_sessions s
-                JOIN ratings.users u
-                  ON u.id = s.user_id
-                WHERE s.session_token_hash = $1
-                  AND s.purpose = 'full'
-                  AND s.revoked_at IS NULL
-                  AND s.expires_at > now()
-                  AND u.status = 'active'
-                LIMIT 1
-            `, [tokenHash]);
-
-            if (result.rowCount === 0) {
-                return res.status(401).json({ error: 'Session expired or invalid' });
-            }
-            sessionRow = result.rows[0];
+        const nowMs = Date.now();
+        let cacheEntry = sessionCache.get(tokenHash);
+        let sessionRow, membership;
+        if (cacheEntry
+            && (nowMs - cacheEntry.cachedAt) < SESSION_CACHE_TTL_MS
+            && new Date(cacheEntry.sessionRow.expires_at).getTime() > nowMs) {
+            // Fast path — reuse the DB-validated principal (no query this request).
+            sessionRow = cacheEntry.sessionRow;
+            membership = cacheEntry.membership;
         } else {
-            if (new Date(sessionRow.expires_at) < new Date()) {
-                memorySessions.delete(tokenHash);
-                return res.status(401).json({ error: 'Session expired or invalid' });
+            let memSession = memorySessions.get(tokenHash);
+            if (memSession && new Date(memSession.expires_at).getTime() > nowMs) {
+                sessionRow = memSession;
+                membership = {
+                    id: memSession.membership_id,
+                    company_id: memSession.company_id,
+                    allowed_platform_uuids: memSession.allowed_platform_uuids,
+                    platform_scope: memSession.platform_scope
+                };
+            } else {
+                const result = await pool.query(`
+                    SELECT
+                        s.id AS session_id, s.user_id, s.membership_id, s.company_id, s.expires_at,
+                        u.id, u.username, u.email, u.full_name, u.role, u.status
+                    FROM ratings.auth_sessions s
+                    JOIN ratings.users u ON u.id = s.user_id
+                    WHERE s.session_token_hash = $1
+                      AND s.purpose = 'full' AND s.revoked_at IS NULL
+                      AND s.expires_at > now() AND u.status = 'active'
+                    LIMIT 1
+                `, [tokenHash]);
+                if (result.rowCount === 0) {
+                    sessionCache.delete(tokenHash);
+                    return res.status(401).json({ error: 'Session expired or invalid' });
+                }
+                sessionRow = result.rows[0];
+                membership = await loadMembershipContext(sessionRow.membership_id);
+                if (!membership || membership.company_id !== sessionRow.company_id) {
+                    return res.status(403).json({ error: 'Membership is not active for this session' });
+                }
             }
-        }
-        const membership = await loadMembershipContext(sessionRow.membership_id);
-        if (!membership || membership.company_id !== sessionRow.company_id) {
-            return res.status(403).json({ error: 'Membership is not active for this session' });
+            if (sessionCache.size > 5000) sessionCache.clear();
+            cacheEntry = { sessionRow, membership, cachedAt: nowMs, lastActivityAt: 0 };
+            sessionCache.set(tokenHash, cacheEntry);
         }
 
         const requestedCompanyId = req.query.company_id || req.headers['x-company-id'];
@@ -394,13 +411,11 @@ async function authenticateApi(req, res, next) {
             }
         }
 
-        try {
-            await pool.query(
-                `UPDATE ratings.auth_sessions SET last_activity_at = now() WHERE id = $1`,
-                [sessionRow.session_id]
-            );
-        } catch (e) {
-            if (e.code !== '25006' && e.code !== '42501') throw e;
+        // Throttled, fire-and-forget last-activity write — kept off the hot path
+        // so it never adds latency to a request (was an awaited UPDATE per call).
+        if (nowMs - (cacheEntry.lastActivityAt || 0) > LAST_ACTIVITY_THROTTLE_MS) {
+            cacheEntry.lastActivityAt = nowMs;
+            pool.query(`UPDATE ratings.auth_sessions SET last_activity_at = now() WHERE id = $1`, [sessionRow.session_id]).catch(() => {});
         }
 
         req.sessionToken = rawToken;
@@ -493,7 +508,7 @@ async function logMfaEvent(userId, event, req, { actorId, metadata } = {}) {
     }
 }
 
-const memorySessions = new Map();
+
 
 async function createFullSession(user, membership, req) {
     const token = createSessionToken();
@@ -590,6 +605,7 @@ app.post('/api/auth/sso-login', async (req, res) => {
         const sig = parts[1];
         
         const SSO_SECRET = process.env.SSO_SECRET || 'trailytics_sso_shared_secret_2026_xK9mPq';
+        const crypto = require('crypto');
         const expectedSig = crypto.createHmac('sha256', SSO_SECRET).update(payloadB64).digest('base64url');
         
         if (sig !== expectedSig) return res.status(401).json({ error: 'Invalid SSO token signature' });
@@ -1184,9 +1200,6 @@ app.get('/api/notifications', async (req, res) => {
             unreadCount: Number(countRows[0]?.n || 0),
         });
     } catch (err) {
-        if (err.code === '42501' || err.code === '25006') {
-            return res.json({ notifications: [], unreadCount: 0 });
-        }
         console.error('[notifications] list failed:', err);
         res.status(500).json({ error: err.message });
     }
@@ -1201,7 +1214,6 @@ app.post('/api/notifications/:id/read', async (req, res) => {
         );
         return res.json({ updated: rowCount });
     } catch (err) {
-        if (err.code === '42501' || err.code === '25006') return res.json({ updated: 0 });
         res.status(500).json({ error: err.message });
     }
 });
@@ -1215,7 +1227,6 @@ app.post('/api/notifications/mark-all-read', async (req, res) => {
         );
         return res.json({ updated: rowCount });
     } catch (err) {
-        if (err.code === '42501' || err.code === '25006') return res.json({ updated: 0 });
         res.status(500).json({ error: err.message });
     }
 });
@@ -1229,7 +1240,6 @@ app.post('/api/notifications/:id/dismiss', async (req, res) => {
         );
         return res.json({ updated: rowCount });
     } catch (err) {
-        if (err.code === '42501' || err.code === '25006') return res.json({ updated: 0 });
         res.status(500).json({ error: err.message });
     }
 });
@@ -3135,7 +3145,7 @@ app.get('/api/ratings/rating-trend', async (req, res) => {
 
 app.get('/api/ratings/competitor-matrix', async (req, res) => {
     try {
-        const { platform, category, date_from, date_to } = req.query;
+        const { platform, category, date_from, date_to, period_months } = req.query;
         let where = ['company_id = $1'];
         let params = [req.companyId];
         let idx = 2;
@@ -3144,6 +3154,13 @@ app.get('/api/ratings/competitor-matrix', async (req, res) => {
         if (category) { where.push(`category ILIKE $${idx++}`); params.push(category); }
         if (date_from) { where.push(`review_date >= $${idx++}`); params.push(date_from); }
         if (date_to) { where.push(`review_date <= $${idx++}`); params.push(date_to); }
+        // Default 6-month window when no explicit dates — the Competition tab used
+        // to show ALL-TIME here (no date filter), so it never matched the exec's
+        // 6-month pull. Mirrors the window used by summary/category-health/etc.
+        if (!date_from && !date_to) {
+            const pm = Math.max(1, Math.min(parseInt(period_months, 10) || 6, 24));
+            where.push(`review_date >= CURRENT_DATE - INTERVAL '${pm} months'`);
+        }
 
         const sql = `
             SELECT
@@ -6937,49 +6954,63 @@ app.get('/api/ratings/price-variance', async (req, res) => {
 app.get('/api/ratings/star-distribution', async (req, res) => {
     try {
         const { category, platform, web_pid } = req.query;
-        const where = ['r.company_id = $1', 'r.rating IS NOT NULL'];
+        // Star distribution = the PDP's actual 5/4/3/2/1 rating breakdown (from
+        // ClickHouse five_star..one_star, stored in product_snapshots.star_distribution),
+        // NOT a count of the review rows we happened to crawl. The old review-count
+        // version badly under-represented Amazon (millions of PDP ratings vs ~7K
+        // crawled reviews) — which is why exec Amazon numbers never matched. PDP
+        // rating counts are cumulative/current, so this is not date-windowed.
+        const where = ['ps.company_id = $1', 'ps.star_distribution IS NOT NULL'];
         const params = [req.companyId];
         let idx = 2;
         if (category) {
-            where.push(`COALESCE(NULLIF(mp.master_category,''), NULLIF(mp.category,''), NULLIF(r.category,'')) ILIKE $${idx++}`);
+            where.push(`COALESCE(NULLIF(mp.master_category,''), NULLIF(mp.category,''), NULLIF(ps.category,'')) ILIKE $${idx++}`);
             params.push(category);
         }
         if (platform && platform !== 'all') {
-            where.push(`LOWER(r.platform) = LOWER($${idx++})`);
+            where.push(`LOWER(ps.platform) = LOWER($${idx++})`);
             params.push(platform);
         }
         if (web_pid) {
-            where.push(`r.web_pid = $${idx++}`);
+            where.push(`UPPER(ps.web_pid) = UPPER($${idx++})`);
             params.push(web_pid);
         }
         const { rows } = await pool.query(`
-            SELECT COALESCE(r.brand, 'Unknown') AS brand,
-                   r.is_competitor,
-                   FLOOR(r.rating)::int AS star,
-                   COUNT(*) AS n
-              FROM ratings.reviews r
-              LEFT JOIN masters.products mp
-                ON mp.product_external_id = r.web_pid
-               AND mp.company_id = r.company_id
-               AND LOWER(mp.platform) = LOWER(r.platform)
-             WHERE ${where.join(' AND ')}
-             GROUP BY 1, 2, 3
-             ORDER BY 1, 3
+            WITH latest AS (
+                SELECT DISTINCT ON (ps.web_pid, LOWER(ps.platform))
+                    COALESCE(NULLIF(mp.brand_name,''), NULLIF(ps.brand,''), 'Unknown') AS brand,
+                    COALESCE(ps.is_competitor, mp.is_competitor, false) AS is_competitor,
+                    ps.star_distribution AS sd
+                FROM ratings.product_snapshots ps
+                LEFT JOIN masters.products mp
+                    ON mp.company_id = ps.company_id
+                   AND mp.product_external_id = ps.web_pid
+                   AND LOWER(mp.platform) = LOWER(ps.platform)
+                WHERE ${where.join(' AND ')}
+                ORDER BY ps.web_pid, LOWER(ps.platform), ps.snapshot_date DESC, ps.created_at DESC NULLS LAST
+            )
+            SELECT brand, is_competitor,
+                COALESCE(SUM((sd->>'1')::bigint),0) AS s1,
+                COALESCE(SUM((sd->>'2')::bigint),0) AS s2,
+                COALESCE(SUM((sd->>'3')::bigint),0) AS s3,
+                COALESCE(SUM((sd->>'4')::bigint),0) AS s4,
+                COALESCE(SUM((sd->>'5')::bigint),0) AS s5
+            FROM latest
+            GROUP BY brand, is_competitor
         `, params);
-        // Pivot into per-brand distribution
+        // Pivot into per-brand distribution (merge by brand across is_competitor,
+        // matching the previous response shape).
         const byBrand = new Map();
         for (const r of rows) {
-            const key = r.brand;
-            if (!byBrand.has(key)) {
-                byBrand.set(key, { brand: r.brand, is_competitor: r.is_competitor, dist: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, total: 0 });
+            if (!byBrand.has(r.brand)) {
+                byBrand.set(r.brand, { brand: r.brand, is_competitor: r.is_competitor, dist: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, total: 0 });
             }
-            const e = byBrand.get(key);
-            const s = Math.max(1, Math.min(5, r.star));
-            // Accumulate (not overwrite): the SQL groups by (brand, is_competitor, star)
-            // but we key by brand only, so a brand present under both is_competitor
-            // values returns two rows per star — must sum, or the bars won't total 100%.
-            e.dist[s] += parseInt(r.n, 10);
-            e.total += parseInt(r.n, 10);
+            const e = byBrand.get(r.brand);
+            for (const s of [1, 2, 3, 4, 5]) {
+                const c = parseInt(r['s' + s], 10) || 0;
+                e.dist[s] += c;
+                e.total += c;
+            }
         }
         const result = [...byBrand.values()].map(b => ({
             brand: b.brand,

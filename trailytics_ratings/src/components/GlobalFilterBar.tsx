@@ -7,14 +7,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Search, ChevronDown, Calendar, RotateCcw, Tag, Package, Activity, TrendingUp, IndianRupee, X, Check
+    Search, ChevronDown, RotateCcw, Tag, Package, Activity, TrendingUp, IndianRupee, X, Check
 } from 'lucide-react';
 import type { GlobalFilterResult } from '../hooks/useGlobalFilters';
 import type { DatePreset, PriceFilterMode, RatingBifurcation } from '../types/filterTypes';
 import { getClassificationOptions } from '../config/productClassifications';
 import { useProductCategories, useSkuList, usePriceRanges } from '../hooks/useRatingsAPI';
-import { RatingSummaryInline } from './ui/RatingSummary';
-import { createRatingMetrics } from '../utils/ratingMetrics';
+
 
 interface GlobalFilterBarProps {
     filterResult: GlobalFilterResult;
@@ -25,6 +24,7 @@ interface GlobalFilterBarProps {
         reviewCount?: number;
         ratingCount?: number;
     };
+    tabsNode?: React.ReactNode;
 }
 
 // ============================================================================
@@ -134,23 +134,23 @@ function DropdownTrigger({
         <button
             onClick={onClick}
             className={`
-                flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
-                transition-all duration-200 whitespace-nowrap border
+                flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-normal
+                transition-all duration-200 whitespace-nowrap border h-9
                 ${isActive
-                    ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300'
-                    : 'bg-white/60 dark:bg-slate-800/60 border-slate-200/60 dark:border-slate-700/50 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'
+                    ? 'bg-white dark:bg-slate-800 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 shadow-sm'
+                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80 shadow-sm'
                 }
             `}
         >
             {icon}
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">{label}</span>
-            <span className={`font-semibold ${isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-300'}`}>{value}</span>
-            <ChevronDown size={11} className={`text-slate-400 ml-0.5 transition-transform`} />
+            {label && <span className="text-slate-500 dark:text-slate-400">{label}:</span>}
+            <span className={`font-medium ${isActive ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-200'}`}>{value}</span>
+            <ChevronDown size={14} className="text-slate-400 ml-1 transition-transform" />
         </button>
     );
 }
 
-const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, headlineMetrics }) => {
+const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNode }) => {
     const {
         filters, setPlatform, setBrandScope, setCategory, setProductCategory,
         setClassification, setSku, setRatingBifurcation, setDatePreset, setCompetitorPlatform, setPriceMode, setPriceRange, resetFilters,
@@ -255,29 +255,19 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, headlin
         : 'All Prices';
 
     return (
-        <div className="sticky top-[65px] z-20">
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/40 dark:border-slate-700/40">
-                <div className="container mx-auto px-4 py-1.5">
-                    <div className="flex items-center gap-2 flex-wrap">
+        <div className="sticky top-0 z-30 w-full">
+            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 shadow-sm">
+                <div className="w-full px-2 lg:px-4 py-3 flex flex-col gap-4">
 
-                        {/* ── Date Range ── */}
-                        <div className="flex items-center gap-0.5 bg-slate-50/80 dark:bg-slate-800/60 rounded-lg p-0.5 border border-slate-200/40 dark:border-slate-700/40">
-                            <Calendar size={12} className="text-slate-400 ml-1.5 mr-0.5" />
-                            {datePresets.map(d => (
-                                <motion.button
-                                    key={d.key}
-                                    whileTap={{ scale: 0.92 }}
-                                    onClick={() => setDatePreset(d.key)}
-                                    className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all
-                                        ${filters.dateRange.preset === d.key
-                                            ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-sm'
-                                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60'
-                                        }`}
-                                >
-                                    {d.label}
-                                </motion.button>
-                            ))}
+                    {/* ── ROW 1: TABS (Overview filters) ── */}
+                    {tabsNode && (
+                        <div className="flex justify-center w-full overflow-x-auto no-scrollbar">
+                            {tabsNode}
                         </div>
+                    )}
+
+                    {/* ── ROW 2: FILTERS (Interval of months, search, etc) ── */}
+                    <div className="flex flex-wrap items-center gap-2 w-full mt-2">
 
                         {/* ── Global Search Bar ── */}
                         <div className="relative group">
@@ -290,12 +280,12 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, headlin
                                 onChange={(e) => filterResult.setSearchTerm(e.target.value)}
                                 placeholder="Search products, issues..."
                                 className={`
-                                    pl-9 pr-8 py-1.5 rounded-lg text-[11px] font-medium w-48 md:w-56
-                                    bg-white/60 dark:bg-slate-800/40 
-                                    border border-slate-200/40 dark:border-slate-700/40
-                                    focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/40
-                                    placeholder:text-slate-400 transition-all
-                                    ${filters.searchTerm ? 'bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-200/50 dark:border-indigo-800/50' : 'hover:bg-white dark:hover:bg-slate-800'}
+                                    pl-9 pr-8 rounded-md text-xs font-normal w-48 md:w-56 h-9
+                                    bg-white dark:bg-slate-800 shadow-sm
+                                    border border-slate-200 dark:border-slate-700
+                                    focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500
+                                    placeholder:text-slate-400 transition-colors
+                                    hover:border-slate-300 dark:hover:border-slate-600
                                 `}
                             />
                             {filters.searchTerm && (
@@ -306,6 +296,24 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, headlin
                                     <X size={10} />
                                 </button>
                             )}
+                        </div>
+
+                        {/* ── Date Range ── */}
+                        <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-md p-1 h-9 border border-slate-200/60 dark:border-slate-700/60">
+                            {datePresets.map(d => (
+                                <motion.button
+                                    key={d.key}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setDatePreset(d.key)}
+                                    className={`px-2.5 py-1 rounded-[4px] text-xs font-medium transition-colors
+                                        ${filters.dateRange.preset === d.key
+                                            ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm border border-slate-200 dark:border-slate-600'
+                                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                                        }`}
+                                >
+                                    {d.label}
+                                </motion.button>
+                            ))}
                         </div>
 
                         {/* ── Trend Comparison Months ── */}
@@ -391,8 +399,6 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, headlin
                                 ))}
                             </FilterDropdown>
                         </div>
-
-                        <div className="w-px h-5 bg-slate-200/60 dark:bg-slate-700/60" />
 
                         {/* ── Platform (Marketplace) ── */}
                         <div className="relative">
@@ -681,39 +687,26 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, headlin
                             </FilterDropdown>
                         </div>
 
-                        {/* ── Spacer ── */}
-                        <div className="flex-1" />
-
-                        {/* ── KPI Row + Reset ── */}
-                        <div className="flex items-center gap-2">
-                            <RatingSummaryInline
-                                metrics={createRatingMetrics({
-                                    pdp_rating: headlineMetrics?.pdpRating ?? null,
-                                    user_rating: headlineMetrics?.userRating ?? null,
-                                    ml_rating: headlineMetrics?.mlRating ?? null,
-                                    review_count: headlineMetrics?.reviewCount ?? (totalPrestigeCount + totalCompetitorCount),
-                                    rating_count: headlineMetrics?.ratingCount ?? 0,
-                                })}
-                                compact={false}
-                                title="Current filtered scope"
-                            />
                             {activeFilterCount > 0 && (
-                                <motion.button
-                                    initial={{ opacity: 0, scale: 0.8 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={resetFilters}
-                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium
-                                        text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                >
-                                    <RotateCcw size={11} />
-                                    <span>Reset</span>
-                                    <span className="px-1 py-0.5 text-[9px] rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold">{activeFilterCount}</span>
-                                </motion.button>
+                                <div className="ml-2 pl-2 border-l border-slate-200 dark:border-slate-700">
+                                    <motion.button
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={resetFilters}
+                                        className="flex items-center gap-1 px-3 h-9 rounded-md text-xs font-medium
+                                            bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 transition-colors shadow-sm"
+                                    >
+                                        <RotateCcw size={12} />
+                                        <span className="hidden lg:inline">Reset</span>
+                                        <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-red-200 dark:bg-red-900/60 text-red-700 dark:text-red-300 font-bold">{activeFilterCount}</span>
+                                    </motion.button>
+                                </div>
                             )}
+
                         </div>
-                    </div>
+
                 </div>
             </div>
         </div>
