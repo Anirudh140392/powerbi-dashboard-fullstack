@@ -3892,6 +3892,15 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     }
   }, []);
 
+  const isHayatna = React.useMemo(() => {
+    try {
+      const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      return storedUser?.dbName?.toLowerCase()?.includes('hayatna') || false;
+    } catch (_) {
+      return false;
+    }
+  }, []);
+
   const { socketMaxDates } = useSocket();
 
   const currentChannel = filters?.channel || selectedChannel;
@@ -4076,7 +4085,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                   {title === "Availability Analysis" || title === "Visibility Analysis" ? (
                     <>
                       {/* Channel Switch Removed as per user request */}                      {/* SOS / BSR Toggle below Channel Switch */}
-                      {title === "Visibility Analysis" && (['ecommerce', 'e-commerce', 'ecom'].includes(selectedChannel?.toLowerCase())) && (
+                      {title === "Visibility Analysis" && !isHayatna && (['ecommerce', 'e-commerce', 'ecom'].includes(selectedChannel?.toLowerCase())) && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                           <Box sx={{ display: 'flex', bgcolor: '#f1f5f9', borderRadius: '8px', p: '3px', width: 'fit-content', border: '1px solid #e2e8f0' }}>
                             <Box

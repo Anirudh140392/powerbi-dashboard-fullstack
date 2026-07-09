@@ -21,6 +21,16 @@ export const DiscountDrilldownDate = ({
     const [loading, setLoading] = useState(false)
     const [gridData, setGridData] = useState([])
 
+    let currencySymbol = '₹';
+    try {
+        const u = JSON.parse(sessionStorage.getItem('user'));
+        if (u?.dbName?.toLowerCase().includes('hayatna')) {
+            currencySymbol = 'AED ';
+        }
+    } catch (e) {
+        console.error(e);
+    }
+
     // Generate dates based on range
     const dates = useMemo(() => generateDateOptions(dayRange), [dayRange])
 
@@ -215,7 +225,7 @@ export const DiscountDrilldownDate = ({
 
 
     const METRIC_OPTIONS = [
-        { key: 'ecp', label: 'ECP', suffix: '₹' },
+        { key: 'ecp', label: 'ECP', suffix: currencySymbol },
         { key: 'discount', label: 'Discount', suffix: '%' },
     ]
 
@@ -273,7 +283,7 @@ export const DiscountDrilldownDate = ({
         if (val === null || val === undefined) return '—'
         const metric = METRIC_OPTIONS.find(m => m.key === metricType)
         if (metricType === 'discount') return `${val}%`
-        return `₹${val}`
+        return `${currencySymbol}${val}`
     }
 
     // New helper function that was missing

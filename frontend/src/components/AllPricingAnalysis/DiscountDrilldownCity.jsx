@@ -16,6 +16,16 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
     const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount'
     const [searchQuery, setSearchQuery] = useState('')
 
+    let currencySymbol = '₹';
+    try {
+        const u = JSON.parse(sessionStorage.getItem('user'));
+        if (u?.dbName?.toLowerCase().includes('hayatna')) {
+            currencySymbol = 'AED ';
+        }
+    } catch (e) {
+        console.error(e);
+    }
+
     // Derived platforms from data
     const dynamicPlatforms = useMemo(() => {
         const platformSet = new Set();
@@ -56,7 +66,7 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
     });
 
     const METRIC_OPTIONS = [
-        { key: 'ecp', label: 'ECP', suffix: '₹' },
+        { key: 'ecp', label: 'ECP', suffix: currencySymbol },
         { key: 'discount', label: 'Discount', suffix: '%' },
     ]
 
@@ -85,7 +95,7 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
     const formatValue = (val) => {
         if (val === null || val === undefined) return null
         if (metricType === 'discount') return `${val}%`
-        return `₹${val}`
+        return `${currencySymbol}${val}`
     }
 
     const getMetricFontColor = (val) => {
