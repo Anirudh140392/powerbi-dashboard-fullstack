@@ -142,7 +142,7 @@ const ReviewModal = ({ isOpen, onClose, webPid, subcategory, productName, issueL
             {createPortal(
                 <AnimatePresence>
                     {isOpen && (
-                        <div key="review-modal-root" className="fixed inset-0 z-[1400] pointer-events-none">
+                        <div key="review-modal-root" className="fixed inset-0 z-[1600] pointer-events-none">
                             {/* Backdrop */}
                             <motion.div
                                 initial={{ opacity: 0 }}

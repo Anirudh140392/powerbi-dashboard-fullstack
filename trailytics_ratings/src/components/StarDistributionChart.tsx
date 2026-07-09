@@ -60,58 +60,83 @@ export function StarDistributionChart({ category, platform, webPid }: Props) {
   if (brands.length === 0) return null;
 
   return (
-    <div className="rounded-xl bg-white/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 p-4 mb-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Star size={14} className="text-amber-500 fill-amber-500" />
-        <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-          Star distribution {category ? <>· <span className="text-slate-800 dark:text-white">{category}</span></> : null}
+    <div className="rounded-xl bg-white shadow-sm dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 overflow-hidden mb-6">
+      <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
+        <div className="flex items-center gap-2">
+          <Star size={18} className="text-amber-500 fill-amber-500" />
+          <div className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+            Star Distribution {category ? <>· <span className="text-slate-600 dark:text-slate-400">{category}</span></> : null}
+          </div>
         </div>
       </div>
 
-      <div className="space-y-2">
-        {brands.slice(0, 10).map(b => {
-          const dist = b.distribution;
-          const maxPct = Math.max(...dist.map(d => d.pct), 1);
-          return (
-            <div key={b.brand} className="grid grid-cols-12 gap-2 items-center">
-              <div className="col-span-2 flex items-center gap-1 text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
-                {b.brand === 'Prestige' && <span>👑</span>}
-                <span className="truncate">{b.brand}</span>
-                {b.is_competitor && b.brand !== 'Prestige' && <span className="text-[9px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1 rounded shrink-0">C</span>}
-              </div>
-              <div className="col-span-9 flex items-center gap-1 h-7">
-                {dist.map((d) => (
-                  <div key={d.star} className="flex-1 h-full bg-slate-100 dark:bg-slate-700/60 rounded relative overflow-hidden group">
-                    <div
-                      className="absolute bottom-0 left-0 right-0 transition-all"
-                      style={{
-                        height: `${Math.max(2, (d.pct / maxPct) * 100)}%`,
-                        backgroundColor: STAR_COLORS[d.star - 1],
-                      }}
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white mix-blend-difference">
-                      {d.pct > 5 ? `${d.pct}%` : ''}
-                    </div>
-                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 text-[9px] bg-slate-900 text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                      {d.star}★ · {d.count.toLocaleString()} ({d.pct}%)
-                    </div>
+      <div className="w-full overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-[700px]">
+          <thead>
+            <tr className="border-b-2 border-slate-300 dark:border-slate-600 bg-slate-100/50 dark:bg-slate-800/50">
+              <th className="py-3 px-5 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider border-r-2 border-slate-300 dark:border-slate-600 w-1/4">
+                Brand
+              </th>
+              {[1, 2, 3, 4, 5].map(star => (
+                <th key={star} className="py-3 px-2 text-center text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider border-r-2 border-slate-300 dark:border-slate-600 last:border-r-0 w-[15%]">
+                  <div className="flex items-center justify-center gap-1">
+                    {star} <Star size={12} className="text-slate-400 fill-current" />
                   </div>
-                ))}
-              </div>
-              <div className="col-span-1 text-right text-[10px] text-slate-500 tabular-nums">
-                {b.total >= 1000 ? `${(b.total / 1000).toFixed(1)}K` : b.total}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-3 flex items-center gap-3 text-[10px] text-slate-500">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 inline-block rounded" style={{background: STAR_COLORS[0]}}></span>1★</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 inline-block rounded" style={{background: STAR_COLORS[1]}}></span>2★</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 inline-block rounded" style={{background: STAR_COLORS[2]}}></span>3★</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 inline-block rounded" style={{background: STAR_COLORS[3]}}></span>4★</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 inline-block rounded" style={{background: STAR_COLORS[4]}}></span>5★</span>
-        <span className="ml-auto italic">Hover bars for counts</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+            {brands.slice(0, 10).map((b) => {
+              const dist = b.distribution;
+              const maxPct = Math.max(...dist.map(d => d.pct), 1);
+              return (
+                <tr key={b.brand} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group">
+                  <td className="py-3 px-5 border-r-2 border-slate-300 dark:border-slate-600">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200 truncate pr-2">
+                        {b.brand === 'Prestige' && <span title="Your Brand">👑</span>}
+                        <span className="truncate">{b.brand}</span>
+                        {b.is_competitor && b.brand !== 'Prestige' && (
+                          <span className="text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded shrink-0 leading-none">C</span>
+                        )}
+                      </div>
+                      <div className="text-[11px] font-medium text-slate-500 whitespace-nowrap bg-slate-100 dark:bg-slate-700/50 px-2 py-0.5 rounded">
+                        {b.total >= 1000 ? `${(b.total / 1000).toFixed(1)}K` : b.total} <span className="opacity-70">ratings</span>
+                      </div>
+                    </div>
+                  </td>
+                  {dist.map((d) => (
+                    <td key={d.star} className="p-0 border-r-2 border-slate-300 dark:border-slate-600 last:border-r-0 relative h-14">
+                      <div className="absolute inset-x-2 inset-y-2 rounded-md overflow-hidden bg-slate-100 dark:bg-slate-800/60 shadow-inner">
+                        <div
+                          className="absolute top-0 bottom-0 left-0 transition-all"
+                          style={{
+                            width: `${(d.pct / maxPct) * 100}%`,
+                            backgroundColor: STAR_COLORS[d.star - 1],
+                            opacity: 0.9
+                          }}
+                        />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)] dark:drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
+                          {d.pct > 0 ? (
+                            <>
+                              <span className="text-xs font-bold text-slate-900 dark:text-white leading-none mb-0.5">{d.pct}%</span>
+                              <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-300 leading-none">
+                                {d.count.toLocaleString()}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs font-medium text-slate-400 opacity-60">-</span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
