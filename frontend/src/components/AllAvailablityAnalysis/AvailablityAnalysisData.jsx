@@ -1352,14 +1352,14 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     if (isQuickCom) {
       cards_config = [
         { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
-        { key: 'doi', title: "Days of Inventory", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'] },
-        { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['availability'] }
+        { key: 'doi', title: "Days of Inventory", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'], loading: !apiData?.doi },
+        { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['availability'], loading: !apiData?.metroCity }
       ];
     } else {
       cards_config = [
         { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
         { key: 'buybox', title: "Buy Box %", sub: "MTD Buy Box percentage", api: buyBoxCardData, icon: Zap, gradient: ['#2563EB', '#2563EB'] },
-        { key: 'doi', title: "Days of Inventory", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'] },
+        { key: 'doi', title: "Days of Inventory", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'], loading: !apiData?.doi },
         { key: 'delivery', title: "Delivery time", sub: "Average delivery time", api: deliveryCardData, icon: Zap, gradient: ['#2563EB', '#2563EB'] },
         { key: 'skucount', title: "SKU count", sub: "Total SKUs tracked", api: skuCountData, icon: MapPin, gradient: ['#2563EB', '#2563EB'] }
       ];
@@ -1402,7 +1402,8 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         prevText: prevText,
         isNotMetro: data.isNotMetro,
         isNA: isCardNA,
-        infoTooltip: cfg.infoTooltip
+        infoTooltip: cfg.infoTooltip,
+        loading: cfg.loading || false
       };
     });
   }, [availability, globalPlatform, apiData, trendSeriesMap, selectedChannel]);
