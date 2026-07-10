@@ -1316,7 +1316,7 @@ const SnapshotOverview = ({
                                     transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     className="h-full"
                                 >
-                                    <DetailedSparklineCard kpi={kpi} helpMenu={helpMenu} />
+                                    <DetailedSparklineCard kpi={kpi} helpMenu={helpMenu} loading={kpi.loading} />
                                 </motion.div>
                             ))
                         )}
