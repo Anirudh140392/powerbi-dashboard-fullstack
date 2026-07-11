@@ -792,8 +792,10 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
 
             // Check if delivery_date column exists before using it
             let deliveryDaysSQL = 'NULL';
+            let mslCol = 'msl';
             try {
                 const pdpColsMatrix = await getTableColumns('rb_pdp_olap');
+                mslCol = resolveColumn(pdpColsMatrix, 'MSL', 'msl');
                 if (columnExists(pdpColsMatrix, 'delivery_date')) {
                     deliveryDaysSQL = `
                         IF(
@@ -838,7 +840,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
-                    SUM(ifNull(toFloat64OrZero(toString(t1.msl)), 0)) as sum_msl,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.${mslCol})), 0)) as sum_msl,
                     SUM(ifNull(toFloat64OrZero(toString(t1.Sales)), 0)) as sum_sales,
                     SUM(if(isNull(t1.Sales), 1, 0)) as sales_null_count,
                     COUNT() as sales_total_count,
@@ -882,7 +884,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
-                    SUM(ifNull(toFloat64OrZero(toString(t1.msl)), 0)) as sum_msl,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.${mslCol})), 0)) as sum_msl,
                     SUM(ifNull(toFloat64OrZero(toString(t1.Sales)), 0)) as sum_sales,
                     SUM(if(isNull(t1.Sales), 1, 0)) as sales_null_count,
                     COUNT() as sales_total_count,
@@ -1094,7 +1096,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as sum_neno,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_deno,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as sum_buybox_neno,
-                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.msl)), 0), 0)) as sum_msl,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.${mslCol})), 0), 0)) as sum_msl,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.Sales)), 0), 0)) as sum_sales,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', if(isNull(t1.Sales), 1, 0), 0)) as sales_null_count,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', 1, 0)) as sales_total_count,
@@ -2690,8 +2692,10 @@ const getAvailabilityKpiTrends = async (filters) => {
             // Check if delivery_date and buy_box_neno_osa columns exist before using them
             let deliveryDaysSQL = 'NULL';
             let buyBoxSQL = '0';
+            let mslCol = 'msl';
             try {
                 const pdpCols = await getTableColumns('rb_pdp_olap');
+                mslCol = resolveColumn(pdpCols, 'MSL', 'msl');
                 if (columnExists(pdpCols, 'delivery_date')) {
                     deliveryDaysSQL = `
                         IF(
@@ -2739,7 +2743,7 @@ const getAvailabilityKpiTrends = async (filters) => {
                         SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sum_sales,
                         SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as total_inventory,
                         SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty_sold,
-                        SUM(toFloat64OrZero(toString(msl))) as total_msl,
+                        SUM(toFloat64OrZero(toString(${mslCol}))) as total_msl,
                         COUNT(DISTINCT Web_Pid) as assortment_count,
                         AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
                     FROM rb_pdp_olap
