@@ -696,6 +696,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
             const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
+            const doiLookbackDate = currentEndDate.subtract(29, 'day').format('YYYY-MM-DD');
             
             let prevStartDate, prevEndDate;
             if (filters.compareStartDate && filters.compareEndDate) {
@@ -822,6 +823,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                       AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                       ${baseFilter}
                     GROUP BY DATE, ${groupColumn}
+                    HAVING daily_inv > 0
                 ),
                 latest_inv_stats AS (
                     SELECT 
@@ -836,7 +838,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
-                    SUM(ifNull(toFloat64OrZero(toString(t1.MSL)), 0)) as sum_msl,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.msl)), 0)) as sum_msl,
                     SUM(ifNull(toFloat64OrZero(toString(t1.Sales)), 0)) as sum_sales,
                     SUM(if(isNull(t1.Sales), 1, 0)) as sales_null_count,
                     COUNT() as sales_total_count,
@@ -865,6 +867,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                       AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                       ${baseFilter}
                     GROUP BY DATE, ${groupColumn}
+                    HAVING daily_inv > 0
                 ),
                 latest_inv_stats AS (
                     SELECT 
@@ -879,7 +882,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
-                    SUM(ifNull(toFloat64OrZero(toString(t1.MSL)), 0)) as sum_msl,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.msl)), 0)) as sum_msl,
                     SUM(ifNull(toFloat64OrZero(toString(t1.Sales)), 0)) as sum_sales,
                     SUM(if(isNull(t1.Sales), 1, 0)) as sales_null_count,
                     COUNT() as sales_total_count,
@@ -898,17 +901,26 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             `;
 
             // DOI sales queries: 30-day lookback anchored to each column's latest inventory date
-            // Using a CTE to find the latest date per column, then summing Qty_Sold for 30 days back from that date
+            // Using a CTE to find the latest date per column (where inventory was > 0), then summing Qty_Sold for 30 days back from that date
             const doiSalesQuery = `
-                WITH latest_dates AS (
-                    SELECT
+                WITH daily_stats AS (
+                    SELECT 
+                        DATE,
                         ${groupColumn} as col_value,
-                        max(DATE) as latest_date
+                        SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as daily_inv
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                       AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                       ${baseFilter}
-                    GROUP BY ${groupColumn}
+                    GROUP BY DATE, ${groupColumn}
+                    HAVING daily_inv > 0
+                ),
+                latest_dates AS (
+                    SELECT
+                        col_value,
+                        max(DATE) as latest_date
+                    FROM daily_stats
+                    GROUP BY col_value
                 )
                 SELECT 
                     t.${groupColumn} as col_value,
@@ -921,15 +933,24 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             `;
 
             const prevDoiSalesQuery = `
-                WITH latest_dates AS (
-                    SELECT
+                WITH daily_stats AS (
+                    SELECT 
+                        DATE,
                         ${groupColumn} as col_value,
-                        max(DATE) as latest_date
+                        SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as daily_inv
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
                       AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
                       ${baseFilter}
-                    GROUP BY ${groupColumn}
+                    GROUP BY DATE, ${groupColumn}
+                    HAVING daily_inv > 0
+                ),
+                latest_dates AS (
+                    SELECT
+                        col_value,
+                        max(DATE) as latest_date
+                    FROM daily_stats
+                    GROUP BY col_value
                 )
                 SELECT 
                     t.${groupColumn} as col_value,
@@ -984,15 +1005,21 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 kpiRows.osa.trend[colValue] = Math.round(currOsa - prevOsa);
 
                 // DOI: (Latest Inventory / Last 30 Days Sales) * 30
-                const currSalesVal = parseFloat(currentSalesMap[colValue]) || 0;
-                const prevSalesVal = parseFloat(prevSalesMap[colValue]) || 0;
+                const currSalesVal = parseFloat(currentSalesMap[colValue]);
+                const prevSalesVal = parseFloat(prevSalesMap[colValue]);
 
-                const currDoi = (currSalesVal > 0)
-                    ? (parseFloat(curr.latest_inventory) / currSalesVal) * 30 : 0;
-                const prevDoi = (prevSalesVal > 0)
-                    ? (parseFloat(prev.latest_inventory) / prevSalesVal) * 30 : 0;
-                kpiRows.doi[colValue] = parseFloat(currDoi.toFixed(1));
-                kpiRows.doi.trend[colValue] = parseFloat((currDoi - prevDoi).toFixed(1));
+                const hasCurrData = curr.latest_date !== null && curr.latest_date !== undefined && curr.latest_inventory !== null && curr.latest_inventory !== undefined;
+                const hasPrevData = prev.latest_date !== null && prev.latest_date !== undefined && prev.latest_inventory !== null && prev.latest_inventory !== undefined;
+
+                const currDoi = hasCurrData
+                    ? ((currSalesVal > 0) ? (parseFloat(curr.latest_inventory) / currSalesVal) * 30 : 0)
+                    : null;
+                const prevDoi = hasPrevData
+                    ? ((prevSalesVal > 0) ? (parseFloat(prev.latest_inventory) / prevSalesVal) * 30 : 0)
+                    : null;
+
+                kpiRows.doi[colValue] = currDoi !== null ? parseFloat(currDoi.toFixed(1)) : null;
+                kpiRows.doi.trend[colValue] = (currDoi !== null && prevDoi !== null) ? parseFloat((currDoi - prevDoi).toFixed(1)) : null;
 
                 // Fillrate: (SUM(buy_box_neno_osa) / SUM(deno_osa)) * 100
                 const currFillrate = (parseFloat(curr.sum_deno) > 0)
@@ -1067,7 +1094,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as sum_neno,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_deno,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as sum_buybox_neno,
-                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.MSL)), 0), 0)) as sum_msl,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.msl)), 0), 0)) as sum_msl,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.Sales)), 0), 0)) as sum_sales,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', if(isNull(t1.Sales), 1, 0), 0)) as sales_null_count,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', 1, 0)) as sales_total_count,
@@ -1124,8 +1151,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     }
                     if (kpiRows.doi.breakdown[col_value]) {
                         const drr = parseFloat(doi_total_qty_sold) / 30;
-                        const doi = drr > 0 ? parseFloat(latest_inventory) / drr : 0;
-                        kpiRows.doi.breakdown[col_value][item] = parseFloat(doi.toFixed(1));
+                        const hasDoiData = latest_inventory !== null && latest_inventory !== undefined;
+                        const doi = hasDoiData ? (drr > 0 ? parseFloat(latest_inventory) / drr : 0) : null;
+                        kpiRows.doi.breakdown[col_value][item] = doi !== null ? parseFloat(doi.toFixed(1)) : null;
                     }
                     if (kpiRows.psl.breakdown[col_value]) {
                         const salesVal = parseFloat(sum_sales) || 0;
@@ -2007,6 +2035,7 @@ const getDOI = async (filters) => {
                         WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                         ${baseFilter}
                         GROUP BY DATE
+                        HAVING total_inventory > 0
                     ),
                     latest_inventory_stats AS (
                         SELECT
@@ -2050,6 +2079,7 @@ const getDOI = async (filters) => {
                         WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
                         ${baseFilter}
                         GROUP BY DATE
+                        HAVING total_inventory > 0
                     ),
                     latest_inventory_stats AS (
                         SELECT
@@ -2087,35 +2117,40 @@ const getDOI = async (filters) => {
                 queryClickHouse(prevDoiQuery)
             ]);
 
-            const latestDate = mainDoiResult[0]?.latest_date || currentEndDate.format('YYYY-MM-DD');
-            const todayInventory = parseFloat(mainDoiResult[0]?.latest_inventory) || 0;
-            const totalQtySold = parseFloat(mainDoiResult[0]?.total_qty_sold_30d) || 0;
-            const currentDOI = parseFloat(mainDoiResult[0]?.DOI) || 0;
+            const hasMainData = mainDoiResult[0] && mainDoiResult[0].latest_date !== null && mainDoiResult[0].latest_date !== undefined;
+            const hasPrevData = prevDoiResult[0] && prevDoiResult[0].latest_date !== null && prevDoiResult[0].latest_date !== undefined;
 
-            const prevLatestDate = prevDoiResult[0]?.latest_date || prevEndDate.format('YYYY-MM-DD');
-            const prevInventory = parseFloat(prevDoiResult[0]?.latest_inventory) || 0;
-            const prevTotalQtySold = parseFloat(prevDoiResult[0]?.total_qty_sold_30d) || 0;
-            const prevDOI = parseFloat(prevDoiResult[0]?.DOI) || 0;
+            const latestDate = hasMainData ? mainDoiResult[0].latest_date : currentEndDate.format('YYYY-MM-DD');
+            const todayInventory = hasMainData ? parseFloat(mainDoiResult[0].latest_inventory) || 0 : 0;
+            const totalQtySold = hasMainData ? parseFloat(mainDoiResult[0].total_qty_sold_30d) || 0 : 0;
+            const currentDOI = hasMainData ? parseFloat(mainDoiResult[0].DOI) : null;
 
-            const changePercent = prevDOI > 0 ? ((currentDOI - prevDOI) / prevDOI) * 100 : 0;
+            const prevLatestDate = hasPrevData ? prevDoiResult[0].latest_date : prevEndDate.format('YYYY-MM-DD');
+            const prevInventory = hasPrevData ? parseFloat(prevDoiResult[0].latest_inventory) || 0 : 0;
+            const prevTotalQtySold = hasPrevData ? parseFloat(prevDoiResult[0].total_qty_sold_30d) || 0 : 0;
+            const prevDOI = hasPrevData ? parseFloat(prevDoiResult[0].DOI) : null;
+
+            const changePercent = (currentDOI !== null && prevDOI !== null && prevDOI > 0)
+                ? ((currentDOI - prevDOI) / prevDOI) * 100
+                : null;
 
             return {
                 section: "doi_overview",
-                doi: parseFloat(currentDOI.toFixed(1)),
-                prevDoi: parseFloat(prevDOI.toFixed(1)),
-                changePercent: parseFloat(changePercent.toFixed(1)),
+                doi: currentDOI !== null ? parseFloat(currentDOI.toFixed(1)) : null,
+                prevDoi: prevDOI !== null ? parseFloat(prevDOI.toFixed(1)) : null,
+                changePercent: changePercent !== null ? parseFloat(changePercent.toFixed(1)) : null,
                 todayInventory: todayInventory,
                 totalQtySold: totalQtySold,
                 filters: filters,
                 currentPeriod: {
                     inventoryDate: latestDate,
-                    qtySoldStart: dayjs(latestDate).subtract(29, 'day').format('YYYY-MM-DD'),
-                    qtySoldEnd: latestDate
+                    qtySoldStart: hasMainData ? dayjs(latestDate).subtract(29, 'day').format('YYYY-MM-DD') : null,
+                    qtySoldEnd: hasMainData ? latestDate : null
                 },
                 comparisonPeriod: {
                     inventoryDate: prevLatestDate,
-                    qtySoldStart: dayjs(prevLatestDate).subtract(29, 'day').format('YYYY-MM-DD'),
-                    qtySoldEnd: prevLatestDate
+                    qtySoldStart: hasPrevData ? dayjs(prevLatestDate).subtract(29, 'day').format('YYYY-MM-DD') : null,
+                    qtySoldEnd: hasPrevData ? prevLatestDate : null
                 },
                 timestamp: new Date().toISOString()
             };
@@ -2704,7 +2739,7 @@ const getAvailabilityKpiTrends = async (filters) => {
                         SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sum_sales,
                         SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as total_inventory,
                         SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty_sold,
-                        SUM(toFloat64OrZero(toString(MSL))) as total_msl,
+                        SUM(toFloat64OrZero(toString(msl))) as total_msl,
                         COUNT(DISTINCT Web_Pid) as assortment_count,
                         AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
                     FROM rb_pdp_olap

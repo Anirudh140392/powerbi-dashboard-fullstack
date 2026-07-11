@@ -98,28 +98,6 @@ function computeCompareRange(primaryStart, primaryEnd, mode) {
     return [s, e];
 }
 
-function CustomToggle({ enabled, onChange }) {
-    return (
-        <button
-            onClick={() => onChange(!enabled)}
-            type="button"
-            className={
-                "relative h-6 w-11 rounded-full border transition " +
-                (enabled ? "border-blue-500 bg-blue-500" : "border-slate-300 bg-slate-200")
-            }
-            aria-label="Toggle compare"
-            style={{ flexShrink: 0 }}
-        >
-            <span
-                className={
-                    "absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-white shadow transition " +
-                    (enabled ? "left-[22px]" : "left-0.5")
-                }
-            />
-        </button>
-    );
-}
-
 export default function DateRangeComparePicker({
     timeStart,
     timeEnd,
@@ -391,19 +369,11 @@ export default function DateRangeComparePicker({
                     </Box>
 
                     <Box sx={{ p: 2.5, borderBottom: "1px solid #f1f5f9" }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                            <Box>
-                                <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a' }}>Compare with</Typography>
-                                <Typography sx={{ fontSize: '0.75rem', color: '#64748b', mt: 0.2 }}>Enable reference period</Typography>
-                            </Box>
-                            <CustomToggle enabled={compareOn} onChange={setCompareOn} />
-                        </Box>
+                        <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a', mb: 2 }}>Compare with</Typography>
 
                         <Box sx={{
-                            transition: 'all 0.3s ease',
-                            height: compareOn ? 'auto' : 0,
-                            overflow: 'hidden',
-                            opacity: compareOn ? 1 : 0
+                            height: 'auto',
+                            opacity: 1
                         }}>
                             {/* Compare Tabs */}
                             <Box sx={{ display: 'flex', bgcolor: '#f8fafc', borderRadius: 2, p: 0.5, mb: 2.5, border: '1px solid #f1f5f9' }}>
