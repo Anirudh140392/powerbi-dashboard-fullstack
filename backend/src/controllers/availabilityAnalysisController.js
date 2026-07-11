@@ -1071,26 +1071,52 @@ export const getSignalLabData = async (req, res) => {
                     // SKU level DOI Query
                     const doiQuery = `
                         WITH
-                            latest_dates AS (
+                            daily_inventory AS (
                                 SELECT
                                     ${groupCol},
-                                    max(toDate(DATE)) AS latest_date
+                                    toDate(DATE) AS DATE,
+                                    SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) AS total_inventory
                                 FROM rb_pdp_olap
                                 WHERE ${filterCol} IN (${webPidsStr})
                                   AND toDate(DATE) BETWEEN '${start}' AND '${end}'
                                   AND ${(await buildFilterConditions(false)).join(' AND ')}
+                                GROUP BY ${groupCol}, DATE
+                                HAVING total_inventory > 0
+                            ),
+                            latest_inventory_stats AS (
+                                SELECT
+                                    ${groupCol},
+                                    argMax(total_inventory, DATE) AS latest_inventory,
+                                    max(DATE) AS latest_date
+                                FROM daily_inventory
                                 GROUP BY ${groupCol}
+                            ),
+                            sales_stats AS (
+                                SELECT
+                                    l.${groupCol} AS groupColVal,
+                                    l.latest_date AS latest_date,
+                                    l.latest_inventory AS latest_inventory,
+                                    SUM(ifNull(toFloat64OrZero(toString(p.Qty_Sold)), 0)) AS total_qty_sold_30d
+                                FROM latest_inventory_stats l
+                                LEFT JOIN rb_pdp_olap p ON p.${filterCol} = l.${groupCol}
+                                WHERE toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date
+                                  AND ${nonDateFilterWithBrand}
+                                GROUP BY l.${groupCol}, l.latest_date, l.latest_inventory
                             )
                         SELECT
-                            l.${groupCol} AS groupColVal,
-                            l.latest_date AS latest_date,
-                            sum(if(toDate(p.DATE) = l.latest_date, ifNull(toFloat64OrZero(toString(p.Inventory)), 0.0), 0.0)) AS latest_inventory,
-                            sum(if(toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date, ifNull(toFloat64OrZero(toString(p.Qty_Sold)), 0.0), 0.0)) AS total_qty_sold_30d
-                        FROM latest_dates l
-                        LEFT JOIN rb_pdp_olap p ON p.${filterCol} = l.${groupCol}
-                        WHERE toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date
-                          AND ${nonDateFilterWithBrand}
-                        GROUP BY l.${groupCol}, l.latest_date
+                            groupColVal,
+                            latest_date,
+                            latest_inventory,
+                            total_qty_sold_30d,
+                            ROUND(
+                                IF(
+                                    total_qty_sold_30d > 0,
+                                    (latest_inventory / total_qty_sold_30d) * 30,
+                                    0
+                                ),
+                                2
+                            ) AS DOI
+                        FROM sales_stats
                     `;
 
                     const doiRows = await queryClickHouse(doiQuery);
@@ -1099,7 +1125,7 @@ export const getSignalLabData = async (req, res) => {
                         const latestInv = Number(row.latest_inventory || 0);
                         const qty30 = Number(row.total_qty_sold_30d || 0);
                         const drr30 = qty30 / 30;
-                        const calculatedDoi = drr30 > 0 ? latestInv / drr30 : 0;
+                        const calculatedDoi = Number(row.DOI || 0);
                         doiDataMap[key] = {
                             latestInventory: latestInv,
                             totalQty30d: qty30,
@@ -1111,28 +1137,56 @@ export const getSignalLabData = async (req, res) => {
                     // City level DOI Query
                     const cityDoiQuery = `
                         WITH
-                            latest_dates AS (
+                            daily_inventory AS (
                                 SELECT
                                     ${groupCol},
                                     Location,
-                                    max(toDate(DATE)) AS latest_date
+                                    toDate(DATE) AS DATE,
+                                    SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) AS total_inventory
                                 FROM rb_pdp_olap
                                 WHERE ${filterCol} IN (${webPidsStr})
                                   AND toDate(DATE) BETWEEN '${start}' AND '${end}'
                                   AND ${(await buildFilterConditions(false)).join(' AND ')}
+                                GROUP BY ${groupCol}, Location, DATE
+                                HAVING total_inventory > 0
+                            ),
+                            latest_inventory_stats AS (
+                                SELECT
+                                    ${groupCol},
+                                    Location,
+                                    argMax(total_inventory, DATE) AS latest_inventory,
+                                    max(DATE) AS latest_date
+                                FROM daily_inventory
                                 GROUP BY ${groupCol}, Location
+                            ),
+                            sales_stats AS (
+                                SELECT
+                                    l.${groupCol} AS groupColVal,
+                                    l.Location AS cityVal,
+                                    l.latest_date AS latest_date,
+                                    l.latest_inventory AS latest_inventory,
+                                    SUM(ifNull(toFloat64OrZero(toString(p.Qty_Sold)), 0)) AS total_qty_sold_30d
+                                FROM latest_inventory_stats l
+                                LEFT JOIN rb_pdp_olap p ON p.${filterCol} = l.${groupCol} AND p.Location = l.Location
+                                WHERE toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date
+                                  AND ${nonDateFilterWithBrand}
+                                GROUP BY l.${groupCol}, l.Location, l.latest_date, l.latest_inventory
                             )
                         SELECT
-                            l.${groupCol} AS groupColVal,
-                            l.Location AS cityVal,
-                            l.latest_date AS latest_date,
-                            sum(if(toDate(p.DATE) = l.latest_date, ifNull(toFloat64OrZero(toString(p.Inventory)), 0.0), 0.0)) AS latest_inventory,
-                            sum(if(toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date, ifNull(toFloat64OrZero(toString(p.Qty_Sold)), 0.0), 0.0)) AS total_qty_sold_30d
-                        FROM latest_dates l
-                        LEFT JOIN rb_pdp_olap p ON p.${filterCol} = l.${groupCol} AND p.Location = l.Location
-                        WHERE toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date
-                          AND ${nonDateFilterWithBrand}
-                        GROUP BY l.${groupCol}, l.Location, l.latest_date
+                            groupColVal,
+                            cityVal,
+                            latest_date,
+                            latest_inventory,
+                            total_qty_sold_30d,
+                            ROUND(
+                                IF(
+                                    total_qty_sold_30d > 0,
+                                    (latest_inventory / total_qty_sold_30d) * 30,
+                                    0
+                                ),
+                                2
+                            ) AS DOI
+                        FROM sales_stats
                     `;
 
                     const cityDoiRows = await queryClickHouse(cityDoiQuery);
@@ -1142,7 +1196,7 @@ export const getSignalLabData = async (req, res) => {
                         const latestInv = Number(row.latest_inventory || 0);
                         const qty30 = Number(row.total_qty_sold_30d || 0);
                         const drr30 = qty30 / 30;
-                        const calculatedDoi = drr30 > 0 ? latestInv / drr30 : 0;
+                        const calculatedDoi = Number(row.DOI || 0);
 
                         if (!cityDoiMap[pidKey]) cityDoiMap[pidKey] = {};
                         cityDoiMap[pidKey][cityKey] = {
@@ -1269,18 +1323,28 @@ export const getSignalLabData = async (req, res) => {
                 const currSalesVal = Number(scaledItem.currSales || 0);
                 const revenue = currSalesVal;
 
+                const key = String(item[groupCol] || '').toLowerCase();
+                const newDoiInfo = doiDataMap[key];
+
                 const podCities = cityRows.filter(c => c[groupCol] === item[groupCol]);
                 const inventory = podCities.length > 0
-                    ? podCities.reduce((sum, c) => sum + (c.inventory || 0), 0)
-                    : (scaledItem.avgInventory === null ? null : Number(scaledItem.avgInventory));
+                    ? podCities.reduce((sum, c) => {
+                        const cityKey = String(c.Location || '').toLowerCase();
+                        const cityDoiInfo = cityDoiMap[key]?.[cityKey];
+                        const cityInv = (cityDoiInfo && cityDoiInfo.latestInventory !== undefined && cityDoiInfo.latestInventory !== null)
+                            ? cityDoiInfo.latestInventory
+                            : (c.inventory || 0);
+                        return sum + cityInv;
+                    }, 0)
+                    : ((newDoiInfo && newDoiInfo.latestInventory !== undefined && newDoiInfo.latestInventory !== null)
+                        ? newDoiInfo.latestInventory
+                        : (scaledItem.avgInventory === null ? null : Number(scaledItem.avgInventory)));
 
                 const drr = qty / daysInPeriod;
                 const oldDoi = (inventory !== null && drr > 0) ? inventory / drr : (inventory === null ? null : 0);
 
-                const key = String(item[groupCol] || '').toLowerCase();
-                const newDoiInfo = doiDataMap[key];
-                const doi = (newDoiInfo && newDoiInfo.doi !== null) ? newDoiInfo.doi : oldDoi;
-                const displayDrr = (newDoiInfo && newDoiInfo.drr30d !== null) ? newDoiInfo.drr30d : drr;
+                const doi = (newDoiInfo && newDoiInfo.doi !== undefined && newDoiInfo.doi !== null) ? newDoiInfo.doi : null;
+                const displayDrr = (newDoiInfo && newDoiInfo.drr30d !== undefined && newDoiInfo.drr30d !== null) ? newDoiInfo.drr30d : drr;
 
                 const offtakeShare = (totalMarketSales > 0) ? (revenue / totalMarketSales * 100) : 0;
 
@@ -1294,14 +1358,14 @@ export const getSignalLabData = async (req, res) => {
                 } else if (metricType === 'availability') {
                     kpis = {
                         soh: inventory !== null ? `${Math.round(inventory)} units` : '-',
-                        doi: doi !== null ? doi.toFixed(1) : '-',
+                        doi: doi !== null ? doi.toFixed(1) : 'N/A',
                         weightedOsa: `${osa.toFixed(1)}%`
                     };
                 } else if (metricType === 'inventory') {
-                    const risk = doi > 30 ? 'High' : (doi > 15 ? 'Med' : 'Low');
+                    const risk = doi !== null ? (doi > 30 ? 'High' : (doi > 15 ? 'Med' : 'Low')) : 'Low';
                     kpis = {
                         drr: displayDrr > 1000 ? `${(displayDrr / 1000).toFixed(1)}k` : Math.round(displayDrr).toString(),
-                        doi: doi !== null ? doi.toFixed(1) : '-',
+                        doi: doi !== null ? doi.toFixed(1) : 'N/A',
                         oos: `${(100 - osa).toFixed(0)}%`,
                         expiryRisk: risk
                     };
@@ -1366,12 +1430,12 @@ export const getSignalLabData = async (req, res) => {
                         const cityDrr = cityQty / daysInPeriod;
                         const cityDoi = cityDrr > 0 ? cityInventory / cityDrr : 0;
 
-                        const displayCityDoi = newCityDoiInfo ? newCityDoiInfo.doi : cityDoi;
-                        const displayCityDrr = newCityDoiInfo ? newCityDoiInfo.drr30d : cityDrr;
+                        const displayCityDoi = (newCityDoiInfo && newCityDoiInfo.doi !== undefined && newCityDoiInfo.doi !== null) ? newCityDoiInfo.doi : null;
+                        const displayCityDrr = (newCityDoiInfo && newCityDoiInfo.drr30d !== undefined && newCityDoiInfo.drr30d !== null) ? newCityDoiInfo.drr30d : cityDrr;
 
                         return {
                             city: c.Location,
-                            metric: idx === 0 ? `DOI ${displayCityDoi.toFixed(1)}` : `DRR ${Math.round(displayCityDrr)}`,
+                            metric: idx === 0 ? `DOI ${displayCityDoi !== null ? displayCityDoi.toFixed(1) : 'N/A'}` : `DRR ${Math.round(displayCityDrr)}`,
                             change: `${impactSign}${cityOsaChange.toFixed(1)}%`,
                             weightage: salesWeightage.toFixed(1) + '%'
                         };
@@ -1409,7 +1473,7 @@ export const getSignalLabData = async (req, res) => {
                     groupBy: groupBy,
                     type: signalType,
                     metricType,
-                    offtakeValue: metricType === 'inventory' ? (doi !== null ? doi.toFixed(1) : '-') : `₹${(revenue / 100000).toFixed(1)} lac`,
+                    offtakeValue: metricType === 'inventory' ? (doi !== null ? doi.toFixed(1) : 'N/A') : `₹${(revenue / 100000).toFixed(1)} lac`,
                     offtakeShare: totalMarketSales > 0 ? ((revenue / totalMarketSales) * 100).toFixed(2) + '%' : '0.00%',
                     impact: `${metricChange >= 0 ? '+' : ''}${metricChange.toFixed(1)}%`,
                     kpis,
@@ -1555,26 +1619,52 @@ export const getCityDetailsForProduct = async (req, res) => {
 
                     const cityDoiQuery = `
                         WITH
-                            latest_dates AS (
+                            daily_inventory AS (
                                 SELECT
                                     Location,
-                                    max(toDate(DATE)) AS latest_date
+                                    toDate(DATE) AS DATE,
+                                    SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) AS total_inventory
                                 FROM rb_pdp_olap
                                 WHERE ${filterCol} = '${escapeStr(webPid)}'
                                   AND toDate(DATE) BETWEEN '${start}' AND '${end}'
                                   AND ${buildNonDateConditions()}
+                                GROUP BY Location, DATE
+                                HAVING total_inventory > 0
+                            ),
+                            latest_inventory_stats AS (
+                                SELECT
+                                    Location,
+                                    argMax(total_inventory, DATE) AS latest_inventory,
+                                    max(DATE) AS latest_date
+                                FROM daily_inventory
                                 GROUP BY Location
+                            ),
+                            sales_stats AS (
+                                SELECT
+                                    l.Location AS cityVal,
+                                    l.latest_date AS latest_date,
+                                    l.latest_inventory AS latest_inventory,
+                                    SUM(ifNull(toFloat64OrZero(toString(p.Qty_Sold)), 0)) AS total_qty_sold_30d
+                                FROM latest_inventory_stats l
+                                LEFT JOIN rb_pdp_olap p ON p.${filterCol} = '${escapeStr(webPid)}' AND p.Location = l.Location
+                                WHERE toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date
+                                  AND ${nonDateFilterWithBrand}
+                                GROUP BY l.Location, l.latest_date, l.latest_inventory
                             )
                         SELECT
-                            l.Location AS cityVal,
-                            l.latest_date AS latest_date,
-                            sum(if(toDate(p.DATE) = l.latest_date, ifNull(toFloat64OrZero(toString(p.Inventory)), 0.0), 0.0)) AS latest_inventory,
-                            sum(if(toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date, ifNull(toFloat64OrZero(toString(p.Qty_Sold)), 0.0), 0.0)) AS total_qty_sold_30d
-                        FROM latest_dates l
-                        LEFT JOIN rb_pdp_olap p ON p.${filterCol} = '${escapeStr(webPid)}' AND p.Location = l.Location
-                        WHERE toDate(p.DATE) BETWEEN dateSub(DAY, 29, l.latest_date) AND l.latest_date
-                          AND ${nonDateFilterWithBrand}
-                        GROUP BY l.Location, l.latest_date
+                            cityVal,
+                            latest_date,
+                            latest_inventory,
+                            total_qty_sold_30d,
+                            ROUND(
+                                IF(
+                                    total_qty_sold_30d > 0,
+                                    (latest_inventory / total_qty_sold_30d) * 30,
+                                    0
+                                ),
+                                2
+                            ) AS DOI
+                        FROM sales_stats
                     `;
 
                     const cityDoiRows = await queryClickHouse(cityDoiQuery);
@@ -1583,7 +1673,7 @@ export const getCityDetailsForProduct = async (req, res) => {
                         const latestInv = Number(row.latest_inventory || 0);
                         const qty30 = Number(row.total_qty_sold_30d || 0);
                         const drr30 = qty30 / 30;
-                        const calculatedDoi = drr30 > 0 ? latestInv / drr30 : 0;
+                        const calculatedDoi = Number(row.DOI || 0);
                         cityDoiMap[cityKey] = {
                             latestInventory: latestInv,
                             totalQty30d: qty30,
@@ -1668,15 +1758,18 @@ export const getCityDetailsForProduct = async (req, res) => {
                 const discount = Number(scaledRow.discount || 0);
                 const listingPct = Number(scaledRow.listing_pct || 0);
 
-                const soh = (scaledRow.soh === null || scaledRow.soh === undefined) ? null : Number(scaledRow.soh);
+                const cityKey = String(row.city).toLowerCase();
+                const cityDoiInfo = cityDoiMap[cityKey];
+                const soh = (cityDoiInfo && cityDoiInfo.latestInventory !== undefined && cityDoiInfo.latestInventory !== null)
+                    ? cityDoiInfo.latestInventory
+                    : ((scaledRow.soh === null || scaledRow.soh === undefined) ? null : Number(scaledRow.soh));
+
                 const qtySold = Number(scaledRow.qty_sold || 0);
                 const drr = qtySold / daysInPeriod;
                 const oldDoi = (soh !== null && drr > 0) ? soh / drr : (soh === null ? null : 0);
 
-                const cityKey = String(row.city).toLowerCase();
-                const cityDoiInfo = cityDoiMap[cityKey];
-                const doi = (cityDoiInfo && cityDoiInfo.doi !== null) ? cityDoiInfo.doi : oldDoi;
-                const displayDrr = (cityDoiInfo && cityDoiInfo.drr30d !== null) ? cityDoiInfo.drr30d : drr;
+                const doi = (cityDoiInfo && cityDoiInfo.doi !== undefined && cityDoiInfo.doi !== null) ? cityDoiInfo.doi : null;
+                const displayDrr = (cityDoiInfo && cityDoiInfo.drr30d !== undefined && cityDoiInfo.drr30d !== null) ? cityDoiInfo.drr30d : drr;
 
                 const adSales = Number(scaledRow.ad_sales || 0);
                 const adSpend = Number(scaledRow.ad_spend || 0);
@@ -1702,7 +1795,7 @@ export const getCityDetailsForProduct = async (req, res) => {
                     organicSos: 0,
                     wtDisc: discount,
                     soh: soh,
-                    doi: doi,
+                    doi: doi !== null ? doi : 'N/A',
                     drr: displayDrr
                 };
             });

@@ -89,7 +89,7 @@ export default function CityDetailedTable({ sku, onClose }) {
                         organicSos: `${(c.organicSos || 0).toFixed(1)}%`,
                         adSos: `${(c.adSos || 0).toFixed(1)}%`,
                         soh: (c.soh === null || c.soh === undefined) ? '-' : parseFloat(c.soh).toFixed(1),
-                        doi: (c.doi === null || c.doi === undefined || isNaN(parseFloat(c.doi))) ? '-' : parseFloat(c.doi).toFixed(1),
+                        doi: (c.doi === null || c.doi === undefined || isNaN(parseFloat(c.doi)) || c.doi === 'N/A') ? 'N/A' : parseFloat(c.doi).toFixed(1),
                         wtDisc: `${(c.wtDisc || 0).toFixed(1)}%`,
                         discChange: `+0.0%`,
                         offtakes: (() => {
