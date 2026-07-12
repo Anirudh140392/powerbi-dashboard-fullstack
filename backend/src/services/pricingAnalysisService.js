@@ -215,6 +215,13 @@ const buildInClause = (column, values) => {
     return `lower(${column}) IN (${escaped})`;
 };
 
+const buildMslCondition = (mslValue, columnPath = 'p.msl') => {
+    const parsed = parseMultiSelectFilter(mslValue);
+    if (!parsed || parsed.length === 0) return null;
+    const escaped = parsed.map(m => `'${escapeStr(m)}'`).join(',');
+    return `toString(${columnPath}) IN (${escaped})`;
+};
+
 
 /**
  * Get ECP Comparison between two time periods
@@ -281,6 +288,11 @@ async function getEcpComparison(filters = {}) {
             if (categories) {
                 const escaped = categories.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
                 whereConditions.push(`lower(${src.p_prodCatSql}) IN (${escaped})`);
+            }
+
+            const mslCond = buildMslCondition(filters.msl, `p.${f.msl || 'msl'}`);
+            if (mslCond) {
+                whereConditions.push(mslCond);
             }
 
             const whereClause = whereConditions.join(' AND ');
@@ -564,6 +576,11 @@ async function getPricingKpis(filters = {}) {
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
             if (channels) whereConditions.push(buildInClause(`p.${f.channel}`, channels));
 
+            const mslCond = buildMslCondition(filters.msl, `p.${f.msl || 'msl'}`);
+            if (mslCond) {
+                whereConditions.push(mslCond);
+            }
+
             const whereClause = whereConditions.join(' AND ');
 
             const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
@@ -778,6 +795,9 @@ async function getPricingInsights(filters = {}) {
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
             if (channels) whereConditions.push(buildInClause(`p.${f.channel}`, channels));
 
+            const mslCond = buildMslCondition(filters.msl, `p.${f.msl || 'msl'}`);
+            if (mslCond) whereConditions.push(mslCond);
+
             const whereClause = whereConditions.join(' AND ');
 
             // Comp_flag = 0 means My SKUs, 1 means Competitor
@@ -872,6 +892,7 @@ async function getPricingInsights(filters = {}) {
                       ${locations ? `AND ${buildInClause(`p.${f.location}`, locations)}` : ''}
                       ${channels ? `AND ${buildInClause(`p.${f.channel}`, channels)}` : ''}
                       ${categories ? `AND ${src.p_prodCatSql} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
+                      ${mslCond ? `AND ${mslCond}` : ''}
                     GROUP BY p.${f.product}, p.${f.platform}, p.${f.location}
                     HAVING discount_curr IS NOT NULL AND discount_prev IS NOT NULL
                 `;
@@ -1003,6 +1024,11 @@ const getDimensionOverview = async (filters = {}) => {
                 whereConditions.push(`p.${f.compFlag} = '0'`);
             }
 
+            const mslCond = buildMslCondition(filters.msl, `p.${f.msl || 'msl'}`);
+            if (mslCond) {
+                whereConditions.push(mslCond);
+            }
+
             const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
             const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
 
@@ -1013,7 +1039,7 @@ const getDimensionOverview = async (filters = {}) => {
                 try {
                     const skuCols = await getTableColumns('rb_sku_platform');
                     if (skuCols.size > 0 && columnExists(skuCols, 'image_url')) {
-                        joinClause = `LEFT JOIN rb_sku_platform s ON p.${f.webPid} = s.web_pid`;
+                        joinClause = `LEFT JOIN rb_sku_platform s ON LOWER(p.${f.webPid}) = LOWER(s.web_pid)`;
                         imageExpr = `any(s.image_url) AS image_url`;
                     }
                 } catch (e) {
@@ -1180,6 +1206,11 @@ const getDimensionTrends = async (filters = {}) => {
 
         const skus = parseSkuFilter(filters.sku);
         if (skus) whereConditions.push(buildInClause(`p.${f.product}`, skus));
+
+        const mslCond = buildMslCondition(filters.msl, `p.${f.msl || 'msl'}`);
+        if (mslCond) {
+            whereConditions.push(mslCond);
+        }
 
         if (dimensionValue) {
             whereConditions.push(`lower(${groupByExpr}) = lower('${escapeStr(dimensionValue)}')`);
@@ -1394,6 +1425,11 @@ const getPricingCompetitionTrends = async (filters) => {
         const targetColumn = mode === 'sku' ? f.product : f.brand;
         whereConditions.push(buildInClause(`p.${targetColumn}`, targets));
 
+        const mslCond = buildMslCondition(filters.msl, `p.${f.msl || 'msl'}`);
+        if (mslCond) {
+            whereConditions.push(mslCond);
+        }
+
         const whereClause = whereConditions.join(' AND ');
 
         const query = `
@@ -1520,6 +1556,11 @@ const getPricingCompetition = async (filters) => {
 
         const skus = parseSkuFilter(filters.sku);
         if (skus) whereConditions.push(buildInClause(`p.${f.product}`, skus));
+
+        const mslCond = buildMslCondition(filters.msl, `p.${f.msl || 'msl'}`);
+        if (mslCond) {
+            whereConditions.push(mslCond);
+        }
 
         const whereClause = whereConditions.join(' AND ');
 

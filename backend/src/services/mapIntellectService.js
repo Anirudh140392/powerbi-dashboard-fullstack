@@ -1,6 +1,6 @@
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
-import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
+import { getTableColumns, resolveColumn, columnExists } from '../utils/schemaHelper.js';
 
 // ── Database-Scoped Cache ─────────────────────────────────────
 const dbScopedCaches = new Map();
@@ -113,6 +113,8 @@ async function getGeoSource() {
         return `ifNull(toFloat64OrZero(toString(${col})), 0)`;
     };
 
+    const hasMsl = columnExists(cols, 'msl');
+
     return {
         table: tableName,
         f: {
@@ -126,7 +128,8 @@ async function getGeoSource() {
             date: r('DATE'),
             platform: r('Platform'),
             category: r('Category', r('Product_type')),
-            compFlag: r('Comp_flag')
+            compFlag: r('Comp_flag'),
+            msl: hasMsl ? r('msl') : null
         }
     };
 }
@@ -185,7 +188,7 @@ const formatLac = (val) => {
 const getMapIntellectData = async (filters) => {
     console.log(`[MapIntellect][${getCurrentDbName()}] Computing dynamic data:`, JSON.stringify(filters));
 
-    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all', category, channel } = filters;
+    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all', category, channel, msl } = filters;
     const platform = filters.platform || 'All';
 
     // Date range
@@ -228,11 +231,24 @@ const getMapIntellectData = async (filters) => {
         if (src.f.compFlag) {
             conds.push(`${src.f.compFlag} = 0`);
         }
+        if (src.f.msl && msl) {
+            const mslArr = normalizeFilterArray(msl);
+            if (mslArr && mslArr.length > 0) {
+                const mslConds = mslArr.map(m => {
+                    if (m === null || m === 'null' || m === 'NULL') {
+                        return `isNull(${src.f.msl})`;
+                    }
+                    return `toString(${src.f.msl}) = '${escapeStr(m)}'`;
+                }).join(' OR ');
+                conds.push(`(${mslConds})`);
+            }
+        }
         return conds.join(' AND ');
     };
 
     const currPdpConds = buildConds(pdpSrc, startDate, endDate);
     const prevPdpConds = buildConds(pdpSrc, prevStartDate, prevEndDate);
+
 
     const isMarketShareOnly = metric === 'marketshare' || metric === 'Market Share';
 

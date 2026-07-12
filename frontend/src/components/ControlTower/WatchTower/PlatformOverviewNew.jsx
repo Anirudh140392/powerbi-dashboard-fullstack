@@ -170,7 +170,8 @@ const PlatformOverviewNew = ({
         compareStart,
         compareEnd,
         datesFetched,
-        platformsFetched
+        platformsFetched,
+        selectedMsl
     } = useContext(FilterContext);
 
     const kpis = [
@@ -313,6 +314,7 @@ const PlatformOverviewNew = ({
         skuCode: '',
         dateFrom: '',
         dateTo: '',
+        msl: '0',
         kpis: defaultKpiKeys,
         filterLogic: 'OR',
     })
@@ -475,10 +477,12 @@ const PlatformOverviewNew = ({
             advancedFilters: {
                 skuName: advancedFilters.skuName,
                 skuCode: advancedFilters.skuCode,
-                filterLogic: advancedFilters.filterLogic
-            }
+                filterLogic: advancedFilters.filterLogic,
+                msl: advancedFilters.msl
+            },
+            selectedMsl
         });
-    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter]);
+    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter, selectedMsl]);
 
     // Fetch data from backend API when filters change (stable version)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
@@ -500,8 +504,9 @@ const PlatformOverviewNew = ({
                 compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
                 skuName: parsed.advancedFilters.skuName || undefined,
                 skuCode: parsed.advancedFilters.skuCode || undefined,
-                filterLogic: parsed.advancedFilters.filterLogic || 'OR'
-            }
+                filterLogic: parsed.advancedFilters.filterLogic || 'OR',
+                msl: (parsed.selectedMsl && parsed.selectedMsl !== 'All') ? (Array.isArray(parsed.selectedMsl) ? parsed.selectedMsl.join(',') : parsed.selectedMsl) : (parsed.advancedFilters.msl === '1' ? '1' : undefined)
+            };
 
             console.log(`[PlatformOverviewNew] Fetching ${dimension} data`, params)
             const res = await axiosInstance.get(endpoint, { params, timeout: 60000 })
@@ -609,6 +614,7 @@ const PlatformOverviewNew = ({
         advancedFilters.platforms?.length > 0,
         advancedFilters.skuName?.length > 0,
         advancedFilters.skuCode?.length > 0,
+        advancedFilters.msl === '1',
     ].filter(Boolean).length
 
     const currentDimension = dimensionMeta[dimension] || dimensionMeta.platform

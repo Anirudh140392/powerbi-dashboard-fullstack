@@ -102,7 +102,8 @@ export const getAvailabilityOverview = async (req, res) => {
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
-            ownBrandsOnly: req.query.ownBrandsOnly
+            ownBrandsOnly: req.query.ownBrandsOnly,
+            msl: req.query.msl
         };
         console.log('\n========== AVAILABILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -147,7 +148,8 @@ export const getPlatformKpiMatrix = async (req, res) => {
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
-            ownBrandsOnly: req.query.ownBrandsOnly
+            ownBrandsOnly: req.query.ownBrandsOnly,
+            msl: req.query.msl
         };
         console.log('\n========== PLATFORM KPI MATRIX API ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
@@ -194,7 +196,8 @@ export const getStandaloneKpiMatrix = async (req, res) => {
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
-            ownBrandsOnly: req.query.ownBrandsOnly
+            ownBrandsOnly: req.query.ownBrandsOnly,
+            msl: req.query.msl
         };
         console.log('\n========== STANDALONE KPI MATRIX API (OSA + Market Share) ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
@@ -238,7 +241,8 @@ export const getOsaPercentageDetail = async (req, res) => {
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
-            ownBrandsOnly: req.query.ownBrandsOnly
+            ownBrandsOnly: req.query.ownBrandsOnly,
+            msl: req.query.msl
         };
         console.log('\n========== OSA PERCENTAGE DETAIL API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -281,7 +285,8 @@ export const getDOI = async (req, res) => {
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
-            ownBrandsOnly: req.query.ownBrandsOnly
+            ownBrandsOnly: req.query.ownBrandsOnly,
+            msl: req.query.msl
         };
         console.log('\n========== DOI (DAYS OF INVENTORY) API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -323,7 +328,8 @@ export const getMetroCityStockAvailability = async (req, res) => {
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
-            ownBrandsOnly: req.query.ownBrandsOnly
+            ownBrandsOnly: req.query.ownBrandsOnly,
+            msl: req.query.msl
         };
         console.log('\n========== METRO CITY STOCK AVAILABILITY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -402,7 +408,8 @@ export const getOsaDetailByCategory = async (req, res) => {
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
-            ownBrandsOnly: req.query.ownBrandsOnly
+            ownBrandsOnly: req.query.ownBrandsOnly,
+            msl: req.query.msl
         };
         console.log('\n========== OSA DETAIL BY CATEGORY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -439,6 +446,7 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
+            msl: req.query.msl,
             dimension: req.query.dimension,
             dimensionValue: req.query.dimensionValue,
             resellerName: parseFilter(req.query.resellerName)
@@ -474,6 +482,7 @@ export const getAvailabilityCompetition = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
+            msl: req.query.msl,
             resellerName: parseFilter(req.query.resellerName)
         };
         console.log('\n========== AVAILABILITY COMPETITION API ==========');
@@ -538,7 +547,8 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
             startDate,
             endDate,
             timeStep: timeStep || 'Daily',
-            resellerName: parseFilter(req.query.resellerName || req.body.resellerName)
+            resellerName: parseFilter(req.query.resellerName || req.body.resellerName),
+            msl: req.query.msl || req.body.msl
         });
 
         console.log('[RESPONSE]:', Object.keys(data.timeSeries || {}).length, 'brands with trends');
@@ -570,7 +580,8 @@ export const getAvailabilityCompetitionSkuTrends = async (req, res) => {
             startDate,
             endDate,
             timeStep: timeStep || 'Daily',
-            resellerName: parseFilter(req.query.resellerName || req.body.resellerName)
+            resellerName: parseFilter(req.query.resellerName || req.body.resellerName),
+            msl: req.query.msl || req.body.msl
         });
 
         console.log('[RESPONSE]:', Object.keys(data.osa || {}).length, 'SKUs with trends');

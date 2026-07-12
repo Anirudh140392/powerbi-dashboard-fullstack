@@ -70,6 +70,14 @@ async function getBrandDiscountTrend(filters = {}) {
                 platformClause = `AND ${buildInClause('Platform', platforms)}`;
             }
 
+            // Build MSL filter clause (supports multiselect)
+            let mslClause = '';
+            const mslArr = parseMultiSelectFilter(filters.msl);
+            if (mslArr) {
+                const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
+                mslClause = `AND toString(msl) IN (${escaped})`;
+            }
+
             // SQL query to get monthly average discount by brand
             // Groups by Year-Month and Brand, calculates average discount
             const query = `
@@ -83,6 +91,7 @@ async function getBrandDiscountTrend(filters = {}) {
               AND Brand IS NOT NULL
               AND Brand != ''
               ${platformClause}
+              ${mslClause}
             GROUP BY Brand, monthSort, monthLabel
             ORDER BY Brand, monthSort DESC
         `;
@@ -203,6 +212,14 @@ async function getAvailableBrands(filters = {}) {
                 platformClause = `AND ${buildInClause('Platform', platforms)}`;
             }
 
+            // Build MSL filter clause (supports multiselect)
+            let mslClause = '';
+            const mslArr = parseMultiSelectFilter(filters.msl);
+            if (mslArr) {
+                const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
+                mslClause = `AND toString(msl) IN (${escaped})`;
+            }
+
             const query = `
             SELECT DISTINCT Brand
             FROM rb_pdp_olap
@@ -210,6 +227,7 @@ async function getAvailableBrands(filters = {}) {
               AND Brand IS NOT NULL
               AND Brand != ''
               ${platformClause}
+              ${mslClause}
             ORDER BY Brand
         `;
 

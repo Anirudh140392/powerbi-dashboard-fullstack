@@ -80,6 +80,85 @@ const kpiOptions = [
 ]
 
 // ========================================
+// SINGLE-SELECT DROPDOWN COMPONENT (for MSL)
+// ========================================
+function SingleSelectDropdown({ label, icon: Icon, options, value, onChange, placeholder }) {
+    const [isOpen, setIsOpen] = useState(false)
+    const dropdownRef = useRef(null)
+
+    // Close on outside click
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setIsOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [])
+
+    const selectedOption = options.find(opt => opt.id === value)
+
+    return (
+        <div ref={dropdownRef} className="relative font-sans">
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className={cn(
+                    'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all duration-200',
+                    isOpen
+                        ? 'border-slate-400 ring-2 ring-slate-200 bg-white'
+                        : 'border-slate-100 bg-white hover:border-slate-200'
+                )}
+            >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Icon size={16} className="text-slate-400 flex-shrink-0" />
+                    <span className="text-sm text-slate-600 truncate">
+                        {selectedOption ? selectedOption.name : placeholder || label}
+                    </span>
+                </div>
+                <ChevronDown
+                    size={14}
+                    className={cn('text-slate-400 transition-transform', isOpen && 'rotate-180')}
+                />
+            </button>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute z-50 top-full left-0 right-0 mt-1 bg-white rounded-xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden"
+                    >
+                        <div className="max-h-48 overflow-y-auto">
+                            {options.map(opt => (
+                                <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => {
+                                        onChange(opt.id)
+                                        setIsOpen(false)
+                                    }}
+                                    className={cn(
+                                        'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
+                                        opt.id === value
+                                            ? 'bg-slate-100 text-slate-900 font-medium'
+                                            : 'text-slate-600 hover:bg-slate-50'
+                                    )}
+                                >
+                                    <span className="truncate">{opt.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    )
+}
+
+// ========================================
 // MULTI-SELECT DROPDOWN COMPONENT
 // ========================================
 function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChange, placeholder }) {
@@ -255,6 +334,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         skus: [],
         dateFrom: '',
         dateTo: '',
+        msl: '0',
         kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion', 'aov'].filter(k => {
             if (currentDimension === 'sku') {
                 if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
@@ -298,6 +378,9 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             categories: [],
             platforms: [],
             skus: [],
+            dateFrom: '',
+            dateTo: '',
+            msl: '0',
             kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion', 'aov'].filter(k => {
                 if (currentDimension === 'sku') {
                     if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
@@ -334,6 +417,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         showCategoryFilter && localFilters.categories.length > 0,
         showPlatformFilter && localFilters.platforms.length > 0,
         showSkuFilter && localFilters.skus.length > 0,
+        localFilters.msl === '1',
     ].filter(Boolean).length
 
     // Get dimension label for context
@@ -442,6 +526,17 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 placeholder="All Skus"
                                             />
                                         )}
+                                        <SingleSelectDropdown
+                                            label="MSL"
+                                            icon={Filter}
+                                            options={[
+                                                { id: '0', name: 'All SKUs (MSL=0)' },
+                                                { id: '1', name: 'MSL Only (MSL=1)' }
+                                            ]}
+                                            value={localFilters.msl || '0'}
+                                            onChange={(val) => updateFilter('msl', val)}
+                                            placeholder="MSL Status"
+                                        />
                                     </div>
                                 </div>
 

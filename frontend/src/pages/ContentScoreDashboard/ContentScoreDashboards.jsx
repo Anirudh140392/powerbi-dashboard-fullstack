@@ -4,7 +4,7 @@ import ContentScoreAnalysis from "../../components/ContentScoreDashboard/Content
 import { FilterContext } from "../../utils/FilterContext";
 
 export default function ContentScoreDashboards() {
-  const { refreshFilters, setContentFilterMode } = useContext(FilterContext);
+  const { refreshFilters, setContentFilterMode, platform } = useContext(FilterContext);
 
   // Activate content-specific filter mode on mount, deactivate on unmount
   useEffect(() => {
@@ -18,7 +18,7 @@ export default function ContentScoreDashboards() {
   const [showTrends, setShowTrends] = useState(false);
 
   const [filters, setFilters] = useState({
-    platform: "Blinkit",
+    platform: platform || "",
     months: 6,
     timeStep: "Monthly",
   });
@@ -26,8 +26,13 @@ export default function ContentScoreDashboards() {
   const [trendParams, setTrendParams] = useState({
     months: 6,
     timeStep: "Monthly",
-    platform: "Blinkit",
+    platform: platform || "",
   });
+
+  useEffect(() => {
+    setFilters(prev => ({ ...prev, platform: platform || prev.platform }));
+    setTrendParams(prev => ({ ...prev, platform: platform || prev.platform }));
+  }, [platform]);
 
   const [trendData, setTrendData] = useState({
     timeSeries: [],
@@ -74,7 +79,7 @@ export default function ContentScoreDashboards() {
 
     setTrendParams((prev) => ({
       ...prev,
-      platform: card.name ?? "Blinkit",
+      platform: card.name ?? filters.platform ?? platform ?? "",
     }));
 
     setShowTrends(true);

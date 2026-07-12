@@ -99,6 +99,13 @@ async function getEcpByBrand(filters = {}) {
                 whereConditions.push(buildInClause('p.Location', locations));
             }
 
+            // MSL filter (supports multiselect)
+            const mslArr = parseMultiSelectFilter(filters.msl);
+            if (mslArr) {
+                const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
+                whereConditions.push(`toString(p.msl) IN (${escaped})`);
+            }
+
             const whereClause = whereConditions.join(' AND ');
 
             // SQL query to calculate MRP, ECP, and avg gram by Brand

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-    X, 
-    Search, 
+import {
+    X,
+    Search,
     ChevronUp,
     ChevronDown,
     Plus,
@@ -62,7 +62,7 @@ const MOCK_BRANDS = [
 
 const FilterSection = ({ title, expanded, onToggle, children }) => (
     <div className="border-b border-slate-100/60 py-4">
-        <button 
+        <button
             onClick={onToggle}
             className="flex items-center justify-between w-full text-left mb-1.5 group select-none"
         >
@@ -72,7 +72,7 @@ const FilterSection = ({ title, expanded, onToggle, children }) => (
             </div>
         </button>
         {expanded && (
-            <motion.div 
+            <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
@@ -107,11 +107,11 @@ const PriceRangeSlider = ({ min, max, onChange }) => {
         <div className="px-1 pt-8 pb-6">
             <div className="relative w-full h-2 bg-slate-100 rounded-full border border-slate-200/50">
                 {/* Track highlight */}
-                <div 
+                <div
                     className="absolute h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.3)]"
                     style={{ left: `${minPos}%`, right: `${100 - maxPos}%` }}
                 />
-                
+
                 {/* Custom inputs */}
                 <input
                     type="range"
@@ -133,13 +133,13 @@ const PriceRangeSlider = ({ min, max, onChange }) => {
                 />
 
                 {/* Visible Handles */}
-                <div 
+                <div
                     className="absolute w-5 h-5 bg-white border-[3px] border-blue-600 rounded-full shadow-lg shadow-blue-500/20 top-1/2 -translate-y-1/2 z-20 transition-transform active:scale-125 hover:scale-110"
                     style={{ left: `${minPos}%`, transform: 'translate(-50%, -50%)' }}
                 >
                     <div className="absolute inset-0 rounded-full bg-blue-500/10 animate-ping"></div>
                 </div>
-                <div 
+                <div
                     className="absolute w-5 h-5 bg-white border-[3px] border-indigo-600 rounded-full shadow-lg shadow-indigo-500/20 top-1/2 -translate-y-1/2 z-20 transition-transform active:scale-125 hover:scale-110"
                     style={{ left: `${maxPos}%`, transform: 'translate(-50%, -50%)' }}
                 >
@@ -147,7 +147,7 @@ const PriceRangeSlider = ({ min, max, onChange }) => {
                 </div>
 
                 {/* Tooltip for Current Range */}
-                <div 
+                <div
                     className="absolute -top-10 bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-2xl z-40 whitespace-nowrap flex items-center gap-2 border border-white/10"
                     style={{ left: `${(minPos + maxPos) / 2}%`, transform: 'translateX(-50%)' }}
                 >
@@ -165,7 +165,7 @@ const PriceRangeSlider = ({ min, max, onChange }) => {
 const CheckboxItem = ({ label, count, color, icon, defaultChecked = false }) => {
     const [checked, setChecked] = useState(defaultChecked);
     return (
-        <div 
+        <div
             className="flex items-center justify-between py-1.5 cursor-pointer group"
             onClick={() => setChecked(!checked)}
         >
@@ -202,9 +202,9 @@ const ProductImage = ({ imageUrl, productName }) => {
     }
 
     return (
-        <img 
-            src={imageUrl} 
-            alt={productName} 
+        <img
+            src={imageUrl}
+            alt={productName}
             className="w-24 h-24 object-contain mix-blend-multiply drop-shadow-sm transition-opacity duration-300"
             onError={() => setHasError(true)}
             loading="lazy"
@@ -221,21 +221,23 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
         category: true,
         brands: true,
         asp: true,
-        grammage: true
+        grammage: true,
+        msl: true
     });
-    
+
     // List expansion states (Show More)
     const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
     const [isBrandsExpanded, setIsBrandsExpanded] = useState(false);
 
     // Filter Options from API
     const [filterOptions, setFilterOptions] = useState({ platforms: [], categories: [], brands: [] });
-    
+
     // Filter States
-    const [selectedPlatforms, setSelectedPlatforms] = useState([]); 
+    const [selectedPlatforms, setSelectedPlatforms] = useState([]);
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [selectedBrands, setSelectedBrands] = useState([]);
     const [selectedGrammages, setSelectedGrammages] = useState([]);
+    const [selectedMsl, setSelectedMsl] = useState([]);
     const [aspRange, setAspRange] = useState({ min: 0, max: 10000 });
     const [categorySearch, setCategorySearch] = useState('');
     const [brandSearch, setBrandSearch] = useState('');
@@ -275,7 +277,8 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                 if (selectedPlatforms.length) selectedPlatforms.forEach(p => params.append('platform[]', p));
                 if (selectedBrands.length) selectedBrands.forEach(b => params.append('brand[]', b));
                 if (selectedCategories.length) selectedCategories.forEach(c => params.append('category[]', c));
-                
+                if (selectedMsl.length) selectedMsl.forEach(m => params.append('msl[]', m));
+
                 // Add ASP Range Filter
                 if (aspRange.min !== 0 || aspRange.max !== 10000) {
                     params.set('minAsp', aspRange.min);
@@ -297,29 +300,35 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
 
         const timeout = setTimeout(fetchProducts, 300); // debounce API calls
         return () => clearTimeout(timeout);
-    }, [isOpen, searchQuery, selectedPlatforms, selectedBrands, selectedCategories, aspRange]);
+    }, [isOpen, searchQuery, selectedPlatforms, selectedBrands, selectedCategories, selectedMsl, aspRange]);
 
     const togglePlatform = (id) => {
-        setSelectedPlatforms(prev => 
+        setSelectedPlatforms(prev =>
             prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
         );
     };
 
     const toggleCategory = (id) => {
-        setSelectedCategories(prev => 
+        setSelectedCategories(prev =>
             prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
         );
     };
 
     const toggleBrand = (id) => {
-        setSelectedBrands(prev => 
+        setSelectedBrands(prev =>
             prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id]
         );
     };
 
     const toggleGrammage = (id) => {
-        setSelectedGrammages(prev => 
+        setSelectedGrammages(prev =>
             prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id]
+        );
+    };
+
+    const toggleMsl = (id) => {
+        setSelectedMsl(prev =>
+            prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
         );
     };
 
@@ -350,7 +359,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
             {isOpen && (
                 <>
                     {/* Backdrop */}
-                    <motion.div 
+                    <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
@@ -358,7 +367,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                         className="fixed inset-0 z-[1000] bg-slate-900/40 backdrop-blur-sm"
                     />
                     {/* Drawer */}
-                    <motion.div 
+                    <motion.div
                         initial={{ x: '100%', opacity: 0.5 }}
                         animate={{ x: 0, opacity: 1 }}
                         exit={{ x: '100%', opacity: 0.5 }}
@@ -368,7 +377,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                         <div className="flex items-center justify-between px-10 py-7 bg-white/95 backdrop-blur-xl border-b border-slate-100/80 flex-shrink-0 z-20">
                             <div>
                                 <h2 className="text-[22px] font-semibold text-[#0f172a] tracking-tight flex items-center gap-4">
-                                    Add SKUs 
+                                    Add SKUs
                                     <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50/50 border border-blue-100/30 text-blue-600 shadow-sm shadow-blue-500/5">
                                         <Plus size={14} strokeWidth={3} />
                                         <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">{totalProducts > 1000 ? '1000+' : totalProducts} Items</span>
@@ -376,13 +385,13 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                 </h2>
                                 <p className="text-[12.5px] text-slate-400 font-medium mt-1 tracking-tight">Curate and compare products in real-time</p>
                             </div>
-                            
+
                             <div className="flex items-center gap-6 flex-1 max-w-xl mx-12">
                                 <div className="relative w-full group">
                                     <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Search by SKU name..." 
+                                    <input
+                                        type="text"
+                                        placeholder="Search by SKU name..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         className="w-full bg-slate-50/80 border border-slate-100/80 text-[#1e293b] text-[13.5px] font-medium rounded-2xl pl-11 pr-5 py-3 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400/50 transition-all placeholder:text-slate-300 shadow-sm"
@@ -390,7 +399,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                 </div>
                             </div>
 
-                            <button 
+                            <button
                                 onClick={onClose}
                                 className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-rose-500 text-slate-400 hover:text-white transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-rose-200 group"
                             >
@@ -400,7 +409,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
 
                         {/* Main Body - Sidebar + Grid */}
                         <div className="flex-1 flex overflow-hidden bg-[#f8fafc]">
-                            
+
                             {/* Filter Sidebar - Non-Parallel/Modular Design */}
                             <div className="w-[320px] bg-white border-r border-slate-100/80 overflow-y-auto custom-scrollbar-sm flex flex-col p-7 gap-8 relative z-10">
                                 <div className="flex items-center justify-between mb-2 px-1">
@@ -410,7 +419,8 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                         setSelectedCategories([]);
                                         setSelectedBrands([]);
                                         setSelectedGrammages([]);
-                                        setPpuRange({ min: 3, max: 631696 });
+                                        setSelectedMsl([]);
+                                        setAspRange({ min: 0, max: 10000 });
                                     }} className="text-[10px] font-semibold text-blue-600 hover:text-blue-700 underline underline-offset-4 decoration-blue-200">Clear All</button>
                                 </div>
 
@@ -422,14 +432,14 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                     </div>
                                     <AnimatePresence>
                                         {openFilters.platforms && (
-                                            <motion.div 
+                                            <motion.div
                                                 initial={{ height: 0, opacity: 0 }}
                                                 animate={{ height: 'auto', opacity: 1 }}
                                                 exit={{ height: 0, opacity: 0 }}
                                                 className="overflow-hidden space-y-2 pt-1"
                                             >
                                                 {filterOptions.platforms.map(p => (
-                                                    <button 
+                                                    <button
                                                         key={p.id}
                                                         onClick={() => togglePlatform(p.id)}
                                                         className={cn(
@@ -472,7 +482,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                     </div>
                                     <AnimatePresence>
                                         {openFilters.category && (
-                                            <motion.div 
+                                            <motion.div
                                                 initial={{ height: 0, opacity: 0 }}
                                                 animate={{ height: 'auto', opacity: 1 }}
                                                 exit={{ height: 0, opacity: 0 }}
@@ -481,9 +491,9 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                 {isCategoriesExpanded && (
                                                     <div className="relative mb-2">
                                                         <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300" />
-                                                        <input 
-                                                            type="text" 
-                                                            placeholder="Search categories..." 
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Search categories..."
                                                             value={categorySearch}
                                                             onChange={(e) => setCategorySearch(e.target.value)}
                                                             className="w-full bg-slate-50 border border-slate-100 text-[11px] font-semibold rounded-xl pl-8 pr-3 py-1.5 focus:outline-none focus:border-blue-300 transition-all"
@@ -493,7 +503,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                 )}
                                                 <div className="flex flex-wrap gap-1.5">
                                                     {(isCategoriesExpanded ? filterOptions.categories : filterOptions.categories.slice(0, 8)).filter(c => !categorySearch || c.name.toLowerCase().includes(categorySearch.toLowerCase())).map(c => (
-                                                        <button 
+                                                        <button
                                                             key={c.id}
                                                             onClick={() => toggleCategory(c.id)}
                                                             className={cn(
@@ -507,7 +517,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                         </button>
                                                     ))}
                                                     {!isCategoriesExpanded && filterOptions.categories.length > 8 && (
-                                                        <button 
+                                                        <button
                                                             onClick={() => setIsCategoriesExpanded(true)}
                                                             className="px-2.5 py-1.5 rounded-lg text-[10px] font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                                                         >
@@ -528,7 +538,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                     </div>
                                     <AnimatePresence>
                                         {openFilters.brands && (
-                                            <motion.div 
+                                            <motion.div
                                                 initial={{ height: 0, opacity: 0 }}
                                                 animate={{ height: 'auto', opacity: 1 }}
                                                 exit={{ height: 0, opacity: 0 }}
@@ -536,9 +546,9 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                             >
                                                 <div className="relative">
                                                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder="Search brands..." 
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search brands..."
                                                         value={brandSearch}
                                                         onChange={(e) => setBrandSearch(e.target.value)}
                                                         className="w-full bg-slate-50 border border-slate-100 text-[12px] font-semibold rounded-2xl pl-9 pr-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 transition-all"
@@ -546,8 +556,8 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                 </div>
                                                 <div className="max-h-[220px] overflow-y-auto no-scrollbar pr-1 space-y-1">
                                                     {(isBrandsExpanded ? filterOptions.brands : filterOptions.brands.slice(0, 6)).filter(b => !brandSearch || b.name.toLowerCase().includes(brandSearch.toLowerCase())).map(b => (
-                                                        <div 
-                                                            key={b.id} 
+                                                        <div
+                                                            key={b.id}
                                                             onClick={() => toggleBrand(b.id)}
                                                             className={cn(
                                                                 "flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer group/item",
@@ -569,7 +579,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                         </div>
                                                     ))}
                                                     {!isBrandsExpanded && filterOptions.brands.length > 6 && (
-                                                        <button 
+                                                        <button
                                                             onClick={() => setIsBrandsExpanded(true)}
                                                             className="w-full p-2 text-center text-[10px] font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors mt-1"
                                                         >
@@ -590,21 +600,67 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                     </div>
                                     <AnimatePresence>
                                         {openFilters.asp && (
-                                            <motion.div 
+                                            <motion.div
                                                 initial={{ height: 0, opacity: 0 }}
                                                 animate={{ height: 'auto', opacity: 1 }}
                                                 exit={{ height: 0, opacity: 0 }}
                                                 className="overflow-hidden space-y-4 pt-4 px-2"
                                             >
-                                                <PriceRangeSlider 
-                                                    min={0} 
-                                                    max={10000} 
-                                                    onChange={setAspRange} 
+                                                <PriceRangeSlider
+                                                    min={0}
+                                                    max={10000}
+                                                    onChange={setAspRange}
                                                 />
                                                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase pt-2">
                                                     <span>₹0</span>
                                                     <span>₹10,000</span>
                                                 </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
+                                {/* MSL Section */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between group cursor-pointer" onClick={() => toggleFilter('msl')}>
+                                        <h3 className="text-[13px] font-bold text-slate-800 tracking-tight">MSL</h3>
+                                        <ChevronDown size={14} className={cn("text-slate-400 transition-transform", openFilters.msl && "rotate-180")} />
+                                    </div>
+                                    <AnimatePresence>
+                                        {openFilters.msl && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden space-y-2 pt-1"
+                                            >
+                                                {[
+                                                    { id: '1', name: '1' },
+                                                    { id: '0', name: '0' }
+                                                ].map(m => (
+                                                    <button
+                                                        key={m.id}
+                                                        onClick={() => toggleMsl(m.id)}
+                                                        className={cn(
+                                                            "w-full flex items-center justify-between p-3 rounded-2xl border transition-all duration-300 group active:scale-[0.98]",
+                                                            selectedMsl.includes(m.id)
+                                                                ? "bg-white border-blue-500 shadow-[0_8px_20px_-4px_rgba(59,130,246,0.15)] ring-1 ring-blue-500/10"
+                                                                : "bg-slate-50/50 border-transparent hover:border-slate-200 hover:bg-white"
+                                                        )}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={cn(
+                                                                "w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all",
+                                                                selectedMsl.includes(m.id) ? "bg-blue-600 border-blue-600 shadow-sm" : "bg-white border-slate-200"
+                                                            )}>
+                                                                {selectedMsl.includes(m.id) && <Check size={12} strokeWidth={4} className="text-white" />}
+                                                            </div>
+                                                            <span className={cn("text-[12px] font-semibold transition-colors", selectedMsl.includes(m.id) ? "text-slate-900" : "text-slate-500 group-hover:text-slate-700")}>
+                                                                {m.name}
+                                                            </span>
+                                                        </div>
+                                                    </button>
+                                                ))}
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
@@ -651,7 +707,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                         {products.map((product, idx) => {
                                             const isSelected = selectedItems.some(item => item.id === product.id);
                                             return (
-                                                <motion.div 
+                                                <motion.div
                                                     layout
                                                     initial={{ opacity: 0, scale: 0.9 }}
                                                     animate={{ opacity: 1, scale: 1 }}
@@ -660,8 +716,8 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                     onClick={() => toggleProductSelection(product)}
                                                     className={cn(
                                                         "group relative bg-white rounded-2xl p-4 border transition-all duration-300 cursor-pointer overflow-hidden flex flex-col active:scale-[0.97]",
-                                                        isSelected 
-                                                            ? "border-blue-500 ring-4 ring-blue-500/10 shadow-lg shadow-blue-500/5 translate-y-[-2px]" 
+                                                        isSelected
+                                                            ? "border-blue-500 ring-4 ring-blue-500/10 shadow-lg shadow-blue-500/5 translate-y-[-2px]"
                                                             : "border-slate-100 hover:border-blue-300 hover:shadow-xl hover:shadow-slate-200/50 hover:translate-y-[-2px]"
                                                     )}
                                                 >
@@ -680,7 +736,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                         <div className="relative z-10 scale-90 group-hover:scale-105 transition-transform duration-500">
                                                             <ProductImage imageUrl={product.imageUrl} productName={product.name} />
                                                         </div>
-                                                        
+
                                                         {/* Badge on Card */}
                                                         {product.size && (
                                                             <div className="absolute bottom-2 left-2">
@@ -711,8 +767,8 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                     {/* Card Action */}
                                                     <div className={cn(
                                                         "mt-5 py-2.5 w-full rounded-2xl text-[12px] font-medium transition-all duration-500 border flex items-center justify-center gap-2 shadow-sm active:scale-95 group-hover:shadow-[0_20px_40px_-15px_rgba(37,99,235,0.2)]",
-                                                        isSelected 
-                                                            ? "bg-blue-600 border-blue-600 text-white shadow-blue-500/20" 
+                                                        isSelected
+                                                            ? "bg-blue-600 border-blue-600 text-white shadow-blue-500/20"
                                                             : "bg-white border-slate-200 text-blue-600 group-hover:bg-blue-600 group-hover:border-blue-600 group-hover:text-white"
                                                     )}>
                                                         {isSelected ? "Selected" : "Add Sku"}
@@ -729,7 +785,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                         {/* Floating Action Menu */}
                         <AnimatePresence>
                             {selectedItems.length > 0 && (
-                                <motion.div 
+                                <motion.div
                                     initial={{ y: 150, opacity: 0, scale: 0.9 }}
                                     animate={{ y: 0, opacity: 1, scale: 1 }}
                                     exit={{ y: 150, opacity: 0, scale: 0.9 }}
@@ -748,10 +804,10 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                 </div>
                                             )}
                                         </div>
-                                        
+
                                         <div className="h-8 w-px bg-white/10"></div>
 
-                                        <button 
+                                        <button
                                             onClick={handleBulkAdd}
                                             className="bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white pl-8 pr-10 py-3.5 rounded-[22px] text-[14px] font-bold shadow-xl flex items-center gap-3 transition-all group relative overflow-hidden"
                                         >

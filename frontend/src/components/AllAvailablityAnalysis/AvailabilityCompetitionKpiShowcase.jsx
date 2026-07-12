@@ -28,6 +28,29 @@ function cn(...classes) {
     return classes.filter(Boolean).join(" ");
 }
 
+const getLocalMslFromGlobal = (selectedMsl) => {
+    if (!selectedMsl || selectedMsl === 'All' || selectedMsl === 'all') {
+        return [];
+    }
+    const arrayVal = Array.isArray(selectedMsl) ? selectedMsl : String(selectedMsl).split(',');
+    return arrayVal
+        .map(v => v === '1' ? 'MSL Only (1)' : (v === '0' ? 'Non-MSL (0)' : v))
+        .filter(v => v === 'MSL Only (1)' || v === 'Non-MSL (0)');
+};
+
+const getApiMslFromLocal = (localMsl, globalMsl) => {
+    if (localMsl && localMsl.length > 0) {
+        return localMsl
+            .map(v => v.includes('(1)') ? '1' : (v.includes('(0)') ? '0' : v))
+            .join(',');
+    }
+    if (globalMsl && globalMsl !== 'All' && globalMsl !== 'all') {
+        const arrayVal = Array.isArray(globalMsl) ? globalMsl : String(globalMsl).split(',');
+        return arrayVal.join(',');
+    }
+    return undefined;
+};
+
 const formatKpiValue = (value, unit = "%") => {
     if (value === null || value === undefined || value === "" || value === "N/A") {
         return "N/A";
@@ -366,6 +389,7 @@ const MetricChip = ({ label, color, active, onClick }) => {
 
 const TrendView = ({ mode, filters, city, platform, channel, period, globalFilters, brandRows, skuRows, onBackToTable, isEcom, timeStep }) => {
     const isBrandMode = mode === "brand";
+    const { selectedMsl } = useContext(FilterContext);
 
     // Also include any filter-selected SKUs/brands not already in the top rows
     const allPossibleIds = useMemo(() => {
@@ -424,7 +448,8 @@ const TrendView = ({ mode, filters, city, platform, channel, period, globalFilte
                 period: period || '1M',
                 startDate: globalFilters?.startDate,
                 endDate: globalFilters?.endDate,
-                timeStep: timeStep || 'Daily'
+                timeStep: timeStep || 'Daily',
+                msl: getApiMslFromLocal(filters.msl, selectedMsl)
             };
 
             let endpoint = '';
@@ -444,7 +469,7 @@ const TrendView = ({ mode, filters, city, platform, channel, period, globalFilte
         } finally {
             setTrendLoading(false);
         }
-    }, [visibleIds, city, platform, channel, isBrandMode, filters.categories, period, globalFilters?.startDate, globalFilters?.endDate, timeStep]);
+    }, [visibleIds, city, platform, channel, isBrandMode, filters.categories, filters.msl, selectedMsl, period, globalFilters?.startDate, globalFilters?.endDate, timeStep]);
 
     useEffect(() => {
         fetchTrendData();
@@ -856,6 +881,24 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
     );
     const [search, setSearch] = useState("");
 
+    const [localValue, setLocalValue] = useState(() => ({
+        categories: value.categories || [],
+        brands: value.brands || [],
+        skus: value.skus || [],
+        msl: value.msl || []
+    }));
+
+    useEffect(() => {
+        if (open) {
+            setLocalValue({
+                categories: value.categories || [],
+                brands: value.brands || [],
+                skus: value.skus || [],
+                msl: value.msl || []
+            });
+        }
+    }, [open, value]);
+
     const [filterOptions, setFilterOptions] = useState({
         categories: [],
         brands: [],
@@ -875,11 +918,11 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
                 if (platform) params.append('platform', platform);
                 if (channel) params.append('channel', channel);
                 if (location) params.append('location', location === 'All India' ? 'All' : location);
-                if (value.categories.length > 0) {
-                    params.append('category', value.categories.join(','));
+                if (localValue.categories.length > 0) {
+                    params.append('category', localValue.categories.join(','));
                 }
-                if (value.brands.length > 0) {
-                    params.append('brand', value.brands.join(','));
+                if (localValue.brands.length > 0) {
+                    params.append('brand', localValue.brands.join(','));
                 }
 
                 const response = await axiosInstance.get(`/availability-analysis/competition-filter-options?${params.toString()}`);
@@ -904,12 +947,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
         };
 
         fetchFilterOptions();
-    }, [open, value.categories, value.brands, platform, location]);
+    }, [open, localValue.categories, localValue.brands, platform, location]);
 
     const getListForTab = () => {
         if (activeTab === "category") return filterOptions.categories;
         if (activeTab === "brand") return filterOptions.brands;
-        return filterOptions.skus;
+        if (activeTab === "sku") return filterOptions.skus;
+        if (activeTab === "msl") return ["MSL Only (1)", "Non-MSL (0)"];
+        return [];
     };
 
     const list = useMemo(() => {
@@ -924,14 +969,16 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
             ? "categories"
             : activeTab === "brand"
                 ? "brands"
-                : "skus";
+                : activeTab === "sku"
+                    ? "skus"
+                    : "msl";
 
     const handleToggle = (type, item) => {
-        const current = new Set(value[type]);
+        const current = new Set(localValue[type] || []);
         if (current.has(item)) current.delete(item);
         else current.add(item);
 
-        const next = { ...value, [type]: Array.from(current) };
+        const next = { ...localValue, [type]: Array.from(current) };
 
         if (type === "categories") {
             next.brands = [];
@@ -940,14 +987,15 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
             next.skus = [];
         }
 
-        onChange(next);
+        setLocalValue(next);
     };
 
     const handleSelectAll = (type, items) => {
+        const currentList = localValue[type] || [];
         const allSelected =
-            items.length > 0 && items.every((i) => value[type].includes(i));
+            items.length > 0 && items.every((i) => currentList.includes(i));
 
-        const next = { ...value, [type]: allSelected ? [] : items.slice() };
+        const next = { ...localValue, [type]: allSelected ? [] : items.slice() };
 
         if (type === "categories") {
             next.brands = [];
@@ -956,13 +1004,18 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
             next.skus = [];
         }
 
-        onChange(next);
+        setLocalValue(next);
     };
 
     const allItemsForCurrentTab = getListForTab();
     const allSelectedForCurrentTab =
         allItemsForCurrentTab.length > 0 &&
-        allItemsForCurrentTab.every((i) => value[currentKey].includes(i));
+        allItemsForCurrentTab.every((i) => (localValue[currentKey] || []).includes(i));
+
+    const handleApply = () => {
+        onChange(localValue);
+        onClose();
+    };
 
     return (
         <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -982,7 +1035,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
                             className="flex-1"
                         >
                             <TabsList className="flex flex-col items-stretch gap-1 bg-transparent p-0">
-                                {["category", "brand", "sku"].map((t) => (
+                                {["category", "brand", "sku", "msl"].map((t) => (
                                     <TabsTrigger
                                         key={t}
                                         value={t}
@@ -991,6 +1044,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
                                         {t === "category" && "Category"}
                                         {t === "brand" && "Brand"}
                                         {t === "sku" && "SKU"}
+                                        {t === "msl" && "MSL"}
                                     </TabsTrigger>
                                 ))}
                             </TabsList>
@@ -1017,24 +1071,24 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
 
                         <ScrollArea className="mt-4 h-64 rounded-md border bg-slate-50/60">
                             <div className="space-y-1 p-3">
-                                {filterOptions.loading && (
+                                {filterOptions.loading && activeTab !== "msl" && (
                                     <div className="px-3 py-8 text-center text-xs text-slate-400">
                                         <div className="animate-pulse">Loading filter options...</div>
                                     </div>
                                 )}
-                                {filterOptions.error && (
+                                {filterOptions.error && activeTab !== "msl" && (
                                     <div className="px-3 py-8 text-center text-xs text-red-400">
                                         {filterOptions.error}
                                     </div>
                                 )}
-                                {!filterOptions.loading && !filterOptions.error && list.map((item) => (
+                                {(!filterOptions.loading || activeTab === "msl") && !filterOptions.error && list.map((item) => (
                                     <label
                                         key={item}
                                         className="flex w-full cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
                                     >
                                         <Checkbox
                                             className="flex-shrink-0"
-                                            checked={value[currentKey].includes(item)}
+                                            checked={(localValue[currentKey] || []).includes(item)}
                                             onCheckedChange={() => handleToggle(currentKey, item)}
                                         />
                                         <span className="flex-1 truncate" title={item}>{item}</span>
@@ -1049,7 +1103,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
                     <Button variant="outline" onClick={onClose}>
                         Cancel
                     </Button>
-                    <Button onClick={onClose}>Apply</Button>
+                    <Button onClick={handleApply}>Apply</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -1060,17 +1114,18 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, period, timeStep }) => {
+export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, period, timeStep, drawerFilters, setDrawerFilters }) => {
     const isEcom = platform?.toLowerCase() === "amazon" || platform?.toLowerCase() === "flipkart";
     const [tab, setTab] = useState("brand");
 
-    const { selectedChannel } = useContext(FilterContext);
+    const { selectedChannel, selectedMsl } = useContext(FilterContext);
     const [city, setCity] = useState("All India");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
     const [filters, setFilters] = useState({
         categories: [],
         brands: [],
         skus: [],
+        msl: [],
     });
     const [viewMode, setViewMode] = useState("table");
 
@@ -1078,6 +1133,55 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     const [trendData, setTrendData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [availableCities, setAvailableCities] = useState(["All India"]);
+
+    // Derive active filters and city (controlled vs uncontrolled pattern)
+    const activeFilters = useMemo(() => {
+        if (drawerFilters) {
+            return {
+                categories: drawerFilters.Format === 'All' ? [] : drawerFilters.Format.split(',').filter(Boolean),
+                brands: drawerFilters.Brand === 'All' ? [] : drawerFilters.Brand.split(',').filter(Boolean),
+                skus: drawerFilters.SKU === 'All' ? [] : drawerFilters.SKU.split(',').filter(Boolean),
+                msl: getLocalMslFromGlobal(drawerFilters.Msl)
+            };
+        }
+        return filters;
+    }, [drawerFilters, filters]);
+
+    const activeCity = useMemo(() => {
+        if (drawerFilters) {
+            return drawerFilters.City === 'All' ? 'All India' : drawerFilters.City;
+        }
+        return city;
+    }, [drawerFilters, city]);
+
+    const handleFilterChange = useCallback((newFilters) => {
+        if (setDrawerFilters) {
+            const localFormat = newFilters.categories.length > 0 ? newFilters.categories.join(',') : 'All';
+            const localBrand = newFilters.brands.length > 0 ? newFilters.brands.join(',') : 'All';
+            const localSku = newFilters.skus.length > 0 ? newFilters.skus.join(',') : 'All';
+            const rawMsl = newFilters.msl && newFilters.msl.length > 0 ? newFilters.msl.map(v => v.includes('(1)') ? '1' : (v.includes('(0)') ? '0' : v)).join(',') : 'All';
+            setDrawerFilters(prev => ({
+                ...prev,
+                Format: localFormat,
+                Brand: localBrand,
+                SKU: localSku,
+                Msl: rawMsl
+            }));
+        } else {
+            setFilters(newFilters);
+        }
+    }, [setDrawerFilters]);
+
+    const handleCityChange = useCallback((newCity) => {
+        if (setDrawerFilters) {
+            setDrawerFilters(prev => ({
+                ...prev,
+                City: newCity === 'All India' ? 'All' : newCity
+            }));
+        } else {
+            setCity(newCity);
+        }
+    }, [setDrawerFilters]);
 
     // Fetch dynamic city options
     useEffect(() => {
@@ -1106,13 +1210,14 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 const params = {
                     platform: platform || 'All',
                     channel: selectedChannel || 'All',
-                    location: city === 'All India' ? 'All' : city,
-                    category: filters.categories.length > 0 ? filters.categories.join('|') + '|' : 'All',
-                    brand: filters.brands.length > 0 ? filters.brands.join('|') + '|' : 'All',
-                    sku: filters.skus.length > 0 ? filters.skus.join('|') + '|' : 'All',
+                    location: activeCity === 'All India' ? 'All' : activeCity,
+                    category: activeFilters.categories.length > 0 ? activeFilters.categories.join('|') + '|' : 'All',
+                    brand: activeFilters.brands.length > 0 ? activeFilters.brands.join('|') + '|' : 'All',
+                    sku: activeFilters.skus.length > 0 ? activeFilters.skus.join('|') + '|' : 'All',
                     period: period || '1M',
                     startDate: globalFilters?.startDate,
-                    endDate: globalFilters?.endDate
+                    endDate: globalFilters?.endDate,
+                    msl: getApiMslFromLocal(activeFilters.msl, selectedMsl)
                 };
 
                 const response = await axiosInstance.get('/availability-analysis/competition', { params });
@@ -1126,10 +1231,10 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
             }
         };
         fetchData();
-    }, [city, filters, platform, viewMode, tab, globalFilters?.startDate, globalFilters?.endDate, period]);
+    }, [activeCity, activeFilters, platform, viewMode, tab, globalFilters?.startDate, globalFilters?.endDate, period, selectedMsl]);
 
     const selectionCount =
-        filters.categories.length + filters.brands.length + filters.skus.length;
+        activeFilters.categories.length + activeFilters.brands.length + activeFilters.skus.length + (activeFilters.msl ? activeFilters.msl.length : 0);
 
     const brandRows = useMemo(() => {
         return (competitionData.brands || []).map((b, idx) => ({
@@ -1163,22 +1268,25 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-                        {filters.categories.length > 0 ? (
-                            filters.categories.map((c) => (
+                        {activeFilters.categories.length > 0 ? (
+                            activeFilters.categories.map((c) => (
                                 <Badge key={c} className="bg-blue-50 text-blue-700 border-blue-100">{c}</Badge>
                             ))
                         ) : (
                             <Badge className="bg-slate-100 text-slate-600 border-slate-200">All Categories</Badge>
                         )}
-                        {filters.brands.map((b) => (
+                        {activeFilters.brands.map((b) => (
                             <Badge key={b} className="bg-indigo-50 text-indigo-700 border-indigo-100">{b}</Badge>
+                        ))}
+                        {activeFilters.msl && activeFilters.msl.map((m) => (
+                            <Badge key={m} className="bg-emerald-50 text-emerald-700 border-emerald-100">{m}</Badge>
                         ))}
                     </div>
                     <h1 className="text-lg font-semibold text-slate-900">Competition List</h1>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    <Select value={city} onValueChange={setCity}>
+                    <Select value={activeCity} onValueChange={handleCityChange}>
                         <SelectTrigger className="h-9 w-40 bg-white">
                             <SelectValue placeholder="Select city" />
                         </SelectTrigger>
@@ -1238,8 +1346,8 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                     ) : (
                         <TrendView
                             mode="brand"
-                            filters={filters}
-                            city={city}
+                            filters={activeFilters}
+                            city={activeCity}
                             platform={platform}
                             channel={selectedChannel}
                             period={period}
@@ -1259,8 +1367,8 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                     ) : (
                         <TrendView
                             mode="sku"
-                            filters={filters}
-                            city={city}
+                            filters={activeFilters}
+                            city={activeCity}
                             platform={platform}
                             channel={selectedChannel}
                             period={period}
@@ -1279,11 +1387,11 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 open={filterDialogOpen}
                 onClose={() => setFilterDialogOpen(false)}
                 mode={tab}
-                value={filters}
-                onChange={setFilters}
+                value={activeFilters}
+                onChange={handleFilterChange}
                 platform={platform}
                 channel={selectedChannel}
-                location={city}
+                location={activeCity}
             />
         </div>
     );

@@ -30,6 +30,7 @@ export const getCompareSkuProducts = async (req, res) => {
             platform: req.query.platform || req.query['platform[]'],
             brand: req.query.brand || req.query['brand[]'],
             category: req.query.category || req.query['category[]'],
+            msl: req.query.msl || req.query['msl[]'],
             search: req.query.search,
             page: req.query.page || 1,
             limit: req.query.limit || 60,

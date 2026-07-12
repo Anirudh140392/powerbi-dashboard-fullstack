@@ -34,7 +34,7 @@ export default function VisibilityAnalysis() {
 
   // Initialize filters with empty dates - will be set after fetching from backend
   const [filters, setFilters] = useState({
-    platform: platform || "Blinkit",
+    platform: platform || "",
     brand: selectedBrand || "All",
     location: "All",
     keyword: selectedKeyword || "All",
@@ -180,7 +180,7 @@ export default function VisibilityAnalysis() {
   const [trendParams, setTrendParams] = useState({
     months: 6,
     timeStep: "Weekly",
-    platform: platform || "Blinkit",
+    platform: platform || "",
   });
 
   const [trendData, setTrendData] = useState({
@@ -525,7 +525,7 @@ export default function VisibilityAnalysis() {
 
     setTrendParams((prev) => ({
       ...prev,
-      platform: card.name ?? "Blinkit",
+      platform: card.name ?? filters.platform ?? platform ?? "",
     }));
 
     setShowTrends(true);

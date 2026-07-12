@@ -152,7 +152,7 @@ export default function WatchTower() {
 
     setTrendParams((prev) => ({
       ...prev,
-      platform: card.name ?? "Blinkit",
+      platform: card.name ?? filters.platform ?? "All",
     }));
 
     setShowTrends(true);
@@ -201,7 +201,8 @@ export default function WatchTower() {
     brands: contextBrands,
     channels,
     refreshFilters,
-    refreshDates
+    refreshDates,
+    selectedMsl
   } = filterContext;
 
   const hasRestrictedPlatforms = useMemo(() => {
@@ -576,7 +577,7 @@ export default function WatchTower() {
     }));
   }, [selectedCategory, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
-  const categoryFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${categoryPlatform}`;
+  const categoryFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${categoryPlatform}-${selectedMsl}`;
 
   // Fetch platforms from rb_pdp_olap for Category Performance dropdown
   useEffect(() => {
@@ -592,7 +593,7 @@ export default function WatchTower() {
   }, []);
 
   // Sync loading state with filter changes to prevent one-frame flicker
-  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${selectedChannel}`;
+  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${selectedChannel}-${selectedMsl}`;
   const [prevFilterKey, setPrevFilterKey] = useState(currentFilterKey);
 
   if (prevFilterKey !== currentFilterKey) {
@@ -637,6 +638,7 @@ export default function WatchTower() {
         endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
         compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
         compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
+        msl: selectedMsl === "All" ? undefined : (Array.isArray(selectedMsl) ? selectedMsl.join(",") : selectedMsl),
       };
 
       // 1. Fetch fast overview data
@@ -705,6 +707,7 @@ export default function WatchTower() {
         endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
         compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
         compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
+        msl: selectedMsl === "All" ? undefined : (Array.isArray(selectedMsl) ? selectedMsl.join(",") : selectedMsl),
       };
 
       axiosInstance.get("/watchtower/category-overview", { params })

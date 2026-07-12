@@ -8,6 +8,25 @@ import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
+// Helper to escape string for SQL
+const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+/**
+ * Helper to parse multiselect filter values
+ */
+const parseMultiSelectFilter = (value) => {
+    if (!value || value === 'All') return null;
+    if (Array.isArray(value)) {
+        const filtered = value.filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    if (typeof value === 'string' && value.includes(',')) {
+        const filtered = value.split(',').map(v => v.trim()).filter(v => v && v !== 'All');
+        return filtered.length > 0 ? filtered : null;
+    }
+    return [value];
+};
+
 /**
  * Get available platforms from rb_pdp_olap table
  * @param {Object} replacements - { startDate, endDate }
@@ -52,6 +71,13 @@ async function getDiscountByCategory(filters = {}) {
         const isMars = getCurrentDbName() === 'mars';
         const catCol = isMars ? 'Product_type' : 'Category';
 
+        let mslClause = '';
+        const mslArr = parseMultiSelectFilter(filters.msl);
+        if (mslArr) {
+            const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
+            mslClause = `AND toString(p.msl) IN (${escaped})`;
+        }
+
         const query = `
         SELECT
             p.${catCol} AS Category,
@@ -69,6 +95,7 @@ async function getDiscountByCategory(filters = {}) {
           AND p.${catCol} IS NOT NULL
           AND p.${catCol} != ''
           AND p.Platform IS NOT NULL
+          ${mslClause}
         GROUP BY p.${catCol}, p.Platform
         ORDER BY p.${catCol}, p.Platform
         `;
@@ -137,9 +164,19 @@ async function getDiscountByBrand(filters = {}) {
         const isMars = getCurrentDbName() === 'mars';
         const catCol = isMars ? 'Product_type' : 'Category';
 
+        let mslClauseP = '';
+        let mslClauseNoAlias = '';
+        const mslArr = parseMultiSelectFilter(filters.msl);
+        if (mslArr) {
+            const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
+            mslClauseP = `AND toString(p.msl) IN (${escaped})`;
+            mslClauseNoAlias = `AND toString(msl) IN (${escaped})`;
+        }
+
         const platformQuery = `
             SELECT DISTINCT Platform FROM rb_pdp_olap
             WHERE DATE BETWEEN '${startDate}' AND '${endDate}' AND ${catCol} = '${category}' AND Platform IS NOT NULL
+              ${mslClauseNoAlias}
             ORDER BY Platform
         `;
         const platformResults = await queryClickHouse(platformQuery);
@@ -153,6 +190,7 @@ async function getDiscountByBrand(filters = {}) {
               AND ${catCol} = '${category}'
               AND Comp_flag = '1'
               AND ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0
+              ${mslClauseNoAlias}
             GROUP BY Platform
         )
         SELECT
@@ -162,7 +200,11 @@ async function getDiscountByBrand(filters = {}) {
             c.avg_comp_val AS avgCompEcp
         FROM rb_pdp_olap p
         LEFT JOIN category_comp_avg c ON p.Platform = c.Platform
-        WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}' AND p.${catCol} = '${category}' AND p.Brand IS NOT NULL AND p.Platform IS NOT NULL
+        WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
+          AND p.${catCol} = '${category}'
+          AND p.Brand IS NOT NULL
+          AND p.Platform IS NOT NULL
+          ${mslClauseP}
         GROUP BY p.Brand, p.Platform, c.avg_comp_val
         ORDER BY p.Brand, p.Platform
         `;

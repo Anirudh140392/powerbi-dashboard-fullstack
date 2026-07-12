@@ -684,7 +684,7 @@ export default function TrendsCompetitionDrawer({
     }
   }, [open, initialAudience]);
 
-  const { maxDate, platform: globalPlatform, selectedBrand: globalBrand, selectedLocation: globalLocation, selectedCategory: globalCategory, selectedSubCategory } = React.useContext(FilterContext);
+  const { maxDate, platform: globalPlatform, selectedBrand: globalBrand, selectedLocation: globalLocation, selectedCategory: globalCategory, selectedSubCategory, selectedMsl } = React.useContext(FilterContext);
   const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
 
   const [view, setView] = useState(defaultView);
@@ -715,8 +715,27 @@ export default function TrendsCompetitionDrawer({
     Brand: "All",
     City: "All",
     SKU: "All",
-    ResellerName: "All"
+    ResellerName: "All",
+    Msl: "All"
   });
+
+  const getMslDisplayValue = (val) => {
+    if (!val || val === 'All') return 'All';
+    return val.split(',')
+      .map(v => v === '1' ? 'MSL Only (1)' : (v === '0' ? 'Non-MSL (0)' : v))
+      .join(',');
+  };
+
+  const handleMslChange = (v) => {
+    if (!v || v === 'All') {
+      setDrawerFilters(prev => ({...prev, Msl: 'All'}));
+    } else {
+      const rawVal = v.split(',')
+        .map(display => display.includes('(1)') ? '1' : (display.includes('(0)') ? '0' : display))
+        .join(',');
+      setDrawerFilters(prev => ({...prev, Msl: rawVal}));
+    }
+  };
 
   // --- Reseller Name filter (DRL only) ---
   const drlUser = useMemo(() => {
@@ -836,6 +855,7 @@ export default function TrendsCompetitionDrawer({
       Format: "All",
       SKU: "All",
       ResellerName: "All",
+      Msl: "All",
     };
 
     // 1. Apply initialPlatform if provided (may be array from sidebar multi-select)
@@ -861,6 +881,10 @@ export default function TrendsCompetitionDrawer({
     if (normGlobalCat !== 'All') {
       newFilters.Format = normGlobalCat;
     }
+    const normGlobalMsl = normalizeToString(selectedMsl);
+    if (normGlobalMsl !== 'All') {
+      newFilters.Msl = normGlobalMsl;
+    }
 
     // 3. Apply the selectedColumn to the correct targetDimensionKey (this takes priority)
     if (selectedColumn && targetDimensionKey) {
@@ -879,7 +903,7 @@ export default function TrendsCompetitionDrawer({
 
     setDrawerFilters(newFilters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedColumn, selectedLevel, open, dynamicKey, initialPlatform, defaultView, globalPlatform, globalBrand, globalLocation, globalCategory]);
+  }, [selectedColumn, selectedLevel, open, dynamicKey, initialPlatform, defaultView, globalPlatform, globalBrand, globalLocation, globalCategory, selectedMsl]);
 
   useEffect(() => {
     prevPropsRef.current = {
@@ -1096,6 +1120,7 @@ export default function TrendsCompetitionDrawer({
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
+          msl: toApiParam(drawerFilters.Msl),
         };
 
         console.log('[TrendsDrawer] Fetching PRICING trends with params:', params);
@@ -1156,6 +1181,7 @@ export default function TrendsCompetitionDrawer({
           skuName: toApiParam(drawerFilters.SKU),
           ownBrandsOnly: 'true',
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
+          msl: toApiParam(drawerFilters.Msl),
         };
 
         const response = await axiosInstance.get('/availability-analysis/kpi-trends', { params });
@@ -1183,6 +1209,7 @@ export default function TrendsCompetitionDrawer({
           skuName: toApiParam(drawerFilters.SKU),
           channel: derivedChannel || undefined,
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
+          msl: toApiParam(drawerFilters.Msl),
         };
 
         const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
@@ -1229,6 +1256,7 @@ export default function TrendsCompetitionDrawer({
         category: toApiParam(drawerFilters.Format),
         sku: toApiParam(drawerFilters.SKU),
         resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
+        msl: toApiParam(drawerFilters.Msl),
       };
 
       const response = await axiosInstance.get('/watchtower/competition', { params });
@@ -2654,12 +2682,19 @@ export default function TrendsCompetitionDrawer({
             label="Date"
             value={range}
           />
+          {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
+            <SelectedFilterChip
+              label="MSL"
+              value={getMslDisplayValue(drawerFilters.Msl)}
+              color={drawerFilters.Msl !== 'All' ? "#0ea5e9" : "#64748B"}
+            />
+          )}
 
           {/* Clear All Drawer Filters */}
-          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All' || drawerFilters.ResellerName !== 'All') && (
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All' || drawerFilters.ResellerName !== 'All' || drawerFilters.Msl !== 'All') && (
             <Button
               size="small"
-              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All", ResellerName: "All" })}
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All", ResellerName: "All", Msl: "All" })}
               sx={{
                 ml: 'auto',
                 fontSize: '11px',
@@ -2743,6 +2778,16 @@ export default function TrendsCompetitionDrawer({
                     onChange={(v) => {
                       setDrawerFilters(prev => ({...prev, ResellerName: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All'}));
                     }}
+                  />
+                )}
+
+                {/* MSL dropdown */}
+                {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
+                  <DrawerMultiSelect
+                    title="MSL"
+                    value={getMslDisplayValue(drawerFilters.Msl)}
+                    options={["MSL Only (1)", "Non-MSL (0)"]}
+                    onChange={handleMslChange}
                   />
                 )}
                 
@@ -3154,6 +3199,8 @@ export default function TrendsCompetitionDrawer({
                 }}
                 period={range}
                 timeStep={timeStep}
+                drawerFilters={drawerFilters}
+                setDrawerFilters={setDrawerFilters}
               />
             ) : (
               <KpiTrendShowcase
@@ -3170,6 +3217,8 @@ export default function TrendsCompetitionDrawer({
                           'category'
                   )
                 }
+                drawerFilters={drawerFilters}
+                setDrawerFilters={setDrawerFilters}
               />
             )}
           </>

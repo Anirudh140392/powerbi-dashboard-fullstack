@@ -49,7 +49,8 @@ export const getTrendData = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             skuName: req.query.skuName,
-            skuCode: req.query.skuCode
+            skuCode: req.query.skuCode,
+            msl: req.query.msl
         };
         console.log("trend data api call received", filters);
         const data = await watchTowerService.getTrendData(filters);
@@ -318,7 +319,8 @@ export const getKpiTrends = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             skuName: req.query.skuName,
-            skuCode: req.query.skuCode
+            skuCode: req.query.skuCode,
+            msl: req.query.msl
         };
         console.log('[getKpiTrends] API call received with filters:', filters);
         const data = await watchTowerService.getKpiTrends(filters);
@@ -359,7 +361,8 @@ export const getCompetition = async (req, res) => {
             sku: req.query.sku || 'All',
             channel: req.query.channel,
             period: req.query.period || '1M',
-            resellerName: req.query.resellerName || undefined
+            resellerName: req.query.resellerName || undefined,
+            msl: req.query.msl || 'All'
         };
 
         console.log('[getCompetition] Request:', filters);
@@ -408,7 +411,7 @@ export const getCompetitionBrandTrends = async (req, res) => {
         const params = { ...req.query, ...req.body };
         const { brands, skus, category, period, location, platform, timeStep } = params;
         const resolvedLocation = location && location !== 'All India' ? location : 'All';
-        console.log('[getCompetitionBrandTrends] Request:', { brands, skus: Array.isArray(skus) ? `[array:${skus.length}]` : skus, location: resolvedLocation, platform, category, period, timeStep });
+        console.log('[getCompetitionBrandTrends] Request:', { brands, skus: Array.isArray(skus) ? `[array:${skus.length}]` : skus, location: resolvedLocation, platform, category, period, timeStep, msl: params.msl });
         const data = await watchTowerService.getCompetitionBrandTrends({
             brands,
             skus,
@@ -417,7 +420,8 @@ export const getCompetitionBrandTrends = async (req, res) => {
             category,
             period,
             timeStep,
-            resellerName: params.resellerName || undefined
+            resellerName: params.resellerName || undefined,
+            msl: params.msl || 'All'
         });
 
         res.json(data);
@@ -610,3 +614,14 @@ export const getWatchTowerCascadedFilters = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };
+
+export const getMsls = async (req, res) => {
+    try {
+        const data = await watchTowerService.getMsls();
+        res.json(data);
+    } catch (error) {
+        console.error('[getMsls] Error in controller:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};
+

@@ -20,6 +20,7 @@ import PaginationFooter from "../../CommonLayout/PaginationFooter";
 import axiosInstance from "../../../api/axiosInstance";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 import { useAuth } from "../../../utils/AuthContext";
+import { FilterContext } from "../../../utils/FilterContext";
 
 
 /* -------------------------------------------------------------------------- */
@@ -29,6 +30,20 @@ import { useAuth } from "../../../utils/AuthContext";
 function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
+
+const getApiMslFromLocal = (localMsl, globalMsl) => {
+  if (localMsl && localMsl.length > 0) {
+    return localMsl
+      .map(v => v.includes('(1)') ? '1' : (v.includes('(0)') ? '0' : v))
+      .join(',');
+  }
+  if (globalMsl && globalMsl !== 'All' && globalMsl !== 'all') {
+    const arrayVal = Array.isArray(globalMsl) ? globalMsl : String(globalMsl).split(',');
+    return arrayVal.join(',');
+  }
+  return undefined;
+};
+
 
 const KpiCell = ({ data, format = 1, suffix = "", prefix = "", isInverse = false }) => {
   const value = data?.value;
@@ -1067,6 +1082,24 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
   );
   const [search, setSearch] = useState("");
 
+  const [localValue, setLocalValue] = useState(() => ({
+    categories: value.categories || [],
+    brands: value.brands || [],
+    skus: value.skus || [],
+    msl: value.msl || []
+  }));
+
+  useEffect(() => {
+    if (open) {
+      setLocalValue({
+        categories: value.categories || [],
+        brands: value.brands || [],
+        skus: value.skus || [],
+        msl: value.msl || []
+      });
+    }
+  }, [open, value]);
+
   const [filterOptions, setFilterOptions] = useState({
     categories: [],
     brands: [],
@@ -1086,8 +1119,8 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
         const response = await axiosInstance.post('/watchtower/competition-filter-options', {
           platform: platform || 'All',
           location: location === 'All India' ? 'All' : location,
-          category: value.categories,
-          brand: value.brands
+          category: localValue.categories,
+          brand: localValue.brands
         });
 
         if (response.data) {
@@ -1110,12 +1143,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
     };
 
     fetchFilterOptions();
-  }, [open, value.categories, value.brands, platform, location]);
+  }, [open, localValue.categories, localValue.brands, platform, location]);
 
   const getListForTab = () => {
     if (activeTab === "category") return filterOptions.categories;
     if (activeTab === "brand") return filterOptions.brands;
-    return filterOptions.skus;
+    if (activeTab === "sku") return filterOptions.skus;
+    if (activeTab === "msl") return ["MSL Only (1)", "Non-MSL (0)"];
+    return [];
   };
 
   const list = useMemo(() => {
@@ -1130,14 +1165,16 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
       ? "categories"
       : activeTab === "brand"
         ? "brands"
-        : "skus";
+        : activeTab === "sku"
+          ? "skus"
+          : "msl";
 
   const handleToggle = (type, item) => {
-    const current = new Set(value[type]);
+    const current = new Set(localValue[type] || []);
     if (current.has(item)) current.delete(item);
     else current.add(item);
 
-    const next = { ...value, [type]: Array.from(current) };
+    const next = { ...localValue, [type]: Array.from(current) };
 
     if (type === "categories") {
       next.brands = [];
@@ -1146,14 +1183,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
       next.skus = [];
     }
 
-    onChange(next);
+    setLocalValue(next);
   };
 
   const handleSelectAll = (type, items) => {
     const allSelected =
-      items.length > 0 && items.every((i) => value[type].includes(i));
+      items.length > 0 && items.every((i) => (localValue[type] || []).includes(i));
 
-    const next = { ...value, [type]: allSelected ? [] : items.slice() };
+    const next = { ...localValue, [type]: allSelected ? [] : items.slice() };
 
     if (type === "categories") {
       next.brands = [];
@@ -1162,13 +1199,18 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
       next.skus = [];
     }
 
-    onChange(next);
+    setLocalValue(next);
   };
 
   const allItemsForCurrentTab = getListForTab();
   const allSelectedForCurrentTab =
     allItemsForCurrentTab.length > 0 &&
-    allItemsForCurrentTab.every((i) => value[currentKey].includes(i));
+    allItemsForCurrentTab.every((i) => (localValue[currentKey] || []).includes(i));
+
+  const handleApply = () => {
+    onChange(localValue);
+    onClose();
+  };
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -1190,7 +1232,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
               className="flex-1"
             >
               <TabsList className="flex flex-col items-stretch gap-1 bg-transparent p-0">
-                {["category", "brand", "sku"].map((t) => (
+                {["category", "brand", "sku", "msl"].map((t) => (
                   <TabsTrigger
                     key={t}
                     value={t}
@@ -1199,6 +1241,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
                     {t === "category" && "Category"}
                     {t === "brand" && "Brand"}
                     {t === "sku" && "SKU"}
+                    {t === "msl" && "MSL"}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -1232,7 +1275,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
                     className="flex cursor-pointer items-center gap-3 w-full rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
                   >
                     <Checkbox
-                      checked={value[currentKey].includes(item)}
+                      checked={(localValue[currentKey] || []).includes(item)}
                       onCheckedChange={() => handleToggle(currentKey, item)}
                     />
                     <span className="truncate flex-1 min-w-0" title={item}>{item}</span>
@@ -1253,7 +1296,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={onClose}>Apply</Button>
+          <Button onClick={handleApply}>Apply</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -2177,6 +2220,7 @@ const SkuTable = ({ rows, loading, onTrendClick }) => {
 /* -------------------------------------------------------------------------- */
 
 const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOptions, period, timeStep, onTrendClick }) => {
+  const { selectedMsl } = useContext(FilterContext);
   // Use filterOptions if provided, otherwise fallback to static constants
   const dynamicCities = filterOptions?.cities?.length > 0 ? filterOptions.cities : CITIES;
 
@@ -2187,6 +2231,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
     categories: [],
     brands: [],
     skus: [],
+    msl: [],
   });
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
   const [apiBrandData, setApiBrandData] = useState([]);
@@ -2204,7 +2249,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
           category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
           brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
           sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
-          period: period || '1M'
+          period: period || '1M',
+          msl: getApiMslFromLocal(filters.msl, selectedMsl)
         };
 
         const res = await axiosInstance.get('/watchtower/competition', { params });
@@ -2219,7 +2265,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
       }
     };
     fetchCompetitionData();
-  }, [selectedItem, city, filters.categories, filters.brands, filters.skus, period]);
+  }, [selectedItem, city, filters.categories, filters.brands, filters.skus, filters.msl, selectedMsl, period]);
 
   // Update city if dynamicCities changes
   useEffect(() => {
@@ -2229,7 +2275,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
   }, [dynamicCities]);
 
   const selectionCount =
-    filters.categories.length + filters.brands.length + filters.skus.length;
+    filters.categories.length + filters.brands.length + filters.skus.length + (filters.msl || []).length;
 
   const brandRows = useMemo(() => {
     return [...apiBrandData].sort((a, b) => {

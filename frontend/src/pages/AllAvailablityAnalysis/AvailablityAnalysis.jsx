@@ -29,10 +29,13 @@ export default function AvailablityAnalysis() {
     selectedChannel,
     setSelectedChannel,
     channels,
-    refreshFilters
+    refreshFilters,
+    selectedMsl,
+    setSelectedMsl
   } = useContext(FilterContext);
 
   const [showTrends, setShowTrends] = useState(false);
+  const [mslFilter, setMslFilter] = useState('0'); // MSL filter: '0' = All SKUs (default), '1' = MSL SKUs only
 
   // Initialize filters from context
   const [filters, setFilters] = useState({
@@ -43,6 +46,7 @@ export default function AvailablityAnalysis() {
     productCategory: selectedProductCategory || "All",
     zones: selectedZone || "All",
     channel: selectedChannel || "Ecommerce",
+    msl: selectedMsl || "All",
     months: 6,
     timeStep: "Monthly",
     startDate: timeStart ? timeStart.format('YYYY-MM-DD') : dayjs().startOf('month').format('YYYY-MM-DD'),
@@ -79,6 +83,9 @@ export default function AvailablityAnalysis() {
     if (newFilters.productCategory && newFilters.productCategory !== selectedProductCategory) {
       setSelectedProductCategory(newFilters.productCategory);
     }
+    if (newFilters.msl !== undefined && newFilters.msl !== selectedMsl) {
+      setSelectedMsl(newFilters.msl);
+    }
     if (newFilters.startDate) {
       const newStart = dayjs(newFilters.startDate);
       if (!newStart.isSame(timeStart, 'day')) {
@@ -107,12 +114,18 @@ export default function AvailablityAnalysis() {
       productCategory: selectedProductCategory || prev.productCategory,
       zones: selectedZone || prev.zones,
       channel: selectedChannel || prev.channel,
+      msl: selectedMsl || prev.msl,
       startDate: timeStart ? timeStart.format('YYYY-MM-DD') : prev.startDate,
       endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : prev.endDate,
       compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
       compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
     }));
-  }, [platform, selectedBrand, selectedLocation, selectedCategory, selectedProductCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel]);
+    // Sync local mslFilter with context selection: if selectedMsl is '1' (or includes '1' and not '0'), use '1', else '0'
+    const isMslOnly = Array.isArray(selectedMsl)
+      ? (selectedMsl.includes('1') && !selectedMsl.includes('0'))
+      : (selectedMsl === '1');
+    setMslFilter(isMslOnly ? '1' : '0');
+  }, [platform, selectedBrand, selectedLocation, selectedCategory, selectedProductCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel, selectedMsl]);
 
   // Default to Quickcomm if available, otherwise Ecommerce, if current selection is 'All'
   useEffect(() => {
@@ -229,11 +242,11 @@ export default function AvailablityAnalysis() {
 
   // Build query params for OSA Detail View — strips date/month filters
   // so it always shows ALL months available in the DB
-  const buildOsaDetailParams = () => {
+  const buildOsaDetailParams = (mslOverride) => {
     const params = new URLSearchParams();
-    const dateKeys = new Set(['startDate', 'endDate', 'months', 'dates', 'compareStartDate', 'compareEndDate']);
+    const dateKeys = new Set(['startDate', 'endDate', 'months', 'dates', 'compareStartDate', 'compareEndDate', 'msl']);
     Object.entries(filters).forEach(([key, value]) => {
-      if (dateKeys.has(key)) return; // Skip date filters
+      if (dateKeys.has(key)) return; // Skip date filters and msl
       if (value !== undefined && value !== null && value !== 'All' && value !== '') {
         if (Array.isArray(value)) { if (value.length > 0) value.forEach(v => params.append(key, v)); }
         else params.append(key, value);
@@ -243,6 +256,29 @@ export default function AvailablityAnalysis() {
     if (!params.has('brand')) params.append('brand', 'All');
     if (!params.has('location')) params.append('location', 'All');
     params.append('ownBrandsOnly', 'true');
+
+    // MSL filter selection logic:
+    // If there is an override (from the local dropdown change), use it.
+    // Otherwise, use the global selection (filters.msl) if it's set to '1' or '0'.
+    const mslVal = mslOverride !== undefined ? mslOverride : mslFilter;
+    if (mslOverride !== undefined) {
+      if (mslVal === '1') {
+        params.append('msl', '1');
+      } // If '0' (meaning All SKUs locally), we don't append anything
+    } else {
+      const isMslOnly = Array.isArray(filters.msl)
+        ? (filters.msl.includes('1') && !filters.msl.includes('0'))
+        : (filters.msl === '1');
+      const isNonMslOnly = Array.isArray(filters.msl)
+        ? (filters.msl.includes('0') && !filters.msl.includes('1'))
+        : (filters.msl === '0');
+
+      if (isMslOnly) {
+        params.append('msl', '1');
+      } else if (isNonMslOnly) {
+        params.append('msl', '0');
+      }
+    }
     return params.toString();
   };
 
@@ -402,6 +438,14 @@ export default function AvailablityAnalysis() {
     }
   };
 
+  // Handle MSL filter change — re-fetches only OSA detail data and updates global FilterContext
+  const handleMslChange = (newMslValue) => {
+    setMslFilter(newMslValue);
+    // Map local '0' (All SKUs) to global 'All', and local '1' to global '1'
+    const globalMsl = newMslValue === '1' ? '1' : 'All';
+    setSelectedMsl(globalMsl);
+  };
+
   const fetchKpiTrends = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, kpiTrends: null }));
@@ -463,7 +507,8 @@ export default function AvailablityAnalysis() {
       kpis: filters.kpis,
       metroFlags: filters.metroFlags,
       cities: filters.cities,
-      formats: filters.formats
+      formats: filters.formats,
+      msl: filters.msl
     });
 
     // Skip if we already fetched with these same filters
@@ -525,6 +570,8 @@ export default function AvailablityAnalysis() {
           filters={filters}
           onFiltersChange={handleFiltersChange}
           loading={isLoading}
+          mslFilter={mslFilter}
+          onMslChange={handleMslChange}
         />
       </CommonContainer>
     </>

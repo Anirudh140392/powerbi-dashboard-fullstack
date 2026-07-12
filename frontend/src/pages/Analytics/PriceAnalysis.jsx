@@ -49,7 +49,7 @@ import {
 import PriceAnalysis from "../../components/Analytics/PortfoliosAnalysis/PriceAnalysis";
 
 export default function PriceAnalysisPage() {
-    const { refreshFilters } = useContext(FilterContext);
+    const { refreshFilters, platform } = useContext(FilterContext);
 
     // Restore comprehensive platform list from rca_sku_dim on mount
     // (Prevents subsetting from other pages like Performance Marketing)
@@ -62,7 +62,7 @@ export default function PriceAnalysisPage() {
     const [showTrends, setShowTrends] = useState(false);
 
     const [filters, setFilters] = useState({
-        platform: "Blinkit",
+        platform: platform || "",
         months: 6,
         timeStep: "Monthly",
     });
@@ -73,8 +73,13 @@ export default function PriceAnalysisPage() {
     const [trendParams, setTrendParams] = useState({
         months: 6,
         timeStep: "Monthly",
-        platform: "Blinkit",
+        platform: platform || "",
     });
+
+    useEffect(() => {
+        setFilters(prev => ({ ...prev, platform: platform || prev.platform }));
+        setTrendParams(prev => ({ ...prev, platform: platform || prev.platform }));
+    }, [platform]);
 
     const [trendData, setTrendData] = useState({
         timeSeries: [],
@@ -121,7 +126,7 @@ export default function PriceAnalysisPage() {
 
         setTrendParams((prev) => ({
             ...prev,
-            platform: card.name ?? "Blinkit",
+            platform: card.name ?? filters.platform ?? platform ?? "",
         }));
 
         setShowTrends(true);
