@@ -1011,6 +1011,18 @@ const TrendView = ({
 /*                             KPI Compare View                               */
 /* -------------------------------------------------------------------------- */
 
+const getCurrencySymbol = () => {
+  try {
+    const u = JSON.parse(sessionStorage.getItem('user'));
+    if (u?.dbName?.toLowerCase().includes('hayatna')) {
+      return 'AED';
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  return '₹';
+};
+
 const KPI_KEYS = [
   {
     key: "Osa",
@@ -1046,7 +1058,7 @@ const KPI_KEYS = [
     key: "Psl",
     label: "PSL",
     color: "#8B5CF6",
-    prefix: "₹",
+    get prefix() { return getCurrencySymbol() === '₹' ? '₹' : 'AED '; },
     isCurrency: true
   },
 ];
@@ -1063,15 +1075,21 @@ const PRICING_KPI_KEYS = [
     key: "PricePerUnit",
     label: "Price per Unit",
     color: "#14B8A6",
-    prefix: "₹",
-    fmt: (v) => `₹${Number(v).toFixed(2)}`,
+    get prefix() { return getCurrencySymbol() === '₹' ? '₹' : 'AED '; },
+    fmt: (v) => {
+      const sym = getCurrencySymbol();
+      return sym === '₹' ? `₹${Number(v).toFixed(2)}` : `AED ${Number(v).toFixed(2)}`;
+    },
   },
   {
     key: "ASP",
     label: "Average Selling Price",
     color: "#8B5CF6",
-    prefix: "₹",
-    fmt: (v) => `₹${Number(v).toFixed(2)}`,
+    get prefix() { return getCurrencySymbol() === '₹' ? '₹' : 'AED '; },
+    fmt: (v) => {
+      const sym = getCurrencySymbol();
+      return sym === '₹' ? `₹${Number(v).toFixed(2)}` : `AED ${Number(v).toFixed(2)}`;
+    },
   },
 ];
 

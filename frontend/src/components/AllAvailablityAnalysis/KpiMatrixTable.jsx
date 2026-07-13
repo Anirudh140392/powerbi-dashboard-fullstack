@@ -165,6 +165,15 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     // Track retry count to trigger re-fetch
     const [retryCount, setRetryCount] = useState(0);
 
+    const currencySymbol = React.useMemo(() => {
+        try {
+            const u = JSON.parse(sessionStorage.getItem('user'));
+            return u?.dbName?.toLowerCase().includes('hayatna') ? 'AED ' : '₹';
+        } catch {
+            return '₹';
+        }
+    }, []);
+
     // Use parent loading if provided, otherwise fallback to local state
     const isLoading = parentLoading !== undefined ? parentLoading : loading;
 
@@ -401,24 +410,30 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
 
     // Use API data for cells
     const getCellData = (entity, kpiLabel) => {
-        if (!apiData?.rows) return { value: 0, delta: 0 };
+        if (!apiData?.rows) return { value: "N/A", delta: null, isNA: true };
         const row = apiData.rows.find(r => r.kpi.toLowerCase() === kpiLabel.toLowerCase());
-        if (!row) return { value: 0, delta: 0 };
+        if (!row || row[entity] === undefined || row[entity] === null || row[entity] === "N/A" || row[entity] === "" || row[entity] === "-") {
+            return { value: "N/A", delta: null, isNA: true };
+        }
         return {
-            value: row[entity] || 0,
-            delta: row.trend && row.trend[entity] !== undefined ? row.trend[entity] : 0
+            value: row[entity],
+            delta: row.trend && row.trend[entity] !== undefined && row.trend[entity] !== null ? row.trend[entity] : null,
+            isNA: false
         };
     };
 
     // Use API data for drill breakdown
     const getDrillData = (entity, kpiLabel, drillItem) => {
-        if (!apiData?.rows) return { value: 0, delta: 0 };
+        if (!apiData?.rows) return { value: "N/A", delta: null, isNA: true };
         const row = apiData.rows.find(r => r.kpi.toLowerCase() === kpiLabel.toLowerCase());
-        if (!row || !row.breakdown || !row.breakdown[entity]) return { value: 0, delta: 0 };
+        if (!row || !row.breakdown || !row.breakdown[entity]) return { value: "N/A", delta: null, isNA: true };
 
         // Match drillItem (e.g. "North Zone" vs "North Zone")
         const val = row.breakdown[entity][drillItem];
-        return { value: val !== undefined ? val : 0, delta: 0 };
+        if (val === undefined || val === null || val === "N/A" || val === "" || val === "-") {
+            return { value: "N/A", delta: null, isNA: true };
+        }
+        return { value: val, delta: null, isNA: false };
     };
 
     if (isLoading && !apiData) {
@@ -655,9 +670,13 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                             loading && "opacity-50"
                                                         )}>
                                                             <span className="text-sm font-semibold text-slate-700">
-                                                                {!cell.value || cell.value === '-' ? 'N/A' : (kpi.key === 'psl' ? `₹${formatNumber(cell.value)}` : `${cell.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`)}
+                                                                {cell.isNA
+                                                                    ? 'N/A'
+                                                                    : kpi.key === 'psl'
+                                                                        ? `${currencySymbol}${formatNumber(cell.value)}`
+                                                                        : `${cell.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`}
                                                             </span>
-                                                            {!!cell.value && cell.value !== '-' && (
+                                                            {!cell.isNA && cell.delta !== null && cell.delta !== undefined && (
                                                                 <span
                                                                     className={cn(
                                                                         "text-[11px] font-medium",
@@ -665,7 +684,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                                     )}
                                                                 >
                                                                     {cell.delta >= 0 ? "↑" : "↓"}
-                                                                    {kpi.key === 'psl' ? formatNumber(Math.abs(cell.delta)) : Math.abs(cell.delta)}
+                                                                    {kpi.key === 'psl' ? `${currencySymbol}${formatNumber(Math.abs(cell.delta))}` : Math.abs(cell.delta)}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -723,7 +742,11 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                                                                 {item.includes('Zone') ? item.split(' ')[0] : (item.length > 8 ? item.substring(0, 8) + '..' : item)}
                                                                                             </span>
                                                                                             <span className="ml-1 font-medium text-slate-700">
-                                                                                                {!drillData.value || drillData.value === '-' ? 'N/A' : (kpi.key === 'psl' ? `₹${formatNumber(drillData.value)}` : `${drillData.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`)}
+                                                                                                {drillData.isNA
+                                                                                                    ? 'N/A'
+                                                                                                    : kpi.key === 'psl'
+                                                                                                        ? `${currencySymbol}${formatNumber(drillData.value)}`
+                                                                                                        : `${drillData.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`}
                                                                                             </span>
                                                                                         </div>
                                                                                     );

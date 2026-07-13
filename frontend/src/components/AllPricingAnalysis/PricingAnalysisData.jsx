@@ -152,14 +152,28 @@ const makeRandom = (a, b, decimals = 1) =>
   Number((Math.random() * (b - a) + a).toFixed(decimals));
 
 const formatKpiValue = (value, unit = "", format = 1) => {
-    if (value === null || value === undefined || value === 0 || value === "0") {
+    if (value === null || value === undefined) {
+        return "N/A";
+    }
+    if ((value === 0 || value === "0") && unit !== "%") {
         return "N/A";
     }
     const num = parseFloat(value);
     if (isNaN(num)) return "N/A";
     
     // If unit is currency, put it in front
-    if (unit === "₹") return `₹${num.toFixed(format)}`;
+    if (unit === "₹") {
+        let currency = '₹';
+        try {
+            const u = JSON.parse(sessionStorage.getItem('user'));
+            if (u?.dbName?.toLowerCase().includes('hayatna')) {
+                currency = 'AED ';
+            }
+        } catch (e) {
+            console.error(e);
+        }
+        return `${currency}${num.toFixed(format)}`;
+    }
     return `${num.toFixed(format)}${unit}`;
 };
 
@@ -1160,6 +1174,11 @@ const DiscountTrendDrillTable = ({ groups, platforms = [], selectedBrand, onBran
 export default function PricingAnalysisData() {
   const [chartTab, setChartTab] = useState("discount");
 
+  const user = JSON.parse(sessionStorage.getItem('user'));
+  const dbName = user?.dbName?.toLowerCase() || '';
+  const isHayatna = dbName.includes('hayatna');
+  const currencySymbol = isHayatna ? 'AED' : '₹';
+
   // Get global filters from FilterContext
   const {
     platform: globalPlatform,
@@ -2120,13 +2139,13 @@ export default function PricingAnalysisData() {
     },
     {
       id: "ecp",
-      label: "ECP (₹)",
+      label: `ECP (${currencySymbol})`,
       sortable: true,
       numeric: true,
     },
     {
       id: "wo",
-      label: "ECP w/o Disc (₹)",
+      label: `ECP w/o Disc (${currencySymbol})`,
       sortable: true,
       numeric: true,
     },
@@ -2153,10 +2172,10 @@ export default function PricingAnalysisData() {
     { id: "format", label: "Category", sortable: true },
     { id: "flavour", label: "Flavour", sortable: true },
     { id: "ml", label: "ML", sortable: true, numeric: true },
-    { id: "mrp", label: "MRP (₹)", sortable: true, numeric: true },
-    { id: "base", label: "Base Price (₹)", sortable: true, numeric: true },
+    { id: "mrp", label: `MRP (${currencySymbol})`, sortable: true, numeric: true },
+    { id: "base", label: `Base Price (${currencySymbol})`, sortable: true, numeric: true },
     { id: "disc", label: "Disc %", sortable: true, numeric: true },
-    { id: "ecp", label: "ECP (₹)", sortable: true, numeric: true },
+    { id: "ecp", label: `ECP (${currencySymbol})`, sortable: true, numeric: true },
   ];
 
   const ecpByBrandColumns = [
@@ -2178,14 +2197,14 @@ export default function PricingAnalysisData() {
     { id: "platform", label: "Platform", sortable: true },
     {
       id: "ecp",
-      label: "ECP (₹)",
+      label: `ECP (${currencySymbol})`,
       sortable: true,
       numeric: true,
       render: (val) => val || 0
     },
     {
       id: "ecpWithoutDisc",
-      label: "ECP w/o Disc (₹)",
+      label: `ECP w/o Disc (${currencySymbol})`,
       sortable: true,
       numeric: true,
       render: (val) => val || 0
@@ -2224,14 +2243,14 @@ export default function PricingAnalysisData() {
     { id: "ml", label: "ML", sortable: true, numeric: true },
     {
       id: "mrp",
-      label: "MRP (₹)",
+      label: `MRP (${currencySymbol})`,
       sortable: true,
       numeric: true,
       render: (val) => val || 0
     },
     {
       id: "basePrice",
-      label: "Base Price (₹)",
+      label: `Base Price (${currencySymbol})`,
       sortable: true,
       numeric: true,
       render: (val) => val || 0
@@ -2245,7 +2264,7 @@ export default function PricingAnalysisData() {
     },
     {
       id: "ecp",
-      label: "ECP (₹)",
+      label: `ECP (${currencySymbol})`,
       sortable: true,
       numeric: true,
       render: (val) => val || 0
@@ -2415,7 +2434,7 @@ export default function PricingAnalysisData() {
         value: formatKpiValue(d.discount?.value, "%", 1),
         subtitle: 'Average discount across active SKUs',
         delta: Math.abs(d.discount?.change || 0),
-        deltaLabel: !d.discount?.value || d.discount?.value === 0 ? "N/A" : `${(d.discount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.discount?.change || 0).toFixed(1)}%`,
+        deltaLabel: d.discount?.value === null || d.discount?.value === undefined || d.discount?.change === null || d.discount?.change === undefined ? "N/A" : `${(d.discount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.discount?.change || 0).toFixed(1)}%`,
         icon: icons[0],
         gradient: gradients[0],
         trend: d.discount?.sparklineData || [],
@@ -2429,7 +2448,7 @@ export default function PricingAnalysisData() {
         value: formatKpiValue(d.weightedDiscount?.value, "%", 1),
         subtitle: 'Discount weighted by sales',
         delta: Math.abs(d.weightedDiscount?.change || 0),
-        deltaLabel: !d.weightedDiscount?.value || d.weightedDiscount?.value === 0 ? "N/A" : `${(d.weightedDiscount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.weightedDiscount?.change || 0).toFixed(1)}%`,
+        deltaLabel: d.weightedDiscount?.value === null || d.weightedDiscount?.value === undefined || d.weightedDiscount?.change === null || d.weightedDiscount?.change === undefined ? "N/A" : `${(d.weightedDiscount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.weightedDiscount?.change || 0).toFixed(1)}%`,
         icon: icons[1],
         gradient: gradients[1],
         trend: d.weightedDiscount?.sparklineData || [],
@@ -2443,7 +2462,7 @@ export default function PricingAnalysisData() {
         value: formatKpiValue(d.asp?.value, "₹", 2),
         subtitle: 'Average selling price of SKUs',
         delta: Math.abs(d.asp?.change || 0),
-        deltaLabel: !d.asp?.value || d.asp?.value === 0 ? "N/A" : `${(d.asp?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.asp?.change || 0).toFixed(1)}%`,
+        deltaLabel: !d.asp?.value || d.asp?.value === 0 || d.asp?.change === null || d.asp?.change === undefined ? "N/A" : `${(d.asp?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.asp?.change || 0).toFixed(1)}%`,
         icon: icons[2],
         gradient: gradients[2],
         trend: d.asp?.sparklineData || [],

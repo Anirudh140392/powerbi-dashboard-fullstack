@@ -815,6 +815,16 @@ const VisiblityAnalysisData = ({
     timeEnd
   } = useContext(FilterContext);
 
+  // Check if active database is Hayatna
+  const isHayatna = useMemo(() => {
+    try {
+      const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      return storedUser?.dbName?.toLowerCase()?.includes('hayatna') || false;
+    } catch (_) {
+      return false;
+    }
+  }, []);
+
   // BSR visibility logic
   const isEcommerceChannel = ['ecommerce', 'e-commerce', 'ecom'].includes(selectedChannel?.toLowerCase());
 
@@ -836,8 +846,8 @@ const VisiblityAnalysisData = ({
     return filtered.length === 1 && filtered[0].toLowerCase() === 'amazon';
   }, [availablePlatforms]);
 
-  // Show toggle when Ecommerce + (Amazon explicitly selected OR only Amazon available)
-  const showBSRToggle = isEcommerceChannel && (isAmazonSelected || isOnlyAmazonAvailable);
+  // Show toggle when Ecommerce + (Amazon explicitly selected OR only Amazon available) + NOT Hayatna DB
+  const showBSRToggle = isEcommerceChannel && (isAmazonSelected || isOnlyAmazonAvailable) && !isHayatna;
 
   // Removed automatic redirect to BSR; default is now SOS as requested.
   /*
@@ -848,12 +858,12 @@ const VisiblityAnalysisData = ({
   }, [isEcommerceChannel, isOnlyAmazonAvailable]);
   */
 
-  // Reset to SOS when leaving Ecommerce channel
+  // Reset to SOS when leaving Ecommerce channel or if it is Hayatna DB
   useEffect(() => {
-    if (!isEcommerceChannel) {
+    if (!isEcommerceChannel || isHayatna) {
       setVisibilityMode('sos');
     }
-  }, [isEcommerceChannel]);
+  }, [isEcommerceChannel, isHayatna]);
 
   const visibilityKpis = useMemo(() => {
     const icons = [PieChart, Target, TrendingUp, Monitor];

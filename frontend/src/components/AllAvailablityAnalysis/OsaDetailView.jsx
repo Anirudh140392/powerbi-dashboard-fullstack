@@ -32,9 +32,11 @@ function monthLabel(ds) {
 }
 
 function avgOf(values, indices) {
-    if (!indices?.length) return 0;
-    const vals = indices.map(i => values?.[i] || 0).filter(v => v > 0);
-    return vals.length ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)) : 0;
+    if (!indices?.length) return null;
+    // Filter out null/undefined (no data) but KEEP 0 (legitimate zero OSA)
+    const vals = indices.map(i => values?.[i]).filter(v => v !== null && v !== undefined);
+    if (!vals.length) return null;
+    return parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1));
 }
 
 /** Build month groups from sorted date strings */
@@ -275,7 +277,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900 text-center font-semibold">{!r.avgSelected || r.avgSelected === '-' ? 'N/A' : `${r.avgSelected}%`}</td>
+                                                        <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900 text-center font-semibold">{r.avgSelected === null || r.avgSelected === undefined || r.avgSelected === '-' ? 'N/A' : `${r.avgSelected}%`}</td>
                                                         <td className="px-3 py-2 border-b border-slate-100">
                                                             <span className={"inline-flex items-center gap-2 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 " + st.chip}>
                                                                 <span className={"h-1.5 w-1.5 rounded-full " + st.dot} />{r.status}
@@ -284,9 +286,9 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                                         {columns.map((col, ci) => {
                                                             const v = avgOf(r.values, col.indices);
                                                             return (
-                                                                <td key={ci} className="px-1.5 py-2 border-b border-slate-100 text-center" title={`${r.name} • ${col.label}: ${v}%`}>
-                                                                    <span className={"inline-flex min-w-[36px] justify-center rounded-md px-1 py-0.5 text-[10px] font-semibold " + (!v || v === '-' ? "bg-slate-50 text-slate-400" : cellTone(v))}>
-                                                                        {!v || v === '-' ? 'N/A' : `${v}%`}
+                                                                <td key={ci} className="px-1.5 py-2 border-b border-slate-100 text-center" title={`${r.name} • ${col.label}: ${v === null ? 'N/A' : `${v}%`}`}>
+                                                                    <span className={"inline-flex min-w-[36px] justify-center rounded-md px-1 py-0.5 text-[10px] font-semibold " + (v === null || v === undefined ? "bg-slate-50 text-slate-400" : cellTone(v))}>
+                                                                        {v === null || v === undefined ? 'N/A' : `${v}%`}
                                                                     </span>
                                                                 </td>
                                                             );
@@ -301,12 +303,12 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                                             <td className="px-3 py-1.5 border-b border-slate-100 text-[10px] text-slate-500 text-center">{city.avgSelected ?? city.avg31}%</td>
                                                             <td className="px-3 py-1.5 border-b border-slate-100 text-center"><span className="text-[10px] text-slate-400">—</span></td>
                                                             {columns.map((col, ci) => {
-                                                                const v = avgOf(city.values, col.indices);
-                                                                return (
-                                                                    <td key={ci} className="px-1.5 py-1.5 border-b border-slate-100 text-center">
-                                                                        <span className="text-[10px] text-slate-500 font-medium">{!v || v === '-' ? 'N/A' : `${v}%`}</span>
-                                                                    </td>
-                                                                );
+                                                                    const v = avgOf(city.values, col.indices);
+                                                                    return (
+                                                                        <td key={ci} className="px-1.5 py-1.5 border-b border-slate-100 text-center">
+                                                                            <span className="text-[10px] text-slate-500 font-medium">{v === null || v === undefined ? 'N/A' : `${v}%`}</span>
+                                                                        </td>
+                                                                    );
                                                             })}
                                                         </tr>
                                                     ))}

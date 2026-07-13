@@ -705,11 +705,38 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
         if (!kpi.trendSeries) return [];
         return kpi.trendSeries.map((item, i) => {
             if (typeof item === 'object' && item !== null) {
-                return { i, v: item.value, label: item.label };
+                return { 
+                    i, 
+                    v: (item.value === null || item.value === undefined) ? 0 : item.value, 
+                    label: item.label,
+                    isNA: item.value === null || item.value === undefined
+                };
             }
-            return { i, v: item, label: `Day ${i + 1}` };
+            return { 
+                i, 
+                v: (item === null || item === undefined) ? 0 : item, 
+                label: `Day ${i + 1}`,
+                isNA: item === null || item === undefined
+            };
         });
     }, [kpi.trendSeries]);
+
+    const isCardNA = kpi.value === 'N/A' || kpi.isNA;
+
+    const shouldShowChart = useMemo(() => {
+        if (!isCardNA) return true;
+        if (!kpi.trendSeries || kpi.trendSeries.length === 0) return false;
+
+        // If the trend only contains 0, null, or undefined, don't show the chart
+        const hasValidVal = kpi.trendSeries.some(item => {
+            if (typeof item === 'object' && item !== null) {
+                return item.value !== null && item.value !== undefined && item.value !== 0;
+            }
+            return item !== null && item !== undefined && item !== 0;
+        });
+
+        return hasValidVal;
+    }, [isCardNA, kpi.trendSeries]);
 
     const isPositive = (kpi.delta || 0) >= 0;
     const deltaColor = isPositive ? "text-emerald-600" : "text-rose-600";
@@ -729,7 +756,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                             title={
                                 <Box>
                                     <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>
-                                    <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                    <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifycontent: 'flex-end' }}>
                                         <Typography
                                             variant="caption"
                                             sx={{
@@ -811,6 +838,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                             </div>
                         );
                     })()}
+                    {!isCardNA && (
                     <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
                         <span className={`text-xs font-bold ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100`}>
                             {kpi.deltaLabel ? (
@@ -823,6 +851,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                             {kpi.prevText || "vs Previous Period"}
                         </span>
                     </div>
+                    )}
 
                     {(kpi.extra || kpi.extraChange) && (
                         <div className="flex flex-col gap-0.5">
@@ -841,46 +870,55 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
 
             {/* Sparkline Area */}
             <div className="h-16 w-full px-0 mt-auto opacity-80 group-hover:opacity-100 transition-opacity">
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
-                        <defs>
-                            <linearGradient id={`grad-${kpi.id}`} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.08} />
-                                <stop offset="95%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.01} />
-                            </linearGradient>
-                        </defs>
-                        <RechartsTooltip 
-                            contentStyle={{ fontSize: '10px', padding: '4px 8px', borderRadius: '8px', minWidth: 'auto', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
-                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#2563EB", fontWeight: 'bold' }}
-                            labelStyle={{ fontSize: '10px', color: '#64748b', marginBottom: '2px', fontWeight: '500' }}
-                            cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
-                            labelFormatter={(label, payload) => {
-                                if (payload && payload.length > 0 && payload[0].payload.label) {
-                                    return payload[0].payload.label;
-                                }
-                                return label;
-                            }}
-                            formatter={(value) => {
-                                if (typeof value !== 'number') return [value, ''];
-                                let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
-                                let prefix = isCurrency ? '₹ ' : '';
-                                let formatted = value.toFixed(1);
-                                if (Math.abs(value) >= 10000000) formatted = `${(value / 10000000).toFixed(2)} Cr`;
-                                else if (Math.abs(value) >= 100000) formatted = `${(value / 100000).toFixed(2)} L`;
-                                else if (Math.abs(value) >= 1000) formatted = `${(value / 1000).toFixed(2)} K`;
-                                return [`${prefix}${formatted}`, ''];
-                            }}
-                        />
-                        <Area
-                            type="monotone"
-                            dataKey="v"
-                            stroke={kpi.gradient?.[0] || "#2563EB"}
-                            strokeWidth={2}
-                            fill={`url(#grad-${kpi.id})`}
-                            fillOpacity={1}
-                        />
-                    </AreaChart>
-                </ResponsiveContainer>
+                {shouldShowChart ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                            <defs>
+                                <linearGradient id={`grad-${kpi.id}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.08} />
+                                    <stop offset="95%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.01} />
+                                </linearGradient>
+                            </defs>
+                            <RechartsTooltip 
+                                contentStyle={{ fontSize: '10px', padding: '4px 8px', borderRadius: '8px', minWidth: 'auto', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+                                itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#2563EB", fontWeight: 'bold' }}
+                                labelStyle={{ fontSize: '10px', color: '#64748b', marginBottom: '2px', fontWeight: '500' }}
+                                cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
+                                labelFormatter={(label, payload) => {
+                                    if (payload && payload.length > 0 && payload[0].payload.label) {
+                                        return payload[0].payload.label;
+                                    }
+                                    return label;
+                                }}
+                                formatter={(value, name, props) => {
+                                    if (props?.payload?.isNA) {
+                                        return ['N/A', ''];
+                                    }
+                                    if (value === null || value === undefined || value === 'N/A' || isNaN(value)) {
+                                        return ['N/A', ''];
+                                    }
+                                    if (typeof value !== 'number') return [value, ''];
+                                    let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
+                                    let prefix = isCurrency ? '₹ ' : '';
+                                    let formatted = value.toFixed(1);
+                                    if (Math.abs(value) >= 10000000) formatted = `${(value / 10000000).toFixed(2)} Cr`;
+                                    else if (Math.abs(value) >= 100000) formatted = `${(value / 100000).toFixed(2)} L`;
+                                    else if (Math.abs(value) >= 1000) formatted = `${(value / 1000).toFixed(2)} K`;
+                                    return [`${prefix}${formatted}`, ''];
+                                }}
+                            />
+                            <Area
+                                type="monotone"
+                                dataKey="v"
+                                stroke={kpi.gradient?.[0] || "#2563EB"}
+                                strokeWidth={2}
+                                fill={`url(#grad-${kpi.id})`}
+                                fillOpacity={1}
+                                connectNulls={true}
+                            />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                ) : null}
             </div>
         </div >
     )
@@ -1278,7 +1316,7 @@ const SnapshotOverview = ({
                                     transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     className="h-full"
                                 >
-                                    <DetailedSparklineCard kpi={kpi} helpMenu={helpMenu} />
+                                    <DetailedSparklineCard kpi={kpi} helpMenu={helpMenu} loading={kpi.loading} />
                                 </motion.div>
                             ))
                         )}

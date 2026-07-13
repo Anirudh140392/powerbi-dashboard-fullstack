@@ -139,11 +139,20 @@ const mockKeywords = [
   { id: "kw_choco", label: "chocolate ice cream" },
 ];
 
-// --- Helpers ---------------------------------------------------------------
+function getCurrencySymbol() {
+  try {
+    const u = JSON.parse(sessionStorage.getItem('user'));
+    return u?.dbName?.toLowerCase().includes('hayatna') ? 'AED ' : '₹';
+  } catch {
+    return '₹';
+  }
+}
 
 function formatKpiValue(kpi, value) {
-  if (value === undefined || value === null) return "–";
   const k = (kpi || '').toLowerCase();
+  if (value === undefined || value === null || value === '-' || value === '' || value === 'N/A') {
+    return k.includes("psl") ? "N/A" : "–";
+  }
 
   if (k.includes("osa") || k.includes("fillrate") || k.includes("sos") || k.includes("share")) return `${value}%`;
 
@@ -151,13 +160,21 @@ function formatKpiValue(kpi, value) {
   if (k.includes("psl")) {
     const num = Number(value);
     if (isNaN(num)) return value;
-    return `₹${formatNumber(num, 1)}`;
+    return `${getCurrencySymbol()}${formatNumber(num, 1)}`;
   }
 
-  // DOI should show 1 decimal
+  // DOI should show 1 decimal; show N/A when data is not present (value is 0)
   if (k.includes("doi")) {
     const num = Number(value);
-    return isNaN(num) ? value : num.toFixed(1);
+    if (isNaN(num) || num === 0) return "N/A";
+    return num.toFixed(1);
+  }
+
+  // Buy Box % should show N/A when data is not present (value is 0)
+  if (k.includes("buy box")) {
+    const num = Number(value);
+    if (isNaN(num) || num === 0) return "N/A";
+    return `${num}%`;
   }
 
   return value.toString();
@@ -169,8 +186,17 @@ function getCellClasses(value) {
 }
 
 function getTrendMeta(trend, kpi = "") {
-  const num = Number(trend || 0);
   const isPsl = kpi.toLowerCase().includes("psl");
+  if (trend === null || trend === undefined || trend === '-' || trend === 'N/A') {
+    return {
+      pill: "bg-slate-50 text-slate-500",
+      icon: null,
+      triangle: "",
+      iconColor: "text-slate-400",
+      display: isPsl ? "N/A" : "–",
+    };
+  }
+  const num = Number(trend || 0);
 
   if (num > 0) {
     return {
@@ -178,7 +204,7 @@ function getTrendMeta(trend, kpi = "") {
       icon: null,
       triangle: "▲",
       iconColor: "text-emerald-600",
-      display: isPsl ? `${formatNumber(num, 1)}` : `${num.toFixed(1)}%`,
+      display: isPsl ? `${getCurrencySymbol()}${formatNumber(num, 1)}` : `${num.toFixed(1)}%`,
     };
   }
 
@@ -188,7 +214,7 @@ function getTrendMeta(trend, kpi = "") {
       icon: null,
       triangle: "▼",
       iconColor: "text-rose-600",
-      display: isPsl ? formatNumber(Math.abs(num), 1) : `${Math.abs(num).toFixed(1)}%`,
+      display: isPsl ? `${getCurrencySymbol()}${formatNumber(Math.abs(num), 1)}` : `${Math.abs(num).toFixed(1)}%`,
     };
   }
 
@@ -197,7 +223,7 @@ function getTrendMeta(trend, kpi = "") {
     icon: null,
     triangle: "–",
     iconColor: "text-slate-500",
-    display: "0.0%",
+    display: isPsl ? "0" : "0.0%",
   };
 }
 
@@ -1130,7 +1156,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                                            ${cellClasses}`}
                               >
                                 <span className="font-mono tabular-nums tracking-tight text-slate-800">
-                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? formatKpiValue(row.kpi, value) : "–"}
+                                  {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? formatKpiValue(row.kpi, value) : (row.kpi?.toLowerCase().includes("psl") ? "N/A" : "–")}
                                 </span>
 
                                 <span

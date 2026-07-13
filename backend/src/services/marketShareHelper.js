@@ -2032,13 +2032,13 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
                 timeSeriesMap.set(key, {
                     dateStr: key,
                     date: displayDate,
-                    CategorySize: 0,
-                    MWMarketShare: 0,
-                    MWSales: 0,
-                    MLMarketShare: 0,
-                    MLSales: 0,
-                    OverallSov: 0,
-                    PaidSov: 0
+                    CategorySize: null,
+                    MWMarketShare: null,
+                    MWSales: null,
+                    MLMarketShare: null,
+                    MLSales: null,
+                    OverallSov: null,
+                    PaidSov: null
                 });
             }
             return timeSeriesMap.get(key);
@@ -2056,9 +2056,6 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
             const row = getRow(r.d);
             const mwSales = parseFloat(r.mw_sales || 0);
             row.MWSales = parseFloat((mwSales / 10000000).toFixed(2)); // in Cr
-
-            const catSize = row._rawCategorySize || 0;
-            row.MWMarketShare = catSize > 0 ? parseFloat(((mwSales / catSize) * 100).toFixed(2)) : 0;
         });
 
         // Populate ML data
@@ -2066,9 +2063,6 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
             const row = getRow(dateStr);
             const mlSales = parseFloat(r.ml_sales || 0);
             row.MLSales = parseFloat((mlSales / 10000000).toFixed(2)); // in Cr
-
-            const catSize = row._rawCategorySize || 0;
-            row.MLMarketShare = catSize > 0 ? parseFloat(((mlSales / catSize) * 100).toFixed(2)) : 0;
         });
 
         // Populate SOV data
@@ -2083,8 +2077,23 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
             const denom = sovDenomMap.get(key);
             const row = getRow(r.d);
             if (row && denom) {
-                row.OverallSov = denom.total_overall > 0 ? parseFloat(((parseInt(r.our_overall || 0) / denom.total_overall) * 100).toFixed(2)) : 0;
-                row.PaidSov = denom.total_spons > 0 ? parseFloat(((parseInt(r.our_spons || 0) / denom.total_spons) * 100).toFixed(2)) : 0;
+                row.OverallSov = denom.total_overall > 0 ? parseFloat(((parseInt(r.our_overall || 0) / denom.total_overall) * 100).toFixed(2)) : null;
+                row.PaidSov = denom.total_spons > 0 ? parseFloat(((parseInt(r.our_spons || 0) / denom.total_spons) * 100).toFixed(2)) : null;
+            }
+        });
+
+        // Calculate Market Shares after populating sales and category size
+        timeSeriesMap.forEach(row => {
+            const catSize = row._rawCategorySize || 0;
+            if (catSize > 0) {
+                const mwSales = row.MWSales !== null ? (row.MWSales * 10000000) : 0;
+                row.MWMarketShare = parseFloat(((mwSales / catSize) * 100).toFixed(2));
+
+                const mlSales = row.MLSales !== null ? (row.MLSales * 10000000) : 0;
+                row.MLMarketShare = parseFloat(((mlSales / catSize) * 100).toFixed(2));
+            } else {
+                row.MWMarketShare = null;
+                row.MLMarketShare = null;
             }
         });
 

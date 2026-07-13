@@ -29,6 +29,16 @@ import TrendController from "../../utils/TrendController";
 const PricingTrendsDrawer = ({ open, onClose, entityName, dimensionType, platform = "Blinkit" }) => {
     const theme = useTheme();
     const [selectedPeriod, setSelectedPeriod] = useState('3M');
+
+    let currencySymbol = '₹';
+    try {
+        const u = JSON.parse(sessionStorage.getItem('user'));
+        if (u?.dbName?.toLowerCase().includes('hayatna')) {
+            currencySymbol = 'AED';
+        }
+    } catch (e) {
+        console.error(e);
+    }
     const [timeStep, setTimeStep] = useState('Weekly');
     const [selectedMetrics, setSelectedMetrics] = useState({
         discount: true,
@@ -89,10 +99,10 @@ const PricingTrendsDrawer = ({ open, onClose, entityName, dimensionType, platfor
                         };
                         const unitMap = {
                             discount: '%',
-                            pricePerUnit: '₹',
-                            asp: '₹'
+                            pricePerUnit: currencySymbol,
+                            asp: currencySymbol
                         };
-                        const isCurrency = unitMap[entry.dataKey] === '₹';
+                        const isCurrency = unitMap[entry.dataKey] === currencySymbol;
 
                         return (
                             <Box key={index} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
@@ -101,7 +111,7 @@ const PricingTrendsDrawer = ({ open, onClose, entityName, dimensionType, platfor
                                     <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>{labelMap[entry.dataKey]}</Typography>
                                 </Box>
                                 <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
-                                    {isCurrency ? '₹ ' : ''}{entry.value.toFixed(2)}{!isCurrency ? unitMap[entry.dataKey] : ''}
+                                    {isCurrency ? `${currencySymbol} ` : ''}{entry.value.toFixed(2)}{!isCurrency ? unitMap[entry.dataKey] : ''}
                                 </Typography>
                             </Box>
                         );
@@ -324,7 +334,7 @@ const PricingTrendsDrawer = ({ open, onClose, entityName, dimensionType, platfor
                                     tickLine={false}
                                     axisLine={{ stroke: theme.palette.divider }}
                                     domain={['auto', 'auto']}
-                                    tickFormatter={(value) => `₹ ${value}`}
+                                    tickFormatter={(value) => `${currencySymbol} ${value}`}
                                     dx={-5}
                                 />
                                 <YAxis

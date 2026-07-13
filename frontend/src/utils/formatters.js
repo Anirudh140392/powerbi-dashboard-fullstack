@@ -27,6 +27,18 @@ export const formatNumber = (num, decimals = 2) => {
     }
 };
 
+const getCurrencySymbol = () => {
+    try {
+        const u = JSON.parse(sessionStorage.getItem('user'));
+        if (u?.dbName?.toLowerCase().includes('hayatna')) {
+            return 'AED ';
+        }
+    } catch (e) {
+        // ignore
+    }
+    return '₹';
+};
+
 /**
  * Format KPI values based on their type
  * @param {number} value - Value to format
@@ -41,13 +53,14 @@ export const formatKpiValue = (value, kpiKey, decimals = 2) => {
 
     const key = kpiKey.toLowerCase();
 
-    // Currency KPIs (Rupees)
+    // Currency KPIs (Rupees or AED)
     if (key.includes('spend') || key.includes('cpc') || key.includes('cpm')) {
+        const currency = getCurrencySymbol();
         // For small values like CPC, show direct value
         if (Math.abs(value) < 1000) {
-            return `₹${value.toFixed(decimals)}`;
+            return `${currency}${value.toFixed(decimals)}`;
         }
-        return `₹${formatNumber(value, decimals).replace(/^\s*/, '')}`;
+        return `${currency}${formatNumber(value, decimals).replace(/^\s*/, '')}`;
     }
 
     // Percentage KPIs
@@ -101,7 +114,8 @@ export const formatYAxisTick = (value, kpiKey) => {
 
     // For currency with small values
     if ((key.includes('cpc') || key.includes('cpm') || key.includes('spend')) && Math.abs(value) < 1000) {
-        return `₹${value.toFixed(0)}`;
+        const currency = getCurrencySymbol();
+        return `${currency}${value.toFixed(0)}`;
     }
 
     // For large numbers, use compact Indian scale
