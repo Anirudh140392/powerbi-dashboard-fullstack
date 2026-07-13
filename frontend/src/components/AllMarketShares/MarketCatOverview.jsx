@@ -16,6 +16,7 @@ import {
 import AdvancedFilterModal from './../ControlTower/WatchTower/AdvancedFilterModal'
 import { cn } from '../../lib/utils'
 import { copyToClipboard } from '../../utils/clipboard';
+import useKpiPermissions from '../../hooks/useKpiPermissions';
 
 /* --- HELPERS --- */
 const getStatusText = (delta) => {
@@ -67,6 +68,7 @@ const MarketCatOverview = ({
     onViewTrends = () => { },
     onViewRca = () => { },
 }) => {
+    const { isKpiEnabled } = useKpiPermissions("Market Share");
     // Build dynamic kpiLabels for our brand KPIs
     const kpiLabels = useMemo(() => ({
         ...baseKpiLabels,
@@ -161,7 +163,11 @@ const MarketCatOverview = ({
         advancedFilters.cities?.length > 0,
     ].filter(Boolean).length
 
-    const selectedKpis = kpiDefs.filter(k => glanceKpis.includes(k.key))
+    const selectedKpis = useMemo(() => {
+        return kpiDefs
+            .filter(k => glanceKpis.includes(k.key))
+            .filter(k => isKpiEnabled(k.key));
+    }, [glanceKpis, isKpiEnabled]);
     const kpiCount = selectedKpis.length
 
     // Derive dynamic platform entities from backend response

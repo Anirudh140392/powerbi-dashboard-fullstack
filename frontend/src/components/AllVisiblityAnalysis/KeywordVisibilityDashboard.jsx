@@ -1,4 +1,5 @@
-import React, { useState, useContext, useMemo } from "react";
+import React, { useState, useContext, useMemo, useCallback, useEffect } from "react";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import { FilterContext } from "../../utils/FilterContext";
 import { Inbox, ArrowUpDown } from "lucide-react";
 import { GainersDrainersSkeleton } from './VisibilitySkeletons';
@@ -231,6 +232,22 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
 
   const [type, setType] = useState("overall");
 
+  // ---- KPI permission gating (reactive) ----
+  const { isKpiEnabled: isVisKpiEnabled } = useKpiPermissions('Visibility Analysis');
+
+  // Map toggle types to permission IDs
+  const TYPE_TO_PERM = { overall: 'overall_sos', organic: 'organic_sos', paid: 'sponsored_sos' };
+  const enabledTypes = useMemo(() => {
+    return ["overall", "organic", "paid"].filter(t => isVisKpiEnabled(TYPE_TO_PERM[t]));
+  }, [isVisKpiEnabled]);
+
+  // Auto-select first enabled type if current selection is disabled
+  useEffect(() => {
+    if (enabledTypes.length > 0 && !enabledTypes.includes(type)) {
+      setType(enabledTypes[0]);
+    }
+  }, [enabledTypes, type]);
+
   const processedData = useMemo(() => {
     if (!apiData) return { gain: [], drain: [] };
 
@@ -313,7 +330,7 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
 
       {/* Toggle */}
       <div style={{ marginBottom: 20, display: "flex", gap: 8 }}>
-        {["overall", "organic", "paid"].map(t => (
+        {enabledTypes.map(t => (
           <button
             key={t}
             onClick={() => setType(t)}

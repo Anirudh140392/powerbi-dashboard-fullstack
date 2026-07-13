@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useContext,
 } from "react";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import {
   Box,
   Typography,
@@ -267,6 +268,7 @@ const capitalize = (s) => (s && s !== 'All') ? s.charAt(0).toUpperCase() + s.sli
 
 const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
   const { platform: globalPlatform, selectedCategory, timeStart, timeEnd } = useContext(FilterContext);
+  const { isKpiEnabled } = useKpiPermissions('Market Share');
 
   const [range, setRange] = useState("1M");
   const [timeStep, setTimeStep] = useState("Daily");
@@ -616,7 +618,7 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
 
           <Paper elevation={0} sx={{ borderRadius: 4, border: "1px solid #E5E7EB", p: 4, bgcolor: '#f8fafc' }}>
             <Box display="flex" gap={1.5} mb={4} flexWrap="wrap">
-              {metrics.map(m => (
+              {metrics.filter(m => isKpiEnabled(m.id)).map(m => (
                 <MetricChip
                   key={m.id} label={m.label} color={m.color}
                   active={activeMetrics.includes(m.id)}

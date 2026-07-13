@@ -470,3 +470,54 @@ export const getAdminPlatforms = async (req, res) => {
     }
 };
 
+/**
+ * PATCH /api/admin/permissions/kpi-permissions
+ * Batch updates KPI permissions database-wide
+ */
+export const updateKpiPermissions = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const { dbName, page, kpis, userEmail } = req.body;
+
+        if (!dbName || !page || !kpis || typeof kpis !== 'object') {
+            return res.status(400).json({
+                success: false,
+                error: 'dbName, page, and kpis (object) are required'
+            });
+        }
+
+        if (userEmail && userEmail !== 'all') {
+            await adminService.updateUserKpiPermissions(userEmail, page, kpis);
+        } else {
+            await adminService.updateKpiPermissionsBatch(dbName, page, kpis);
+        }
+
+        // Clear permissions cache to apply changes instantly
+        if (userEmail && userEmail !== 'all') {
+            clearPermissionsCache(userEmail);
+        } else {
+            clearPermissionsCache();
+        }
+        adminService.clearDbPlatformsCache();
+
+        return res.status(200).json({
+            success: true,
+            message: userEmail && userEmail !== 'all' 
+                ? `KPI permissions updated successfully for user ${userEmail} and page ${page}`
+                : `KPI permissions updated successfully for database ${dbName} and page ${page}`
+        });
+    } catch (error) {
+        console.error('[AdminController] updateKpiPermissions failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Internal Server Error'
+        });
+    }
+};
+

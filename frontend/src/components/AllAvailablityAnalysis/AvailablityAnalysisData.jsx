@@ -17,6 +17,7 @@ import KpiTrendShowcase from "./KpiTrendShowcase";
 import OsaHeatmapTable from "./OsaDetailView";
 import { SignalLabVisibility } from "../AllVisiblityAnalysis/SignalLabVisibility";
 import SnapshotOverview from "../CommonLayout/SnapshotOverview";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import {
   Layers,
   Package,
@@ -1221,6 +1222,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
   const [localLoading, setLocalLoading] = useState(false);
+  const { isKpiEnabled } = useKpiPermissions("Availability Analysis");
 
   const isSignalLabHiddenUser = useMemo(() => {
     try {
@@ -1475,28 +1477,30 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
             }}
           />
         )}
-        {!apiData?.osaDetail ? (
-          <OsaDetailViewSkeleton />
-        ) : (
-          <OsaHeatmapTable
-            olaMode={availability}
-            loading={isLoading}
-            apiData={apiData}
-            onFiltersChange={(matrixFilters) => {
-              if (!props.onFiltersChange) return;
-              const mappedFilters = {};
-              if (matrixFilters.platforms) mappedFilters.platform = matrixFilters.platforms;
-              if (matrixFilters.brands) mappedFilters.brand = matrixFilters.brands;
-              if (matrixFilters.categories) mappedFilters.category = matrixFilters.categories;
-              if (matrixFilters.locations) mappedFilters.location = matrixFilters.locations;
-              if (matrixFilters.months) mappedFilters.months = matrixFilters.months;
-              if (matrixFilters.kpis) mappedFilters.kpis = matrixFilters.kpis;
-              if (matrixFilters.metroFlags) mappedFilters.metroFlags = matrixFilters.metroFlags;
-              if (matrixFilters.cities) mappedFilters.cities = matrixFilters.cities;
-              if (matrixFilters.formats) mappedFilters.formats = matrixFilters.formats;
-              props.onFiltersChange(mappedFilters);
-            }}
-          />
+        {isKpiEnabled("osa") && (
+          !apiData?.osaDetail ? (
+            <OsaDetailViewSkeleton />
+          ) : (
+            <OsaHeatmapTable
+              olaMode={availability}
+              loading={isLoading}
+              apiData={apiData}
+              onFiltersChange={(matrixFilters) => {
+                if (!props.onFiltersChange) return;
+                const mappedFilters = {};
+                if (matrixFilters.platforms) mappedFilters.platform = matrixFilters.platforms;
+                if (matrixFilters.brands) mappedFilters.brand = matrixFilters.brands;
+                if (matrixFilters.categories) mappedFilters.category = matrixFilters.categories;
+                if (matrixFilters.locations) mappedFilters.location = matrixFilters.locations;
+                if (matrixFilters.months) mappedFilters.months = matrixFilters.months;
+                if (matrixFilters.kpis) mappedFilters.kpis = matrixFilters.kpis;
+                if (matrixFilters.metroFlags) mappedFilters.metroFlags = matrixFilters.metroFlags;
+                if (matrixFilters.cities) mappedFilters.cities = matrixFilters.cities;
+                if (matrixFilters.formats) mappedFilters.formats = matrixFilters.formats;
+                props.onFiltersChange(mappedFilters);
+              }}
+            />
+          )
         )}
 
       </div>

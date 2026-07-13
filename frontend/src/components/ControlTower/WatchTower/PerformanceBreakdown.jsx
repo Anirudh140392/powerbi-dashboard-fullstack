@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useContext, createContext, useMemo } from "react";
+import useKpiPermissions from "../../../hooks/useKpiPermissions";
 import { motion, AnimatePresence } from "framer-motion";
 import { Layers, ChevronDown, ChevronRight, Download, LayoutGrid, Sparkles, Calendar, Info, Filter, X, Check, Target, FolderTree, Plus } from "lucide-react";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
@@ -358,6 +359,9 @@ export function AggregatedViewTable() {
     const { channels, selectedChannel } = useContext(FilterContext);
     const [groupBy, setGroupBy] = useState("category");
 
+    const { isKpiEnabled } = useKpiPermissions("Business Overview");
+
+
 
 
     const [showDropdown, setShowDropdown] = useState(false);
@@ -380,6 +384,24 @@ export function AggregatedViewTable() {
 
     const [data, setData] = useState([]);
     const [totals, setTotals] = useState(null);
+
+    const columnsDef = useMemo(() => [
+        { label: "Impressions", key: "impressions", value: (r) => formatNumber(r.impressions), totalValue: (t) => formatNumber(t.impressions), compareValue: (pd) => pd ? formatNumber(pd.impressions) : "—" },
+        { label: "Clicks", key: "clicks", value: (r) => formatNumber(r.clicks), totalValue: (t) => formatNumber(t.clicks), compareValue: (pd) => pd ? formatNumber(pd.clicks) : "—" },
+        { label: "ATC", key: "clicks", value: (r) => formatNumber(r.atc), totalValue: (t) => formatNumber(t.atc), compareValue: (pd) => pd ? formatNumber(pd.atc) : "—" },
+        { label: "CTR", key: "ctr", value: (r) => formatPercent(r.ctr), totalValue: (t) => formatPercent(t.ctr), compareValue: (pd) => pd?.ctr ? formatPercent(pd.ctr) : (pd?.impressions > 0 ? formatPercent((pd.clicks / pd.impressions) * 100) : "—") },
+        { label: "% Spends", key: "spend", value: (r) => `${r.spend_percent_share.toFixed(1)}%`, totalValue: () => "100.00%", compareValue: (pd) => pd?.spend_percent_share !== undefined ? `${pd.spend_percent_share.toFixed(1)}%` : "—" },
+        { label: "Spends", key: "spend", value: (r) => formatCurrency(r.spends), totalValue: (t) => formatCurrency(t.spends), compareValue: (pd) => pd ? formatCurrency(pd.spends) : "—" },
+        { label: "CPC", key: "cost_per_click", value: (r) => formatCurrency(r.cpc), totalValue: (t) => formatCurrency(t.cpc), compareValue: (pd) => pd?.cpc ? formatCurrency(pd.cpc) : (pd?.clicks > 0 ? formatCurrency(pd.spends / pd.clicks) : "—") },
+        { label: "Orders", key: "orders", value: (r) => formatNumber(r.orders), totalValue: (t) => formatNumber(t.orders), compareValue: (pd) => pd ? formatNumber(pd.orders) : "—" },
+        { label: "AOV", key: "conversion", value: (r) => formatCurrency(r.aov), totalValue: (t) => formatCurrency(t.aov), compareValue: (pd) => pd?.aov ? formatCurrency(pd.aov) : (pd?.orders > 0 ? formatCurrency(pd.sales / pd.orders) : "—") },
+        { label: "CVR", key: "conversion", value: (r) => formatPercent(r.cvr), totalValue: (t) => formatPercent(t.cvr), compareValue: (pd) => pd?.cvr ? formatPercent(pd.cvr) : (pd?.clicks > 0 ? formatPercent((pd.orders / pd.clicks) * 100) : "—") },
+        { label: "Ad Sales", key: "inorganic_sales", value: (r) => formatCurrency(r.sales), totalValue: (t) => formatCurrency(t.sales), compareValue: (pd) => pd ? formatCurrency(pd.sales) : "—" },
+    ], []);
+
+    const activeCols = useMemo(() => {
+        return columnsDef.filter(col => isKpiEnabled(col.key));
+    }, [columnsDef, isKpiEnabled]);
     const [untagged, setUntagged] = useState(null);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
@@ -585,13 +607,12 @@ export function AggregatedViewTable() {
                         </div>
                         <button onClick={() => {
                             // CSV Download
-                            const headers = [currentDimension.label, "Impressions", "Clicks", "ATC", "CTR", "% Spends", "Spends", "CPC", "Orders", "AOV", "CVR", "Ad Sales"];
+                            const headers = [currentDimension.label, ...activeCols.map(c => c.label)];
                             const csvRows = [headers.join(",")];
                             data.forEach(row => {
                                 csvRows.push([
-                                    `"${row.tag || ''}"`, row.impressions, row.clicks, row.atc, `${(row.ctr || 0).toFixed(2)}%`,
-                                    `${(row.spend_percent_share || 0).toFixed(1)}%`, row.spends, (row.cpc || 0).toFixed(2),
-                                    row.orders, (row.aov || 0).toFixed(2), `${(row.cvr || 0).toFixed(2)}%`, row.sales
+                                    `"${row.tag || ''}"`,
+                                    ...activeCols.map(c => c.value(row).replace(/₹/g, '').replace(/,/g, '').trim())
                                 ].join(","));
                             });
                             const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
@@ -606,36 +627,33 @@ export function AggregatedViewTable() {
             {/* Table */}
             <div className="w-full overflow-x-auto">
                 <table className="w-full table-fixed" style={{ minWidth: '900px' }}>
-                    <colgroup><col className="w-[16%]" /><col className="w-[8%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[9%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[9%]" /><col className="w-[7%]" /><col className="w-[9%]" /></colgroup>
+                    <colgroup>
+                        <col className="w-[16%]" />
+                        {activeCols.map((_, i) => (
+                            <col key={i} className="w-[8%]" />
+                        ))}
+                    </colgroup>
                     <thead>
                         <tr className={darkMode ? "bg-slate-800/50" : "bg-slate-50/50"}>
                             <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{currentDimension.label}</th>
-                            {["Impressions", "Clicks", "ATC", "CTR", "% Spends", "Spends", "CPC", "Orders", "AOV", "CVR", "Ad Sales"].map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
+                            {activeCols.map((col) => (<th key={col.label} className={thCls(darkMode)}>{col.label}</th>))}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                         {totals && (
                             <tr className={darkMode ? "bg-gradient-to-r from-violet-500/10 to-purple-500/10" : "bg-gradient-to-r from-violet-50/50 to-purple-50/50"}>
                                 <td className={`px-4 py-3 font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}><div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-violet-500" />Total</div></td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.impressions)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.clicks)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.atc)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatPercent(totals.ctr)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>100.00%</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.spends)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.cpc)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.orders)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.aov)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatPercent(totals.cvr)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.sales)}</td>
+                                {activeCols.map((col) => (
+                                    <td key={col.label} className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{col.totalValue(totals)}</td>
+                                ))}
                             </tr>
                         )}
                         {loading ? (
-                            [...Array(5)].map((_, i) => (<tr key={i}><td colSpan={10} className="px-4 py-3"><div className={`h-8 rounded-lg animate-pulse ${darkMode ? "bg-slate-700" : "bg-slate-100"}`} /></td></tr>))
+                            [...Array(5)].map((_, i) => (<tr key={i}><td colSpan={activeCols.length + 1} className="px-4 py-3"><div className={`h-8 rounded-lg animate-pulse ${darkMode ? "bg-slate-700" : "bg-slate-100"}`} /></td></tr>))
                         ) : apiError ? (
-                            <tr><td colSpan={10}><ErrorRetryOverlay onRetry={fetchData} message={apiError} /></td></tr>
+                            <tr><td colSpan={activeCols.length + 1}><ErrorRetryOverlay onRetry={fetchData} message={apiError} /></td></tr>
                         ) : data.length === 0 ? (
-                            <tr><td colSpan={10} className="px-4 py-12 text-center"><LayoutGrid className={`w-12 h-12 mx-auto mb-3 ${darkMode ? "text-slate-600" : "text-slate-300"}`} /><p className={`text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}>No data available</p></td></tr>
+                            <tr><td colSpan={activeCols.length + 1} className="px-4 py-12 text-center"><LayoutGrid className={`w-12 h-12 mx-auto mb-3 ${darkMode ? "text-slate-600" : "text-slate-300"}`} /><p className={`text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}>No data available</p></td></tr>
                         ) : (
                             paginatedData.map((row, idx) => (
                                 <React.Fragment key={row.tag || idx}>
@@ -647,8 +665,8 @@ export function AggregatedViewTable() {
                                                 <span className="font-medium text-sm truncate" title={row.tag}>{row.tag}</span>
                                             </div>
                                         </td>
-                                        {[formatNumber(row.impressions), formatNumber(row.clicks), formatNumber(row.atc), formatPercent(row.ctr), `${row.spend_percent_share.toFixed(1)}%`, formatCurrency(row.spends), formatCurrency(row.cpc), formatNumber(row.orders), formatCurrency(row.aov), formatPercent(row.cvr), formatCurrency(row.sales)].map((val, ci) => (
-                                            <td key={ci} className={`px-2 py-3 text-right text-sm ${ci === 4 ? (darkMode ? "text-slate-400" : "text-slate-500") : (darkMode ? "text-slate-200" : "text-slate-700")}`}>{val}</td>
+                                        {activeCols.map((col) => (
+                                            <td key={col.label} className={`px-2 py-3 text-right text-sm ${darkMode ? "text-slate-300" : "text-slate-600"}`}>{col.value(row)}</td>
                                         ))}
                                     </motion.tr>
                                     <AnimatePresence>
@@ -662,21 +680,9 @@ export function AggregatedViewTable() {
                                                             {period.type === "preset" && (() => { const r = getPresetDateRange(period.key); return r ? (<div className="relative group"><Info className={`w-3 h-3 cursor-help ${darkMode ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`} /><div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none ${darkMode ? "bg-slate-700 text-white" : "bg-slate-900 text-white"}`}>{formatDateRangeShort(r)}</div></div>) : null; })()}
                                                         </div>
                                                     </td>
-                                                    {[
-                                                        pd ? formatNumber(pd.impressions) : "—", 
-                                                        pd ? formatNumber(pd.clicks) : "—", 
-                                                        pd ? formatNumber(pd.atc) : "—", 
-                                                        pd?.ctr ? formatPercent(pd.ctr) : (pd?.impressions > 0 ? formatPercent((pd.clicks / pd.impressions) * 100) : "—"), 
-                                                        pd?.spend_percent_share !== undefined ? `${pd.spend_percent_share.toFixed(1)}%` : "—", 
-                                                        pd ? formatCurrency(pd.spends) : "—", 
-                                                        pd?.cpc ? formatCurrency(pd.cpc) : (pd?.clicks > 0 ? formatCurrency(pd.spends / pd.clicks) : "—"), 
-                                                        pd ? formatNumber(pd.orders) : "—", 
-                                                        pd?.aov ? formatCurrency(pd.aov) : (pd?.orders > 0 ? formatCurrency(pd.sales / pd.orders) : "—"), 
-                                                        pd?.cvr ? formatPercent(pd.cvr) : (pd?.clicks > 0 ? formatPercent((pd.orders / pd.clicks) * 100) : "—")
-                                                    ].map((v, i) => (
-                                                        <td key={i} className={`px-2 py-2 text-right text-sm ${darkMode ? "text-slate-400" : "text-slate-600"}`}>{v}</td>
+                                                    {activeCols.map((col) => (
+                                                        <td key={col.label} className={`px-2 py-2 text-right text-sm ${darkMode ? "text-slate-400" : "text-slate-600"}`}>{col.compareValue(pd)}</td>
                                                     ))}
-                                                    <td className={`px-2 py-2 text-right text-sm ${darkMode ? "text-emerald-400" : "text-emerald-600"}`}>{pd ? formatCurrency(pd.sales) : "—"}</td>
                                                 </motion.tr>
                                             );
                                         })}

@@ -185,6 +185,8 @@ const supplyChainService = {
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
+                // Resolve the current client's ClickHouse schema dynamically
+                const db = getCurrentDbName();
                 // Build dynamic filter conditions with prefix 'v2'
                 const conditions = ["(NOT (v2.po_status IN ('fulfilled','completed','grn_done','expired','rejected') OR v2.po_status LIKE 'cancelled%'))"];
                 conditions.push("lower(coalesce(nullIf(v2.brand,''), pdp.brand_pdp)) NOT IN ('whiskas','pedigree','sheba','temptations','chappi','catsan')");
@@ -231,7 +233,7 @@ WITH
   pdp AS (
     SELECT
       lower(Platform) AS plat,
-      coalesce(nullIf(joinGet('mars._j_city_alias', 'canonical_city', lower(toString(Location))), ''),
+      coalesce(nullIf(dictGet('${db}.dict_city_alias', 'canonical_city', tuple(lower(toString(Location)))), ''),
                lower(toString(Location))) AS city,
       if(lower(Platform)='zepto', Web_Pid, Item_Id) AS sku_key,
       argMax(Brand, DATE) AS brand_pdp,
@@ -242,7 +244,7 @@ WITH
       argMax(PPU, if(PPU > 0, DATE, toDate('1970-01-01'))) AS ppu,
       argMax(toFloat64OrNull(listing_percent), DATE) AS listing_pct,
       count() AS pdp_obs
-    FROM mars.rb_pdp_olap
+    FROM ${db}.rb_pdp_olap
     WHERE DATE >= today() - 7
     GROUP BY plat, city, sku_key
   ),
@@ -256,8 +258,8 @@ WITH
            chain_total / nullIf(drr_sustained, 0)                   AS dih,
            chain_total / nullIf(drr_sustained, 0)                   AS doi,
            qty_sold_l30d, days_with_sales
-    FROM mars.po_chain_kpi_daily
-    WHERE snapshot_date = (SELECT max(snapshot_date) FROM mars.po_chain_kpi_daily)
+    FROM ${db}.po_chain_kpi_daily
+    WHERE snapshot_date = (SELECT max(snapshot_date) FROM ${db}.po_chain_kpi_daily)
  
     UNION ALL
  
@@ -273,17 +275,17 @@ WITH
            sum(c.chain_total) / nullIf(sum(c.drr_sustained), 0)     AS doi,
            sum(c.qty_sold_l30d)                                     AS qty_sold_l30d,
            max(c.days_with_sales)                                   AS days_with_sales
-    FROM mars.po_feeder_serving_area f
-    INNER JOIN mars.po_chain_kpi_daily c
+    FROM ${db}.po_feeder_serving_area f
+    INNER JOIN ${db}.po_chain_kpi_daily c
       ON c.platform = f.platform
       AND lower(c.city) = lower(f.served_city)
-      AND c.snapshot_date = (SELECT max(snapshot_date) FROM mars.po_chain_kpi_daily)
+      AND c.snapshot_date = (SELECT max(snapshot_date) FROM ${db}.po_chain_kpi_daily)
     WHERE f.served_city != ''
     GROUP BY f.platform, lower(f.facility_name), c.sap_sku_code
   ),
   sku_cs AS (
     SELECT sku_code, argMax(case_size, valid_from) AS cs
-    FROM mars.po_sku_attributes
+    FROM ${db}.po_sku_attributes
     WHERE case_size > 0
     GROUP BY sku_code
   ),
@@ -292,8 +294,8 @@ WITH
       lower(p.cfa_name) AS city_match,
       sku_cs.sku_code AS sap_sku,
       sum(toFloat64(soh.unrestricted) * sku_cs.cs) AS eaches
-    FROM mars.po_stock_on_hand_v2 soh
-    INNER JOIN mars.po_v_sap_plant_master_v2 p
+    FROM ${db}.po_stock_on_hand_v2 soh
+    INNER JOIN ${db}.po_v_sap_plant_master_v2 p
       ON p.plant = soh.plant AND p.storage_type = 'CFA'
     INNER JOIN sku_cs
       ON sku_cs.sku_code = replaceRegexpOne(soh.material_code, '[.]0+$', '')
@@ -302,7 +304,7 @@ WITH
   ),
   lt_master AS (
     SELECT lower(platform) AS plat, argMax(lead_time_days, valid_from) AS lt_days
-    FROM mars.po_lead_time_master
+    FROM ${db}.po_lead_time_master
     WHERE platform NOT LIKE 'test-%'
     GROUP BY plat
   )
@@ -340,11 +342,11 @@ SELECT
   if(sum(pdp.deno) > 0, 100.0 * sum(pdp.neno) / sum(pdp.deno), NULL) AS avgOSA,
   count(distinct v2.sku_code) AS skuCount,
   sum(toFloat64(chain.drr_ea)) AS consumptionPerDay
-FROM mars.rb_po_olap_v2_latest v2
-LEFT JOIN mars.rb_platform rb_plat ON lower(rb_plat.pf_name) = lower(v2.platform)
-LEFT JOIN pdp   ON pdp.plat   = v2.platform AND pdp.sku_key   = v2.sku_code      AND pdp.city   = coalesce(nullIf(joinGet('mars._j_city_alias', 'canonical_city', lower(if(v2.city != '', v2.city, joinGet('mars._j_feeder_city', 'city', lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))), ''), lower(if(v2.city != '', v2.city, joinGet('mars._j_feeder_city', 'city', lower(v2.platform) || ':' || lower(trim(v2.facility_name))))))
-LEFT JOIN chain ON chain.plat = v2.platform AND chain.sap_sku = coalesce(nullIf(joinGet('mars._j_article_to_sap', 'sap_sku', lower(v2.platform) || ':' || lower(v2.sku_code)), ''), nullIf(joinGet('mars._j_ean_to_dcom', 'sku', v2.ean), ''), nullIf(v2.sap_sku_code, ''))  AND chain.key = coalesce(nullIf(coalesce(nullIf(joinGet('mars._j_city_alias', 'canonical_city', lower(if(v2.city != '', v2.city, joinGet('mars._j_feeder_city', 'city', lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))), ''), lower(if(v2.city != '', v2.city, joinGet('mars._j_feeder_city', 'city', lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))), ''), lower(v2.facility_name))
-LEFT JOIN cfa_soh ON coalesce(nullIf(joinGet('mars._j_city_alias', 'canonical_city', lower(if(v2.city != '', v2.city, joinGet('mars._j_feeder_city', 'city', lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))), ''), lower(if(v2.city != '', v2.city, joinGet('mars._j_feeder_city', 'city', lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))) = coalesce(nullIf(joinGet('mars._j_city_alias', 'canonical_city', lower(cfa_soh.city_match)), ''), lower(cfa_soh.city_match)) AND coalesce(nullIf(joinGet('mars._j_article_to_sap', 'sap_sku', lower(v2.platform) || ':' || lower(v2.sku_code)), ''), nullIf(joinGet('mars._j_ean_to_dcom', 'sku', v2.ean), ''), nullIf(v2.sap_sku_code, '')) = cfa_soh.sap_sku
+FROM ${db}.rb_po_olap_v2_latest v2
+LEFT JOIN ${db}.rb_platform rb_plat ON lower(rb_plat.pf_name) = lower(v2.platform)
+LEFT JOIN pdp   ON pdp.plat   = v2.platform AND pdp.sku_key   = v2.sku_code      AND pdp.city   = coalesce(nullIf(dictGet('${db}.dict_city_alias', 'canonical_city', tuple(lower(if(v2.city != '', v2.city, dictGet('${db}.dict_feeder_city', 'city', tuple(lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))))), ''), lower(if(v2.city != '', v2.city, dictGet('${db}.dict_feeder_city', 'city', tuple(lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))))
+LEFT JOIN chain ON chain.plat = v2.platform AND chain.sap_sku = coalesce(nullIf(dictGet('${db}.dict_article_to_sap', 'sap_sku', tuple(lower(v2.platform) || ':' || lower(v2.sku_code))), ''), nullIf(dictGet('${db}.dict_ean_to_dcom', 'sku', tuple(v2.ean)), ''), nullIf(v2.sap_sku_code, ''))  AND chain.key = coalesce(nullIf(coalesce(nullIf(dictGet('${db}.dict_city_alias', 'canonical_city', tuple(lower(if(v2.city != '', v2.city, dictGet('${db}.dict_feeder_city', 'city', tuple(lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))))), ''), lower(if(v2.city != '', v2.city, dictGet('${db}.dict_feeder_city', 'city', tuple(lower(v2.platform) || ':' || lower(trim(v2.facility_name))))))), ''), lower(v2.facility_name))
+LEFT JOIN cfa_soh ON coalesce(nullIf(dictGet('${db}.dict_city_alias', 'canonical_city', tuple(lower(if(v2.city != '', v2.city, dictGet('${db}.dict_feeder_city', 'city', tuple(lower(v2.platform) || ':' || lower(trim(v2.facility_name)))))))), ''), lower(if(v2.city != '', v2.city, dictGet('${db}.dict_feeder_city', 'city', tuple(lower(v2.platform) || ':' || lower(trim(v2.facility_name))))))) = coalesce(nullIf(dictGet('${db}.dict_city_alias', 'canonical_city', tuple(lower(cfa_soh.city_match))), ''), lower(cfa_soh.city_match)) AND coalesce(nullIf(dictGet('${db}.dict_article_to_sap', 'sap_sku', tuple(lower(v2.platform) || ':' || lower(v2.sku_code))), ''), nullIf(dictGet('${db}.dict_ean_to_dcom', 'sku', tuple(v2.ean)), ''), nullIf(v2.sap_sku_code, '')) = cfa_soh.sap_sku
 LEFT JOIN lt_master ON lt_master.plat = v2.platform
 WHERE ${whereClause}
 GROUP BY poNo, v2.platform, warehouse
@@ -446,6 +448,7 @@ ORDER BY potential_sales_loss DESC
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
+                const db = getCurrentDbName();
                 // Build the active filters WHERE clause
                 const whereClause = buildPOWhereClause(filters);
 
@@ -490,7 +493,7 @@ ORDER BY potential_sales_loss DESC
                         neno_osa,
                         deno_osa,
                         listing_percent
-                    FROM rb_po_olap
+                    FROM ${db}.rb_po_olap
                     WHERE lower(po_number) = lower('${poNumber}')
                     ${facilityName && facilityName !== 'null' && facilityName !== 'undefined' ? `AND lower(facility_name) = lower('${facilityName}')` : ''}
                     AND ${whereClause}
@@ -577,12 +580,13 @@ ORDER BY potential_sales_loss DESC
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
+                const db = getCurrentDbName();
                 const [platforms, brands, categories, cities, statuses] = await Promise.all([
-                    queryClickHouse(`SELECT DISTINCT platform FROM rb_po_olap WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`),
-                    queryClickHouse(`SELECT DISTINCT brand FROM rb_po_olap WHERE brand IS NOT NULL AND brand != '' ORDER BY brand`),
-                    queryClickHouse(`SELECT DISTINCT category FROM rb_po_olap WHERE category IS NOT NULL AND category != '' ORDER BY category`),
-                    queryClickHouse(`SELECT DISTINCT city FROM rb_po_olap WHERE city IS NOT NULL AND city != '' ORDER BY city`),
-                    queryClickHouse(`SELECT DISTINCT po_status FROM rb_po_olap WHERE po_status IS NOT NULL AND po_status != '' ORDER BY po_status`)
+                    queryClickHouse(`SELECT DISTINCT platform FROM ${db}.rb_po_olap WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`),
+                    queryClickHouse(`SELECT DISTINCT brand FROM ${db}.rb_po_olap WHERE brand IS NOT NULL AND brand != '' ORDER BY brand`),
+                    queryClickHouse(`SELECT DISTINCT category FROM ${db}.rb_po_olap WHERE category IS NOT NULL AND category != '' ORDER BY category`),
+                    queryClickHouse(`SELECT DISTINCT city FROM ${db}.rb_po_olap WHERE city IS NOT NULL AND city != '' ORDER BY city`),
+                    queryClickHouse(`SELECT DISTINCT po_status FROM ${db}.rb_po_olap WHERE po_status IS NOT NULL AND po_status != '' ORDER BY po_status`)
                 ]);
 
                 return {
@@ -621,6 +625,7 @@ ORDER BY potential_sales_loss DESC
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
+                const db = getCurrentDbName();
                 const query = `
                     SELECT
                         p.DATE as date,
@@ -639,7 +644,7 @@ ORDER BY potential_sales_loss DESC
                             avg(ifNull(Selling_Price, 0)) as avg_price,
                             avg(ifNull(Discount, 0)) as avg_discount,
                             sum(ifNull(Inventory, 0)) as total_inventory
-                        FROM rb_pdp_olap
+                        FROM ${db}.rb_pdp_olap
                         WHERE Web_Pid = '${webPid}'
                         GROUP BY DATE
                     ) p
@@ -648,7 +653,7 @@ ORDER BY potential_sales_loss DESC
                             po_raised_date,
                             sum(ifNull(neno_osa, 0)) as total_neno_osa,
                             sum(ifNull(deno_osa, 0)) as total_deno_osa
-                        FROM rb_po_olap
+                        FROM ${db}.rb_po_olap
                         WHERE web_pid = '${webPid}'
                         GROUP BY po_raised_date
                     ) o ON toDate(p.DATE) = toDate(o.po_raised_date)
@@ -795,10 +800,11 @@ ORDER BY potential_sales_loss DESC
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
+                const db = getCurrentDbName();
                 let platformCondition = '';
                 if (filters.platform && filters.platform !== 'All') {
                     const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
-                    platformCondition = `AND sapCode IN (SELECT DISTINCT sap_sku_code FROM mars.po_chain_kpi_daily WHERE lower(platform) IN (${platforms}))`;
+                    platformCondition = `AND sapCode IN (SELECT DISTINCT sap_sku_code FROM ${db}.po_chain_kpi_daily WHERE lower(platform) IN (${platforms}))`;
                 }
 
                 let brandCondition = '';
@@ -908,9 +914,9 @@ WITH
         ''
       ) AS city
     FROM (
-      SELECT DISTINCT lower(cfa_name) AS cfa FROM mars.po_v_primary_billing_latest WHERE cfa_name NOT IN ('', '-')
+      SELECT DISTINCT lower(cfa_name) AS cfa FROM ${db}.po_v_primary_billing_latest WHERE cfa_name NOT IN ('', '-')
       UNION DISTINCT
-      SELECT DISTINCT lower(p.cfa_name) AS cfa FROM mars.po_stock_on_hand_v2 soh INNER JOIN mars.po_v_sap_plant_master_v2 p ON p.plant = soh.plant WHERE cfa_name NOT IN ('', '-')
+      SELECT DISTINCT lower(p.cfa_name) AS cfa FROM ${db}.po_stock_on_hand_v2 soh INNER JOIN ${db}.po_v_sap_plant_master_v2 p ON p.plant = soh.plant WHERE cfa_name NOT IN ('', '-')
     )
   ),
   cfa_coords AS (
@@ -931,7 +937,7 @@ WITH
       argMax(parent_sku, billing_date) AS parent_sku_drr,
       argMax(material_description, billing_date) AS sku_name_drr,
       sum(bill_qty_eaches) / 30.0 AS drr_ea
-    FROM mars.po_v_primary_billing_latest
+    FROM ${db}.po_v_primary_billing_latest
     WHERE billing_date >= today() - 30 AND bill_qty_eaches > 0 AND cfa_name NOT IN ('', '-')
       AND lower(brand) NOT IN ('whiskas','pedigree','sheba','temptations','chappi','catsan')
     GROUP BY cfa, sap_sku
@@ -942,10 +948,10 @@ WITH
       lower(p.cfa_name) AS cfa,
       replaceRegexpOne(soh.material_code, '[.]0+$', '') AS sap_sku,
       sum(toFloat64(soh.unrestricted)) AS soh_cs
-    FROM mars.po_stock_on_hand_v2 soh
-    INNER JOIN mars.po_v_sap_plant_master_v2 p ON p.plant = soh.plant
+    FROM ${db}.po_stock_on_hand_v2 soh
+    INNER JOIN ${db}.po_v_sap_plant_master_v2 p ON p.plant = soh.plant
     WHERE soh.saleable_stock = 'Normal sale' AND soh.unrestricted > 0
-      AND soh.snapshot_date = (SELECT max(snapshot_date) FROM mars.po_stock_on_hand_v2)
+      AND soh.snapshot_date = (SELECT max(snapshot_date) FROM ${db}.po_stock_on_hand_v2)
     GROUP BY cfa, sap_sku
   ),
   /* Case size and hierarchy configuration */
@@ -953,7 +959,7 @@ WITH
     SELECT sku_code,
       argMax(case_size, valid_from) AS cs,
       argMax(parent_description, valid_from) AS parent_sku
-    FROM mars.po_sku_attributes
+    FROM ${db}.po_sku_attributes
     WHERE parent_description != '' AND case_size > 0
     GROUP BY sku_code
   ),
@@ -1061,10 +1067,11 @@ LIMIT 500
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
+                const db = getCurrentDbName();
                 let platformCondition = '';
                 if (filters.platform && filters.platform !== 'All') {
                     const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
-                    platformCondition = `AND sap_sku IN (SELECT DISTINCT sap_sku_code FROM mars.po_chain_kpi_daily WHERE lower(platform) IN (${platforms}))`;
+                    platformCondition = `AND sap_sku IN (SELECT DISTINCT sap_sku_code FROM ${db}.po_chain_kpi_daily WHERE lower(platform) IN (${platforms}))`;
                 }
 
                 let brandCondition = '';
@@ -1080,7 +1087,7 @@ LIMIT 500
                 }
 
                 const query = `
-WITH drr AS (SELECT lower(cfa_name) AS cfa, replaceRegexpOne(material_code, '[.]0+$', '') AS sap_sku, argMax(brand, billing_date) AS brand_drr, argMax(parent_sku, billing_date) AS parent_sku_drr, argMax(material_description, billing_date) AS sku_name_drr, sum(bill_qty_eaches) / 30.0 AS drr_ea, sum(net_value) / nullIf(sum(bill_qty_eaches), 0) AS unit_price_ea FROM mars.po_v_primary_billing_latest WHERE billing_date >= today() - 30 AND bill_qty_eaches > 0 AND cfa_name != '' AND lower(brand) NOT IN ('whiskas','pedigree','sheba','temptations','chappi','catsan') GROUP BY cfa, sap_sku), soh AS (SELECT lower(p.cfa_name) AS cfa, replaceRegexpOne(soh.material_code, '[.]0+$', '') AS sap_sku, sum(toFloat64(soh.unrestricted)) AS soh_cs, min(soh.batch_expiry) AS nearest_expiry_dt FROM mars.po_stock_on_hand_v2 soh INNER JOIN mars.po_v_sap_plant_master_v2 p ON p.plant = soh.plant AND p.storage_type = 'CFA' WHERE soh.saleable_stock = 'Normal sale' AND soh.unrestricted > 0 GROUP BY cfa, sap_sku), last_bill AS (SELECT lower(cfa_name) AS cfa, replaceRegexpOne(material_code, '[.]0+$', '') AS sap_sku, max(billing_date) AS last_bill_date FROM mars.po_v_primary_billing_latest WHERE billing_date >= today() - 90 AND bill_qty_eaches > 0 GROUP BY cfa, sap_sku), attrs AS (SELECT sku_code, argMax(case_size, valid_from) AS cs, argMax(parent_description, valid_from) AS parent_sku FROM mars.po_sku_attributes WHERE parent_description != '' AND case_size > 0 GROUP BY sku_code), cfa_states AS (SELECT soh.cfa AS cfa, soh.sap_sku AS sap_sku, coalesce(drr.sku_name_drr, '') AS sku_name, coalesce(drr.brand_drr, '') AS brand, coalesce(attrs.parent_sku, drr.parent_sku_drr, '') AS parent_sku, coalesce(drr.drr_ea, 0) AS drr_ea, coalesce(drr.unit_price_ea, 0) AS price_ea, coalesce(soh.soh_cs, 0) * coalesce(toFloat64(attrs.cs), 144) AS soh_ea, soh.nearest_expiry_dt AS nearest_expiry_dt, if(soh.nearest_expiry_dt IS NOT NULL, dateDiff('day', today(), soh.nearest_expiry_dt), 999) AS days_to_expiry, if(last_bill.last_bill_date IS NULL, 999, dateDiff('day', last_bill.last_bill_date, today())) AS days_since_bill FROM soh LEFT JOIN drr ON drr.cfa = soh.cfa AND drr.sap_sku = soh.sap_sku LEFT JOIN last_bill ON last_bill.cfa = soh.cfa AND last_bill.sap_sku = soh.sap_sku LEFT JOIN attrs ON attrs.sku_code = soh.sap_sku WHERE soh_ea > 0), sku_level_aggregates AS (SELECT sap_sku, any(sku_name) AS sku_name, any(brand) AS brand, sum(soh_ea) AS total_surplus_ea, sum(drr_ea) AS total_drr_ea, if(total_drr_ea > 0, total_surplus_ea / total_drr_ea, 9999) AS net_doi, count() AS cfas_count, countIf(days_since_bill > 30) AS dead_cfa_count, min(days_to_expiry) AS min_days_to_expiry, any(price_ea) AS avg_price_ea, round(((total_surplus_ea * avg_price_ea) / 100000.0), 2) AS value_at_risk_lacs FROM cfa_states GROUP BY sap_sku HAVING countIf(soh_ea / nullIf(drr_ea, 0) < 7) = 0), final_data AS (SELECT sap_sku, sku_name, brand, total_surplus_ea, net_doi, cfas_count, dead_cfa_count, min_days_to_expiry, value_at_risk_lacs, multiIf(min_days_to_expiry <= 30, 'CRITICAL', min_days_to_expiry <= 90 OR dead_cfa_count >= 3, 'HIGH', net_doi > 90 OR dead_cfa_count > 0, 'MEDIUM', 'LOW') AS severity, multiIf(min_days_to_expiry <= 30, 'Expiry Disposal', min_days_to_expiry <= 90, 'Trade Marketing', net_doi = 9999, 'Sales Team', dead_cfa_count >= 3, 'Pricing', 'Sales Team') AS team, multiIf(min_days_to_expiry <= 30, concat(toString(min_days_to_expiry), 'd to nearest batch expiry — escalate to expiry disposal'), min_days_to_expiry <= 90, concat(toString(min_days_to_expiry), 'd to expiry — push promotional POs to chain'), net_doi = 9999, 'No movement anywhere — sales team to find chain demand or return to supplier', dead_cfa_count >= 3, concat('Dead in ', toString(dead_cfa_count), ' CFAs — discount approval to push to chain'), net_doi > 90, concat(toString(round(net_doi)), 'd network cover — push extra POs or discount'), 'High DOI — review forecast / push POs') AS action_label FROM sku_level_aggregates) SELECT concat(sku_name, ' (', sap_sku, ')') AS "SKU", severity AS "SEVERITY", total_surplus_ea AS "SURPLUS EA", if(net_doi = 9999, '999d+', concat(toString(round(net_doi, 1)), 'd')) AS "NET DOI", cfas_count AS "CFAS", dead_cfa_count AS "DEAD CFAS", if(min_days_to_expiry = 999, '—', concat(toString(min_days_to_expiry), 'd')) AS "EXPIRY", concat(toString(value_at_risk_lacs), 'L') AS "₹L RISK", concat(team, ' | ', action_label) AS "TEAM / ACTION" FROM final_data
+WITH drr AS (SELECT lower(cfa_name) AS cfa, replaceRegexpOne(material_code, '[.]0+$', '') AS sap_sku, argMax(brand, billing_date) AS brand_drr, argMax(parent_sku, billing_date) AS parent_sku_drr, argMax(material_description, billing_date) AS sku_name_drr, sum(bill_qty_eaches) / 30.0 AS drr_ea, sum(net_value) / nullIf(sum(bill_qty_eaches), 0) AS unit_price_ea FROM ${db}.po_v_primary_billing_latest WHERE billing_date >= today() - 30 AND bill_qty_eaches > 0 AND cfa_name != '' AND lower(brand) NOT IN ('whiskas','pedigree','sheba','temptations','chappi','catsan') GROUP BY cfa, sap_sku), soh AS (SELECT lower(p.cfa_name) AS cfa, replaceRegexpOne(soh.material_code, '[.]0+$', '') AS sap_sku, sum(toFloat64(soh.unrestricted)) AS soh_cs, min(soh.batch_expiry) AS nearest_expiry_dt FROM ${db}.po_stock_on_hand_v2 soh INNER JOIN ${db}.po_v_sap_plant_master_v2 p ON p.plant = soh.plant AND p.storage_type = 'CFA' WHERE soh.saleable_stock = 'Normal sale' AND soh.unrestricted > 0 GROUP BY cfa, sap_sku), last_bill AS (SELECT lower(cfa_name) AS cfa, replaceRegexpOne(material_code, '[.]0+$', '') AS sap_sku, max(billing_date) AS last_bill_date FROM ${db}.po_v_primary_billing_latest WHERE billing_date >= today() - 90 AND bill_qty_eaches > 0 GROUP BY cfa, sap_sku), attrs AS (SELECT sku_code, argMax(case_size, valid_from) AS cs, argMax(parent_description, valid_from) AS parent_sku FROM ${db}.po_sku_attributes WHERE parent_description != '' AND case_size > 0 GROUP BY sku_code), cfa_states AS (SELECT soh.cfa AS cfa, soh.sap_sku AS sap_sku, coalesce(drr.sku_name_drr, '') AS sku_name, coalesce(drr.brand_drr, '') AS brand, coalesce(attrs.parent_sku, drr.parent_sku_drr, '') AS parent_sku, coalesce(drr.drr_ea, 0) AS drr_ea, coalesce(drr.unit_price_ea, 0) AS price_ea, coalesce(soh.soh_cs, 0) * coalesce(toFloat64(attrs.cs), 144) AS soh_ea, soh.nearest_expiry_dt AS nearest_expiry_dt, if(soh.nearest_expiry_dt IS NOT NULL, dateDiff('day', today(), soh.nearest_expiry_dt), 999) AS days_to_expiry, if(last_bill.last_bill_date IS NULL, 999, dateDiff('day', last_bill.last_bill_date, today())) AS days_since_bill FROM soh LEFT JOIN drr ON drr.cfa = soh.cfa AND drr.sap_sku = soh.sap_sku LEFT JOIN last_bill ON last_bill.cfa = soh.cfa AND last_bill.sap_sku = soh.sap_sku LEFT JOIN attrs ON attrs.sku_code = soh.sap_sku WHERE soh_ea > 0), sku_level_aggregates AS (SELECT sap_sku, any(sku_name) AS sku_name, any(brand) AS brand, sum(soh_ea) AS total_surplus_ea, sum(drr_ea) AS total_drr_ea, if(total_drr_ea > 0, total_surplus_ea / total_drr_ea, 9999) AS net_doi, count() AS cfas_count, countIf(days_since_bill > 30) AS dead_cfa_count, min(days_to_expiry) AS min_days_to_expiry, any(price_ea) AS avg_price_ea, round(((total_surplus_ea * avg_price_ea) / 100000.0), 2) AS value_at_risk_lacs FROM cfa_states GROUP BY sap_sku HAVING countIf(soh_ea / nullIf(drr_ea, 0) < 7) = 0), final_data AS (SELECT sap_sku, sku_name, brand, total_surplus_ea, net_doi, cfas_count, dead_cfa_count, min_days_to_expiry, value_at_risk_lacs, multiIf(min_days_to_expiry <= 30, 'CRITICAL', min_days_to_expiry <= 90 OR dead_cfa_count >= 3, 'HIGH', net_doi > 90 OR dead_cfa_count > 0, 'MEDIUM', 'LOW') AS severity, multiIf(min_days_to_expiry <= 30, 'Expiry Disposal', min_days_to_expiry <= 90, 'Trade Marketing', net_doi = 9999, 'Sales Team', dead_cfa_count >= 3, 'Pricing', 'Sales Team') AS team, multiIf(min_days_to_expiry <= 30, concat(toString(min_days_to_expiry), 'd to nearest batch expiry — escalate to expiry disposal'), min_days_to_expiry <= 90, concat(toString(min_days_to_expiry), 'd to expiry — push promotional POs to chain'), net_doi = 9999, 'No movement anywhere — sales team to find chain demand or return to supplier', dead_cfa_count >= 3, concat('Dead in ', toString(dead_cfa_count), ' CFAs — discount approval to push to chain'), net_doi > 90, concat(toString(round(net_doi)), 'd network cover — push extra POs or discount'), 'High DOI — review forecast / push POs') AS action_label FROM sku_level_aggregates) SELECT concat(sku_name, ' (', sap_sku, ')') AS "SKU", severity AS "SEVERITY", total_surplus_ea AS "SURPLUS EA", if(net_doi = 9999, '999d+', concat(toString(round(net_doi, 1)), 'd')) AS "NET DOI", cfas_count AS "CFAS", dead_cfa_count AS "DEAD CFAS", if(min_days_to_expiry = 999, '—', concat(toString(min_days_to_expiry), 'd')) AS "EXPIRY", concat(toString(value_at_risk_lacs), 'L') AS "₹L RISK", concat(team, ' | ', action_label) AS "TEAM / ACTION" FROM final_data
 WHERE 1=1 ${platformCondition} ${brandCondition} ${searchCondition}
 ORDER BY multiIf(severity = 'CRITICAL', 1, severity = 'HIGH', 2, severity = 'MEDIUM', 3, 4) ASC, value_at_risk_lacs DESC LIMIT 500
 `;

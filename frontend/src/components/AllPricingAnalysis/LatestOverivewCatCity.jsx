@@ -1,4 +1,5 @@
 import { useState, useMemo, useContext, useEffect } from 'react'
+import useKpiPermissions from '../../hooks/useKpiPermissions'
 import axiosInstance from '../../api/axiosInstance'
 import { Skeleton, Tooltip, Typography, Box } from '@mui/material'
 import { motion } from 'framer-motion'
@@ -349,7 +350,23 @@ const LatestOverivewCatCity = ({
     ].filter(Boolean).length
 
     const currentDimension = dimensionData[dimension]
-    const selectedKpis = kpis.filter(k => glanceKpis.includes(k.key))
+    const { isKpiEnabled: isPricingKpiEnabled } = useKpiPermissions('Pricing Analysis')
+
+    const selectedKpis = useMemo(() => {
+        const mapping = {
+            discount: 'discount_pct',
+            pricePerUnit: 'price_unit_1g_1piece',
+            asp: 'average_selling_price'
+        }
+        return kpis
+            .filter(k => glanceKpis.includes(k.key))
+            .filter(k => {
+                const permId = mapping[k.key]
+                if (!permId) return true
+                return isPricingKpiEnabled(permId)
+            })
+    }, [kpis, glanceKpis, isPricingKpiEnabled])
+
     const kpiCount = selectedKpis.length
 
     const entities = useMemo(() => {

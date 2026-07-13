@@ -22,9 +22,142 @@ import { cn } from '../../lib/utils'
 import { Skeleton, Box, Card, Typography, IconButton, Tooltip } from '@mui/material'
 import { HelpOutline as HelpIcon } from "@mui/icons-material";
 import { useHelp } from "../../utils/HelpContext";
+import { useAuth } from "../../utils/AuthContext";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import React, { useRef, useState, useEffect, useMemo } from 'react'
 
 // ---------- Helpers ----------
+
+const normalizePageName = (title) => {
+    if (!title) return "";
+    const lower = title.toLowerCase().trim();
+    if (lower.includes("business overview")) return "Business Overview";
+    if (lower.includes("india overview")) return "India Overview";
+    if (lower.includes("insights")) return "Insights";
+    if (lower.includes("availability overview") || lower.includes("availability analysis")) return "Availability Analysis";
+    if (lower.includes("market coverage")) return "Market Coverage";
+    if (lower.includes("visibility overview") || lower.includes("visibility analysis") || lower.includes("bsr overview")) return "Visibility Analysis";
+    if (lower.includes("market share")) return "Market Share";
+    if (lower.includes("sales data")) return "Sales Data";
+    if (lower.includes("pricing overview") || lower.includes("pricing analysis")) return "Pricing Analysis";
+    if (lower.includes("performance marketing")) return "Performance Marketing";
+    if (lower.includes("portfolio analysis")) return "Portfolio Analysis";
+    if (lower.includes("content analysis") || lower.includes("content score") || lower.includes("content score analysis")) return "Content Analysis";
+    if (lower.includes("inventory analysis")) return "Inventory Analysis";
+    if (lower.includes("play it yourself")) return "Play it Yourself";
+    if (lower.includes("category rca")) return "Category RCA";
+    if (lower.includes("scheduled reports")) return "Scheduled Reports";
+    if (lower.includes("download report")) return "Download Report";
+    if (lower.includes("ad auto")) return "Ad Auto";
+    if (lower.includes("rating")) return "Rating";
+    if (lower.includes("supply")) return "Supply";
+    if (lower.includes("content")) return "Content";
+    if (lower.includes("priority action")) return "Priority Action";
+    if (lower.includes("pds score")) return "PDS Score";
+    return title;
+};
+
+const normalizeKpiId = (kpiId, kpiTitle) => {
+    const id = (kpiId || kpiTitle || "").toLowerCase().trim().replace(/\s+/g, '_');
+    if (id === 'offtakes' || id === 'offtake') return 'offtake';
+    if (id === 'availability' || id === 'osa') return 'availability';
+    if (id === 'share_of_search' || id === 'sos' || id === 'sos_new' || id === 'sos_top') return 'share_of_search';
+    if (id === 'market_share' || id === 'market' || id === 'ms-market-share' || id.includes('market_share')) return 'market_share';
+    if (id === 'promo' || id === 'promo_my_brand') return 'promo';
+    if (id === 'inorg_sales' || id === 'inorganic_sales' || id === 'inorganic') return 'inorganic_sales';
+    if (id === 'stock_availability') return 'stock_availability';
+    if (id === 'osa-overview-osa' || id === 'osa_overview_osa' || id === 'avail-card-osa') return 'osa';
+    if (id === 'out_of_stock' || id === 'oos') return 'out_of_stock';
+    if (id === 'days_of_inventory' || id === 'doi' || id === 'avail-card-doi') return 'doi';
+    if (id === 'metro_city_stock_availability' || id === 'osa-overview-availability' || id === 'osa_overview_availability' || id === 'avail-card-availability') return 'metro_city_stock_availability';
+    if (id === 'buy_box_%' || id === 'avail-card-buybox' || id === 'buybox' || id === 'buy_box') return 'buybox';
+    if (id === 'delivery_time' || id === 'avail-card-delivery') return 'delivery_time';
+    if (id === 'sku_count' || id === 'avail-card-skucount') return 'sku_count';
+    if (id === 'overall_weighted_sos' || id === 'overall_sos' || id === 'vis-0' || id.includes('overall_weighted_sos')) return 'overall_sos';
+    if (id === 'sponsored_weighted_sos' || id === 'sponsored_sos' || id === 'vis-1' || id.includes('sponsored_weighted_sos')) return 'sponsored_sos';
+    if (id === 'organic_weighted_sos' || id === 'organic_sos' || id === 'vis-2' || id.includes('organic_weighted_sos')) return 'organic_sos';
+    if (id === 'category_size' || id === 'ms-category-size') return 'category_size';
+    if (id === 'estimated_sales' || id === 'ms-mars-wrigley' || id.includes('estimated_sales') || id.includes('sales_performance')) return 'estimated_sales';
+    if (id === 'discount' || id === 'discount_depth') return 'discount';
+    if (id === 'weighted_discount') return 'weighted_discount';
+    if (id === 'average_selling_price' || id === 'asp') return 'average_selling_price';
+    if (id === 'title_score' || id === 'title') return 'title_score';
+    if (id === 'image_score' || id === 'image') return 'image_score';
+    if (id === 'si_score' || id === 'si') return 'si_score';
+    if (id === 'description_score' || id === 'desc') return 'description_score';
+    if (id === 'rating_score' || id === 'rating') return 'rating_score';
+    if (id === 'overall_score' || id === 'overall') return 'overall_score';
+    if (id === 'products_in_bsr') return 'products_in_bsr';
+    if (id === 'avg_bsr_position') return 'avg_bsr_position';
+    if (id === 'bsr_sos_%' || id === 'bsr_sos') return 'bsr_sos';
+    if (id === 'top_10_bsr_products') return 'top_10_bsr_products';
+    
+    // New Performance & ad KPIs mapping
+    if (id === 'cpm' || id.includes('cpm')) return 'cpm';
+    if (id === 'cpc' || id.includes('cpc') || id === 'cost_per_click' || id === 'cost_per_click_(cpc)') return 'cpc';
+    if (id === 'impressions') return 'impressions';
+    if (id === 'clicks') return 'clicks';
+    if (id === 'ctr' || id === 'click_through_rate' || id === 'click-through') return 'ctr';
+    if (id === 'spend') return 'spend';
+    if (id === 'sponsored_sos' || id === 'sponsored_sos_new') return 'sponsored_sos';
+    if (id === 'organic_sos' || id === 'organic_sos_new') return 'organic_sos';
+    
+    // New India & Availability KPIs
+    if (id === 'wt_osa' || id === 'wt_osa_(weighted_on-shelf_availability)') return 'wt_osa';
+    if (id === 'listing_pct' || id.includes('listing')) return 'listing_pct';
+    if (id === 'psl' || id.includes('potential_sales_loss')) return 'psl';
+    if (id === 'soh' || id.includes('stock_on_hand')) return 'soh';
+    if (id === 'wt_osa_pct' || id === 'wt_osa%') return 'wt_osa_pct';
+    if (id === 'offtake_share') return 'offtake_share';
+    if (id === 'sales') return 'sales';
+    if (id === 'orders') return 'orders';
+
+    // New Market Share & Visibility Share KPIs
+    if (id === 'market_leader_sales') return 'market_leader_sales';
+    if (id === 'brand_estimated_sales') return 'brand_estimated_sales';
+    if (id === 'overall_share_of_visibility') return 'overall_share_of_visibility';
+    if (id === 'paid_share_of_visibility') return 'paid_share_of_visibility';
+
+    // New Pricing Analysis KPIs
+    if (id === 'discount_pct' || id === 'discount' || id === 'discount_%') return 'discount_pct';
+    if (id === 'price_drop_my_skus' || id === 'price_drop(my_skus)') return 'price_drop_my_skus';
+    if (id === 'price_increase_my_skus' || id === 'price_increase(my_skus)') return 'price_increase_my_skus';
+    if (id === 'price_drop_comp_skus' || id === 'price_drop(comp._skus)' || id === 'price_drop(comp._comp._skus)') return 'price_drop_comp_skus';
+    if (id === 'price_increase_comp_skus' || id === 'price_increase(comp._skus)') return 'price_increase_comp_skus';
+    if (id === 'price_unit_1g_1piece' || id.includes('price/unit')) return 'price_unit_1g_1piece';
+
+    // New Content Analysis KPIs
+    if (id === 'si_score' || id === 'si_score(secondary_image_score)' || id === 'secondary_image_score') return 'si_score';
+
+    // New Inventory Analysis KPIs
+    if (id === 'doh' || id === 'days_of_hand') return 'doh';
+    if (id === 'drr') return 'drr';
+    if (id === 'total_boxes_required') return 'total_boxes_required';
+    if (id === 'drr_qty') return 'drr_qty';
+    if (id === 'current_doh') return 'current_doh';
+    if (id === 'req_po_qty') return 'req_po_qty';
+    if (id === 'req_boxes') return 'req_boxes';
+    if (id === 'threshold_doh') return 'threshold_doh';
+    
+    return id;
+};
+
+const isKpiEnabled = (user, pageTitle, kpiId, kpiTitle) => {
+    const pageName = normalizePageName(pageTitle);
+    const id = normalizeKpiId(kpiId, kpiTitle);
+
+    if (user && user.tabPermissions) {
+        const flatKey = `kpi_${pageName}_${id}`;
+        const dbVal = user.tabPermissions[flatKey];
+        if (dbVal !== undefined) return dbVal;
+    }
+
+    const dbName = user?.dbName;
+    if (!dbName) return true;
+    const key = `kpi_config_${dbName.toLowerCase()}_${pageName.replace(/\s+/g, '_').toLowerCase()}_${id}`;
+    const stored = localStorage.getItem(key);
+    return stored === null ? true : stored === 'true';
+};
 
 function clamp(n, a, b) {
     return Math.max(a, Math.min(b, n));
@@ -901,6 +1034,13 @@ const SnapshotOverview = ({
     helpMenu = null
 }) => {
     const { toggleHelp, openHelpWithMenu } = useHelp();
+    const { user } = useAuth();
+    const dbName = user?.dbName;
+
+    const pageName = useMemo(() => normalizePageName(title), [title]);
+    const { getKpiCount } = useKpiPermissions(pageName);
+    const { enabled, total } = useMemo(() => getKpiCount(), [getKpiCount]);
+
     // 🔹 Map and Reorganize Data for 5+4 layout
     const { topKpis, bottomKpis } = useMemo(() => {
         if (variant !== 'watchtower') return { topKpis: [], bottomKpis: [] };
@@ -1084,17 +1224,21 @@ const SnapshotOverview = ({
 
         bottomItems.push(finalOrders);
 
-        return { topKpis: topRowItems, bottomKpis: bottomItems };
-    }, [kpis, performanceData, variant, seed]);
+        const filteredTop = topRowItems.filter(k => isKpiEnabled(user, title, k.id, k.title));
+        const filteredBottom = bottomItems.filter(k => isKpiEnabled(user, title, k.id, k.title));
+
+        return { topKpis: filteredTop, bottomKpis: filteredBottom };
+    }, [kpis, performanceData, variant, seed, dbName, title, user]);
 
     // PREPARE DATA FOR DETAILED VIEW
     const detailedKpis = useMemo(() => {
         if (variant === 'watchtower') return [];
-        return kpis.map((k, i) => ({
+        const items = kpis.map((k, i) => ({
             ...k,
             trendSeries: k.trendSeries || k.trend || makeSeries(50 + i, 20, 0.2, seed)
-        }))
-    }, [kpis, variant, seed]);
+        }));
+        return items.filter(k => isKpiEnabled(user, title, k.id, k.title));
+    }, [kpis, variant, seed, dbName, title, user]);
 
     if (variant === 'watchtower') {
         return (
@@ -1113,7 +1257,15 @@ const SnapshotOverview = ({
                                     <Icon size={20} className="text-blue-600" />
                                 </div>
                             )}
-                            <h2 className="text-[1.1rem] font-bold text-slate-900 tracking-tight leading-tight">{title}</h2>
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-[1.1rem] font-bold text-slate-900 tracking-tight leading-tight">{title}</h2>
+                                {total > 0 && (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 border border-indigo-100 text-indigo-700 shadow-sm transition hover:bg-indigo-100/50" title={`Currently displaying ${enabled} out of ${total} KPIs configured for this page.`}>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                                        {enabled} of {total} KPIs Active
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         <div className="flex items-center gap-4">
                             {headerRight}
@@ -1150,8 +1302,8 @@ const SnapshotOverview = ({
                     </div>
 
                     <div className="p-6 space-y-8">
-                        {/* Top Row: Squarish Grid (5 columns) */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+                        {/* Top Row: Squarish Grid */}
+                        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${Math.max(1, Math.min(5, topKpis.length))} gap-5`}>
                             {loading ? (
                                 [1, 2, 3, 4, 5].map((i) => <ComparisonCard key={i} loading={true} />)
                             ) : (
@@ -1169,32 +1321,34 @@ const SnapshotOverview = ({
                         </div>
 
                         {/* Bottom Row: Performance Section (4 columns) */}
-                        <div className="pt-2 px-1 pb-1">
-                            <div className="bg-[#f0f9f9]/60 rounded-2xl p-4 border border-cyan-100/50">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <Box sx={{ width: 28, height: 28, borderRadius: '8px', bgcolor: 'white', display: 'flex', alignItems: 'center', justifyItems: 'center', pl: 0.6, border: '1px solid #cffafe' }}>
-                                        <Zap size={16} className="text-orange-500 fill-orange-500/20" />
-                                    </Box>
-                                    <h3 className="text-[0.85rem] font-bold text-slate-800 tracking-tight">Performance Intelligence</h3>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    {performanceLoading ? (
-                                        [1, 2, 3, 4].map((i) => <ActionableMetricCard key={i} loading={true} />)
-                                    ) : (
-                                        bottomKpis.map((kpi, idx) => (
-                                            <motion.div
-                                                key={kpi.id}
-                                                initial={{ opacity: 0, x: -10 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: (idx + 5) * 0.02, duration: 0.15 }}
-                                            >
-                                                <ActionableMetricCard kpi={kpi} helpMenu={helpMenu} />
-                                            </motion.div>
-                                        ))
-                                    )}
+                        {bottomKpis.length > 0 && (
+                            <div className="pt-2 px-1 pb-1">
+                                <div className="bg-[#f0f9f9]/60 rounded-2xl p-4 border border-cyan-100/50">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <Box sx={{ width: 28, height: 28, borderRadius: '8px', bgcolor: 'white', display: 'flex', alignItems: 'center', justifyItems: 'center', pl: 0.6, border: '1px solid #cffafe' }}>
+                                            <Zap size={16} className="text-orange-500 fill-orange-500/20" />
+                                        </Box>
+                                        <h3 className="text-[0.85rem] font-bold text-slate-800 tracking-tight">Performance Intelligence</h3>
+                                    </div>
+                                    <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${Math.max(1, Math.min(4, bottomKpis.length))} gap-4`}>
+                                        {performanceLoading ? (
+                                            [1, 2, 3, 4].map((i) => <ActionableMetricCard key={i} loading={true} />)
+                                        ) : (
+                                            bottomKpis.map((kpi, idx) => (
+                                                <motion.div
+                                                    key={kpi.id}
+                                                    initial={{ opacity: 0, x: -10 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    transition={{ delay: (idx + 5) * 0.02, duration: 0.15 }}
+                                                >
+                                                    <ActionableMetricCard kpi={kpi} helpMenu={helpMenu} />
+                                                </motion.div>
+                                            ))
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </motion.div>
             </div>
@@ -1218,7 +1372,15 @@ const SnapshotOverview = ({
                             </div>
                         )}
                         <div>
-                            <h2 className="text-xl font-bold text-slate-900 tracking-tight leading-tight">{title}</h2>
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-xl font-bold text-slate-900 tracking-tight leading-tight">{title}</h2>
+                                {total > 0 && (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 border border-indigo-100 text-indigo-700 shadow-sm transition hover:bg-indigo-100/50" title={`Currently displaying ${enabled} out of ${total} KPIs configured for this page.`}>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                                        {enabled} of {total} KPIs Active
+                                    </span>
+                                )}
+                            </div>
                             {chip && (
                                 <span className="inline-flex mt-1 items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase tracking-wider">
                                     {chip}
@@ -1264,7 +1426,7 @@ const SnapshotOverview = ({
                 </div>
 
                 <div className="p-4 sm:p-6 lg:p-8">
-                    <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${detailedKpis.length === 5 ? 'lg:grid-cols-5' : detailedKpis.length === 6 ? 'lg:grid-cols-6' : detailedKpis.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 sm:gap-5 lg:gap-6`}>
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-${Math.max(1, Math.min(6, detailedKpis.length))} gap-4 sm:gap-5 lg:gap-6`}>
                         {loading ? (
                             Array.from({ length: detailedKpis.length || 3 }).map((_, i) => (
                                 <DetailedSparklineCard key={i} loading={true} />

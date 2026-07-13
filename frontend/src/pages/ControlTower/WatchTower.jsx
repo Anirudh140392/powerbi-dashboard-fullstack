@@ -1,5 +1,5 @@
-
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../../components/CommonLayout/ErrorRetryOverlay";
 import { Container, Box, useTheme, Skeleton, IconButton } from "@mui/material";
@@ -55,7 +55,6 @@ import {
 import PerformanceMatric from "../../components/ControlTower/WatchTower/PeformanceMatric";
 import { FilterContext } from "../../utils/FilterContext";
 import Loader from "../../components/CommonLayout/Loader";
-import { useMemo } from "react";
 import TopActionsLayoutsShowcase from "@/components/ControlTower/WatchTower/TopActionsLayoutsShowcase";
 import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsCompetitionDrawer";
 import RCAModal from "@/components/Analytics/CategoryRca/RCAModal";
@@ -1028,8 +1027,25 @@ export default function WatchTower() {
 }
 
 const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms, categoryPlatform, setCategoryPlatform, hasRestrictedPlatforms }) => {
+  const { isKpiEnabled: isGlobalKpiEnabled } = useKpiPermissions("Business Overview");
   const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
+
+  const isKpiEnabled = useCallback((key) => {
+    const keyMap = {
+      offtakes: 'offtake',
+      spend: 'spend',
+      roas: 'roas',
+      inorgSalesPct: 'inorganic_sales',
+      conversionPct: 'conversion',
+      marketSharePct: 'market_share',
+      cpm: 'cpm',
+      cpc: 'cpc',
+    };
+    const backendId = keyMap[key];
+    if (!backendId) return true;
+    return isGlobalKpiEnabled(backendId);
+  }, [isGlobalKpiEnabled]);
 
   const active = useMemo(
     () => rows.find((f) => f.name === activeName) ?? rows[0] ?? {
@@ -1149,6 +1165,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
   const filteredKpiBands = kpiBands.filter((k) => {
     if (k.key === 'cpm' && isEcom) return false;
     if (k.key === 'cpc' && isQcom) return false;
+    if (!isKpiEnabled(k.key)) return false;
     return true;
   });
 
@@ -1267,7 +1284,9 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
                           fontSize: "0.75rem",
                         }}
                       >
-                        Offtakes ₹{formatCurrencyShort(f.offtakes)} · ROAS {Number.isFinite(f.roas) ? `${f.roas.toFixed(1)}x` : "N/A"}
+                        {isKpiEnabled('offtakes') && `Offtakes ₹${formatCurrencyShort(f.offtakes)}`}
+                        {isKpiEnabled('offtakes') && isKpiEnabled('roas') && ` · `}
+                        {isKpiEnabled('roas') && `ROAS ${Number.isFinite(f.roas) ? `${f.roas.toFixed(1)}x` : "N/A"}`}
                       </div>
 
                     </div>
@@ -1282,8 +1301,12 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
                       fontSize: "0.75rem",
                     }}
                   >
-                    <span>MS {Number.isFinite(f.marketSharePct) ? `${f.marketSharePct}%` : "N/A"}</span>
-                    <span>Conv {Number.isFinite(f.conversionPct) ? `${f.conversionPct}%` : "N/A"}</span>
+                    {isKpiEnabled('marketSharePct') && (
+                      <span>MS {Number.isFinite(f.marketSharePct) ? `${f.marketSharePct}%` : "N/A"}</span>
+                    )}
+                    {isKpiEnabled('conversionPct') && (
+                      <span>Conv {Number.isFinite(f.conversionPct) ? `${f.conversionPct}%` : "N/A"}</span>
+                    )}
                   </div>
 
                 </motion.button>
@@ -1329,18 +1352,26 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 text-right">
-                  <div className="text-[10px] text-slate-500">Offtakes</div>
-                  <div className="text-base font-semibold">
-                    ₹{formatCurrencyShort(active.offtakes)}
-                  </div>
-                  <div className="mt-1 text-[10px] text-slate-500">
-                    Market share
-                  </div>
-                  <div className="text-sm font-medium">
-                    {Number.isFinite(active.marketSharePct) ? `${active.marketSharePct}%` : "N/A"}
-                  </div>
+                  {isKpiEnabled('offtakes') && (
+                    <>
+                      <div className="text-[10px] text-slate-500">Offtakes</div>
+                      <div className="text-base font-semibold">
+                        ₹{formatCurrencyShort(active.offtakes)}
+                      </div>
+                    </>
+                  )}
+                  {isKpiEnabled('marketSharePct') && (
+                    <>
+                      <div className="mt-1 text-[10px] text-slate-500">
+                        Market share
+                      </div>
+                      <div className="text-sm font-medium">
+                        {Number.isFinite(active.marketSharePct) ? `${active.marketSharePct}%` : "N/A"}
+                      </div>
+                    </>
+                  )}
 
-                  {compare && (
+                  {compare && isKpiEnabled('roas') && (
                     <div className="mt-1 text-[10px] text-rose-500">
                       Delta ROAS{" "}
                       {Number.isFinite(compare.roas)

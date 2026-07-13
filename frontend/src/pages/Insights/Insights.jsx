@@ -58,6 +58,7 @@ import dayjs from "dayjs";
 import { Typography, Divider, Skeleton, Tooltip } from "@mui/material";
 import InsightsOnboardingTour, { DrillDownTour } from "@/components/insights/InsightsOnboardingTour";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -2740,6 +2741,9 @@ const InsightsSignalHub = () => {
         compareEnd
     } = useContext(FilterContext);
 
+    const { isKpiEnabled, getKpiCount } = useKpiPermissions("Insights");
+    const { enabled, total } = useMemo(() => getKpiCount(), [getKpiCount]);
+
     const [fetchedInsights, setFetchedInsights] = useState([]);
     const [fetchedFilterOptions, setFetchedFilterOptions] = useState({ categories: [], productLines: [], geographies: [] });
     const [loading, setLoading] = useState(false);
@@ -2857,7 +2861,12 @@ const InsightsSignalHub = () => {
 
     const allInsights = useMemo(() => fetchedInsights, [fetchedInsights]);
 
-    const filteredInsights = allInsights;
+    const filteredInsights = useMemo(() => {
+        return allInsights.filter((ins) => {
+            const kpiId = ins.type.toLowerCase().replace(/\s+/g, '_');
+            return isKpiEnabled(kpiId);
+        });
+    }, [allInsights, isKpiEnabled]);
 
     const selected = useMemo(() => allInsights.find((x) => x.id === selectedId) ?? null, [allInsights, selectedId]);
     const totalImpact = filteredInsights.reduce((s, i) => s + (i.impactInr || 0), 0);
@@ -3153,9 +3162,16 @@ const InsightsSignalHub = () => {
                                     fontSize: "18px", fontWeight: 800, color: "#0f172a",
                                     margin: 0, letterSpacing: "-0.02em",
                                     display: "flex", alignItems: "center", gap: "8px",
+                                    flexWrap: "wrap",
                                 }}>
                                     AI Signal Insights
                                     <BetaBadge />
+                                    {total > 0 && (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 border border-indigo-100 text-indigo-700 shadow-sm transition hover:bg-indigo-100/50" title={`Currently displaying ${enabled} out of ${total} KPIs configured for this page.`}>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                                            {enabled} of {total} KPIs Active
+                                        </span>
+                                    )}
                                 </h1>
                                 <p style={{ fontSize: "12px", color: "#6b7280", margin: 0, marginTop: "2px", fontWeight: 400 }}>
                                     Anomaly detection & opportunity tracking across your retail landscape

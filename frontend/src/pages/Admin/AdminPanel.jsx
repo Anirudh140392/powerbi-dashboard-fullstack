@@ -12,7 +12,8 @@ import {
     User,
     Inbox,
     RefreshCw,
-    Image as ImageIcon
+    Image as ImageIcon,
+    BarChart2
 } from "lucide-react";
 import { useAuth } from "../../utils/AuthContext";
 import AdminDashboard from "./tabs/AdminDashboard";
@@ -23,6 +24,7 @@ import AllUsersTable from "./tabs/AllUsersTable";
 import NewRequests from "./tabs/NewRequests";
 import Updates from "./tabs/Updates";
 import CompanyLogo from "./tabs/CompanyLogo";
+import ManageKpi from "./tabs/ManageKpi";
 
 const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState(() => {
@@ -55,7 +57,8 @@ const AdminPanel = () => {
         { id: "roles", label: "Permissions", icon: ShieldAlert },
         { id: "new-requests", label: "New Requests", icon: Inbox },
         { id: "updates", label: "Updates", icon: RefreshCw },
-        { id: "company-logo", label: "Company Logo", icon: ImageIcon }
+        { id: "company-logo", label: "Company Logo", icon: ImageIcon },
+        { id: "manage-kpi", label: "Manage KPI", icon: BarChart2 }
     ];
 
     const renderContent = () => {
@@ -66,6 +69,7 @@ const AdminPanel = () => {
             case "roles": return <RolesPermissions />;
             case "updates": return <Updates />;
             case "company-logo": return <CompanyLogo />;
+            case "manage-kpi": return <ManageKpi />;
             default: return null;
         }
     };

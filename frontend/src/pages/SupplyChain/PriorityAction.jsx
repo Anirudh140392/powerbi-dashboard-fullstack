@@ -1,4 +1,5 @@
-import React, { useEffect, useContext, useState, useCallback } from "react";
+import React, { useEffect, useContext, useState, useCallback, useMemo } from "react";
+import { useAuth } from "../../utils/AuthContext";
 import CommonContainer from "@/components/CommonLayout/CommonContainer";
 import { FilterContext } from "@/utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
@@ -109,6 +110,7 @@ const formatFilterParam = (val) => {
 };
 
 export default function PriorityAction() {
+    const { user } = useAuth();
     const {
         refreshFilters,
         paPriority: selectedPriority,
@@ -126,6 +128,67 @@ export default function PriorityAction() {
         timeEnd,
     } = useContext(FilterContext);
 
+    const isKpiEnabled = useCallback((subpage, kpiId) => {
+        if (!user || !user.tabPermissions) return true;
+        const flatKey = `kpi_Supply_${subpage}_${kpiId}`;
+        const dbVal = user.tabPermissions[flatKey];
+        return dbVal !== undefined ? dbVal : true;
+    }, [user]);
+
+    const isPrioritizePOVisible = user?.tabPermissions?.['kpi_Supply_Prioritize PO_access'] !== false;
+    const isStockTransferVisible = user?.tabPermissions?.['kpi_Supply_Fix Stock Transfer_access'] !== false;
+    const isManageSurplusVisible = user?.tabPermissions?.['kpi_Supply_Manage Surplus_access'] !== false;
+
+    const prioritizePoColSpan = useMemo(() => {
+        const columns = [
+            'po_number', 'priority', 'projected_sales_at_risk', 'platform_warehouse',
+            'status', 'billed_value', 'order_value', 'raised_on', 'appt_date',
+            'expiry', 'avg_doi', 'lt_days', 'fill_c_p_b_g', 'consumption_day'
+        ];
+        return columns.filter(col => isKpiEnabled('Prioritize PO', col)).length;
+    }, [isKpiEnabled]);
+
+    const stockTransferColSpan = useMemo(() => {
+        const columns = [
+            'sku_name', 'from_cfa_surplus', 'to_cfa_deficit', 'distance_km',
+            'doi_deficit', 'doi_surplus', 'recommended_transfer_qty',
+            'potential_sales_gain', 'freight_cost_rs', 'net_opportunity_rs'
+        ];
+        return columns.filter(col => isKpiEnabled('Fix Stock Transfer', col)).length;
+    }, [isKpiEnabled]);
+
+    const manageSurplusColSpan = useMemo(() => {
+        const columns = [
+            'sku_name', 'surplus_cfa', 'surplus_qty_cases', 'surplus_value_lakhs',
+            'doh_current', 'expiry_date', 'action_recommended', 'liquidation_channel',
+            'discount_required'
+        ];
+        return columns.filter(col => isKpiEnabled('Manage Surplus', col)).length;
+    }, [isKpiEnabled]);
+
+    // Active tab: prioritize-po, stock-transfer, manage-surplus
+    const [activeTab, setActiveTab] = useState(() => {
+        if (user?.tabPermissions) {
+            if (user.tabPermissions['kpi_Supply_Prioritize PO_access'] !== false) return "prioritize-po";
+            if (user.tabPermissions['kpi_Supply_Fix Stock Transfer_access'] !== false) return "stock-transfer";
+            if (user.tabPermissions['kpi_Supply_Manage Surplus_access'] !== false) return "manage-surplus";
+        }
+        return "prioritize-po";
+    });
+
+    useEffect(() => {
+        if (activeTab === "prioritize-po" && !isPrioritizePOVisible) {
+            if (isStockTransferVisible) setActiveTab("stock-transfer");
+            else if (isManageSurplusVisible) setActiveTab("manage-surplus");
+        } else if (activeTab === "stock-transfer" && !isStockTransferVisible) {
+            if (isPrioritizePOVisible) setActiveTab("prioritize-po");
+            else if (isManageSurplusVisible) setActiveTab("manage-surplus");
+        } else if (activeTab === "manage-surplus" && !isManageSurplusVisible) {
+            if (isPrioritizePOVisible) setActiveTab("prioritize-po");
+            else if (isStockTransferVisible) setActiveTab("stock-transfer");
+        }
+    }, [activeTab, isPrioritizePOVisible, isStockTransferVisible, isManageSurplusVisible]);
+
     useEffect(() => {
         if (typeof refreshFilters === "function") {
             refreshFilters();
@@ -136,9 +199,6 @@ export default function PriorityAction() {
     // PriorityActionFilterModal (with paPlatform state) which is independent of
     // the global sidebar platform dropdown. paPlatform is initialized to "All"
     // in FilterContext and only changed by the modal's Apply button.
-
-    // Active tab: prioritize-po, stock-transfer, manage-surplus
-    const [activeTab, setActiveTab] = useState("prioritize-po");
 
     // Mock data for Prioritize PO
     const initialPOData = [
@@ -839,40 +899,46 @@ export default function PriorityAction() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
                         {/* Prioritize PO Tab */}
-                        <button
-                            onClick={() => { setActiveTab("prioritize-po"); setSearchTerm(""); }}
-                            className={`custom-tab-button ${activeTab === "prioritize-po" ? "custom-tab-active" : "custom-tab-inactive"}`}
-                        >
-                            <Zap size={13} className={activeTab === "prioritize-po" ? "text-[#0284c7]" : "text-slate-500"} />
-                            <span>Prioritize PO</span>
-                            <span className={`badge-pill ${activeTab === "prioritize-po" ? "badge-pill-active" : "badge-pill-inactive"}`}>
-                                {poSummary.totalPOs || 0}
-                            </span>
-                        </button>
+                        {isPrioritizePOVisible && (
+                            <button
+                                onClick={() => { setActiveTab("prioritize-po"); setSearchTerm(""); }}
+                                className={`custom-tab-button ${activeTab === "prioritize-po" ? "custom-tab-active" : "custom-tab-inactive"}`}
+                            >
+                                <Zap size={13} className={activeTab === "prioritize-po" ? "text-[#0284c7]" : "text-slate-500"} />
+                                <span>Prioritize PO</span>
+                                <span className={`badge-pill ${activeTab === "prioritize-po" ? "badge-pill-active" : "badge-pill-inactive"}`}>
+                                    {poSummary.totalPOs || 0}
+                                </span>
+                            </button>
+                        )}
 
                         {/* Fix Stock Transfer Tab */}
-                        <button
-                            onClick={() => { setActiveTab("stock-transfer"); setSearchTerm(""); }}
-                            className={`custom-tab-button ${activeTab === "stock-transfer" ? "custom-tab-active" : "custom-tab-inactive"}`}
-                        >
-                            <ArrowLeftRight size={13} className={activeTab === "stock-transfer" ? "text-[#0284c7]" : "text-slate-500"} />
-                            <span>Fix Stock Transfer</span>
-                            <span className={`badge-pill ${activeTab === "stock-transfer" ? "badge-pill-active" : "badge-pill-inactive"}`}>
-                                {stockTransferData.length}
-                            </span>
-                        </button>
+                        {isStockTransferVisible && (
+                            <button
+                                onClick={() => { setActiveTab("stock-transfer"); setSearchTerm(""); }}
+                                className={`custom-tab-button ${activeTab === "stock-transfer" ? "custom-tab-active" : "custom-tab-inactive"}`}
+                            >
+                                <ArrowLeftRight size={13} className={activeTab === "stock-transfer" ? "text-[#0284c7]" : "text-slate-500"} />
+                                <span>Fix Stock Transfer</span>
+                                <span className={`badge-pill ${activeTab === "stock-transfer" ? "badge-pill-active" : "badge-pill-inactive"}`}>
+                                    {stockTransferData.length}
+                                </span>
+                            </button>
+                        )}
 
                         {/* Manage Surplus Tab */}
-                        <button
-                            onClick={() => { setActiveTab("manage-surplus"); setSearchTerm(""); }}
-                            className={`custom-tab-button ${activeTab === "manage-surplus" ? "custom-tab-active" : "custom-tab-inactive"}`}
-                        >
-                            <Package size={13} className={activeTab === "manage-surplus" ? "text-[#0284c7]" : "text-slate-500"} />
-                            <span>Manage Surplus</span>
-                            <span className={`badge-pill ${activeTab === "manage-surplus" ? "badge-pill-active" : "badge-pill-inactive"}`}>
-                                {surplusData.length}
-                            </span>
-                        </button>
+                        {isManageSurplusVisible && (
+                            <button
+                                onClick={() => { setActiveTab("manage-surplus"); setSearchTerm(""); }}
+                                className={`custom-tab-button ${activeTab === "manage-surplus" ? "custom-tab-active" : "custom-tab-inactive"}`}
+                            >
+                                <Package size={13} className={activeTab === "manage-surplus" ? "text-[#0284c7]" : "text-slate-500"} />
+                                <span>Manage Surplus</span>
+                                <span className={`badge-pill ${activeTab === "manage-surplus" ? "badge-pill-active" : "badge-pill-inactive"}`}>
+                                    {surplusData.length}
+                                </span>
+                            </button>
+                        )}
                     </div>
 
                 </div>
@@ -921,152 +987,180 @@ export default function PriorityAction() {
                             <table className="insight-grid w-full text-sm" style={{ borderCollapse: "collapse", minWidth: "1550px" }}>
                                 <thead>
                                     <TableRow style={{ borderBottom: "2px solid #cbd5e1" }}>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>PO Number</span>
-                                                <Tooltip title="Unique identifier for the Purchase Order raised by the platform." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>Priority</span>
-                                                <Tooltip title="Calculated priority level (Critical, High, Medium, Low) based on stockout risk and expiry." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Projected Sales At Risk</span>
-                                                <Tooltip title="Projected revenue loss if the inventory deficit is not filled within the lead time." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>Platform Warehouse</span>
-                                                <Tooltip title="Fulfillment Center where stock needs to be checked in." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>Status</span>
-                                                <Tooltip title="Current logistical status of the Purchase Order (e.g. Delayed, In Transit, Appointed, Pending)." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Billed Value</span>
-                                                <Tooltip title="The total value of the items in this PO that have already been billed (in Lakhs)." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Order Value</span>
-                                                <Tooltip title="The total ordered value of the PO when it was raised (in Lakhs)." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>Raised On</span>
-                                                <Tooltip title="The date when the platform raised the Purchase Order." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>Appt Date</span>
-                                                <Tooltip title="Appointment date and time confirmed for delivery at the warehouse." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>Expiry</span>
-                                                <Tooltip title="The expiry date/cancellation date of the Purchase Order set by the platform." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Avg DOI</span>
-                                                <Tooltip title="Days of Inventory (DOI) measures average stock coverage on platform warehouse." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>LT (days)</span>
-                                                <Tooltip title="Lead Time (LT) is the number of days taken from PO creation to GRN delivery." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Fill C·P·B·G</span>
-                                                <Tooltip title="Reconciliation Waterfall: Confirm Fill -> Pick Fill -> Bill Fill -> GRN Fill percentages." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Consumption/Day</span>
-                                                <Tooltip title="Average daily consumer consumption quantity of this PO SKU set." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
+                                        {isKpiEnabled('Prioritize PO', 'po_number') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>PO Number</span>
+                                                    <Tooltip title="Unique identifier for the Purchase Order raised by the platform." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'priority') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>Priority</span>
+                                                    <Tooltip title="Calculated priority level (Critical, High, Medium, Low) based on stockout risk and expiry." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'projected_sales_at_risk') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Projected Sales At Risk</span>
+                                                    <Tooltip title="Projected revenue loss if the inventory deficit is not filled within the lead time." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'platform_warehouse') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>Platform Warehouse</span>
+                                                    <Tooltip title="Fulfillment Center where stock needs to be checked in." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'status') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>Status</span>
+                                                    <Tooltip title="Current logistical status of the Purchase Order (e.g. Delayed, In Transit, Appointed, Pending)." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'billed_value') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Billed Value</span>
+                                                    <Tooltip title="The total value of the items in this PO that have already been billed (in Lakhs)." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'order_value') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Order Value</span>
+                                                    <Tooltip title="The total ordered value of the PO when it was raised (in Lakhs)." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'raised_on') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>Raised On</span>
+                                                    <Tooltip title="The date when the platform raised the Purchase Order." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'appt_date') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>Appt Date</span>
+                                                    <Tooltip title="Appointment date and time confirmed for delivery at the warehouse." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'expiry') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>Expiry</span>
+                                                    <Tooltip title="The expiry date/cancellation date of the Purchase Order set by the platform." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'avg_doi') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Avg DOI</span>
+                                                    <Tooltip title="Days of Inventory (DOI) measures average stock coverage on platform warehouse." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'lt_days') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>LT (days)</span>
+                                                    <Tooltip title="Lead Time (LT) is the number of days taken from PO creation to GRN delivery." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'fill_c_p_b_g') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Fill C·P·B·G</span>
+                                                    <Tooltip title="Reconciliation Waterfall: Confirm Fill -> Pick Fill -> Bill Fill -> GRN Fill percentages." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Prioritize PO', 'consumption_day') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Consumption/Day</span>
+                                                    <Tooltip title="Average daily consumer consumption quantity of this PO SKU set." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
                                     </TableRow>
                                 </thead>
                                 <TableBody>
                                     {loading ? (
                                         <TableRow>
-                                            <TableCell colSpan={14} className="text-center py-16">
+                                            <TableCell colSpan={prioritizePoColSpan || 14} className="text-center py-16">
                                                 <div className="flex flex-col items-center justify-center gap-3">
                                                     <RefreshCw size={24} className="animate-spin text-indigo-600" />
                                                     <span className="text-[11px] font-bold text-slate-500">Loading Prioritize PO Actions Data...</span>
@@ -1075,7 +1169,7 @@ export default function PriorityAction() {
                                         </TableRow>
                                     ) : filteredData.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={14} className="text-center py-12 text-slate-400 text-[11px] font-semibold">
+                                            <TableCell colSpan={prioritizePoColSpan || 14} className="text-center py-12 text-slate-400 text-[11px] font-semibold">
                                                 No POs matching filters found.
                                             </TableCell>
                                         </TableRow>
@@ -1083,110 +1177,138 @@ export default function PriorityAction() {
                                         paginatedData.map((po) => (
                                             <TableRow key={`${po.poNumber}-${po.facilityName}`} className="hover:bg-blue-50/30 transition-colors duration-200 whitespace-nowrap">
                                                 {/* PO Number */}
-                                                <TableCell className="px-3 py-3">
-                                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-start" }}>
-                                                        <span className="text-[11px] font-bold text-slate-900">{po.poNumber}</span>
-                                                        <button
-                                                            onClick={() => handleKnowMore(po)}
-                                                            style={{
-                                                                background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
-                                                                color: "#4f46e5",
-                                                                fontWeight: 700,
-                                                                fontSize: "8px",
-                                                                textTransform: "uppercase",
-                                                                border: "1px solid rgba(99, 102, 241, 0.2)",
-                                                                borderRadius: "4px",
-                                                                padding: "2px 6px", cursor: "pointer",
-                                                                display: "inline-flex", alignItems: "center", gap: "3px",
-                                                                transition: "all 0.2s ease",
-                                                                letterSpacing: "0.01em",
-                                                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-                                                                minWidth: "max-content",
-                                                                flexShrink: 0,
-                                                                whiteSpace: "nowrap"
-                                                            }}
-                                                        >
-                                                            <BoxIcon size={7} />
-                                                            Show SKUs
-                                                        </button>
-                                                    </div>
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'po_number') && (
+                                                    <TableCell className="px-3 py-3">
+                                                        <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-start" }}>
+                                                            <span className="text-[11px] font-bold text-slate-900">{po.poNumber}</span>
+                                                            <button
+                                                                onClick={() => handleKnowMore(po)}
+                                                                style={{
+                                                                    background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
+                                                                    color: "#4f46e5",
+                                                                    fontWeight: 700,
+                                                                    fontSize: "8px",
+                                                                    textTransform: "uppercase",
+                                                                    border: "1px solid rgba(99, 102, 241, 0.2)",
+                                                                    borderRadius: "4px",
+                                                                    padding: "2px 6px", cursor: "pointer",
+                                                                    display: "inline-flex", alignItems: "center", gap: "3px",
+                                                                    transition: "all 0.2s ease",
+                                                                    letterSpacing: "0.01em",
+                                                                    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                                                                    minWidth: "max-content",
+                                                                    flexShrink: 0,
+                                                                    whiteSpace: "nowrap"
+                                                                }}
+                                                            >
+                                                                <BoxIcon size={7} />
+                                                                Show SKUs
+                                                            </button>
+                                                        </div>
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Priority */}
-                                                <TableCell className="px-3 py-3">
-                                                    <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md ${
-                                                        po.priority === "Critical" ? "priority-badge-critical" :
-                                                        po.priority === "High" ? "priority-badge-high" :
-                                                        po.priority === "Medium" ? "priority-badge-medium" : "priority-badge-low"
-                                                    }`}>
-                                                        {po.priority}
-                                                    </span>
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'priority') && (
+                                                    <TableCell className="px-3 py-3">
+                                                        <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md ${
+                                                            po.priority === "Critical" ? "priority-badge-critical" :
+                                                            po.priority === "High" ? "priority-badge-high" :
+                                                            po.priority === "Medium" ? "priority-badge-medium" : "priority-badge-low"
+                                                        }`}>
+                                                            {po.priority}
+                                                        </span>
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Projected Sales at Risk */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-red-600">
-                                                    {formatOrNA(po.projectedSalesAtRisk, formatLakhs)}
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'projected_sales_at_risk') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-red-600">
+                                                        {formatOrNA(po.projectedSalesAtRisk, formatLakhs)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Platform Warehouse */}
-                                                <TableCell className="px-3 py-3 text-[11px] text-slate-800 font-medium">
-                                                    {formatOrNA(po.platformWarehouse)}
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'platform_warehouse') && (
+                                                    <TableCell className="px-3 py-3 text-[11px] text-slate-800 font-medium">
+                                                        {formatOrNA(po.platformWarehouse)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Status */}
-                                                <TableCell className="px-3 py-3">
-                                                    <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-full ${po.rawStatus === "delayed" ? "status-badge-delayed" :
-                                                        po.rawStatus === "in_transit" || po.rawStatus === "in transit" ? "status-badge-intransit" :
-                                                            po.rawStatus === "pending" ? "status-badge-pending" : "status-badge-appointed"
-                                                        }`}>
-                                                        {formatOrNA(po.status)}
-                                                    </span>
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'status') && (
+                                                    <TableCell className="px-3 py-3">
+                                                        <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-full ${po.rawStatus === "delayed" ? "status-badge-delayed" :
+                                                            po.rawStatus === "in_transit" || po.rawStatus === "in transit" ? "status-badge-intransit" :
+                                                                po.rawStatus === "pending" ? "status-badge-pending" : "status-badge-appointed"
+                                                            }`}>
+                                                            {formatOrNA(po.status)}
+                                                        </span>
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Billed Value */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-900">
-                                                    {formatOrNA(po.billedValue, formatLakhs)}
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'billed_value') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-900">
+                                                        {formatOrNA(po.billedValue, formatLakhs)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Order Value */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-900">
-                                                    {formatOrNA(po.orderValue, formatLakhs)}
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'order_value') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-900">
+                                                        {formatOrNA(po.orderValue, formatLakhs)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Raised On */}
-                                                <TableCell className="px-3 py-3 text-[11px] text-slate-500 font-medium whitespace-nowrap">
-                                                    {formatOrNA(po.raisedOn)}
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'raised_on') && (
+                                                    <TableCell className="px-3 py-3 text-[11px] text-slate-500 font-medium whitespace-nowrap">
+                                                        {formatOrNA(po.raisedOn)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Appt Date */}
-                                                <TableCell className="px-3 py-3 text-[11px] text-slate-800 font-semibold whitespace-nowrap">
-                                                    {formatOrNA(po.apptDate)}
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'appt_date') && (
+                                                    <TableCell className="px-3 py-3 text-[11px] text-slate-800 font-semibold whitespace-nowrap">
+                                                        {formatOrNA(po.apptDate)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Expiry */}
-                                                <TableCell className="px-3 py-3 text-[11px] text-slate-500 font-medium whitespace-nowrap">
-                                                    {formatOrNA(po.expiry)}
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'expiry') && (
+                                                    <TableCell className="px-3 py-3 text-[11px] text-slate-500 font-medium whitespace-nowrap">
+                                                        {formatOrNA(po.expiry)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* AVG DOI */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(po.avgDoi, (v) => `${Math.round(Number(v))} days`)}
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'avg_doi') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
+                                                        {formatOrNA(po.avgDoi, (v) => `${Math.round(Number(v))} days`)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* LT */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] text-slate-600 font-medium">
-                                                    {formatOrNA(po.lt, (v) => `${v} days`)}
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'lt_days') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] text-slate-600 font-medium">
+                                                        {formatOrNA(po.lt, (v) => `${v} days`)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Fill Rate / Recon Waterfall */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-bold">
-                                                    <FillWaterfall confirm={po.confirmFill} pick={po.pickFill} bill={po.billFill} grn={po.grnFill} />
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'fill_c_p_b_g') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-bold">
+                                                        <FillWaterfall confirm={po.confirmFill} pick={po.pickFill} bill={po.billFill} grn={po.grnFill} />
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Consumption per Day */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(po.consumptionPerDay, (v) => `${Math.round(Number(v))} units`)}
-                                                </TableCell>
+                                                {isKpiEnabled('Prioritize PO', 'consumption_day') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
+                                                        {formatOrNA(po.consumptionPerDay, (v) => `${Math.round(Number(v))} units`)}
+                                                    </TableCell>
+                                                )}
                                             </TableRow>
                                         ))
                                     )}
@@ -1198,112 +1320,132 @@ export default function PriorityAction() {
                             <table className="insight-grid w-full text-sm" style={{ borderCollapse: "collapse", minWidth: "1200px" }}>
                                 <thead>
                                     <TableRow style={{ borderBottom: "2px solid #cbd5e1" }}>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>SKU Name</span>
-                                                <Tooltip title="Name and SAP code of the SKU recommended for stock transfer." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>From CFA (Surplus)</span>
-                                                <Tooltip title="Source CFA warehouse containing excess inventory." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>To CFA (Deficit)</span>
-                                                <Tooltip title="Destination CFA warehouse facing inventory shortage." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Distance (km)</span>
-                                                <Tooltip title="Straight-line geographic distance between source and destination warehouses." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>DOI (Deficit)</span>
-                                                <Tooltip title="Days of Inventory (DOI) coverage at the destination warehouse before transfer." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>DOI (Surplus)</span>
-                                                <Tooltip title="Days of Inventory (DOI) coverage at the source warehouse before transfer." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>SOH (Deficit)</span>
-                                                <Tooltip title="Stock On Hand (SOH) quantity currently at the destination warehouse (in Units)." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>SOH (Surplus)</span>
-                                                <Tooltip title="Stock On Hand (SOH) quantity currently at the source warehouse (in Units)." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>CPD (Deficit)</span>
-                                                <Tooltip title="Cases/Units Per Day sold on average at the destination warehouse." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Transfer Qty</span>
-                                                <Tooltip title="Recommended transfer quantity (Units) to bring the destination to a safe 7-day cover." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
+                                        {isKpiEnabled('Fix Stock Transfer', 'sku_name') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>SKU Name</span>
+                                                    <Tooltip title="Name and SAP code of the SKU recommended for stock transfer." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Fix Stock Transfer', 'from_cfa_surplus') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>From CFA (Surplus)</span>
+                                                    <Tooltip title="Source CFA warehouse containing excess inventory." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Fix Stock Transfer', 'to_cfa_deficit') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>To CFA (Deficit)</span>
+                                                    <Tooltip title="Destination CFA warehouse facing inventory shortage." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Fix Stock Transfer', 'distance_km') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Distance (km)</span>
+                                                    <Tooltip title="Straight-line geographic distance between source and destination warehouses." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Fix Stock Transfer', 'doi_deficit') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>DOI (Deficit)</span>
+                                                    <Tooltip title="Days of Inventory (DOI) coverage at the destination warehouse before transfer." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Fix Stock Transfer', 'doi_surplus') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>DOI (Surplus)</span>
+                                                    <Tooltip title="Days of Inventory (DOI) coverage at the source warehouse before transfer." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Fix Stock Transfer', 'soh_deficit') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>SOH (Deficit)</span>
+                                                    <Tooltip title="Stock On Hand (SOH) quantity currently at the destination warehouse (in Units)." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Fix Stock Transfer', 'soh_surplus') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>SOH (Surplus)</span>
+                                                    <Tooltip title="Stock On Hand (SOH) quantity currently at the source warehouse (in Units)." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Fix Stock Transfer', 'cpd_deficit') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>CPD (Deficit)</span>
+                                                    <Tooltip title="Cases/Units Per Day sold on average at the destination warehouse." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Fix Stock Transfer', 'transfer_qty') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Transfer Qty</span>
+                                                    <Tooltip title="Recommended transfer quantity (Units) to bring the destination to a safe 7-day cover." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
                                     </TableRow>
                                 </thead>
                                 <TableBody>
                                     {filteredData.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={10} className="text-center py-12 text-slate-400 text-[11px] font-semibold">
+                                            <TableCell colSpan={stockTransferColSpan || 10} className="text-center py-12 text-slate-400 text-[11px] font-semibold">
                                                 No stock transfers matching search found.
                                             </TableCell>
                                         </TableRow>
@@ -1311,57 +1453,77 @@ export default function PriorityAction() {
                                         paginatedData.map((item) => (
                                             <TableRow key={item.id} className="hover:bg-blue-50/30 transition-colors duration-200">
                                                 {/* SKU Name */}
-                                                <TableCell className="px-3 py-3">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[11px] font-bold text-slate-900">{item.skuName}</span>
-                                                        {item.sapCode && <span className="text-[9px] text-slate-500 font-normal">SAP: {item.sapCode}</span>}
-                                                    </div>
-                                                </TableCell>
+                                                {isKpiEnabled('Fix Stock Transfer', 'sku_name') && (
+                                                    <TableCell className="px-3 py-3">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[11px] font-bold text-slate-900">{item.skuName}</span>
+                                                            {item.sapCode && <span className="text-[9px] text-slate-500 font-normal">SAP: {item.sapCode}</span>}
+                                                        </div>
+                                                    </TableCell>
+                                                )}
 
                                                 {/* From CFA */}
-                                                <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-800">
-                                                    {formatOrNA(item.fromCfa)}
-                                                </TableCell>
+                                                {isKpiEnabled('Fix Stock Transfer', 'from_cfa_surplus') && (
+                                                    <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-800">
+                                                        {formatOrNA(item.fromCfa)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* To CFA */}
-                                                <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-800">
-                                                    {formatOrNA(item.toCfa)}
-                                                </TableCell>
+                                                {isKpiEnabled('Fix Stock Transfer', 'to_cfa_deficit') && (
+                                                    <TableCell className="px-3 py-3 text-[11px] font-medium text-slate-800">
+                                                        {formatOrNA(item.toCfa)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Distance */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(item.distanceKm, (v) => `${v} km`)}
-                                                </TableCell>
+                                                {isKpiEnabled('Fix Stock Transfer', 'distance_km') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
+                                                        {formatOrNA(item.distanceKm, (v) => `${v} km`)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* DOI Deficit */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(item.doiFe, (v) => `${Math.round(v)} days`)}
-                                                </TableCell>
+                                                {isKpiEnabled('Fix Stock Transfer', 'doi_deficit') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
+                                                        {formatOrNA(item.doiFe, (v) => `${Math.round(v)} days`)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* DOI Surplus */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(item.doiBe, (v) => `${Math.round(v)} days`)}
-                                                </TableCell>
+                                                {isKpiEnabled('Fix Stock Transfer', 'doi_surplus') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
+                                                        {formatOrNA(item.doiBe, (v) => `${Math.round(v)} days`)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* SOH Deficit */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-medium text-slate-800">
-                                                    {formatOrNA(item.sohFe)}
-                                                </TableCell>
+                                                {isKpiEnabled('Fix Stock Transfer', 'soh_deficit') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-medium text-slate-800">
+                                                        {formatOrNA(item.sohFe)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* SOH Surplus */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-medium text-slate-800">
-                                                    {formatOrNA(item.sohBe)}
-                                                </TableCell>
+                                                {isKpiEnabled('Fix Stock Transfer', 'soh_surplus') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-medium text-slate-800">
+                                                        {formatOrNA(item.sohBe)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* CPD Deficit */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(item.cpd)}
-                                                </TableCell>
+                                                {isKpiEnabled('Fix Stock Transfer', 'cpd_deficit') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
+                                                        {formatOrNA(item.cpd)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Transfer Qty */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-bold text-indigo-600">
-                                                    {formatOrNA(item.transferQty, (v) => `${v} units`)}
-                                                </TableCell>
+                                                {isKpiEnabled('Fix Stock Transfer', 'transfer_qty') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-bold text-indigo-600">
+                                                        {formatOrNA(item.transferQty, (v) => `${v} units`)}
+                                                    </TableCell>
+                                                )}
                                             </TableRow>
                                         ))
                                     )}
@@ -1373,102 +1535,120 @@ export default function PriorityAction() {
                             <table className="insight-grid w-full text-sm" style={{ borderCollapse: "collapse", minWidth: "1200px" }}>
                                 <thead>
                                     <TableRow style={{ borderBottom: "2px solid #cbd5e1" }}>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>SKU (SAP Code)</span>
-                                                <Tooltip title="Name and unique SAP identifier of the overstocked SKU." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>Severity</span>
-                                                <Tooltip title="Calculated priority level (Critical, High, Medium, Low) based on inventory cover and expiry." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Surplus (EA)</span>
-                                                <Tooltip title="Total excess stock quantity (in Units) across all warehouses." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Net DOI</span>
-                                                <Tooltip title="Combined Days of Inventory (DOI) coverage across the entire network." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>CFAs Count</span>
-                                                <Tooltip title="Total number of active warehouses (CFAs) holding stock of this SKU." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Dead CFAs</span>
-                                                <Tooltip title="Number of warehouses holding stock of this SKU that have had zero sales for >30 days." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Min Expiry</span>
-                                                <Tooltip title="Minimum days remaining until the nearest batch of this product expires." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <span>Value at Risk</span>
-                                                <Tooltip title="Total financial value of the surplus stock that is at risk of expiry or stagnation (in Lakhs)." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
-                                        <TableHead className="px-3 py-3 text-left">
-                                            <div className="flex items-center gap-1">
-                                                <span>Team / Action Recommendation</span>
-                                                <Tooltip title="The department responsible and their recommended immediate corrective action." arrow placement="top">
-                                                    <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
-                                                        <Info size={12} className="inline-block" />
-                                                    </span>
-                                                </Tooltip>
-                                            </div>
-                                        </TableHead>
+                                        {isKpiEnabled('Manage Surplus', 'sku_sap_code') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>SKU (SAP Code)</span>
+                                                    <Tooltip title="Name and unique SAP identifier of the overstocked SKU." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Manage Surplus', 'severity') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>Severity</span>
+                                                    <Tooltip title="Calculated priority level (Critical, High, Medium, Low) based on inventory cover and expiry." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Manage Surplus', 'surplus_ea') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Surplus (EA)</span>
+                                                    <Tooltip title="Total excess stock quantity (in Units) across all warehouses." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Manage Surplus', 'net_doi') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Net DOI</span>
+                                                    <Tooltip title="Combined Days of Inventory (DOI) coverage across the entire network." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Manage Surplus', 'cfas_count') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>CFAs Count</span>
+                                                    <Tooltip title="Total number of active warehouses (CFAs) holding stock of this SKU." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Manage Surplus', 'dead_cfas') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Dead CFAs</span>
+                                                    <Tooltip title="Number of warehouses holding stock of this SKU that have had zero sales for >30 days." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Manage Surplus', 'min_expiry') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Min Expiry</span>
+                                                    <Tooltip title="Minimum days remaining until the nearest batch of this product expires." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Manage Surplus', 'value_at_risk') && (
+                                            <TableHead className="px-3 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <span>Value at Risk</span>
+                                                    <Tooltip title="Total financial value of the surplus stock that is at risk of expiry or stagnation (in Lakhs)." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
+                                        {isKpiEnabled('Manage Surplus', 'team_action_recommendation') && (
+                                            <TableHead className="px-3 py-3 text-left">
+                                                <div className="flex items-center gap-1">
+                                                    <span>Team / Action Recommendation</span>
+                                                    <Tooltip title="The department responsible and their recommended immediate corrective action." arrow placement="top">
+                                                        <span className="cursor-pointer text-slate-400 hover:text-slate-600 transition-colors">
+                                                            <Info size={12} className="inline-block" />
+                                                        </span>
+                                                    </Tooltip>
+                                                </div>
+                                            </TableHead>
+                                        )}
                                     </TableRow>
                                 </thead>
                                 <TableBody>
                                     {loading ? (
                                         <TableRow>
-                                            <TableCell colSpan={9} className="text-center py-16">
+                                            <TableCell colSpan={manageSurplusColSpan || 9} className="text-center py-16">
                                                 <div className="flex flex-col items-center justify-center gap-3">
                                                     <RefreshCw size={24} className="animate-spin text-indigo-600" />
                                                     <span className="text-[11px] font-bold text-slate-500">Loading Manage Surplus Data...</span>
@@ -1477,7 +1657,7 @@ export default function PriorityAction() {
                                         </TableRow>
                                     ) : filteredData.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={9} className="text-center py-12 text-slate-400 text-[11px] font-semibold">
+                                            <TableCell colSpan={manageSurplusColSpan || 9} className="text-center py-12 text-slate-400 text-[11px] font-semibold">
                                                 No surplus items matching filters found.
                                             </TableCell>
                                         </TableRow>
@@ -1485,55 +1665,73 @@ export default function PriorityAction() {
                                         paginatedData.map((item) => (
                                             <TableRow key={item.id} className="hover:bg-blue-50/30 transition-colors duration-200">
                                                 {/* SKU Name */}
-                                                <TableCell className="px-3 py-3 font-bold text-slate-900">
-                                                    {formatOrNA(item.sku)}
-                                                </TableCell>
+                                                {isKpiEnabled('Manage Surplus', 'sku_sap_code') && (
+                                                    <TableCell className="px-3 py-3 font-bold text-slate-900">
+                                                        {formatOrNA(item.sku)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Severity */}
-                                                <TableCell className="px-3 py-3">
-                                                    <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md ${
-                                                        item.priority === "Critical" ? "priority-badge-critical" :
-                                                        item.priority === "High" ? "priority-badge-high" :
-                                                        item.priority === "Medium" ? "priority-badge-medium" : "priority-badge-low"
-                                                    }`}>
-                                                        {formatOrNA(item.priority)}
-                                                    </span>
-                                                </TableCell>
+                                                {isKpiEnabled('Manage Surplus', 'severity') && (
+                                                    <TableCell className="px-3 py-3">
+                                                        <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md ${
+                                                            item.priority === "Critical" ? "priority-badge-critical" :
+                                                            item.priority === "High" ? "priority-badge-high" :
+                                                            item.priority === "Medium" ? "priority-badge-medium" : "priority-badge-low"
+                                                        }`}>
+                                                            {formatOrNA(item.priority)}
+                                                        </span>
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Surplus (EA) */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-800">
-                                                    {formatOrNA(item.surplusEa)}
-                                                </TableCell>
+                                                {isKpiEnabled('Manage Surplus', 'surplus_ea') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-800">
+                                                        {formatOrNA(item.surplusEa)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Net DOI */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
-                                                    {formatOrNA(item.netDoi)}
-                                                </TableCell>
+                                                {isKpiEnabled('Manage Surplus', 'net_doi') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-semibold text-slate-700">
+                                                        {formatOrNA(item.netDoi)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* CFAs Count */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] text-slate-600 font-medium">
-                                                    {formatOrNA(item.cfasCount)}
-                                                </TableCell>
+                                                {isKpiEnabled('Manage Surplus', 'cfas_count') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] text-slate-600 font-medium">
+                                                        {formatOrNA(item.cfasCount)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Dead CFAs */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] text-slate-600 font-medium">
-                                                    {formatOrNA(item.deadCfaCount)}
-                                                </TableCell>
+                                                {isKpiEnabled('Manage Surplus', 'dead_cfas') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] text-slate-600 font-medium">
+                                                        {formatOrNA(item.deadCfaCount)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Min Expiry */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] text-slate-600 font-semibold">
-                                                    {formatOrNA(item.expiry)}
-                                                </TableCell>
+                                                {isKpiEnabled('Manage Surplus', 'min_expiry') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] text-slate-600 font-semibold">
+                                                        {formatOrNA(item.expiry)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Value at Risk */}
-                                                <TableCell className="px-3 py-3 text-right text-[11px] font-bold text-red-600">
-                                                    {formatOrNA(item.valueAtRisk)}
-                                                </TableCell>
+                                                {isKpiEnabled('Manage Surplus', 'value_at_risk') && (
+                                                    <TableCell className="px-3 py-3 text-right text-[11px] font-bold text-red-600">
+                                                        {formatOrNA(item.valueAtRisk)}
+                                                    </TableCell>
+                                                )}
 
                                                 {/* Team / Action */}
-                                                <TableCell className="px-3 py-3 text-left text-[11px] text-slate-700 font-semibold whitespace-normal">
-                                                    {formatOrNA(item.teamAction)}
-                                                </TableCell>
+                                                {isKpiEnabled('Manage Surplus', 'team_action_recommendation') && (
+                                                    <TableCell className="px-3 py-3 text-left text-[11px] text-slate-700 font-semibold whitespace-normal">
+                                                        {formatOrNA(item.teamAction)}
+                                                    </TableCell>
+                                                )}
                                             </TableRow>
                                         ))
                                     )}

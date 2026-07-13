@@ -68,11 +68,12 @@ const RolesPermissions = () => {
 
     // These are the tab labels that match the Sidebar menu items
     const tabsList = [
-        "Business Overview", "India Overview", "Insights", "Availability Analysis",
+        "Business Overview", "India Overview", "Availability Analysis",
         "Market Coverage", "Visibility Analysis", "Market Share", "Sales Data", 
         "Pricing Analysis", "Performance Marketing", "Portfolio Analysis", "Content Analysis",
         "Inventory Analysis", "Play it Yourself", "Category RCA",
-        "Scheduled Reports", "Download Report", "Ad Auto", "Rating", "Supply", "Content", "Priority Action", "PDS Score"
+        "Scheduled Reports", "Download Report", "Ad Auto", "Rating", "Supply", "PDS Score",
+        "Insights"
     ];
 
     const [usersData, setUsersData] = useState([]);
@@ -160,6 +161,12 @@ const RolesPermissions = () => {
                         tabs[key] = hasAnyPerm ? (tabPerms[key] !== undefined ? tabPerms[key] : true) : true;
                     });
 
+                    // Preserve flat KPI keys from database so they are not deleted on update
+                    Object.keys(tabPerms).forEach(key => {
+                        if (key.startsWith('kpi_')) {
+                            tabs[key] = tabPerms[key];
+                        }
+                    });
 
                     return {
                         id: user.id, // Use actual device/user_id from backend

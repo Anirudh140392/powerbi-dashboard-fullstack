@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect } from "react";
+import { useAuth } from "../../utils/AuthContext";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { FilterContext } from "../../utils/FilterContext";
 import TrailyticsTypewriterLoader from "../../components/insights/TrailyticsTypewriterLoader";
@@ -1103,7 +1104,15 @@ const getTableData = (platform, period) => {
 };
 
 export default function PDSScore() {
+  const { user } = useAuth();
   const { platform, selectedBrand } = useContext(FilterContext);
+
+  const isKpiEnabled = (kpiId) => {
+    if (!user || !user.tabPermissions) return true;
+    const flatKey = `kpi_PDS Score_${kpiId}`;
+    const dbVal = user.tabPermissions[flatKey];
+    return dbVal !== undefined ? dbVal : true;
+  };
 
   const [selectedPlatform, setSelectedPlatform] = useState("Amazon");
   const [selectedYear, setSelectedYear] = useState("2026");
@@ -1444,14 +1453,14 @@ export default function PDSScore() {
                 <TableRow sx={{ bgcolor: "#f3f4f6" }}>
                   {[
                     { id: "scoreId", label: "Score ID", width: "8%", align: "center", sortable: false },
-                    { id: "dmmhLever", label: "DMMH Lever", width: "12%", align: "left", sortable: false },
-                    { id: "dmmhSubLever", label: "DMMH Sub-Lever", width: "22%", align: "left", sortable: false },
-                    { id: "target", label: "Target", width: "10%", align: "center", sortable: true },
-                    { id: "weight", label: "Weight", width: "10%", align: "center", sortable: true },
-                    { id: "score", label: "Score", width: "10%", align: "center", sortable: true },
-                    { id: "weightedScore", label: "Wt Score", width: "10%", align: "center", sortable: true },
-                    { id: "weightedTarget", label: "Wt Target", width: "10%", align: "center", sortable: true },
-                  ].map((headCell) => (
+                    { id: "dmmhLever", label: "DMMH Lever", width: "12%", align: "left", sortable: false, kpiId: "dmmh_lever" },
+                    { id: "dmmhSubLever", label: "DMMH Sub-Lever", width: "22%", align: "left", sortable: false, kpiId: "dmmh_sub_lever" },
+                    { id: "target", label: "Target", width: "10%", align: "center", sortable: true, kpiId: "target" },
+                    { id: "weight", label: "Weight", width: "10%", align: "center", sortable: true, kpiId: "weight" },
+                    { id: "score", label: "Score", width: "10%", align: "center", sortable: true, kpiId: "score" },
+                    { id: "weightedScore", label: "Wt Score", width: "10%", align: "center", sortable: true, kpiId: "wt_score" },
+                    { id: "weightedTarget", label: "Wt Target", width: "10%", align: "center", sortable: true, kpiId: "wt_target" },
+                  ].filter(c => !c.kpiId || isKpiEnabled(c.kpiId)).map((headCell) => (
                     <TableCell
                       key={headCell.id}
                       align={headCell.align}
@@ -1513,102 +1522,116 @@ export default function PDSScore() {
                     >
                       {row.scoreId}
                     </TableCell>
-                    <TableCell
-                      sx={{
-                        fontSize: "0.8rem",
-                        color: "#374151",
-                        py: 1.5,
-                        px: 2,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {row.dmmhLever}
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        fontSize: "0.8rem",
-                        color: "#374151",
-                        py: 1.5,
-                        px: 2,
-                      }}
-                    >
-                      {row.dmmhSubLever}
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        fontSize: "0.8rem",
-                        color: "#374151",
-                        py: 1.5,
-                        px: 2,
-                        textAlign: "center",
-                      }}
-                    >
-                      {row.target}
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        fontSize: "0.8rem",
-                        color: "#374151",
-                        py: 1.5,
-                        px: 2,
-                        textAlign: "center",
-                      }}
-                    >
-                      {row.weight}%
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        fontSize: "0.8rem",
-                        py: 1.5,
-                        px: 2,
-                        textAlign: "center",
-                      }}
-                    >
-                      {row.score === "-" ? (
-                        <Typography sx={{ color: "#6b7280", fontSize: "0.8rem" }}>
-                          —
-                        </Typography>
-                      ) : (
-                        <Box
-                          sx={{
-                            display: "inline-block",
-                            bgcolor: getScoreBadgeColor(row.score, row.target).bg,
-                            color: getScoreBadgeColor(row.score, row.target).text,
-                            px: 2,
-                            py: 0.4,
-                            borderRadius: 1,
-                            fontSize: "0.75rem",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {row.score}
-                        </Box>
-                      )}
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        fontSize: "0.8rem",
-                        color: "#1f2937",
-                        py: 1.5,
-                        px: 2,
-                        textAlign: "center",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {row.weightedScore}
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        fontSize: "0.8rem",
-                        color: "#374151",
-                        py: 1.5,
-                        px: 2,
-                        textAlign: "center",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {row.weightedTarget}
-                    </TableCell>
+                    {isKpiEnabled("dmmh_lever") && (
+                      <TableCell
+                        sx={{
+                          fontSize: "0.8rem",
+                          color: "#374151",
+                          py: 1.5,
+                          px: 2,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {row.dmmhLever}
+                      </TableCell>
+                    )}
+                    {isKpiEnabled("dmmh_sub_lever") && (
+                      <TableCell
+                        sx={{
+                          fontSize: "0.8rem",
+                          color: "#374151",
+                          py: 1.5,
+                          px: 2,
+                        }}
+                      >
+                        {row.dmmhSubLever}
+                      </TableCell>
+                    )}
+                    {isKpiEnabled("target") && (
+                      <TableCell
+                        sx={{
+                          fontSize: "0.8rem",
+                          color: "#374151",
+                          py: 1.5,
+                          px: 2,
+                          textAlign: "center",
+                        }}
+                      >
+                        {row.target}
+                      </TableCell>
+                    )}
+                    {isKpiEnabled("weight") && (
+                      <TableCell
+                        sx={{
+                          fontSize: "0.8rem",
+                          color: "#374151",
+                          py: 1.5,
+                          px: 2,
+                          textAlign: "center",
+                        }}
+                      >
+                        {row.weight}%
+                      </TableCell>
+                    )}
+                    {isKpiEnabled("score") && (
+                      <TableCell
+                        sx={{
+                          fontSize: "0.8rem",
+                          py: 1.5,
+                          px: 2,
+                          textAlign: "center",
+                        }}
+                      >
+                        {row.score === "-" ? (
+                          <Typography sx={{ color: "#6b7280", fontSize: "0.8rem" }}>
+                            —
+                          </Typography>
+                        ) : (
+                          <Box
+                            sx={{
+                              display: "inline-block",
+                              bgcolor: getScoreBadgeColor(row.score, row.target).bg,
+                              color: getScoreBadgeColor(row.score, row.target).text,
+                              px: 2,
+                              py: 0.4,
+                              borderRadius: 1,
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {row.score}
+                          </Box>
+                        )}
+                      </TableCell>
+                    )}
+                    {isKpiEnabled("wt_score") && (
+                      <TableCell
+                        sx={{
+                          fontSize: "0.8rem",
+                          color: "#1f2937",
+                          py: 1.5,
+                          px: 2,
+                          textAlign: "center",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {row.weightedScore}
+                      </TableCell>
+                    )}
+                    {isKpiEnabled("wt_target") && (
+                      <TableCell
+                        sx={{
+                          fontSize: "0.8rem",
+                          color: "#374151",
+                          py: 1.5,
+                          px: 2,
+                          textAlign: "center",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {row.weightedTarget}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

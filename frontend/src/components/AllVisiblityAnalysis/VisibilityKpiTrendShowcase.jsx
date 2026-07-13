@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useContext, createContext } from "
 import axiosInstance from "../../api/axiosInstance";
 import { FilterContext } from "../../utils/FilterContext";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import {
   Filter,
   LineChart as LineChartIcon,
@@ -866,6 +867,8 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
   const [trendData, setTrendData] = useState({ brands: {}, days: [] });
   const [selectedChannel, setSelectedChannel] = useState("All");
 
+  const { isKpiEnabled } = useKpiPermissions('Visibility Analysis');
+
   // Local rank state — seeded from global FilterContext, but overridable per trend view
   const { selectedRank: globalRank, compareStart, compareEnd } = useContext(FilterContext);
   const [localRank, setLocalRank] = useState(globalRank || 'Top 10');
@@ -873,7 +876,10 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
   // Dynamic rank options fetched from DB (max position)
   const [rankOptions, setRankOptions] = useState(RANK_OPTIONS);
 
+
+
   useEffect(() => {
+
     axiosInstance.get('/visibility-analysis/max-position')
       .then(res => {
         if (res.data && typeof res.data.maxPos === 'number' && res.data.maxPos > 0) {
@@ -913,13 +919,14 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
   }, [mode, filters]);
 
   const activeKpiKeys = useMemo(() => {
-    const keys = [...BASE_KPI_KEYS];
+    const keys = [...BASE_KPI_KEYS].filter(k => isKpiEnabled(k.key));
     if (!hasKeywordFilter) {
-      keys.push(...OFFTAKE_KPI_KEYS);
+      keys.push(...OFFTAKE_KPI_KEYS.filter(k => isKpiEnabled(k.key)));
     }
     keys.push({ ...SEARCH_RANK_KPI_KEY, disabled: !hasKeywordFilter });
     return keys;
-  }, [hasKeywordFilter]);
+  }, [hasKeywordFilter, isKpiEnabled]);
+
 
   useEffect(() => {
     if (!hasKeywordFilter && activeMetric === "search_rank") {
@@ -1216,6 +1223,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
   const [loading, setLoading] = useState(true);
   const [trendData, setTrendData] = useState({ brands: {}, days: [] });
   const [selectedChannel, setSelectedChannel] = useState("All");
+  const { isKpiEnabled: isVisKpiEnabled } = useKpiPermissions('Visibility Analysis');
 
   const { selectedRank: globalRank, compareStart, compareEnd } = useContext(FilterContext);
   const [localRank, setLocalRank] = useState(globalRank || 'All');
@@ -1243,7 +1251,10 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
       .catch(err => console.error('[KpiCompareView] Error fetching max-position:', err));
   }, []);
 
-  const activeKpiKeys = useMemo(() => getKpiKeys(mode, filters), [mode, filters]);
+  const activeKpiKeys = useMemo(() => {
+    const keys = getKpiKeys(mode, filters);
+    return keys.filter(k => isVisKpiEnabled(k.key));
+  }, [mode, filters, isVisKpiEnabled]);
 
   // Determine which items to compare
   const selectedItems = useMemo(() => {
@@ -1517,6 +1528,12 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
 /* -------------------------------------------------------------------------- */
 
 const BrandTable = ({ rows }) => {
+  const { isKpiEnabled } = useKpiPermissions('Visibility Analysis');
+  const showOverall = isKpiEnabled('overall_sos');
+  const showSponsored = isKpiEnabled('sponsored_sos');
+  const showOrganic = isKpiEnabled('organic_sos');
+  const colSpanCount = 1 + (showOverall ? 1 : 0) + (showSponsored ? 1 : 0) + (showOrganic ? 1 : 0);
+
   // Show only top 8 brands
   const top8Rows = rows.slice(0, 8);
 
@@ -1533,11 +1550,9 @@ const BrandTable = ({ rows }) => {
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-2 text-left">Brand</th>
-
-                {/* ONLY SOS KPIs */}
-                <th className="px-3 py-2 text-right">Overall SOS</th>
-                <th className="px-3 py-2 text-right">Sponsored</th>
-                <th className="px-3 py-2 text-right">Organic</th>
+                {showOverall && <th className="px-3 py-2 text-right">Overall SOS</th>}
+                {showSponsored && <th className="px-3 py-2 text-right">Sponsored</th>}
+                {showOrganic && <th className="px-3 py-2 text-right">Organic</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1552,22 +1567,27 @@ const BrandTable = ({ rows }) => {
                   <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
                     {row.name}
                   </td>
-
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {formatKpiValue(row.overall_sos)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {formatKpiValue(row.sponsored_sos)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {formatKpiValue(row.organic_sos)}
-                  </td>
+                  {showOverall && (
+                    <td className="px-3 py-2 text-right text-[12px]">
+                      {formatKpiValue(row.overall_sos)}
+                    </td>
+                  )}
+                  {showSponsored && (
+                    <td className="px-3 py-2 text-right text-[12px]">
+                      {formatKpiValue(row.sponsored_sos)}
+                    </td>
+                  )}
+                  {showOrganic && (
+                    <td className="px-3 py-2 text-right text-[12px]">
+                      {formatKpiValue(row.organic_sos)}
+                    </td>
+                  )}
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={colSpanCount}
                     className="px-3 py-6 text-center text-[12px] text-slate-400"
                   >
                     No brands matching current filters.
@@ -1583,6 +1603,12 @@ const BrandTable = ({ rows }) => {
 };
 
 const SkuTable = ({ rows }) => {
+  const { isKpiEnabled } = useKpiPermissions('Visibility Analysis');
+  const showOverall = isKpiEnabled('overall_sos');
+  const showSponsored = isKpiEnabled('sponsored_sos');
+  const showOrganic = isKpiEnabled('organic_sos');
+  const colSpanCount = 2 + (showOverall ? 1 : 0) + (showSponsored ? 1 : 0) + (showOrganic ? 1 : 0);
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const totalPages = Math.ceil(rows.length / pageSize);
@@ -1602,11 +1628,9 @@ const SkuTable = ({ rows }) => {
               <tr>
                 <th className="px-3 py-2 text-left">SKU</th>
                 <th className="px-3 py-2 text-left">Brand</th>
-
-                {/* ONLY SOS KPIs */}
-                <th className="px-3 py-2 text-right">Overall SOS</th>
-                <th className="px-3 py-2 text-right">Sponsored</th>
-                <th className="px-3 py-2 text-right">Organic</th>
+                {showOverall && <th className="px-3 py-2 text-right">Overall SOS</th>}
+                {showSponsored && <th className="px-3 py-2 text-right">Sponsored</th>}
+                {showOrganic && <th className="px-3 py-2 text-right">Organic</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1624,22 +1648,27 @@ const SkuTable = ({ rows }) => {
                   <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
                     {row.brandName}
                   </td>
-
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {formatKpiValue(row.overall_sos)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {formatKpiValue(row.sponsored_sos)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {formatKpiValue(row.organic_sos)}
-                  </td>
+                  {showOverall && (
+                    <td className="px-3 py-2 text-right text-[12px]">
+                      {formatKpiValue(row.overall_sos)}
+                    </td>
+                  )}
+                  {showSponsored && (
+                    <td className="px-3 py-2 text-right text-[12px]">
+                      {formatKpiValue(row.sponsored_sos)}
+                    </td>
+                  )}
+                  {showOrganic && (
+                    <td className="px-3 py-2 text-right text-[12px]">
+                      {formatKpiValue(row.organic_sos)}
+                    </td>
+                  )}
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={colSpanCount}
                     className="px-3 py-6 text-center text-[12px] text-slate-400"
                   >
                     No SKUs matching current filters.
@@ -1667,6 +1696,12 @@ const SkuTable = ({ rows }) => {
 
 /* Keyword Table (replaces SKU table in second tab) */
 const KeywordTable = ({ rows }) => {
+  const { isKpiEnabled } = useKpiPermissions('Visibility Analysis');
+  const showOverall = isKpiEnabled('overall_sos');
+  const showSponsored = isKpiEnabled('sponsored_sos');
+  const showOrganic = isKpiEnabled('organic_sos');
+  const colSpanCount = 2 + (showOverall ? 1 : 0) + (showSponsored ? 1 : 0) + (showOrganic ? 1 : 0);
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const totalPages = Math.ceil(rows.length / pageSize);
@@ -1686,11 +1721,9 @@ const KeywordTable = ({ rows }) => {
               <tr>
                 <th className="px-3 py-2 text-left">Keyword</th>
                 <th className="px-3 py-2 text-left">Brand</th>
-
-                {/* ONLY SOS KPIs */}
-                <th className="px-3 py-2 text-right">Overall SOS</th>
-                <th className="px-3 py-2 text-right">Sponsored</th>
-                <th className="px-3 py-2 text-right">Organic</th>
+                {showOverall && <th className="px-3 py-2 text-right">Overall SOS</th>}
+                {showSponsored && <th className="px-3 py-2 text-right">Sponsored</th>}
+                {showOrganic && <th className="px-3 py-2 text-right">Organic</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
@@ -1708,22 +1741,27 @@ const KeywordTable = ({ rows }) => {
                   <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
                     {row.brandName}
                   </td>
-
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {formatKpiValue(row.overall_sos)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {formatKpiValue(row.sponsored_sos)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {formatKpiValue(row.organic_sos)}
-                  </td>
+                  {showOverall && (
+                    <td className="px-3 py-2 text-right text-[12px]">
+                      {formatKpiValue(row.overall_sos)}
+                    </td>
+                  )}
+                  {showSponsored && (
+                    <td className="px-3 py-2 text-right text-[12px]">
+                      {formatKpiValue(row.sponsored_sos)}
+                    </td>
+                  )}
+                  {showOrganic && (
+                    <td className="px-3 py-2 text-right text-[12px]">
+                      {formatKpiValue(row.organic_sos)}
+                    </td>
+                  )}
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={colSpanCount}
                     className="px-3 py-6 text-center text-[12px] text-slate-400"
                   >
                     No Keywords matching current filters.

@@ -1,4 +1,5 @@
 import { useState, useMemo, useContext, useEffect, useCallback, useRef } from 'react'
+import useKpiPermissions from '../../../hooks/useKpiPermissions'
 import axiosInstance from '../../../api/axiosInstance'
 import { motion } from 'framer-motion'
 import { FilterContext } from '../../../utils/FilterContext'
@@ -173,6 +174,29 @@ const PlatformOverviewNew = ({
         platformsFetched
     } = useContext(FilterContext);
 
+    const { isKpiEnabled: isGlobalKpiEnabled } = useKpiPermissions("Business Overview");
+
+    const isKpiEnabled = useCallback((key) => {
+        const keyMap = {
+            offtakes: 'offtake',
+            spend: 'spend',
+            inorgSales: 'inorganic_sales',
+            conversion: 'conversion',
+            availability: 'availability',
+            shareOfVolume: 'share_of_search',
+            ad_sov: 'sponsored_sos',
+            organic_sov: 'organic_sos',
+            cpm: 'cpm',
+            cpc: 'cpc',
+            marketShare: 'market_share',
+            categorySize: 'category_size',
+            discount: 'promo',
+        };
+        const backendId = keyMap[key];
+        if (!backendId) return true;
+        return isGlobalKpiEnabled(backendId);
+    }, [isGlobalKpiEnabled]);
+
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
         { key: 'spend', label: 'Spend' },
@@ -251,7 +275,7 @@ const PlatformOverviewNew = ({
         }
 
         if (dimension === 'sku') {
-            return baseKpis.filter(k => {
+            baseKpis = baseKpis.filter(k => {
                 if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov') return false;
                 // CPM is never shown at SKU level
                 if (k.key === 'cpm') return false;
@@ -260,9 +284,13 @@ const PlatformOverviewNew = ({
                 return true;
             });
         }
-        if (dimension === 'brand') return baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
-        return baseKpis;
-    }, [dimension, activePlatformFilter, skuPlatformFilter]);
+        if (dimension === 'brand') {
+            baseKpis = baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
+        }
+        
+        // Filter by user KPI permissions
+        return baseKpis.filter(k => isKpiEnabled(k.key));
+    }, [dimension, activePlatformFilter, skuPlatformFilter, isKpiEnabled]);
 
     const defaultKpiKeys = useMemo(() => {
         let base = ['offtakes', 'spend', 'availability', 'conversion', 'aov'];
@@ -286,13 +314,14 @@ const PlatformOverviewNew = ({
             if (isSkuQcom) {
                 skuBase = skuBase.filter(k => !SKU_ECOM_ONLY_KPIS.includes(k));
             }
-            return skuBase;
+            base = skuBase;
+        } else if (dimension === 'brand') {
+            base = base.filter(k => k !== 'categorySize' && k !== 'marketShare');
         }
-        if (dimension === 'brand') {
-            return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
-        }
-        return base;
-    }, [dimension, activePlatformFilter, skuPlatformFilter]);
+        
+        // Filter by user KPI permissions
+        return base.filter(k => isKpiEnabled(k));
+    }, [dimension, activePlatformFilter, skuPlatformFilter, isKpiEnabled]);
 
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)

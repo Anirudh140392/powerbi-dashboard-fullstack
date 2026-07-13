@@ -63,6 +63,7 @@ import { TimePicker } from "@mui/x-date-pickers/TimePicker";
 import dayjs from "dayjs";
 import { useHelp } from "../../utils/HelpContext";
 import { useAuth } from "../../utils/AuthContext";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 
 /* ─────────────────────────────────────────────────────────────
    PLATFORM VISUAL MAP  (colors & icons for known platforms)
@@ -201,6 +202,7 @@ export default function ReportBuilder({
 }) {
   const { toggleHelp } = useHelp();
   const { user } = useAuth();
+  const { isKpiEnabled } = useKpiPermissions("Scheduled Reports");
 
   // ── Dynamic platform list from backend ──
   const dynamicPlatforms = useMemo(() => {
@@ -275,8 +277,14 @@ export default function ReportBuilder({
       }));
     }
 
+    // 5. Hide KPIs if they are disabled in user KPI permissions for Scheduled Reports
+    metrics = metrics.map(m => ({
+      ...m,
+      tags: m.tags.filter(tag => isKpiEnabled(tag))
+    }));
+
     return metrics;
-  }, [reportTypeOptions, user, sku]);
+  }, [reportTypeOptions, user, sku, isKpiEnabled]);
 
   const [metricOn, setMetricOn] = useState(
     Object.fromEntries(PAGE_METRICS.map(m => [m.key, true]))

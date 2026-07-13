@@ -162,7 +162,6 @@ export const getPendingRequests = async () => {
                 access as status
             FROM tb_user
             WHERE access = 'pending'
-            AND last_login >= today()
             ORDER BY last_login DESC
             LIMIT 1 BY user_email, ip
         `;
@@ -302,18 +301,111 @@ export const updateUserAccess = async (id, status, userName) => {
  *   }
  * }
  */
+const tabsList = [
+    "Business Overview", "India Overview", "Availability Analysis",
+    "Market Coverage", "Visibility Analysis", "Market Share", "Sales Data",
+    "Pricing Analysis", "Performance Marketing", "Portfolio Analysis", "Content Analysis",
+    "Inventory Analysis", "Play it Yourself", "Category RCA",
+    "Scheduled Reports", "Download Report", "Ad Auto", "Rating", "Supply", "PDS Score"
+];
+
+/**
+ * Helper to convert flat permissions (e.g. platform_blinkit: true, kpi_Business Overview_offtake: true) to nested format:
+ * {
+ *   "Business Overview": {
+ *     "access": true,
+ *     "kpi": {
+ *       "offtake": true
+ *     }
+ *   },
+ *   "platform": {
+ *     "blinkit": true
+ *   }
+ * }
+ */
 export const toNestedPermissions = (flatPerms) => {
     if (!flatPerms) return {};
     const nested = {};
     const platform = {};
+    
+    // First, set up access for tabs and platforms
     Object.keys(flatPerms).forEach(key => {
         if (key.startsWith('platform_')) {
             const platName = key.replace('platform_', '').toLowerCase();
             platform[platName] = flatPerms[key];
+        } else if (key.startsWith('kpi_')) {
+            // Handled in second pass
         } else if (key !== 'platform') {
-            nested[key] = flatPerms[key];
+            nested[key] = {
+                access: flatPerms[key],
+                kpi: {}
+            };
         }
     });
+    
+    // Second, nest the KPIs under their respective tabs
+    Object.keys(flatPerms).forEach(key => {
+        if (key.startsWith('kpi_')) {
+            const remaining = key.replace('kpi_', '');
+            const matchingTab = tabsList.find(tab => remaining.startsWith(tab + '_'));
+            if (matchingTab) {
+                const kpiIdStr = remaining.slice(matchingTab.length + 1);
+                if (!nested[matchingTab]) {
+                    nested[matchingTab] = { access: true, kpi: {} };
+                }
+                
+                // If it is Supply tab, handle sub-pages (Prioritize PO, Fix Stock Transfer, Manage Surplus)
+                if (matchingTab === 'Supply') {
+                    const subPages = ["Prioritize PO", "Fix Stock Transfer", "Manage Surplus"];
+                    const matchingSubPage = subPages.find(sp => kpiIdStr.startsWith(sp + '_'));
+                    if (matchingSubPage) {
+                        const subKpiId = kpiIdStr.slice(matchingSubPage.length + 1);
+                        if (!nested[matchingTab].kpi[matchingSubPage]) {
+                            nested[matchingTab].kpi[matchingSubPage] = { access: true, kpi: {} };
+                        }
+                        if (subKpiId === 'access') {
+                            nested[matchingTab].kpi[matchingSubPage].access = flatPerms[key];
+                        } else {
+                            nested[matchingTab].kpi[matchingSubPage].kpi[subKpiId] = flatPerms[key];
+                        }
+                    } else {
+                        nested[matchingTab].kpi[kpiIdStr] = flatPerms[key];
+                    }
+                } else if (matchingTab === 'Visibility Analysis') {
+                    const subPages = ["Share of Shelf", "BSR", "Share Of shelf"];
+                    const matchingSubPage = subPages.find(sp => kpiIdStr.toLowerCase().startsWith(sp.toLowerCase() + '_'));
+                    if (matchingSubPage) {
+                        const subKpiId = kpiIdStr.substring(matchingSubPage.length + 1);
+                        // Normalize key to standard capitalization ("Share of Shelf" or "BSR")
+                        const normalizedSubPage = matchingSubPage.toLowerCase().startsWith('bsr') ? 'BSR' : 'Share of Shelf';
+                        if (!nested[matchingTab].kpi[normalizedSubPage]) {
+                            nested[matchingTab].kpi[normalizedSubPage] = { access: true, kpi: {} };
+                        }
+                        if (subKpiId === 'access') {
+                            nested[matchingTab].kpi[normalizedSubPage].access = flatPerms[key];
+                        } else {
+                            nested[matchingTab].kpi[normalizedSubPage].kpi[subKpiId] = flatPerms[key];
+                        }
+                    } else {
+                        nested[matchingTab].kpi[kpiIdStr] = flatPerms[key];
+                    }
+                } else {
+                    nested[matchingTab].kpi[kpiIdStr] = flatPerms[key];
+                }
+            } else {
+                const lastIdx = remaining.lastIndexOf('_');
+                if (lastIdx !== -1) {
+                    const tabName = remaining.slice(0, lastIdx);
+                    const kpiId = remaining.slice(lastIdx + 1);
+                    if (!nested[tabName]) {
+                        nested[tabName] = { access: true, kpi: {} };
+                    }
+                    nested[tabName].kpi[kpiId] = flatPerms[key];
+                }
+            }
+        }
+    });
+    
     nested.platform = platform;
     return nested;
 };
@@ -322,6 +414,7 @@ export const toNestedPermissions = (flatPerms) => {
  * Helper to convert nested permissions (e.g. platform: { blinkit: true }) back to flat format:
  * {
  *   "Business Overview": true,
+ *   "kpi_Business Overview_offtake": true,
  *   "platform_blinkit": true
  * }
  */
@@ -333,6 +426,24 @@ export const toFlatPermissions = (nestedPerms) => {
             Object.keys(nestedPerms.platform).forEach(plat => {
                 flat[`platform_${plat}`] = nestedPerms.platform[plat];
             });
+        } else if (nestedPerms[key] && typeof nestedPerms[key] === 'object') {
+            // It's a tab with access and KPIs
+            flat[key] = nestedPerms[key].access !== undefined ? nestedPerms[key].access : true;
+            if (nestedPerms[key].kpi && typeof nestedPerms[key].kpi === 'object') {
+                Object.keys(nestedPerms[key].kpi).forEach(kpiId => {
+                    const kpiVal = nestedPerms[key].kpi[kpiId];
+                    if (kpiVal && typeof kpiVal === 'object') {
+                        flat[`kpi_${key}_${kpiId}_access`] = kpiVal.access !== undefined ? kpiVal.access : true;
+                        if (kpiVal.kpi && typeof kpiVal.kpi === 'object') {
+                            Object.keys(kpiVal.kpi).forEach(subKpiId => {
+                                flat[`kpi_${key}_${kpiId}_${subKpiId}`] = kpiVal.kpi[subKpiId];
+                            });
+                        }
+                    } else {
+                        flat[`kpi_${key}_${kpiId}`] = kpiVal;
+                    }
+                });
+            }
         } else {
             flat[key] = nestedPerms[key];
         }
@@ -675,6 +786,178 @@ export const getAdminPlatforms = async (dbName) => {
         console.error(`[AdminService] getAdminPlatforms failed for ${db}:`, error.message);
         const fallback = ["amazon", "flipkart", "bigbasket", "blinkit", "instamart", "zepto", "dmart"];
         return fallback;
+    }
+};
+
+/**
+ * Helper to update flat KPI key under the correct nested structure inside perms JSON
+ */
+const setNestedKpiValue = (perms, page, kpiId, value) => {
+    if (!perms[page]) {
+        perms[page] = { access: true, kpi: {} };
+    } else if (typeof perms[page] === 'boolean') {
+        perms[page] = { access: perms[page], kpi: {} };
+    }
+
+    if (!perms[page].kpi) {
+        perms[page].kpi = {};
+    }
+
+    if (page === 'Supply') {
+        const subPages = ["Prioritize PO", "Fix Stock Transfer", "Manage Surplus"];
+        const matchingSubPage = subPages.find(sp => kpiId.startsWith(sp + '_'));
+        if (matchingSubPage) {
+            const subKpiId = kpiId.slice(matchingSubPage.length + 1);
+            if (!perms[page].kpi[matchingSubPage]) {
+                perms[page].kpi[matchingSubPage] = { access: true, kpi: {} };
+            } else if (typeof perms[page].kpi[matchingSubPage] === 'boolean') {
+                perms[page].kpi[matchingSubPage] = { access: perms[page].kpi[matchingSubPage], kpi: {} };
+            }
+            if (subKpiId === 'access') {
+                perms[page].kpi[matchingSubPage].access = value;
+            } else {
+                if (!perms[page].kpi[matchingSubPage].kpi) {
+                    perms[page].kpi[matchingSubPage].kpi = {};
+                }
+                perms[page].kpi[matchingSubPage].kpi[subKpiId] = value;
+            }
+            return;
+        }
+    } else if (page === 'Visibility Analysis') {
+        const subPages = ["Share of Shelf", "BSR", "Share Of shelf"];
+        const matchingSubPage = subPages.find(sp => kpiId.toLowerCase().startsWith(sp.toLowerCase() + '_'));
+        if (matchingSubPage) {
+            const subKpiId = kpiId.substring(matchingSubPage.length + 1);
+            const normalizedSubPage = matchingSubPage.toLowerCase().startsWith('bsr') ? 'BSR' : 'Share of Shelf';
+            if (!perms[page].kpi[normalizedSubPage]) {
+                perms[page].kpi[normalizedSubPage] = { access: true, kpi: {} };
+            } else if (typeof perms[page].kpi[normalizedSubPage] === 'boolean') {
+                perms[page].kpi[normalizedSubPage] = { access: perms[page].kpi[normalizedSubPage], kpi: {} };
+            }
+            if (subKpiId === 'access') {
+                perms[page].kpi[normalizedSubPage].access = value;
+            } else {
+                if (!perms[page].kpi[normalizedSubPage].kpi) {
+                    perms[page].kpi[normalizedSubPage].kpi = {};
+                }
+                perms[page].kpi[normalizedSubPage].kpi[subKpiId] = value;
+            }
+            return;
+        }
+    }
+
+    // Default: flat KPI mapping
+    perms[page].kpi[kpiId] = value;
+};
+
+/**
+ * Update KPI permissions database-wide for all users of a selected database
+ */
+export const updateKpiPermissionsBatch = async (dbName, page, kpis) => {
+    try {
+        // 1. Resolve db_id from dbName
+        const dbRows = await queryAdminDB(`
+            SELECT DISTINCT toString(db_id) as db_id 
+            FROM tb_database 
+            WHERE lower(db_name) = '${dbName.toLowerCase().trim()}'
+        `);
+        if (dbRows.length === 0) {
+            throw new Error(`Database "${dbName}" not found`);
+        }
+        const dbId = dbRows[0].db_id;
+        const targetDbIdNum = BigInt(dbId);
+
+        // 2. Fetch all unique users and filter them using BigInt approximate check (within 1000)
+        const allUserRows = await queryAdminDB(`
+            SELECT 
+                user_email, 
+                ifNull(argMaxIf(tab_permissions, last_login, tab_permissions != ''), '') as tab_permissions,
+                toString(argMax(db_id, last_login)) as db_id_str
+            FROM tb_user 
+            GROUP BY user_email
+        `);
+
+        const userRows = allUserRows.filter(user => {
+            if (!user.db_id_str) return false;
+            try {
+                const userDbIdNum = BigInt(user.db_id_str);
+                const diff = targetDbIdNum > userDbIdNum ? targetDbIdNum - userDbIdNum : userDbIdNum - targetDbIdNum;
+                return diff < BigInt('1000');
+            } catch (e) {
+                return false;
+            }
+        });
+
+        // 3. Update permissions for each user
+        for (const user of userRows) {
+            let perms = {};
+            if (user.tab_permissions && user.tab_permissions.trim()) {
+                try {
+                    perms = JSON.parse(user.tab_permissions);
+                } catch (_) {}
+            }
+
+            // Merge KPI updates using the helper
+            Object.keys(kpis).forEach(kpiId => {
+                setNestedKpiValue(perms, page, kpiId, kpis[kpiId]);
+            });
+
+            const jsonStr = JSON.stringify(perms).replace(/'/g, "\\'");
+            await queryAdminDB(`
+                ALTER TABLE tb_user 
+                UPDATE tab_permissions = '${jsonStr}' 
+                WHERE user_email = '${user.user_email.replace(/'/g, "\\'")}'
+            `);
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('[AdminService] updateKpiPermissionsBatch failed:', error.message);
+        throw error;
+    }
+};
+
+/**
+ * Update KPI permissions for a single user
+ */
+export const updateUserKpiPermissions = async (email, page, kpis) => {
+    try {
+        // Fetch the user's tab_permissions
+        const userRows = await queryAdminDB(`
+            SELECT user_email, tab_permissions 
+            FROM tb_user 
+            WHERE user_email = '${email.replace(/'/g, "\\'")}'
+            LIMIT 1
+        `);
+
+        if (userRows.length === 0) {
+            throw new Error(`User "${email}" not found`);
+        }
+
+        const user = userRows[0];
+        let perms = {};
+        if (user.tab_permissions && user.tab_permissions.trim()) {
+            try {
+                perms = JSON.parse(user.tab_permissions);
+            } catch (_) {}
+        }
+
+        // Merge KPI updates using the helper
+        Object.keys(kpis).forEach(kpiId => {
+            setNestedKpiValue(perms, page, kpiId, kpis[kpiId]);
+        });
+
+        const jsonStr = JSON.stringify(perms).replace(/'/g, "\\'");
+        await queryAdminDB(`
+            ALTER TABLE tb_user 
+            UPDATE tab_permissions = '${jsonStr}' 
+            WHERE user_email = '${user.user_email.replace(/'/g, "\\'")}'
+        `);
+
+        return { success: true };
+    } catch (error) {
+        console.error('[AdminService] updateUserKpiPermissions failed:', error.message);
+        throw error;
     }
 };
 

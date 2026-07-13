@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import {
     Box,
     Typography,
@@ -193,6 +194,9 @@ const MetricCell = ({ data, label, categoryName }) => {
 
 export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDate, compareEndDate, platform, brand, location, onTrendClick }) {
     const { refreshFilters } = React.useContext(FilterContext);
+    const { isKpiEnabled } = useKpiPermissions("Sales Data");
+    const isSalesRevenueEnabled = isKpiEnabled("sales_revenue");
+
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [apiError, setApiError] = useState(null);
@@ -203,6 +207,9 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [filters, setFilters] = useState({ date: [], month: [], platform: [], kpi: [], format: [], zone: [], city: [], categories: [], kpis: [] });
     const [popupFilters, setPopupFilters] = useState({ date: [], month: [], platform: [], kpi: [], format: [], zone: [], city: [], categories: [], kpis: [] });
+
+    // Return early if KPI is disabled
+    if (!isSalesRevenueEnabled) return null;
 
     const loadData = async () => {
         setLoading(true);

@@ -35,6 +35,7 @@ import CustomHeaderDropdown from "./CustomHeaderDropdown";
 import axiosInstance from "../../api/axiosInstance";
 import { useSocket } from "../../utils/SocketContext";
 import dayjs from "dayjs";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 
 // Route → ClickHouse table for max date lookup
 const ROUTE_TABLE_MAP = {
@@ -3892,6 +3893,20 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     }
   }, []);
 
+  const { isKpiEnabled } = useKpiPermissions("Visibility Analysis");
+  const isShareOfShelfAccessEnabled = isKpiEnabled("Share of Shelf_access");
+  const isBsrAccessEnabled = isKpiEnabled("BSR_access");
+
+  React.useEffect(() => {
+    if (title === "Visibility Analysis") {
+      if (!isShareOfShelfAccessEnabled && isBsrAccessEnabled && visibilityMode !== 'bsr') {
+        setVisibilityMode('bsr');
+      } else if (!isBsrAccessEnabled && isShareOfShelfAccessEnabled && visibilityMode !== 'sos') {
+        setVisibilityMode('sos');
+      }
+    }
+  }, [isShareOfShelfAccessEnabled, isBsrAccessEnabled, visibilityMode, setVisibilityMode, title]);
+
   const { socketMaxDates } = useSocket();
 
   const currentChannel = filters?.channel || selectedChannel;
@@ -4076,26 +4091,28 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                   {title === "Availability Analysis" || title === "Visibility Analysis" ? (
                     <>
                       {/* Channel Switch Removed as per user request */}                      {/* SOS / BSR Toggle below Channel Switch */}
-                      {title === "Visibility Analysis" && (['ecommerce', 'e-commerce', 'ecom'].includes(selectedChannel?.toLowerCase())) && (
+                      {title === "Visibility Analysis" && (['ecommerce', 'e-commerce', 'ecom'].includes(selectedChannel?.toLowerCase())) && (isShareOfShelfAccessEnabled || isBsrAccessEnabled) && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                           <Box sx={{ display: 'flex', bgcolor: '#f1f5f9', borderRadius: '8px', p: '3px', width: 'fit-content', border: '1px solid #e2e8f0' }}>
-                            <Box
-                              onClick={() => setVisibilityMode('sos')}
-                              sx={{
-                                px: 1.2, py: 0.2,
-                                fontSize: '0.6rem',
-                                fontWeight: visibilityMode === 'sos' ? 700 : 500,
-                                color: visibilityMode === 'sos' ? '#ffffff' : '#64748b',
-                                bgcolor: visibilityMode === 'sos' ? '#6366f1' : 'transparent',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                fontFamily: "'Inter', 'Roboto', sans-serif"
-                              }}
-                            >
-                              Share of Shelf
-                            </Box>
-                            {(() => {
+                            {isShareOfShelfAccessEnabled && (
+                              <Box
+                                onClick={() => setVisibilityMode('sos')}
+                                sx={{
+                                  px: 1.2, py: 0.2,
+                                  fontSize: '0.6rem',
+                                  fontWeight: visibilityMode === 'sos' ? 700 : 500,
+                                  color: visibilityMode === 'sos' ? '#ffffff' : '#64748b',
+                                  bgcolor: visibilityMode === 'sos' ? '#6366f1' : 'transparent',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                  fontFamily: "'Inter', 'Roboto', sans-serif"
+                                }}
+                              >
+                                Share of Shelf
+                              </Box>
+                            )}
+                            {isBsrAccessEnabled && (() => {
                               const isAmazon = platform === 'Amazon' || platform === 'amazon' || (Array.isArray(platform) && platform.some(p => p?.toLowerCase() === 'amazon'));
                               const isBsrDisabled = !isAmazon;
 
@@ -4124,11 +4141,13 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                             })()}
                           </Box>
 
-                          <Tooltip title="BSR page contains only Amazon platform data" arrow placement="top">
-                            <Box sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.6, '&:hover': { opacity: 1 } }}>
-                              <Info size={14} />
-                            </Box>
-                          </Tooltip>
+                          {isBsrAccessEnabled && (
+                            <Tooltip title="BSR page contains only Amazon platform data" arrow placement="top">
+                              <Box sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer', opacity: 0.6, '&:hover': { opacity: 1 } }}>
+                                <Info size={14} />
+                              </Box>
+                            </Tooltip>
+                          )}
                         </Box>
                       )}
                     </>

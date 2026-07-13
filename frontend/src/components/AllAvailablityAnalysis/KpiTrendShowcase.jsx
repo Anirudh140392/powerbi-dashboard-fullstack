@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useContext, createContext, useEffect } from "react";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import axiosInstance from "../../api/axiosInstance";
 import { formatNumber } from "../../utils/formatters";
 import { FilterContext } from "../../utils/FilterContext";
@@ -1452,6 +1453,17 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
 
   const platform = propPlatform !== undefined ? propPlatform : contextPlatform;
 
+  // Map dynamicKey to the page name used in KPI permissions
+  const pageNameFromDynamicKey = dynamicKey === 'pricing' ? 'Pricing Analysis'
+    : dynamicKey === 'marketshare' ? 'Market Share'
+    : dynamicKey === 'availability' ? 'Availability Analysis'
+    : dynamicKey === 'visibility' ? 'Visibility Analysis'
+    : dynamicKey === 'sales' ? 'Sales Data'
+    : dynamicKey === 'content' ? 'Content Analysis'
+    : 'Business Overview';
+
+  const { isKpiEnabled } = useKpiPermissions(pageNameFromDynamicKey);
+
   const kpiKeys = useMemo(() => {
     let keys;
     if (dynamicKey === 'pricing') keys = PRICING_KPI_KEYS;
@@ -1466,8 +1478,11 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
       keys = keys.filter(k => k.key !== 'Listing');
     }
 
+    // Filter by user KPI permissions
+    keys = keys.filter(k => isKpiEnabled(k.key));
+
     return keys;
-  }, [dynamicKey, selectedChannel, platform]);
+  }, [dynamicKey, selectedChannel, platform, isKpiEnabled]);
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1479,10 +1494,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
   // --- Reseller Name filter (DRL only) ---
-  const user = useMemo(() => {
-    try { return JSON.parse(sessionStorage.getItem('user')); } catch { return null; }
-  }, []);
-  const isDrl = user?.dbName?.toLowerCase() === 'drl';
+  const isDrl = (() => { try { return JSON.parse(sessionStorage.getItem('user')); } catch { return null; } })()?.dbName?.toLowerCase() === 'drl';
   const [resellerName, setResellerName] = useState('All');
   const [resellerOptions, setResellerOptions] = useState([]);
 

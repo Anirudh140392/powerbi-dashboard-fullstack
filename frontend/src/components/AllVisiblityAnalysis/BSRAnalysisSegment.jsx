@@ -9,6 +9,7 @@ import { Package, TrendingUp } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import SnapshotOverview from '../CommonLayout/SnapshotOverview';
 import BSRTrendsDrawer from './BSRTrendsDrawer';
+import useKpiPermissions from '../../hooks/useKpiPermissions';
 
 const BSRAnalysisSegment = () => {
     const {
@@ -226,6 +227,12 @@ const BSRAnalysisSegment = () => {
         ];
     }, [data, sovData]);
 
+    const { isKpiEnabled } = useKpiPermissions('Visibility Analysis');
+
+    const visibleKpiMetrics = useMemo(() => {
+        return kpiMetrics.filter(kpi => isKpiEnabled(kpi.id));
+    }, [kpiMetrics, isKpiEnabled]);
+
     // SKU Table processing
     const filteredSKUs = useMemo(() => {
         const lowerQuery = searchQuery.toLowerCase();
@@ -348,7 +355,7 @@ const BSRAnalysisSegment = () => {
                 title="BSR Overview"
                 chip={data[0]?.platform || selectedPlatform === 'All' ? 'amazon' : selectedPlatform}
                 headerRight="VS PREVIOUS PERIOD"
-                kpis={kpiMetrics} 
+                kpis={visibleKpiMetrics} 
                 loading={loading} 
             />
 

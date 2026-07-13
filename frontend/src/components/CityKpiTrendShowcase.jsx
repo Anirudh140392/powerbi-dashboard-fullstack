@@ -1,5 +1,6 @@
 import React from "react";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import useKpiPermissions from "@/hooks/useKpiPermissions";
 import { formatNumber } from "@/utils/formatters";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -665,6 +666,84 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
   const isColumnPagination = dynamicKey === "availability" || dynamicKey === "visibility";
 
+  // ---- KPI Permission Gating ----
+  // Map dynamicKey to the page name used in ManageKpi tabPermissions
+  const DYNAMIC_KEY_TO_PAGE = {
+    visibility: 'Visibility Analysis',
+    availability: 'Availability Analysis',
+    sales: 'Sales Data',
+    'market-share': 'Market Share',
+    pricing: 'Pricing Analysis',
+    performance: 'Performance Marketing',
+    content: 'Content Analysis',
+    inventory: 'Inventory Analysis',
+    'market-coverage': 'Market Coverage',
+    'india-overview': 'India Overview',
+    'business-overview': 'Business Overview',
+  };
+  const permPageName = DYNAMIC_KEY_TO_PAGE[dynamicKey] || '';
+  const { isKpiEnabled: isPermKpiEnabled } = useKpiPermissions(permPageName);
+
+  // Map row KPI display names to the permission IDs from ManageKpi
+  const KPI_ROW_TO_PERM_ID = {
+    'overall sos': 'overall_sos',
+    'sponsored sos': 'sponsored_sos',
+    'organic sos': 'organic_sos',
+    'ad sos': 'sponsored_sos',
+    'stock availability': 'stock_availability',
+    'days of inventory': 'doi',
+    'doi': 'doi',
+    'metro city stock availability': 'metro_city_stock_availability',
+    'psl': 'psl',
+    'soh': 'soh',
+    'wt. osa%': 'wt_osa_pct',
+    'wt. osa': 'wt_osa',
+    'offtake share': 'offtake_share',
+    'osa': 'osa',
+    'category size': 'category_size',
+    'market share': 'market_share',
+    'market share %': 'market_share',
+    'overall share of visibility': 'overall_share_of_visibility',
+    'paid share of visibility': 'paid_share_of_visibility',
+    'market leader sales': 'market_leader_sales',
+    'brand estimated sales': 'brand_estimated_sales',
+    'impressions': 'impressions',
+    'clicks': 'clicks',
+    'ctr': 'ctr',
+    'cpc': 'cpc',
+    'cpm': 'cpm',
+    'spend': 'spend',
+    'roas': 'roas',
+    'sales': 'sales',
+    'conversion': 'conversion',
+    'orders': 'orders',
+    'offtakes': 'offtake',
+    'offtake': 'offtake',
+    'availability': 'availability',
+    'share of search': 'share_of_search',
+    'promo': 'promo',
+    'inorganic sales': 'inorganic_sales',
+    'discount %': 'discount_pct',
+    'weighted discount': 'weighted_discount',
+    'average selling price': 'average_selling_price',
+    'title score': 'title_score',
+    'image score': 'image_score',
+    'si score': 'si_score',
+    'description score': 'description_score',
+    'rating score': 'rating_score',
+    'overall score': 'overall_score',
+    'doh': 'doh',
+    'drr': 'drr',
+  };
+
+  // Helper to check if a KPI row should be visible
+  const isRowPermitted = useCallback((kpiName) => {
+    if (!permPageName || !kpiName) return true;
+    const permId = KPI_ROW_TO_PERM_ID[kpiName.toLowerCase().trim()];
+    if (!permId) return true; // unknown KPI names are shown by default
+    return isPermKpiEnabled(permId);
+  }, [permPageName, isPermKpiEnabled]);
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(3);
@@ -846,7 +925,10 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   // ====================== APPLY FILTERS TO DATA ======================
   // Filter rows by KPI selection + applied KPI filter
   const filteredRows = React.useMemo(() => {
-    let result = rows.filter(row => selectedKPIs.includes(row.kpi));
+    // First filter by KPI permission gating
+    let result = rows.filter(row => isRowPermitted(row.kpi));
+    // Then filter by user's KPI selection dropdown
+    result = result.filter(row => selectedKPIs.includes(row.kpi));
 
     // Apply KPI filter from advanced filters
     const kpiFilter = appliedSectionValues.kpis;
@@ -856,7 +938,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     }
 
     return result;
-  }, [rows, selectedKPIs, appliedSectionValues]);
+  }, [rows, selectedKPIs, appliedSectionValues, isRowPermitted]);
 
   const totalPages = Math.ceil(filteredRows.length / pageSize);
 

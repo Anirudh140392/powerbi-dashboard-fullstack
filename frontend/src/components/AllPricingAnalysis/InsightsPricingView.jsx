@@ -1,5 +1,6 @@
 // InsightsPricingView.jsx
-import React, { useMemo, useState, useEffect, useContext } from "react";
+import { useMemo, useState, useEffect, useContext } from "react";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import { FilterContext } from "@/utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
 import { Box, Typography, Skeleton, Dialog, Slide } from "@mui/material";
@@ -261,15 +262,37 @@ export default function InsightsPricingView({ loading = false }) {
         fetchInsights();
     }, [timeStart, timeEnd, compareStart, compareEnd, datesInitialized, globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand]);
 
-    const data = useMemo(() => insightsData[activeTab] || [], [activeTab, insightsData]);
+    const { isKpiEnabled: isPricingKpiEnabled } = useKpiPermissions('Pricing Analysis');
 
     // Use dynamic tabs configuration based on counts
-    const dynamicTabs = [
-        { key: "pd_my", label: "Price Drop (my SKUs)", count: insightsData.pd_my.length },
-        { key: "pi_my", label: "Price Increase (my SKUs)", count: insightsData.pi_my.length },
-        { key: "pd_comp", label: "Price Drop (comp. SKUs)", count: insightsData.pd_comp.length },
-        { key: "pi_comp", label: "Price Increase (comp. SKUs)", count: insightsData.pi_comp.length },
-    ];
+    const dynamicTabs = useMemo(() => {
+        const mapping = {
+            pd_my: 'price_drop_my_skus',
+            pi_my: 'price_increase_my_skus',
+            pd_comp: 'price_drop_comp_skus',
+            pi_comp: 'price_increase_comp_skus'
+        };
+        const allTabs = [
+            { key: "pd_my", label: "Price Drop (my SKUs)", count: insightsData.pd_my.length },
+            { key: "pi_my", label: "Price Increase (my SKUs)", count: insightsData.pi_my.length },
+            { key: "pd_comp", label: "Price Drop (comp. SKUs)", count: insightsData.pd_comp.length },
+            { key: "pi_comp", label: "Price Increase (comp. SKUs)", count: insightsData.pi_comp.length },
+        ];
+        return allTabs.filter(t => {
+            const permId = mapping[t.key];
+            if (!permId) return true;
+            return isPricingKpiEnabled(permId);
+        });
+    }, [insightsData, isPricingKpiEnabled]);
+
+    // Auto-select first enabled tab if current active tab is disabled
+    useEffect(() => {
+        if (dynamicTabs.length > 0 && !dynamicTabs.some(t => t.key === activeTab)) {
+            setActiveTab(dynamicTabs[0].key);
+        }
+    }, [dynamicTabs, activeTab]);
+
+    const data = useMemo(() => insightsData[activeTab] || [], [activeTab, insightsData]);
 
     return (
         <div className="w-full bg-slate-50 p-6">

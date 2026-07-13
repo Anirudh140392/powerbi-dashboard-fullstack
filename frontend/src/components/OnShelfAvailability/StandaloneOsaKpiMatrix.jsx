@@ -1,8 +1,9 @@
-import React, { useState, useEffect, Fragment } from "react";
+import React, { useState, useEffect, Fragment, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronRight, TrendingUp, LineChartIcon, RefreshCw, AlertTriangle } from "lucide-react";
 import { PlatformKpiMatrixSkeleton } from "../AllAvailablityAnalysis/AvailabilitySkeletons";
 import { formatNumber } from "../../utils/formatters";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 
 function cn(...classes) {
     return classes.filter(Boolean).join(" ");
@@ -93,6 +94,7 @@ const ErrorWithRefresh = ({ segmentName, errorMessage, onRetry, isRetrying = fal
 // UX: single expand icon column (left) instead of clickable cells
 // ========================================
 export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading: parentLoading }) {
+    const { isKpiEnabled } = useKpiPermissions("Market Coverage");
     const [reportType, setReportType] = useState("platform");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -103,6 +105,16 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
 
     // Use parent loading if provided, otherwise fallback to local state
     const isLoading = parentLoading !== undefined ? parentLoading : loading;
+
+    const activeKpis = useMemo(() => {
+        return [
+            { key: "osa", label: "OSA" },
+            { key: "marketShare", label: "Market Share%" }
+        ].filter(k => {
+            const id = k.key === 'marketShare' ? 'market_share' : k.key;
+            return isKpiEnabled(id);
+        });
+    }, [isKpiEnabled]);
 
     // Helper to merge global and segment-level filters
     const getCombinedFilters = () => {
@@ -237,7 +249,7 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
                         </thead>
 
                         <tbody>
-                            {kpis.map((kpi, kIdx) => {
+                            {activeKpis.map((kpi, kIdx) => {
                                 return (
                                     <Fragment key={kpi.key}>
                                         {/* Data Row */}

@@ -7,8 +7,10 @@ import StandaloneOsaOverview from "../../components/OnShelfAvailability/Standalo
 import { FilterContext } from "../../utils/FilterContext";
 import { OsaDetailViewSkeleton } from "../../components/AllAvailablityAnalysis/AvailabilitySkeletons";
 import dayjs from "dayjs";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 
 export default function OnShelfAvailability() {
+  const { isKpiEnabled } = useKpiPermissions("Market Coverage");
 
   // Get values from FilterContext - the source of truth for dropdown selections
   const {
@@ -235,13 +237,15 @@ export default function OnShelfAvailability() {
           <StandaloneKpiMatrix loading={isLoading} />
 
           {/* Segment 4: OSA % Detail View */}
-          {isLoading ? (
-            <OsaDetailViewSkeleton />
-          ) : (
-            <StandaloneOsaDetailView
-              apiData={apiData}
-              loading={isLoading}
-            />
+          {isKpiEnabled("osa") && (
+            isLoading ? (
+              <OsaDetailViewSkeleton />
+            ) : (
+              <StandaloneOsaDetailView
+                apiData={apiData}
+                loading={isLoading}
+              />
+            )
           )}
         </div>
       </CommonContainer>

@@ -5,6 +5,7 @@ import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
 import axios from "axios";
 import dayjs from "dayjs";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 
 export default function VisibilityAnalysis() {
   // Get values from FilterContext - the source of truth for dropdown selections
@@ -28,6 +29,9 @@ export default function VisibilityAnalysis() {
   } = useContext(FilterContext);
 
   const [showTrends, setShowTrends] = useState(false);
+  const { isKpiEnabled } = useKpiPermissions("Visibility Analysis");
+  const isShareOfShelfAccessEnabled = isKpiEnabled("Share of Shelf_access");
+  const isBsrAccessEnabled = isKpiEnabled("BSR_access");
 
   // Track if visibility-specific dates have been initialized from rb_kw_olap table
   const [visibilityDatesReady, setVisibilityDatesReady] = useState(false);
@@ -530,6 +534,28 @@ export default function VisibilityAnalysis() {
 
     setShowTrends(true);
   };
+
+  if (!isShareOfShelfAccessEnabled && !isBsrAccessEnabled) {
+    return (
+      <CommonContainer
+        title="Visibility Analysis"
+        filters={filters}
+        onFiltersChange={setFilters}
+      >
+        <div className="flex flex-col items-center justify-center p-12 bg-white border border-slate-200 rounded-3xl min-h-[400px] text-center shadow-sm">
+          <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mb-4 border border-rose-100 shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-bold text-slate-800 mb-2">Access Restricted</h3>
+          <p className="text-sm text-slate-500 max-w-sm">
+            Your account does not have permission to view any visibility segments (Share of Shelf or BSR) for this database. Please contact your workspace administrator to request access.
+          </p>
+        </div>
+      </CommonContainer>
+    );
+  }
 
   return (
     <>

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useContext } from "react";
+import React, { useState, useEffect, useRef, useContext, useMemo } from "react";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import { Box, Grid, Card, Typography, Chip } from "@mui/material";
 import * as Icons from "lucide-react";
 import axiosInstance from "../../api/axiosInstance";
@@ -216,13 +217,29 @@ export default function MainPerformanceMarketings() {
     }
   }, [timeStart, timeEnd, selectedChannel, platform, selectedCategory, selectedBrand, selectedLocation, selectedProductCategory]); // Updated dependencies
 
+  const { isKpiEnabled } = useKpiPermissions("Performance Marketing");
+
+  const filteredKpiCards = useMemo(() => {
+    const mapping = {
+      impressions: 'impressions',
+      conversion: 'conversion',
+      spend: 'spend',
+      roas: 'roas',
+    };
+    return kpiCards.filter(card => {
+      const key = Object.keys(mapping).find(k => card.title?.toLowerCase().includes(k));
+      if (!key) return true;
+      return isKpiEnabled(mapping[key]);
+    });
+  }, [kpiCards, isKpiEnabled]);
+
   return (
     <Box>
       <Box sx={{ mt: 4 }}>
         <MetricCardContainer
           title="Performance Overview"
           helpMenu="Performance Marketing"
-          cards={kpiCards.map(card => ({
+          cards={filteredKpiCards.map(card => ({
             ...card,
             prevText: comparisonLabel
           }))}

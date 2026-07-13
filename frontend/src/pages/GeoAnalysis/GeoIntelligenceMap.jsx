@@ -9,6 +9,7 @@ import { IconButton } from "@mui/material";
 import { HelpOutline as HelpIcon } from "@mui/icons-material";
 import { useHelp } from "../../utils/HelpContext";
 import { FilterContext } from "../../utils/FilterContext";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 
 // --- Constants & Types ---
 const INDIA_BOUNDS = [
@@ -45,7 +46,15 @@ export default function GeoIntelligenceMap() {
     const mapContainer = useRef(null);
     const map = useRef(null);
     const [filters, setFilters] = useState({ platform: 'Blinkit' });
-    const [metric, setMetric] = useState("OSA %");
+    const { isKpiEnabled } = useKpiPermissions("India Overview");
+
+    const METRIC_KPI_MAP = useMemo(() => ({
+        "OSA %": "osa",
+        "Market Share": "market_share",
+        "Sales": "sales",
+        "Orders": "orders"
+    }), []);
+
     const [platform, setPlatform] = useState(globalPlatform || "Blinkit");
     const [timePeriod, setTimePeriod] = useState("MTD");
     const [markers, setMarkers] = useState([]);
@@ -55,6 +64,24 @@ export default function GeoIntelligenceMap() {
     const [platforms, setPlatforms] = useState([]);
     const [category, setCategory] = useState("All");
     const [categories, setCategories] = useState([]);
+
+    const enabledMetrics = useMemo(() => {
+        return ["OSA %", "Market Share", "Sales", "Orders"].filter(m => {
+            if (m === 'Market Share' && platform.toLowerCase().includes('amazon')) return false;
+            const kpiId = METRIC_KPI_MAP[m];
+            return isKpiEnabled(kpiId);
+        });
+    }, [platform, isKpiEnabled, METRIC_KPI_MAP]);
+
+    const [metric, setMetric] = useState(() => {
+        return enabledMetrics.includes("OSA %") ? "OSA %" : (enabledMetrics[0] || "OSA %");
+    });
+
+    useEffect(() => {
+        if (enabledMetrics.length > 0 && !enabledMetrics.includes(metric)) {
+            setMetric(enabledMetrics[0]);
+        }
+    }, [enabledMetrics, metric]);
 
     // --- Sync platform from global FilterContext (sidebar channel/platform selection) ---
     useEffect(() => {
@@ -381,7 +408,7 @@ export default function GeoIntelligenceMap() {
                 <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b;">
                     <span>${kpiLabel}:</span> <span style="font-weight: 600; color: #1e293b;">${kpiValue}</span>
                 </div>
-                ${metric === "OSA %" ? `
+                ${(metric === "OSA %" && isKpiEnabled("listing_pct")) ? `
                 <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-top: 4px;">
                     <span>Listing %:</span> <span style="font-weight: 600; color: #1e293b;">${d.listingPercentage}%</span>
                 </div>
@@ -438,9 +465,7 @@ export default function GeoIntelligenceMap() {
                     }}>
                         {/* Metrics Selector */}
                         <div style={{ display: "flex", gap: "4px", background: "#f8fafc", padding: "3px", borderRadius: "10px", border: "1px solid #e2e8f0", flexShrink: 0 }}>
-                            {["OSA %", "Market Share", "Sales", "Orders"]
-                                .filter(m => !(m === 'Market Share' && platform.toLowerCase().includes('amazon')))
-                                .map(m => (
+                            {enabledMetrics.map(m => (
                                 <button
                                     key={m}
                                     onClick={() => setMetric(m)}

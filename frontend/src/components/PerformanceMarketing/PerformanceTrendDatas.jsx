@@ -6,6 +6,7 @@ import React, {
   useRef,
   useLayoutEffect,
 } from "react";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import {
   Box,
   Typography,
@@ -577,6 +578,7 @@ export default function PerformanceTrendDatas({
   onClose = () => { },
   selectedColumn,
 }) {
+  const { isKpiEnabled } = useKpiPermissions('Performance Marketing');
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
       audience: "Platform", // default value
@@ -979,7 +981,7 @@ export default function PerformanceTrendDatas({
                 mb={2}
               >
                 <Box display="flex" gap={1} flexWrap="wrap">
-                  {trendMeta.metrics.map((m) => (
+                  {trendMeta.metrics.filter(m => isKpiEnabled(m.id)).map((m) => (
                     <MetricChip
                       key={m.id}
                       label={m.label}
@@ -1124,7 +1126,7 @@ export default function PerformanceTrendDatas({
 
             {/* Metric Chips */}
             <Box display="flex" gap={1.5} flexWrap="wrap">
-              {compareMeta.metrics.map((m) => (
+              {compareMeta.metrics.filter(m => isKpiEnabled(m.id)).map((m) => (
                 <MetricChip
                   key={m.id}
                   label={m.label}

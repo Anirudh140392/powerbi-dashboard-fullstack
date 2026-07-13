@@ -46,6 +46,7 @@ import VisibilityPlatformOverviewKpiShowcase from "./VisibilityPlatformOverviewK
 import axiosInstance from "../../api/axiosInstance";
 import { FilterContext } from "../../utils/FilterContext";
 import { useAuth } from "../../utils/AuthContext";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 
 /**
  * ---------------------------------------------------------------------------
@@ -736,6 +737,7 @@ export default function VisibilityTrendsCompetitionDrawer({
 }) {
   const { user } = useAuth();
   const isSugarUser = user?.dbName === 'sugar';
+  const { isKpiEnabled } = useKpiPermissions('Visibility Analysis');
 
   const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedChannel, selectedKeywordType, selectedKeyword, selectedRank, compareStart, compareEnd } = useContext(FilterContext);
 
@@ -1625,6 +1627,8 @@ export default function VisibilityTrendsCompetitionDrawer({
               >
                 <Box display="flex" gap={1.5} flexWrap="wrap">
                   {trendMeta.metrics.map((m) => {
+                    if (!isKpiEnabled(m.id)) return null;
+
                     const isNotAll = (val) => {
                       if (!val) return false;
                       if (Array.isArray(val)) {
@@ -1849,7 +1853,7 @@ export default function VisibilityTrendsCompetitionDrawer({
 
             {/* Metric Chips */}
             <Box display="flex" gap={1.5} flexWrap="wrap">
-              {compareMeta.metrics.map((m) => (
+              {compareMeta.metrics.filter((m) => isKpiEnabled(m.id)).map((m) => (
                 <MetricChip
                   key={m.id}
                   label={m.label}

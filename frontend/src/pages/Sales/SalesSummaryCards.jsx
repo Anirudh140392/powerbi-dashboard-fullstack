@@ -1,8 +1,11 @@
 import React from "react";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import MetricCardContainer from "../../components/CommonLayout/MetricCardContainer";
 import dayjs from "dayjs";
 
 export default function SalesSummaryCards({ data, loading, startDate, endDate }) {
+    const { isKpiEnabled } = useKpiPermissions("Sales Data");
+    const isSalesRevenueEnabled = isKpiEnabled("sales_revenue");
     // Treat data values as 0 when not loaded or not provided, instead of hardcoded data
     const overallValue = data?.overallSales ?? 0;
     const mtdValue = data?.mtdSales ?? 0;
@@ -146,10 +149,12 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
         }
     ];
 
+    const filteredCards = isSalesRevenueEnabled ? cards : [];
+
     return (
         <MetricCardContainer
             title="Sales Overview"
-            cards={cards}
+            cards={filteredCards}
             loading={loading}
             helpMenu="Business Overview"
         />

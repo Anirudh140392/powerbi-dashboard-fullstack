@@ -25,6 +25,7 @@ import ReactECharts from "echarts-for-react";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
 import { FilterContext } from "../../utils/FilterContext";
 import { useContext } from "react";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 
 /**
  * ---------------------------------------------------------------------------
@@ -190,6 +191,7 @@ export default function SalesTrendsDrawer({
     location,
     category,
 }) {
+    const { isKpiEnabled } = useKpiPermissions('Sales Data');
     // 1. All Hooks at the top
     const { maxDate } = useContext(FilterContext);
     const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
@@ -493,7 +495,7 @@ export default function SalesTrendsDrawer({
                         </Box>
                         <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid #E5E7EB", p: 2.5 }}>
                             <Box display="flex" gap={1} overflow="auto" mb={2}>
-                                {trendMeta.metrics.map(m => (
+                                {trendMeta.metrics.filter(m => isKpiEnabled(m.id)).map(m => (
                                     <MetricChip key={m.id} label={m.label} color={m.color} active={activeMetrics.includes(m.id)} onClick={() => setActiveMetrics(prev => prev.includes(m.id) ? prev.filter(x => x !== m.id) : [...prev, m.id])} />
                                 ))}
                             </Box>

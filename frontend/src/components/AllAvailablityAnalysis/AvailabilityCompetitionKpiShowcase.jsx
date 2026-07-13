@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useContext, createContext, useEffect, useCallback } from "react";
 import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 // import PaginationFooter from "../CommonLayout/PaginationFooter"; // Removed pagination
 import {
     Filter,
@@ -366,6 +367,7 @@ const MetricChip = ({ label, color, active, onClick }) => {
 
 const TrendView = ({ mode, filters, city, platform, channel, period, globalFilters, brandRows, skuRows, onBackToTable, isEcom, timeStep }) => {
     const isBrandMode = mode === "brand";
+    const { isKpiEnabled } = useKpiPermissions("Availability Analysis");
 
     // Also include any filter-selected SKUs/brands not already in the top rows
     const allPossibleIds = useMemo(() => {
@@ -484,6 +486,7 @@ const TrendView = ({ mode, filters, city, platform, channel, period, globalFilte
                     <Box display="flex" gap={1} flexWrap="wrap">
                         {KPI_KEYS
                             .filter(m => !(isEcom && m.key === 'Listing'))
+                            .filter(m => isKpiEnabled(m.key))
                             .map((m) => (
                                 <MetricChip
                                     key={m.key}
@@ -700,6 +703,11 @@ const KPI_KEYS = [
 /* -------------------------------------------------------------------------- */
 
 const BrandTable = ({ rows, loading, isEcom }) => {
+    const { isKpiEnabled } = useKpiPermissions('Availability Analysis');
+    const showOsa = isKpiEnabled('Osa');
+    const showListing = !isEcom && isKpiEnabled('Listing');
+    const colCount = 1 + (showOsa ? 1 : 0) + (showListing ? 1 : 0);
+
     return (
         <Card className="mt-3">
             <CardHeader className="border-b pb-2">
@@ -713,16 +721,16 @@ const BrandTable = ({ rows, loading, isEcom }) => {
                         <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 shadow-sm">
                             <tr>
                                 <th className="px-3 py-2 text-left">Brand</th>
-                                <th className="px-3 py-2 text-center">OSA</th>
-                                {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
+                                {showOsa && <th className="px-3 py-2 text-center">OSA</th>}
+                                {showListing && <th className="px-3 py-2 text-center">Listing %</th>}
                             </tr>
-
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && Array.from({ length: 5 }).map((_, idx) => (
                                 <tr key={`skeleton-${idx}`} className="animate-pulse">
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
-                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                                    {showOsa && <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
+                                    {showListing && <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
                                 </tr>
                             ))}
                             {!loading && rows.map((row, idx) => (
@@ -736,12 +744,14 @@ const BrandTable = ({ rows, loading, isEcom }) => {
                                     <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
                                         {row.name}
                                     </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="font-semibold text-slate-700">
-                                            {formatKpiValue(row.osa)}
-                                        </span>
-                                    </td>
-                                    {!isEcom && (
+                                    {showOsa && (
+                                        <td className="px-3 py-2 text-center text-[12px]">
+                                            <span className="font-semibold text-slate-700">
+                                                {formatKpiValue(row.osa)}
+                                            </span>
+                                        </td>
+                                    )}
+                                    {showListing && (
                                         <td className="px-3 py-2 text-center text-[12px]">
                                             <span className="font-semibold text-slate-700">
                                                 {formatKpiValue(row.listing)}
@@ -749,15 +759,13 @@ const BrandTable = ({ rows, loading, isEcom }) => {
                                         </td>
                                     )}
                                 </tr>
-
                             ))}
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={isEcom ? 2 : 3}
+                                        colSpan={colCount}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
-
                                         No brands matching current filters.
                                     </td>
                                 </tr>
@@ -771,6 +779,11 @@ const BrandTable = ({ rows, loading, isEcom }) => {
 };
 
 const SkuTable = ({ rows, loading, isEcom }) => {
+    const { isKpiEnabled } = useKpiPermissions('Availability Analysis');
+    const showOsa = isKpiEnabled('Osa');
+    const showListing = !isEcom && isKpiEnabled('Listing');
+    const colCount = 2 + (showOsa ? 1 : 0) + (showListing ? 1 : 0);
+
     return (
         <Card className="mt-3 border-slate-200 bg-white shadow-sm">
             <CardHeader className="border-b pb-2">
@@ -785,15 +798,14 @@ const SkuTable = ({ rows, loading, isEcom }) => {
                             <tr>
                                 <th className="px-3 py-2 text-left">SKU</th>
                                 <th className="px-3 py-2 text-left">Brand</th>
-                                <th className="px-3 py-2 text-center">OSA</th>
-                                {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
+                                {showOsa && <th className="px-3 py-2 text-center">OSA</th>}
+                                {showListing && <th className="px-3 py-2 text-center">Listing %</th>}
                             </tr>
-
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && (
                                 <tr>
-                                    <td colSpan={4} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                                    <td colSpan={colCount} className="px-3 py-6 text-center text-[12px] text-slate-400">
                                         <div className="animate-pulse">Loading competition data...</div>
                                     </td>
                                 </tr>
@@ -812,12 +824,14 @@ const SkuTable = ({ rows, loading, isEcom }) => {
                                     <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
                                         {row.brandName}
                                     </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="font-semibold text-slate-700">
-                                            {formatKpiValue(row.osa)}
-                                        </span>
-                                    </td>
-                                    {!isEcom && (
+                                    {showOsa && (
+                                        <td className="px-3 py-2 text-center text-[12px]">
+                                            <span className="font-semibold text-slate-700">
+                                                {formatKpiValue(row.osa)}
+                                            </span>
+                                        </td>
+                                    )}
+                                    {showListing && (
                                         <td className="px-3 py-2 text-center text-[12px]">
                                             <span className="font-semibold text-slate-700">
                                                 {formatKpiValue(row.listing)}
@@ -825,15 +839,13 @@ const SkuTable = ({ rows, loading, isEcom }) => {
                                         </td>
                                     )}
                                 </tr>
-
                             ))}
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={isEcom ? 3 : 4}
+                                        colSpan={colCount}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
-
                                         No SKUs matching current filters.
                                     </td>
                                 </tr>

@@ -104,6 +104,9 @@ export const AuthProvider = ({ children }) => {
                     if (userData.role) {
                         userData.role = userData.role.toLowerCase();
                     }
+
+
+
                     setIsLoggedIn(true);
                     setUser(userData);
                     sessionStorage.setItem("user", JSON.stringify(userData));
@@ -135,7 +138,7 @@ export const AuthProvider = ({ children }) => {
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
-        <AuthContext.Provider value={{ isLoggedIn, user, login, logout, isVerifying }}>
+        <AuthContext.Provider value={{ isLoggedIn, user, setUser, login, logout, isVerifying }}>
             {children}
         </AuthContext.Provider>
     );

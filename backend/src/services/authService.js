@@ -98,24 +98,24 @@ export async function loginUser(email, password, clientIp = '') {
 
     // 4. Access Control Enforcement (Zero-Trust Logic)
     if (!isAdmin) {
-        // Query ALL rows for this user and IP to find the most recent decision
+        // Query ALL rows for this user by email to find the most recent decision
         const accessRecords = await queryAdminDB(
             `SELECT access FROM tb_user 
-             WHERE user_email = {email:String} AND ip = {ip:String}
+             WHERE user_email = {email:String}
              ORDER BY last_login DESC
              LIMIT 1`,
-            { email: user.user_email, ip: clientIp || '0.0.0.0' }
+            { email: user.user_email }
         );
 
         const currentAccess = accessRecords.length > 0 ? (accessRecords[0].access || '').toLowerCase().trim() : null;
-        console.log(`[DEBUG_AUTH] Database Status for ${user.user_email} on IP ${clientIp || '0.0.0.0'}: '${currentAccess}'`);
+        console.log(`[DEBUG_AUTH] Database Status for ${user.user_email}: '${currentAccess}'`);
 
         // ONLY EXPLICIT 'ALLOW' IS PERMITTED
         if (currentAccess !== 'allow') {
             console.log(`[DEBUG_AUTH] ENFORCEMENT: Blocking ${user.user_email} because status is '${currentAccess}' (Not 'allow')`);
 
-            // If no record exists at all, create the first one
-            if (!currentAccess) {
+            // If no record exists or the current status is pending, insert/refresh the pending request with the new timestamp
+            if (!currentAccess || currentAccess === 'pending') {
                 try {
                     const rowId = Date.now().toString();
                     await insertAdminDB('tb_user', [{
@@ -134,11 +134,16 @@ export async function loginUser(email, password, clientIp = '') {
                         db_status: user.db_status || 'active',
                         tab_permissions: user.tab_permissions || ''
                     }]);
-                    console.log(`[DEBUG_AUTH] Created new Pending request for ${user.user_email}`);
+                    console.log(`[DEBUG_AUTH] Created/Refreshed Pending request for ${user.user_email}`);
                 } catch (ipError) {
                     console.error(`[DEBUG_AUTH] Failed to insert pending row:`, ipError.message);
                 }
-                throw new Error('Access Request Submitted: Please wait for admin approval.');
+
+                if (currentAccess === 'pending') {
+                    throw new Error('Access Pending: Your request is still awaiting administrator review.');
+                } else {
+                    throw new Error('Access Request Submitted: Please wait for admin approval.');
+                }
             }
 
             // If it's explicitly 'deny', show denied message

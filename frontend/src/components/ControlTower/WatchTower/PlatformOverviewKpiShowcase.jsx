@@ -20,6 +20,7 @@ import PaginationFooter from "../../CommonLayout/PaginationFooter";
 import axiosInstance from "../../../api/axiosInstance";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 import { useAuth } from "../../../utils/AuthContext";
+import useKpiPermissions from "../../../hooks/useKpiPermissions";
 
 
 /* -------------------------------------------------------------------------- */
@@ -1382,6 +1383,11 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
   }, [isBrandMode, brandRows, skuRows, filters.brands, filters.skus]);
 
   const [visibleIds, setVisibleIds] = useState([]);
+  const [apiTrendData, setApiTrendData] = useState(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState(null);
+  const [kpiAvailability, setKpiAvailability] = useState(null);
+  const [primaryBrand, setPrimaryBrand] = useState(null);
 
   useEffect(() => {
     setVisibleIds(allPossibleIds.slice(0, 5));
@@ -1389,11 +1395,16 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
 
   const metricMeta = KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
 
-  const [apiTrendData, setApiTrendData] = useState(null);
-  const [primaryBrand, setPrimaryBrand] = useState(null);
-  const [kpiAvailability, setKpiAvailability] = useState(null);
-  const [trendLoading, setTrendLoading] = useState(false);
-  const [trendError, setTrendError] = useState(null);
+  const { isKpiEnabled } = useKpiPermissions('Business Overview');
+
+  useEffect(() => {
+    const allowed = (isBrandMode ? KPI_KEYS : KPI_KEYS.filter(m => m.key !== 'sos'))
+      .filter(m => !hideMarketShare || m.key !== 'marketShare')
+      .filter(m => isKpiEnabled(m.key));
+    if (allowed.length > 0 && !allowed.some(m => m.key === activeMetric)) {
+      setActiveMetric(allowed[0].key);
+    }
+  }, [isKpiEnabled, hideMarketShare, isBrandMode, activeMetric]);
 
   const fetchTrendData = useCallback(async () => {
     if (visibleIds.length === 0) {
@@ -1495,6 +1506,7 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
           <Box display="flex" gap={1} flexWrap="wrap">
             {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(m => m.key !== 'sos'))
               .filter(m => !hideMarketShare || m.key !== 'marketShare')
+              .filter(m => isKpiEnabled(m.key))
               .map((m) => {
                 const sourceGroup = KPI_SOURCE_MAP[m.key];
                 const isMetricNA = kpiAvailability && sourceGroup ? !kpiAvailability[sourceGroup] : false;
@@ -1796,6 +1808,7 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
   const { user } = useAuth();
   const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const isBrandMode = mode === "brand";
+  const { isKpiEnabled } = useKpiPermissions('Business Overview');
 
   const selectedIds = useMemo(() => {
     if (isBrandMode) {
@@ -1901,6 +1914,7 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
       <CardContent className="grid max-h-[420px] gap-4 overflow-y-auto pt-4 md:grid-cols-2">
         {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(k => k.key !== 'sos'))
           .filter(k => !hideMarketShare || k.key !== 'marketShare')
+          .filter(k => isKpiEnabled(k.key))
           .map((kpi) => (
           <Card
             key={kpi.key}
@@ -1971,6 +1985,23 @@ const formatLargeNumber = (value) => {
 const BrandTable = ({ rows, loading, onTrendClick }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+  const { isKpiEnabled } = useKpiPermissions('Business Overview');
+  const { user } = useAuth();
+  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
+
+  const columns = useMemo(() => {
+    const cols = [
+      { key: 'osa', label: 'OSA', width: '16%', render: (row) => <KpiCell data={row.OSA} suffix="%" /> },
+      { key: 'sos', label: 'SOS', width: '16%', render: (row) => <KpiCell data={row.SOS} format={3} suffix="%" /> },
+      { key: 'price', label: 'Price', width: '16%', render: (row) => <KpiCell data={row.Price} format={0} prefix="₹" isInverse={true} /> },
+      { key: 'promo-my', label: 'Promo-My %', width: '16%', render: (row) => <KpiCell data={row['Promo-My'] || row.PromoMy} suffix="%" /> },
+      { key: 'marketShare', label: 'Mkt Share', width: '16%', render: (row) => <KpiCell data={row.MarketShare} suffix="%" /> },
+    ];
+    return cols.filter(c => {
+      if (hideMarketShare && c.key === 'marketShare') return false;
+      return isKpiEnabled(c.key);
+    });
+  }, [isKpiEnabled, hideMarketShare]);
 
   const totalPages = Math.ceil(rows.length / pageSize);
   const paginatedRows = useMemo(() => {
@@ -1991,11 +2022,9 @@ const BrandTable = ({ rows, loading, onTrendClick }) => {
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-2 text-center w-[20%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[16%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[16%]">SOS</th>
-                <th className="px-3 py-2 text-center w-[16%]">Price</th>
-                <th className="px-3 py-2 text-center w-[16%]">Promo-My %</th>
-                <th className="px-3 py-2 text-center w-[16%]">Mkt Share</th>
+                {columns.map(col => (
+                  <th key={col.key} className="px-3 py-2 text-center" style={{ width: col.width }}>{col.label}</th>
+                ))}
               </tr>
             </thead>
 
@@ -2003,11 +2032,9 @@ const BrandTable = ({ rows, loading, onTrendClick }) => {
               {loading && Array.from({ length: 5 }).map((_, idx) => (
                 <tr key={`skeleton-brand-${idx}`} className="animate-pulse">
                   <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
-                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  {columns.map(col => (
+                    <td key={col.key} className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  ))}
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -2021,29 +2048,18 @@ const BrandTable = ({ rows, loading, onTrendClick }) => {
                   <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
                     {row.name || row.brand_name || row.brand}
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
-                    <KpiCell data={row.OSA} suffix="%" />
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
-                    <KpiCell data={row.SOS} format={3} suffix="%" />
-                  </td>
-
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-x border-slate-100">
-                    <KpiCell data={row.Price} format={0} prefix="₹" isInverse={true} />
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
-                    <KpiCell data={row['Promo-My'] || row.PromoMy} suffix="%" />
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900 border-x border-slate-100">
-                    <KpiCell data={row.MarketShare} suffix="%" />
-                  </td>
+                  {columns.map(col => (
+                    <td key={col.key} className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
+                      {col.render(row)}
+                    </td>
+                  ))}
                 </tr>
               ))}
 
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={1 + columns.length}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -2073,6 +2089,22 @@ const BrandTable = ({ rows, loading, onTrendClick }) => {
 const SkuTable = ({ rows, loading, onTrendClick }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+  const { isKpiEnabled } = useKpiPermissions('Business Overview');
+  const { user } = useAuth();
+  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
+
+  const columns = useMemo(() => {
+    const cols = [
+      { key: 'osa', label: 'OSA', width: '17%', render: (row) => <KpiCell data={row.OSA} suffix="%" /> },
+      { key: 'price', label: 'Price', width: '17%', render: (row) => <KpiCell data={row.Price} format={0} prefix="₹" isInverse={true} /> },
+      { key: 'promo-my', label: 'Promo-My %', width: '17%', render: (row) => <KpiCell data={row['Promo-My'] || row.PromoMy} suffix="%" /> },
+      { key: 'marketShare', label: 'Mkt Share', width: '17%', render: (row) => <KpiCell data={row.MarketShare} suffix="%" /> },
+    ];
+    return cols.filter(c => {
+      if (hideMarketShare && c.key === 'marketShare') return false;
+      return isKpiEnabled(c.key);
+    });
+  }, [isKpiEnabled, hideMarketShare]);
 
   const totalPages = Math.ceil(rows.length / pageSize);
   const paginatedRows = useMemo(() => {
@@ -2094,10 +2126,9 @@ const SkuTable = ({ rows, loading, onTrendClick }) => {
               <tr>
                 <th className="px-3 py-2 text-center w-[16%]">SKU</th>
                 <th className="px-3 py-2 text-center w-[16%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[17%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[17%]">Price</th>
-                <th className="px-3 py-2 text-center w-[17%]">Promo-My %</th>
-                <th className="px-3 py-2 text-center w-[17%]">Mkt Share</th>
+                {columns.map(col => (
+                  <th key={col.key} className="px-3 py-2 text-center" style={{ width: col.width }}>{col.label}</th>
+                ))}
               </tr>
             </thead>
 
@@ -2106,10 +2137,9 @@ const SkuTable = ({ rows, loading, onTrendClick }) => {
                 <tr key={`skeleton-sku-${idx}`} className="animate-pulse">
                   <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-3/4"></div></td>
                   <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
-                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  {columns.map(col => (
+                    <td key={col.key} className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  ))}
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -2126,26 +2156,18 @@ const SkuTable = ({ rows, loading, onTrendClick }) => {
                   <td className="px-3 py-2 text-slate-900 border-r border-slate-100">
                     {row.brandName || row.brand_name || row.brand}
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <KpiCell data={row.OSA} suffix="%" />
-                  </td>
-
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-x border-slate-100">
-                    <KpiCell data={row.Price} format={0} prefix="₹" isInverse={true} />
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
-                    <KpiCell data={row['Promo-My'] || row.PromoMy} suffix="%" />
-                  </td>
-                  <td className="px-3 py-2 text-center text-slate-900 font-medium border-x border-slate-100">
-                    <KpiCell data={row.MarketShare} suffix="%" />
-                  </td>
+                  {columns.map(col => (
+                    <td key={col.key} className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
+                      {col.render(row)}
+                    </td>
+                  ))}
                 </tr>
               ))}
 
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={2 + columns.length}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters

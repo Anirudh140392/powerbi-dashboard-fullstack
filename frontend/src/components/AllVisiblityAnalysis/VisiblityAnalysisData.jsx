@@ -1,4 +1,23 @@
 import React, { useMemo, useState, useContext, useCallback, useEffect, useRef } from 'react'
+import useKpiPermissions from '../../hooks/useKpiPermissions'
+
+// ---- Visibility KPI permission helper ----
+// Maps card/row titles to ManageKpi IDs used in tabPermissions
+const VIS_TITLE_TO_PERM_ID = {
+  'overall sos': 'overall_sos',
+  'overall weighted sos': 'overall_sos',
+  'overall sos (share of search)': 'overall_sos',
+  'sponsored sos': 'sponsored_sos',
+  'sponsored weighted sos': 'sponsored_sos',
+  'organic sos': 'organic_sos',
+  'organic weighted sos': 'organic_sos',
+  'ad sos': 'sponsored_sos',
+};
+
+function getVisPermId(title) {
+  if (!title) return null;
+  return VIS_TITLE_TO_PERM_ID[title.toLowerCase().trim()] || null;
+}
 import axiosInstance from "../../api/axiosInstance";
 import axios from "axios";
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
@@ -58,7 +77,7 @@ const NoDataAvailable = ({ title = 'No data available' }) => (
 
 // ---------------- TABBED HEATMAP TABLE COMPONENT ----------------
 // Isolates 'Advanced Filter' logic to only this segment
-const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
+const TabbedHeatmapTable = ({ apiMatrixData, filters, isVisKpiEnabled }) => {
   const [activeTab, setActiveTab] = useState("platform");
 
   // 2. Local State for Matrix
@@ -159,19 +178,32 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
   const effectiveData = localMatrixData || apiMatrixData;
 
   // ---------------- TABS (pure backend data, no fallbacks) ----------------
+  // Filter rows by KPI permission
+  const filterRowsByPerm = useCallback((dataObj) => {
+    if (!dataObj || !dataObj.rows || !isVisKpiEnabled) return dataObj;
+    const filtered = dataObj.rows.filter(row => {
+      const kpiName = row.kpi || row.KPI || '';
+      const permId = getVisPermId(kpiName);
+      // If we can't map the title, show it (safe default)
+      if (!permId) return true;
+      return isVisKpiEnabled(permId);
+    });
+    return { ...dataObj, rows: filtered };
+  }, [isVisKpiEnabled]);
+
   const tabs = useMemo(() => {
     const emptyData = { columns: ["kpi"], rows: [] };
 
     const platformKpis = effectiveData?.platformData?.rows?.length > 0
-      ? effectiveData.platformData
+      ? filterRowsByPerm(effectiveData.platformData)
       : emptyData;
 
     const formatKpis = effectiveData?.formatData?.rows?.length > 0
-      ? effectiveData.formatData
+      ? filterRowsByPerm(effectiveData.formatData)
       : emptyData;
 
     const cityKpis = effectiveData?.cityData?.rows?.length > 0
-      ? effectiveData.cityData
+      ? filterRowsByPerm(effectiveData.cityData)
       : emptyData;
 
     return [
@@ -179,7 +211,7 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
       { key: "format", label: "Category", data: formatKpis },
       { key: "city", label: "City", data: cityKpis },
     ];
-  }, [effectiveData]);
+  }, [effectiveData, filterRowsByPerm]);
 
   const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
 
@@ -670,6 +702,13 @@ const VisiblityAnalysisData = ({
   filters: parentFilters
 }) => {
   const { visibilityOwnBrandsOnly, setVisibilityOwnBrandsOnly, visibilityMode, setVisibilityMode } = useContext(FilterContext);
+
+  const { isKpiEnabled } = useKpiPermissions("Visibility Analysis");
+  const isVisKpiEnabled = useCallback((permId) => {
+    if (!permId) return true;
+    return isKpiEnabled(permId);
+  }, [isKpiEnabled]);
+
   const [metric, setMetric] = useState('visibility')
   const [activeCategory, setActiveCategory] = useState(categoryCards[0])
   const [activeCity, setActiveCity] = useState(pulseData[0])
@@ -900,12 +939,17 @@ const VisiblityAnalysisData = ({
           prevText: card.prevText,
           infoTooltip: KPI_INFO_TOOLTIPS[card.title] || KPI_INFO_TOOLTIPS[card.title?.replace(' Weighted', '')] || undefined
         };
+      }).filter(kpi => {
+        // Gate overview cards by permission
+        const permId = getVisPermId(kpi.title);
+        if (!permId) return true;
+        return isVisKpiEnabled(permId);
       });
     }
 
     // Fallback: return empty cards when API data is not yet available
     return [];
-  }, [apiData?.overview]);
+  }, [apiData?.overview, isVisKpiEnabled]);
 
   const cellHeat = (value) => {
     if (value >= 95) return "bg-emerald-100 text-emerald-900";
@@ -1058,7 +1102,7 @@ const VisiblityAnalysisData = ({
           ) : (loading?.matrix || apiData?.matrix === undefined) ? (
             <TabbedHeatmapTableSkeleton />
           ) : (
-            <TabbedHeatmapTable apiMatrixData={apiData?.matrix} filters={parentFilters} />
+            <TabbedHeatmapTable apiMatrixData={apiData?.matrix} filters={parentFilters} isVisKpiEnabled={isVisKpiEnabled} />
           )}
           {/* PULSEBOARD */}
           {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

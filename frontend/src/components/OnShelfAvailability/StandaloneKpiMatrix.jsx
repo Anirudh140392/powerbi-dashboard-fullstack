@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect, useContext } from 'react';
+import React, { useState, useRef, useEffect, useContext, useMemo } from 'react';
 import { Skeleton } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, ChevronDown, Check } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { FilterContext } from '../../utils/FilterContext';
 import axiosInstance from '../../api/axiosInstance';
+import useKpiPermissions from '../../hooks/useKpiPermissions';
 
 // Standalone copy of SubCategoryMarket (KPI Matrix) for On-Shelf Availability page.
 
@@ -94,6 +95,7 @@ const SparklineCell = ({ data, kpiId, children }) => {
 };
 
 const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
+    const { isKpiEnabled } = useKpiPermissions("Market Coverage");
     const [colsPerPage, setColsPerPage] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedSubCat, setSelectedSubCat] = useState([]); // Array for multi-select
@@ -209,11 +211,13 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
         if (currentPage > 1) setCurrentPage(currentPage - 1);
     };
 
-    const kpiColumns = [
-        { id: 'marketShare', label: 'Market Share %' },
-        { id: 'overallSov', label: 'Overall Share of Visibility' },
-        { id: 'paidSov', label: 'Paid Share of Visibility' }
-    ];
+    const kpiColumns = useMemo(() => {
+        return [
+            { id: 'marketShare', label: 'Market Share %' },
+            { id: 'overallSov', label: 'Overall Share of Visibility' },
+            { id: 'paidSov', label: 'Paid Share of Visibility' }
+        ].filter(col => isKpiEnabled(col.id));
+    }, [isKpiEnabled]);
 
     const getStatusStyles = (status) => {
         switch (status) {
@@ -350,14 +354,14 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
                             [...Array(5)].map((_, i) => (
                                 <tr key={"skeleton-" + i} className="border-b border-slate-50">
                                     <td className="px-8 py-4 sticky left-0 bg-white z-10"><Skeleton variant="text" width="60%" /></td>
-                                    <td className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
-                                    <td className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
-                                    <td className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
+                                    {kpiColumns.map((kpi, idx) => (
+                                        <td key={kpi.id || idx} className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
+                                    ))}
                                 </tr>
                             ))
                         ) : currentData.length === 0 ? (
                             <tr>
-                                <td colSpan={4} className="px-8 py-12 text-center text-slate-400 text-sm">
+                                <td colSpan={kpiColumns.length + 1} className="px-8 py-12 text-center text-slate-400 text-sm">
                                     No data available for the selected filters.
                                 </td>
                             </tr>

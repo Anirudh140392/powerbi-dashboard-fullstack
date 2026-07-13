@@ -1,4 +1,6 @@
 // TrendsCompetitionDrawer.jsx
+import { useAuth } from "../../utils/AuthContext";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import React, {
   useState,
   useMemo,
@@ -658,6 +660,24 @@ export default function TrendsCompetitionDrawer({
   initialAudience = "Platform",
   showResellerFilter = true,
 }) {
+  const { user } = useAuth();
+
+  const getPageNameFromDynamicKey = (key) => {
+    const mapping = {
+      performance_dashboard_tower: "Business Overview",
+      availability: "Availability Analysis",
+      pricing: "Pricing Analysis",
+      marketshare: "Market Share",
+      visibility: "Visibility Analysis",
+      sales: "Sales Data",
+      content: "Content Analysis",
+      inventory: "Inventory Analysis",
+    };
+    return mapping[key] || "Business Overview";
+  };
+
+  const { isKpiEnabled } = useKpiPermissions(getPageNameFromDynamicKey(dynamicKey));
+
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
       audience: initialAudience, // default value
@@ -3019,6 +3039,7 @@ export default function TrendsCompetitionDrawer({
                     if (isEcom && m.id === 'Listing') return false;
                     if (isEcom && m.id === 'CPM') return false;
                     if (isQcom && m.id === 'CPC') return false;
+                    if (!isKpiEnabled(m.id)) return false;
                     return true;
                   })
                   .map((m) => {
@@ -3257,21 +3278,23 @@ export default function TrendsCompetitionDrawer({
 
             {/* Metric Chips */}
             <Box display="flex" gap={1.5} flexWrap="wrap">
-              {compareMeta.metrics.map((m) => (
-                <MetricChip
-                  key={m.id}
-                  label={m.label}
-                  color={m.color}
-                  active={activeMetrics.includes(m.id)}
-                  onClick={() =>
-                    setActiveMetrics((prev) =>
-                      prev.includes(m.id)
-                        ? prev.filter((x) => x !== m.id)
-                        : [...prev, m.id]
-                    )
-                  }
-                />
-              ))}
+              {compareMeta.metrics
+                .filter(m => isKpiEnabled(m.id))
+                .map((m) => (
+                  <MetricChip
+                    key={m.id}
+                    label={m.label}
+                    color={m.color}
+                    active={activeMetrics.includes(m.id)}
+                    onClick={() =>
+                      setActiveMetrics((prev) =>
+                        prev.includes(m.id)
+                          ? prev.filter((x) => x !== m.id)
+                          : [...prev, m.id]
+                      )
+                    }
+                  />
+                ))}
             </Box>
 
             {/* Chart */}

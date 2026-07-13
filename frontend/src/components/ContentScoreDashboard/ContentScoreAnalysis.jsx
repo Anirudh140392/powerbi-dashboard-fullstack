@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
+import useKpiPermissions from '../../hooks/useKpiPermissions';
 import { FilterContext } from '../../utils/FilterContext';
 import axiosInstance from '../../api/axiosInstance';
 import {
@@ -148,6 +149,17 @@ const renderScoreCell = (score) => {
 
 const ExpandablePlatformRow = ({ row }) => {
   const [expanded, setExpanded] = useState(false);
+  const { isKpiEnabled } = useKpiPermissions('Content Analysis');
+
+  const activeCols = useMemo(() => {
+    return [
+      { key: 'title', perm: 'title_score' },
+      { key: 'images', perm: 'image_score' },
+      { key: 'secondary', perm: 'si_score' },
+      { key: 'desc', perm: 'description_score' },
+      { key: 'rating', perm: 'rating_score' },
+    ].filter(c => isKpiEnabled(c.perm));
+  }, [isKpiEnabled]);
 
   return (
     <React.Fragment>
@@ -173,11 +185,11 @@ const ExpandablePlatformRow = ({ row }) => {
                 </div>
             </div>
         </td>
-        <td className="px-3 py-3 border-b border-slate-100 text-[12px] text-slate-900 font-semibold text-center">{renderScoreCell(row.title)}</td>
-        <td className="px-3 py-3 border-b border-slate-100 text-[12px] text-slate-900 font-semibold text-center">{renderScoreCell(row.images)}</td>
-        <td className="px-3 py-3 border-b border-slate-100 text-[12px] text-slate-900 font-semibold text-center">{renderScoreCell(row.secondary)}</td>
-        <td className="px-3 py-3 border-b border-slate-100 text-[12px] text-slate-900 font-semibold text-center">{renderScoreCell(row.desc)}</td>
-        <td className="px-3 py-3 border-b border-slate-100 text-[12px] text-slate-900 font-semibold text-center">{renderScoreCell(row.rating)}</td>
+        {activeCols.map(col => (
+          <td key={col.key} className="px-3 py-3 border-b border-slate-100 text-[12px] text-slate-900 font-semibold text-center">
+            {renderScoreCell(row[col.key])}
+          </td>
+        ))}
       </tr>
       
       {expanded && row.skus && row.skus.map((sku, idx) => (
@@ -190,11 +202,11 @@ const ExpandablePlatformRow = ({ row }) => {
                       {sku.name}
                   </div>
               </td>
-              <td className="px-3 py-2 border-b border-slate-100 text-[12px] text-slate-600 text-center">{renderScoreCell(sku.title)}</td>
-              <td className="px-3 py-2 border-b border-slate-100 text-[12px] text-slate-600 text-center">{renderScoreCell(sku.images)}</td>
-              <td className="px-3 py-2 border-b border-slate-100 text-[12px] text-slate-600 text-center">{renderScoreCell(sku.secondary)}</td>
-              <td className="px-3 py-2 border-b border-slate-100 text-[12px] text-slate-600 text-center">{renderScoreCell(sku.desc)}</td>
-              <td className="px-3 py-2 border-b border-slate-100 text-[12px] text-slate-600 text-center">{renderScoreCell(sku.rating)}</td>
+              {activeCols.map(col => (
+                <td key={col.key} className="px-3 py-2 border-b border-slate-100 text-[12px] text-slate-600 text-center">
+                  {renderScoreCell(sku[col.key])}
+                </td>
+              ))}
           </tr>
       ))}
     </React.Fragment>
@@ -204,9 +216,37 @@ const ExpandablePlatformRow = ({ row }) => {
 // --- MAIN DEFAULT EXPORT ---
 export default function ContentScoreAnalysis() {
   const { platform, selectedCategory, selectedChannel, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd } = useContext(FilterContext);
+  const { isKpiEnabled } = useKpiPermissions('Content Analysis');
+
+  const activeCols = useMemo(() => {
+    return [
+      { key: 'title', label: 'TITLE SCORE', perm: 'title_score' },
+      { key: 'images', label: 'IMAGES SCORE', perm: 'image_score' },
+      { key: 'secondary', label: 'SECONDARY IMAGES SCORE', perm: 'si_score' },
+      { key: 'desc', label: 'FEATURES & BENEFITS SCORE', perm: 'description_score' },
+      { key: 'rating', label: 'RATING SCORE', perm: 'rating_score' },
+    ].filter(c => isKpiEnabled(c.perm));
+  }, [isKpiEnabled]);
 
   const [currentView, setCurrentView] = useState('main'); // 'main' | 'trends' | 'key_insights'
-  const [selectedLines, setSelectedLines] = useState(['overall', 'title', 'images', 'secondary', 'description', 'rating']);
+
+  const initialSelectedLines = useMemo(() => {
+    const lines = ['overall'];
+    if (isKpiEnabled('title_score')) lines.push('title');
+    if (isKpiEnabled('image_score')) lines.push('images');
+    if (isKpiEnabled('si_score')) lines.push('secondary');
+    if (isKpiEnabled('description_score')) lines.push('description');
+    if (isKpiEnabled('rating_score')) lines.push('rating');
+    return lines;
+  }, [isKpiEnabled]);
+
+  const [selectedLines, setSelectedLines] = useState(initialSelectedLines);
+
+  // Sync selected lines when permissions change
+  useEffect(() => {
+    setSelectedLines(initialSelectedLines);
+  }, [initialSelectedLines]);
+
   const [selectedKpi, setSelectedKpi] = useState('overallScore');
 
   const [overviewData, setOverviewData] = useState({
@@ -499,21 +539,11 @@ export default function ContentScoreAnalysis() {
                               <th className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-bold uppercase tracking-widest text-slate-900 border-b border-r border-slate-100 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]" style={{ minWidth: 280 }}>
                                   <div className="flex items-center h-full">PLATFORM / SKU</div>
                               </th>
-                              <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
-                                  TITLE SCORE
-                              </th>
-                              <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
-                                  IMAGES SCORE
-                              </th>
-                              <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
-                                  SECONDARY IMAGES SCORE
-                              </th>
-                              <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
-                                  FEATURES & BENEFITS SCORE
-                              </th>
-                              <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
-                                  RATING SCORE
-                              </th>
+                              {activeCols.map(col => (
+                                <th key={col.key} className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
+                                    {col.label}
+                                </th>
+                              ))}
                           </tr>
                       </thead>
                       <tbody>
@@ -558,12 +588,12 @@ export default function ContentScoreAnalysis() {
         
         <Card sx={{ flex: 1, borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.04)', border: '1px solid #eaeaea', p: 3 }}>
           <Box sx={{ display: 'flex', gap: 3, mb: 1 }}>
-            <Typography onClick={() => toggleLine('overall')} variant="body2" sx={{ cursor: 'pointer', opacity: selectedLines.includes('overall') ? 1 : 0.4, display: 'flex', alignItems: 'center', gap: 0.5, color: '#444', fontWeight: 600, fontSize: '0.8rem' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#6366f1' }} /> Overall Score</Typography>
-            <Typography onClick={() => toggleLine('title')} variant="body2" sx={{ cursor: 'pointer', opacity: selectedLines.includes('title') ? 1 : 0.4, display: 'flex', alignItems: 'center', gap: 0.5, color: '#444', fontWeight: 600, fontSize: '0.8rem' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#4ca6ff' }} /> Title Score</Typography>
-            <Typography onClick={() => toggleLine('images')} variant="body2" sx={{ cursor: 'pointer', opacity: selectedLines.includes('images') ? 1 : 0.4, display: 'flex', alignItems: 'center', gap: 0.5, color: '#444', fontWeight: 600, fontSize: '0.8rem' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#1d227b' }} /> Images Score</Typography>
-            <Typography onClick={() => toggleLine('secondary')} variant="body2" sx={{ cursor: 'pointer', opacity: selectedLines.includes('secondary') ? 1 : 0.4, display: 'flex', alignItems: 'center', gap: 0.5, color: '#444', fontWeight: 600, fontSize: '0.8rem' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#db783b' }} /> Secondary Images Score</Typography>
-            <Typography onClick={() => toggleLine('description')} variant="body2" sx={{ cursor: 'pointer', opacity: selectedLines.includes('description') ? 1 : 0.4, display: 'flex', alignItems: 'center', gap: 0.5, color: '#444', fontWeight: 600, fontSize: '0.8rem' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#f43f5e' }} /> Description Score</Typography>
-            <Typography onClick={() => toggleLine('rating')} variant="body2" sx={{ cursor: 'pointer', opacity: selectedLines.includes('rating') ? 1 : 0.4, display: 'flex', alignItems: 'center', gap: 0.5, color: '#444', fontWeight: 600, fontSize: '0.8rem' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#731475' }} /> Rating Score</Typography>
+            {isKpiEnabled('overall_score') && <Typography onClick={() => toggleLine('overall')} variant="body2" sx={{ cursor: 'pointer', opacity: selectedLines.includes('overall') ? 1 : 0.4, display: 'flex', alignItems: 'center', gap: 0.5, color: '#444', fontWeight: 600, fontSize: '0.8rem' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#6366f1' }} /> Overall Score</Typography>}
+            {isKpiEnabled('title_score') && <Typography onClick={() => toggleLine('title')} variant="body2" sx={{ cursor: 'pointer', opacity: selectedLines.includes('title') ? 1 : 0.4, display: 'flex', alignItems: 'center', gap: 0.5, color: '#444', fontWeight: 600, fontSize: '0.8rem' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#4ca6ff' }} /> Title Score</Typography>}
+            {isKpiEnabled('image_score') && <Typography onClick={() => toggleLine('images')} variant="body2" sx={{ cursor: 'pointer', opacity: selectedLines.includes('images') ? 1 : 0.4, display: 'flex', alignItems: 'center', gap: 0.5, color: '#444', fontWeight: 600, fontSize: '0.8rem' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#1d227b' }} /> Images Score</Typography>}
+            {isKpiEnabled('si_score') && <Typography onClick={() => toggleLine('secondary')} variant="body2" sx={{ cursor: 'pointer', opacity: selectedLines.includes('secondary') ? 1 : 0.4, display: 'flex', alignItems: 'center', gap: 0.5, color: '#444', fontWeight: 600, fontSize: '0.8rem' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#db783b' }} /> Secondary Images Score</Typography>}
+            {isKpiEnabled('description_score') && <Typography onClick={() => toggleLine('description')} variant="body2" sx={{ cursor: 'pointer', opacity: selectedLines.includes('description') ? 1 : 0.4, display: 'flex', alignItems: 'center', gap: 0.5, color: '#444', fontWeight: 600, fontSize: '0.8rem' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#f43f5e' }} /> Description Score</Typography>}
+            {isKpiEnabled('rating_score') && <Typography onClick={() => toggleLine('rating')} variant="body2" sx={{ cursor: 'pointer', opacity: selectedLines.includes('rating') ? 1 : 0.4, display: 'flex', alignItems: 'center', gap: 0.5, color: '#444', fontWeight: 600, fontSize: '0.8rem' }}><Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#731475' }} /> Rating Score</Typography>}
           </Box>
           <Box sx={{ height: 450, mt: 2 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -623,14 +653,19 @@ const PlatformPerformanceStudio = ({ rows }) => {
   const compare = React.useMemo(() => compareName ? rows.find((f) => f.name === compareName) ?? null : null, [compareName, rows]);
   const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
-  const kpiBands = [
-    { key: "overallScore", label: "Overall Score", activeValue: active.overallScore, compareValue: compare?.overallScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
-    { key: "titleScore", label: "Title Score", activeValue: active.titleScore, compareValue: compare?.titleScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
-    { key: "imagesScore", label: "Images Score", activeValue: active.imagesScore, compareValue: compare?.imagesScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
-    { key: "secondaryScore", label: "Secondary Images Score", activeValue: active.secondaryScore, compareValue: compare?.secondaryScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
-    { key: "descScore", label: "Description Score", activeValue: active.descScore, compareValue: compare?.descScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
-    { key: "ratingScore", label: "Rating Score", activeValue: active.ratingScore, compareValue: compare?.ratingScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
-  ];
+  const { isKpiEnabled } = useKpiPermissions('Content Analysis');
+
+  const kpiBands = useMemo(() => {
+    const allBands = [
+      { key: "overallScore", label: "Overall Score", perm: 'overall_score', activeValue: active.overallScore, compareValue: compare?.overallScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
+      { key: "titleScore", label: "Title Score", perm: 'title_score', activeValue: active.titleScore, compareValue: compare?.titleScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
+      { key: "imagesScore", label: "Images Score", perm: 'image_score', activeValue: active.imagesScore, compareValue: compare?.imagesScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
+      { key: "secondaryScore", label: "Secondary Images Score", perm: 'si_score', activeValue: active.secondaryScore, compareValue: compare?.secondaryScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
+      { key: "descScore", label: "Description Score", perm: 'description_score', activeValue: active.descScore, compareValue: compare?.descScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
+      { key: "ratingScore", label: "Rating Score", perm: 'rating_score', activeValue: active.ratingScore, compareValue: compare?.ratingScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
+    ];
+    return allBands.filter(b => isKpiEnabled(b.perm));
+  }, [active, compare, isKpiEnabled]);
 
   return (
     <motion.div
@@ -883,7 +918,23 @@ const ContentCrossPlatformOverview = ({ breakdown, onViewTrends, onViewInsights 
     return list;
   }, [breakdown]);
 
-  const selectedKpis = crossPlatformKpiDefs;
+  const { isKpiEnabled } = useKpiPermissions('Content Analysis');
+
+  const selectedKpis = useMemo(() => {
+    const mapping = {
+      overallScore: 'overall_score',
+      titleScore: 'title_score',
+      imageScore: 'image_score',
+      siScore: 'si_score',
+      descScore: 'description_score',
+      ratingScore: 'rating_score',
+    };
+    return crossPlatformKpiDefs.filter(k => {
+      const permId = mapping[k.key];
+      if (!permId) return true;
+      return isKpiEnabled(permId);
+    });
+  }, [isKpiEnabled]);
 
   return (
       <SectionWrapper

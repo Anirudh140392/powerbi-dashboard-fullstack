@@ -1175,8 +1175,11 @@ const Sidebar = ({
 
         {/* ─── Supply Chain Collapsible Section ─── */}
         {!isCollapsed && user?.dbStatus !== false && (() => {
-          const supplyChainSubpages = ['Priority Action'];
-          const hasSupplyChainAccess = supplyChainSubpages.some(subpage => user?.tabPermissions?.[subpage] !== false);
+          const hasSupplyChainAccess = user?.tabPermissions?.['Supply'] !== false && (
+            user?.tabPermissions?.['kpi_Supply_Prioritize PO_access'] !== false ||
+            user?.tabPermissions?.['kpi_Supply_Fix Stock Transfer_access'] !== false ||
+            user?.tabPermissions?.['kpi_Supply_Manage Surplus_access'] !== false
+          );
           if (!hasSupplyChainAccess) return null;
 
           return (
@@ -1228,8 +1231,6 @@ const Sidebar = ({
               <Collapse in={expandedSection === 'supply-chain'} timeout="auto" unmountOnExit>
                 <Box sx={{ pl: 2 }}>
                   {(() => {
-                    const tabPerms = user?.tabPermissions;
-                    if (tabPerms && tabPerms['Priority Action'] === false) return null;
                     const isActive = currentPath === '/priority-action';
                     return (
                       <ListItemButton

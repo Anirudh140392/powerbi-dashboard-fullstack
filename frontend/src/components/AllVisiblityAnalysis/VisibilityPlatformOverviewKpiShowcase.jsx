@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useContext, createContext, useEffect } from "react";
+import useKpiPermissions from "../../hooks/useKpiPermissions";
 import dayjs from "dayjs";
 import axiosInstance from "../../api/axiosInstance";
 import { FilterContext } from "../../utils/FilterContext";
@@ -715,8 +716,19 @@ const truncateName = (str, n = 35) => {
 };
 
 const TrendView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city, onBackToTable, onSwitchToKpi, apiTrendData, trendLoading }) => {
+    const { isKpiEnabled } = useKpiPermissions('Visibility Analysis');
+    const filteredKpiKeys = useMemo(() => {
+        return KPI_KEYS.filter(m => isKpiEnabled(m.key));
+    }, [isKpiEnabled]);
+
     const [activeMetric, setActiveMetric] = useState("overall_sos");
     const [overflowOpen, setOverflowOpen] = useState(false);
+
+    useEffect(() => {
+        if (filteredKpiKeys.length > 0 && !filteredKpiKeys.some(m => m.key === activeMetric)) {
+            setActiveMetric(filteredKpiKeys[0].key);
+        }
+    }, [filteredKpiKeys, activeMetric]);
 
     const metricMeta =
         KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
@@ -781,7 +793,7 @@ const TrendView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city, onBa
             <CardHeader className="flex flex-col gap-4 border-b pb-4">
                 <div className="flex items-start justify-between">
                     <Box display="flex" gap={1} flexWrap="wrap">
-                        {KPI_KEYS.map((m) => (
+                        {filteredKpiKeys.map((m) => (
                             <MetricChip
                                 key={m.key}
                                 label={m.label}
@@ -973,8 +985,13 @@ const TrendView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city, onBa
 /* -------------------------------------------------------------------------- */
 
 const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city, onBackToTrend, apiTrendData, trendLoading }) => {
+    const { isKpiEnabled } = useKpiPermissions('Visibility Analysis');
     const [overflowOpen, setOverflowOpen] = useState(false);
     const isBrandMode = mode === "brand";
+
+    const filteredKpiKeys = useMemo(() => {
+        return KPI_KEYS.filter(k => isKpiEnabled(k.key));
+    }, [isKpiEnabled]);
 
     const chartDataFor = (metricKey) => {
         if (apiTrendData && Object.keys(apiTrendData).length > 0 && visibleIds.length > 0) {
@@ -1161,7 +1178,7 @@ const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city,
                         <div className="text-slate-400">No data is available. Try adjusting your filters.</div>
                     </div>
                 ) : (
-                    KPI_KEYS.map((kpi) => (
+                    filteredKpiKeys.map((kpi) => (
                         <Card key={kpi.key} className="border-slate-200 bg-slate-50/80 shadow-none hover:bg-slate-50">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-sm font-medium flex items-center gap-1.5">
@@ -1229,6 +1246,15 @@ const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city,
 const BrandTable = ({ rows, loading }) => {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
+    const { isKpiEnabled } = useKpiPermissions('Visibility Analysis');
+
+    const activeCols = useMemo(() => {
+        return [
+            { key: 'overall_sos', label: 'Overall SOS', perm: 'overall_sos' },
+            { key: 'sponsored_sos', label: 'Sponsored SOS', perm: 'sponsored_sos' },
+            { key: 'organic_sos', label: 'Organic SOS', perm: 'organic_sos' },
+        ].filter(c => isKpiEnabled(c.perm));
+    }, [isKpiEnabled]);
 
     const totalPages = Math.ceil(rows.length / pageSize);
     const paginatedRows = useMemo(() => rows.slice((page - 1) * pageSize, page * pageSize), [rows, page, pageSize]);
@@ -1244,29 +1270,29 @@ const BrandTable = ({ rows, loading }) => {
                         <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                             <tr>
                                 <th className="px-3 py-2 text-left w-[25%]">Brand</th>
-                                <th className="px-3 py-2 text-right w-[25%]">Overall SOS</th>
-                                <th className="px-3 py-2 text-right w-[25%]">Sponsored SOS</th>
-                                <th className="px-3 py-2 text-right w-[25%]">Organic SOS</th>
+                                {activeCols.map(col => (
+                                    <th key={col.key} className="px-3 py-2 text-right w-[25%]">{col.label}</th>
+                                ))}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading ? Array.from({ length: pageSize }).map((_, idx) => (
                                 <tr key={`skeleton-${idx}`} className="animate-pulse">
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
-                                    <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                                    <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                                    <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                                    {activeCols.map((col, cIdx) => (
+                                        <td key={`skel-col-${cIdx}`} className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                                    ))}
                                 </tr>
                             )) : paginatedRows.map((row, idx) => (
                                 <tr key={row.id} className={cn("hover:bg-slate-50", idx % 2 === 1 && "bg-slate-50/60")}>
                                     <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">{row.name}</td>
-                                    <td className="px-3 py-2 text-right text-slate-900 font-medium">{formatKpiValue(row.overall_sos)}</td>
-                                    <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.sponsored_sos)}</td>
-                                    <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.organic_sos)}</td>
+                                    {activeCols.map(col => (
+                                        <td key={col.key} className="px-3 py-2 text-right text-slate-900 font-medium">{formatKpiValue(row[col.key])}</td>
+                                    ))}
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
-                                <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">No data is available</td></tr>
+                                <tr><td colSpan={1 + activeCols.length} className="px-3 py-6 text-center text-slate-400">No data is available</td></tr>
                             )}
                         </tbody>
                     </table>
@@ -1280,6 +1306,15 @@ const BrandTable = ({ rows, loading }) => {
 const SkuTable = ({ rows, loading }) => {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
+    const { isKpiEnabled } = useKpiPermissions('Visibility Analysis');
+
+    const activeCols = useMemo(() => {
+        return [
+            { key: 'overall_sos', label: 'Overall SOS', perm: 'overall_sos' },
+            { key: 'sponsored_sos', label: 'Sponsored SOS', perm: 'sponsored_sos' },
+            { key: 'organic_sos', label: 'Organic SOS', perm: 'organic_sos' },
+        ].filter(c => isKpiEnabled(c.perm));
+    }, [isKpiEnabled]);
 
     const totalPages = Math.ceil(rows.length / pageSize);
     const paginatedRows = useMemo(() => rows.slice((page - 1) * pageSize, page * pageSize), [rows, page, pageSize]);
@@ -1296,9 +1331,9 @@ const SkuTable = ({ rows, loading }) => {
                             <tr>
                                 <th className="px-3 py-2 text-left w-[25%]">SKU</th>
                                 <th className="px-3 py-2 text-left w-[20%]">Brand</th>
-                                <th className="px-3 py-2 text-right w-[18%]">Overall SOS</th>
-                                <th className="px-3 py-2 text-right w-[18%]">Sponsored SOS</th>
-                                <th className="px-3 py-2 text-right w-[19%]">Organic SOS</th>
+                                {activeCols.map(col => (
+                                    <th key={col.key} className="px-3 py-2 text-right w-[18%]">{col.label}</th>
+                                ))}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
@@ -1306,21 +1341,21 @@ const SkuTable = ({ rows, loading }) => {
                                 <tr key={`skeleton-sku-${idx}`} className="animate-pulse">
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-3/4"></div></td>
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
-                                    <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                                    <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
-                                    <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                                    {activeCols.map((col, cIdx) => (
+                                        <td key={`skel-col-${cIdx}`} className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
+                                    ))}
                                 </tr>
                             )) : paginatedRows.map((row, idx) => (
                                 <tr key={row.id} className={cn("hover:bg-slate-50", idx % 2 === 1 && "bg-slate-50/60")}>
                                     <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">{row.name}</td>
                                     <td className="px-3 py-2 text-slate-900 border-r border-slate-100">{row.brandName}</td>
-                                    <td className="px-3 py-2 text-right text-slate-900 font-medium">{formatKpiValue(row.overall_sos)}</td>
-                                    <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.sponsored_sos)}</td>
-                                    <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.organic_sos)}</td>
+                                    {activeCols.map(col => (
+                                        <td key={col.key} className="px-3 py-2 text-right text-slate-900 font-medium">{formatKpiValue(row[col.key])}</td>
+                                    ))}
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
-                                <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">No data is available</td></tr>
+                                <tr><td colSpan={2 + activeCols.length} className="px-3 py-6 text-center text-slate-400">No data is available</td></tr>
                             )}
                         </tbody>
                     </table>
