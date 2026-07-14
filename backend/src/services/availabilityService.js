@@ -349,16 +349,13 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
             mslArr = [String(filters.msl)];
         }
     }
-    if (mslArr.length === 1) {
-        const mslStr = mslArr[0];
-        if (mslStr === '1' || mslStr === '0') {
-            try {
-                const pdpColsMatrix = await getTableColumns('rb_pdp_olap');
-                const actualMslCol = resolveColumn(pdpColsMatrix, 'msl', 'msl');
-                conditions.push(`toString(${prefix}${actualMslCol}) = '${mslStr}'`);
-            } catch (e) {
-                conditions.push(`toString(${prefix}msl) = '${mslStr}'`);
-            }
+    if (mslArr.includes('1') && !mslArr.includes('0')) {
+        try {
+            const pdpColsMatrix = await getTableColumns('rb_pdp_olap');
+            const actualMslCol = resolveColumn(pdpColsMatrix, 'msl', 'msl');
+            conditions.push(`toString(${prefix}${actualMslCol}) = '1'`);
+        } catch (e) {
+            conditions.push(`toString(${prefix}msl) = '1'`);
         }
     }
 

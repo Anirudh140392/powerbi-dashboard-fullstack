@@ -6,7 +6,8 @@ import {
     GetInventoryCategories,
     GetInventoryMatrix,
     GetCitySkuMatrix,
-    GetInventoryChannels
+    GetInventoryChannels,
+    GetInventoryMsls
 } from '../controllers/inventoryAnalysisController.js';
 
 /**
@@ -94,6 +95,27 @@ export default function inventoryAnalysisRoutes(app) {
      *         description: Filter locations by brand
      */
     app.get('/api/inventory-analysis/locations', GetInventoryLocations);
+
+    /**
+     * @swagger
+     * /api/inventory-analysis/msls:
+     *   get:
+     *     summary: Get available MSL values for filters
+     *     parameters:
+     *       - name: platform
+     *         in: query
+     *         description: Filter MSL values by platform
+     *       - name: brand
+     *         in: query
+     *         description: Filter MSL values by brand
+     *       - name: category
+     *         in: query
+     *         description: Filter MSL values by category
+     *       - name: location
+     *         in: query
+     *         description: Filter MSL values by location
+     */
+    app.get('/api/inventory-analysis/msls', GetInventoryMsls);
 
     /**
      * @swagger

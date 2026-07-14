@@ -102,6 +102,13 @@ const inventoryAnalysisService = {
                         where += ` AND ${catCol} IN (${requested.map(c => `'${c}'`).join(',')})`;
                     }
 
+                    if (filters.msl && filters.msl !== 'All') {
+                        const msls = filters.msl.split(',').map(m => m.trim());
+                        if (msls.includes('1') && !msls.includes('0')) {
+                            where += ` AND toString(msl) = '1'`;
+                        }
+                    }
+
                     return where;
                 };
 
@@ -375,6 +382,44 @@ const inventoryAnalysisService = {
     },
 
     /**
+     * Get available MSL values for filter dropdown
+     */
+    async getMsls(channel, platform, category, brand, location) {
+        const cacheKey = generateCacheKey('inventory_msls_v1', { channel, platform, category, brand, location });
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                let query = `SELECT DISTINCT toString(msl) as msl FROM rb_pdp_olap WHERE msl IS NOT NULL AND toString(msl) != '' AND Comp_flag = 0`;
+                if (channel && channel !== 'All') {
+                    const channels = channel.split(',').map(c => c.trim());
+                    query += ` AND channel IN (${channels.map(c => `'${c}'`).join(',')})`;
+                }
+                if (platform && platform !== 'All') {
+                    const platforms = platform.split(',').map(p => p.trim());
+                    query += ` AND Platform IN (${platforms.map(p => `'${p}'`).join(',')})`;
+                }
+                if (category && category !== 'All') {
+                    const categories = category.split(',').map(c => c.trim());
+                    query += ` AND Category IN (${categories.map(c => `'${c}'`).join(',')})`;
+                }
+                if (brand && brand !== 'All') {
+                    const brands = brand.split(',').map(b => b.trim());
+                    query += ` AND Brand IN (${brands.map(b => `'${b}'`).join(',')})`;
+                }
+                if (location && location !== 'All') {
+                    const locations = location.split(',').map(l => l.trim());
+                    query += ` AND Location IN (${locations.map(l => `'${l}'`).join(',')})`;
+                }
+                query += ` ORDER BY msl ASC`;
+                const results = await queryClickHouse(query);
+                return results.map(r => r.msl);
+            } catch (error) {
+                console.error("❌ [InventoryAnalysis] Error fetching MSL values:", error);
+                return [];
+            }
+        }, CACHE_TTL.LONG);
+    },
+
+    /**
      * Get Inventory Matrix (SKU x City) with basic inventory totals
      */
     async getInventoryMatrix(filters) {
@@ -411,6 +456,12 @@ const inventoryAnalysisService = {
                         const catCol = 'Category';
                         const requested = filters.category.split(',').map(c => c.trim());
                         where += ` AND ${catCol} IN (${requested.map(c => `'${c}'`).join(',')})`;
+                    }
+                    if (filters.msl && filters.msl !== 'All') {
+                        const msls = filters.msl.split(',').map(m => m.trim());
+                        if (msls.includes('1') && !msls.includes('0')) {
+                            where += ` AND toString(msl) = '1'`;
+                        }
                     }
                     return where;
                 };
@@ -488,6 +539,12 @@ const inventoryAnalysisService = {
                         const catCol = 'Category';
                         const requested = filters.category.split(',').map(c => c.trim());
                         where += ` AND ${catCol} IN (${requested.map(c => `'${c}'`).join(',')})`;
+                    }
+                    if (filters.msl && filters.msl !== 'All') {
+                        const msls = filters.msl.split(',').map(m => m.trim());
+                        if (msls.includes('1') && !msls.includes('0')) {
+                            where += ` AND toString(msl) = '1'`;
+                        }
                     }
                     return where;
                 };

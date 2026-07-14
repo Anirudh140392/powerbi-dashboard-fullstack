@@ -78,6 +78,7 @@ const cardSize = {
 
 const kpiLabels = {
     offtakes: 'Offtakes',
+    quantitySold: 'Quantity Sold',
     spend: 'Spend',
     availability: 'Availability',
     marketShare: 'Market share',
@@ -96,6 +97,7 @@ const kpiLabels = {
 // Map backend KPI title → frontend kpiKey
 const BACKEND_TITLE_TO_KEY = {
     'Offtakes': 'offtakes',
+    'Quantity Sold': 'quantitySold',
     'Spend': 'spend',
     'ROAS': 'roas_x',
     'Inorg Sales': 'inorgSales',
@@ -176,6 +178,7 @@ const PlatformOverviewNew = ({
 
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
+        { key: 'quantitySold', label: 'Quantity Sold' },
         { key: 'spend', label: 'Spend' },
         { key: 'inorgSales', label: 'Inorg Sales' },
         { key: 'conversion', label: 'Conversion' },
@@ -266,7 +269,7 @@ const PlatformOverviewNew = ({
     }, [dimension, activePlatformFilter, skuPlatformFilter]);
 
     const defaultKpiKeys = useMemo(() => {
-        let base = ['offtakes', 'spend', 'availability', 'conversion', 'aov'];
+        let base = ['offtakes', 'quantitySold', 'spend', 'availability', 'conversion', 'aov'];
         if (dimension === 'platform') {
             base.push('marketShare', 'categorySize');
             if (isEcom) base.push('cpc');
@@ -295,7 +298,7 @@ const PlatformOverviewNew = ({
         return base;
     }, [dimension, activePlatformFilter, skuPlatformFilter]);
 
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
+    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'quantitySold', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const navigate = useNavigate()
     const [currentPage, setCurrentPage] = useState(1)

@@ -76,9 +76,8 @@ async function getEcpWeekdayWeekend(filters = {}) {
 
         // Apply MSL filter (supports multiselect)
         const mslArr = parseMultiSelectFilter(filters.msl);
-        if (mslArr) {
-            const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
-            conditions.push(`toString(msl) IN (${escaped})`);
+        if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
+            conditions.push(`toString(msl) = '1'`);
         }
 
         const whereClause = conditions.join(' AND ');

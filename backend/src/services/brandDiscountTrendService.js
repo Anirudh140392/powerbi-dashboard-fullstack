@@ -73,9 +73,8 @@ async function getBrandDiscountTrend(filters = {}) {
             // Build MSL filter clause (supports multiselect)
             let mslClause = '';
             const mslArr = parseMultiSelectFilter(filters.msl);
-            if (mslArr) {
-                const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
-                mslClause = `AND toString(msl) IN (${escaped})`;
+            if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
+                mslClause = `AND toString(msl) = '1'`;
             }
 
             // SQL query to get monthly average discount by brand
@@ -215,9 +214,8 @@ async function getAvailableBrands(filters = {}) {
             // Build MSL filter clause (supports multiselect)
             let mslClause = '';
             const mslArr = parseMultiSelectFilter(filters.msl);
-            if (mslArr) {
-                const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
-                mslClause = `AND toString(msl) IN (${escaped})`;
+            if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
+                mslClause = `AND toString(msl) = '1'`;
             }
 
             const query = `

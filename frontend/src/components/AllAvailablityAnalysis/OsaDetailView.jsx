@@ -117,8 +117,8 @@ export default function OsaDetailTableLight({ apiData, loading, mslFilter, onMsl
         const mk = arr => arr.map(p => ({ id: p, label: p }));
         return [
             { id: "msl", label: "MSL", options: [
-                { id: "0", label: "All SKUs (MSL=0)" },
-                { id: "1", label: "MSL Only (MSL=1)" }
+                { id: "0", label: "All SKUs" },
+                { id: "1", label: "Top SKUs" }
             ] },
             { id: "platform", label: "Platform", options: mk([...new Set(apiData.osaDetail.map(r => r.platform).filter(Boolean))]) },
             { id: "brand", label: "Brand", options: mk([...new Set(apiData.osaDetail.map(r => r.brand).filter(Boolean))]) },

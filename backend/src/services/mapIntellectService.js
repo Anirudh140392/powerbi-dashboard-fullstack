@@ -233,14 +233,8 @@ const getMapIntellectData = async (filters) => {
         }
         if (src.f.msl && msl) {
             const mslArr = normalizeFilterArray(msl);
-            if (mslArr && mslArr.length > 0) {
-                const mslConds = mslArr.map(m => {
-                    if (m === null || m === 'null' || m === 'NULL') {
-                        return `isNull(${src.f.msl})`;
-                    }
-                    return `toString(${src.f.msl}) = '${escapeStr(m)}'`;
-                }).join(' OR ');
-                conds.push(`(${mslConds})`);
+            if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
+                conds.push(`toString(${src.f.msl}) = '1'`);
             }
         }
         return conds.join(' AND ');

@@ -1149,7 +1149,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
     if (activeTab === "category") return filterOptions.categories;
     if (activeTab === "brand") return filterOptions.brands;
     if (activeTab === "sku") return filterOptions.skus;
-    if (activeTab === "msl") return ["MSL Only (1)", "Non-MSL (0)"];
+    if (activeTab === "msl") return ["1", "0"];
     return [];
   };
 
@@ -1278,7 +1278,9 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
                       checked={(localValue[currentKey] || []).includes(item)}
                       onCheckedChange={() => handleToggle(currentKey, item)}
                     />
-                    <span className="truncate flex-1 min-w-0" title={item}>{item}</span>
+                    <span className="truncate flex-1 min-w-0" title={currentKey === "msl" ? (item === "1" ? "Top SKUs" : (item === "0" ? "All SKUs" : item)) : item}>
+                      {currentKey === "msl" ? (item === "1" ? "Top SKUs" : (item === "0" ? "All SKUs" : item)) : item}
+                    </span>
                   </label>
                 ))}
 
