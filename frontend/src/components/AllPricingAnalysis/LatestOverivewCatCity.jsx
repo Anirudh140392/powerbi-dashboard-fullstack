@@ -76,7 +76,7 @@ const formatKpiValue = (value, kpiKey) => {
 
 const kpiLabels = {
     discount: 'Discount %',
-    pricePerUnit: 'Price/Unit 1g / 1 piece',
+    pricePerUnit: 'Price per Unit',
     asp: 'Average Selling Price',
 };
 
@@ -91,7 +91,7 @@ const LatestOverivewCatCity = ({
     const { openHelpWithMenu } = useHelp();
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
         { key: 'discount', label: 'Discount %' },
-        { key: 'pricePerUnit', label: 'Price/Unit 1g / 1 piece', infoTooltip: 'Wt. PPU represents the average price per unit across a category, with each SKU weighted based on its sales.' },
+        { key: 'pricePerUnit', label: 'Price per Unit', infoTooltip: 'Wt. PPU represents the average price per unit across a category, with each SKU weighted based on its sales.' },
         { key: 'asp', label: 'Average Selling Price' },
     ], [propKpis]);
 

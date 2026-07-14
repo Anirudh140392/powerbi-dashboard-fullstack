@@ -1791,7 +1791,7 @@ export default function TrendsCompetitionDrawer({
           columns: [
             { id: "brand", label: "Brand", type: "text" },
             { id: "Discount", label: "Promo-My %", type: "metric" },
-            { id: "PricePerUnit", label: "Price/Unit 1g / 1 piece", type: "metric" },
+            { id: "PricePerUnit", label: "Price per Unit", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
           ],
           brands: BRAND_OPTIONS.map((b, i) => ({

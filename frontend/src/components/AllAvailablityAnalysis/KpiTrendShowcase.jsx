@@ -1091,7 +1091,7 @@ const PRICING_KPI_KEYS = [
   },
   {
     key: "PricePerUnit",
-    label: "Price/Unit 1g / 1 piece",
+    label: "Price per Unit",
     color: "#14B8A6",
     get prefix() { return getCurrencySymbol() === '₹' ? '₹' : 'AED '; },
     fmt: (v) => {
