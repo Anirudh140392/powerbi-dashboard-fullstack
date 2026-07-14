@@ -79,7 +79,7 @@ export const getSummary = async (req, res) => {
                 LIMIT 1 BY company_id, lower(platform), web_pid
             ),
             review_scope AS (
-                SELECT r.*,
+                SELECT r.id AS id, r.company_id AS company_id, r.platform AS platform, r.product_id AS product_id, r.web_pid AS web_pid, r.product_name AS product_name, r.brand AS brand, r.review_external_id AS review_external_id, r.reviewer_name AS reviewer_name, r.rating AS rating, r.review_title AS review_title, r.review_text AS review_text, r.review_date AS review_date, r.is_verified_purchase AS is_verified_purchase, r.pdp_rating AS pdp_rating, r.pdp_rating_count AS pdp_rating_count, r.star_distribution AS star_distribution, r.sentiment_category AS sentiment_category, r.sentiment_subcategory AS sentiment_subcategory, r.sentiment_score AS sentiment_score, r.category AS category, r.material AS material, r.wattage AS wattage, r.is_competitor AS is_competitor, r.pareto_status AS pareto_status, r.crawl_id AS crawl_id, r.created_at AS created_at, r.updated_at AS updated_at, r.sentiment AS sentiment, r.quality_score AS quality_score, r.specific_issue AS specific_issue, r.ml_inferred_rating AS ml_inferred_rating, r.category_source AS category_source, r.sentiment_source AS sentiment_source, r.specific_issue_source AS specific_issue_source,
                     coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, '')) AS resolved_pareto_status,
                     CASE
                         WHEN trim(lower(coalesce(nullIf(ls.category, ''), nullIf(mp.category, '')))) IN ('other', 'others') THEN 'Others'
@@ -92,7 +92,7 @@ export const getSummary = async (req, res) => {
                     mp.mop AS base_mop,
                     ls.rating AS resolved_pdp_rating,
                     ls.rating_count AS resolved_pdp_rating_count
-                FROM reviews r
+                FROM ml_reviews r
                 LEFT JOIN products mp
                     ON mp.company_id = r.company_id
                    AND mp.product_external_id = r.web_pid
@@ -310,7 +310,7 @@ export const getTrends = async (req, res) => {
                     REPLACE(coalesce(nullIf(r.sentiment_subcategory, ''), nullIf(r.sentiment_category, ''), 'General'), '_', ' ') AS characteristic,
                     CASE WHEN ${recentPeriodFilter} THEN 'recent' WHEN ${priorPeriodFilter} THEN 'prior' ELSE NULL END AS period,
                     r.sentiment
-                FROM reviews r
+                FROM ml_reviews r
                 LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
                 LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid AND lower(ps.platform) = lower(r.platform)
                 WHERE r.company_id = {companyId:String} AND isNotNull(r.review_date) AND ${combinedWindowFilter} ${extraWhere}
@@ -328,8 +328,8 @@ export const getTrends = async (req, res) => {
             ORDER BY change DESC
         `;
 
-        const { json } = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
-        const rows = await json();
+        const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const rows = await chRes.json();
 
         const escalating = rows.filter(r => r.change > 0.05 && r.recent_neg_rate > 0.25).slice(0, 10).map(r => ({
             characteristic: r.characteristic, recentNegativeRate: parseFloat(r.recent_neg_rate), olderNegativeRate: parseFloat(r.prior_neg_rate), change: parseFloat(r.change), recentCount: parseInt(r.recent_total), totalCount: parseInt(r.recent_total) + parseInt(r.prior_total), isEscalating: true, isImproving: false,
@@ -401,7 +401,7 @@ export const getTimeline = async (req, res) => {
                 countIf(r.sentiment = 'Negative') AS negative,
                 countIf(r.sentiment = 'Neutral') AS neutral,
                 round(avg(r.rating), 2) AS avg_rating
-            FROM reviews r
+            FROM ml_reviews r
             ${priceJoins}
             WHERE r.company_id = {companyId:String} AND isNotNull(r.review_date)
               ${extraWhere}
@@ -409,8 +409,8 @@ export const getTimeline = async (req, res) => {
             ORDER BY month, category
         `;
         
-        const { json } = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
-        const rows = await json();
+        const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const rows = await chRes.json();
 
         const monthMap = {};
         rows.forEach(r => {
@@ -455,8 +455,8 @@ export const getRatingTrend = async (req, res) => {
                   AND week_start >= addDays(today(), -{daysClamped:Int32})
                 ORDER BY week_start ASC, platform ASC
             `;
-            const { json } = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
-            const wrows = await json();
+            const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const wrows = await chRes.json();
             
             return res.json({
                 bucket: 'week',
@@ -490,8 +490,8 @@ export const getRatingTrend = async (req, res) => {
             GROUP BY snapshot_date, platform
             ORDER BY snapshot_date ASC, platform ASC
         `;
-        const { json } = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
-        const rows = await json();
+        const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const rows = await chRes.json();
 
         res.json({
             points: rows.map(r => ({
@@ -555,7 +555,7 @@ export const getExecutiveHealth = async (req, res) => {
             recentReviewFilter = `r.review_date >= addMonths(today(), -${trendPeriod})`;
             priorReviewFilter = `r.review_date >= addMonths(today(), -${lookbackMonths}) AND r.review_date < addMonths(today(), -${trendPeriod})`;
         }
-        const reviewJoinFilter = reviewScopeFilter.replaceAll('r.', 'r2.');
+        const reviewJoinFilter = reviewScopeFilter.replaceAll('r.', 'r3.');
 
         if (filterCategory) {
             queryParams.filterCategory = filterCategory;
@@ -612,7 +612,7 @@ export const getExecutiveHealth = async (req, res) => {
                           max(r.review_date) AS latest_review_date,
                           countIf(${recentReviewFilter}) AS recent_review_count,
                           countIf(${priorReviewFilter}) AS older_review_count
-                      FROM reviews r
+                      FROM ml_reviews r
                       LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
                       WHERE r.company_id = {companyId:String} ${reviewCompetitorFilter} AND coalesce(nullIf(r.category, ''), nullIf(mp.category, '')) != '' ${reviewScopeFilter} ${sentimentCategoryFilter}
                       GROUP BY r.web_pid, mp.pareto_status, r.pareto_status
@@ -632,7 +632,7 @@ export const getExecutiveHealth = async (req, res) => {
                       mp.subcategory AS subcategory_l1, mp.business_segment,
                       coalesce(toFloat64(JSONExtractString(ls.star_distribution, '1')), 0) / nullIf(ls.rating_count, 0) AS one_star_pct,
                       rs.scoped_avg_rating,
-                      round(avg(r2.ml_inferred_rating), 2) AS scoped_ml_rating,
+                      round(avg(r3.ml_inferred_rating), 2) AS scoped_ml_rating,
                       rs.recent_avg_rating, rs.older_avg_rating,
                       coalesce(rs.total_reviews, 0) AS total_reviews,
                       rs.latest_review_date,
@@ -642,7 +642,7 @@ export const getExecutiveHealth = async (req, res) => {
                   LEFT JOIN latest_snapshots ls ON ls.web_pid = ss.web_pid
                   LEFT JOIN products mp ON mp.company_id = {companyId:String} AND mp.product_external_id = ss.web_pid AND lower(mp.platform) = ls.platform_key
                   LEFT JOIN review_stats rs ON rs.web_pid = ss.web_pid
-                  LEFT JOIN reviews r2 ON r2.company_id = {companyId:String} AND r2.web_pid = ss.web_pid AND lower(r2.platform) = coalesce(ls.platform_key, rs.platform_key) ${reviewCompetitorFilter.replace('r.', 'r2.')} ${reviewJoinFilter}
+                  LEFT JOIN ml_reviews r3 ON r3.company_id = {companyId:String} AND r3.web_pid = ss.web_pid AND lower(r3.platform) = coalesce(ls.platform_key, rs.platform_key) ${reviewCompetitorFilter.replace('r.', 'r3.')} ${reviewJoinFilter}
                   WHERE 1=1 ${ratingFilter} ${paretoFilter} ${priceFilter}
                   GROUP BY ss.web_pid, ls.product_name, ls.rating, ls.rating_count, ls.price_rp, ls.price_sp, mp.pareto_status, ls.pareto_status, rs.pareto_status, ls.category, rs.resolved_category, rs.review_product_name, mp.category, mp.subcategory, mp.business_segment, ls.star_distribution, rs.scoped_avg_rating, rs.recent_avg_rating, rs.older_avg_rating, rs.total_reviews, rs.latest_review_date, rs.recent_review_count, rs.older_review_count
               )
@@ -656,8 +656,8 @@ export const getExecutiveHealth = async (req, res) => {
               FROM product_health
               ORDER BY pdp_rating ASC
         `;
-        const { json } = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
-        const rows = await json();
+        const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const rows = await chRes.json();
 
         const classifyPareto = (status) => {
             if (status === 'Pareto') return 'Pareto';
@@ -785,7 +785,7 @@ export const getExecutiveHealth = async (req, res) => {
                 rev AS (
                     SELECT coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, ''), nullIf(r.pareto_status, '')) AS resolved_pareto,
                            CASE WHEN trim(lower(coalesce(nullIf(ls.category, ''), nullIf(r.category, ''), nullIf(mp.category, '')))) IN ('other', 'others') THEN 'Others' ELSE initcap(trim(coalesce(nullIf(ls.category, ''), nullIf(r.category, ''), nullIf(mp.category, '')))) END AS resolved_category
-                    FROM reviews r LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform) LEFT JOIN latest_snapshots ls ON ls.web_pid = r.web_pid AND lower(ls.platform) = lower(r.platform) WHERE ${prWhere}
+                    FROM ml_reviews r LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform) LEFT JOIN latest_snapshots ls ON ls.web_pid = r.web_pid AND lower(ls.platform) = lower(r.platform) WHERE ${prWhere}
                 )
                 SELECT CASE WHEN resolved_pareto = 'Pareto' THEN 'Pareto' WHEN resolved_pareto = 'NPD' THEN 'NPD' ELSE 'Non-Pareto' END AS bucket, count() AS reviews FROM rev ${prCatClause} GROUP BY 1
             `, query_params: prParams, format: 'JSONEachRow' });
@@ -832,18 +832,18 @@ export const getRatingMismatch = async (req, res) => {
                    r.sentiment, r.sentiment_category, r.review_title,
                    substring(r.review_text, 1, 300) AS review_text, r.review_date,
                    coalesce(nullIf(mp.master_category,''), nullIf(mp.category,''), nullIf(r.category,'')) AS category
-              FROM reviews r ${mp_join}
+              FROM ml_reviews r ${mp_join}
              WHERE ${[...baseWhere, dirClause].join(' AND ')}
              ORDER BY abs(r.rating - r.ml_inferred_rating) DESC, r.review_date DESC
              LIMIT {limit:Int32}
         `;
-        const { json } = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
-        const rows = await json();
+        const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const rows = await chRes.json();
 
         const sumSql = `
             SELECT countIf((r.rating - r.ml_inferred_rating) >= {minGap:Float64}) AS star_high_text_low,
                    countIf((r.ml_inferred_rating - r.rating) >= {minGap:Float64}) AS star_low_text_high
-              FROM reviews r ${mp_join}
+              FROM ml_reviews r ${mp_join}
              WHERE ${baseWhere.join(' AND ')}
         `;
         const sumRes = await clickhouse.query({ query: sumSql, query_params: queryParams, format: 'JSONEachRow' });
@@ -870,7 +870,7 @@ export const getReviewTimeline = async (req, res) => {
         const lim = Math.min(parseInt(limit, 10) || 500, 2000);
         queryParams.limit = lim;
 
-        const { json } = await clickhouse.query({ query: `
+        const chRes = await clickhouse.query({ query: `
             SELECT id, rating, sentiment, review_date, review_title, review_text,
                    specific_issue, sentiment_category, platform
               FROM reviews
@@ -878,7 +878,7 @@ export const getReviewTimeline = async (req, res) => {
              ORDER BY review_date ASC
              LIMIT {limit:Int32}
         `, query_params: queryParams, format: 'JSONEachRow' });
-        const rows = await json();
+        const rows = await chRes.json();
 
         const monthly = new Map();
         for (const r of rows) {
@@ -938,8 +938,8 @@ export const getPriceVariance = async (req, res) => {
             FROM agg a LEFT JOIN prestige_baseline pb ON pb.master_category = a.master_category
             ORDER BY a.master_category, a.sku_count DESC
         `;
-        const { json } = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
-        const rows = await json();
+        const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const rows = await chRes.json();
         res.json({ rows });
     } catch (err) {
         console.error('price-variance error:', err);

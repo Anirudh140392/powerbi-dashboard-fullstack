@@ -1,6 +1,11 @@
 import { createClient } from '@clickhouse/client';
 import dotenv from 'dotenv';
-dotenv.config();
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 if (!process.env.CLICKHOUSE_DATABASE) {
     console.error('CRITICAL: CLICKHOUSE_DATABASE environment variable is missing. The Overview module cannot start without a client database.');

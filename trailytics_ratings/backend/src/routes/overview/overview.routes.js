@@ -21,4 +21,9 @@ router.get('/rating-mismatch', getRatingMismatch);
 router.get('/review-timeline', getReviewTimeline);
 router.get('/price-variance', getPriceVariance);
 
+import { getProductHealth, getCategoryHealth, getBenchmarkData } from '../../controllers/misc_temp.js';
+router.get('/product-health', getProductHealth);
+router.get('/category-health', getCategoryHealth);
+router.get('/benchmark-data', getBenchmarkData);
+
 export default router;

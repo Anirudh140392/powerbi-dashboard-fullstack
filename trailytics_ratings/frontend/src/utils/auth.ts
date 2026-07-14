@@ -62,10 +62,9 @@ export function buildAuthHeaders(init?: HeadersInit, companyId?: string): Header
         headers.set('Authorization', `Bearer ${session.token}`);
     }
 
-    const resolvedCompanyId = companyId || session?.user.companyId;
-    if (resolvedCompanyId) {
-        headers.set('X-Company-ID', resolvedCompanyId);
-    }
+    // Removed X-Company-ID header to avoid unnecessary CORS preflight requests
+    // The company_id is already passed as a query parameter in useRatingsAPI.ts
+
 
     return headers;
 }

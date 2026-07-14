@@ -1,3 +1,5 @@
+import pool from '../config/db.js';
+
 export const getProductHealth = async (req, res) => {
     try {
         const { category, pareto_status, web_pid, date_from, date_to, platform, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category } = req.query;
@@ -663,3 +665,374 @@ export const classifyReview = async (req, res) => {
     }
 };
 
+export const getCategoryHealth = async (req, res) => {
+    try {
+        const { date_from, date_to, platform, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category, category } = req.query;
+        const trendPeriod = parseInt(period_months) || 3;
+
+        // Build parameterized growth filter.
+        // When the user selects a date range, split it at the midpoint:
+        //   recent  = midpoint  → date_to   (second half of range)
+        //   prior   = date_from → midpoint  (first half of range)
+        // PostgreSQL: date - date = int (days); date + int = date — so /2 works.
+        const sqlParams = [req.companyId];
+        let currentScopeFilter, growthRangeFilter, recentFilter, priorFilter;
+        let platformFilter = '';
+        let snapshotPlatformFilter = '';
+        let reviewPriceFilter = '';
+        let snapshotPriceFilter = ''; // For 'ls' alias in cat_products
+        let competitorFilter = '';
+        let snapshotCompetitorFilter = '';
+        let sentimentCategoryFilter = '';
+
+        if (is_competitor === 'true' || is_competitor === 'false') {
+            competitorFilter = `AND COALESCE(r.is_competitor, false) = $${sqlParams.length + 1}`;
+            // For the SKU-count path (snap_cats / review_only_cats), require explicit mp.is_competitor
+            // match. Orphan rows with NULL is_competitor are EXCLUDED so the Prestige count doesn't
+            // inflate beyond the confirmed masters.products count.
+            snapshotCompetitorFilter = `AND mp.is_competitor = $${sqlParams.length + 1}`;
+            sqlParams.push(is_competitor === 'true');
+        } else if (is_competitor === 'all') {
+            competitorFilter = '';
+            snapshotCompetitorFilter = '';
+        } else {
+            // Default to Prestige — strict on the SKU-count path, lenient on review-side (so reviews
+            // without a masters mapping are still counted in totals).
+            competitorFilter = `AND COALESCE(r.is_competitor, false) = false`;
+            snapshotCompetitorFilter = `AND mp.is_competitor = false`;
+        }
+
+        if (sentiment_category && sentiment_category !== 'all') {
+            sentimentCategoryFilter = `AND r.sentiment_category ILIKE $${sqlParams.length + 1}`;
+            sqlParams.push(sentiment_category);
+        }
+
+        let categoryFilter = '';
+        let snapshotCategoryFilter = '';
+        if (category) {
+            categoryFilter = `AND COALESCE(NULLIF(ps_latest.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, '')) ILIKE $${sqlParams.length + 1}`;
+            snapshotCategoryFilter = `AND COALESCE(NULLIF(ls.category, ''), NULLIF(mp.category, '')) ILIKE $${sqlParams.length + 1}`;
+            sqlParams.push(category);
+        }
+
+        if (platform && platform !== 'all') {
+            platformFilter = `AND r.platform ILIKE $${sqlParams.length + 1}`;
+            snapshotPlatformFilter = `AND ls.platform ILIKE $${sqlParams.length + 1}`;
+            sqlParams.push(platform);
+        }
+
+        if (price_min !== undefined && price_min !== '') {
+            // cat_reviews: use pre-resolved prices from lateral join (resolved_price_sp/rp includes mp fallback)
+            const reviewPriceExpr = price_mode === 'rp'
+                ? 'COALESCE(ps_latest.resolved_price_rp, mp.mrp)'
+                : 'COALESCE(ps_latest.resolved_price_sp, mp.selling_price, mp.mop, ps_latest.resolved_price_rp, mp.mrp)';
+            // cat_products: ls is the inner DISTINCT ON snapshot, mp is outer join
+            const snapshotPriceExpr = price_mode === 'rp'
+                ? 'COALESCE(ls.price_rp, mp.mrp)'
+                : 'COALESCE(ls.price_sp, mp.selling_price, mp.mop, ls.price_rp, mp.mrp)';
+
+            reviewPriceFilter += ` AND ${reviewPriceExpr} >= $${sqlParams.length + 1}`;
+            snapshotPriceFilter += ` AND ${snapshotPriceExpr} >= $${sqlParams.length + 1}`;
+            sqlParams.push(Number(price_min));
+        }
+        if (price_max !== undefined && price_max !== '') {
+            const reviewPriceExpr = price_mode === 'rp'
+                ? 'COALESCE(ps_latest.resolved_price_rp, mp.mrp)'
+                : 'COALESCE(ps_latest.resolved_price_sp, mp.selling_price, mp.mop, ps_latest.resolved_price_rp, mp.mrp)';
+            const snapshotPriceExpr = price_mode === 'rp'
+                ? 'COALESCE(ls.price_rp, mp.mrp)'
+                : 'COALESCE(ls.price_sp, mp.selling_price, mp.mop, ls.price_rp, mp.mrp)';
+
+            reviewPriceFilter += ` AND ${reviewPriceExpr} <= $${sqlParams.length + 1}`;
+            snapshotPriceFilter += ` AND ${snapshotPriceExpr} <= $${sqlParams.length + 1}`;
+            sqlParams.push(Number(price_max));
+        }
+
+        // Get latest review date to anchor trends (prevents 0% trends when data is stale)
+        // Review-count window anchor. Standardized on CURRENT_DATE (rolling
+        // "last N months from today") so EVERY surface — header, category strip,
+        // governance cards, benchmark — reports the SAME number. A MAX(review_date)
+        // anchor pulled in a ~5.4K review cluster near the year boundary and made
+        // the strip/cards read ~26.5K while the header read ~21K.
+        const anchorDateExpr = 'CURRENT_DATE';
+
+        if (date_from && date_to) {
+            sqlParams.push(date_from, date_to);
+            const fromIdx = sqlParams.length - 1;
+            const toIdx = sqlParams.length;
+            currentScopeFilter = `AND r.review_date >= $${fromIdx}::date AND r.review_date <= $${toIdx}::date`;
+            growthRangeFilter = `AND r.review_date >= $${fromIdx}::date AND r.review_date <= $${toIdx}::date`;
+            recentFilter      = `AND r.review_date >= ($${fromIdx}::date + ($${toIdx}::date - $${fromIdx}::date) / 2) AND r.review_date <= $${toIdx}::date`;
+            priorFilter       = `AND r.review_date >= $${fromIdx}::date AND r.review_date <  ($${fromIdx}::date + ($${toIdx}::date - $${fromIdx}::date) / 2)`;
+        } else {
+            // Dynamic: use period_months from global filter (default 3) anchored to LATEST DATA
+            const lookbackMonths = trendPeriod * 2;
+            currentScopeFilter = `AND r.review_date >= (${anchorDateExpr} - INTERVAL '${trendPeriod} months')`;
+            growthRangeFilter = `AND r.review_date >= (${anchorDateExpr} - INTERVAL '${lookbackMonths} months')`;
+            recentFilter      = `AND r.review_date >= (${anchorDateExpr} - INTERVAL '${trendPeriod} months')`;
+            priorFilter       = `AND r.review_date >= (${anchorDateExpr} - INTERVAL '${lookbackMonths} months') AND r.review_date < (${anchorDateExpr} - INTERVAL '${trendPeriod} months')`;
+        }
+
+
+        const sql = `
+            WITH snap_cats AS (
+                SELECT DISTINCT ON (ps.company_id, ps.web_pid)
+                    ps.web_pid,
+                    NULLIF(mp.sku_code, '') AS sku_code,
+                    COALESCE(NULLIF(ps.category, ''), NULLIF(mp.category, '')) as raw_category,
+                    COALESCE(NULLIF(mp.pareto_status, ''), NULLIF(ps.pareto_status, '')) AS raw_pareto_status
+                FROM ratings.product_snapshots ps
+                LEFT JOIN masters.products mp ON mp.company_id = ps.company_id AND mp.product_external_id = ps.web_pid AND LOWER(mp.platform) = LOWER(ps.platform)
+                WHERE ps.company_id = $1
+                  ${snapshotCompetitorFilter}
+                  ${snapshotPlatformFilter.replace('ls.', 'ps.')}
+                  AND COALESCE(NULLIF(ps.category, ''), NULLIF(mp.category, '')) != ''
+                  AND ps.snapshot_date >= (${anchorDateExpr} - INTERVAL '${trendPeriod} months')
+                ORDER BY ps.company_id, ps.web_pid, ps.snapshot_date DESC, ps.created_at DESC
+            ),
+            review_only_cats AS (
+                SELECT DISTINCT ON (r.web_pid)
+                    r.web_pid,
+                    NULLIF(mp.sku_code, '') AS sku_code,
+                    COALESCE(NULLIF(r.category, ''), NULLIF(mp.category, '')) as raw_category,
+                    COALESCE(NULLIF(mp.pareto_status, ''), NULLIF(r.pareto_status, '')) AS raw_pareto_status
+                FROM ratings.reviews r
+                LEFT JOIN masters.products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND LOWER(mp.platform) = LOWER(r.platform)
+                WHERE r.company_id = $1
+                  ${competitorFilter}
+                  ${platformFilter}
+                  AND COALESCE(NULLIF(r.category, ''), NULLIF(mp.category, '')) IS NOT NULL
+                  AND COALESCE(NULLIF(r.category, ''), NULLIF(mp.category, '')) != ''
+                  ${currentScopeFilter}
+                  AND NOT EXISTS (SELECT 1 FROM snap_cats sc WHERE sc.web_pid = r.web_pid)
+                ORDER BY r.web_pid, r.review_date DESC
+            ),
+            sku_category_map AS (
+                SELECT
+                    web_pid,
+                    sku_code,
+                    -- Canonical SKU: prefer masters.sku_code (one row per product across platforms),
+                    -- fall back to web_pid for unmapped products so they're still counted.
+                    COALESCE(sku_code, web_pid) AS canonical_sku,
+                    CASE
+                        WHEN TRIM(LOWER(raw_category)) IN ('other', 'others') THEN 'Others'
+                        ELSE INITCAP(TRIM(raw_category))
+                    END AS category,
+                    raw_pareto_status AS pareto_status
+                FROM (
+                    SELECT web_pid, sku_code, raw_category, raw_pareto_status FROM snap_cats
+                    UNION ALL
+                    SELECT web_pid, sku_code, raw_category, raw_pareto_status FROM review_only_cats
+                ) all_c
+            ),
+            cat_sku_counts AS (
+                SELECT
+                    category,
+                    COUNT(DISTINCT canonical_sku) AS sku_count,
+                    COUNT(DISTINCT canonical_sku) FILTER (WHERE pareto_status = 'Pareto') AS pareto_count,
+                    COUNT(DISTINCT canonical_sku) FILTER (WHERE pareto_status IN ('Non-Pareto', 'Non-Pareto (Unclassified)') OR pareto_status IS NULL) AS non_pareto_count,
+                    COUNT(DISTINCT canonical_sku) FILTER (WHERE pareto_status = 'NPD') AS npd_count
+                FROM sku_category_map
+                WHERE 1=1
+                  ${snapshotCategoryFilter.replace("COALESCE(NULLIF(ls.category, ''), NULLIF(mp.category, ''))", "category")}
+                GROUP BY 1
+            ),
+            cat_reviews AS (
+                SELECT
+                    scm.category,
+                    COUNT(*) AS review_count,
+                    COUNT(DISTINCT r.web_pid) AS sku_count,
+                    ROUND(AVG(r.rating)::numeric, 2) AS avg_review_rating,
+                    ROUND(AVG(r.ml_inferred_rating)::numeric, 2) AS avg_ml_rating,
+                    COUNT(*) FILTER (WHERE r.sentiment = 'Positive') AS positive_count,
+                    COUNT(*) FILTER (WHERE r.sentiment = 'Negative') AS negative_count,
+                    COUNT(*) FILTER (WHERE r.sentiment = 'Neutral') AS neutral_count
+                FROM ratings.reviews r
+                JOIN sku_category_map scm ON scm.web_pid = r.web_pid
+                WHERE r.company_id = $1
+                  ${competitorFilter}
+                  ${currentScopeFilter}
+                  ${platformFilter}
+                  ${sentimentCategoryFilter}
+                  ${categoryFilter.replace("COALESCE(NULLIF(ps_latest.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, ''))", "scm.category")}
+                GROUP BY 1
+            ),
+            cat_products AS (
+                SELECT
+                    scm.category,
+                    SUM(ls.rating_count) AS total_ratings,
+                    ROUND(
+                        SUM(ls.rating * ls.rating_count) / NULLIF(SUM(ls.rating_count), 0)::numeric,
+                        2
+                    ) AS avg_platform_rating
+                FROM sku_category_map scm
+                JOIN (
+                    SELECT DISTINCT ON (ps.company_id, LOWER(ps.platform), ps.web_pid)
+                        ps.web_pid,
+                        ps.rating,
+                        ps.rating_count
+                    FROM ratings.product_snapshots ps
+                    WHERE ps.company_id = $1
+                    ORDER BY ps.company_id, LOWER(ps.platform), ps.web_pid, ps.snapshot_date DESC, ps.created_at DESC
+                ) ls ON ls.web_pid = scm.web_pid
+                WHERE 1=1
+                  ${snapshotCategoryFilter.replace("COALESCE(NULLIF(ls.category, ''), NULLIF(mp.category, ''))", "scm.category")}
+                GROUP BY 1
+            ),
+            cat_growth AS (
+                SELECT
+                    scm.category,
+                    COUNT(*) FILTER (WHERE true ${recentFilter}) AS recent_count,
+                    COUNT(*) FILTER (WHERE true ${priorFilter}) AS prior_count,
+                    ROUND(AVG(r.rating) FILTER (WHERE true ${recentFilter})::numeric, 2) AS recent_avg_rating,
+                    ROUND(AVG(r.rating) FILTER (WHERE true ${priorFilter})::numeric, 2) AS prior_avg_rating
+                FROM ratings.reviews r
+                JOIN sku_category_map scm ON scm.web_pid = r.web_pid
+                WHERE r.company_id = $1
+                  ${competitorFilter}
+                  ${growthRangeFilter}
+                  ${platformFilter}
+                  ${sentimentCategoryFilter}
+                  ${categoryFilter.replace("COALESCE(NULLIF(ps_latest.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, ''))", "scm.category")}
+                GROUP BY 1
+            ),
+            cat_catalogue AS (
+                -- Authoritative CATALOGUE SKU count per category, straight from the
+                -- master (same source as the governance cards + category dropdown).
+                -- csc.sku_count above is the ACTIVE population (snapshot/review in
+                -- window); this is the full listed catalogue, so the strip can show
+                -- "X listed · Y active" instead of a bare active count.
+                SELECT
+                    CASE WHEN TRIM(LOWER(mp.category)) IN ('other','others') THEN 'Others'
+                         ELSE INITCAP(TRIM(mp.category)) END AS category,
+                    COUNT(DISTINCT mp.product_external_id) AS catalogue_sku_count
+                FROM masters.products mp
+                WHERE mp.company_id = $1 AND mp.platform IS NOT NULL
+                  AND mp.category IS NOT NULL AND TRIM(mp.category) <> ''
+                  ${snapshotCompetitorFilter}
+                  ${snapshotPlatformFilter.replace(/ls\./g, 'mp.')}
+                  ${snapshotCategoryFilter.replace("COALESCE(NULLIF(ls.category, ''), NULLIF(mp.category, ''))", "mp.category")}
+                GROUP BY 1
+            )
+            SELECT
+                csc.category,
+                COALESCE(cr.review_count, 0) AS review_count,
+                csc.sku_count,
+                COALESCE(cc.catalogue_sku_count, csc.sku_count) AS catalogue_sku_count,
+                -- SKUs with a review in the window (same web_pid grain as the
+                -- catalogue count) — the honest "with recent reviews" number.
+                COALESCE(cr.sku_count, 0) AS review_sku_count,
+                COALESCE(cr.avg_review_rating, 0) AS avg_review_rating,
+                cr.avg_ml_rating,
+                COALESCE(cr.positive_count, 0) AS positive_count,
+                COALESCE(cr.negative_count, 0) AS negative_count,
+                COALESCE(cr.neutral_count, 0) AS neutral_count,
+                COALESCE(cp.total_ratings, 0) AS total_ratings,
+                cp.avg_platform_rating,
+                csc.pareto_count,
+                csc.non_pareto_count,
+                csc.npd_count,
+                COALESCE(cg.recent_count, 0) AS recent_count,
+                COALESCE(cg.prior_count, 0) AS prior_count,
+                COALESCE(cg.recent_avg_rating, 0) AS recent_avg_rating,
+                COALESCE(cg.prior_avg_rating, 0) AS prior_avg_rating
+            FROM cat_sku_counts csc
+            LEFT JOIN cat_products cp ON cp.category = csc.category
+            LEFT JOIN cat_reviews cr ON cr.category = csc.category
+            LEFT JOIN cat_growth cg ON cg.category = csc.category
+            LEFT JOIN cat_catalogue cc ON cc.category = csc.category
+            ORDER BY csc.sku_count DESC, COALESCE(cr.review_count, 0) DESC
+        `;
+        const { rows } = await pool.query(sql, sqlParams);
+
+
+        const categories = rows.map(r => {
+            const recent = parseInt(r.recent_count || 0);
+            const prior = parseInt(r.prior_count || 0);
+            const growthPct = prior > 0
+                ? Math.round(((recent - prior) / prior) * 100)
+                : (recent > 0 ? 100 : 0);
+
+            const recentRating = parseFloat(r.recent_avg_rating || 0);
+            const priorRating = parseFloat(r.prior_avg_rating || 0);
+            const ratingGrowthDiff = (recent > 0 && prior > 0)
+                ? Math.round((recentRating - priorRating) * 100) / 100
+                : 0;
+
+            return {
+                category: r.category,
+                reviewCount: parseInt(r.review_count),
+                skuCount: parseInt(r.sku_count),
+                catalogueSkuCount: parseInt(r.catalogue_sku_count || r.sku_count),
+                reviewSkuCount: parseInt(r.review_sku_count || 0),
+                avgReviewRating: parseFloat(r.avg_review_rating || 0),
+                avgMlRating: r.avg_ml_rating ? parseFloat(r.avg_ml_rating) : null,
+                positiveCount: parseInt(r.positive_count),
+                negativeCount: parseInt(r.negative_count),
+                neutralCount: parseInt(r.neutral_count),
+                totalRatings: parseInt(r.total_ratings || 0),
+                avgPlatformRating: r.avg_platform_rating ? parseFloat(r.avg_platform_rating) : null,
+                paretoCount: parseInt(r.pareto_count || 0),
+                nonParetoCount: parseInt(r.non_pareto_count || 0),
+                npdCount: parseInt(r.npd_count || 0),
+                growthPct,
+                recentReviewCount: recent,
+                priorReviewCount: prior,
+                recentAvgRating: recentRating,
+                priorAvgRating: priorRating,
+                ratingGrowthDiff,
+            };
+        });
+
+        // -------------------------------------------------------------
+        // Calculate totals by aggregating category-level metrics to ensure perfect parity.
+        // Since each SKU is mapped to exactly one category (via DISTINCT ON), 
+        // the sum of category SKUs equals the total unique SKUs.
+        // -------------------------------------------------------------
+        const totalSkuCount = categories.reduce((sum, c) => sum + (c.skuCount || 0), 0);
+        const totalCatalogueSkuCount = categories.reduce((sum, c) => sum + (c.catalogueSkuCount || 0), 0);
+        const totalReviewSkuCount = categories.reduce((sum, c) => sum + (c.reviewSkuCount || 0), 0);
+        const totalReviewCount = categories.reduce((sum, c) => sum + (c.reviewCount || 0), 0);
+        const totalRatingsCount = categories.reduce((sum, c) => sum + (c.totalRatings || 0), 0);
+        const totalParetoCount = categories.reduce((sum, c) => sum + (c.paretoCount || 0), 0);
+        const totalNonParetoCount = categories.reduce((sum, c) => sum + (c.nonParetoCount || 0), 0);
+        const totalNpdCount = categories.reduce((sum, c) => sum + (c.npdCount || 0), 0);
+
+        const totalRecentReviewCount = categories.reduce((sum, c) => sum + (c.recentReviewCount || 0), 0);
+        const totalPriorReviewCount = categories.reduce((sum, c) => sum + (c.priorReviewCount || 0), 0);
+        
+        const totalGrowthPct = totalPriorReviewCount > 0
+            ? Math.round(((totalRecentReviewCount - totalPriorReviewCount) / totalPriorReviewCount) * 100)
+            : (totalRecentReviewCount > 0 ? 100 : 0);
+
+        const totalAvgPlatformRating = totalRatingsCount > 0
+            ? categories.reduce((sum, c) => sum + (c.avgPlatformRating || 0) * (c.totalRatings || 0), 0) / totalRatingsCount
+            : 0;
+
+        const totalAvgReviewRating = totalReviewCount > 0
+            ? categories.reduce((sum, c) => sum + (c.avgReviewRating || 0) * (c.reviewCount || 0), 0) / totalReviewCount
+            : 0;
+            
+        const totalPositiveCount = categories.reduce((sum, c) => sum + (c.positiveCount || 0), 0);
+        const totalNegativeCount = categories.reduce((sum, c) => sum + (c.negativeCount || 0), 0);
+        const totalNeutralCount = categories.reduce((sum, c) => sum + (c.neutralCount || 0), 0);
+
+
+        res.json({
+            categories,
+            total: {
+                skuCount: totalSkuCount,
+                catalogueSkuCount: totalCatalogueSkuCount,
+                reviewSkuCount: totalReviewSkuCount,
+                totalRatings: totalRatingsCount,
+                reviewCount: totalReviewCount,
+                paretoCount: totalParetoCount,
+                nonParetoCount: totalNonParetoCount,
+                npdCount: totalNpdCount
+            }
+        });
+    } catch (err) {
+        console.error('Category health error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};

@@ -23,6 +23,12 @@ export function resolveCompanyId(): string {
             }
         }
     }
+    
+    // Fallback to environment variable if authentication is removed
+    const envCompanyId = import.meta.env.VITE_COMPANY_ID;
+    if (envCompanyId) {
+        return envCompanyId;
+    }
 
     throw new Error('Company ID is unavailable. Sign in to establish the active Ratings tenant.');
 }
