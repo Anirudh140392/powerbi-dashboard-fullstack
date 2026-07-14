@@ -779,6 +779,11 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                                     {Number(authorativeTotal).toLocaleString()}
                                                 </span>
                                                 <span className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">SKUs</span>
+                                                {(bucket.reviewSkuCount !== undefined && bucket.reviewSkuCount > 0) && (
+                                                    <span className="text-[9px] text-slate-400 dark:text-slate-500 tabular-nums" title={`${bucket.reviewSkuCount.toLocaleString()} SKUs with at least one review in selected window`}>
+                                                        · {bucket.reviewSkuCount.toLocaleString()} reviewed
+                                                    </span>
+                                                )}
                                             </div>
                                             <div className="flex gap-2 mt-1.5 text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
                                                 <span title={`${reviewsN.toLocaleString()} reviews`} className="inline-flex items-center gap-0.5">

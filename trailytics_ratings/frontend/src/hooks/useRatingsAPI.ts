@@ -13,7 +13,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { resolveCompanyId } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
-import { getCached, setCached, sessionGet, sessionSet, buildCacheKey, TTL } from '../utils/apiCache';
 
 const API_ROOT = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
 const API_BASE = `${API_ROOT}/api/ratings`;
@@ -121,7 +120,13 @@ export async function fetchAPI<T>(
     const url = `${API_BASE}${endpoint}?${query.toString()}`;
     const res = await fetch(url, {
         ...fetchOptions,
-        headers: buildAuthHeaders(fetchOptions?.headers, resolveCompanyId()),
+        cache: 'no-store',
+        headers: {
+            ...buildAuthHeaders(fetchOptions?.headers, resolveCompanyId()),
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+        },
     });
 
     if (!res.ok) {
@@ -184,35 +189,27 @@ export function useReviews(filters: ReviewFilters = {}, options: HookOptions = {
 }
 
 // ============================================================================
-// Hook: useSummary — Fetch aggregated KPI metrics (in-memory cache 5 min)
+// Hook: useSummary — Fetch aggregated KPI metrics (NO CACHE - always fresh)
 // ============================================================================
 export function useSummary(filters: Record<string, string | number | undefined> = {}) {
     const [data, setData] = useState<RatingsSummary | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const cacheKey = useMemo(
-        () => buildCacheKey('/summary', filters),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [JSON.stringify(filters)],
-    );
-
     useEffect(() => {
-        const cached = getCached<RatingsSummary>(cacheKey);
-        if (cached) { setData(cached); setLoading(false); return; }
         setLoading(true);
         fetchAPI<RatingsSummary>('/summary', filters)
-            .then(result => { setData(result); setCached(cacheKey, result, TTL.FILTER); })
+            .then(result => { setData(result); })
             .catch(err => setError(err.message))
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cacheKey]);
+    }, [JSON.stringify(filters)]);
 
     return { data, loading, error };
 }
 
 // ============================================================================
-// Hook: useFilterOptions — Fetch available filter options (sessionStorage 30 min)
+// Hook: useFilterOptions — Fetch available filter options (NO CACHE - always fresh)
 // ============================================================================
 export function useFilterOptions(isCompetitor?: boolean) {
     const [data, setData] = useState<FilterOptions>({
@@ -223,12 +220,9 @@ export function useFilterOptions(isCompetitor?: boolean) {
     useEffect(() => {
         const params: Record<string, string> = {};
         if (isCompetitor !== undefined) params.is_competitor = String(isCompetitor);
-        const key = buildCacheKey('/categories', params);
-        const cached = sessionGet<FilterOptions>(key);
-        if (cached) { setData(cached); setLoading(false); return; }
 
         fetchAPI<FilterOptions>('/categories', params)
-            .then(result => { setData(result); sessionSet(key, result, TTL.STATIC); })
+            .then(result => { setData(result); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, [isCompetitor]);
@@ -237,7 +231,7 @@ export function useFilterOptions(isCompetitor?: boolean) {
 }
 
 // ============================================================================
-// Hook: useProducts — Fetch product catalog (in-memory 5 min)
+// Hook: useProducts — Fetch product catalog (NO CACHE - always fresh)
 // ============================================================================
 export function useProducts(filters: {
     platform?: string;
@@ -250,21 +244,14 @@ export function useProducts(filters: {
 } = {}) {
     const [data, setData] = useState<Array<Record<string, unknown>>>([]);
     const [loading, setLoading] = useState(true);
-    const cacheKey = useMemo(
-        () => buildCacheKey('/products', filters as Record<string, string | number | undefined>),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [JSON.stringify(filters)],
-    );
 
     useEffect(() => {
-        const cached = getCached<{ data: Array<Record<string, unknown>> }>(cacheKey);
-        if (cached) { setData(cached.data); setLoading(false); return; }
         fetchAPI<{ data: Array<Record<string, unknown>> }>('/products', filters as Record<string, string | number | undefined>)
-            .then(result => { setData(result.data); setCached(cacheKey, result, TTL.FILTER); })
+            .then(result => { setData(result.data); })
             .catch(console.error)
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cacheKey]);
+    }, [JSON.stringify(filters)]);
 
     return { data, loading };
 }
@@ -306,7 +293,7 @@ export interface ProductHealthItem {
 }
 
 // ============================================================================
-// Hook: useTrends — Fetch escalating/improving issue trends (in-memory 5 min)
+// Hook: useTrends — Fetch escalating/improving issue trends (NO CACHE - always fresh)
 // ============================================================================
 export function useTrends(
     periodMonths: number = 6,
@@ -316,11 +303,6 @@ export function useTrends(
     const [data, setData] = useState<TrendsResponse>({ escalating: [], improving: [] });
     const [loading, setLoading] = useState(true);
     const enabled = options.enabled ?? true;
-    const cacheKey = useMemo(
-        () => buildCacheKey('/trends', { period_months: periodMonths, ...filters }),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [enabled, periodMonths, JSON.stringify(filters)],
-    );
 
     useEffect(() => {
         if (!enabled) {
@@ -328,15 +310,13 @@ export function useTrends(
             setLoading(false);
             return;
         }
-        const cached = getCached<TrendsResponse>(cacheKey);
-        if (cached) { setData(cached); setLoading(false); return; }
         setLoading(true);
         fetchAPI<TrendsResponse>('/trends', { period_months: periodMonths, ...filters })
-            .then(result => { setData(result); setCached(cacheKey, result, TTL.FILTER); })
+            .then(result => { setData(result); })
             .catch(console.error)
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, cacheKey]);
+    }, [enabled, periodMonths, JSON.stringify(filters)]);
 
     return { data, loading };
 }
@@ -350,12 +330,9 @@ export function usePlatformOptions(isCompetitor?: boolean, options: HookOptions 
         if (!enabled) { setLoading(false); setPlatforms([]); return; }
         const params: Record<string, string> = {};
         if (isCompetitor !== undefined) params.is_competitor = String(isCompetitor);
-        const key = buildCacheKey('/platform-options', params);
-        const cached = sessionGet<{ platforms: string[] }>(key);
-        if (cached) { setPlatforms(cached.platforms); setLoading(false); return; }
 
         fetchAPI<{ platforms: string[] }>('/platform-options', params)
-            .then(result => { setPlatforms(result.platforms); sessionSet(key, result, TTL.STATIC); })
+            .then(result => { setPlatforms(result.platforms); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, [enabled, isCompetitor]);
@@ -364,64 +341,51 @@ export function usePlatformOptions(isCompetitor?: boolean, options: HookOptions 
 }
 
 // ============================================================================
-// Hook: useTimeline — Fetch monthly aggregated timeline (in-memory 5 min)
+// Hook: useTimeline — Fetch monthly aggregated timeline (NO CACHE - always fresh)
 // ============================================================================
 export function useTimeline(filters: Record<string, string | number | undefined> = {}, options: HookOptions = {}) {
     const [data, setData] = useState<TimelineMonth[]>([]);
     const [loading, setLoading] = useState(true);
     const enabled = options.enabled ?? true;
-    const cacheKey = useMemo(
-        () => buildCacheKey('/timeline', filters),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [enabled, JSON.stringify(filters)],
-    );
 
     useEffect(() => {
         if (!enabled) { setData([]); setLoading(false); return; }
-        const cached = getCached<{ timeline: TimelineMonth[] }>(cacheKey);
-        if (cached) { setData(cached.timeline); setLoading(false); return; }
         setLoading(true);
         fetchAPI<{ timeline: TimelineMonth[] }>('/timeline', filters)
-            .then(result => { setData(result.timeline); setCached(cacheKey, result, TTL.FILTER); })
+            .then(result => { setData(result.timeline); })
             .catch(console.error)
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, cacheKey]);
+    }, [enabled, JSON.stringify(filters)]);
 
     return { data, loading };
 }
 
 // ============================================================================
-// Hook: useProductHealth — Fetch product health scores (in-memory 5 min)
+// Hook: useProductHealth — Fetch product health scores (NO CACHE - always fresh)
 // ============================================================================
 export function useProductHealth(filters: Record<string, string | number | undefined> = {}, options: HookOptions = {}) {
     const [data, setData] = useState<ProductHealthItem[]>([]);
     const [loading, setLoading] = useState(true);
     const enabled = options.enabled ?? true;
-    const cacheKey = useMemo(
-        () => buildCacheKey('/product-health', filters),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [enabled, JSON.stringify(filters)],
-    );
 
     useEffect(() => {
         if (!enabled) { setData([]); setLoading(false); return; }
-        const cached = getCached<{ products: ProductHealthItem[] }>(cacheKey);
-        if (cached) { setData(cached.products); setLoading(false); return; }
         setLoading(true);
         fetchAPI<{ products: ProductHealthItem[] }>('/product-health', filters)
-            .then(result => { setData(result.products); setCached(cacheKey, result, TTL.FILTER); })
+            .then(result => { setData(result.products); })
             .catch(console.error)
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, cacheKey]);
+    }, [enabled, JSON.stringify(filters)]);
 
     return { data, loading };
 }
 
 // ============================================================================
-// Hook: useProductCategories — Fetch distinct product categories with counts
+// Hook: useProductCategories — Fetch distinct product categories with counts (NO CACHE - always fresh)
 // ============================================================================
+
 export interface ProductCategory {
     category: string;
     count: number;
@@ -432,42 +396,12 @@ export function useProductCategories(filters: Record<string, string | number | u
     const [loading, setLoading] = useState(true);
     const enabled = options.enabled ?? true;
 
-    const cacheKey = useMemo(
-        () => buildCacheKey('/product-categories', filters),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [JSON.stringify(filters)],
-    );
-
     useEffect(() => {
         if (!enabled) { setLoading(false); setData([]); return; }
         
-        // Use in-memory cache for dynamic categories (TTL.FILTER = 5 min)
-        const cached = getCached<{ data: { category: string; count: string }[] }>(cacheKey);
-        if (cached) {
-            const raw = cached.data.map(d => ({ category: d.category, count: parseInt(d.count) }));
-            const normalized = raw.reduce((acc: ProductCategory[], curr) => {
-                const label = curr.category.trim();
-                if (!label) return acc;
-                const normalizedLabel = label.split(' ')
-                    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                    .join(' ');
-                const existing = acc.find(a => a.category === normalizedLabel);
-                if (existing) {
-                    existing.count += curr.count;
-                } else {
-                    acc.push({ category: normalizedLabel, count: curr.count });
-                }
-                return acc;
-            }, []);
-            setData(normalized.sort((a, b) => b.count - a.count));
-            setLoading(false);
-            return;
-        }
-
         setLoading(true);
         fetchAPI<{ data: { category: string; count: string }[] }>('/product-categories', filters)
             .then(result => {
-                setCached(cacheKey, result, TTL.FILTER);
                 const raw = result.data.map(d => ({ category: d.category, count: parseInt(d.count) }));
                 const normalized = raw.reduce((acc: ProductCategory[], curr) => {
                     const label = curr.category.trim();
@@ -491,7 +425,7 @@ export function useProductCategories(filters: Record<string, string | number | u
             .catch(console.error)
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, cacheKey]);
+    }, [enabled, JSON.stringify(filters)]);
 
     return { data, loading };
 }
@@ -520,6 +454,7 @@ export interface HealthStatusGroup {
     skus: HealthSku[];
     totalRatings: number;
     totalReviewCount?: number;
+    reviewSkuCount?: number;
     avgPlatformRating: number | null;
     userRating?: number | null;
     mlRating?: number | null;
@@ -542,6 +477,7 @@ export interface ParetoBucket {
     catalogueTotal?: number;
     totalRatings: number;
     totalReviewCount?: number;
+    reviewSkuCount?: number;
     avgPlatformRating: number | null;
     userRating?: number | null;
     mlRating?: number | null;
@@ -609,12 +545,10 @@ export function useExecutiveHealth(
         else if (brandScope === 'competition') params.is_competitor = 'true';
         else if (brandScope === 'all') params.is_competitor = 'all';
         if (sentimentCategory) params.sentiment_category = sentimentCategory;
-        const key = buildCacheKey('/executive-health', params);
-        const cached = getCached<ExecutiveHealthData>(key);
-        if (cached) { setData(cached); setLoading(false); return; }
+        
         setLoading(true);
         fetchAPI<ExecutiveHealthData>('/executive-health', params)
-            .then(result => { setData(result); setCached(key, result, TTL.FILTER); })
+            .then(result => { setData(result); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, [enabled, category, paretoStatus, ratingBifurcation, platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, sentimentCategory]);
@@ -716,18 +650,10 @@ export function useCategoryHealth(
 
         if (sentimentCategory) params.sentiment_category = sentimentCategory;
         if (category) params.category = category;
-        const key = buildCacheKey('/category-health', params);
-        const cached = getCached<{ categories: CategoryHealthItem[]; total?: GlobalCategoryMetadata }>(key);
-        if (cached) {
-            setData(cached.categories);
-            if (cached.total) setGlobalMetadata(cached.total);
-            setLoading(false);
-            return;
-        }
+
         setLoading(true);
         fetchAPI<{ categories: CategoryHealthItem[], total?: GlobalCategoryMetadata }>('/category-health', params)
             .then(result => {
-                setCached(key, result, TTL.FILTER);
                 const normalizedCategories = result.categories.map(cat => ({
                     ...cat,
                     category: normalizeCategory(cat.category)
@@ -738,7 +664,6 @@ export function useCategoryHealth(
             .catch(console.error)
             .finally(() => setLoading(false));
     }, [platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, sentimentCategory, category]);
-
 
     return { data, globalMetadata, loading };
 }
@@ -778,12 +703,9 @@ export function useAsinIssues(webPid: string | null) {
 
     useEffect(() => {
         if (!webPid) { setData(null); return; }
-        const key = buildCacheKey('/asin-issues', { web_pid: webPid });
-        const cached = getCached<AsinIssuesResponse>(key);
-        if (cached) { setData(cached); return; }
         setLoading(true);
         fetchAPI<AsinIssuesResponse>('/asin-issues', { web_pid: webPid })
-            .then(result => { setData(result); setCached(key, result, TTL.FILTER); })
+            .then(result => { setData(result); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, [webPid]);
@@ -839,12 +761,9 @@ export function useIssuesBreakdown(
         else if (brandScope === 'competition') params.is_competitor = 'true';
         else if (brandScope === 'all') params.is_competitor = 'all';
         if (sentimentCategory) params.sentiment_category = sentimentCategory;
-        const key = buildCacheKey('/issues-breakdown', params);
-        const cached = getCached<{ issues: NlpIssue[] }>(key);
-        if (cached) { setData(cached.issues); setLoading(false); return; }
         setLoading(true);
         fetchAPI<{ issues: NlpIssue[] }>('/issues-breakdown', params)
-            .then(result => { setData(result.issues); setCached(key, result, TTL.FILTER); })
+            .then(result => { setData(result.issues); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, [enabled, category, paretoStatus, ratingBifurcation, platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, sentimentCategory]);
@@ -868,12 +787,9 @@ export function useIssueDetail(subcategory: string | null) {
 
     useEffect(() => {
         if (!subcategory) { setData([]); return; }
-        const key = buildCacheKey('/issue-detail', { subcategory });
-        const cached = getCached<{ products: IssueProduct[] }>(key);
-        if (cached) { setData(cached.products); return; }
         setLoading(true);
         fetchAPI<{ products: IssueProduct[] }>('/issue-detail', { subcategory })
-            .then(result => { setData(result.products); setCached(key, result, TTL.FILTER); })
+            .then(result => { setData(result.products); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, [subcategory]);
@@ -1004,13 +920,9 @@ export function useStakeholderDetail(
         if (filters?.sentiment_category) params.sentiment_category = filters.sentiment_category;
         if (filters?.is_competitor) params.is_competitor = filters.is_competitor;
 
-        const key = buildCacheKey('/stakeholder-detail', params);
-        const cached = getCached<StakeholderDetailResponse>(key);
-        if (cached) { setData(cached.issues); setUniqueSkuCount(cached.uniqueSkuCount); return; }
         setLoading(true);
         fetchAPI<StakeholderDetailResponse>('/stakeholder-detail', params)
             .then(result => {
-                setCached(key, result, TTL.FILTER);
                 setData(result.issues);
                 setUniqueSkuCount(result.uniqueSkuCount);
             })
@@ -1058,12 +970,9 @@ export function useSkuList(filters: {
         if (filters.price_min !== null && filters.price_min !== undefined) params.price_min = String(filters.price_min);
         if (filters.price_max !== null && filters.price_max !== undefined) params.price_max = String(filters.price_max);
         if (filters.is_competitor) params.is_competitor = filters.is_competitor;
-        const key = buildCacheKey('/sku-list', params);
-        const cached = getCached<{ skus: SkuListItem[] }>(key);
-        if (cached) { setData(cached.skus); setLoading(false); return; }
         setLoading(true);
         fetchAPI<{ skus: SkuListItem[] }>('/sku-list', params)
-            .then(result => { setData(result.skus); setCached(key, result, TTL.DRILLDOWN); })
+            .then(result => { setData(result.skus); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, [enabled, filters.category, filters.pareto_status, filters.rating_bifurcation, filters.platform, filters.price_mode, filters.price_min, filters.price_max, filters.is_competitor]);
@@ -1078,11 +987,8 @@ export function useSentimentCategories() {
     const [categories, setCategories] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     useEffect(() => {
-        const key = '_sentiment_categories';
-        const cached = sessionGet<{ categories: string[] }>(key);
-        if (cached) { setCategories(cached.categories); setLoading(false); return; }
         fetchAPI<{ categories: string[] }>('/sentiment-categories')
-            .then(result => { setCategories(result.categories); sessionSet(key, result, TTL.STATIC); })
+            .then(result => { setCategories(result.categories); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, []);
@@ -1096,11 +1002,8 @@ export function useCompetitorBrands() {
     const [brands, setBrands] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     useEffect(() => {
-        const key = '_competitor_brands';
-        const cached = sessionGet<{ brands: string[] }>(key);
-        if (cached) { setBrands(cached.brands); setLoading(false); return; }
         fetchAPI<{ brands: string[] }>('/competitor-brands')
-            .then(result => { setBrands(result.brands); sessionSet(key, result, TTL.STATIC); })
+            .then(result => { setBrands(result.brands); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, []);
@@ -1114,11 +1017,8 @@ export function useSpecTypeMappings() {
     const [mappings, setMappings] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
     useEffect(() => {
-        const key = '_spec_type_mappings';
-        const cached = sessionGet<{ mappings: Record<string, string> }>(key);
-        if (cached) { setMappings(cached.mappings); setLoading(false); return; }
         fetchAPI<{ mappings: Record<string, string> }>('/spec-type-mappings')
-            .then(result => { setMappings(result.mappings); sessionSet(key, result, TTL.STATIC); })
+            .then(result => { setMappings(result.mappings); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, []);
@@ -1138,11 +1038,8 @@ export function useCompanyConfig() {
     const [config, setConfig] = useState<CompanyConfig>({ brand_name: '', brand_color: '#6366f1' });
     const [loading, setLoading] = useState(true);
     useEffect(() => {
-        const key = '_company_config';
-        const cached = sessionGet<{ config: CompanyConfig }>(key);
-        if (cached) { setConfig(cached.config); setLoading(false); return; }
         fetchAPI<{ config: CompanyConfig }>('/company-config')
-            .then(result => { setConfig(result.config); sessionSet(key, result, TTL.STATIC); })
+            .then(result => { setConfig(result.config); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, []);
@@ -1163,11 +1060,8 @@ export function useBrandConfig() {
     const [brands, setBrands] = useState<BrandConfigItem[]>([]);
     const [loading, setLoading] = useState(true);
     useEffect(() => {
-        const key = '_brand_config';
-        const cached = sessionGet<{ brands: BrandConfigItem[] }>(key);
-        if (cached) { setBrands(cached.brands); setLoading(false); return; }
         fetchAPI<{ brands: BrandConfigItem[] }>('/brand-config')
-            .then(result => { setBrands(result.brands); sessionSet(key, result, TTL.STATIC); })
+            .then(result => { setBrands(result.brands); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, []);
@@ -1207,31 +1101,21 @@ export function useBenchmarkData(
     const [benchmarks, setBenchmarks] = useState<BenchmarkRow[]>([]);
     const [loading, setLoading] = useState(true);
     const enabled = options.enabled ?? true;
-    const cacheKey = useMemo(
-        () => buildCacheKey('/benchmark-data', { ...(category ? { category } : {}), ...filters }),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [enabled, category, JSON.stringify(filters)],
-    );
 
     useEffect(() => {
         if (!enabled) { setLoading(false); setBenchmarks([]); return; }
-        const cached = getCached<{ benchmarks: BenchmarkRow[] }>(cacheKey);
-        // Guard against a malformed/error payload (e.g. a stale cached error with
-        // no `benchmarks` field) — benchmarks must always be an array or the
-        // consuming `.find`/`.filter` calls crash the whole dashboard.
-        if (cached) { setBenchmarks(Array.isArray(cached.benchmarks) ? cached.benchmarks : []); setLoading(false); return; }
         const params: Record<string, string | number | undefined> = { ...filters };
         if (category) params.category = category;
+        setLoading(true);
         fetchAPI<{ benchmarks: BenchmarkRow[] }>('/benchmark-data', params)
             .then(result => {
                 const rows = Array.isArray(result?.benchmarks) ? result.benchmarks : [];
                 setBenchmarks(rows);
-                if (rows.length) setCached(cacheKey, { benchmarks: rows }, TTL.FILTER);
             })
             .catch(console.error)
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, cacheKey]);
+    }, [enabled, category, JSON.stringify(filters)]);
 
     return { benchmarks, loading };
 }
@@ -1258,11 +1142,8 @@ export function usePriceRanges(options: HookOptions = {}) {
     const enabled = options.enabled ?? true;
     useEffect(() => {
         if (!enabled) { setLoading(false); setRanges(null); return; }
-        const key = '_price_ranges';
-        const cached = sessionGet<PriceRanges>(key);
-        if (cached) { setRanges(cached); setLoading(false); return; }
         fetchAPI<PriceRanges>('/price-ranges')
-            .then(result => { setRanges(result); sessionSet(key, result, TTL.STATIC); })
+            .then(result => { setRanges(result); })
             .catch(console.error)
             .finally(() => setLoading(false));
     }, [enabled]);

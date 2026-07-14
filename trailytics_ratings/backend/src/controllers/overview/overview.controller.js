@@ -625,7 +625,7 @@ export const getExecutiveHealth = async (req, res) => {
               ),
               product_health AS (
                   SELECT
-                      ss.web_pid, coalesce(ls.product_name, rs.review_product_name, ss.web_pid) AS product_name,
+                      ss.web_pid AS web_pid, coalesce(ls.product_name, rs.review_product_name, ss.web_pid) AS product_name,
                       ls.rating AS pdp_rating, ls.rating_count, ls.price_rp, ls.price_sp,
                       coalesce(mp.pareto_status, ls.pareto_status, rs.pareto_status) AS pareto_status,
                       coalesce(nullIf(ls.category, ''), nullIf(rs.resolved_category, ''), nullIf(mp.category, '')) AS category,
@@ -648,6 +648,7 @@ export const getExecutiveHealth = async (req, res) => {
               )
               SELECT *,
                   CASE
+                      WHEN pdp_rating IS NULL THEN 'NoRating'
                       WHEN one_star_pct > 0.15 THEN 'Critical'
                       WHEN pdp_rating >= 4.2 THEN 'NP'
                       WHEN pdp_rating < 4.0 THEN 'Issue'
@@ -699,9 +700,27 @@ export const getExecutiveHealth = async (req, res) => {
         });
 
         const computeGroupKpis = (skus) => {
+            if (!skus || skus.length === 0) {
+                return { 
+                    totalRatings: 0, 
+                    totalReviewCount: 0, 
+                    reviewSkuCount: 0,
+                    avgPlatformRating: null, 
+                    userRating: null, 
+                    mlRating: null, 
+                    pdpHealthRate: 0, 
+                    reviewGrowthPct: 0, 
+                    recentReviewCount: 0, 
+                    olderReviewCount: 0, 
+                    ratingGrowthDiff: 0, 
+                    recentAvgRating: null, 
+                    olderAvgRating: null 
+                };
+            }
             const totalRatings = skus.reduce((sum, s) => sum + (s.rating_count || 0), 0);
             const totalReviewCount = skus.reduce((sum, s) => sum + (s.total_reviews || 0), 0);
-            const ratedSkus = skus.filter(s => s.pdp_rating !== null);
+            const reviewSkuCount = new Set(skus.filter(s => s.total_reviews > 0).map(s => s.web_pid)).size;
+            const ratedSkus = skus.filter(s => s.pdp_rating !== null && s.pdp_rating !== undefined);
             const weightedSum = ratedSkus.reduce((sum, s) => sum + (s.pdp_rating * (s.rating_count || 1)), 0);
             const weightedDenom = ratedSkus.reduce((sum, s) => sum + (s.rating_count || 1), 0);
             const avgPlatformRating = weightedDenom > 0 ? Math.round((weightedSum / weightedDenom) * 100) / 100 : null;
@@ -720,13 +739,13 @@ export const getExecutiveHealth = async (req, res) => {
             const olderSumRating = skus.reduce((sum, s) => sum + ((s.older_avg_rating || 0) * (s.older_review_count || 0)), 0);
             const recentAvgRating = recentTotal > 0 ? Math.round((recentSumRating / recentTotal) * 100) / 100 : null;
             const olderAvgRating = olderTotal > 0 ? Math.round((olderSumRating / olderTotal) * 100) / 100 : null;
-            const ratingGrowthDiff = (recentAvgRating !== null && olderAvgRating !== null) ? Math.round((recentAvgRating - olderAvgRating) * 100) / 100 : 0;
-            return { totalRatings, totalReviewCount, avgPlatformRating, userRating, mlRating, pdpHealthRate, reviewGrowthPct, recentReviewCount: recentTotal, olderReviewCount: olderTotal, ratingGrowthDiff, recentAvgRating, olderAvgRating };
+            const ratingGrowthDiff = (recentAvgRating !== null && olderAvgRating !== null && recentTotal > 0 && olderTotal > 0) ? Math.round((recentAvgRating - olderAvgRating) * 100) / 100 : 0;
+            return { totalRatings, totalReviewCount, reviewSkuCount, avgPlatformRating, userRating, mlRating, pdpHealthRate, reviewGrowthPct, recentReviewCount: recentTotal, olderReviewCount: olderTotal, ratingGrowthDiff, recentAvgRating, olderAvgRating };
         };
 
         const formatBucket = (name, data) => {
-            const np = data['NP'] || []; const issue = data['Issue'] || []; const ni = data['NI'] || []; const critical = data['Critical'] || [];
-            const allSkus = [...np, ...issue, ...ni, ...critical];
+            const np = data['NP'] || []; const issue = data['Issue'] || []; const ni = data['NI'] || []; const critical = data['Critical'] || []; const noRating = data['NoRating'] || [];
+            const allSkus = [...np, ...issue, ...ni, ...critical, ...noRating];
             const bucketKpis = computeGroupKpis(allSkus);
             const uniqueSkusCount = new Set(allSkus.map(s => s.web_pid)).size;
             return {
@@ -735,11 +754,12 @@ export const getExecutiveHealth = async (req, res) => {
                 issue: { count: issue.length, skus: issue, ...computeGroupKpis(issue) },
                 ni: { count: ni.length, skus: ni, ...computeGroupKpis(ni) },
                 critical: { count: critical.length, skus: critical, ...computeGroupKpis(critical) },
+                noRating: { count: noRating.length, skus: noRating, ...computeGroupKpis(noRating) },
             };
         };
 
         const allBucketSkus = new Set();
-        [...buckets['Pareto'].NI || [], ...buckets['Pareto'].Issue || [], ...buckets['Pareto'].NP || [], ...buckets['Pareto'].Critical || [], ...buckets['Non-Pareto'].NI || [], ...buckets['Non-Pareto'].Issue || [], ...buckets['Non-Pareto'].NP || [], ...buckets['Non-Pareto'].Critical || [], ...buckets['NPD'].NI || [], ...buckets['NPD'].Issue || [], ...buckets['NPD'].NP || [], ...buckets['NPD'].Critical || []].forEach(s => allBucketSkus.add(s.web_pid));
+        [...buckets['Pareto'].NI || [], ...buckets['Pareto'].Issue || [], ...buckets['Pareto'].NP || [], ...buckets['Pareto'].Critical || [], ...buckets['Pareto'].NoRating || [], ...buckets['Non-Pareto'].NI || [], ...buckets['Non-Pareto'].Issue || [], ...buckets['Non-Pareto'].NP || [], ...buckets['Non-Pareto'].Critical || [], ...buckets['Non-Pareto'].NoRating || [], ...buckets['NPD'].NI || [], ...buckets['NPD'].Issue || [], ...buckets['NPD'].NP || [], ...buckets['NPD'].Critical || [], ...buckets['NPD'].NoRating || []].forEach(s => allBucketSkus.add(s.web_pid));
 
         const catalogueCounts = { Pareto: 0, 'Non-Pareto': 0, NPD: 0 };
         try {

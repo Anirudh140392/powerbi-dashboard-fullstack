@@ -1,190 +1,84 @@
 /**
- * apiCache — Unified client-side cache for API responses
+ * apiCache — NO-OP STUB (ALL CACHING DISABLED FOR DEVELOPMENT)
  *
- * Two storage tiers:
- *  1. In-memory Map   — ultra-fast, survives filter changes, lost on hard refresh
- *  2. sessionStorage  — survives soft nav / React re-mounts, cleared on tab close
+ * ⚠️ DEVELOPMENT MODE: All frontend caching is disabled.
+ * Every API request will reach the backend immediately.
+ * No browser storage, no in-memory cache, no sessionStorage.
  *
- * Usage:
- *   const cached = getCached<T>(key);
- *   if (cached) return cached;
- *   const data = await fetch(...);
- *   setCached(key, data, 5 * 60_000); // 5 min TTL
+ * This is temporary while migrating to ClickHouse.
+ * Restore caching in production by reverting these functions.
  */
 
 // ============================================================================
-// Types
-// ============================================================================
-
-interface CacheEntry<T> {
-    data: T;
-    expiresAt: number;
-}
-
-// ============================================================================
-// In-Memory Cache (Map) + persistent weekly localStorage tier
-// ============================================================================
-
-const memCache = new Map<string, CacheEntry<unknown>>();
-
-// Persistent browser cache. The crawl refreshes data on a ~weekly cadence, so
-// aggregated responses can safely live in localStorage until the week rolls
-// over — repeat visits (even after a full reload or browser restart) then
-// render instantly with NO server round-trip, until the user clears browser
-// data. Bucketing the key by week auto-invalidates the cache in step with the
-// weekly refresh, so there's no week-long stale data and no server coordination.
-const LOCAL_PREFIX = '_rcl_';
-const WEEK_MS = 7 * 24 * 60 * 60_000;
-function weekBucket(): number { return Math.floor(Date.now() / WEEK_MS); }
-function localKey(key: string): string { return `${LOCAL_PREFIX}${weekBucket()}_${key}`; }
-
-function localGet<T>(key: string): T | null {
-    try {
-        const raw = localStorage.getItem(localKey(key));
-        if (!raw) return null;
-        const entry: CacheEntry<T> = JSON.parse(raw);
-        if (Date.now() > entry.expiresAt) { localStorage.removeItem(localKey(key)); return null; }
-        return entry.data;
-    } catch { return null; }
-}
-
-// Drop entries from previous week buckets (and legacy keys) so the persistent
-// cache can't grow unbounded across weeks.
-function pruneOldLocal(): void {
-    try {
-        const keep = `${LOCAL_PREFIX}${weekBucket()}_`;
-        const drop: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && k.startsWith(LOCAL_PREFIX) && !k.startsWith(keep)) drop.push(k);
-        }
-        drop.forEach(k => localStorage.removeItem(k));
-    } catch { /* ignore */ }
-}
-
-function localSet<T>(key: string, data: T): void {
-    // Expiry a touch beyond a week; the week-bucket key is the real invalidator.
-    const write = () => localStorage.setItem(localKey(key), JSON.stringify({ data, expiresAt: Date.now() + WEEK_MS + 86_400_000 }));
-    try { write(); }
-    catch {
-        // Quota exceeded — clear old-week entries and retry once, else memory-only.
-        pruneOldLocal();
-        try { write(); } catch { /* persistence skipped */ }
-    }
-}
-
-export function getCached<T>(key: string): T | null {
-    const entry = memCache.get(key) as CacheEntry<T> | undefined;
-    if (entry) {
-        if (Date.now() <= entry.expiresAt) return entry.data;
-        memCache.delete(key);
-    }
-    // Fall back to the persistent weekly tier (survives reloads); warm memory.
-    const persisted = localGet<T>(key);
-    if (persisted !== null) {
-        memCache.set(key, { data: persisted, expiresAt: Date.now() + TTL.FILTER });
-        return persisted;
-    }
-    return null;
-}
-
-export function setCached<T>(key: string, data: T, ttlMs: number): void {
-    memCache.set(key, { data, expiresAt: Date.now() + ttlMs });
-    localSet(key, data); // write-through to the persistent weekly tier
-}
-
-export function invalidateCached(key: string): void {
-    memCache.delete(key);
-    try { localStorage.removeItem(localKey(key)); } catch { /* ignore */ }
-}
-
-export function clearAllCache(): void {
-    memCache.clear();
-    try {
-        const keysToRemove: string[] = [];
-        for (let i = 0; i < sessionStorage.length; i++) {
-            const k = sessionStorage.key(i);
-            if (k?.startsWith('_rc_')) keysToRemove.push(k);
-        }
-        keysToRemove.forEach(k => sessionStorage.removeItem(k));
-    } catch {
-        // sessionStorage may be unavailable (private mode, etc.)
-    }
-    try {
-        const drop: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k?.startsWith(LOCAL_PREFIX)) drop.push(k);
-        }
-        drop.forEach(k => localStorage.removeItem(k));
-    } catch {
-        // localStorage may be unavailable (private mode, etc.)
-    }
-}
-
-// ============================================================================
-// SessionStorage Cache (for static reference data that survives soft reloads)
-// ============================================================================
-
-const SESSION_PREFIX = '_rc_';
-
-export function sessionGet<T>(key: string): T | null {
-    try {
-        const raw = sessionStorage.getItem(SESSION_PREFIX + key);
-        if (!raw) return null;
-        const entry: CacheEntry<T> = JSON.parse(raw);
-        if (Date.now() > entry.expiresAt) {
-            sessionStorage.removeItem(SESSION_PREFIX + key);
-            return null;
-        }
-        return entry.data;
-    } catch {
-        return null;
-    }
-}
-
-export function sessionSet<T>(key: string, data: T, ttlMs: number): void {
-    try {
-        const entry: CacheEntry<T> = { data, expiresAt: Date.now() + ttlMs };
-        sessionStorage.setItem(SESSION_PREFIX + key, JSON.stringify(entry));
-    } catch {
-        // Storage quota exceeded — fall back to memory only
-        setCached(key, data, ttlMs);
-    }
-}
-
-// ============================================================================
-// Cache Key Builder — stable, sorted param serialization
+// NO-OP Cache Functions (all return null/do nothing)
 // ============================================================================
 
 /**
- * Builds a deterministic cache key for an endpoint + params combo.
- * Params are sorted by key to ensure identical filter combos produce
- * the same cache key regardless of object property insertion order.
+ * DISABLED: Always returns null (no cache check)
  */
-export function buildCacheKey(
-    endpoint: string,
-    params: Record<string, string | number | undefined | null> = {},
-): string {
-    const sorted = Object.keys(params)
-        .filter(k => params[k] !== undefined && params[k] !== null && params[k] !== '')
-        .sort()
-        .map(k => `${k}=${params[k]}`)
-        .join('&');
-    return `${endpoint}?${sorted}`;
+export function getCached<T>(_key: string): T | null {
+    return null;
+}
+
+/**
+ * DISABLED: No-op, never stores anything
+ */
+export function setCached<_T>(_key: string, _data: _T, _ttlMs: number): void {
+    // Intentionally disabled for development
+}
+
+/**
+ * DISABLED: No-op, nothing to invalidate
+ */
+export function invalidateCached(_key: string): void {
+    // Intentionally disabled for development
+}
+
+/**
+ * DISABLED: No-op, nothing to clear
+ */
+export function clearAllCache(): void {
+    // Intentionally disabled for development
 }
 
 // ============================================================================
-// TTL Constants (milliseconds) — centralised, easy to tune
+// NO-OP SessionStorage Functions (all return null/do nothing)
+// ============================================================================
+
+/**
+ * DISABLED: Always returns null (no sessionStorage cache)
+ */
+export function sessionGet<T>(_key: string): T | null {
+    return null;
+}
+
+/**
+ * DISABLED: Never stores to sessionStorage
+ */
+export function sessionSet<_T>(_key: string, _data: _T, _ttlMs: number): void {
+    // Intentionally disabled for development
+}
+
+// ============================================================================
+// Cache Key Builder — Stub only (not used anymore)
+// ============================================================================
+
+export function buildCacheKey(endpoint: string, _params: Record<string, string | number | undefined | null> = {}): string {
+    // Returns a placeholder key (not used since getCached always returns null)
+    return endpoint;
+}
+
+// ============================================================================
+// TTL Constants — KEPT FOR REFERENCE ONLY (no longer used)
 // ============================================================================
 
 export const TTL = {
-    /** Static reference data — platforms, configs, brand names */
-    STATIC: 30 * 60_000,       // 30 minutes
-    /** Product/filter metadata — categories, price ranges */
-    METADATA: 10 * 60_000,     // 10 minutes
-    /** Aggregated filter results — summary, health, issues */
-    FILTER: 5 * 60_000,        // 5 minutes
-    /** Drill-down results — sku lists, issue detail */
-    DRILLDOWN: 3 * 60_000,     // 3 minutes
+    /** DISABLED: Static reference data */
+    STATIC: 0,
+    /** DISABLED: Product/filter metadata */
+    METADATA: 0,
+    /** DISABLED: Aggregated filter results */
+    FILTER: 0,
+    /** DISABLED: Drill-down results */
+    DRILLDOWN: 0,
 } as const;
