@@ -129,7 +129,7 @@ export const updateUserAccess = async (req, res) => {
             });
         }
 
-        const { id, status, userName } = req.body;
+        const { id, status, userName, _source } = req.body;
         
         if (!id || !status) {
             return res.status(400).json({
@@ -138,7 +138,8 @@ export const updateUserAccess = async (req, res) => {
             });
         }
 
-        await adminService.updateUserAccess(id, status, userName);
+        // Pass the source marker so the service knows which table to update
+        await adminService.updateUserAccess(id, status, userName, _source || 'device');
 
         return res.status(200).json({
             success: true,

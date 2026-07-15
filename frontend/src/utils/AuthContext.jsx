@@ -11,6 +11,42 @@ const API_BASE = import.meta.env.VITE_API_URL
     ? `${import.meta.env.VITE_API_URL}/api`
     : "/api";
 
+/**
+ * Helper to extract browser/OS metadata from the UserAgent string.
+ * This information is sent to the backend to help admins identify devices.
+ */
+function getBrowserMetadata() {
+    const ua = navigator.userAgent || '';
+    let browser = 'Unknown';
+    let browserVersion = '';
+    let os = 'Unknown';
+    let platform = navigator.platform || '';
+
+    // Detect browser
+    if (ua.includes('Firefox/')) {
+        browser = 'Firefox';
+        browserVersion = ua.match(/Firefox\/([\d.]+)/)?.[1] || '';
+    } else if (ua.includes('Edg/')) {
+        browser = 'Edge';
+        browserVersion = ua.match(/Edg\/([\d.]+)/)?.[1] || '';
+    } else if (ua.includes('Chrome/')) {
+        browser = 'Chrome';
+        browserVersion = ua.match(/Chrome\/([\d.]+)/)?.[1] || '';
+    } else if (ua.includes('Safari/') && !ua.includes('Chrome')) {
+        browser = 'Safari';
+        browserVersion = ua.match(/Version\/([\d.]+)/)?.[1] || '';
+    }
+
+    // Detect OS
+    if (ua.includes('Windows NT')) os = 'Windows';
+    else if (ua.includes('Mac OS X')) os = 'macOS';
+    else if (ua.includes('Linux')) os = 'Linux';
+    else if (ua.includes('Android')) os = 'Android';
+    else if (/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
+
+    return { browser, browserVersion, os, platform };
+}
+
 export const AuthProvider = ({ children }) => {
     const [isLoggedIn, setIsLoggedIn] = useState(() => {
         return sessionStorage.getItem("isLoggedIn") === "true";
@@ -29,19 +65,29 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (credentials) => {
         try {
-            let publicIp = '';
+            // Get FingerprintJS visitorId (used as secondary/fallback device signal)
+            let visitorId = '';
             try {
                 const fp = await fpPromise.load();
                 const result = await fp.get();
-                publicIp = result.visitorId;
+                visitorId = result.visitorId;
             } catch (e) {
                 console.warn("Could not generate device fingerprint", e);
             }
 
+            // Get browser metadata for admin identification
+            const { browser, browserVersion, os, platform } = getBrowserMetadata();
+
             const response = await axios.post(`${API_BASE}/auth/login`, {
                 email: credentials.email,
                 password: credentials.password,
-                publicIp: publicIp
+                visitorId,       // FingerprintJS ID (secondary device signal)
+                browser,
+                browserVersion,
+                os,
+                platform,
+            }, {
+                withCredentials: true,  // Required for HTTP-only cookie handling
             });
 
             if (response.data.success) {
@@ -95,7 +141,8 @@ export const AuthProvider = ({ children }) => {
 
             try {
                 const response = await axios.get(`${API_BASE}/auth/verify`, {
-                    headers: { Authorization: `Bearer ${token}` }
+                    headers: { Authorization: `Bearer ${token}` },
+                    withCredentials: true,  // Send device_token cookie for re-verification
                 });
 
                 if (response.data.success) {

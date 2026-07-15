@@ -1,15 +1,18 @@
 // src/controllers/authController.js
 import crypto from 'crypto';
 import { loginUser, verifySession } from '../services/authService.js';
+import { getDeviceCookieOptions } from '../services/deviceService.js';
 
 /**
  * POST /api/auth/login
- * Body: { email, password }
+ * Body: { email, password, visitorId, browser, browserVersion, os, platform }
+ * Cookie: device_token (HTTP-only, read automatically)
  * Returns: { token, user: { email, name, dbName } }
+ * Sets: device_token HTTP-only cookie on successful login
  */
 export const login = async (req, res) => {
     try {
-        const { email, password, publicIp } = req.body;
+        const { email, password, visitorId, publicIp, browser, browserVersion, os, platform } = req.body;
 
         if (!email || !password) {
             return res.status(400).json({
@@ -17,23 +20,39 @@ export const login = async (req, res) => {
                 error: 'Email and password are required',
             });
         }
-        // Use client-provided public IP if available, otherwise fallback to network IP
-        let clientIp = publicIp;
-        if (!clientIp) {
-            clientIp = req.ip || req.socket?.remoteAddress || '';
-            if (req.headers['x-forwarded-for']) {
-                clientIp = req.headers['x-forwarded-for'].split(',')[0].trim();
-            }
 
-            // Clean up formatting for local loopback and IPv4-mapped IPv6
-            if (clientIp === '::1') {
-                clientIp = '127.0.0.1';
-            } else if (clientIp.startsWith('::ffff:')) {
-                clientIp = clientIp.substring(7);
-            }
+        // Extract real client IP for logging purposes
+        let clientIp = req.ip || req.socket?.remoteAddress || '';
+        if (req.headers['x-forwarded-for']) {
+            clientIp = req.headers['x-forwarded-for'].split(',')[0].trim();
         }
-        
-        const result = await loginUser(email, password, clientIp);
+        if (clientIp === '::1') {
+            clientIp = '127.0.0.1';
+        } else if (clientIp.startsWith('::ffff:')) {
+            clientIp = clientIp.substring(7);
+        }
+
+        // Read device_token from HTTP-only cookie (primary device identifier)
+        const deviceTokenFromCookie = req.cookies?.device_token || null;
+
+        // Use visitorId (FingerprintJS) as fingerprint, fall back to publicIp for backward compat
+        const fingerprintId = visitorId || publicIp || '';
+
+        const result = await loginUser(email, password, {
+            deviceToken: deviceTokenFromCookie,
+            fingerprintId,
+            browser: browser || '',
+            browserVersion: browserVersion || '',
+            os: os || '',
+            platform: platform || '',
+            ip: clientIp,
+        });
+
+        // Set device_token as HTTP-only secure cookie
+        // This cookie persists across browser updates, OS updates, etc.
+        if (result.deviceToken) {
+            res.cookie('device_token', result.deviceToken, getDeviceCookieOptions());
+        }
 
         return res.status(200).json({
             success: true,
@@ -52,9 +71,10 @@ export const login = async (req, res) => {
 /**
  * GET /api/auth/verify
  * Headers: Authorization: Bearer <token>
+ * Cookie: device_token (HTTP-only, read automatically)
  * Returns: { success: true, user: { email, name, dbName, role } }
  * 
- * Re-validates the JWT token and checks current access permissions.
+ * Re-validates the JWT token and checks current device access.
  * Called on page refresh to ensure session is still valid.
  */
 export const verify = async (req, res) => {
@@ -69,7 +89,8 @@ export const verify = async (req, res) => {
         }
 
         const token = authHeader.split(' ')[1];
-        const userData = await verifySession(token);
+        const deviceTokenFromCookie = req.cookies?.device_token || null;
+        const userData = await verifySession(token, deviceTokenFromCookie);
 
         return res.status(200).json({
             success: true,
@@ -127,4 +148,3 @@ export const ratingssSsoToken = (req, res) => {
         return res.status(500).json({ success: false, error: 'Failed to generate SSO token' });
     }
 };
-
