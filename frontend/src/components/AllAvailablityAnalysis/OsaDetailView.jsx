@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { SlidersHorizontal, X, ChevronRight, ChevronDown, Calendar, Layers, Clock } from "lucide-react";
+import { SlidersHorizontal, X, ChevronRight, ChevronDown, Calendar, Layers, Clock, ExternalLink } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
@@ -134,6 +134,7 @@ export default function OsaDetailTableLight({ apiData, loading, mslFilter, onMsl
             name: row.name || row.productName || "Unknown Product",
             sku: row.sku || "N/A", brand: row.brand, platform: row.platform, format: row.format,
             imageUrl: row.imageUrl,
+            page_url: row.page_url || null,
             values: row.values || [], avg7: row.avg7 || 0, avg31: row.avg31 || 0,
             avgSelected: row.avgSelected || row.avg31 || 0, status: row.status || "Healthy", cities: row.cities || []
         }));
@@ -294,7 +295,21 @@ export default function OsaDetailTableLight({ apiData, loading, mslFilter, onMsl
                                                                 )}
 
                                                                 <div className="flex-1 min-w-0">
-                                                                    <div className="font-bold text-slate-900 leading-4 text-xs">{r.name}</div>
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <div className="font-bold text-slate-900 leading-4 text-xs">{r.name}</div>
+                                                                        {r.page_url && (
+                                                                            <a
+                                                                                href={r.page_url}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                                className="flex-shrink-0 p-0.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                                                                                title="Open product page"
+                                                                            >
+                                                                                <ExternalLink className="h-3 w-3" />
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
                                                                     <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight mt-1">{r.platform}</div>
                                                                 </div>
                                                             </div>

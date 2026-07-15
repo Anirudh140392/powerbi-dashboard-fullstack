@@ -17,6 +17,7 @@ import isoWeek from 'dayjs/plugin/isoWeek.js';
 import weekOfYear from 'dayjs/plugin/weekOfYear.js';
 import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 import { getTableColumns, resolveColumn, columnExists } from '../utils/schemaHelper.js';
+import { buildDynamicSkuUrl } from './pricingAnalysisService.js';
 
 dayjs.extend(isoWeek);
 dayjs.extend(weekOfYear);
@@ -11708,23 +11709,57 @@ const getSkuOverview = async (filters) => {
     const prevOrgSovNumSkuMap = buildSkuKwMap(prevOrgSovNumSku);
     const prevOrgSovDenomSkuMap = buildSkuKwMap(prevOrgSovDenomSku);
 
-    // Fetch SKU images from rb_sku_platform using web_pid
+    // Fetch SKU details from rb_sku_platform using web_pid
     const skuWebPids = currSkuMetrics.map(r => r.web_pid).filter(Boolean);
     let skuImageMap = {};
+    let skuUrlMap = {};
     if (skuWebPids.length > 0) {
         try {
+            const skuCols = await getTableColumns('rb_sku_platform');
+            let selectCols = ['LOWER(web_pid) as web_pid', 'any(image_url) as img'];
+            let hasPageUrl = false;
+            let hasPlatformName = false;
+
+            if (skuCols.size > 0) {
+                if (columnExists(skuCols, 'page_url')) {
+                    selectCols.push('any(page_url) as page_url');
+                    hasPageUrl = true;
+                }
+                if (columnExists(skuCols, 'platform_name')) {
+                    selectCols.push('any(platform_name) as platform_name');
+                    hasPlatformName = true;
+                }
+            }
+
             const imgData = await queryClickHouse(`
-                SELECT web_pid, any(image_url) as img
+                SELECT ${selectCols.join(', ')}
                 FROM rb_sku_platform
-                WHERE web_pid IN (${skuWebPids.map(id => `'${escapeStr(String(id))}'`).join(',')})
+                WHERE LOWER(web_pid) IN (${skuWebPids.map(id => `'${escapeStr(String(id).toLowerCase())}'`).join(',')})
                 GROUP BY web_pid
             `);
             imgData.forEach(row => {
-                skuImageMap[String(row.web_pid)] = row.img;
+                const key = String(row.web_pid).toLowerCase();
+                skuImageMap[key] = row.img;
+
+                let raw = (hasPageUrl && row.page_url) || null;
+                if (!raw && hasPlatformName && row.platform_name) {
+                    raw = buildDynamicSkuUrl(row.platform_name, row.web_pid);
+                }
+                if (raw) {
+                    try {
+                        const u = new URL(raw);
+                        const parts = u.pathname.split('/');
+                        parts[parts.length - 1] = parts[parts.length - 1].toUpperCase();
+                        u.pathname = parts.join('/');
+                        skuUrlMap[key] = u.toString();
+                    } catch (_) {
+                        skuUrlMap[key] = raw;
+                    }
+                }
             });
-            console.log(`[getSkuOverview] Fetched ${Object.keys(skuImageMap).length} SKU images from rb_sku_platform`);
+            console.log(`[getSkuOverview] Fetched ${Object.keys(skuImageMap).length} SKU details from rb_sku_platform`);
         } catch (imgError) {
-            console.error('[getSkuOverview] Failed to fetch SKU images from rb_sku_platform:', imgError);
+            console.error('[getSkuOverview] Failed to fetch SKU details from rb_sku_platform:', imgError);
         }
     }
 
@@ -11833,7 +11868,8 @@ const getSkuOverview = async (filters) => {
             key: `sku_${idx}_${skuName.toLowerCase().replace(/\s+/g, '_').substring(0, 30)} `,
             label: skuName,
             type: "SKU",
-            logo: (dataRaw.web_pid && skuImageMap[String(dataRaw.web_pid)]) || null,
+            logo: (dataRaw.web_pid && skuImageMap[String(dataRaw.web_pid).toLowerCase()]) || null,
+            page_url: (dataRaw.web_pid && skuUrlMap[String(dataRaw.web_pid).toLowerCase()]) || null,
             offtakeShare: parseFloat(offtakeShare.toFixed(2)),
             columns: generateKpiColumns({
                 offtake, availability, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, categorySize: hasMsCheck ? currSkuCategorySize : null, adSov, organicSov, buyBoxPct, deliveryTime,

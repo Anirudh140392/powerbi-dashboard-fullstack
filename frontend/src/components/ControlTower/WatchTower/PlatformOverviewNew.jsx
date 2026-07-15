@@ -15,7 +15,8 @@ import {
     SlidersHorizontal,
     Scale,
     PieChart,
-    ChevronDown
+    ChevronDown,
+    ExternalLink
 } from 'lucide-react'
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { useNavigate } from 'react-router-dom'
@@ -640,6 +641,7 @@ const PlatformOverviewNew = ({
                     logoSrc,
                     color,
                     offtakeShare: apiEntity.offtakeShare,
+                    page_url: apiEntity.page_url || null,
                     data: mapApiEntityToFrontend(apiEntity)
                 }
             })
@@ -805,7 +807,7 @@ const PlatformOverviewNew = ({
                                                 setDimension(key);
                                             }}
                                             className={cn(
-                                                'flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-[12px] font-bold transition-all whitespace-nowrap',
+                                                'flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-[12px] font-bold transition-all whitespace-nowrap cursor-pointer',
                                                 isSelected
                                                     ? 'bg-white text-blue-600 shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
                                                     : 'text-slate-500 hover:text-slate-800'
@@ -941,7 +943,7 @@ const PlatformOverviewNew = ({
                             <div className="min-w-max pb-2">
                                 {/* KPI Labels Header - Premium */}
                                 <div className="flex items-center gap-2 mb-3 sm:mb-4 px-1">
-                                    <div className="w-36 sm:w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between">
+                                    <div className={cn("w-36 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between", dimension === 'sku' ? 'sm:w-72' : 'sm:w-56')}>
                                         <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
                                         {dimension === 'sku' && (
                                             <motion.button
@@ -976,7 +978,7 @@ const PlatformOverviewNew = ({
                                             transition={{ duration: 0.3 }}
                                         >
                                             {/* Entity with Trend & RCA buttons - Sticky */}
-                                            <div className="w-36 sm:w-56 flex-shrink-0 flex items-center gap-1.5 sm:gap-2 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
+                                            <div className={cn("flex-shrink-0 flex items-center gap-1.5 sm:gap-2 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50", dimension === 'sku' ? 'w-44 sm:w-72' : 'w-36 sm:w-56')}>
                                                 {e.logoSrc ? (
                                                     <div className="h-7 w-7 sm:h-9 sm:w-9 rounded-lg bg-white shadow-sm ring-1 ring-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
                                                         <BrandLogo name={e.name} src={e.logoSrc} className="h-7 w-7 sm:h-9 sm:w-9" imgClassName="h-5 w-5 sm:h-6 sm:w-6" />
@@ -992,7 +994,7 @@ const PlatformOverviewNew = ({
                                                 <div className="flex flex-col flex-1 overflow-hidden justify-center">
                                                     <span
                                                         className="text-[11px] sm:text-[13px] font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis"
-                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined, textTransform: 'capitalize' }}
+                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '150px' : undefined, textTransform: 'capitalize' }}
                                                         title={e.name}
                                                     >
                                                         {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}
@@ -1009,6 +1011,18 @@ const PlatformOverviewNew = ({
 
                                                 {/* Trend & RCA buttons */}
                                                 <div className="hidden sm:flex items-center gap-1">
+                                                    {dimension === 'sku' && e.page_url && (
+                                                        <a
+                                                            href={e.page_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            onClick={(evt) => evt.stopPropagation()}
+                                                            className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:text-blue-600 text-slate-400"
+                                                            title="Open product page"
+                                                        >
+                                                            <ExternalLink size={13} />
+                                                        </a>
+                                                    )}
                                                     <button
                                                         onClick={(evt) => {
                                                             evt.stopPropagation();

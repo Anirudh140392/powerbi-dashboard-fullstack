@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { SlidersHorizontal, X, ChevronRight, ChevronDown } from "lucide-react";
+import { SlidersHorizontal, X, ChevronRight, ChevronDown, ExternalLink } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 import dayjs from "dayjs";
 
@@ -123,6 +123,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                 avg7: row.avg7 || 0,
                 avg31: row.avg31 || 0,
                 status: row.status || "Healthy",
+                page_url: row.page_url || null,
                 cities: row.cities || []
             };
         });
@@ -333,7 +334,21 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                                     )}
                                                                 </button>
                                                                 <div>
-                                                                    <div className="font-bold text-slate-900 leading-5 text-xs">{r.name}</div>
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <div className="font-bold text-slate-900 leading-5 text-xs">{r.name}</div>
+                                                                        {r.page_url && (
+                                                                            <a
+                                                                                href={r.page_url}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                                className="flex-shrink-0 p-0.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                                                                                title="Open product page"
+                                                                            >
+                                                                                <ExternalLink className="h-3 w-3" />
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
                                                                     <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight mt-0.5">{r.platform}</div>
                                                                 </div>
                                                             </div>
