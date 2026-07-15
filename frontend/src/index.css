@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Mulish:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 /* Scan trailytics_ratings source files so Tailwind v4 generates their utility classes */
-@source "../../trailytics_ratings/src";
+@source "../../trailytics_ratings/frontend/src";
 /* @plugin "tw-animate-css"; */
 
 @custom-variant dark (&:is(.dark *));
