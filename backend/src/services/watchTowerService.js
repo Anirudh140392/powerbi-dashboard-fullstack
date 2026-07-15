@@ -30,7 +30,18 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
 // Import Redis data layer for indexed platform data (data retrieval only, no caching)
 import { ensurePlatformData, queryByFilters, aggregateMetrics, getPlatformStats, isPlatformDataLoaded, coalesceRequest, getBrandMonthlyData } from './redisDataService.js';
-import { normalizeFilterArray, getMarketShare, getMarketShareByMonth, getMarketShareByBrand, getMarketShareTimeSeries } from './marketShareHelper.js';
+import { normalizeFilterArray as originalNormalizeFilterArray, getMarketShare, getMarketShareByMonth, getMarketShareByBrand, getMarketShareTimeSeries } from './marketShareHelper.js';
+
+const normalizeFilterArray = (value) => {
+    const arr = originalNormalizeFilterArray(value);
+    if (arr.length > 0 && arr.every(v => v === '0' || v === '1')) {
+        if (arr.includes('1') && !arr.includes('0')) {
+            return ['1'];
+        }
+        return [];
+    }
+    return arr;
+};
 
 // Global SQL snippet to resolve the Product_Category from Brand if the column is empty
 // For chocolate brands (Snickers, Galaxy), uses Product name keywords to distinguish
@@ -663,6 +674,7 @@ const generateKpiColumns = ({
     const safeChange = (curr, prev, calcFn) => (isNA(curr) || isNA(prev)) ? null : calcFn(curr, prev);
 
     const offtakeChange = safeChange(offtake, prevOfftake, calcChange);
+    const quantitySoldChange = safeChange(offtakeUnits, prevOfftakeUnits, calcChange);
     const spendChange = safeChange(spend, prevSpend, calcChange);
     const roasChange = safeChange(roas, prevRoas, calcChange);
     const inorgSalesChange = safeChange(inorgSales, prevInorgSales, calcChange);
@@ -687,6 +699,7 @@ const generateKpiColumns = ({
     const fmtX = (v) => isNA(v) ? "N/A" : `${(parseFloat(v) || 0).toFixed(2)}x`;
     const fmtRs = (v) => isNA(v) ? "N/A" : `₹${(parseFloat(v) || 0).toFixed(2)}`;
     const fmtChg = (v, isPP = false) => isNA(v) ? "N/A" : formatChange(v, isPP);
+    const fmtUnits = (v) => isNA(v) ? "N/A" : formatUnits(v);
     const fmtDays = (v) => {
         if (isNA(v) || isNaN(v)) return "N/A";
         const rounded = Math.round(v);
@@ -697,6 +710,7 @@ const generateKpiColumns = ({
 
     return [
         { title: "Offtakes", value: fmtCurr(offtake), change: { text: fmtChg(offtakeChange), positive: offtakeChange >= 0 }, meta: { units: `${formatUnits(offtakeUnits)} units`, change: fmtChg(offtakeChange) } },
+        { title: "Quantity Sold", value: fmtUnits(offtakeUnits), change: { text: fmtChg(quantitySoldChange), positive: quantitySoldChange >= 0 }, meta: { units: "units", change: fmtChg(quantitySoldChange) } },
         { title: "Category Size", value: fmtCurr(categorySize), change: { text: fmtChg(categorySizeChange), positive: categorySizeChange >= 0 }, meta: { units: "market", change: fmtChg(categorySizeChange) } },
         { title: "Spend", value: fmtCurr(spend), change: { text: fmtChg(spendChange), positive: spendChange >= 0 }, meta: { units: "spend", change: fmtChg(spendChange) } },
         { title: "ROAS", value: fmtX(roas), change: { text: fmtChg(roasChange), positive: roasChange >= 0 }, meta: { units: "return", change: fmtChg(roasChange) } },

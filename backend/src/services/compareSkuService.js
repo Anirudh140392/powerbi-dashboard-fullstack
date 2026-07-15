@@ -189,8 +189,8 @@ export const getCompareSkuProducts = async (filters = {}) => {
 
         // MSL filter
         const mslArr = normalizeFilterArray(filters.msl);
-        if (mslArr && mslArr.length > 0) {
-            conditions.push(`toString(${src.f.msl}) IN(${mslArr.map(m => `'${escapeStr(m)}'`).join(', ')})`);
+        if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
+            conditions.push(`toString(${src.f.msl}) = '1'`);
         }
 
         // Text search on Product name

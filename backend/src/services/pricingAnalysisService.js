@@ -218,8 +218,10 @@ const buildInClause = (column, values) => {
 const buildMslCondition = (mslValue, columnPath = 'p.msl') => {
     const parsed = parseMultiSelectFilter(mslValue);
     if (!parsed || parsed.length === 0) return null;
-    const escaped = parsed.map(m => `'${escapeStr(m)}'`).join(',');
-    return `toString(${columnPath}) IN (${escaped})`;
+    if (parsed.includes('1') && !parsed.includes('0')) {
+        return `toString(${columnPath}) = '1'`;
+    }
+    return null;
 };
 
 

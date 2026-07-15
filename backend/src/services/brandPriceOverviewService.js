@@ -63,9 +63,8 @@ async function getBrandPriceOverview(filters = {}) {
         // Build MSL filter clause (supports multiselect)
         let mslFilter = '';
         const mslArr = parseMultiSelectFilter(filters.msl);
-        if (mslArr) {
-            const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
-            mslFilter = `AND toString(p.msl) IN (${escaped})`;
+        if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
+            mslFilter = `AND toString(p.msl) = '1'`;
         }
 
         // OPTIMIZED SQL query - removed trend calculation for speed

@@ -102,9 +102,8 @@ async function getOneViewPriceGrid(filters = {}) {
                 mslArr = [String(filters.msl)];
             }
         }
-        if (mslArr.length > 0) {
-            const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
-            filterClauses.push(`toString(p.msl) IN (${escaped})`);
+        if (mslArr.includes('1') && !mslArr.includes('0')) {
+            filterClauses.push(`toString(p.msl) = '1'`);
         }
 
         // Combine all filter clauses

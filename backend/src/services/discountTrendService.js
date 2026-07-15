@@ -73,9 +73,8 @@ async function getDiscountByCategory(filters = {}) {
 
         let mslClause = '';
         const mslArr = parseMultiSelectFilter(filters.msl);
-        if (mslArr) {
-            const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
-            mslClause = `AND toString(p.msl) IN (${escaped})`;
+        if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
+            mslClause = `AND toString(p.msl) = '1'`;
         }
 
         const query = `
@@ -167,10 +166,9 @@ async function getDiscountByBrand(filters = {}) {
         let mslClauseP = '';
         let mslClauseNoAlias = '';
         const mslArr = parseMultiSelectFilter(filters.msl);
-        if (mslArr) {
-            const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
-            mslClauseP = `AND toString(p.msl) IN (${escaped})`;
-            mslClauseNoAlias = `AND toString(msl) IN (${escaped})`;
+        if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
+            mslClauseP = `AND toString(p.msl) = '1'`;
+            mslClauseNoAlias = `AND toString(msl) = '1'`;
         }
 
         const platformQuery = `

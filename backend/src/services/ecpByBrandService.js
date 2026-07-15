@@ -101,9 +101,8 @@ async function getEcpByBrand(filters = {}) {
 
             // MSL filter (supports multiselect)
             const mslArr = parseMultiSelectFilter(filters.msl);
-            if (mslArr) {
-                const escaped = mslArr.map(m => `'${escapeStr(m)}'`).join(',');
-                whereConditions.push(`toString(p.msl) IN (${escaped})`);
+            if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
+                whereConditions.push(`toString(p.msl) = '1'`);
             }
 
             const whereClause = whereConditions.join(' AND ');
