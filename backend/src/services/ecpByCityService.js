@@ -67,10 +67,13 @@ async function getEcpByCity(filters = {}) {
         }
 
         const brands = parseMultiSelectFilter(filters.brand);
-        const whereClause = [
-            `p.DATE BETWEEN '${startDate}' AND '${endDate}'`,
-            "p.Location IS NOT NULL"
-        ].join(' AND ');
+
+        const mslArr = parseMultiSelectFilter(filters.msl);
+        if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
+            whereConditions.push(`toString(p.msl) = '1'`);
+        }
+
+        const whereClause = whereConditions.join(' AND ');
 
         const query = `
         SELECT

@@ -56,7 +56,7 @@ function buildMonthGroups(dates) {
     return groups;
 }
 
-export default function OsaDetailTableLight({ apiData, loading }) {
+export default function OsaDetailTableLight({ apiData, loading, mslFilter, onMslChange }) {
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [page, setPage] = useState(1);
     const [sortKey, setSortKey] = useState("avgSelected");
@@ -65,12 +65,30 @@ export default function OsaDetailTableLight({ apiData, loading }) {
     const [expandedMonths, setExpandedMonths] = useState(new Set()); // which months are drilled-down
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [advancedFilters, setAdvancedFilters] = useState({});
+    const [tempMslFilter, setTempMslFilter] = useState(mslFilter || '0');
+
+    useEffect(() => {
+        setTempMslFilter(mslFilter || '0');
+    }, [mslFilter]);
 
     const toggleRow = (sku) => setExpandedRows(p => { const n = new Set(p); n.has(sku) ? n.delete(sku) : n.add(sku); return n; });
     const toggleMonth = (mk) => setExpandedMonths(p => { const n = new Set(p); n.has(mk) ? n.delete(mk) : n.add(mk); return n; });
 
-    const handleSectionChange = (id, vals) => setAdvancedFilters(p => ({ ...p, [id]: vals }));
-    const handleApplyFilters = () => { setPage(1); setShowFilterPanel(false); };
+    const handleSectionChange = (id, vals) => {
+        if (id === 'msl') {
+            const selectedMsl = vals?.length > 0 ? vals[vals.length - 1] : '0';
+            setTempMslFilter(selectedMsl);
+            return;
+        }
+        setAdvancedFilters(p => ({ ...p, [id]: vals }));
+    };
+    const handleApplyFilters = () => {
+        setPage(1);
+        setShowFilterPanel(false);
+        if (onMslChange) {
+            onMslChange(tempMslFilter);
+        }
+    };
 
     const dates = useMemo(() => apiData?.osaDates || [], [apiData]);
     const monthGroups = useMemo(() => buildMonthGroups(dates), [dates]);
@@ -98,6 +116,10 @@ export default function OsaDetailTableLight({ apiData, loading }) {
         if (!apiData?.osaDetail) return [];
         const mk = arr => arr.map(p => ({ id: p, label: p }));
         return [
+            { id: "msl", label: "MSL", options: [
+                { id: "0", label: "All SKUs" },
+                { id: "1", label: "Top SKUs" }
+            ] },
             { id: "platform", label: "Platform", options: mk([...new Set(apiData.osaDetail.map(r => r.platform).filter(Boolean))]) },
             { id: "brand", label: "Brand", options: mk([...new Set(apiData.osaDetail.map(r => r.brand).filter(Boolean))]) },
             { id: "productName", label: "Product Name", options: mk([...new Set(apiData.osaDetail.map(r => r.name).filter(Boolean))]) },
@@ -346,7 +368,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                     <button onClick={() => setShowFilterPanel(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
                                 </div>
                                 <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-4 pb-4">
-                                    <KpiFilterPanel sectionConfig={filterOptions} sectionValues={advancedFilters} onSectionChange={handleSectionChange} />
+                                    <KpiFilterPanel sectionConfig={filterOptions} sectionValues={{ ...advancedFilters, msl: tempMslFilter ? [tempMslFilter] : ['0'] }} onSectionChange={handleSectionChange} />
                                 </div>
                                 <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
                                     <button onClick={() => setShowFilterPanel(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>

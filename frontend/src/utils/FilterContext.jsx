@@ -27,7 +27,7 @@ export const FilterProvider = ({ children }) => {
     const [selectedChannel, setSelectedChannel] = useState(FALLBACK_CHANNELS[0] || "All");
 
     // Platform state
-    const [platforms, setPlatforms] = useState(FALLBACK_PLATFORMS);
+    const [platforms, setPlatforms] = useState([]);
     const [platformMetadata, setPlatformMetadata] = useState([]);
     const [platform, setPlatform] = useState("");
 
@@ -97,6 +97,10 @@ export const FilterProvider = ({ children }) => {
     // Visibility rank filter (POSITION <= rank).
     const [selectedRank, setSelectedRank] = useState('Top 10');
 
+    // MSL (Must Stock List) filter state
+    const [msls, setMsls] = useState([]);
+    const [selectedMsl, setSelectedMsl] = useState("All");
+
     // Priority Action specific filters
     const [paPriority, setPaPriority] = useState("All");
     const [paStatus, setPaStatus] = useState("All");
@@ -133,8 +137,8 @@ export const FilterProvider = ({ children }) => {
             console.log("[FilterContext] Resetting state due to logout");
             setChannels(FALLBACK_CHANNELS);
             setSelectedChannel(FALLBACK_CHANNELS[0] || "All");
-            setPlatforms(FALLBACK_PLATFORMS);
-            setPlatform(FALLBACK_PLATFORMS[0]);
+            setPlatforms([]);
+            setPlatform("");
             setBrands(FALLBACK_BRANDS);
             setSelectedBrand("All");
             setLocations(FALLBACK_LOCATIONS);
@@ -368,7 +372,7 @@ export const FilterProvider = ({ children }) => {
                         return valid.length === 1 ? valid[0] : valid;
                     });
                 }
-            } else if (window.location.hash.includes('/visibility-analysis')) {
+            } else if (window.location.hash.includes('/visibility-analysis') || window.location.hash.includes('/visibility-anlysis')) {
                 console.log("[FilterContext] Fetching Visibility Analysis dynamic filters for channel:", selectedChannel);
                 
                 // Fetch platforms specifically for Visibility Analysis
@@ -391,7 +395,13 @@ export const FilterProvider = ({ children }) => {
                             if (valid.length === 0) return newPlatforms[0];
                             return valid.length === 1 ? valid[0] : valid;
                         });
+                    } else {
+                        setPlatforms([]);
+                        setPlatform("");
                     }
+                } else {
+                    setPlatforms([]);
+                    setPlatform("");
                 }
 
                 // IMPORTANT: Fetch channels specifically for Visibility Analysis to ensure they refresh 
@@ -406,7 +416,7 @@ export const FilterProvider = ({ children }) => {
                         setChannels(newChannels);
                     }
                 }
-            } else if (window.location.hash.includes('/content-analysis')) {
+            } else if (window.location.hash.includes('/content-analysis') || window.location.hash.includes('/content-score')) {
                 const res = await axiosInstance.get("/content-analysis/platforms");
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched dynamic platforms from Content Analysis:", res.data);
@@ -420,8 +430,8 @@ export const FilterProvider = ({ children }) => {
                         return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
                     });
                 } else {
-                    setPlatforms(FALLBACK_PLATFORMS);
-                    setPlatform(FALLBACK_PLATFORMS[0]);
+                    setPlatforms([]);
+                    setPlatform("");
                 }
             } else {
                 // Refresh channels for other pages to clear any restricted lists (like from Market Share)
@@ -442,13 +452,14 @@ export const FilterProvider = ({ children }) => {
                         return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
                     });
                 } else {
-                    setPlatforms(FALLBACK_PLATFORMS);
-                    setPlatform(FALLBACK_PLATFORMS[0]);
+                    setPlatforms([]);
+                    setPlatform("");
                 }
             }
         } catch (err) {
-            console.warn("[FilterContext] Failed to fetch dynamic platforms, using fallback:", err.message);
-            // Fallbacks are set in individual effects or on mount
+            console.warn("[FilterContext] Failed to fetch dynamic platforms:", err.message);
+            setPlatforms([]);
+            setPlatform("");
         } finally {
             setPlatformsFetched(true);
         }
@@ -730,6 +741,27 @@ export const FilterProvider = ({ children }) => {
         fetchKeywordTypes();
     }, [isAuthenticated, platform]);
 
+    // ====== FETCH MSL VALUES FROM DB ======
+    useEffect(() => {
+        const fetchMsls = async () => {
+            if (!isAuthenticated) return;
+            try {
+                const res = await axiosInstance.get("/watchtower/msls");
+                if (res.data && Array.isArray(res.data)) {
+                    const fetchedMsls = res.data.map(m => m !== null && m !== undefined ? m.toString() : "").filter(Boolean);
+                    console.log("[FilterContext] Fetched MSL values:", fetchedMsls);
+                    setMsls(fetchedMsls);
+                } else {
+                    setMsls([]);
+                }
+            } catch (err) {
+                console.error("[FilterContext] Failed to fetch MSL values:", err);
+                setMsls([]);
+            }
+        };
+        fetchMsls();
+    }, [isAuthenticated]);
+
     return (
         <FilterContext.Provider value={{
             channels,
@@ -809,6 +841,10 @@ export const FilterProvider = ({ children }) => {
             setVisibilityMode,
             selectedRank,
             setSelectedRank,
+            msls,
+            setMsls,
+            selectedMsl,
+            setSelectedMsl,
             paPriority,
             setPaPriority,
             paStatus,

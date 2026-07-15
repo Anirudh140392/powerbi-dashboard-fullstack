@@ -19,7 +19,8 @@ export const getEcpByCity = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             city: req.query.city,
-            brand: req.query.brand
+            brand: req.query.brand,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getEcpByCity called with filters:", filters);
@@ -53,7 +54,8 @@ export const getPricingKpis = async (req, res) => {
             brand: req.query.brand,
             category: req.query.category,
             channel: req.query.channel,
-            sku: req.query.sku
+            sku: req.query.sku,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getPricingKpis called with filters:", filters);
@@ -87,7 +89,8 @@ export const getPricingInsights = async (req, res) => {
             brand: req.query.brand,
             category: req.query.category,
             channel: req.query.channel,
-            sku: req.query.sku
+            sku: req.query.sku,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getPricingInsights called with filters:", filters);
@@ -122,7 +125,8 @@ export const getDimensionOverview = async (req, res) => {
             category: req.query.category,
             channel: req.query.channel,
             dimension: req.query.dimension,
-            sku: req.query.sku
+            sku: req.query.sku,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getDimensionOverview called with filters:", filters);
@@ -154,7 +158,8 @@ export const getEcpComparison = async (req, res) => {
             endDate: req.query.endDate,
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
-            channel: req.query.channel
+            channel: req.query.channel,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getEcpComparison called with filters:", filters);
@@ -183,7 +188,8 @@ export const getEcpByBrand = async (req, res) => {
             platform: req.query.platform,
             location: req.query.location,
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getEcpByBrand called with filters:", filters);
@@ -216,7 +222,8 @@ export const getDiscountByCategory = async (req, res) => {
             brand: req.query.brand,
             category: req.query.category,
             format: req.query.format,
-            city: req.query.city
+            city: req.query.city,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getDiscountByCategory called with filters:", filters);
@@ -248,7 +255,8 @@ export const getDiscountByBrand = async (req, res) => {
             metricType: req.query.metricType,
             platform: req.query.platform,
             brand: req.query.brand,
-            city: req.query.city
+            city: req.query.city,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getDiscountByBrand called with filters:", filters);
@@ -280,7 +288,8 @@ export const getEcpWeekdayWeekend = async (req, res) => {
             location: req.query.location,
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            brand: req.query.brand
+            brand: req.query.brand,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getEcpWeekdayWeekend called with filters:", filters);
@@ -309,7 +318,8 @@ export const getBrandPriceOverview = async (req, res) => {
         const filters = {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            platform: req.query.platform
+            platform: req.query.platform,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getBrandPriceOverview called with filters:", filters);
@@ -338,7 +348,8 @@ export const getBrandDiscountTrend = async (req, res) => {
         const filters = {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            platform: req.query.platform
+            platform: req.query.platform,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getBrandDiscountTrend called with filters:", filters);
@@ -375,6 +386,7 @@ export const getDimensionTrends = async (req, res) => {
             category: req.query.category,
             channel: req.query.channel,
             sku: req.query.sku || req.query.skuName,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getDimensionTrends called with filters:", filters);
@@ -406,6 +418,7 @@ export const getPricingCompetitionTrends = async (req, res) => {
             brand: req.query.brand,
             category: req.query.category,
             channel: req.query.channel,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getPricingCompetitionTrends called with filters:", filters);
@@ -435,6 +448,7 @@ export const getPricingCompetition = async (req, res) => {
             brand: req.query.brand,
             category: req.query.category,
             channel: req.query.channel,
+            msl: req.query.msl
         };
 
         console.log("[PricingAnalysisController] getPricingCompetition called with filters:", filters);

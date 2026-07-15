@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useContext, useMemo } from 'react'
 import { FilterContext } from '../../../utils/FilterContext'
 import { motion, AnimatePresence } from 'framer-motion'
+import axiosInstance from '../../../api/axiosInstance'
 import {
     X,
     Search,
@@ -80,6 +81,90 @@ const kpiOptions = [
 ]
 
 // ========================================
+// SINGLE-SELECT DROPDOWN COMPONENT (for MSL)
+// ========================================
+function SingleSelectDropdown({ label, icon: Icon, options, value, onChange, placeholder }) {
+    const [isOpen, setIsOpen] = useState(false)
+    const dropdownRef = useRef(null)
+
+    // Close on outside click
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setIsOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [])
+
+    const selectedOption = options.find(opt => opt.id === value)
+
+    return (
+        <div ref={dropdownRef} className="relative font-sans">
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className={cn(
+                    'w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200',
+                    isOpen
+                        ? 'border-slate-400 ring-2 ring-slate-200 bg-white'
+                        : 'border-slate-100 bg-white hover:border-slate-200'
+                )}
+            >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Icon size={16} className="text-slate-400 flex-shrink-0" />
+                    <div className="flex flex-col items-start min-w-0 text-left">
+                        <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider leading-none mb-1">
+                            {label}
+                        </span>
+                        <span className="text-xs text-slate-700 font-medium truncate leading-none">
+                            {selectedOption ? selectedOption.name : placeholder || label}
+                        </span>
+                    </div>
+                </div>
+                <ChevronDown
+                    size={14}
+                    className={cn('text-slate-400 transition-transform', isOpen && 'rotate-180')}
+                />
+            </button>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute z-50 top-full left-0 right-0 mt-1 bg-white rounded-xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden"
+                    >
+                        <div className="max-h-48 overflow-y-auto">
+                            {options.map(opt => (
+                                <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => {
+                                        onChange(opt.id)
+                                        setIsOpen(false)
+                                    }}
+                                    className={cn(
+                                        'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
+                                        opt.id === value
+                                            ? 'bg-slate-100 text-slate-900 font-medium'
+                                            : 'text-slate-600 hover:bg-slate-50'
+                                    )}
+                                >
+                                    <span className="truncate">{opt.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    )
+}
+
+// ========================================
 // MULTI-SELECT DROPDOWN COMPONENT
 // ========================================
 function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChange, placeholder }) {
@@ -118,7 +203,7 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className={cn(
-                    'w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all duration-200',
+                    'w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200',
                     isOpen
                         ? 'border-slate-400 ring-2 ring-slate-200 bg-white'
                         : 'border-slate-100 bg-white hover:border-slate-200'
@@ -126,15 +211,20 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
             >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                     <Icon size={16} className="text-slate-400 flex-shrink-0" />
-                    <span className="text-sm text-slate-600 truncate">
-                        {selected.length === 0
-                            ? placeholder || label
-                            : `${selected.length} selected`}
-                    </span>
+                    <div className="flex flex-col items-start min-w-0 text-left">
+                        <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider leading-none mb-1">
+                            {label}
+                        </span>
+                        <span className="text-xs text-slate-700 font-medium truncate leading-none">
+                            {selected.length === 0
+                                ? placeholder || label
+                                : `${selected.length} selected`}
+                        </span>
+                    </div>
                 </div>
                 <div className="flex items-center gap-1.5">
                     {selected.length > 0 && (
-                        <span className="bg-slate-900 text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                        <span className="bg-slate-900 text-white text-[9px] px-1.5 py-0.5 rounded-full font-medium leading-none">
                             {selected.length}
                         </span>
                     )}
@@ -255,6 +345,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         skus: [],
         dateFrom: '',
         dateTo: '',
+        msl: '0',
         kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion', 'aov'].filter(k => {
             if (currentDimension === 'sku') {
                 if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
@@ -267,8 +358,172 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         filterLogic: 'OR',
     })
 
-    const { maxDate } = useContext(FilterContext)
+    const { maxDate, selectedChannel, selectedLocation, platform: globalPlatform, selectedBrand, selectedCategory } = useContext(FilterContext)
     const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate])
+
+    const [dynamicBrands, setDynamicBrands] = useState([])
+    const [dynamicCategories, setDynamicCategories] = useState([])
+    const [dynamicPlatforms, setDynamicPlatforms] = useState([])
+    const [dynamicSkus, setDynamicSkus] = useState([])
+    const [loadingFilters, setLoadingFilters] = useState(false)
+
+    // Synchronize initial options from props when props change
+    useEffect(() => {
+        if (brands && brands.length) {
+            setDynamicBrands(brands)
+        } else {
+            setDynamicBrands(mockBrands)
+        }
+    }, [brands])
+
+    useEffect(() => {
+        if (categories && categories.length) {
+            setDynamicCategories(categories)
+        } else {
+            setDynamicCategories(mockCategories)
+        }
+    }, [categories])
+
+    useEffect(() => {
+        if (platforms && platforms.length) {
+            setDynamicPlatforms(platforms)
+        } else {
+            setDynamicPlatforms(mockPlatforms)
+        }
+    }, [platforms])
+
+    useEffect(() => {
+        if (skus && skus.length) {
+            setDynamicSkus(skus)
+        } else {
+            setDynamicSkus([])
+        }
+    }, [skus])
+
+    // Cascaded dynamic fetching effect
+    useEffect(() => {
+        if (!isOpen) return
+
+        let active = true
+
+        const fetchCascadedFilters = async () => {
+            setLoadingFilters(true)
+            try {
+                const cleanParam = (val) => {
+                    if (!val) return undefined
+                    if (Array.isArray(val)) {
+                        if (val.length === 0) return undefined
+                        return val.map(v => typeof v === 'string' ? v.replace(/_/g, ' ') : v).join(',')
+                    }
+                    if (typeof val === 'string') {
+                        if (val === 'All') return undefined
+                        return val.replace(/_/g, ' ')
+                    }
+                    return val
+                }
+
+                // If local platform selection is empty, fall back to global platform selected in the sidebar/filterbar
+                const activePlatforms = localFilters.platforms && localFilters.platforms.length > 0
+                    ? localFilters.platforms
+                    : (globalPlatform && globalPlatform !== 'All' ? [globalPlatform] : []);
+
+                // If local brand selection is empty, fall back to global brand
+                const activeBrands = localFilters.brands && localFilters.brands.length > 0
+                    ? localFilters.brands
+                    : (selectedBrand && selectedBrand !== 'All' ? [selectedBrand] : []);
+
+                // If local category selection is empty, fall back to global category
+                const activeCategories = localFilters.categories && localFilters.categories.length > 0
+                    ? localFilters.categories
+                    : (selectedCategory && selectedCategory !== 'All' ? [selectedCategory] : []);
+
+                const params = {
+                    channel: cleanParam(selectedChannel),
+                    location: cleanParam(selectedLocation),
+                    platform: cleanParam(activePlatforms),
+                    brand: cleanParam(activeBrands),
+                    category: cleanParam(activeCategories),
+                }
+
+                const [cascadedRes, productsRes] = await Promise.allSettled([
+                    axiosInstance.get('/watchtower/cascaded-filters', { params }),
+                    axiosInstance.get('/watchtower/products', {
+                        params: {
+                            platform: params.platform,
+                            brand: params.brand,
+                            category: params.category
+                        }
+                    })
+                ])
+
+                if (!active) return
+
+                if (cascadedRes.status === 'fulfilled' && cascadedRes.value.data) {
+                    const data = cascadedRes.value.data
+                    
+                    if (data.brands && Array.isArray(data.brands)) {
+                        const mappedBrands = data.brands.map(b => {
+                            const parentOpt = brands?.find(opt => opt.name?.toLowerCase() === b.toLowerCase())
+                            if (parentOpt) return parentOpt
+                            return { id: b.toLowerCase().replace(/\s+/g, '_'), name: b }
+                        })
+                        setDynamicBrands(mappedBrands.length ? mappedBrands : mockBrands)
+                    }
+
+                    if (data.categories && Array.isArray(data.categories)) {
+                        const mappedCategories = data.categories.map(c => {
+                            const parentOpt = categories?.find(opt => opt.name?.toLowerCase() === c.toLowerCase() || opt.id?.toLowerCase() === c.toLowerCase())
+                            if (parentOpt) return parentOpt
+                            return { id: c, name: c }
+                        })
+                        setDynamicCategories(mappedCategories.length ? mappedCategories : mockCategories)
+                    }
+
+                    if (data.platforms && Array.isArray(data.platforms)) {
+                        const mappedPlatforms = data.platforms.map(p => {
+                            const parentOpt = platforms?.find(opt => opt.name?.toLowerCase() === p.toLowerCase() || opt.id?.toLowerCase() === p.toLowerCase())
+                            if (parentOpt) return parentOpt
+                            return { id: p.toLowerCase().replace(/\s+/g, '_'), name: p }
+                        })
+                        setDynamicPlatforms(mappedPlatforms.length ? mappedPlatforms : mockPlatforms)
+                    }
+                }
+
+                if (productsRes.status === 'fulfilled' && productsRes.value.data && Array.isArray(productsRes.value.data)) {
+                    const mappedSkus = productsRes.value.data.map(p => {
+                        const parentOpt = skus?.find(opt => opt.name?.toLowerCase() === p.toLowerCase() || opt.id?.toLowerCase() === p.toLowerCase())
+                        if (parentOpt) return parentOpt
+                        return { id: p, name: p }
+                    })
+                    setDynamicSkus(mappedSkus)
+                }
+            } catch (err) {
+                console.error('[AdvancedFilterModal] Error fetching cascaded options:', err)
+            } finally {
+                if (active) setLoadingFilters(false)
+            }
+        }
+
+        fetchCascadedFilters()
+
+        return () => {
+            active = false
+        }
+    }, [
+        isOpen,
+        localFilters.brands,
+        localFilters.categories,
+        localFilters.platforms,
+        selectedChannel,
+        selectedLocation,
+        globalPlatform,
+        selectedBrand,
+        selectedCategory,
+        brands,
+        categories,
+        platforms,
+        skus
+    ])
 
     // Sync with parent filters when modal opens
     useEffect(() => {
@@ -298,6 +553,9 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             categories: [],
             platforms: [],
             skus: [],
+            dateFrom: '',
+            dateTo: '',
+            msl: '0',
             kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion', 'aov'].filter(k => {
                 if (currentDimension === 'sku') {
                     if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
@@ -334,6 +592,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         showCategoryFilter && localFilters.categories.length > 0,
         showPlatformFilter && localFilters.platforms.length > 0,
         showSkuFilter && localFilters.skus.length > 0,
+        localFilters.msl === '1',
     ].filter(Boolean).length
 
     // Get dimension label for context
@@ -406,7 +665,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             <MultiSelectDropdown
                                                 label="Brand"
                                                 icon={Tag}
-                                                options={brands && brands.length ? brands : mockBrands}
+                                                options={dynamicBrands}
                                                 selected={localFilters.brands}
                                                 onChange={(val) => updateFilter('brands', val)}
                                                 placeholder="All Brands"
@@ -416,7 +675,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             <MultiSelectDropdown
                                                 label="Category"
                                                 icon={Package}
-                                                options={categories && categories.length ? categories : mockCategories}
+                                                options={dynamicCategories}
                                                 selected={localFilters.categories}
                                                 onChange={(val) => updateFilter('categories', val)}
                                                 placeholder="All Categories"
@@ -426,7 +685,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             <MultiSelectDropdown
                                                 label="Platform"
                                                 icon={Monitor}
-                                                options={platforms && platforms.length ? platforms : mockPlatforms}
+                                                options={dynamicPlatforms}
                                                 selected={localFilters.platforms}
                                                 onChange={(val) => updateFilter('platforms', val)}
                                                 placeholder="All Platforms"
@@ -436,12 +695,23 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             <MultiSelectDropdown
                                                 label="Sku"
                                                 icon={Package}
-                                                options={skus && skus.length ? skus : []}
+                                                options={dynamicSkus}
                                                 selected={localFilters.skus}
                                                 onChange={(val) => updateFilter('skus', val)}
                                                 placeholder="All Skus"
                                             />
                                         )}
+                                        <SingleSelectDropdown
+                                            label="MSL"
+                                            icon={Filter}
+                                            options={[
+                                                { id: '0', name: 'All SKUs' },
+                                                { id: '1', name: 'Top SKUs' }
+                                            ]}
+                                            value={localFilters.msl || '0'}
+                                            onChange={(val) => updateFilter('msl', val)}
+                                            placeholder="MSL Status"
+                                        />
                                     </div>
                                 </div>
 

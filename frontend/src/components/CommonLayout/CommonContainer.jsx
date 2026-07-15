@@ -18,7 +18,7 @@ export default function CommonContainer({
   fullHeight = false,
   children,
 }) {
-  const { channels, selectedChannel, setSelectedChannel, platforms, platformMetadata, setPlatform, platform } = React.useContext(FilterContext);
+  const { channels, selectedChannel, setSelectedChannel, platforms, platformMetadata, setPlatform, platform, platformsFetched } = React.useContext(FilterContext);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
@@ -36,6 +36,7 @@ export default function CommonContainer({
       setSelectedChannel={setSelectedChannel}
       platforms={platforms}
       platformMetadata={platformMetadata}
+      platformsFetched={platformsFetched}
       setPlatform={setPlatform}
       currentPlatform={platform}
       mobileMenuOpen={mobileMenuOpen}
@@ -61,6 +62,7 @@ function CommonLayoutContent({
   setSelectedChannel,
   platforms,
   platformMetadata,
+  platformsFetched,
   setPlatform,
   currentPlatform,
   mobileMenuOpen,
@@ -96,6 +98,7 @@ function CommonLayoutContent({
         }}
         platforms={platforms}
         platformMetadata={platformMetadata}
+        platformsFetched={platformsFetched}
         selectedPlatform={filters?.platform || currentPlatform}
         onPlatformChange={(p) => {
           setPlatform?.(p);

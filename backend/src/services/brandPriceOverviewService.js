@@ -60,6 +60,13 @@ async function getBrandPriceOverview(filters = {}) {
             platformFilter = `AND ${buildInClause('p.Platform', platforms)}`;
         }
 
+        // Build MSL filter clause (supports multiselect)
+        let mslFilter = '';
+        const mslArr = parseMultiSelectFilter(filters.msl);
+        if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
+            mslFilter = `AND toString(p.msl) = '1'`;
+        }
+
         // OPTIMIZED SQL query - removed trend calculation for speed
         // Uses INNER JOIN instead of LEFT JOIN for better performance
         const query = `
@@ -81,6 +88,7 @@ async function getBrandPriceOverview(filters = {}) {
               AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0
               ${isMars ? '' : "AND s.gram IS NOT NULL AND s.gram != '' AND s.gram != '0'"}
               ${platformFilter}
+              ${mslFilter}
             GROUP BY p.Brand, p.Platform, gram_size
             ORDER BY p.Brand, p.Platform
             LIMIT 500

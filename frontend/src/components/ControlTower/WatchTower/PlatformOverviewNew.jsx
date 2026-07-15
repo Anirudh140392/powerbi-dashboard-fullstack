@@ -78,6 +78,7 @@ const cardSize = {
 
 const kpiLabels = {
     offtakes: 'Offtakes',
+    quantitySold: 'Quantity Sold',
     spend: 'Spend',
     availability: 'Availability',
     marketShare: 'Market share',
@@ -96,6 +97,7 @@ const kpiLabels = {
 // Map backend KPI title → frontend kpiKey
 const BACKEND_TITLE_TO_KEY = {
     'Offtakes': 'offtakes',
+    'Quantity Sold': 'quantitySold',
     'Spend': 'spend',
     'ROAS': 'roas_x',
     'Inorg Sales': 'inorgSales',
@@ -170,11 +172,13 @@ const PlatformOverviewNew = ({
         compareStart,
         compareEnd,
         datesFetched,
-        platformsFetched
+        platformsFetched,
+        selectedMsl
     } = useContext(FilterContext);
 
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
+        { key: 'quantitySold', label: 'Quantity Sold' },
         { key: 'spend', label: 'Spend' },
         { key: 'inorgSales', label: 'Inorg Sales' },
         { key: 'conversion', label: 'Conversion' },
@@ -265,7 +269,7 @@ const PlatformOverviewNew = ({
     }, [dimension, activePlatformFilter, skuPlatformFilter]);
 
     const defaultKpiKeys = useMemo(() => {
-        let base = ['offtakes', 'spend', 'availability', 'conversion', 'aov'];
+        let base = ['offtakes', 'quantitySold', 'spend', 'availability', 'conversion', 'aov'];
         if (dimension === 'platform') {
             base.push('marketShare', 'categorySize');
             if (isEcom) base.push('cpc');
@@ -294,7 +298,7 @@ const PlatformOverviewNew = ({
         return base;
     }, [dimension, activePlatformFilter, skuPlatformFilter]);
 
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
+    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'quantitySold', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const navigate = useNavigate()
     const [currentPage, setCurrentPage] = useState(1)
@@ -313,6 +317,7 @@ const PlatformOverviewNew = ({
         skuCode: '',
         dateFrom: '',
         dateTo: '',
+        msl: '0',
         kpis: defaultKpiKeys,
         filterLogic: 'OR',
     })
@@ -475,10 +480,12 @@ const PlatformOverviewNew = ({
             advancedFilters: {
                 skuName: advancedFilters.skuName,
                 skuCode: advancedFilters.skuCode,
-                filterLogic: advancedFilters.filterLogic
-            }
+                filterLogic: advancedFilters.filterLogic,
+                msl: advancedFilters.msl
+            },
+            selectedMsl
         });
-    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter]);
+    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter, selectedMsl]);
 
     // Fetch data from backend API when filters change (stable version)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
@@ -500,8 +507,9 @@ const PlatformOverviewNew = ({
                 compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
                 skuName: parsed.advancedFilters.skuName || undefined,
                 skuCode: parsed.advancedFilters.skuCode || undefined,
-                filterLogic: parsed.advancedFilters.filterLogic || 'OR'
-            }
+                filterLogic: parsed.advancedFilters.filterLogic || 'OR',
+                msl: (parsed.selectedMsl && parsed.selectedMsl !== 'All') ? (Array.isArray(parsed.selectedMsl) ? parsed.selectedMsl.join(',') : parsed.selectedMsl) : (parsed.advancedFilters.msl === '1' ? '1' : undefined)
+            };
 
             console.log(`[PlatformOverviewNew] Fetching ${dimension} data`, params)
             const res = await axiosInstance.get(endpoint, { params, timeout: 60000 })
@@ -609,6 +617,7 @@ const PlatformOverviewNew = ({
         advancedFilters.platforms?.length > 0,
         advancedFilters.skuName?.length > 0,
         advancedFilters.skuCode?.length > 0,
+        advancedFilters.msl === '1',
     ].filter(Boolean).length
 
     const currentDimension = dimensionMeta[dimension] || dimensionMeta.platform

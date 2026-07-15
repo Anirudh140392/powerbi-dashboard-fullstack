@@ -81,12 +81,12 @@ export const buildPlatformChannelCond = async (platform, channel, prefix = '') =
             // Handle variations like 'Ecom', 'Ecommerce', 'Quickcomm'
             const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
             const searchPattern = isEcom ? '%ecom%' : (channel.toLowerCase().includes('quick') ? '%quick%' : `%${escapeStr(channel.toLowerCase())}%`);
-            
+
             const cols = await getTableColumns('rca_sku_dim');
             const platformCol = resolveColumn(cols, 'platform');
             const channelCol = resolveColumn(cols, 'channel');
             const hasChannel = columnExists(cols, 'channel');
-            
+
             if (hasChannel) {
                 const plats = await queryClickHouse(`SELECT DISTINCT ${platformCol} as platform FROM rca_sku_dim WHERE lower(${channelCol}) LIKE '${searchPattern}'`);
                 if (plats && plats.length > 0) {
@@ -101,12 +101,12 @@ export const buildPlatformChannelCond = async (platform, channel, prefix = '') =
     if (pArr.length > 0) {
         return `lower(replace(${formattedPrefix}Platform, ' ', '_')) IN (${pArr.map(p => `'${escapeStr(p.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`;
     }
-    
+
     // Fallback if no platforms resolved but channel is selected (prevent empty return which acts as NO filter)
     if (channel && channel !== 'All') {
         const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
         const searchPattern = isEcom ? '%ecom%' : (channel.toLowerCase().includes('quick') ? '%quick%' : `%${escapeStr(channel.toLowerCase())}%`);
-        
+
         try {
             // Try identifying if rb_pdp_olap has a channel column safely
             const rbpCols = await getTableColumns('rb_pdp_olap');
@@ -117,7 +117,7 @@ export const buildPlatformChannelCond = async (platform, channel, prefix = '') =
         } catch (e) {
             console.error(`[buildPlatformChannelCond] fallback col resolution failed:`, e.message);
         }
-        
+
         return null;
     }
 
@@ -336,6 +336,27 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
 
     if (ownBrandsOnly === 'true' || ownBrandsOnly === true) {
         conditions.push(`${prefix}Comp_flag = 0`);
+    }
+
+    // MSL filter: when msl='1' or '0', only show SKUs that match the MSL filter value
+    let mslArr = [];
+    if (filters.msl !== undefined && filters.msl !== null && filters.msl !== 'All' && filters.msl !== 'all' && filters.msl !== '') {
+        if (Array.isArray(filters.msl)) {
+            mslArr = filters.msl.filter(v => v !== 'All' && v !== 'all');
+        } else if (typeof filters.msl === 'string') {
+            mslArr = filters.msl.split(',').map(s => s.trim()).filter(s => s && s !== 'All' && s !== 'all');
+        } else {
+            mslArr = [String(filters.msl)];
+        }
+    }
+    if (mslArr.includes('1') && !mslArr.includes('0')) {
+        try {
+            const pdpColsMatrix = await getTableColumns('rb_pdp_olap');
+            const actualMslCol = resolveColumn(pdpColsMatrix, 'msl', 'msl');
+            conditions.push(`toString(${prefix}${actualMslCol}) = '1'`);
+        } catch (e) {
+            conditions.push(`toString(${prefix}msl) = '1'`);
+        }
     }
 
     // Reseller_Name filter (DRL DB context only)
@@ -782,7 +803,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             try {
                 const check = await queryClickHouse(`SELECT DISTINCT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2')`);
                 metroLocationList = check.map(r => `'${escapeStr(r.location)}'`);
-            } catch (e) {}
+            } catch (e) { }
 
             const metroFilter = metroLocationList.length > 0 ? `Location IN (${metroLocationList.join(',')})` : '1=0';
 
@@ -792,8 +813,10 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
 
             // Check if delivery_date column exists before using it
             let deliveryDaysSQL = 'NULL';
+            let mslCol = 'msl';
             try {
                 const pdpColsMatrix = await getTableColumns('rb_pdp_olap');
+                mslCol = resolveColumn(pdpColsMatrix, 'MSL', 'msl');
                 if (columnExists(pdpColsMatrix, 'delivery_date')) {
                     deliveryDaysSQL = `
                         IF(
@@ -838,7 +861,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
-                    SUM(ifNull(toFloat64OrZero(toString(t1.MSL)), 0)) as sum_msl,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.${mslCol})), 0)) as sum_msl,
                     SUM(ifNull(toFloat64OrZero(toString(t1.Sales)), 0)) as sum_sales,
                     SUM(if(isNull(t1.Sales), 1, 0)) as sales_null_count,
                     COUNT() as sales_total_count,
@@ -882,7 +905,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
-                    SUM(ifNull(toFloat64OrZero(toString(t1.MSL)), 0)) as sum_msl,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.${mslCol})), 0)) as sum_msl,
                     SUM(ifNull(toFloat64OrZero(toString(t1.Sales)), 0)) as sum_sales,
                     SUM(if(isNull(t1.Sales), 1, 0)) as sales_null_count,
                     COUNT() as sales_total_count,
@@ -1094,7 +1117,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as sum_neno,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_deno,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as sum_buybox_neno,
-                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.MSL)), 0), 0)) as sum_msl,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.${mslCol})), 0), 0)) as sum_msl,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.Sales)), 0), 0)) as sum_sales,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', if(isNull(t1.Sales), 1, 0), 0)) as sales_null_count,
                         SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', 1, 0)) as sales_total_count,
@@ -1337,7 +1360,7 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
             const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
-            
+
             let prevStartDate, prevEndDate;
             if (filters.compareStartDate && filters.compareEndDate) {
                 prevStartDate = dayjs(filters.compareStartDate);
@@ -1374,7 +1397,7 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
 
                 // Normalize filters to arrays (parseFilter may return a string for single values)
                 const toArr = (v) => !v || v === 'All' ? [] : (Array.isArray(v) ? v : [v]);
-                
+
                 let msConds = [];
                 const platArr = toArr(ms.platform);
                 if (platArr.length > 0) {
@@ -1406,7 +1429,7 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
             const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
             const brandResult = await queryClickHouse(brandQuery);
             const ourBrands = brandResult.map(b => b.brand_name).filter(Boolean);
-            const marsCond = ourBrands.length > 0 
+            const marsCond = ourBrands.length > 0
                 ? `lower(group_brand) IN (${ourBrands.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`
                 : "1=0";
 
@@ -1443,17 +1466,17 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
             if (columnValues.length === 0) {
                 return { viewMode, columns: ['KPI'], rows: [], applicableDrillItems: [], filters, timestamp: new Date().toISOString() };
             }
-            
+
             const groupValuesFilter = `${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})`;
-            
+
             // Map MS grouping values (resolving naming mismatch between OLAPs)
             let mappedColumnValues = [...columnValues];
             if (groupColumn === 'Category') {
-               mappedColumnValues = columnValues.map(c => {
-                   if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
-                   if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
-                   return c;
-               });
+                mappedColumnValues = columnValues.map(c => {
+                    if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                    if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                    return c;
+                });
             }
             const msGroupValuesFilter = `${msGroupColumn} IN (${mappedColumnValues.map(v => `'${escapeStr(v)}'`).join(',')})`;
 
@@ -1508,13 +1531,13 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
 
             // Re-map MS raw values back to standard PDP OLAP names
             const mapMsByCol = (arr) => arr.reduce((acc, curr) => {
-               let standardVal = curr.col_value_raw;
-               if (groupColumn === 'Category') {
-                   if (standardVal === 'Chocolates (Non Gifting)') standardVal = 'Chocolates';
-                   else if (standardVal === 'Chocolates (Gifting)') standardVal = 'Chocolate Gift Pack';
-               }
-               acc[standardVal] = curr;
-               return acc;
+                let standardVal = curr.col_value_raw;
+                if (groupColumn === 'Category') {
+                    if (standardVal === 'Chocolates (Non Gifting)') standardVal = 'Chocolates';
+                    else if (standardVal === 'Chocolates (Gifting)') standardVal = 'Chocolate Gift Pack';
+                }
+                acc[standardVal] = curr;
+                return acc;
             }, {});
             const msMap = mapMsByCol(msRes);
             const prevMsMap = mapMsByCol(prevMsRes);
@@ -1531,7 +1554,7 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                 const currDeno = parseFloat(osaMap[colValue]?.sum_deno || 0);
                 const prevNeno = parseFloat(prevOsaMap[colValue]?.sum_neno || 0);
                 const prevDeno = parseFloat(prevOsaMap[colValue]?.sum_deno || 0);
-                
+
                 const hasOsaData = osaMap[colValue] !== undefined && currDeno > 0;
                 const currOsa = hasOsaData ? (currNeno / currDeno) * 100 : null;
                 const hasPrevOsaData = prevOsaMap[colValue] !== undefined && prevDeno > 0;
@@ -1545,7 +1568,7 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                 const currCatSales = parseFloat(msMap[colValue]?.curr_cat_sales || 0);
                 const prevMwSales = parseFloat(prevMsMap[colValue]?.prev_mw_sales || 0);
                 const prevCatSales = parseFloat(prevMsMap[colValue]?.prev_cat_sales || 0);
-                
+
                 const hasMsData = msMap[colValue] !== undefined && currCatSales > 0;
                 const currMs = hasMsData ? (currMwSales / currCatSales) * 100 : null;
                 const hasPrevMsData = prevMsMap[colValue] !== undefined && prevCatSales > 0;
@@ -1557,7 +1580,7 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
 
             // --- BREAKDOWN LOGIC ---
             const { drillDimension = 'region', includeBreakdown = false } = filters;
-            
+
             if (includeBreakdown && drillDimension === 'region') {
                 const regionBreakdownQuery = `
                     WITH location_mapping AS (
@@ -1592,7 +1615,7 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                     kpiRows.osa.breakdown[col_value][drill_item] = deno > 0 ? Math.round((neno / deno) * 100) : 0;
                 }
                 kpiRows.applicableDrillItems = Array.from(drillItemsSet).sort();
-                
+
                 // MS Region Breakdown
                 const msRegionBreakdownQuery = `
                     WITH location_mapping AS (
@@ -1613,7 +1636,7 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                     GROUP BY col_value_raw, drill_item
                     HAVING drill_item IS NOT NULL AND drill_item != ''
                 `;
-                
+
                 const msBreakdownRes = await queryClickHouse(msRegionBreakdownQuery);
                 for (const row of msBreakdownRes) {
                     let standardVal = row.col_value_raw;
@@ -1639,17 +1662,17 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                     GROUP BY col_value, drill_item
                 `;
                 const breakdownRes = await queryClickHouse(periodBreakdownQuery);
-                
+
                 const formatPeriodLocal = (res) => {
-                     return res.map(row => {
-                         const dateObj = dayjs(row.drill_item);
-                         const weekStart = dateObj.format('DD MMM');
-                         const weekEnd = dateObj.add(6, 'day').format('DD MMM');
-                         return { ...row, drill_item: `${weekStart} - ${weekEnd}` };
-                     });
+                    return res.map(row => {
+                        const dateObj = dayjs(row.drill_item);
+                        const weekStart = dateObj.format('DD MMM');
+                        const weekEnd = dateObj.add(6, 'day').format('DD MMM');
+                        return { ...row, drill_item: `${weekStart} - ${weekEnd}` };
+                    });
                 };
-                const formattedRes = formatPeriodLocal(breakdownRes); 
-                
+                const formattedRes = formatPeriodLocal(breakdownRes);
+
                 const drillItemsSet = new Set();
                 for (const row of formattedRes) {
                     const { col_value, drill_item } = row;
@@ -1659,7 +1682,7 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                     const deno = parseFloat(row.sum_deno || 0);
                     kpiRows.osa.breakdown[col_value][drill_item] = deno > 0 ? Math.round((neno / deno) * 100) : 0;
                 }
-                
+
                 const msPeriodBreakdownQuery = `
                     SELECT 
                         ${msGroupColumn} as col_value_raw,
@@ -1698,7 +1721,7 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                 `;
                 const dbBrands = (await queryClickHouse(topBrandsQuery)).map(r => r.drill_item);
                 const drillItemsSet = new Set(dbBrands);
-                
+
                 if (drillItemsSet.size > 0) {
                     const compBreakdownQuery = `
                         SELECT 
@@ -1713,7 +1736,7 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                         GROUP BY col_value, drill_item
                     `;
                     const breakdownRes = await queryClickHouse(compBreakdownQuery);
-                    
+
                     for (const row of breakdownRes) {
                         const { col_value, drill_item } = row;
                         if (!kpiRows.osa.breakdown[col_value]) kpiRows.osa.breakdown[col_value] = {};
@@ -1801,7 +1824,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     const allDatesArr = results.map(r => dayjs(r.DATE).format('YYYY-MM-DD')).sort();
                     const maxAvailableDate = dayjs(allDatesArr[allDatesArr.length - 1]);
                     const twelveMonthsAgo = maxAvailableDate.subtract(12, 'months');
-                    
+
                     const earliestDataDate = dayjs(allDatesArr[0]);
                     // Limit to maximum 12 months from the latest available date
                     rangeStart = earliestDataDate.isBefore(twelveMonthsAgo) ? twelveMonthsAgo.format('YYYY-MM-DD') : earliestDataDate.format('YYYY-MM-DD');
@@ -1950,7 +1973,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
             }).filter(Boolean).sort((a, b) => b.avgSelected - a.avgSelected || a.name.localeCompare(b.name));
 
             const escapeStr = (str) => String(str).replace(/'/g, "''");
-            
+
             // Fetch SKU images from rb_sku_platform
             if (formattedData.length > 0) {
                 try {
@@ -1964,12 +1987,12 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                         GROUP BY w_pid
                     `;
                     const imgData = await queryClickHouse(imgQuery);
-                    
+
                     const imgMap = {};
                     imgData.forEach(r => {
                         imgMap[r.w_pid] = r.img_url;
                     });
-                    
+
                     formattedData.forEach(item => {
                         item.imageUrl = imgMap[item.sku] || null;
                     });
@@ -1997,7 +2020,7 @@ const getDOI = async (filters) => {
 
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.startOf('month');
-            
+
             let prevStartDate, prevEndDate;
             if (filters.compareStartDate && filters.compareEndDate) {
                 prevStartDate = dayjs(filters.compareStartDate);
@@ -2231,7 +2254,7 @@ const getMetroCityStockAvailability = async (filters) => {
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.startOf('month');
             const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
-            
+
             let prevStartDate, prevEndDate;
             if (filters.compareStartDate && filters.compareEndDate) {
                 prevStartDate = dayjs(filters.compareStartDate);
@@ -2325,7 +2348,7 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
         try {
             const pdpColsMap = await getTableColumns('rb_pdp_olap');
             const actualCatCol = resolveColumn(pdpColsMap, 'Category', 'Category');
-            
+
             const platformCond = await buildPlatformChannelCond(platform, channel);
             const whereClause = platformCond ? `WHERE ${actualCatCol} IS NOT NULL AND ${actualCatCol} != '' AND ${platformCond}` : `WHERE ${actualCatCol} IS NOT NULL AND ${actualCatCol} != ''`;
 
@@ -2690,8 +2713,10 @@ const getAvailabilityKpiTrends = async (filters) => {
             // Check if delivery_date and buy_box_neno_osa columns exist before using them
             let deliveryDaysSQL = 'NULL';
             let buyBoxSQL = '0';
+            let mslCol = 'msl';
             try {
                 const pdpCols = await getTableColumns('rb_pdp_olap');
+                mslCol = resolveColumn(pdpCols, 'MSL', 'msl');
                 if (columnExists(pdpCols, 'delivery_date')) {
                     deliveryDaysSQL = `
                         IF(
@@ -2739,7 +2764,7 @@ const getAvailabilityKpiTrends = async (filters) => {
                         SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sum_sales,
                         SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as total_inventory,
                         SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty_sold,
-                        SUM(toFloat64OrZero(toString(MSL))) as total_msl,
+                        SUM(toFloat64OrZero(toString(${mslCol}))) as total_msl,
                         COUNT(DISTINCT Web_Pid) as assortment_count,
                         AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
                     FROM rb_pdp_olap

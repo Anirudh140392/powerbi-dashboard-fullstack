@@ -57,6 +57,7 @@ async function getSource() {
             product: r('Product'),
             skuCode: r('Web_Pid'),
             image: hasImage ? imageColName : "''",
+            msl: 'msl',
         }
     };
 }/**
@@ -186,6 +187,12 @@ export const getCompareSkuProducts = async (filters = {}) => {
             conditions.push(`${src.f.location} IN(${locArrProd.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
 
+        // MSL filter
+        const mslArr = normalizeFilterArray(filters.msl);
+        if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
+            conditions.push(`toString(${src.f.msl}) = '1'`);
+        }
+
         // Text search on Product name
         if (search && search.trim()) {
             conditions.push(`LOWER(toString(${src.f.product})) LIKE '%${escapeStr(search.trim().toLowerCase())}%'`);
@@ -233,18 +240,18 @@ export const getCompareSkuProducts = async (filters = {}) => {
         `);
 
         // Fetch mapped images from rb_sku_platform using web_pid
-        const webPids = productsResult.map(r => r.webPid).filter(Boolean);
+        const webPids = productsResult.map(r => r.webPid ? String(r.webPid).toLowerCase() : '').filter(Boolean);
         let imageUrlsMap = {};
         if (webPids.length > 0) {
             try {
                 const imgData = await queryClickHouse(`
-                    SELECT web_pid, any(image_url) as img 
+                    SELECT LOWER(web_pid) as web_pid, any(image_url) as img 
                     FROM rb_sku_platform 
-                    WHERE web_pid IN (${webPids.map(id => `'${escapeStr(id)}'`).join(',')}) 
+                    WHERE LOWER(web_pid) IN (${webPids.map(id => `'${escapeStr(id)}'`).join(',')}) 
                     GROUP BY web_pid
                 `);
                 imgData.forEach(row => { 
-                    imageUrlsMap[row.web_pid] = row.img; 
+                    imageUrlsMap[String(row.web_pid).toLowerCase()] = row.img; 
                 });
             } catch (imgError) {
                 console.error('[compareSkuService.getCompareSkuProducts] Failed to fetch mapped images from rb_sku_platform:', imgError);
@@ -252,15 +259,18 @@ export const getCompareSkuProducts = async (filters = {}) => {
         }
 
         return {
-            products: productsResult.map((r, idx) => ({
-                id: `${r.name}_${idx}`,
-                name: r.name,
-                platform: r.platform || '',
-                brand: r.brand || '',
-                category: r.category || '',
-                size: '',  // Size not stored as separate column
-                imageUrl: imageUrlsMap[r.webPid] ? String(imageUrlsMap[r.webPid]).split(',')[0].trim() : '',
-            })),
+            products: productsResult.map((r, idx) => {
+                const lookupKey = r.webPid ? String(r.webPid).toLowerCase() : '';
+                return {
+                    id: `${r.name}_${idx}`,
+                    name: r.name,
+                    platform: r.platform || '',
+                    brand: r.brand || '',
+                    category: r.category || '',
+                    size: '',  // Size not stored as separate column
+                    imageUrl: imageUrlsMap[lookupKey] ? String(imageUrlsMap[lookupKey]).split(',')[0].trim() : '',
+                };
+            }),
             total: totalCount,
             page: parseInt(page),
             limit: parseInt(limit),

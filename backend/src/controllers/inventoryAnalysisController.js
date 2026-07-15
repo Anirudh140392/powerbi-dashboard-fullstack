@@ -84,6 +84,20 @@ export const GetInventoryLocations = async (req, res) => {
 };
 
 /**
+ * Get available MSL values for inventory analysis filters
+ */
+export const GetInventoryMsls = async (req, res) => {
+    try {
+        const { channel, platform, category, brand, location } = req.query;
+        const msls = await inventoryAnalysisService.getMsls(channel, platform, category, brand, location);
+        res.json(msls);
+    } catch (error) {
+        console.error('Error fetching inventory MSL values:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
  * Get Inventory Matrix data
  */
 export const GetInventoryMatrix = async (req, res) => {

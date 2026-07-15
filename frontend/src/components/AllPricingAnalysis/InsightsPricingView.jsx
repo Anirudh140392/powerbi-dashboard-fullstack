@@ -212,6 +212,7 @@ export default function InsightsPricingView({ loading = false }) {
         compareStart,
         compareEnd,
         datesInitialized,
+        selectedMsl,
     } = useContext(FilterContext);
 
     const [insightsData, setInsightsData] = useState({
@@ -242,6 +243,18 @@ export default function InsightsPricingView({ loading = false }) {
                 if (selectedBrand && selectedBrand !== 'All') params.brand = toStr(selectedBrand);
                 if (selectedChannel && selectedChannel !== 'All') params.channel = toStr(selectedChannel);
 
+                const hasMslFilter = (val) => {
+                    if (!val) return false;
+                    if (Array.isArray(val)) {
+                        return val.length > 0 && !val.includes('All') && !val.includes('all');
+                    }
+                    return val !== 'All' && val !== 'all';
+                };
+
+                if (hasMslFilter(selectedMsl)) {
+                    params.msl = toStr(selectedMsl);
+                }
+
                 console.log("[InsightsPricingView] Fetching Insights with params:", params);
                 const response = await axiosInstance.get('/pricing-analysis/insights', { params });
 
@@ -259,7 +272,7 @@ export default function InsightsPricingView({ loading = false }) {
         };
 
         fetchInsights();
-    }, [timeStart, timeEnd, compareStart, compareEnd, datesInitialized, globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand]);
+    }, [timeStart, timeEnd, compareStart, compareEnd, datesInitialized, globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand, selectedMsl]);
 
     const data = useMemo(() => insightsData[activeTab] || [], [activeTab, insightsData]);
 

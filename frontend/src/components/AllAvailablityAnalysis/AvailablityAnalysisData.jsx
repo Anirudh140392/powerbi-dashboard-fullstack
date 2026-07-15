@@ -1498,6 +1498,8 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
             olaMode={availability}
             loading={isLoading}
             apiData={apiData}
+            mslFilter={props.mslFilter}
+            onMslChange={props.onMslChange}
             onFiltersChange={(matrixFilters) => {
               if (!props.onFiltersChange) return;
               const mappedFilters = {};

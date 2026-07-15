@@ -116,7 +116,7 @@ export default function DashboardHeadersFilters({
           <MenuItem value="All">All</MenuItem>
           {msls.map((m) => (
             <MenuItem key={m} value={m}>
-              {m}
+              {m === "1" ? "Top SKUs" : (m === "0" ? "All SKUs" : m)}
             </MenuItem>
           ))}
         </Select>

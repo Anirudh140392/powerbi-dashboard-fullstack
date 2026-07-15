@@ -91,6 +91,21 @@ async function getOneViewPriceGrid(filters = {}) {
             filterClauses.push(`${gramCol} = '${filters.ml}'`);
         }
 
+        // MSL filter
+        let mslArr = [];
+        if (filters.msl !== undefined && filters.msl !== null && filters.msl !== 'All' && filters.msl !== 'all' && filters.msl !== '') {
+            if (Array.isArray(filters.msl)) {
+                mslArr = filters.msl.filter(v => v !== 'All' && v !== 'all');
+            } else if (typeof filters.msl === 'string') {
+                mslArr = filters.msl.split(',').map(s => s.trim()).filter(s => s && s !== 'All' && s !== 'all');
+            } else {
+                mslArr = [String(filters.msl)];
+            }
+        }
+        if (mslArr.includes('1') && !mslArr.includes('0')) {
+            filterClauses.push(`toString(p.msl) = '1'`);
+        }
+
         // Combine all filter clauses
         const additionalFilters = filterClauses.length > 0
             ? 'AND ' + filterClauses.join(' AND ')

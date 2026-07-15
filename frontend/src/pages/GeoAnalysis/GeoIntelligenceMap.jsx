@@ -40,6 +40,7 @@ export default function GeoIntelligenceMap() {
         platform: globalPlatform,
         selectedChannel,
         platforms: contextPlatforms,
+        msls,
     } = useContext(FilterContext);
 
     const mapContainer = useRef(null);
@@ -55,6 +56,43 @@ export default function GeoIntelligenceMap() {
     const [platforms, setPlatforms] = useState([]);
     const [category, setCategory] = useState("All");
     const [categories, setCategories] = useState([]);
+
+    // --- MSL Filter State & Actions ---
+    const [selectedMsls, setSelectedMsls] = useState(["All"]);
+    const [mslDropdownOpen, setMslDropdownOpen] = useState(false);
+    const mslRef = useRef(null);
+
+    // Click outside listener for MSL dropdown
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (mslRef.current && !mslRef.current.contains(event.target)) {
+                setMslDropdownOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
+
+    const handleMslChange = (val) => {
+        const availableMsls = msls && msls.length > 0 ? msls : ["0", "1"];
+        if (val === "All") {
+            setSelectedMsls(["All"]);
+        } else {
+            let next = [...selectedMsls].filter(x => x !== "All");
+            if (next.includes(val)) {
+                next = next.filter(x => x !== val);
+            } else {
+                next.push(val);
+            }
+            if (next.length === 0 || next.length === availableMsls.length) {
+                setSelectedMsls(["All"]);
+            } else {
+                setSelectedMsls(next);
+            }
+        }
+    };
 
     // --- Sync platform from global FilterContext (sidebar channel/platform selection) ---
     useEffect(() => {
@@ -151,6 +189,10 @@ export default function GeoIntelligenceMap() {
                     params += `&channel=${encodeURIComponent(selectedChannel)}`;
                 }
 
+                if (selectedMsls && !selectedMsls.includes("All") && selectedMsls.length > 0) {
+                    params += `&msl=${encodeURIComponent(selectedMsls.join(','))}`;
+                }
+
                 const res = await axiosInstance.get('/map-intellect/data', { params: Object.fromEntries(new URLSearchParams(params)) });
                 if (res.data && res.data.cities) {
                     let citiesData = res.data.cities;
@@ -180,7 +222,7 @@ export default function GeoIntelligenceMap() {
             }
         };
         fetchData();
-    }, [platform, metric, timePeriod, category, selectedChannel]); // Added category and channel dependency
+    }, [platform, metric, timePeriod, category, selectedChannel, selectedMsls]); // Added category, channel, and selectedMsls dependency
 
     // --- Intercept Nation-level Data ---
     const nationData = useMemo(() => {
@@ -429,10 +471,10 @@ export default function GeoIntelligenceMap() {
                         border: "1px solid #e2e8f0",
                         marginBottom: "16px",
                         boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-                        flexWrap: "nowrap",
-                        overflowX: "auto",
-                        scrollbarWidth: "none",
-                        msOverflowStyle: "none",
+                        flexWrap: "wrap",
+                        overflow: "visible",
+                        position: "relative",
+                        zIndex: 10,
                         width: "100%",
                         boxSizing: "border-box"
                     }}>
@@ -494,6 +536,82 @@ export default function GeoIntelligenceMap() {
                                 <div style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
                                     <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
+
+                        {/* MSL Dropdown */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                            <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>MSL</span>
+                            <div style={{ position: "relative" }} ref={mslRef}>
+                                <button
+                                    onClick={() => setMslDropdownOpen(!mslDropdownOpen)}
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        gap: "8px",
+                                        background: "#f8fafc",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: "8px",
+                                        padding: "6px 12px",
+                                        fontSize: "12px",
+                                        fontWeight: "700",
+                                        color: "#0f172a",
+                                        cursor: "pointer",
+                                        minWidth: "100px",
+                                        textAlign: "left"
+                                    }}
+                                >
+                                    <span>
+                                        {selectedMsls.includes("All") || selectedMsls.length === 0
+                                            ? "All"
+                                            : selectedMsls.join(", ")}
+                                    </span>
+                                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ transform: mslDropdownOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+                                        <path d="M1 1L5 5L9 1" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                </button>
+                                {mslDropdownOpen && (
+                                    <div style={{
+                                        position: "absolute",
+                                        top: "100%",
+                                        left: 0,
+                                        zIndex: 100,
+                                        background: "white",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: "8px",
+                                        boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+                                        padding: "8px",
+                                        marginTop: "4px",
+                                        minWidth: "120px",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "6px"
+                                    }}>
+                                        <label style={{ display: "flex", alignItems: "center", gap: "8px", padding: "4px 8px", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "600", color: "#1e293b", userSelect: "none" }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedMsls.includes("All")}
+                                                onChange={() => handleMslChange("All")}
+                                                style={{ cursor: "pointer" }}
+                                            />
+                                            All
+                                        </label>
+                                        {(msls && msls.length > 0 ? msls : ["0", "1"]).map(val => (
+                                            <label key={val} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "4px 8px", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: "600", color: "#1e293b", userSelect: "none" }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedMsls.includes(val)}
+                                                    onChange={() => handleMslChange(val)}
+                                                    style={{ cursor: "pointer" }}
+                                                />
+                                                {val}
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
 

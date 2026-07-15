@@ -4,7 +4,7 @@ import MarketShareAnalysis from "../../components/AllMarketShares/MarketShareAna
 import { FilterContext } from "../../utils/FilterContext";
 
 export default function MarketShares() {
-  const { refreshFilters, refreshDates } = useContext(FilterContext);
+  const { refreshFilters, refreshDates, platform } = useContext(FilterContext);
   const [showTrends, setShowTrends] = useState(false);
 
   // Restore comprehensive platform list and refresh latest dates
@@ -15,7 +15,7 @@ export default function MarketShares() {
   }, [refreshFilters]);
 
   const [filters, setFilters] = useState({
-    platform: "Blinkit",
+    platform: platform || "",
     months: 6,
     timeStep: "Monthly",
   });
@@ -23,8 +23,13 @@ export default function MarketShares() {
   const [trendParams, setTrendParams] = useState({
     months: 6,
     timeStep: "Monthly",
-    platform: "Blinkit",
+    platform: platform || "",
   });
+
+  useEffect(() => {
+    setFilters(prev => ({ ...prev, platform: platform || prev.platform }));
+    setTrendParams(prev => ({ ...prev, platform: platform || prev.platform }));
+  }, [platform]);
 
   const [trendData, setTrendData] = useState({
     timeSeries: [],
@@ -71,7 +76,7 @@ export default function MarketShares() {
 
     setTrendParams((prev) => ({
       ...prev,
-      platform: card.name ?? "Blinkit",
+      platform: card.name ?? filters.platform ?? platform ?? "",
     }));
 
     setShowTrends(true);

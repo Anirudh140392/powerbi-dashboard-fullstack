@@ -76,7 +76,7 @@ const formatKpiValue = (value, kpiKey) => {
 
 const kpiLabels = {
     discount: 'Discount %',
-    pricePerUnit: 'Price/Unit 1g / 1 piece',
+    pricePerUnit: 'Price per Unit',
     asp: 'Average Selling Price',
 };
 
@@ -91,7 +91,7 @@ const LatestOverivewCatCity = ({
     const { openHelpWithMenu } = useHelp();
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
         { key: 'discount', label: 'Discount %' },
-        { key: 'pricePerUnit', label: 'Price/Unit 1g / 1 piece', infoTooltip: 'Wt. PPU represents the average price per unit across a category, with each SKU weighted based on its sales.' },
+        { key: 'pricePerUnit', label: 'Price per Unit', infoTooltip: 'Wt. PPU represents the average price per unit across a category, with each SKU weighted based on its sales.' },
         { key: 'asp', label: 'Average Selling Price' },
     ], [propKpis]);
 
@@ -110,6 +110,7 @@ const LatestOverivewCatCity = ({
         platforms: contextPlatforms,
         categories: contextCategories,
         locations: contextLocations,
+        selectedMsl,
     } = useContext(FilterContext);
 
     // ✅ Dimension + Tier State
@@ -230,6 +231,21 @@ const LatestOverivewCatCity = ({
                 const sk = toParam(advancedFilters.skus?.length > 0 ? advancedFilters.skus : null);
                 if (sk) params.append('sku', sk);
 
+                // MSL filter (global takes priority, fallback to advanced filters)
+                const hasMslFilter = (val) => {
+                    if (!val) return false;
+                    if (Array.isArray(val)) {
+                        return val.length > 0 && !val.includes('All') && !val.includes('all');
+                    }
+                    return val !== 'All' && val !== 'all';
+                };
+                const mslParam = hasMslFilter(selectedMsl) 
+                    ? toParam(selectedMsl) 
+                    : (advancedFilters.msl && advancedFilters.msl !== '0' ? advancedFilters.msl : null);
+                if (mslParam) {
+                    params.append('msl', mslParam);
+                }
+
                 params.append('dimension', dimension);
                 // if (drilldownSku) params.append('sku', drilldownSku); // No longer needed for main list
                 
@@ -261,7 +277,7 @@ const LatestOverivewCatCity = ({
         };
         fetchData();
         return () => { isMounted = false; };
-    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, globalPlatform, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.dateFrom, advancedFilters.dateTo]);
+    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, globalPlatform, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.dateFrom, advancedFilters.dateTo, advancedFilters.msl, selectedMsl]);
 
     // Reset pagination when dimension or filters change
     useEffect(() => {
@@ -298,6 +314,21 @@ const LatestOverivewCatCity = ({
             
             const ch = toParam(selectedChannel); 
             if (ch) params.append('channel', ch);
+
+            // MSL filter (global takes priority, fallback to advanced filters)
+            const hasMslFilter = (val) => {
+                if (!val) return false;
+                if (Array.isArray(val)) {
+                    return val.length > 0 && !val.includes('All') && !val.includes('all');
+                }
+                return val !== 'All' && val !== 'all';
+            };
+            const mslParam = hasMslFilter(selectedMsl) 
+                ? toParam(selectedMsl) 
+                : (advancedFilters.msl && advancedFilters.msl !== '0' ? advancedFilters.msl : null);
+            if (mslParam) {
+                params.append('msl', mslParam);
+            }
 
             params.append('dimension', 'city');
             params.append('sku', skuName);
@@ -359,6 +390,7 @@ const LatestOverivewCatCity = ({
         advancedFilters.skus?.length > 0,
         advancedFilters.dateFrom !== '',
         advancedFilters.dateTo !== '',
+        advancedFilters.msl === '1',
     ].filter(Boolean).length
 
     const currentDimension = dimensionData[dimension]

@@ -72,6 +72,7 @@ const FILTER_TABS = [
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "City", icon: MapPin },
+  { key: "msl", label: "MSL", icon: Hash },
 ];
 
 function WatchTowerFilterModal({
@@ -82,6 +83,7 @@ function WatchTowerFilterModal({
   brands, selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
   isBusinessOverview = false,
+  msls = [], selectedMsl, setSelectedMsl,
 }) {
   const hasRestrictedPlatforms = React.useMemo(() => {
     try {
@@ -104,12 +106,14 @@ function WatchTowerFilterModal({
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
   const [draftBrand, setDraftBrand] = React.useState(selectedBrand);
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
+  const [draftMsl, setDraftMsl] = React.useState(selectedMsl);
 
   // ─── Local option lists (cascaded from draft selections) ───
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
   const [localBrands, setLocalBrands] = React.useState(brands);
   const [localLocations, setLocalLocations] = React.useState(locations);
+  const [localMsls, setLocalMsls] = React.useState(msls);
 
   const availableTabs = hideChannelPlatform
     ? FILTER_TABS.filter(t => t.key !== "channel" && t.key !== "platform")
@@ -123,10 +127,12 @@ function WatchTowerFilterModal({
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedBrand);
       setDraftLocation(selectedLocation);
+      setDraftMsl(selectedMsl);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalLocations(locations);
+      setLocalMsls(msls);
       setActiveTab(hideChannelPlatform ? "category" : "channel");
       setSearchTerm("");
     }
@@ -221,6 +227,7 @@ function WatchTowerFilterModal({
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
+    msl: { options: localMsls, value: draftMsl, onChange: setDraftMsl },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -290,6 +297,7 @@ function WatchTowerFilterModal({
     setSelectedCategory(normalize(draftCategory));
     setSelectedBrand(normalize(draftBrand));
     if (setSelectedLocation) setSelectedLocation(normalize(draftLocation));
+    if (setSelectedMsl) setSelectedMsl(normalize(draftMsl));
     onClose();
   };
 
@@ -307,6 +315,7 @@ function WatchTowerFilterModal({
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
+    setDraftMsl("All");
   };
 
   // total active filter count across all tabs
@@ -613,10 +622,10 @@ function WatchTowerFilterModal({
                         color: isChecked ? "#1e40af" : "#475569",
                         fontFamily: "'Inter', 'Roboto', sans-serif",
                         transition: "all 0.15s ease",
-                        textTransform: 'capitalize',
+                        textTransform: activeTab === "msl" ? 'none' : 'capitalize',
                       }}
                     >
-                      {opt}
+                      {activeTab === "msl" ? (opt === "1" ? "Top SKUs" : (opt === "0" ? "All SKUs" : opt)) : opt}
                     </Typography>
                   </Box>
                 );
@@ -1734,6 +1743,7 @@ const AVAIL_FILTER_TABS = [
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
+  { key: "msl", label: "MSL", icon: Hash },
 ];
 
 function AvailabilityFilterModal({
@@ -1743,6 +1753,7 @@ function AvailabilityFilterModal({
   categories = [], selectedCategory, setSelectedCategory,
   brands = [], selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
+  msls = [], selectedMsl = "All", setSelectedMsl,
   hideChannel = false,
 }) {
   const availableTabs = hideChannel ? AVAIL_FILTER_TABS.filter(t => t.key !== "channel") : AVAIL_FILTER_TABS;
@@ -1754,6 +1765,7 @@ function AvailabilityFilterModal({
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
   const [draftBrand, setDraftBrand] = React.useState(selectedBrand);
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
+  const [draftMsl, setDraftMsl] = React.useState(selectedMsl);
 
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
@@ -1767,6 +1779,7 @@ function AvailabilityFilterModal({
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedBrand);
       setDraftLocation(selectedLocation);
+      setDraftMsl(selectedMsl);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
@@ -1899,6 +1912,7 @@ function AvailabilityFilterModal({
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
+    msl: { options: msls.length > 0 ? msls : ["0", "1"], value: draftMsl, onChange: setDraftMsl },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -1911,7 +1925,7 @@ function AvailabilityFilterModal({
   };
 
   const selected = getSelected(value, options);
-  const filteredOptions = options.filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredOptions = activeTab === "msl" ? options : options.filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const toggle = (opt) => {
     let next;
@@ -1946,6 +1960,7 @@ function AvailabilityFilterModal({
     setSelectedCategory(draftCategory);
     setSelectedBrand(draftBrand);
     setSelectedLocation(draftLocation);
+    setSelectedMsl(draftMsl);
     onClose();
   };
 
@@ -1959,6 +1974,7 @@ function AvailabilityFilterModal({
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
+    setDraftMsl("All");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -2148,54 +2164,56 @@ function AvailabilityFilterModal({
               </Box>
             </Box>
 
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 1.5 }}>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={selectAll}
-                sx={{
-                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
-                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
-                  fontFamily: "'Inter', 'Roboto', sans-serif",
-                  "&:hover": { borderColor: "#2563eb", color: "#2563eb", bgcolor: "#eff6ff" },
-                  transition: "all 0.15s ease",
-                }}
-              >
-                Select all
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={clearAll}
-                sx={{
-                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
-                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
-                  fontFamily: "'Inter', 'Roboto', sans-serif",
-                  "&:hover": { borderColor: "#ef4444", color: "#ef4444", bgcolor: "#fef2f2" },
-                  transition: "all 0.15s ease",
-                }}
-              >
-                Clear
-              </Button>
-              <TextField
-                size="small"
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                InputProps={{
-                  startAdornment: <Search size={14} style={{ marginRight: 6, color: "#94a3b8" }} />,
-                  sx: {
-                    borderRadius: "10px", bgcolor: "#f8fafc", height: "32px",
-                    fontSize: "0.78rem",
+            {activeTab !== "msl" && (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 1.5 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={selectAll}
+                  sx={{
+                    textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                    borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
                     fontFamily: "'Inter', 'Roboto', sans-serif",
-                    "& fieldset": { borderColor: "#e2e8f0" },
-                    "&:hover fieldset": { borderColor: "#cbd5e1 !important" },
-                    "&.Mui-focused fieldset": { borderColor: "#2563eb !important", borderWidth: "1.5px !important" },
-                  },
-                }}
-                sx={{ ml: "auto", width: 190 }}
-              />
-            </Box>
+                    "&:hover": { borderColor: "#2563eb", color: "#2563eb", bgcolor: "#eff6ff" },
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  Select all
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={clearAll}
+                  sx={{
+                    textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                    borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                    fontFamily: "'Inter', 'Roboto', sans-serif",
+                    "&:hover": { borderColor: "#ef4444", color: "#ef4444", bgcolor: "#fef2f2" },
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  Clear
+                </Button>
+                <TextField
+                  size="small"
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: <Search size={14} style={{ marginRight: 6, color: "#94a3b8" }} />,
+                    sx: {
+                      borderRadius: "10px", bgcolor: "#f8fafc", height: "32px",
+                      fontSize: "0.78rem",
+                      fontFamily: "'Inter', 'Roboto', sans-serif",
+                      "& fieldset": { borderColor: "#e2e8f0" },
+                      "&:hover fieldset": { borderColor: "#cbd5e1 !important" },
+                      "&.Mui-focused fieldset": { borderColor: "#2563eb !important", borderWidth: "1.5px !important" },
+                    },
+                  }}
+                  sx={{ ml: "auto", width: 190 }}
+                />
+              </Box>
+            )}
           </Box>
 
           <Divider sx={{ borderColor: "#f1f5f9" }} />
@@ -2255,10 +2273,10 @@ function AvailabilityFilterModal({
                         color: isChecked ? "#1e40af" : "#475569",
                         fontFamily: "'Inter', 'Roboto', sans-serif",
                         transition: "all 0.15s ease",
-                        textTransform: 'capitalize',
+                        textTransform: activeTab === "msl" ? 'none' : 'capitalize',
                       }}
                     >
-                      {opt}
+                      {activeTab === "msl" ? (opt === "1" ? "Top SKUs" : (opt === "0" ? "All SKUs" : opt)) : opt}
                     </Typography>
                   </Box>
                 );
@@ -2730,13 +2748,14 @@ function VisibilityFilterModal({
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   PRICING ANALYSIS FILTER MODAL — Channel, Platform, Category, Brand, Location
+   PRICING ANALYSIS FILTER MODAL — Channel, Platform, Category, Brand, Location, MSL
    ═══════════════════════════════════════════════════════════════════ */
 const PRICING_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
+  { key: "msl", label: "MSL", icon: Hash },
 ];
 
 function PricingFilterModal({
@@ -2746,6 +2765,7 @@ function PricingFilterModal({
   categories = [], selectedCategory, setSelectedCategory,
   brands = [], selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
+  msls = [], selectedMsl = "All", setSelectedMsl,
   hideChannel = false,
 }) {
   const availableTabs = hideChannel ? PRICING_FILTER_TABS.filter(t => t.key !== "channel") : PRICING_FILTER_TABS;
@@ -2758,6 +2778,7 @@ function PricingFilterModal({
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
   const [draftBrand, setDraftBrand] = React.useState(selectedBrand);
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
+  const [draftMsl, setDraftMsl] = React.useState(selectedMsl);
 
   // ─── Local option lists ───
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
@@ -2771,12 +2792,13 @@ function PricingFilterModal({
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedBrand);
       setDraftLocation(selectedLocation);
+      setDraftMsl(selectedMsl);
 
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
 
-      setActiveTab("channel");
+      setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2851,6 +2873,7 @@ function PricingFilterModal({
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     location: { options: locations, value: draftLocation, onChange: setDraftLocation },
+    msl: { options: msls.length > 0 ? msls : ["0", "1"], value: draftMsl, onChange: setDraftMsl },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -2863,7 +2886,7 @@ function PricingFilterModal({
   };
 
   const selected = getSelected(value, options);
-  const filteredOptions = options.filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredOptions = activeTab === "msl" ? options : options.filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const toggle = (opt) => {
     let next;
@@ -2898,6 +2921,7 @@ function PricingFilterModal({
     setSelectedCategory(draftCategory);
     setSelectedBrand(draftBrand);
     setSelectedLocation(draftLocation);
+    if (setSelectedMsl) setSelectedMsl(draftMsl);
     onClose();
   };
 
@@ -2911,6 +2935,7 @@ function PricingFilterModal({
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
+    setDraftMsl("All");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -2975,7 +3000,7 @@ function PricingFilterModal({
                 return (
                   <Box key={opt} onClick={() => toggle(opt)} sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, mx: 0.5, my: 0.3, cursor: "pointer", borderRadius: "10px", bgcolor: isChecked ? "#eff6ff" : "transparent", border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent", transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)", "&:hover": { bgcolor: isChecked ? "#dbeafe" : "#f8fafc", transform: "translateX(2px)", }, }}>
                     <Checkbox size="small" checked={isChecked} sx={{ p: 0.3, color: "#cbd5e1", "&.Mui-checked": { color: "#2563eb" }, transition: "all 0.15s ease", }} />
-                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", textTransform: 'capitalize' }}>{opt}</Typography>
+                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", textTransform: activeTab === "msl" ? 'none' : 'capitalize' }}>{activeTab === "msl" ? (opt === "1" ? "Top SKUs" : (opt === "0" ? "All SKUs" : opt)) : opt}</Typography>
                   </Box>
                 );
               })
@@ -3525,6 +3550,7 @@ const INVENTORY_FILTER_TABS = [
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
+  { key: "msl", label: "MSL", icon: Hash },
 ];
 
 function InventoryFilterModal({
@@ -3534,6 +3560,7 @@ function InventoryFilterModal({
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
   locations, selectedLocation, setSelectedLocation,
+  msls = [], selectedMsl, setSelectedMsl,
   hideChannel = false,
 }) {
   const availableTabs = hideChannel ? INVENTORY_FILTER_TABS.filter(t => t.key !== "channel") : INVENTORY_FILTER_TABS;
@@ -3545,11 +3572,13 @@ function InventoryFilterModal({
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
   const [draftBrand, setDraftBrand] = React.useState(selectedBrand);
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
+  const [draftMsl, setDraftMsl] = React.useState(selectedMsl);
 
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
   const [localBrands, setLocalBrands] = React.useState(brands);
   const [localLocations, setLocalLocations] = React.useState(locations);
+  const [localMsls, setLocalMsls] = React.useState(msls);
 
   React.useEffect(() => {
     if (open) {
@@ -3558,11 +3587,13 @@ function InventoryFilterModal({
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedBrand);
       setDraftLocation(selectedLocation);
+      setDraftMsl(selectedMsl);
 
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalLocations(locations);
+      setLocalMsls(msls);
 
       setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
@@ -3657,6 +3688,30 @@ function InventoryFilterModal({
       .catch(() => { });
   }, [draftBrand, draftCategory, draftPlatform, open]);
 
+  // CASCADE: Location -> MSLs
+  React.useEffect(() => {
+    if (!open) return;
+    const platformParam = draftPlatform === "All" ? undefined : (Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform);
+    const categoryParam = draftCategory === "All" ? undefined : (Array.isArray(draftCategory) ? draftCategory.join(",") : draftCategory);
+    const brandParam = draftBrand === "All" ? undefined : (Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand);
+    const locationParam = draftLocation === "All" ? undefined : (Array.isArray(draftLocation) ? draftLocation.join(",") : draftLocation);
+
+    axiosInstance.get("/inventory-analysis/msls", { params: { platform: platformParam, brand: brandParam, category: categoryParam, location: locationParam } })
+      .then(res => {
+        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+          setLocalMsls(res.data);
+          setDraftMsl(prev => {
+            if (prev === "All") return "All";
+            const currList = Array.isArray(prev) ? prev : [prev];
+            const valid = currList.filter(m => res.data.includes(m));
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+          });
+        }
+      })
+      .catch(() => { });
+  }, [draftLocation, draftBrand, draftCategory, draftPlatform, open]);
+
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
 
   const tabConfig = {
@@ -3665,6 +3720,7 @@ function InventoryFilterModal({
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
+    msl: { options: localMsls, value: draftMsl, onChange: setDraftMsl },
   };
 
   const { options, value, onChange } = tabConfig[activeTab] || {};
@@ -3713,6 +3769,7 @@ function InventoryFilterModal({
     setSelectedCategory(draftCategory);
     setSelectedBrand(draftBrand);
     setSelectedLocation(draftLocation);
+    if (setSelectedMsl) setSelectedMsl(draftMsl);
     onClose();
   };
 
@@ -3726,6 +3783,7 @@ function InventoryFilterModal({
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
+    setDraftMsl("All");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -3790,7 +3848,7 @@ function InventoryFilterModal({
                 return (
                   <Box key={opt} onClick={() => toggle(opt)} sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, mx: 0.5, my: 0.3, cursor: "pointer", borderRadius: "10px", bgcolor: isChecked ? "#eff6ff" : "transparent", border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent", transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)", "&:hover": { bgcolor: isChecked ? "#dbeafe" : "#f8fafc", transform: "translateX(2px)", }, }}>
                     <Checkbox size="small" checked={isChecked} sx={{ p: 0.3, color: "#cbd5e1", "&.Mui-checked": { color: "#2563eb" }, transition: "all 0.15s ease", }} />
-                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", textTransform: 'capitalize' }}>{opt}</Typography>
+                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", textTransform: activeTab === "msl" ? 'none' : 'capitalize' }}>{activeTab === "msl" ? (opt === "1" ? "Top SKUs" : (opt === "0" ? "All SKUs" : opt)) : opt}</Typography>
                   </Box>
                 );
               })
@@ -3827,6 +3885,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     channels,
     selectedChannel,
     setSelectedChannel,
+    msls,
+    selectedMsl,
+    setSelectedMsl,
     brands,
     selectedBrand,
     setSelectedBrand,
@@ -4217,14 +4278,23 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                         if (title === "Availability Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
+                          if (selectedMsl !== "All" && !(Array.isArray(selectedMsl) && selectedMsl.includes("All"))) count++;
                         } else if (title === "Visibility Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedKeywordType !== "All" && !(Array.isArray(selectedKeywordType) && selectedKeywordType.includes("All"))) count++;
                           if (selectedKeyword !== "All" && !(Array.isArray(selectedKeyword) && selectedKeyword.includes("All"))) count++;
                           if (selectedRank !== "All" && !(Array.isArray(selectedRank) && selectedRank.includes("All"))) count++;
-                        } else if (title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") {
+                        } else if (title === "Pricing Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
+                          if (selectedMsl !== "All" && !(Array.isArray(selectedMsl) && selectedMsl.includes("All"))) count++;
+                        } else if (title === "Performance Marketing" || title === "Content Analysis") {
+                          if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
+                          if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
+                        } else if (title === "Inventory Analysis") {
+                          if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
+                          if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
+                          if (selectedMsl !== "All" && !(Array.isArray(selectedMsl) && selectedMsl.includes("All"))) count++;
                         } else if (title === "Market Coverage") {
                           if (currentBrand !== "All" && !(Array.isArray(currentBrand) && currentBrand.includes("All"))) count++;
                         } else if (title === "Priority Action") {
@@ -4283,6 +4353,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
                       isBusinessOverview={title === "Business Overview"}
+                      msls={msls}
+                      selectedMsl={selectedMsl}
+                      setSelectedMsl={setSelectedMsl}
                     />
                   )}
 
@@ -4350,6 +4423,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       brands={brands}
                       selectedBrand={selectedBrand}
                       setSelectedBrand={setSelectedBrand}
+                      msls={msls}
+                      selectedMsl={selectedMsl}
+                      setSelectedMsl={setSelectedMsl}
                       hideChannel={true}
                     />
                   )}
@@ -4403,6 +4479,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       locations={locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
+                      msls={msls}
+                      selectedMsl={selectedMsl}
+                      setSelectedMsl={setSelectedMsl}
                       hideChannel={true}
                     />
                   )}
@@ -4475,6 +4554,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       locations={locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
+                      msls={msls}
+                      selectedMsl={selectedMsl}
+                      setSelectedMsl={setSelectedMsl}
                       hideChannel={true}
                     />
                   )}

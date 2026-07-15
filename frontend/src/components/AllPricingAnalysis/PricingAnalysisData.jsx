@@ -1191,6 +1191,7 @@ export default function PricingAnalysisData() {
     compareStart,
     compareEnd,
     datesInitialized,
+    selectedMsl,
   } = useContext(FilterContext);
 
   const [filters, setFilters] = useState({ brand: selectedBrand || 'All', range: [0, 100], format: 'All' });
@@ -1216,6 +1217,18 @@ export default function PricingAnalysisData() {
     if (brandFilter && brandFilter !== 'All') params.brand = toFilterString(brandFilter);
 
     if (selectedChannel && selectedChannel !== 'All') params.channel = toFilterString(selectedChannel);
+
+    const hasMslFilter = (val) => {
+      if (!val) return false;
+      if (Array.isArray(val)) {
+        return val.length > 0 && !val.includes('All') && !val.includes('all');
+      }
+      return val !== 'All' && val !== 'all';
+    };
+
+    if (hasMslFilter(selectedMsl)) {
+      params.msl = toFilterString(selectedMsl);
+    }
 
     return params;
   };
@@ -1261,7 +1274,7 @@ export default function PricingAnalysisData() {
   const [discountPlatforms, setDiscountPlatforms] = useState([]); // Dynamic platforms from API
 
   // Filter Dependency Array Helper
-  const filterDeps = [globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand, filters.brand, timeStart, timeEnd, datesInitialized];
+  const filterDeps = [globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand, filters.brand, timeStart, timeEnd, datesInitialized, selectedMsl];
   const compareFilterDeps = [...filterDeps, compareStart, compareEnd];
 
   // Unified Fetcher for all segments to prevent race conditions and redundant renders

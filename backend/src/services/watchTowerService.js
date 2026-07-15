@@ -29,7 +29,18 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
 // Import Redis data layer for indexed platform data (data retrieval only, no caching)
 import { ensurePlatformData, queryByFilters, aggregateMetrics, getPlatformStats, isPlatformDataLoaded, coalesceRequest, getBrandMonthlyData } from './redisDataService.js';
-import { normalizeFilterArray, getMarketShare, getMarketShareByMonth, getMarketShareByBrand, getMarketShareTimeSeries } from './marketShareHelper.js';
+import { normalizeFilterArray as originalNormalizeFilterArray, getMarketShare, getMarketShareByMonth, getMarketShareByBrand, getMarketShareTimeSeries } from './marketShareHelper.js';
+
+const normalizeFilterArray = (value) => {
+    const arr = originalNormalizeFilterArray(value);
+    if (arr.length > 0 && arr.every(v => v === '0' || v === '1')) {
+        if (arr.includes('1') && !arr.includes('0')) {
+            return ['1'];
+        }
+        return [];
+    }
+    return arr;
+};
 
 // Global SQL snippet to resolve the Product_Category from Brand if the column is empty
 // For chocolate brands (Snickers, Galaxy), uses Product name keywords to distinguish
@@ -93,8 +104,10 @@ async function getAggTableStatus() {
 /**
  * Returns the appropriate SQL fields and table name based on data source availability.
  */
-async function getWatchtowerSource() {
-    const useAgg = await getAggTableStatus();
+async function getWatchtowerSource(filters = {}) {
+    const mslArr = normalizeFilterArray(filters.msl);
+    const hasMslFilter = mslArr && mslArr.length > 0;
+    const useAgg = hasMslFilter ? false : await getAggTableStatus();
     if (useAgg) {
         // Agg table has known, controlled column names — no dynamic resolution needed
         const aggCols = await getTableColumns(AGG_TABLE_NAME);
@@ -132,7 +145,8 @@ async function getWatchtowerSource() {
                 discount: `if(${r('mrp')} > 0, (${r('mrp')} - ${r('selling_price')}) / ${r('mrp')} * 100, 0)`,
                 listingPercent: r('avg_listing_percent'),
                 channel: r('channel'),
-                deliveryDays: columnExists(aggCols, 'delivery_days') ? r('delivery_days') : null
+                deliveryDays: columnExists(aggCols, 'delivery_days') ? r('delivery_days') : null,
+                msl: null
             }
         };
     }
@@ -197,7 +211,8 @@ async function getWatchtowerSource() {
             discount: `if(${wrap(mrpCol)} > 0, (${wrap(mrpCol)} - ${wrap(sellingPriceCol)}) / ${wrap(mrpCol)} * 100, 0)`,
             listingPercent: `if(toFloat64OrZero(toString(listing_percent)) > 0, toFloat64OrZero(toString(listing_percent)), (${wrap(nenoOsaCol)} / NULLIF(${wrap(denoOsaCol)}, 0)) * 100)`,
             channel: columnExists(cols, 'channel') ? r('channel') : null,
-            deliveryDays: columnExists(cols, 'delivery_date') ? DELIVERY_TIME_SQL(r('delivery_date'), dateCol) : null
+            deliveryDays: columnExists(cols, 'delivery_date') ? DELIVERY_TIME_SQL(r('delivery_date'), dateCol) : null,
+            msl: cols.rawColumns?.has('msl') ? 'msl' : r('MSL')
         }
     };
 }
@@ -665,6 +680,7 @@ const generateKpiColumns = ({
     const safeChange = (curr, prev, calcFn) => (isNA(curr) || isNA(prev)) ? null : calcFn(curr, prev);
 
     const offtakeChange = safeChange(offtake, prevOfftake, calcChange);
+    const quantitySoldChange = safeChange(offtakeUnits, prevOfftakeUnits, calcChange);
     const spendChange = safeChange(spend, prevSpend, calcChange);
     const roasChange = safeChange(roas, prevRoas, calcChange);
     const inorgSalesChange = safeChange(inorgSales, prevInorgSales, calcChange);
@@ -689,6 +705,7 @@ const generateKpiColumns = ({
     const fmtX = (v) => isNA(v) ? "N/A" : `${(parseFloat(v) || 0).toFixed(2)}x`;
     const fmtRs = (v) => isNA(v) ? "N/A" : `₹${(parseFloat(v) || 0).toFixed(2)}`;
     const fmtChg = (v, isPP = false) => isNA(v) ? "N/A" : formatChange(v, isPP);
+    const fmtUnits = (v) => isNA(v) ? "N/A" : formatUnits(v);
     const fmtDays = (v) => {
         if (isNA(v) || isNaN(v)) return "N/A";
         const rounded = Math.round(v);
@@ -699,6 +716,7 @@ const generateKpiColumns = ({
 
     return [
         { title: "Offtakes", value: fmtCurr(offtake), change: { text: fmtChg(offtakeChange), positive: offtakeChange >= 0 }, meta: { units: `${formatUnits(offtakeUnits)} units`, change: fmtChg(offtakeChange) } },
+        { title: "Quantity Sold", value: fmtUnits(offtakeUnits), change: { text: fmtChg(quantitySoldChange), positive: quantitySoldChange >= 0 }, meta: { units: "units", change: fmtChg(quantitySoldChange) } },
         { title: "Category Size", value: fmtCurr(categorySize), change: { text: fmtChg(categorySizeChange), positive: categorySizeChange >= 0 }, meta: { units: "market", change: fmtChg(categorySizeChange) } },
         { title: "Spend", value: fmtCurr(spend), change: { text: fmtChg(spendChange), positive: spendChange >= 0 }, meta: { units: "spend", change: fmtChg(spendChange) } },
         { title: "ROAS", value: fmtX(roas), change: { text: fmtChg(roasChange), positive: roasChange >= 0 }, meta: { units: "return", change: fmtChg(roasChange) } },
@@ -992,7 +1010,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const weekBuckets = generateWeekBuckets(startDate, endDate);
 
         // Get the optimized data source (Materialized View table or raw table)
-        const src = await getWatchtowerSource();
+        const src = await getWatchtowerSource(filters);
 
         // Helper for currency formatting
         const formatCurrency = (value) => {
@@ -1069,6 +1087,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const skuCodeConds = skuCodeArr.map(s => `lower(toString(${src.f.skuCode})) LIKE lower('%${escapeStrMain(s)}%')`).join(' OR ');
                     if (skuCodeConds) conditions.push(`(${skuCodeConds})`);
                 }
+                // MSL filter (only applies to rb_pdp_olap, NOT rb_pm_olap)
+                const mslArr = normalizeFilterArray(filters.msl);
+                if (mslArr && mslArr.length > 0) {
+                    const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStrMain(m)}'`).join(' OR ');
+                    conditions.push(`(${mslConds})`);
+                }
             }
             return conditions.join(' AND ');
         };
@@ -1142,6 +1166,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (skuCodeArr && skuCodeArr.length > 0) {
                     const skuCodeConds = skuCodeArr.map(s => `lower(toString(${src.f.skuCode})) LIKE lower('%${escapeStr(s)}%')`).join(' OR ');
                     if (skuCodeConds) conditions.push(`(${skuCodeConds})`);
+                }
+                // MSL filter (only applies to rb_pdp_olap, NOT rb_pm_olap)
+                const mslArr = normalizeFilterArray(filters.msl);
+                if (mslArr && mslArr.length > 0) {
+                    const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+                    conditions.push(`(${mslConds})`);
                 }
             }
 
@@ -1463,6 +1493,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             if (skuCodeArr && skuCodeArr.length > 0) {
                                 const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
                                 conditions.push(`(${skuCodeConds})`);
+                            }
+                            const mslArr = normalizeFilterArray(filters.msl);
+                            if (mslArr && mslArr.length > 0) {
+                                const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+                                conditions.push(`(${mslConds})`);
                             }
                         }
                     }
@@ -1908,7 +1943,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
         // Process Market Share Data
         const tier1Cities = [
-            'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+            'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
             'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
         ];
         let hasTier23 = false;
@@ -4760,7 +4795,7 @@ const computeTrendData = async (filters) => {
             groupExpressionKw = `formatDateTime(toDate(DATE), '%Y-%m-%d')`;
         }
 
-        const src = await getWatchtowerSource();
+        const src = await getWatchtowerSource(filters);
         // 3. Build WHERE conditions for dynamic source
         const buildPdpConds = () => {
             const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
@@ -4805,6 +4840,14 @@ const computeTrendData = async (filters) => {
             if (skuCodeArrArr && skuCodeArrArr.length > 0) {
                 const skuCodeConds = skuCodeArrArr.map(s => `toString(${src.f.skuCode}) LIKE '%${escapeStr(s)}%'`).join(' OR ');
                 conds.push(`(${skuCodeConds})`);
+            }
+
+            if (!src.isAgg) {
+                const mslArr = normalizeFilterArray(filters.msl);
+                if (mslArr && mslArr.length > 0) {
+                    const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+                    conds.push(`(${mslConds})`);
+                }
             }
 
             return conds.join(' AND ');
@@ -5110,7 +5153,7 @@ const getPlatformOverview = async (filters) => {
 
     // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
     const tier1Cities = [
-        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
         'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
     ];
     let hasTier23 = false;
@@ -5242,7 +5285,7 @@ const getPlatformOverview = async (filters) => {
     }
 
     // Get the optimized data source (Materialized View table or raw table)
-    const src = await getWatchtowerSource();
+    const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
 
 
@@ -5297,6 +5340,11 @@ const getPlatformOverview = async (filters) => {
             if (skuCodeArrArr && skuCodeArrArr.length > 0) {
                 const skuCodeConds = skuCodeArrArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
                 conds.push(`(${skuCodeConds})`);
+            }
+            const mslArr = normalizeFilterArray(filters.msl);
+            if (mslArr && mslArr.length > 0) {
+                const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+                conds.push(`(${mslConds})`);
             }
         }
 
@@ -6162,7 +6210,7 @@ const getMonthOverview = async (filters) => {
 
     // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
     const tier1Cities = [
-        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
         'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
     ];
     let hasTier23 = false;
@@ -6202,7 +6250,7 @@ const getMonthOverview = async (filters) => {
     }
 
     // Query all months at once with GROUP BY - USING CLICKHOUSE
-    const src = await getWatchtowerSource();
+    const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
@@ -6233,6 +6281,13 @@ const getMonthOverview = async (filters) => {
         if (skuCodeArr && skuCodeArr.length > 0) {
             const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
             conds.push(`(${skuCodeConds})`);
+        }
+        if (!src.isAgg) {
+            const mslArr = normalizeFilterArray(filters.msl);
+            if (mslArr && mslArr.length > 0) {
+                const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+                conds.push(`(${mslConds})`);
+            }
         }
         return conds.join(' AND ');
     };
@@ -6566,7 +6621,7 @@ const getCategoryOverview = async (filters) => {
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
     // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
     const tier1Cities = [
-        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
         'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
     ];
     let hasTier23 = false;
@@ -6594,7 +6649,7 @@ const getCategoryOverview = async (filters) => {
     const momStart = momEnd.clone().subtract(durationDays, 'day').startOf('day');
 
     // Get the optimized data source
-    const src = await getWatchtowerSource();
+    const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
 
 
@@ -6640,6 +6695,11 @@ const getCategoryOverview = async (filters) => {
             if (skuCodeArrArr && skuCodeArrArr.length > 0) {
                 const skuCodeConds = skuCodeArrArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
                 conds.push(`(${skuCodeConds})`);
+            }
+            const mslArr = normalizeFilterArray(filters.msl);
+            if (mslArr && mslArr.length > 0) {
+                const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+                conds.push(`(${mslConds})`);
             }
         }
 
@@ -7036,7 +7096,7 @@ const getBrandsOverview = async (filters) => {
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
     // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
     const tier1Cities = [
-        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
         'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
     ];
     let hasTier23 = false;
@@ -7065,7 +7125,7 @@ const getBrandsOverview = async (filters) => {
     const momStart = momEnd.clone().subtract(durationDays, 'day').startOf('day');
 
     // Get the optimized data source
-    const src = await getWatchtowerSource();
+    const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
 
 
@@ -7105,6 +7165,11 @@ const getBrandsOverview = async (filters) => {
             if (skuCodeArr && skuCodeArr.length > 0) {
                 const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
                 conds.push(`(${skuCodeConds})`);
+            }
+            const mslArr = normalizeFilterArray(filters.msl);
+            if (mslArr && mslArr.length > 0) {
+                const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+                conds.push(`(${mslConds})`);
             }
         }
 
@@ -7571,7 +7636,7 @@ const getKpiTrends = async (filters) => {
 
     // Check for Tier-2/Tier-3 city selections
     const tier1Cities = [
-        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
         'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
     ];
     let hasTier23 = false;
@@ -7587,7 +7652,7 @@ const getKpiTrends = async (filters) => {
         });
     }
 
-    const src = await getWatchtowerSource();
+    const src = await getWatchtowerSource(filters);
     // 3. Build WHERE conditions for dynamic source
     const buildKpiConds = () => {
         const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
@@ -7638,6 +7703,13 @@ const getKpiTrends = async (filters) => {
         if (skuCodeArrArr && skuCodeArrArr.length > 0) {
             const skuCodeConds = skuCodeArrArr.map(s => `toString(${src.f.skuCode}) LIKE '%${escapeStr(s)}%'`).join(' OR ');
             conds.push(`(${skuCodeConds})`);
+        }
+        if (!src.isAgg) {
+            const mslArr = normalizeFilterArray(filters.msl);
+            if (mslArr && mslArr.length > 0) {
+                const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+                conds.push(`(${mslConds})`);
+            }
         }
 
         return conds.join(' AND ');
@@ -8254,7 +8326,7 @@ const getCompetitionData = async (filters = {}) => {
         const platArr = normalizeFilterArray(platform);
         const skuArr = normalizeFilterArray(sku);
 
-        const src = await getWatchtowerSource();
+        const src = await getWatchtowerSource(filters);
 
         // Reseller_Name filter (DRL DB context only)
         const dbName = getCurrentDbName();
@@ -8291,6 +8363,13 @@ const getCompetitionData = async (filters = {}) => {
             // Reseller_Name filter for DRL
             if (resellerArr && resellerArr.length > 0) {
                 conds.push(`Reseller_Name IN (${resellerArr.map(r => `'${escapeStr(r)}'`).join(', ')})`);
+            }
+
+            // MSL filter (only applies to rb_pdp_olap)
+            const mslArr = normalizeFilterArray(filters.msl);
+            if (mslArr && mslArr.length > 0 && src.f.msl) {
+                const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+                conds.push(`(${mslConds})`);
             }
 
             // conds.push(`toString(${src.f.compFlag}) = '1'`); // Show both our brands and competitors
@@ -9220,13 +9299,13 @@ const getLatestAvailableMonth = async (filters = {}) => {
  */
 const getCompetitionBrandTrends = async (filters = {}) => {
     try {
-        let { brands = 'All', skus = 'All', location = 'All', category = 'All', period = '1M', platform = 'All' } = filters;
+        let { brands = 'All', skus = 'All', location = 'All', category = 'All', period = '1M', platform = 'All', msl = 'All' } = filters;
         const channel = extractChannel(filters);
 
         // Handle "All India" -> "All" conversion
         if (location === 'All India') location = 'All';
 
-        console.log('[getCompetitionBrandTrends] Filters:', { brands, skus, location, category, period });
+        console.log('[getCompetitionBrandTrends] Filters:', { brands, skus, location, category, period, msl });
 
         const isSkuMode = skus && skus !== 'All';
         const brandList = normalizeFilterArray(brands);
@@ -9282,7 +9361,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
         console.log(`[getCompetitionBrandTrends] Valid brands(comp_flag = 0): ${validBrandNames.length} `);
 
-        const src = await getWatchtowerSource();
+        const src = await getWatchtowerSource(filters);
         // First, get total impressions from dynamic source and Market Share from rb_brand_ms
         const baseConds = [`toDate(${src.f.date}) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         // baseConds.push(`toString(${src.f.compFlag}) = '1'`);  // REMOVED: Allow both base and competitor brands for SOS denominator and direct querying
@@ -9291,8 +9370,23 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         const locArr = normalizeFilterArray(location);
         const catArrNorm = normalizeFilterArray(category);
 
+        if (platArr && platArr.length > 0) {
+            const platformCond = buildPlatformChannelCond(platArr, channel, src.f.platform, false, src.f.channel);
+            if (platformCond) baseConds.push(platformCond);
+        }
+
         if (locArr && locArr.length > 0) {
             baseConds.push(`${src.f.location} IN(${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+        }
+
+        if (catArrNorm && catArrNorm.length > 0) {
+            baseConds.push(`lower(${src.f.category}) IN (${catArrNorm.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+        }
+
+        const mslArr = normalizeFilterArray(msl);
+        if (mslArr && mslArr.length > 0 && src.f.msl) {
+            const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+            baseConds.push(`(${mslConds})`);
         }
 
         // Reseller_Name filter for DRL
@@ -9452,13 +9546,29 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         const brandTrends = {};
 
         for (const targetName of targetList) {
-            const src = await getWatchtowerSource();
+            const src = await getWatchtowerSource(filters);
             // Build conditions for dynamic source (OSA, SOS, Price)
             const conds = [`toDate(${src.f.date}) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+
+            if (platArr && platArr.length > 0) {
+                const platformCond = buildPlatformChannelCond(platArr, channel, src.f.platform, false, src.f.channel);
+                if (platformCond) conds.push(platformCond);
+            }
+
             const locArr = normalizeFilterArray(location);
             if (locArr && locArr.length > 0) {
                 conds.push(`${src.f.location} IN(${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
             }
+
+            if (catArrNorm && catArrNorm.length > 0) {
+                conds.push(`lower(${src.f.category}) IN (${catArrNorm.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+            }
+
+            if (mslArr && mslArr.length > 0 && src.f.msl) {
+                const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+                conds.push(`(${mslConds})`);
+            }
+
             if (isSkuMode) {
                 // In SKU competition queries, group by Product uses Product
                 conds.push(`${src.f.product} = '${escapeStr(targetName)}'`);
@@ -10392,7 +10502,7 @@ const getRcaData = async (filters = {}) => {
 
                 const kwSosQuery = (sDate, eDate) => {
                     const catProp = category && category !== 'All' ? category : 'All';
-                    
+
                     let nameCol = 'keyword';
                     if (drilldownLevel === 'brand') nameCol = 'brand';
                     else if (drilldownLevel === 'sku') nameCol = 'keyword';
@@ -10407,7 +10517,7 @@ const getRcaData = async (filters = {}) => {
                         const catCondPm = catProp !== 'All'
                             ? `AND lower(category) = lower('${escapeStr(catProp)}')`
                             : '';
-                        
+
                         let kwTypeFilterPm = '';
                         if (kpiLower.includes('branded')) kwTypeFilterPm = `AND lower(keyword_type) = 'branded'`;
                         else if (kpiLower.includes('generic')) kwTypeFilterPm = `AND lower(keyword_type) = 'generic'`;
@@ -10611,7 +10721,7 @@ const getRcaData = async (filters = {}) => {
                     if (isOrganicKpi) {
                         table = isQuickComm ? 'rb_pm_olap' : 'rb_kw_olap';
                         dateCol = isQuickComm ? 'DATE' : 'toDate(DATE)';
-                        
+
                         // Handle column differences
                         const impCol = isQuickComm ? 'impressions' : 'organic';
                         const platCol = isQuickComm ? 'Platform' : 'platform_name';
@@ -11242,23 +11352,26 @@ const getRcaData = async (filters = {}) => {
                             metrics: allNodeMetrics,
                             meta: [{ label: "Organic SOS", value: cTotalKw > 0 ? `${((cOrgRbKw / cTotalKw) * 100).toFixed(2)}% ` : "0.0%", change: orgRbDelta.val, isPositive: orgRbDelta.isPos }],
                             children: [
-                                { id: "org-comp", label: "Comp Keyword", value: formatCount(cPmCompImp), prevValue: formatCount(pPmCompImp), change: pmCompImpDelta.val, isPositive: pmCompImpDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: orgKwData.co,
-                                  meta: [
-                                      { label: "Comp Impressions", value: formatCount(cPmCompImp), change: pmCompImpDelta.val, isPositive: pmCompImpDelta.isPos },
-                                      { label: "Comp Imp%", value: `${cPmTotalImp > 0 ? ((cPmCompImp / cPmTotalImp) * 100).toFixed(2) : '0.00'}%` }
-                                  ]
+                                {
+                                    id: "org-comp", label: "Comp Keyword", value: formatCount(cPmCompImp), prevValue: formatCount(pPmCompImp), change: pmCompImpDelta.val, isPositive: pmCompImpDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: orgKwData.co,
+                                    meta: [
+                                        { label: "Comp Impressions", value: formatCount(cPmCompImp), change: pmCompImpDelta.val, isPositive: pmCompImpDelta.isPos },
+                                        { label: "Comp Imp%", value: `${cPmTotalImp > 0 ? ((cPmCompImp / cPmTotalImp) * 100).toFixed(2) : '0.00'}%` }
+                                    ]
                                 },
-                                { id: "org-branded", label: "Branded Keyword", value: formatCount(cPmBrandedImp), prevValue: formatCount(pPmBrandedImp), change: pmBrandedImpDelta.val, isPositive: pmBrandedImpDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: orgKwData.br,
-                                  meta: [
-                                      { label: "Branded Impressions", value: formatCount(cPmBrandedImp), change: pmBrandedImpDelta.val, isPositive: pmBrandedImpDelta.isPos },
-                                      { label: "Branded Imp%", value: `${cPmTotalImp > 0 ? ((cPmBrandedImp / cPmTotalImp) * 100).toFixed(2) : '0.00'}%` }
-                                  ]
+                                {
+                                    id: "org-branded", label: "Branded Keyword", value: formatCount(cPmBrandedImp), prevValue: formatCount(pPmBrandedImp), change: pmBrandedImpDelta.val, isPositive: pmBrandedImpDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: orgKwData.br,
+                                    meta: [
+                                        { label: "Branded Impressions", value: formatCount(cPmBrandedImp), change: pmBrandedImpDelta.val, isPositive: pmBrandedImpDelta.isPos },
+                                        { label: "Branded Imp%", value: `${cPmTotalImp > 0 ? ((cPmBrandedImp / cPmTotalImp) * 100).toFixed(2) : '0.00'}%` }
+                                    ]
                                 },
-                                { id: "org-generic", label: "Generic Keyword", value: formatCount(cPmGenericImp), prevValue: formatCount(pPmGenericImp), change: pmGenericImpDelta.val, isPositive: pmGenericImpDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: orgKwData.gen,
-                                  meta: [
-                                      { label: "Generic Impressions", value: formatCount(cPmGenericImp), change: pmGenericImpDelta.val, isPositive: pmGenericImpDelta.isPos },
-                                      { label: "Generic Imp%", value: `${cPmTotalImp > 0 ? ((cPmGenericImp / cPmTotalImp) * 100).toFixed(2) : '0.00'}%` }
-                                  ]
+                                {
+                                    id: "org-generic", label: "Generic Keyword", value: formatCount(cPmGenericImp), prevValue: formatCount(pPmGenericImp), change: pmGenericImpDelta.val, isPositive: pmGenericImpDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: orgKwData.gen,
+                                    meta: [
+                                        { label: "Generic Impressions", value: formatCount(cPmGenericImp), change: pmGenericImpDelta.val, isPositive: pmGenericImpDelta.isPos },
+                                        { label: "Generic Imp%", value: `${cPmTotalImp > 0 ? ((cPmGenericImp / cPmTotalImp) * 100).toFixed(2) : '0.00'}%` }
+                                    ]
                                 }
                             ]
                         },
@@ -11352,7 +11465,7 @@ const getSkuOverview = async (filters) => {
 
     // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
     const tier1Cities = [
-        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
         'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
     ];
     let hasTier23 = false;
@@ -11381,7 +11494,7 @@ const getSkuOverview = async (filters) => {
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
     // Get the optimized data source
-    const src = await getWatchtowerSource();
+    const src = await getWatchtowerSource(filters);
 
     // Build SKU conditions for rb_pdp_olap
     const buildSkuConds = (sDate, eDate) => {
@@ -11424,6 +11537,11 @@ const getSkuOverview = async (filters) => {
             if (skuCodeArr && skuCodeArr.length > 0) {
                 const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
                 conds.push(`(${skuCodeConds})`);
+            }
+            const mslArr = normalizeFilterArray(filters.msl);
+            if (mslArr && mslArr.length > 0) {
+                const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+                conds.push(`(${mslConds})`);
             }
         }
 
@@ -11586,10 +11704,10 @@ const getSkuOverview = async (filters) => {
         currTotalAdSovCat, prevTotalAdSovCat,
         currTotalOrgSovCat, prevTotalOrgSovCat
     ] = [
-        parseFloat(currTotalSosCatRes[0]?.total_count || 0), parseFloat(prevTotalSosCatRes[0]?.total_count || 0),
-        parseFloat(currTotalAdSovCatRes[0]?.total_count || 0), parseFloat(prevTotalAdSovCatRes[0]?.total_count || 0),
-        parseFloat(currTotalOrgSovCatRes[0]?.total_count || 0), parseFloat(prevTotalOrgSovCatRes[0]?.total_count || 0)
-    ];
+            parseFloat(currTotalSosCatRes[0]?.total_count || 0), parseFloat(prevTotalSosCatRes[0]?.total_count || 0),
+            parseFloat(currTotalAdSovCatRes[0]?.total_count || 0), parseFloat(prevTotalAdSovCatRes[0]?.total_count || 0),
+            parseFloat(currTotalOrgSovCatRes[0]?.total_count || 0), parseFloat(prevTotalOrgSovCatRes[0]?.total_count || 0)
+        ];
 
     const currMarketSize = parseFloat(currMsResult[0]?.total_sales || 0);
     const prevMarketSize = parseFloat(prevMsResult[0]?.total_sales || 0);
@@ -11789,7 +11907,7 @@ const getCityOverview = async (filters) => {
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
     // Get the optimized data source
-    const src = await getWatchtowerSource();
+    const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
 
     // Build City conditions for rb_pdp_olap
@@ -11822,6 +11940,11 @@ const getCityOverview = async (filters) => {
             if (skuCodeArr && skuCodeArr.length > 0) {
                 const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
                 conds.push(`(${skuCodeConds})`);
+            }
+            const mslArr = normalizeFilterArray(filters.msl);
+            if (mslArr && mslArr.length > 0) {
+                const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
+                conds.push(`(${mslConds})`);
             }
         }
 
@@ -12023,7 +12146,7 @@ const getCityOverview = async (filters) => {
         const currCityMarket = currMsMap.get(cityName.toLowerCase()) || 0;
         const prevCityMarket = prevMsMap.get(cityName.toLowerCase()) || 0;
         const tier1Cities = [
-            'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+            'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
             'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
         ];
         const lowerCityName = cityName ? cityName.toLowerCase().trim() : '';
@@ -12364,7 +12487,7 @@ const getWatchTowerCascadedFilters = async (filters) => {
 
         const cols = await getTableColumns('rca_sku_dim');
         const hasChannel = columnExists(cols, 'channel');
-        
+
         const channelCol = hasChannel ? resolveColumn(cols, 'channel') : null;
         const platformCol = resolveColumn(cols, 'platform');
         const categoryCol = resolveColumn(cols, 'category');
@@ -12463,6 +12586,27 @@ const getWatchTowerCascadedFilters = async (filters) => {
     }
 };
 
+const getMsls = async () => {
+    try {
+        // Resolve the actual column name dynamically (could be 'msl', 'MSL', etc.)
+        const cols = await getTableColumns('rb_pdp_olap');
+        const mslCol = resolveColumn(cols, 'msl');
+        const query = `
+            SELECT DISTINCT ${mslCol} AS msl_val
+            FROM rb_pdp_olap 
+            WHERE ${mslCol} IS NOT NULL 
+            ORDER BY msl_val ASC
+            LIMIT 20
+        `;
+        const results = await queryClickHouse(query);
+        return results.map(r => r.msl_val).filter(val => val !== null && val !== undefined);
+    } catch (error) {
+        console.error('[getMsls] Error in watchTowerService:', error);
+        return [];
+    }
+};
+
+export { getMsls };
 export default {
     getSummaryMetrics,
     getTrendData,
@@ -12497,5 +12641,8 @@ export default {
     getProductCategories,
     getChannels,
     getPdpPlatforms,
-    getWatchTowerCascadedFilters
+    getWatchTowerCascadedFilters,
+    getMsls
 };
+
+

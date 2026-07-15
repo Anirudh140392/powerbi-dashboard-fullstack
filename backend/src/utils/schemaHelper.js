@@ -24,12 +24,22 @@ export async function getTableColumns(tableName) {
     try {
         const result = await queryClickHouse(`DESCRIBE TABLE ${tableName}`);
         const columns = new Map();
+        columns.rawColumns = new Set();
 
         for (const row of result) {
             // ClickHouse DESCRIBE can return column name in 'name' or 'Name' field
             const colName = row.name || row.Name;
             if (colName) {
-                columns.set(colName.toLowerCase(), colName);
+                const lowerColName = colName.toLowerCase();
+                if (columns.has(lowerColName)) {
+                    // If we have a duplicate casing (e.g. 'msl' and 'MSL'), prefer the exact lowercase one
+                    if (colName === lowerColName) {
+                        columns.set(lowerColName, colName);
+                    }
+                } else {
+                    columns.set(lowerColName, colName);
+                }
+                columns.rawColumns.add(colName);
             }
         }
 
@@ -39,7 +49,9 @@ export async function getTableColumns(tableName) {
     } catch (error) {
         console.error(`[ColumnDiscovery] Failed to describe ${tableName}:`, error.message);
         // Return empty map on failure so direct calls fall back to expected names safely
-        return new Map();
+        const columns = new Map();
+        columns.rawColumns = new Set();
+        return columns;
     }
 }
 

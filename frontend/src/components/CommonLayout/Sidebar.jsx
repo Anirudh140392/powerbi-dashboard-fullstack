@@ -61,6 +61,7 @@ import {
   IconButton,
   Tooltip,
   Popover,
+  Skeleton,
 } from "@mui/material";
 import {
   ExpandMore as ExpandMoreIcon,
@@ -181,8 +182,9 @@ const Sidebar = ({
   channels = ["All"],
   selectedChannel,
   onChannelChange,
-  platforms = ["Blinkit", "Instamart", "Zepto", "Flipkart", "Amazon"],
+  platforms = [],
   platformMetadata = [],
+  platformsFetched = false,
   selectedPlatform,
   onPlatformChange,
   open = false,
@@ -791,13 +793,11 @@ const Sidebar = ({
       </Box>
 
       {/* Platform Section: Active Card & Carousel */}
-      {user?.dbName !== 'emami' && selectedChannel && selectedChannel !== 'All' && platforms.length > 0 && !isCollapsed && (
+      {user?.dbName !== 'emami' && selectedChannel && selectedChannel !== 'All' && !isCollapsed && (platforms.length > 0 || !platformsFetched) && (
         <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
 
-          {/* Active Platform Card */}
-          {selectedPlatform && (
+          {!platformsFetched ? (
             <Box
-              onClick={() => currentPath !== '/watch-tower' && setShowPlatformOptions(!showPlatformOptions)}
               sx={{
                 bgcolor: '#ffffff',
                 border: '1px solid rgba(0,0,0,0.05)',
@@ -807,86 +807,112 @@ const Sidebar = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                cursor: currentPath === '/watch-tower' ? 'default' : 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s',
                 boxShadow: '0 2px 4px -1px rgba(0,0,0,0.05)',
-                '&:hover': {
-                  transform: currentPath === '/watch-tower' ? 'none' : 'translateY(-1px)',
-                  boxShadow: currentPath === '/watch-tower' ? '0 2px 4px -1px rgba(0,0,0,0.05)' : '0 4px 6px -1px rgba(0,0,0,0.08)',
-                }
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {/* Squircle Icon */}
-                <Box sx={{
-                  width: 28,
-                  height: 28,
-                  bgcolor: '#ffffff',
-                  borderRadius: '8px', // squircle shape
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: getPlatformColors(selectedPlatform).squircleText,
-                  fontWeight: 800,
-                  fontSize: '0.8rem',
-                  overflow: 'hidden',
-                }}>
-                  {(() => {
-                    if (selectedPlatform === 'All') return <DashboardIcon sx={{ fontSize: '1.2rem' }} />;
-                    const activeMeta = platformMetadata.find(meta => meta.pf_name === selectedPlatform);
-                    return activeMeta?.platform_description ? (
-                      <img
-                        src={activeMeta.platform_description}
-                        alt={selectedPlatform}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                        onError={(e) => { e.target.style.display = 'none'; }}
-                      />
-                    ) : (
-                      selectedPlatform.substring(0, 2).toUpperCase()
-                    );
-                  })()}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                <Skeleton variant="rounded" width={28} height={28} sx={{ borderRadius: '8px', flexShrink: 0 }} />
+                <Box sx={{ flexGrow: 1 }}>
+                  <Skeleton variant="text" width="60%" height={15} />
+                  <Skeleton variant="text" width="80%" height={10} sx={{ mt: 0.5 }} />
                 </Box>
-                {/* Text Content */}
-                <Box>
-                  <Typography sx={{
-                    color: '#1e293b',
-                    fontWeight: 700,
-                    fontSize: '12px',
-                    fontFamily: "'DM Sans', sans-serif",
-                    lineHeight: 1.1,
-                    display: selectedPlatform === 'All' ? 'none' : 'block'
-                  }}>
-                    {selectedPlatform ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1) : ''}
-                  </Typography>
-                  <Typography sx={{
-                    color: selectedPlatform === 'All' ? '#1e293b' : '#64748b',
-                    fontSize: selectedPlatform === 'All' ? '12px' : '10px',
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontWeight: selectedPlatform === 'All' ? 600 : 500,
-                    mt: selectedPlatform === 'All' ? 0 : 0.2
-                  }}>
-                    {currentPath === '/watch-tower' ? 'Tap to change platform' : (selectedPlatform === 'All' ? 'Select Platform' : 'Tap to change platform')}
-                  </Typography>
-                </Box>
-
               </Box>
-
-              {/* Chevron */}
-              {currentPath !== '/watch-tower' && (
-                <Box sx={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  bgcolor: '#f1f5f9',
+            </Box>
+          ) : (
+            /* Active Platform Card */
+            selectedPlatform && (
+              <Box
+                onClick={() => currentPath !== '/watch-tower' && setShowPlatformOptions(!showPlatformOptions)}
+                sx={{
+                  bgcolor: '#ffffff',
+                  border: '1px solid rgba(0,0,0,0.05)',
+                  borderRadius: '12px',
+                  py: 0.75,
+                  px: 1,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#64748b'
-                }}>
-                  {showPlatformOptions ? <KeyboardArrowUpIcon sx={{ fontSize: '1rem' }} /> : <KeyboardArrowDownIcon sx={{ fontSize: '1rem' }} />}
+                  justifyContent: 'space-between',
+                  cursor: currentPath === '/watch-tower' ? 'default' : 'pointer',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  boxShadow: '0 2px 4px -1px rgba(0,0,0,0.05)',
+                  '&:hover': {
+                    transform: currentPath === '/watch-tower' ? 'none' : 'translateY(-1px)',
+                    boxShadow: currentPath === '/watch-tower' ? '0 2px 4px -1px rgba(0,0,0,0.05)' : '0 4px 6px -1px rgba(0,0,0,0.08)',
+                  }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {/* Squircle Icon */}
+                  <Box sx={{
+                    width: 28,
+                    height: 28,
+                    bgcolor: '#ffffff',
+                    borderRadius: '8px', // squircle shape
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: getPlatformColors(selectedPlatform).squircleText,
+                    fontWeight: 800,
+                    fontSize: '0.8rem',
+                    overflow: 'hidden',
+                  }}>
+                    {(() => {
+                      if (selectedPlatform === 'All') return <DashboardIcon sx={{ fontSize: '1.2rem' }} />;
+                      const activeMeta = platformMetadata.find(meta => meta.pf_name?.toLowerCase() === selectedPlatform?.toLowerCase());
+                      return activeMeta?.platform_description ? (
+                        <img
+                          src={activeMeta.platform_description}
+                          alt={selectedPlatform}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      ) : (
+                        selectedPlatform.substring(0, 2).toUpperCase()
+                      );
+                    })()}
+                  </Box>
+                  {/* Text Content */}
+                  <Box>
+                    <Typography sx={{
+                      color: '#1e293b',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      fontFamily: "'DM Sans', sans-serif",
+                      lineHeight: 1.1,
+                      display: selectedPlatform === 'All' ? 'none' : 'block'
+                    }}>
+                      {selectedPlatform ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1) : ''}
+                    </Typography>
+                    <Typography sx={{
+                      color: selectedPlatform === 'All' ? '#1e293b' : '#64748b',
+                      fontSize: selectedPlatform === 'All' ? '12px' : '10px',
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontWeight: selectedPlatform === 'All' ? 600 : 500,
+                      mt: selectedPlatform === 'All' ? 0 : 0.2
+                    }}>
+                      {currentPath === '/watch-tower' ? 'Tap to change platform' : (selectedPlatform === 'All' ? 'Select Platform' : 'Tap to change platform')}
+                    </Typography>
+                  </Box>
+
                 </Box>
-              )}
-            </Box>
+
+                {/* Chevron */}
+                {currentPath !== '/watch-tower' && (
+                  <Box sx={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    bgcolor: '#f1f5f9',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#64748b'
+                  }}>
+                    {showPlatformOptions ? <KeyboardArrowUpIcon sx={{ fontSize: '1rem' }} /> : <KeyboardArrowDownIcon sx={{ fontSize: '1rem' }} />}
+                  </Box>
+                )}
+              </Box>
+            )
           )}
 
           {/* Platform Carousel */}
@@ -914,9 +940,8 @@ const Sidebar = ({
                 }}
               >
                 {platforms.filter(p => p !== 'All').map(pName => {
-                  const pf = platformMetadata.find(meta => meta.pf_name === pName);
-                  if (!pf) return null;
-                  const isSelected = selectedPlatform === pf.pf_name;
+                  const pf = platformMetadata.find(meta => meta.pf_name?.toLowerCase() === pName?.toLowerCase()) || { pf_name: pName, platform_description: null };
+                  const isSelected = selectedPlatform?.toLowerCase() === pf.pf_name?.toLowerCase();
                   const colors = getPlatformColors(pf.pf_name);
 
                   return (
@@ -1005,39 +1030,43 @@ const Sidebar = ({
       )}
 
       {/* Collapsed view for platform */}
-      {user?.dbName !== 'emami' && selectedChannel && selectedChannel !== 'All' && platforms.length > 0 && isCollapsed && (
+      {user?.dbName !== 'emami' && selectedChannel && selectedChannel !== 'All' && isCollapsed && (platforms.length > 0 || !platformsFetched) && (
         <Box sx={{ py: 1.5, display: 'flex', justifyContent: 'center', borderBottom: "1px solid rgba(0, 0, 0, 0.04)" }}>
-          {selectedPlatform && selectedPlatform !== 'All' && (
-            <Tooltip title={selectedPlatform ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1) : ''} placement="right">
-              <Box sx={{
-                width: 32,
-                height: 32,
-                bgcolor: '#ffffff',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: getPlatformColors(selectedPlatform).squircleText,
-                fontWeight: 800,
-                fontSize: '0.8rem',
-                border: '2px solid #2563eb',
-                overflow: 'hidden',
-              }}>
-                {(() => {
-                  const activeMeta = platformMetadata.find(meta => meta.pf_name === selectedPlatform);
-                  return activeMeta?.platform_description ? (
-                    <img
-                      src={activeMeta.platform_description}
-                      alt={selectedPlatform}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                      onError={(e) => { e.target.style.display = 'none'; }}
-                    />
-                  ) : (
-                    selectedPlatform.substring(0, 2).toUpperCase()
-                  );
-                })()}
-              </Box>
-            </Tooltip>
+          {!platformsFetched ? (
+            <Skeleton variant="rounded" width={32} height={32} sx={{ borderRadius: '8px' }} />
+          ) : (
+            selectedPlatform && selectedPlatform !== 'All' && (
+              <Tooltip title={selectedPlatform ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1) : ''} placement="right">
+                <Box sx={{
+                  width: 32,
+                  height: 32,
+                  bgcolor: '#ffffff',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: getPlatformColors(selectedPlatform).squircleText,
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  border: '2px solid #2563eb',
+                  overflow: 'hidden',
+                }}>
+                  {(() => {
+                    const activeMeta = platformMetadata.find(meta => meta.pf_name?.toLowerCase() === selectedPlatform?.toLowerCase());
+                    return activeMeta?.platform_description ? (
+                      <img
+                        src={activeMeta.platform_description}
+                        alt={selectedPlatform}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    ) : (
+                      selectedPlatform.substring(0, 2).toUpperCase()
+                    );
+                  })()}
+                </Box>
+              </Tooltip>
+            )
           )}
         </Box>
       )}

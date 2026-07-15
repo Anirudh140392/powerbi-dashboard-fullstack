@@ -4,7 +4,7 @@ import React, { useState, useEffect, useContext } from "react";
 import { FilterContext } from "@/utils/FilterContext";
 
 export default function InventeryConceptMains() {
-  const { refreshFilters } = useContext(FilterContext);
+  const { refreshFilters, platform } = useContext(FilterContext);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)
@@ -17,7 +17,7 @@ export default function InventeryConceptMains() {
   const [showTrends, setShowTrends] = useState(false);
 
   const [filters, setFilters] = useState({
-    platform: "Blinkit",
+    platform: platform || "",
     months: 6,
     timeStep: "Monthly",
   });
@@ -25,8 +25,13 @@ export default function InventeryConceptMains() {
   const [trendParams, setTrendParams] = useState({
     months: 6,
     timeStep: "Monthly",
-    platform: "Blinkit",
+    platform: platform || "",
   });
+
+  useEffect(() => {
+    setFilters(prev => ({ ...prev, platform: platform || prev.platform }));
+    setTrendParams(prev => ({ ...prev, platform: platform || prev.platform }));
+  }, [platform]);
 
   const [trendData, setTrendData] = useState({
     timeSeries: [],
@@ -73,7 +78,7 @@ export default function InventeryConceptMains() {
 
     setTrendParams((prev) => ({
       ...prev,
-      platform: card.name ?? "Blinkit",
+      platform: card.name ?? filters.platform ?? platform ?? "",
     }));
 
     setShowTrends(true);
