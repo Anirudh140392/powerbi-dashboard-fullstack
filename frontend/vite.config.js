@@ -19,6 +19,7 @@ export default defineConfig({
     include: [
       /src\/.*\.[jt]sx?$/,
       /trailytics_ratings\/src\/.*\.[jt]sx?$/,
+      /trailytics_content_analysis\/frontend\/src\/.*\.[jt]sx?$/,
     ],
     exclude: [],
   },

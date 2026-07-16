@@ -13,6 +13,7 @@ export default function CommonContainer({
   filters,
   onFiltersChange,
   hideFilters = false,
+  hideHeader = false,
   disablePadding = false,
   /** fullHeight: the child manages its own scrolling; disable the outer scroll Box */
   fullHeight = false,
@@ -29,6 +30,7 @@ export default function CommonContainer({
       filters={filters}
       onFiltersChange={onFiltersChange}
       hideFilters={hideFilters}
+      hideHeader={hideHeader}
       disablePadding={disablePadding}
       fullHeight={fullHeight}
       channels={channels}
@@ -55,6 +57,7 @@ function CommonLayoutContent({
   filters,
   onFiltersChange,
   hideFilters,
+  hideHeader,
   disablePadding,
   fullHeight,
   channels,
@@ -131,16 +134,18 @@ function CommonLayoutContent({
       >
         <NotificationScroller />
 
-        <Header
-          title={title}
-          onMenuClick={() => setMobileMenuOpen(true)}
-          filters={filters}
-          onFiltersChange={onFiltersChange}
-          hideFilters={hideFilters}
-          sx={{
-            overflowX: "hidden", // <-- prevents header small horizontal shift
-          }}
-        />
+        {!hideHeader && (
+          <Header
+            title={title}
+            onMenuClick={() => setMobileMenuOpen(true)}
+            filters={filters}
+            onFiltersChange={onFiltersChange}
+            hideFilters={hideFilters}
+            sx={{
+              overflowX: "hidden", // <-- prevents header small horizontal shift
+            }}
+          />
+        )}
 
         {/* Scrollable only vertically (or overflow:hidden when child manages scrolling) */}
         <Box

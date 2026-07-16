@@ -36,6 +36,7 @@ import AdminPanel from "./pages/Admin/AdminPanel";
 import PriorityAction from "./pages/SupplyChain/PriorityAction";
 import PDSScore from "./pages/PDSScore/PDSScore";
 import ReviewRatingPage from "./pages/ReviewRating/ReviewRatingPage";
+import ContentAnalysisPage from "./pages/ContentAnalysis/ContentAnalysisPage";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -117,6 +118,12 @@ function AppContent() {
             <Route path="/content-score" element={
               <ProtectedRoute>
                 <ContentScoreDashboards />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/content-analysis" element={
+              <ProtectedRoute>
+                <ContentAnalysisPage />
               </ProtectedRoute>
             } />
 
