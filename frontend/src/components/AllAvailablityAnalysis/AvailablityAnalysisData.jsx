@@ -1500,6 +1500,8 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
             apiData={apiData}
             mslFilter={props.mslFilter}
             onMslChange={props.onMslChange}
+            resellerFilter={props.resellerFilter}
+            onResellerChange={props.onResellerChange}
             onFiltersChange={(matrixFilters) => {
               if (!props.onFiltersChange) return;
               const mappedFilters = {};

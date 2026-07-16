@@ -36,6 +36,7 @@ export default function AvailablityAnalysis() {
 
   const [showTrends, setShowTrends] = useState(false);
   const [mslFilter, setMslFilter] = useState('0'); // MSL filter: '0' = All SKUs (default), '1' = MSL SKUs only
+  const [resellerFilter, setResellerFilter] = useState([]); // Reseller filter (DRL only)
 
   // Initialize filters from context
   const [filters, setFilters] = useState({
@@ -242,11 +243,11 @@ export default function AvailablityAnalysis() {
 
   // Build query params for OSA Detail View — strips date/month filters
   // so it always shows ALL months available in the DB
-  const buildOsaDetailParams = (mslOverride) => {
+  const buildOsaDetailParams = (mslOverride, resellerOverride) => {
     const params = new URLSearchParams();
-    const dateKeys = new Set(['startDate', 'endDate', 'months', 'dates', 'compareStartDate', 'compareEndDate', 'msl']);
+    const dateKeys = new Set(['startDate', 'endDate', 'months', 'dates', 'compareStartDate', 'compareEndDate', 'msl', 'resellerName', 'resellerNames']);
     Object.entries(filters).forEach(([key, value]) => {
-      if (dateKeys.has(key)) return; // Skip date filters and msl
+      if (dateKeys.has(key)) return; // Skip date filters, msl, resellerName
       if (value !== undefined && value !== null && value !== 'All' && value !== '') {
         if (Array.isArray(value)) { if (value.length > 0) value.forEach(v => params.append(key, v)); }
         else params.append(key, value);
@@ -279,6 +280,15 @@ export default function AvailablityAnalysis() {
         params.append('msl', '0');
       }
     }
+
+    // Reseller Filter selection logic:
+    const resellerVal = resellerOverride !== undefined ? resellerOverride : resellerFilter;
+    if (Array.isArray(resellerVal) && resellerVal.length > 0) {
+      resellerVal.forEach(r => params.append('resellerName', r));
+    } else if (typeof resellerVal === 'string' && resellerVal !== 'All' && resellerVal !== '') {
+      params.append('resellerName', resellerVal);
+    }
+
     return params.toString();
   };
 
@@ -446,6 +456,13 @@ export default function AvailablityAnalysis() {
     setSelectedMsl(globalMsl);
   };
 
+  // Handle Reseller filter change (DRL only)
+  const handleResellerChange = (newResellerValue) => {
+    setResellerFilter(newResellerValue);
+    const params = buildOsaDetailParams(mslFilter, newResellerValue);
+    fetchOsaDetail(params);
+  };
+
   const fetchKpiTrends = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, kpiTrends: null }));
@@ -572,6 +589,8 @@ export default function AvailablityAnalysis() {
           loading={isLoading}
           mslFilter={mslFilter}
           onMslChange={handleMslChange}
+          resellerFilter={resellerFilter}
+          onResellerChange={handleResellerChange}
         />
       </CommonContainer>
     </>
