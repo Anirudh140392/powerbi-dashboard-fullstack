@@ -2,6 +2,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
 import AllRoutes from "./routes.js";
@@ -13,6 +14,7 @@ import authRoutes from "./routes/auth.js";
 import { authMiddleware } from "./helper/authMiddleware.js";
 import { platformPermissionMiddleware } from "./helper/permissionMiddleware.js";
 import { initSocket } from "./config/socket.js";
+import { ensureDeviceTokenColumn } from "./services/deviceService.js";
 import "./models/associations.js";
 
 // Set ENABLE_DEBUG_LOGS=true in .env to enable logs (default is suppressed in production)
@@ -44,7 +46,22 @@ if (process.env.ENABLE_DEBUG_LOGS == 'true') {
 
 // create app or middleware
 const app = express();
-app.use(cors());
+
+// CORS: allow credentials (cookies) from frontend origins
+const FRONTEND_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:5173';
+app.use(cors({
+    origin: function (origin, callback) {
+        // Allow requests with no origin (mobile apps, curl, same-origin)
+        if (!origin) return callback(null, true);
+        // Allow any origin in dev, or specific origins in production
+        return callback(null, true);
+    },
+    credentials: true,  // Required for HTTP-only cookies
+}));
+
+// Cookie parser — reads device_token HTTP-only cookie
+app.use(cookieParser());
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
@@ -124,9 +141,11 @@ app.use("/api/auth", authRoutes);
 
 // Connect to ClickHouse (Primary database)
 connectClickHouse()
-    .then((connected) => {
+    .then(async (connected) => {
         if (connected) {
             console.log("✅ ClickHouse DB Ready");
+            // Ensure device_token column exists in tb_user
+            await ensureDeviceTokenColumn();
         }
     })
     .catch((err) => {

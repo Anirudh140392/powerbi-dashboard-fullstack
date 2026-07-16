@@ -15,10 +15,13 @@ import {
     Inbox,
     ShieldCheck,
     ShieldX,
+    Monitor,
+    Smartphone,
 } from "lucide-react";
 
 /**
- * NewRequests - Displays pending access requests with approve/deny actions.
+ * NewRequests - Displays pending device access requests with approve/deny actions.
+ * Now uses tb_trusted_devices as the primary source for pending requests.
  */
 const NewRequests = () => {
     const [requests, setRequests] = useState([]);
@@ -59,7 +62,7 @@ const NewRequests = () => {
         fetchRequests();
     }, []);
 
-    const handleAction = async (id, action) => {
+    const handleAction = async (id, action, source) => {
         try {
             setActionAnimating(id);
             const token = sessionStorage.getItem("token");
@@ -69,7 +72,7 @@ const NewRequests = () => {
             const userName = action === "approved" ? userNames[id] : undefined;
 
             const response = await axios.patch(`${API_BASE}/admin/users/access`,
-                { id, status, userName },
+                { id, status, userName, _source: source || 'device' },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
@@ -87,8 +90,9 @@ const NewRequests = () => {
     const filteredRequests = requests.filter((r) => {
         const matchesSearch =
             r.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.dbName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.ip.includes(searchTerm);
+            (r.dbName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (r.ip || '').includes(searchTerm) ||
+            (r.deviceInfo || '').toLowerCase().includes(searchTerm.toLowerCase());
         const matchesFilter = filterStatus === "all" || r.status === filterStatus;
         return matchesSearch && matchesFilter;
     });
@@ -135,8 +139,8 @@ const NewRequests = () => {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
                 <div>
-                    <h2 className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-1">Access Requests</h2>
-                    <p className="text-slate-500 text-xs font-medium">Review and manage incoming access requests.</p>
+                    <h2 className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-1">Device Access Requests</h2>
+                    <p className="text-slate-500 text-xs font-medium">Review and manage incoming device access requests. Once approved, devices stay trusted permanently.</p>
                 </div>
             </div>
 
@@ -179,7 +183,7 @@ const NewRequests = () => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <input
                             type="text"
-                            placeholder="Search by email, database, or IP..."
+                            placeholder="Search by email, database, device, or IP..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all font-medium"
@@ -208,7 +212,7 @@ const NewRequests = () => {
                             <tr className="bg-slate-50/50">
                                 <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">Email</th>
                                 <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">Database</th>
-                                <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">Device ID</th>
+                                <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">Device</th>
                                 <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">Date & Time</th>
                                 <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">Status</th>
                                 <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">User Name</th>
@@ -285,11 +289,24 @@ const NewRequests = () => {
                                                 </div>
                                             </td>
 
-                                            {/* IP */}
+                                            {/* Device Info (replaces old "Device ID" / IP column) */}
                                             <td className="px-8 py-5">
                                                 <div className="flex items-center gap-2">
-                                                    <Globe className="w-3.5 h-3.5 text-slate-400" />
-                                                    <span className="text-xs font-mono font-medium text-slate-500">{req.ip}</span>
+                                                    {(req.os || '').toLowerCase().includes('android') || (req.os || '').toLowerCase().includes('ios')
+                                                        ? <Smartphone className="w-3.5 h-3.5 text-slate-400" />
+                                                        : <Monitor className="w-3.5 h-3.5 text-slate-400" />
+                                                    }
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs font-medium text-slate-600 max-w-[200px] truncate">
+                                                            {req.deviceInfo || req.ip || 'Unknown'}
+                                                        </span>
+                                                        {req.ip && req._source === 'device' && (
+                                                            <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                                                <Globe className="w-2.5 h-2.5" />
+                                                                {req.ip}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </td>
 
@@ -300,10 +317,10 @@ const NewRequests = () => {
                                                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <span className="text-xs font-bold text-slate-700">{req.dateTime.split(" ")[0]}</span>
+                                                        <span className="text-xs font-bold text-slate-700">{(req.dateTime || '').split(" ")[0]}</span>
                                                         <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1 mt-0.5">
                                                             <Clock className="w-2.5 h-2.5" />
-                                                            {req.dateTime.split(" ")[1]}
+                                                            {(req.dateTime || '').split(" ")[1]}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -334,7 +351,7 @@ const NewRequests = () => {
                                                 {req.status === "pending" ? (
                                                     <div className="flex items-center justify-center gap-2">
                                                         <motion.button
-                                                            onClick={() => handleAction(req.id, "approved")}
+                                                            onClick={() => handleAction(req.id, "approved", req._source)}
                                                             disabled={actionAnimating === req.id || !userNames[req.id] || userNames[req.id].trim() === ""}
                                                             className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-[11px] font-bold hover:bg-emerald-700 transition-all shadow-sm shadow-emerald-100 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                                                             whileHover={(!userNames[req.id] || userNames[req.id].trim() === "") ? {} : { scale: 1.03 }}
@@ -344,7 +361,7 @@ const NewRequests = () => {
                                                             Allow
                                                         </motion.button>
                                                         <motion.button
-                                                            onClick={() => handleAction(req.id, "denied")}
+                                                            onClick={() => handleAction(req.id, "denied", req._source)}
                                                             disabled={actionAnimating === req.id}
                                                             className="flex items-center gap-1.5 px-4 py-2 bg-white text-rose-600 border border-rose-200 rounded-xl text-[11px] font-bold hover:bg-rose-50 transition-all active:scale-95 disabled:opacity-60 cursor-pointer"
                                                             whileHover={{ scale: 1.03 }}
@@ -357,7 +374,7 @@ const NewRequests = () => {
                                                 ) : (
                                                     <div className="flex justify-center">
                                                         <button
-                                                            onClick={() => handleAction(req.id, "pending")}
+                                                            onClick={() => handleAction(req.id, "pending", req._source)}
                                                             className="px-3 py-1.5 text-[10px] font-bold text-slate-400 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 rounded-lg transition-all uppercase tracking-wider cursor-pointer"
                                                         >
                                                             Undo

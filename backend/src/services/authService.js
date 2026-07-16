@@ -3,18 +3,40 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { queryAdminDB, insertAdminDB } from '../config/adminClickhouse.js';
 import { toFlatPermissions } from './adminService.js';
+import { generateDeviceToken } from './deviceService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'trailytics_jwt_secret_2026';
 const JWT_EXPIRY = '7d';
 
 /**
- * Authenticate user by email and password
- * 1. Look up user in admin_master.tb_user by email
- * 2. Verify bcrypt password hash
- * 3. Look up db_name from admin_master.tb_database using db_id
- * 4. Return JWT token with user context
+ * Authenticate user by email and password, with Trusted Device verification.
+ *
+ * Device verification flow (all within tb_user):
+ *   1. If a device_token cookie exists → look up in tb_user by (email, device_token)
+ *      - If found & access='allow'  → grant login, silently update fingerprint/IP
+ *      - If found & access='pending' → throw "pending" error
+ *      - If found & access='deny'   → throw "denied" error
+ *   2. If no cookie → fall back to fingerprint lookup via the `ip` column
+ *      - If found & access='allow' → grant login (controller will issue new cookie)
+ *      - If found & pending/deny   → throw corresponding error
+ *   3. If nothing found → insert a new pending row with a fresh device_token
+ *
+ * @param {string} email
+ * @param {string} password
+ * @param {object} deviceInfo - { deviceToken, fingerprintId, browser, browserVersion, os, platform, ip }
+ * @returns {object} { token, user, deviceToken, isNewDeviceToken }
  */
-export async function loginUser(email, password, clientIp = '') {
+export async function loginUser(email, password, deviceInfo = {}) {
+    const {
+        deviceToken: incomingDeviceToken,
+        fingerprintId,
+        browser,
+        browserVersion,
+        os,
+        platform,
+        ip: clientIp
+    } = deviceInfo;
+
     // 1. Find user by email (get latest active row)
     const users = await queryAdminDB(
         `SELECT *, toString(db_id) as db_id_str, toString(id) as id_str, toString(user_id) as user_id_str 
@@ -38,22 +60,17 @@ export async function loginUser(email, password, clientIp = '') {
     }
 
     // 3. Look up db_name from tb_database using db_id
-    // Using toString() comparison to avoid UInt64 precision issues
     const databases = await queryAdminDB(
         `SELECT db_name, toString(db_id) as db_id, logo_url 
          FROM tb_database 
          WHERE status = 'active'`
     );
 
-    // Find matching database - handle potential UInt64 precision mismatch
-    let dbName = process.env.CLICKHOUSE_DB || 'colpal'; // fallback
+    let dbName = process.env.CLICKHOUSE_DB || 'colpal';
     let dbLogoUrl = "";
     const userDbId = user.db_id_str;
 
-    // Try exact match first
     let matchedDb = databases.find(db => db.db_id === userDbId);
-
-    // If no exact match, try finding closest match (for UInt64 precision issues)
     if (!matchedDb && databases.length > 0) {
         const userDbIdNum = BigInt(userDbId);
         let closestDb = null;
@@ -68,7 +85,6 @@ export async function loginUser(email, password, clientIp = '') {
             }
         }
 
-        // Only accept if difference is small (within tolerance for UInt64 precision)
         if (closestDb && closestDiff < BigInt('1000')) {
             matchedDb = closestDb;
             console.log(`[Auth] db_id approximate match: user=${userDbId}, db=${closestDb.db_id}, diff=${closestDiff}`);
@@ -96,71 +112,116 @@ export async function loginUser(email, password, clientIp = '') {
 
     console.log(`[DEBUG_AUTH] Login Attempt: ${user.user_email} | Role: ${userRole} | IsAdmin: ${isAdmin} | IP: ${clientIp || '0.0.0.0'}`);
 
-    // 4. Access Control Enforcement (Zero-Trust Logic)
+    // ========================================================================
+    // 4. TRUSTED DEVICE ACCESS CONTROL  (all within tb_user table)
+    // ========================================================================
+    let resolvedDeviceToken = null;
+    let isNewDeviceToken = false;
+
     if (!isAdmin) {
-        // Query ALL rows for this user and IP to find the most recent decision
-        const accessRecords = await queryAdminDB(
-            `SELECT access FROM tb_user 
-             WHERE user_email = {email:String} AND ip = {ip:String}
-             ORDER BY last_login DESC
-             LIMIT 1`,
-            { email: user.user_email, ip: clientIp || '0.0.0.0' }
-        );
+        let matchedRow = null;
 
-        const currentAccess = accessRecords.length > 0 ? (accessRecords[0].access || '').toLowerCase().trim() : null;
-        console.log(`[DEBUG_AUTH] Database Status for ${user.user_email} on IP ${clientIp || '0.0.0.0'}: '${currentAccess}'`);
-
-        // ONLY EXPLICIT 'ALLOW' IS PERMITTED
-        if (currentAccess !== 'allow') {
-            console.log(`[DEBUG_AUTH] ENFORCEMENT: Blocking ${user.user_email} because status is '${currentAccess}' (Not 'allow')`);
-
-            // If no record exists at all, create the first one
-            if (!currentAccess) {
-                try {
-                    const rowId = Date.now().toString();
-                    await insertAdminDB('tb_user', [{
-                        id: rowId,
-                        user_id: user.user_id_str,
-                        user_email: user.user_email,
-                        user_name: user.user_name,
-                        user_role: userRole,
-                        password_hash: user.password_hash,
-                        db_id: user.db_id_str,
-                        last_login: new Date().toISOString().replace('T', ' ').split('.')[0],
-                        created_on: user.created_on,
-                        status: 'active',
-                        ip: clientIp || '0.0.0.0',
-                        access: 'pending',
-                        db_status: user.db_status || 'active',
-                        tab_permissions: user.tab_permissions || ''
-                    }]);
-                    console.log(`[DEBUG_AUTH] Created new Pending request for ${user.user_email}`);
-                } catch (ipError) {
-                    console.error(`[DEBUG_AUTH] Failed to insert pending row:`, ipError.message);
-                }
-                throw new Error('Access Request Submitted: Please wait for admin approval.');
+        // Step A: Try device_token cookie (PRIMARY — survives fingerprint changes)
+        if (incomingDeviceToken) {
+            const tokenRows = await queryAdminDB(
+                `SELECT access, device_token, ip
+                 FROM tb_user
+                 WHERE user_email = {email:String}
+                   AND device_token = {dtoken:String}
+                 ORDER BY last_login DESC
+                 LIMIT 1`,
+                { email: user.user_email, dtoken: incomingDeviceToken }
+            );
+            if (tokenRows.length > 0) {
+                matchedRow = tokenRows[0];
+                console.log(`[DEBUG_AUTH] Device token match for ${user.user_email}: access=${matchedRow.access}`);
             }
-
-            // If it's explicitly 'deny', show denied message
-            if (currentAccess === 'deny') {
-                throw new Error('Access Denied: Your access request has been rejected by an administrator.');
-            }
-
-            // Otherwise, it's pending (either explicitly or effectively)
-            throw new Error('Access Pending: Your request is still awaiting administrator review.');
         }
 
-        console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} (Status: 'allow')`);
+        // Step B: Fall back to fingerprint/IP lookup (SECONDARY)
+        if (!matchedRow && fingerprintId) {
+            const fpRows = await queryAdminDB(
+                `SELECT access, device_token, ip
+                 FROM tb_user
+                 WHERE user_email = {email:String}
+                   AND ip = {fp:String}
+                 ORDER BY last_login DESC
+                 LIMIT 1`,
+                { email: user.user_email, fp: fingerprintId }
+            );
+            if (fpRows.length > 0) {
+                matchedRow = fpRows[0];
+                console.log(`[DEBUG_AUTH] Fingerprint match for ${user.user_email}: access=${matchedRow.access}`);
+                // If approved but cookie was lost/cleared, we'll issue a fresh cookie
+                if ((matchedRow.access || '').toLowerCase().trim() === 'allow') {
+                    isNewDeviceToken = true;
+                    // Use the existing token if the row had one, else generate a new one
+                    if (!matchedRow.device_token) {
+                        isNewDeviceToken = true;
+                    }
+                }
+            }
+        }
+
+        // Step C: Evaluate access status
+        if (matchedRow) {
+            const currentAccess = (matchedRow.access || '').toLowerCase().trim();
+
+            if (currentAccess === 'allow') {
+                // ✅ Approved — allow login
+                resolvedDeviceToken = matchedRow.device_token || incomingDeviceToken || generateDeviceToken();
+                isNewDeviceToken = isNewDeviceToken || !matchedRow.device_token;
+                console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} via approved device`);
+            } else if (currentAccess === 'deny') {
+                throw new Error('Access Denied: Your access request has been rejected by an administrator.');
+            } else {
+                // pending
+                throw new Error('Access Pending: Your request is still awaiting administrator review.');
+            }
+        } else {
+            // Step D: No existing record for this device → create a pending row
+            console.log(`[DEBUG_AUTH] No existing device record for ${user.user_email}, creating pending request`);
+            const newToken = generateDeviceToken();
+            try {
+                const rowId = Date.now().toString();
+                await insertAdminDB('tb_user', [{
+                    id: rowId,
+                    user_id: user.user_id_str,
+                    user_email: user.user_email,
+                    user_name: user.user_name,
+                    user_role: userRole,
+                    password_hash: user.password_hash,
+                    db_id: user.db_id_str,
+                    last_login: new Date().toISOString().replace('T', ' ').split('.')[0],
+                    created_on: user.created_on,
+                    status: 'active',
+                    ip: fingerprintId || clientIp || '0.0.0.0',
+                    access: 'pending',
+                    db_status: user.db_status || 'active',
+                    tab_permissions: user.tab_permissions || '',
+                    device_token: newToken,
+                    browser: browser || '',
+                    browser_version: browserVersion || '',
+                    operating_system: os || '',
+                    platform: platform || '',
+                }]);
+                console.log(`[DEBUG_AUTH] Created new pending request for ${user.user_email}`);
+            } catch (ipError) {
+                console.error(`[DEBUG_AUTH] Failed to insert pending row:`, ipError.message);
+            }
+            throw new Error('Access Request Submitted: Please wait for admin approval.');
+        }
     } else {
         console.log(`[DEBUG_AUTH] ENFORCEMENT: Admin bypass for ${user.user_email}`);
     }
 
-    // 5. Track successful login history
+    // ========================================================================
+    // 5. Track successful login & ensure device_token is persisted on allowed row
+    // ========================================================================
     try {
-        const rowId = (Date.now() + 1).toString(); // Unique sequential ID
+        const rowId = (Date.now() + 1).toString();
 
         // --- Walkthrough Visibility Fix ---
-        // Fetch the user's PREVIOUS last_login to check if they have pending walkthroughs
         const oldUserRows = await queryAdminDB(
             `SELECT max(last_login) as last_login FROM tb_user WHERE user_email = {email:String}`,
             { email: user.user_email }
@@ -170,7 +231,6 @@ export async function loginUser(email, password, clientIp = '') {
         if (oldUserRows.length > 0 && oldUserRows[0].last_login) {
             const prevLastLogin = oldUserRows[0].last_login;
             
-            // Check if there are any pending walkthroughs for this client created AFTER their previous login
             const pendingWalkthroughs = await queryAdminDB(`
                 SELECT count() as count FROM walkthrough_notifications 
                 WHERE arrayExists(x -> lower(x) = lower('${dbName}'), target_clients)
@@ -178,14 +238,10 @@ export async function loginUser(email, password, clientIp = '') {
             `);
             
             if (pendingWalkthroughs.length > 0 && parseInt(pendingWalkthroughs[0].count) > 0) {
-                // There are pending walkthroughs! Preserve the OLD last_login time.
-                // This ensures WalkthroughModal will pick them up on the frontend.
-                // The frontend will call /api/walkthroughs/acknowledge later to update this to now().
                 lastLoginToSave = prevLastLogin;
                 console.log(`[DEBUG_AUTH] Preserving old last_login (${lastLoginToSave}) for ${user.user_email} due to pending walkthroughs.`);
             }
         }
-        // ----------------------------------
 
         await insertAdminDB('tb_user', [{
             id: rowId,
@@ -198,17 +254,21 @@ export async function loginUser(email, password, clientIp = '') {
             last_login: lastLoginToSave,
             created_on: user.created_on,
             status: 'active',
-            ip: clientIp || '0.0.0.0',
+            ip: fingerprintId || clientIp || '0.0.0.0',
             access: 'allow',
             db_status: user.db_status || 'active',
-            tab_permissions: user.tab_permissions || ''
+            tab_permissions: user.tab_permissions || '',
+            device_token: resolvedDeviceToken || '',
+            browser: browser || '',
+            browser_version: browserVersion || '',
+            operating_system: os || '',
+            platform: platform || '',
         }]);
     } catch (logError) {
         console.error(`[DEBUG_AUTH] Error logging success:`, logError.message);
     }
 
     // Fetch the latest non-empty db_status and tab_permissions for this user
-    // (The user row from LIMIT 1 may have empty defaults from login inserts)
     let tabPermissions = {};
     let dbStatusBool = true;
     try {
@@ -232,7 +292,7 @@ export async function loginUser(email, password, clientIp = '') {
         console.warn('[Auth] Failed to fetch permissions during login:', e.message);
     }
 
-    // 4. Generate JWT token
+    // 6. Generate JWT token
     const tokenPayload = {
         userId: user.user_id,
         email: user.user_email,
@@ -257,6 +317,9 @@ export async function loginUser(email, password, clientIp = '') {
             dbStatus: dbStatusBool,
             tabPermissions
         },
+        // Device token info for the controller to set the HTTP-only cookie
+        deviceToken: resolvedDeviceToken,
+        isNewDeviceToken,
     };
 }
 
@@ -272,10 +335,10 @@ export function verifyToken(token) {
 }
 
 /**
- * Verify an existing session: decode the JWT AND re-check access permissions.
+ * Verify an existing session: decode the JWT AND re-check device access.
  * Called on page refresh to ensure the user still has valid access.
  */
-export async function verifySession(token) {
+export async function verifySession(token, deviceToken = null) {
     // 1. Verify token signature and expiry
     const decoded = verifyToken(token);
 
@@ -284,20 +347,47 @@ export async function verifySession(token) {
     const normalizedRole = userRole.toLowerCase();
     const isAdmin = normalizedRole.includes('admin') || normalizedRole.includes('super');
 
-    // 3. For non-admin users, re-check access status from database
+    // 3. For non-admin users, re-check access status
     if (!isAdmin) {
-        const accessRecords = await queryAdminDB(
-            `SELECT access FROM tb_user 
-             WHERE user_email = {email:String}
-             ORDER BY last_login DESC
-             LIMIT 1`,
-            { email: decoded.email }
-        );
+        let accessVerified = false;
 
-        const currentAccess = accessRecords.length > 0 ? (accessRecords[0].access || '').toLowerCase().trim() : null;
+        // Check via device_token cookie first (if present)
+        if (deviceToken) {
+            const tokenRows = await queryAdminDB(
+                `SELECT access FROM tb_user
+                 WHERE user_email = {email:String}
+                   AND device_token = {dtoken:String}
+                 ORDER BY last_login DESC
+                 LIMIT 1`,
+                { email: decoded.email, dtoken: deviceToken }
+            );
+            if (tokenRows.length > 0) {
+                const status = (tokenRows[0].access || '').toLowerCase().trim();
+                if (status === 'allow') {
+                    accessVerified = true;
+                } else if (status === 'deny') {
+                    throw new Error('Access Denied: Your device has been blocked by an administrator.');
+                } else {
+                    throw new Error('Access Pending: Your device request is still awaiting administrator review.');
+                }
+            }
+        }
 
-        if (currentAccess !== 'allow') {
-            throw new Error('Access not allowed. Please contact admin.');
+        // Fallback: check the latest tb_user row for this email (no device_token filter)
+        if (!accessVerified) {
+            const accessRecords = await queryAdminDB(
+                `SELECT access FROM tb_user 
+                 WHERE user_email = {email:String}
+                 ORDER BY last_login DESC
+                 LIMIT 1`,
+                { email: decoded.email }
+            );
+
+            const currentAccess = accessRecords.length > 0 ? (accessRecords[0].access || '').toLowerCase().trim() : null;
+
+            if (currentAccess !== 'allow') {
+                throw new Error('Access not allowed. Please contact admin.');
+            }
         }
     }
 
@@ -319,7 +409,6 @@ export async function verifySession(token) {
     }
 
     // 5. Fetch latest db_status and tab_permissions for this user
-    // Use argMaxIf to pick the latest non-empty values (login inserts may have empty defaults)
     let dbStatus = decoded.dbStatus !== undefined ? decoded.dbStatus : true;
     let tabPermissions = decoded.tabPermissions || {};
     try {

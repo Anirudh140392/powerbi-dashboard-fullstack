@@ -45,7 +45,7 @@ const chClient = createClient({
     url: requireEnv('CLICKHOUSE_HOST'),
     username: requireEnv('CLICKHOUSE_USER'),
     password: requireEnv('CLICKHOUSE_PASSWORD'),
-    database: requireEnv('CLICKHOUSE_DATABASE'),
+    database: requireEnv('CLICKHOUSE_DB'),
     request_timeout: 60_000,
 });
 
@@ -131,12 +131,12 @@ function parseSpec(value) {
 }
 
 const SPECIFIC_TAXONOMY = new Set([
-    'Pressure Cooker','Kadai','Fry Pan','Tawa','Dosa Tawa',
-    'Other Cookware','Cookware','Cookware Set','Gas Stove',
-    'Mixer Grinder','Kettle','Rice Cooker','Toaster & OTG','Air Fryer',
-    'Wet Grinder','Induction Cooktop','Sandwich Maker','Grill & Sandwich Maker',
-    'Hand Blender','Glasstops and Hobs','Food Processor','Juicer','Iron',
-    'Waffle Maker','Air Oven','Combo','Bottle',
+    'Pressure Cooker', 'Kadai', 'Fry Pan', 'Tawa', 'Dosa Tawa',
+    'Other Cookware', 'Cookware', 'Cookware Set', 'Gas Stove',
+    'Mixer Grinder', 'Kettle', 'Rice Cooker', 'Toaster & OTG', 'Air Fryer',
+    'Wet Grinder', 'Induction Cooktop', 'Sandwich Maker', 'Grill & Sandwich Maker',
+    'Hand Blender', 'Glasstops and Hobs', 'Food Processor', 'Juicer', 'Iron',
+    'Waffle Maker', 'Air Oven', 'Combo', 'Bottle',
 ]);
 
 function resolveCategory(brandCategory, existingMasterCategory) {
@@ -148,7 +148,7 @@ function resolveCategory(brandCategory, existingMasterCategory) {
 
 async function main() {
     console.log('=== ClickHouse -> PostgreSQL MASTER Sync ===');
-    console.log(`Source: ${process.env.CLICKHOUSE_HOST} db=${process.env.CLICKHOUSE_DATABASE} table=rb_sku_platform`);
+    console.log(`Source: ${process.env.CLICKHOUSE_HOST} db=${process.env.CLICKHOUSE_DB} table=rb_sku_platform`);
 
     // Note the lower-case `mop` alias for ClickHouse `MOP` (case-sensitive identifier).
     const rs = await chClient.query({
@@ -251,8 +251,8 @@ async function main() {
                         last_synced_at = NOW()
                     WHERE id = $13
                 `, [params[2], params[5], params[6], params[7], params[8],
-                    params[9], params[10], params[11], params[12], params[13],
-                    params[14], params[15], existing.id]);
+                params[9], params[10], params[11], params[12], params[13],
+                params[14], params[15], existing.id]);
                 updated++;
             } else {
                 await pgClient.query(`

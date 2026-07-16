@@ -22,6 +22,7 @@ const ROUTE_TO_TAB_LABEL = {
     "/category-rca": "Category RCA",
     "/scheduled-reports": "Scheduled Reports",
     "/download-report": "Download Report",
+    "/review-rating": "Review Rating",
 };
 
 // Ordered list of routes to try when finding the first allowed page
@@ -29,7 +30,7 @@ const ROUTE_PRIORITY = [
     "/watch-tower", "/geo-intelligence", "/insights", "/availability-analysis",
     "/visibility-anlysis", "/market-share", "/pricing-analysis",
     "/performance-marketing", "/content-score", "/inventory",
-    "/scheduled-reports", "/download-report",
+    "/scheduled-reports", "/download-report", "/review-rating",
 ];
 
 /**

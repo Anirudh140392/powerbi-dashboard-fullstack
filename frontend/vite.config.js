@@ -36,7 +36,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         timeout: 10 * 60 * 1000,       // 10 minutes for large report downloads
         proxyTimeout: 10 * 60 * 1000,   // 10 minutes proxy timeout
@@ -49,7 +49,7 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/ratings-api/, ''),
       },
       '/socket.io': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         ws: true,
       },

@@ -1,47 +1,48 @@
-# Stage 1: Build stage
+# ─────────────────────────────────────────────────────────────
+# Frontend Dockerfile (Monorepo-Aware Multi-Stage Build)
+#
+# Build context MUST be the monorepo root (.) because the main
+# frontend imports source files directly from:
+#   trailytics_ratings/frontend/src/components/Dashboard.tsx
+#   trailytics_ratings/frontend/src/contexts/AuthContext.tsx
+#   trailytics_ratings/frontend/src/index.css
+# ─────────────────────────────────────────────────────────────
+
+# Stage 1: Build
 FROM node:20-alpine AS build-stage
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files and install dependencies
-COPY package*.json ./
-RUN npm install
+# ── Install main frontend dependencies ──
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm install
 
-# Copy source code and build
-COPY . .
-RUN npm run build
+# ── Install ratings frontend dependencies ──
+# (Vite resolves their TS/TSX at build time, so node_modules must exist)
+COPY trailytics_ratings/frontend/package*.json ./trailytics_ratings/frontend/
+RUN cd trailytics_ratings/frontend && npm install
 
-# Stage 2: Production stage
+# ── Copy source code for both projects ──
+COPY frontend/ ./frontend/
+COPY trailytics_ratings/frontend/src/ ./trailytics_ratings/frontend/src/
+COPY trailytics_ratings/frontend/index.html ./trailytics_ratings/frontend/
+COPY trailytics_ratings/frontend/vite.config.ts ./trailytics_ratings/frontend/
+COPY trailytics_ratings/frontend/tsconfig*.json ./trailytics_ratings/frontend/
+COPY trailytics_ratings/frontend/postcss.config.js ./trailytics_ratings/frontend/
+COPY trailytics_ratings/frontend/tailwind.config.js ./trailytics_ratings/frontend/
+
+# ── Build the main frontend (which compiles ratings TSX inline) ──
+RUN cd frontend && npm run build
+
+# Stage 2: Production — serve with Nginx
 FROM nginx:alpine
 
-# Copy built static files from build-stage
-COPY --from=build-stage /app/dist /usr/share/nginx/html
+# Copy built static files from build stage
+COPY --from=build-stage /app/frontend/dist /usr/share/nginx/html
 
-# Create nginx config with API proxy to backend
-RUN echo 'server { \
-    listen 9500; \
-    root /usr/share/nginx/html; \
-    index index.html; \
-    \
-    location /api/ { \
-    proxy_pass http://backend_multiple:5000/api/; \
-    proxy_http_version 1.1; \
-    proxy_set_header Host $host; \
-    proxy_set_header X-Real-IP $remote_addr; \
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-    proxy_connect_timeout 300; \
-    proxy_send_timeout 300; \
-    proxy_read_timeout 300; \
-    } \
-    \
-    location / { \
-    try_files $uri $uri/ /index.html; \
-    } \
-    }' > /etc/nginx/conf.d/default.conf
+# Copy Nginx configuration (separate file avoids heredoc/BuildKit issues)
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port
 EXPOSE 9500
 
-# Start nginx
 CMD ["nginx", "-g", "daemon off;"]

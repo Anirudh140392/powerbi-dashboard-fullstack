@@ -7,14 +7,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-if (!process.env.CLICKHOUSE_DATABASE) {
-    console.error('CRITICAL: CLICKHOUSE_DATABASE environment variable is missing. The Overview module cannot start without a client database.');
+if (!process.env.CLICKHOUSE_DB) {
+    console.error('CRITICAL: CLICKHOUSE_DB environment variable is missing. The Overview module cannot start without a client database.');
     process.exit(1);
 }
 
 const clickhouse = createClient({
     url: process.env.CLICKHOUSE_HOST || 'http://localhost:8123',
-    database: process.env.CLICKHOUSE_DATABASE,
+    database: process.env.CLICKHOUSE_DB,
     username: process.env.CLICKHOUSE_USER || 'default',
     password: process.env.CLICKHOUSE_PASSWORD || '',
     request_timeout: 120000,

@@ -40,7 +40,7 @@ const chClient = createClient({
     url: requireEnv('CLICKHOUSE_HOST'),
     username: requireEnv('CLICKHOUSE_USER'),
     password: requireEnv('CLICKHOUSE_PASSWORD'),
-    database: requireEnv('CLICKHOUSE_DATABASE'),
+    database: requireEnv('CLICKHOUSE_DB'),
     request_timeout: 120_000,
 });
 
@@ -215,7 +215,7 @@ function buildBlankInsert(candidates) {
 
 async function main() {
     console.log('=== ClickHouse -> PostgreSQL REVIEW Sync ===');
-    console.log(`Source: ${process.env.CLICKHOUSE_HOST} db=${process.env.CLICKHOUSE_DATABASE} table=reviews`);
+    console.log(`Source: ${process.env.CLICKHOUSE_HOST} db=${process.env.CLICKHOUSE_DB} table=reviews`);
 
     const { rows: pgProducts } = await pgPool.query(`
         SELECT product_external_id, product_name, brand_name, platform, category, is_competitor
