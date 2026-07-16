@@ -82,27 +82,27 @@ jobs:
             cd ${{ env.APP_DIR }}
             mkdir -p trailytics_ratings/backend
             cat > trailytics_ratings/backend/.env << 'EOF'
-          DB_HOST=${{ secrets.RATINGS_DB_HOST }}
-          DB_NAME=${{ secrets.RATINGS_DB_NAME }}
-          DB_USER=${{ secrets.RATINGS_DB_USER }}
-          DB_PASSWORD=${{ secrets.RATINGS_DB_PASSWORD }}
-          DB_PORT=${{ secrets.RATINGS_DB_PORT }}
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_PORT=${{ secrets.DB_PORT }}
           API_PORT=3001
-          GEMINI_API_KEY=${{ secrets.RATINGS_GEMINI_API_KEY }}
-          VITE_RAILWAY_URL=${{ secrets.RATINGS_RAILWAY_URL }}
-          ALLOWED_ORIGINS=${{ secrets.RATINGS_ALLOWED_ORIGINS }}
-          CLICKHOUSE_HOST=${{ secrets.RATINGS_CLICKHOUSE_HOST }}
-          CLICKHOUSE_DATABASE=${{ secrets.RATINGS_CLICKHOUSE_DATABASE }}
-          CLICKHOUSE_USER=${{ secrets.RATINGS_CLICKHOUSE_USER }}
-          CLICKHOUSE_PASSWORD=${{ secrets.RATINGS_CLICKHOUSE_PASSWORD }}
-          COMPANY_ID=${{ secrets.RATINGS_COMPANY_ID }}
-          SMTP_HOST=${{ secrets.RATINGS_SMTP_HOST }}
-          SMTP_PORT=${{ secrets.RATINGS_SMTP_PORT }}
-          SMTP_USER=${{ secrets.RATINGS_SMTP_USER }}
-          SMTP_PASS=${{ secrets.RATINGS_SMTP_PASS }}
-          SMTP_FROM=${{ secrets.RATINGS_SMTP_FROM }}
-          ALERT_DEFAULT_RECIPIENTS=${{ secrets.RATINGS_ALERT_RECIPIENTS }}
-          PUBLIC_DASHBOARD_URL=${{ secrets.RATINGS_PUBLIC_DASHBOARD_URL }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          VITE_RAILWAY_URL=${{ secrets.VITE_RAILWAY_URL }}
+          ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
+          CLICKHOUSE_HOST=${{ env.TARGET_CLICKHOUSE_URL }}
+          CLICKHOUSE_DATABASE=${{ secrets.CLICKHOUSE_DATABASE }}
+          CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}
+          COMPANY_ID=${{ secrets.COMPANY_ID }}
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASS=${{ secrets.SMTP_PASS }}
+          SMTP_FROM=${{ secrets.SMTP_FROM }}
+          ALERT_DEFAULT_RECIPIENTS=${{ secrets.ALERT_DEFAULT_RECIPIENTS }}
+          PUBLIC_DASHBOARD_URL=${{ secrets.PUBLIC_DASHBOARD_URL }}
           EOF
             echo "✅ Ratings backend .env file created"
           ENDSSH
