@@ -55,7 +55,8 @@ jobs:
             sudo chown -R ${{ env.TARGET_USER }}:${{ env.TARGET_USER }} ${{ env.APP_DIR }}
             
             cd ${{ env.APP_DIR }}
-            cat > .env << 'EOF'
+            mkdir -p backend
+            cat > backend/.env << 'EOF'
           DB_HOST=${{ secrets.DB_HOST }}
           DB_PORT=${{ secrets.DB_PORT }}
           DB_USER=${{ secrets.DB_USER }}

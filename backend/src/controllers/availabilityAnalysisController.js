@@ -242,7 +242,9 @@ export const getOsaPercentageDetail = async (req, res) => {
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
-            msl: req.query.msl
+            msl: req.query.msl,
+            resellerName: parseFilter(req.query.resellerName),
+            resellerNames: parseFilter(req.query.resellerNames)
         };
         console.log('\n========== OSA PERCENTAGE DETAIL API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));

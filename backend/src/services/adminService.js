@@ -165,7 +165,7 @@ export const getPendingRequests = async () => {
                 operating_system,
                 platform
             FROM tb_user
-            WHERE access = 'pending'
+            WHERE access = 'pending' AND last_login >= subtractDays(now(), 7)
             ORDER BY last_login DESC
         `;
         const requests = await queryAdminDB(query);

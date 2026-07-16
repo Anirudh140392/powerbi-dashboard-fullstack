@@ -56,7 +56,14 @@ function buildMonthGroups(dates) {
     return groups;
 }
 
-export default function OsaDetailTableLight({ apiData, loading, mslFilter, onMslChange }) {
+export default function OsaDetailTableLight({ 
+    apiData, 
+    loading, 
+    mslFilter, 
+    onMslChange,
+    resellerFilter,
+    onResellerChange
+}) {
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [page, setPage] = useState(1);
     const [sortKey, setSortKey] = useState("avgSelected");
@@ -66,6 +73,71 @@ export default function OsaDetailTableLight({ apiData, loading, mslFilter, onMsl
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [advancedFilters, setAdvancedFilters] = useState({});
     const [tempMslFilter, setTempMslFilter] = useState(mslFilter || '0');
+    const [searchSkuTerm, setSearchSkuTerm] = useState("");
+    const [resellerOptions, setResellerOptions] = useState([]);
+
+    const isDrlClient = useMemo(() => {
+        try {
+            const u = JSON.parse(sessionStorage.getItem('user'));
+            return u?.dbName?.toLowerCase() === 'drl';
+        } catch {
+            return false;
+        }
+    }, []);
+
+    const filtersDepKey = JSON.stringify([
+        advancedFilters.platform,
+        advancedFilters.brand,
+        advancedFilters.format,
+        advancedFilters.city
+    ]);
+
+    useEffect(() => {
+        if (!isDrlClient) return;
+        
+        const fetchResellerOptions = async () => {
+            try {
+                const token = sessionStorage.getItem('token');
+                const headers = token ? { Authorization: `Bearer ${token}` } : {};
+                
+                const queryParams = new URLSearchParams();
+                queryParams.append('filterType', 'resellerNames');
+                
+                if (advancedFilters.platform?.length) {
+                    advancedFilters.platform.forEach(p => queryParams.append('platform', p));
+                }
+                if (advancedFilters.brand?.length) {
+                    advancedFilters.brand.forEach(b => queryParams.append('brand', b));
+                }
+                if (advancedFilters.format?.length) {
+                    advancedFilters.format.forEach(c => queryParams.append('category', c));
+                }
+                if (advancedFilters.city?.length) {
+                    advancedFilters.city.forEach(ct => queryParams.append('city', ct));
+                }
+
+                const res = await fetch(`/api/availability-analysis/filter-options?${queryParams.toString()}`, { headers });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data?.options) {
+                        setResellerOptions(data.options);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch reseller options:", err);
+            }
+        };
+        fetchResellerOptions();
+    }, [isDrlClient, filtersDepKey]);
+
+    useEffect(() => {
+        if (resellerFilter) {
+            setAdvancedFilters(prev => ({
+                ...prev,
+                resellerName: resellerFilter
+            }));
+        }
+    }, [resellerFilter]);
 
     useEffect(() => {
         setTempMslFilter(mslFilter || '0');
@@ -87,6 +159,9 @@ export default function OsaDetailTableLight({ apiData, loading, mslFilter, onMsl
         setShowFilterPanel(false);
         if (onMslChange) {
             onMslChange(tempMslFilter);
+        }
+        if (onResellerChange) {
+            onResellerChange(advancedFilters.resellerName || []);
         }
     };
 
@@ -115,7 +190,7 @@ export default function OsaDetailTableLight({ apiData, loading, mslFilter, onMsl
     const filterOptions = useMemo(() => {
         if (!apiData?.osaDetail) return [];
         const mk = arr => arr.map(p => ({ id: p, label: p }));
-        return [
+        const opts = [
             { id: "msl", label: "MSL", options: [
                 { id: "0", label: "All SKUs" },
                 { id: "1", label: "Top SKUs" }
@@ -126,7 +201,11 @@ export default function OsaDetailTableLight({ apiData, loading, mslFilter, onMsl
             { id: "format", label: "Category", options: mk([...new Set(apiData.osaDetail.map(r => r.format).filter(Boolean))]) },
             { id: "city", label: "City", options: mk([...new Set(apiData.osaDetail.flatMap(r => r.cities?.map(c => c.name) || []).filter(Boolean))]) },
         ];
-    }, [apiData]);
+        if (isDrlClient && resellerOptions.length > 0) {
+            opts.push({ id: "resellerName", label: "Reseller", options: mk(resellerOptions) });
+        }
+        return opts;
+    }, [apiData, isDrlClient, resellerOptions]);
 
     const baseRows = useMemo(() => {
         if (!apiData?.osaDetail?.length) return [];
@@ -141,6 +220,15 @@ export default function OsaDetailTableLight({ apiData, loading, mslFilter, onMsl
 
     const filtered = useMemo(() => {
         let res = baseRows;
+
+        if (searchSkuTerm.trim()) {
+            const q = searchSkuTerm.toLowerCase().trim();
+            res = res.filter(r => 
+                r.name.toLowerCase().includes(q) || 
+                r.sku.toLowerCase().includes(q)
+            );
+        }
+
         Object.entries(advancedFilters).forEach(([key, values]) => {
             if (!values?.length) return;
             if (key === 'platform') res = res.filter(r => values.includes(r.platform));
@@ -153,7 +241,7 @@ export default function OsaDetailTableLight({ apiData, loading, mslFilter, onMsl
             }
         });
         return res;
-    }, [baseRows, advancedFilters]);
+    }, [baseRows, advancedFilters, searchSkuTerm]);
 
     const sorted = useMemo(() => {
         const mul = sortDir === "asc" ? 1 : -1;
@@ -204,7 +292,17 @@ export default function OsaDetailTableLight({ apiData, loading, mslFilter, onMsl
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button onClick={() => setShowFilterPanel(true)} className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+                                <input
+                                    type="text"
+                                    placeholder="Search product / SKU..."
+                                    value={searchSkuTerm}
+                                    onChange={(e) => {
+                                        setSearchSkuTerm(e.target.value);
+                                        setPage(1);
+                                    }}
+                                    className="h-8 w-60 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+                                />
+                                <button onClick={() => setShowFilterPanel(true)} className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 h-8 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">
                                     <SlidersHorizontal className="h-3.5 w-3.5" /><span>Filters</span>
                                 </button>
                                 <div className="flex items-center gap-2 ml-2">

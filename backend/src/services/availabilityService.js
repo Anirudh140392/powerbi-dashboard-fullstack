@@ -2502,10 +2502,33 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             if (filterType === 'resellerNames') {
                 const dbName = getCurrentDbName();
                 if (dbName === 'drl') {
+                    const resellerConditions = [`Reseller_Name IS NOT NULL AND Reseller_Name != ''`];
+                    
+                    const platformCond = await buildPlatformChannelCond(platform, channel);
+                    if (platformCond) {
+                        resellerConditions.push(platformCond);
+                    }
+                    if (brand && brand !== 'All') {
+                        const bArr = Array.isArray(brand) ? brand : [brand];
+                        resellerConditions.push(`lower(replace(Brand, ' ', '_')) IN (${bArr.map(b => `'${escapeStr(b.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+                    }
+                    if (city && city !== 'All') {
+                        const cArr = Array.isArray(city) ? city : [city];
+                        resellerConditions.push(`Location IN (${cArr.map(c => `'${escapeStr(c)}'`).join(',')})`);
+                    }
+                    if (category && category !== 'All') {
+                        const pdpColsMap = await getTableColumns('rb_pdp_olap');
+                        const actualCatCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+                        const catArr = Array.isArray(category) ? category : [category];
+                        resellerConditions.push(`${actualCatCol} IN (${catArr.map(cat => `'${escapeStr(cat)}'`).join(',')})`);
+                    }
+
+                    const whereClause = resellerConditions.length > 0 ? `WHERE ${resellerConditions.join(' AND ')}` : '';
+
                     const query = `
                         SELECT DISTINCT Reseller_Name as value
                         FROM rb_pdp_olap
-                        WHERE Reseller_Name IS NOT NULL AND Reseller_Name != ''
+                        ${whereClause}
                         ORDER BY value
                     `;
                     const results = await queryClickHouse(query);
