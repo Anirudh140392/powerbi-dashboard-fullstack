@@ -92,7 +92,7 @@ jobs:
           VITE_RAILWAY_URL=${{ secrets.VITE_RAILWAY_URL }}
           ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
           CLICKHOUSE_HOST=${{ env.TARGET_CLICKHOUSE_URL }}
-          CLICKHOUSE_DATABASE=${{ secrets.CLICKHOUSE_DATABASE }}
+          CLICKHOUSE_DB=${{ secrets.CLICKHOUSE_DB }}
           CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}
           CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}
           COMPANY_ID=${{ secrets.COMPANY_ID }}

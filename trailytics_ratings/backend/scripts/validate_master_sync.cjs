@@ -20,7 +20,7 @@ const ch = createClient({
     url: process.env.CLICKHOUSE_HOST,
     username: process.env.CLICKHOUSE_USER,
     password: process.env.CLICKHOUSE_PASSWORD,
-    database: process.env.CLICKHOUSE_DATABASE,
+    database: process.env.CLICKHOUSE_DB,
 });
 const pg = new Pool({
     host: process.env.DB_HOST,

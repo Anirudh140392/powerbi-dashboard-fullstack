@@ -44,7 +44,7 @@ const chClient = createClient({
     url: requireEnv('CLICKHOUSE_HOST'),
     username: requireEnv('CLICKHOUSE_USER'),
     password: requireEnv('CLICKHOUSE_PASSWORD'),
-    database: requireEnv('CLICKHOUSE_DATABASE'),
+    database: requireEnv('CLICKHOUSE_DB'),
     request_timeout: 180_000,
 });
 
@@ -62,7 +62,7 @@ function toRating(value) {
 
 async function main() {
     console.log('=== ClickHouse -> PostgreSQL PRICE/RATING SNAPSHOT Sync ===');
-    console.log(`Source: ${process.env.CLICKHOUSE_HOST} db=${process.env.CLICKHOUSE_DATABASE} table=rb_pdp_week`);
+    console.log(`Source: ${process.env.CLICKHOUSE_HOST} db=${process.env.CLICKHOUSE_DB} table=rb_pdp_week`);
     const startedAt = Date.now();
 
     const { rows: pgMasters } = await pgPool.query(`

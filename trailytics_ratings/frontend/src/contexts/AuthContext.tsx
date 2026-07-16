@@ -5,7 +5,7 @@
 import React, { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import { type AuthUser, persistAuthSession } from '../utils/auth';
 
-// Real company ID — sourced from CLICKHOUSE_DATABASE=prestige tenant in the ratings backend .env
+// Real company ID — sourced from CLICKHOUSE_DB=prestige tenant in the ratings backend .env
 const HARDCODED_COMPANY_ID = '297e37ea-a5ac-47df-bebd-ac44e52b7979';
 const HARDCODED_COMPANY_NAME = 'prestige';
 
@@ -62,8 +62,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isLoading: false,
         login: async () => ({ status: 'success' }),
         ssoLogin: async () => ({ ok: true }),
-        logout: async () => {},
-        refreshSession: async () => {},
+        logout: async () => { },
+        refreshSession: async () => { },
         startMfaEnrolment: async () => ({ ok: false, error: 'Disabled' }),
         completeMfaEnrolment: async () => ({ ok: false, error: 'Disabled' }),
         completeMfaVerify: async () => ({ ok: true }),
