@@ -23,6 +23,11 @@ app.use((req, res, next) => {
     next();
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+});
+
 // Mount modular routes here
 import routes from './routes/index.js';
 app.use('/api', routes);
