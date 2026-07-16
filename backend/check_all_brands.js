@@ -9,6 +9,8 @@ const clickhouse = createClient({
     database: process.env.CLICKHOUSE_DB,
 });
 
+
+
 async function checkAllBrands() {
     try {
         const query = `
