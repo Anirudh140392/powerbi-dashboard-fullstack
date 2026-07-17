@@ -584,6 +584,7 @@ export default function WatchTower() {
   const overviewFetchIdRef = useRef(0);
   const categoryFetchIdRef = useRef(0);
 
+  
   // NOTE: We do NOT sync _sidebarPlatform / _sidebarChannel into local `filters`
   // on every change. WatchTower manages filters.channel and filters.platform
   // entirely through its own atomic state updates (via onFiltersChange in handleApply).
