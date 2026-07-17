@@ -55,9 +55,36 @@ services:
           memory: 512M
           cpus: '0.25'
 
+  # ─── Content Analysis Backend API Service (port 8000) ───
+  content_backend:
+    build:
+      context: ./trailytics_content_analysis/backend
+      dockerfile: Dockerfile
+    container_name: content_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./trailytics_content_analysis/backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT_COTENT=8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
   # ─── Frontend UI Service (port 9500 → exposed as 9400) ───
   # Build context is the monorepo root because the frontend
-  # imports TSX source files from trailytics_ratings/frontend/src/
+  # imports source files directly from:
+  #   trailytics_ratings/frontend/src/
+  #   trailytics_content_analysis/frontend/src/
   frontend_multiple:
     build:
       context: .
@@ -68,6 +95,7 @@ services:
     depends_on:
       - backend_multiple
       - ratings_backend
+      - content_backend
     restart: unless-stopped
     deploy:
       resources:
@@ -76,3 +104,4 @@ services:
           cpus: '1'
         reservations:
           memory: 512M
+          cpus: '0.5'

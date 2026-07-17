@@ -21,6 +21,9 @@ backend/
 # Ratings backend (not needed by frontend build)
 trailytics_ratings/backend/
 
+# Content analysis backend (not needed by frontend build)
+trailytics_content_analysis/backend/
+
 # Ratings unused directory
 trailytics_ratings/unused/
 

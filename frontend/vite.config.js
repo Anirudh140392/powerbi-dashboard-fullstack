@@ -61,6 +61,11 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      // ── Content analysis backend (port 8000) ──
+      '/api/content-dashboard': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
       // ── Main backend API proxy (catch-all for other /api/*) ──
       '/api': {
         target: 'http://localhost:5001',

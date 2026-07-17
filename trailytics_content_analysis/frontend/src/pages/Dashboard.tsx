@@ -24,7 +24,7 @@ const lineChartData = [
 
 // --- API TYPES ---
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = '/api';
 
 interface ApiProduct {
   productId: string;
