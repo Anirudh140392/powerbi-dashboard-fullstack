@@ -129,6 +129,27 @@ const LatestOverivewCatCity = ({
         filterLogic: 'OR',
     })
 
+    // Reset advanced/local filters when global filters are reset to defaults
+    useEffect(() => {
+        const isGlobalPlatformReset = globalPlatform === "All" || (Array.isArray(globalPlatform) && globalPlatform.includes("All")) || globalPlatform === "";
+        const isGlobalBrandReset = selectedBrand === "All";
+        const isGlobalCategoryReset = selectedCategory === "All";
+        const isGlobalLocationReset = selectedLocation === "All";
+
+        if (isGlobalPlatformReset && isGlobalBrandReset && isGlobalCategoryReset && isGlobalLocationReset) {
+            setAdvancedFilters({
+                brands: [],
+                categories: [],
+                platforms: [],
+                skus: [],
+                dateFrom: '',
+                dateTo: '',
+                kpis: ['discount', 'pricePerUnit', 'asp'],
+                filterLogic: 'OR',
+            });
+        }
+    }, [globalPlatform, selectedBrand, selectedCategory, selectedLocation]);
+
     const [apiData, setApiData] = useState([])
     const [isLoading, setIsLoading] = useState(true)
     const [currentPage, setCurrentPage] = useState(1)

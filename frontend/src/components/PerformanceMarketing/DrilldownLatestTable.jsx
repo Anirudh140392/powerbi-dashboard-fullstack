@@ -455,6 +455,35 @@ export default function DrilldownLatestTable() {
   const [sortField, setSortField] = useState('format')
   const [sortDir, setSortDir] = useState('asc')
 
+  // Reset local filters when global filters are reset to defaults
+  useEffect(() => {
+    const isGlobalPlatformReset = platform === "All" || (Array.isArray(platform) && platform.includes("All")) || platform === "";
+    const isGlobalBrandReset = selectedBrand === "All";
+    const isGlobalCategoryReset = selectedCategory === "All";
+    const isGlobalLocationReset = selectedLocation === "All";
+
+    if (isGlobalPlatformReset && isGlobalBrandReset && isGlobalCategoryReset && isGlobalLocationReset) {
+      setActiveFilters({
+        brands: [],
+        categories: [],
+        zones: [],
+        keywords: [],
+        skus: [],
+        platforms: [],
+        kpiRules: null,
+        weekendFlag: [],
+      });
+      setLocalFilters({
+        weekendFlag: 'All',
+        tdp: 'All',
+        month: 'All',
+        year: 'All',
+        format: 'All',
+        day: '',
+      });
+    }
+  }, [platform, selectedBrand, selectedCategory, selectedLocation]);
+
   // Dynamically determine quarters AND months from data
   const { quarters, quarterMonths } = useMemo(() => {
     if (!apiData || apiData.length === 0) return { quarters: [], quarterMonths: {} };

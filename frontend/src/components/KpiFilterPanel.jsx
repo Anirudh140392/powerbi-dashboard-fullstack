@@ -266,9 +266,7 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
 
   // Sync selected state when value prop changes (e.g., when reopening filter panel)
   React.useEffect(() => {
-    if (value !== undefined) {
-      setSelected(new Set(value));
-    }
+    setSelected(new Set(value || []));
   }, [value]);
 
   const searched = useMemo(() => {
