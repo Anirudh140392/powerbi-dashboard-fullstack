@@ -1035,9 +1035,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
             const conditions = [`${dateCol} BETWEEN '${s.format('YYYY-MM-DD')}' AND '${e.format('YYYY-MM-DD')}'`];
 
-            // Filter for Our Brands Only (Comp_flag=0) if specific brands are selected
+            // Filter for Our Brands Only (Comp_flag=0)
             const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
             if (brandArr && brandArr.length > 0) {
+                conditions.push(`${compFlagCol} = 0`);
+            } else {
+                // Default to our brands if "All" is selected
                 conditions.push(`${compFlagCol} = 0`);
             }
 
@@ -2963,7 +2966,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const dayjsEnd = dayjs(endDt);
             const dateCol = s.isAgg ? 'date' : 'toDate(DATE)';
             const conds = [`${dateCol} BETWEEN '${dayjsStart.format('YYYY-MM-DD')}' AND '${dayjsEnd.format('YYYY-MM-DD')}'`];
-            if (plat && plat !== 'All') conds.push(`${s.f.platform} = '${escapeStrMain(plat)}'`);
+            if (plat && plat !== 'All') {
+                const platArr = Array.isArray(plat) ? plat : (typeof plat === 'string' && plat.includes(',') ? plat.split(',') : [plat]);
+                if (platArr.length === 1) {
+                    conds.push(`lower(${s.f.platform}) = '${escapeStrMain(platArr[0].toLowerCase())}'`);
+                } else if (platArr.length > 1) {
+                    const list = platArr.map(p => `'${escapeStrMain(p.trim().toLowerCase())}'`).join(', ');
+                    conds.push(`lower(${s.f.platform}) IN (${list})`);
+                }
+            }
             const locArr = normalizeFilterArray(location);
             if (locArr && locArr.length > 0) {
                 conds.push(`${s.f.location} IN (${locArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
@@ -3159,16 +3170,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
             // 2. All Availability (current and previous in parallel)
             const [currAvail, prevAvail] = await Promise.all([
-                getAvailability(startDate, endDate, brand, null, location, category),
-                getAvailability(allMomStart, allMomEnd, brand, null, location, category)
+                getAvailability(startDate, endDate, brand, platform, location, category),
+                getAvailability(allMomStart, allMomEnd, brand, platform, location, category)
             ]);
             allAvailability = currAvail;
             prevAllAvailability = prevAvail;
 
             // 3. All SOS (current and previous in parallel)
             const [currSos, prevSos] = await Promise.all([
-                getShareOfSearch(startDate, endDate, brand, null, location, category),
-                getShareOfSearch(allMomStart, allMomEnd, brand, null, location, category)
+                getShareOfSearch(startDate, endDate, brand, platform, location, category),
+                getShareOfSearch(allMomStart, allMomEnd, brand, platform, location, category)
             ]);
             allSos = currSos;
             prevAllSos = prevSos;
@@ -3184,17 +3195,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 : validBrandNamesForMS;  // Use all our brands
 
             // Calculate overall Market Share using centralized helper
-            allMarketShare = await getMarketShare(startDate, endDate, null, category, brand, location, channel);
-            prevAllMarketShare = await getMarketShare(allMomStart, allMomEnd, null, category, brand, location, channel);
-
-
+            allMarketShare = await getMarketShare(startDate, endDate, platform, category, brand, location, channel);
+            prevAllMarketShare = await getMarketShare(allMomStart, allMomEnd, platform, category, brand, location, channel);
 
             // Calculate Promo Metrics for "All" platforms concurrently
             const [allMyPromo, allCompetePromo, prevMyPromo, prevCompetePromo] = await Promise.all([
-                getPromoDepthCH(startDate, endDate, brand, false, null, src),
-                getPromoDepthCH(startDate, endDate, brand, true, null, src),
-                getPromoDepthCH(allMomStart, allMomEnd, brand, false, null, src),
-                getPromoDepthCH(allMomStart, allMomEnd, brand, true, null, src)
+                getPromoDepthCH(startDate, endDate, brand, false, platform, src),
+                getPromoDepthCH(startDate, endDate, brand, true, platform, src),
+                getPromoDepthCH(allMomStart, allMomEnd, brand, false, platform, src),
+                getPromoDepthCH(allMomStart, allMomEnd, brand, true, platform, src)
             ]);
 
             allPromoMyBrand = allMyPromo;
@@ -5997,8 +6006,8 @@ const getPlatformOverview = async (filters) => {
         prevSumMsDenom += prevMsDenomMap.get(key) || 0;
     });
 
-    const allMarketShare = hasTier23 ? null : await getMarketShare(startDate, endDate, 'All', rawCategory, null, locationArr, channel);
-    const prevAllMarketShare = hasTier23 ? null : await getMarketShare(momStart, momEnd, 'All', rawCategory, null, locationArr, channel);
+    const allMarketShare = hasTier23 ? null : await getMarketShare(startDate, endDate, (platformArr && platformArr.length > 0) ? platformArr : 'All', rawCategory, null, locationArr, channel);
+    const prevAllMarketShare = hasTier23 ? null : await getMarketShare(momStart, momEnd, (platformArr && platformArr.length > 0) ? platformArr : 'All', rawCategory, null, locationArr, channel);
 
     const hasPlatformFilter = platformArr && platformArr.length > 0;
     if (!hasPlatformFilter) {
@@ -11916,8 +11925,12 @@ const getCityOverview = async (filters) => {
         const conds = [`${dateCol} BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
 
         const brandCol = src.isAgg ? 'brand' : 'Brand';
+        const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
         if (brandArr && brandArr.length > 0) {
             conds.push(`(${brandArr.map(b => `${brandCol} LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+            conds.push(`${compFlagCol} = 0`);
+        } else {
+            conds.push(`${compFlagCol} = 0`);
         }
 
         const platformCol = src.isAgg ? 'platform' : 'Platform';
@@ -12509,7 +12522,7 @@ const getWatchTowerCascadedFilters = async (filters) => {
             }
 
             // 2. Category filter
-            if (excludeField !== 'category' && category && category !== 'All') {
+            if (excludeField !== 'category' && category && category !== 'All' && String(category).toLowerCase() !== 'all') {
                 const catArr = normalizeFilterArray(category);
                 if (catArr.length > 0) {
                     conds.push(`lower(${categoryCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
@@ -12517,7 +12530,7 @@ const getWatchTowerCascadedFilters = async (filters) => {
             }
 
             // 3. Brand filter
-            if (excludeField !== 'brand' && brand && brand !== 'All') {
+            if (excludeField !== 'brand' && brand && brand !== 'All' && String(brand).toLowerCase() !== 'all') {
                 const brandArr = normalizeFilterArray(brand);
                 if (brandArr.length > 0) {
                     conds.push(`lower(${brandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
@@ -12525,7 +12538,7 @@ const getWatchTowerCascadedFilters = async (filters) => {
             }
 
             // 4. Location filter
-            if (excludeField !== 'location' && location && location !== 'All') {
+            if (excludeField !== 'location' && location && location !== 'All' && String(location).toLowerCase() !== 'all') {
                 const locArr = normalizeFilterArray(location);
                 if (locArr.length > 0) {
                     conds.push(`lower(${locationCol}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);

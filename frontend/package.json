@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npx concurrently \"node --max-http-header-size=81920 ./node_modules/vite/bin/vite.js\" \"npm run dev --prefix ../trailytics_ratings/frontend\"",
+    "dev": "node --max-http-header-size=81920 ./node_modules/vite/bin/vite.js",
     "build": "vite build",
     "render-build": "rm -rf node_modules package-lock.json && npm install && vite build",
     "lint": "eslint .",
@@ -59,6 +59,7 @@
     "reactflow": "^11.11.4",
     "recharts": "^2.15.4",
     "socket.io-client": "^4.8.3",
+    "TagCloud": "^2.5.0",
     "tailwind-merge": "^3.4.1",
     "use-debounce": "^10.0.4",
     "xlsx": "^0.18.5"

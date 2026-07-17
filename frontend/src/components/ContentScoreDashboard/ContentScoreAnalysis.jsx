@@ -203,7 +203,7 @@ const ExpandablePlatformRow = ({ row }) => {
 
 // --- MAIN DEFAULT EXPORT ---
 export default function ContentScoreAnalysis() {
-  const { platform, selectedCategory, selectedChannel, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd } = useContext(FilterContext);
+  const { platform, getResolvedPlatform, selectedCategory, selectedChannel, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd } = useContext(FilterContext);
 
   const [currentView, setCurrentView] = useState('main'); // 'main' | 'trends' | 'key_insights'
   const [selectedLines, setSelectedLines] = useState(['overall', 'title', 'images', 'secondary', 'description', 'rating']);
@@ -227,7 +227,7 @@ export default function ContentScoreAnalysis() {
       try {
         setIsLoading(true);
         const commonParams = {
-          platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+          platform: getResolvedPlatform(),
           category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
           channel: selectedChannel === "All" ? undefined : (Array.isArray(selectedChannel) ? selectedChannel.join(",") : selectedChannel),
           brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),

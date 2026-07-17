@@ -215,10 +215,12 @@ export const debugAvailability = async (req, res) => {
 /**
  * Get Overview Data (topMetrics, summaryMetrics, performanceMetricsKpis)
  */
+import fs from 'fs';
+
 export const getOverview = async (req, res) => {
     try {
         const filters = { ...req.query };
-        console.log('[getOverview] API call received with filters:', filters);
+        fs.appendFileSync('c:/Powerbi-Dashboard/request_log.txt', `[getOverview] Time: ${new Date().toISOString()} | Query: ${JSON.stringify(filters)}\n`);
         const data = await watchTowerService.getOverview(filters);
         res.json(data);
     } catch (error) {
@@ -233,7 +235,7 @@ export const getOverview = async (req, res) => {
 export const getPerformanceMetrics = async (req, res) => {
     try {
         const filters = { ...req.query };
-        console.log('[getPerformanceMetrics] API call received with filters:', filters);
+        fs.appendFileSync('c:/Powerbi-Dashboard/request_log.txt', `[getPerformanceMetrics] Time: ${new Date().toISOString()} | Query: ${JSON.stringify(filters)}\n`);
         const data = await watchTowerService.getPerformanceMetrics(filters);
         res.json(data);
     } catch (error) {
@@ -601,6 +603,8 @@ export const getMaxDatesAll = async (req, res) => {
 export const getWatchTowerCascadedFilters = async (req, res) => {
     try {
         const { channel, platform, category, brand, location } = req.query;
+        const queryParams = { channel, platform, category, brand, location };
+        fs.appendFileSync('c:/Powerbi-Dashboard/request_log.txt', `[getWatchTowerCascadedFilters] Time: ${new Date().toISOString()} | Query: ${JSON.stringify(queryParams)}\n`);
         const data = await watchTowerService.getWatchTowerCascadedFilters({
             channel: channel || 'All',
             platform: platform || 'All',
@@ -608,6 +612,7 @@ export const getWatchTowerCascadedFilters = async (req, res) => {
             brand: brand || 'All',
             location: location || 'All'
         });
+        fs.appendFileSync('c:/Powerbi-Dashboard/request_log.txt', `[getWatchTowerCascadedFilters] Response keys: ${Object.keys(data).join(',')}, platforms length: ${data.platforms?.length}, categories length: ${data.categories?.length}, brands length: ${data.brands?.length}\n`);
         res.json(data);
     } catch (error) {
         console.error('[getWatchTowerCascadedFilters] Error:', error);

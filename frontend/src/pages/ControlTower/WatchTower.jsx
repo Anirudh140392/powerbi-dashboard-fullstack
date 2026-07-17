@@ -91,12 +91,23 @@ export default function WatchTower() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = React.useState(0);
 
-  const [filters, setFilters] = useState({
+  const [filters, _rawSetFilters] = useState({
     platform: "All",
     channel: "All",
     months: 6,
     timeStep: "Monthly",
   });
+
+  // DEBUG: wrap setFilters to log every call with a stack trace
+  const setFilters = useCallback((updater) => {
+    _rawSetFilters((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      const message = `filters state update: ${JSON.stringify(prev)} -> ${JSON.stringify(next)}`;
+      const stack = new Error().stack;
+      axiosInstance.post("/log", { message, stack }).catch(() => {});
+      return next;
+    });
+  }, []);
 
   const [activeTab, setActiveTab] = useState("Split by Category");
   const [activeKpisTab, setActiveKpisTab] = useState("Platform Overview");
@@ -180,6 +191,7 @@ export default function WatchTower() {
   const [categoryDataLoading, setCategoryDataLoading] = useState(true);
   const [categoryOverview, setCategoryOverview] = useState([]);
   const [performanceLoading, setPerformanceLoading] = useState(true);
+  const [localPlatformsList, setLocalPlatformsList] = useState([]);
 
   const filterContext = React.useContext(FilterContext);
   const {
@@ -202,8 +214,18 @@ export default function WatchTower() {
     channels,
     refreshFilters,
     refreshDates,
-    selectedMsl
+    selectedMsl,
+    getResolvedPlatform
   } = filterContext;
+
+  const getLocalResolvedPlatform = useCallback((platVal) => {
+    if (platVal === "All" || platVal === "all" || (Array.isArray(platVal) && platVal.some(p => p === "All" || p === "all")) || !platVal || platVal === "") {
+      const activePlatforms = localPlatformsList.length > 0 ? localPlatformsList : (platforms || []);
+      const filtered = activePlatforms.filter(p => p !== "All" && p !== "all" && p !== "");
+      return filtered.length > 0 ? filtered.join(",") : undefined;
+    }
+    return Array.isArray(platVal) ? platVal.join(",") : platVal;
+  }, [localPlatformsList, platforms]);
 
   const hasRestrictedPlatforms = useMemo(() => {
     try {
@@ -229,7 +251,7 @@ export default function WatchTower() {
   //   }
   // }, [platformsFetched, platforms, _sidebarPlatform, hasRestrictedPlatforms, filters.platform]);
 
-  const [localPlatformsList, setLocalPlatformsList] = useState([]);
+
 
   useEffect(() => {
     let active = true;
@@ -562,11 +584,15 @@ export default function WatchTower() {
   const overviewFetchIdRef = useRef(0);
   const categoryFetchIdRef = useRef(0);
 
+  // NOTE: We do NOT sync _sidebarPlatform / _sidebarChannel into local `filters`
+  // on every change. WatchTower manages filters.channel and filters.platform
+  // entirely through its own atomic state updates (via onFiltersChange in handleApply).
+  // Syncing on every sidebar change would overwrite the user's modal filter selections.
+
   // Sync filters state from context (used only by child props, NOT for triggering fetches)
   useEffect(() => {
     setFilters((prev) => ({
       ...prev,
-      platform: platform,
       category: selectedCategory,
       keyword: selectedKeyword,
       location: selectedLocation,
@@ -575,7 +601,7 @@ export default function WatchTower() {
       compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : null,
       compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : null,
     }));
-  }, [selectedCategory, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
+  }, [selectedCategory, timeStart, timeEnd, compareStart, compareEnd, selectedKeyword, selectedLocation]);
 
   const categoryFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${categoryPlatform}-${selectedMsl}`;
 
@@ -627,8 +653,12 @@ export default function WatchTower() {
       if (currentFetchId !== overviewFetchIdRef.current) return;
       lastFetchedOverviewKey.current = currentFilterKey;
 
+      console.log("[WatchTower Debug Fetch] platform:", platform, "params.platform:", getLocalResolvedPlatform(platform), "filters.platform:", filters.platform);
+      axiosInstance.post("/log", {
+        message: `[WatchTower Fetch] platform: ${JSON.stringify(platform)} | resolvedPlatform: ${JSON.stringify(getLocalResolvedPlatform(platform))} | filters.platform: ${JSON.stringify(filters.platform)} | localPlatformsList: ${JSON.stringify(localPlatformsList)} | platforms: ${JSON.stringify(platforms)}`
+      }).catch(() => {});
       const params = {
-        platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+        platform: getLocalResolvedPlatform(platform),
         brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
         category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
         channel: selectedChannel === "All" ? undefined : selectedChannel,
@@ -698,7 +728,7 @@ export default function WatchTower() {
       lastFetchedCategoryKey.current = categoryFilterKey;
 
       const params = {
-        platform: categoryPlatform === "All" ? (platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform)) : categoryPlatform,
+        platform: categoryPlatform === "All" ? getLocalResolvedPlatform(platform) : categoryPlatform,
         brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
         category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
         channel: undefined, // Channel dropdown removed for Category Performance
@@ -747,7 +777,7 @@ export default function WatchTower() {
     setFetchError(null);
     setLoading(true);
     const params = {
-      platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+      platform: getLocalResolvedPlatform(platform),
       category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
       location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
       keyword: selectedKeyword || undefined,
@@ -805,7 +835,13 @@ export default function WatchTower() {
             <SnapshotOverview
               title="Business Overview"
               icon={LayoutGrid}
-              chip="All Platforms"
+              chip={
+                platform === "All" || (Array.isArray(platform) && platform.length === 0)
+                  ? "All Platforms"
+                  : Array.isArray(platform)
+                    ? platform.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(", ")
+                    : platform.charAt(0).toUpperCase() + platform.slice(1)
+              }
               headerRight={
                 <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
                   vs Previous Month

@@ -131,6 +131,20 @@ export const FilterProvider = ({ children }) => {
 
     const datesInitialized = Boolean(timeStart && timeEnd);
 
+    // Helper to resolve the platform query param
+    // If 'All' is selected, return undefined so the backend queries ALL platforms
+    // (not just the channel-filtered subset that the context's `platforms` list holds).
+    // When specific platforms are selected, return them as a comma-separated string.
+    const getResolvedPlatform = useCallback(() => {
+        if (platform === "All" || platform === "all" || (Array.isArray(platform) && platform.some(p => p === "All" || p === "all"))) {
+            // "All" means no platform restriction — let the backend handle it
+            return undefined;
+        }
+        if (!platform || platform === "") return undefined;
+        return Array.isArray(platform) ? platform.join(",") : platform;
+    }, [platform]);
+
+
     // ====== RESET STATE ON LOGOUT ======
     useEffect(() => {
         if (!isAuthenticated) {
@@ -502,7 +516,7 @@ export const FilterProvider = ({ children }) => {
             if (window.location.hash.includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/watchtower/categories", {
-                    params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
+                    params: { platform: getResolvedPlatform() }
                 });
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched categories from DB:", res.data);
@@ -532,7 +546,7 @@ export const FilterProvider = ({ children }) => {
             if (window.location.hash.includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/visibility-analysis/categories", {
-                    params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
+                    params: { platform: getResolvedPlatform() }
                 });
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     const cats = [...res.data.filter(c => c !== "All")];
@@ -558,7 +572,7 @@ export const FilterProvider = ({ children }) => {
             try {
                 const res = await axiosInstance.get("/watchtower/product-categories", {
                     params: {
-                        platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+                        platform: getResolvedPlatform(),
                         brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand)
                     }
                 });
@@ -598,7 +612,7 @@ export const FilterProvider = ({ children }) => {
             if (window.location.hash.includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/watchtower/locations", {
-                    params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
+                    params: { platform: getResolvedPlatform() }
                 });
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched locations from DB:", res.data);
@@ -636,7 +650,7 @@ export const FilterProvider = ({ children }) => {
             if (window.location.hash.includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/watchtower/brands", {
-                    params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
+                    params: { platform: getResolvedPlatform() }
                 });
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched brands from DB:", res.data);
@@ -674,7 +688,7 @@ export const FilterProvider = ({ children }) => {
 
             try {
                 const params = {
-                    platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+                    platform: getResolvedPlatform(),
                     category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
                     ownBrandsOnly: visibilityOwnBrandsOnly
                 };
@@ -712,7 +726,7 @@ export const FilterProvider = ({ children }) => {
 
             try {
                 const params = {
-                    platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform)
+                    platform: getResolvedPlatform()
                 };
 
                 console.log("[FilterContext] Fetching keyword types with params:", params);
@@ -789,6 +803,7 @@ export const FilterProvider = ({ children }) => {
             platformMetadata,
             platform,
             setPlatform,
+            getResolvedPlatform,
             timeStart,
             setTimeStart,
             timeEnd,

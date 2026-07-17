@@ -1,16 +1,33 @@
-import { createClient } from '@clickhouse/client';
+import RbPdpOlap from './src/models/RbPdpOlap.js';
+import { Sequelize } from 'sequelize';
+import dotenv from 'dotenv';
+dotenv.config();
 
-const client = createClient({
-  url: 'http://13.203.251.97:8123',
-  username: 'yash_user',
-  password: 'yash@Gautam0100',
-  database: 'default'
-});
+async function checkData() {
+    try {
+        const stats = await RbPdpOlap.findAll({
+            attributes: [
+                [Sequelize.fn('MIN', Sequelize.col('DATE')), 'minDate'],
+                [Sequelize.fn('MAX', Sequelize.col('DATE')), 'maxDate'],
+                [Sequelize.fn('COUNT', Sequelize.col('*')), 'totalRows'],
+                [Sequelize.fn('SUM', Sequelize.col('Sales')), 'totalSales']
+            ],
+            raw: true
+        });
+        console.log('Overall Stats:', stats);
 
-async function run() {
-  const rs = await client.query({ query: 'DESCRIBE prestige.rca_pdp_olap' });
-  const schema = await rs.json();
-  console.log(schema.data.map(c => c.name));
+        const platforms = await RbPdpOlap.findAll({
+            attributes: ['Platform', [Sequelize.fn('COUNT', Sequelize.col('*')), 'rows']],
+            group: ['Platform'],
+            raw: true
+        });
+        console.log('Platforms:', platforms);
+
+        process.exit(0);
+    } catch (error) {
+        console.error('Error:', error);
+        process.exit(1);
+    }
 }
 
-run().catch(console.error);
+checkData();

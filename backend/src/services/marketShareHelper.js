@@ -6,10 +6,10 @@ import dayjs from 'dayjs';
  * Handles: null, string, comma-separated string, array
  */
 export const normalizeFilterArray = (value) => {
-    if (!value || value === 'All') return [];
-    if (Array.isArray(value)) return value.filter(v => v && v !== 'All');
+    if (!value || value === 'All' || (typeof value === 'string' && value.toLowerCase() === 'all')) return [];
+    if (Array.isArray(value)) return value.filter(v => v && v !== 'All' && String(v).toLowerCase() !== 'all');
     if (typeof value === 'string') {
-        return value.split(',').map(s => s.trim()).filter(s => s && s !== 'All');
+        return value.split(',').map(s => s.trim()).filter(s => s && s !== 'All' && s.toLowerCase() !== 'all');
     }
     return [];
 };

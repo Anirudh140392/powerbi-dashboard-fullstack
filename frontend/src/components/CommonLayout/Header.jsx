@@ -84,6 +84,7 @@ function WatchTowerFilterModal({
   locations = [], selectedLocation, setSelectedLocation,
   isBusinessOverview = false,
   msls = [], selectedMsl, setSelectedMsl,
+  onFiltersChange,
 }) {
   const hasRestrictedPlatforms = React.useMemo(() => {
     try {
@@ -169,7 +170,9 @@ function WatchTowerFilterModal({
               const currList = Array.isArray(prev) ? prev : [prev];
               if (currList.length === 0 || (currList.length === 1 && !currList[0])) return [];
               const valid = currList.filter(p => newPlatforms.some(np => np.toLowerCase() === p.toLowerCase()));
-              const newValue = valid.length === 0 ? "All" : (valid.length === newPlatforms.length ? "All" : (valid.length === 1 ? valid[0] : valid));
+              // Keep explicit array selection — do NOT collapse to "All" even if all options are covered.
+              // "All" means "no filter" (undefined sent to backend); an array always sends the explicit list.
+              const newValue = valid.length === 0 ? "All" : (valid.length === 1 ? valid[0] : valid);
               return JSON.stringify(prev) === JSON.stringify(newValue) ? prev : newValue;
             });
           }
@@ -255,13 +258,26 @@ function WatchTowerFilterModal({
       next = [...selected.filter(s => s !== "All"), opt];
     }
     if (next.length === options.length && options.length > 0) {
-      onChange(hasRestrictedPlatforms && !isBusinessOverview && activeTab === "platform" ? next : "All");
+      if (activeTab === "platform") {
+        // For platform: always keep the explicit array so the backend receives the exact
+        // comma-separated list (e.g. "blinkit,zepto") instead of undefined (= no filter).
+        onChange(next);
+      } else {
+        onChange(hasRestrictedPlatforms && !isBusinessOverview ? next : "All");
+      }
     } else {
       onChange(next);
     }
   };
 
-  const selectAll = () => onChange(hasRestrictedPlatforms && !isBusinessOverview && activeTab === "platform" ? options : "All");
+  const selectAll = () => {
+    if (activeTab === "platform") {
+      // Keep explicit array for platforms — same reason as toggle above
+      onChange(options.filter(p => p !== 'All'));
+    } else {
+      onChange(hasRestrictedPlatforms && !isBusinessOverview && activeTab === "platform" ? options : "All");
+    }
+  };
   const clearAll = () => onChange([]);
 
   const tabMeta = availableTabs.find(t => t.key === activeTab);
@@ -271,8 +287,9 @@ function WatchTowerFilterModal({
     const cfg = tabConfig[key];
     const v = cfg.value;
     const opts = cfg.options;
+    // Only "All" string means "no filter" — an explicit array (even if all options are picked)
+    // is still an active selection and should show a badge count.
     if (v === "All" || (Array.isArray(v) && v.includes("All"))) return 0;
-    if (Array.isArray(v) && v.length === opts.length && opts.length > 0) return 0;
     if (Array.isArray(v)) return v.length;
     if (v) return 1;
     return 0;
@@ -280,25 +297,82 @@ function WatchTowerFilterModal({
 
   // ─── APPLY: commit all drafts to FilterContext (triggers API calls) ───
   const handleApply = () => {
-    const normalize = (val) => {
-      if (!val || val === "All") return val;
-      if (Array.isArray(val)) return val.map(v => typeof v === 'string' ? v.toLowerCase() : v);
-      return typeof val === 'string' ? val.toLowerCase() : val;
-    };
+    try {
+      const normalize = (val) => {
+        if (!val || val === "All") return val;
+        if (Array.isArray(val)) return val.map(v => typeof v === 'string' ? v.toLowerCase() : v);
+        return typeof val === 'string' ? val.toLowerCase() : val;
+      };
 
-    if (!hideChannelPlatform) {
-      setSelectedChannel(normalize(draftChannel));
-      let finalPlatform = draftPlatform;
-      if (hasRestrictedPlatforms && !isBusinessOverview && (finalPlatform === "All" || (Array.isArray(finalPlatform) && finalPlatform.includes("All")))) {
-        finalPlatform = localPlatforms.filter(p => p !== 'All');
+      const debugInfo = {
+        draftChannel,
+        draftPlatform,
+        draftCategory,
+        draftBrand,
+        draftLocation,
+        draftMsl,
+        hasOnFiltersChange: !!onFiltersChange,
+        hideChannelPlatform
+      };
+      axiosInstance.post("/log", { 
+        message: `[handleApply called] drafts: ${JSON.stringify(debugInfo)}`,
+        stack: new Error().stack
+      }).catch(() => {});
+
+      if (onFiltersChange) {
+        // ── ATOMIC UPDATE via onFiltersChange ──────────────────────────────
+        // Do ONE single state update so no intermediate renders trigger the
+        // _sidebarPlatform / _sidebarChannel useEffect hooks in WatchTower.jsx
+        onFiltersChange(prev => {
+          const next = { ...prev };
+
+          if (!hideChannelPlatform) {
+            next.channel = normalize(draftChannel);
+            let finalPlatform = draftPlatform;
+            if (hasRestrictedPlatforms && !isBusinessOverview && (finalPlatform === "All" || (Array.isArray(finalPlatform) && finalPlatform.includes("All")))) {
+              finalPlatform = localPlatforms.filter(p => p !== 'All');
+            }
+            next.platform = normalize(finalPlatform);
+          }
+
+          next.category = normalize(draftCategory);
+          next.brand = normalize(draftBrand);
+          if (draftLocation !== undefined) next.location = normalize(draftLocation);
+          if (draftMsl !== undefined) next.msl = normalize(draftMsl);
+
+          return next;
+        });
+
+        // Also update the non-channel/platform context setters so other pages
+        // that read them directly from FilterContext stay in sync
+        if (setSelectedCategory) setSelectedCategory(normalize(draftCategory));
+        if (setSelectedBrand) setSelectedBrand(normalize(draftBrand));
+        if (setSelectedLocation) setSelectedLocation(normalize(draftLocation));
+        if (setSelectedMsl) setSelectedMsl(normalize(draftMsl));
+      } else {
+        // ── LEGACY path: no onFiltersChange, update FilterContext directly ──
+        if (!hideChannelPlatform) {
+          if (setSelectedChannel) setSelectedChannel(normalize(draftChannel));
+          let finalPlatform = draftPlatform;
+          if (hasRestrictedPlatforms && !isBusinessOverview && (finalPlatform === "All" || (Array.isArray(finalPlatform) && finalPlatform.includes("All")))) {
+            finalPlatform = localPlatforms.filter(p => p !== 'All');
+          }
+          if (setPlatform) setPlatform(normalize(finalPlatform));
+        }
+        if (setSelectedCategory) setSelectedCategory(normalize(draftCategory));
+        if (setSelectedBrand) setSelectedBrand(normalize(draftBrand));
+        if (setSelectedLocation) setSelectedLocation(normalize(draftLocation));
+        if (setSelectedMsl) setSelectedMsl(normalize(draftMsl));
       }
-      setPlatform(normalize(finalPlatform));
+
+      onClose();
+    } catch (err) {
+      console.error("Error in handleApply:", err);
+      axiosInstance.post("/log", {
+        message: `[ERROR in handleApply] error: ${err.message}`,
+        stack: err.stack
+      }).catch(() => {});
     }
-    setSelectedCategory(normalize(draftCategory));
-    setSelectedBrand(normalize(draftBrand));
-    if (setSelectedLocation) setSelectedLocation(normalize(draftLocation));
-    if (setSelectedMsl) setSelectedMsl(normalize(draftMsl));
-    onClose();
   };
 
   // ─── CANCEL: discard drafts ───
@@ -498,8 +572,8 @@ function WatchTowerFilterModal({
               </Box>
               <Box
                 sx={{
-                  background: selected.length === options.length ? "linear-gradient(135deg, #2563eb, #3b82f6)" : "#f1f5f9",
-                  color: selected.length === options.length ? "white" : "#475569",
+                  background: (value === "All" || (Array.isArray(value) && value.includes("All"))) ? "linear-gradient(135deg, #2563eb, #3b82f6)" : (selected.length === options.length ? "linear-gradient(135deg, #0ea5e9, #2563eb)" : "#f1f5f9"),
+                  color: (value === "All" || (Array.isArray(value) && value.includes("All")) || selected.length === options.length) ? "white" : "#475569",
                   borderRadius: "20px",
                   px: 1.5, py: 0.4,
                   fontSize: "0.72rem",
@@ -509,7 +583,7 @@ function WatchTowerFilterModal({
                   transition: "all 0.2s ease",
                 }}
               >
-                {selected.length === options.length ? "All" : selected.length} selected
+                {(value === "All" || (Array.isArray(value) && value.includes("All"))) ? "All" : selected.length} selected
               </Box>
             </Box>
 
@@ -4356,6 +4430,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       msls={msls}
                       selectedMsl={selectedMsl}
                       setSelectedMsl={setSelectedMsl}
+                      onFiltersChange={onFiltersChange}
                     />
                   )}
 

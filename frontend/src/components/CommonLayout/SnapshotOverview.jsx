@@ -1151,7 +1151,14 @@ const SnapshotOverview = ({
                                     <Icon size={20} className="text-blue-600" />
                                 </div>
                             )}
-                            <h2 className="text-[1.1rem] font-bold text-slate-900 tracking-tight leading-tight">{title}</h2>
+                            <div>
+                                <h2 className="text-[1.1rem] font-bold text-slate-900 tracking-tight leading-tight">{title}</h2>
+                                {chip && (
+                                    <span className="inline-flex mt-1.5 items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase tracking-wider">
+                                        {chip}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         <div className="flex items-center gap-4">
                             {headerRight}

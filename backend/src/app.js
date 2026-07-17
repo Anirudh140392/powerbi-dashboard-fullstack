@@ -128,6 +128,17 @@ app.use("/api/auth/verify", (req, res, next) => {
     next();
 });
 
+app.post("/api/log", (req, res) => {
+    try {
+        const { message, stack } = req.body;
+        const logMsg = `[CLIENT LOG] Time: ${new Date().toISOString()} | Msg: ${message}\nStack:\n${stack}\n====================\n`;
+        fs.appendFileSync('c:/Powerbi-Dashboard/request_log.txt', logMsg);
+        res.status(200).send("OK");
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+
 // Auth routes (PUBLIC - no JWT required)
 app.use("/api/auth", authRoutes);
 
