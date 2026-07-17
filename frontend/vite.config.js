@@ -35,6 +35,33 @@ export default defineConfig({
       clientPort: 9500,
     },
     proxy: {
+      // ── Specific proxies for ratings backend (port 3001) ──
+      // These match the Nginx rules to ensure ratings requests are routed to the ratings backend
+      '/api/ratings': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/api/ml': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/api/ml-audit': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/api/automation': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/api/data-lake': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/api/notifications': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      // ── Main backend API proxy (catch-all for other /api/*) ──
       '/api': {
         target: 'http://localhost:5001',
         changeOrigin: true,
