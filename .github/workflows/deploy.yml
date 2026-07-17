@@ -108,6 +108,21 @@ jobs:
             echo "✅ Ratings backend .env file created"
           ENDSSH
 
+      - name: Create content analysis backend .env file on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.TARGET_USER }}@${{ env.TARGET_HOST }} << 'ENDSSH'
+            cd ${{ env.APP_DIR }}
+            mkdir -p trailytics_content_analysis/backend
+            cat > trailytics_content_analysis/backend/.env << 'EOF'
+          PORT_COTENT=8000
+          CLICKHOUSE_URL=${{ env.TARGET_CLICKHOUSE_URL }}
+          CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}
+          CLICKHOUSE_DB=${{ secrets.CONTENT_CLICKHOUSE_DB }}
+          EOF
+            echo "✅ Content analysis backend .env file created"
+          ENDSSH
+
       - name: Deploy to EC2
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.TARGET_USER }}@${{ env.TARGET_HOST }} << 'ENDSSH'
@@ -125,8 +140,8 @@ jobs:
             git reset --hard origin/${{ github.ref_name }}
             
             echo "🛑 Stopping and removing all managed containers..."
-            sudo docker stop backend_multiple frontend_multiple ratings_backend || true
-            sudo docker rm backend_multiple frontend_multiple ratings_backend || true
+            sudo docker stop backend_multiple frontend_multiple ratings_backend content_backend || true
+            sudo docker rm backend_multiple frontend_multiple ratings_backend content_backend || true
             
             echo "🔨 Building and starting all containers..."
             sudo docker compose up -d --build
@@ -140,6 +155,7 @@ jobs:
             echo "✅ Health checks..."
             curl -sf http://localhost:5000/health || { echo "❌ Main backend health check failed"; exit 1; }
             curl -sf http://localhost:3001/api/health || echo "⚠️  Ratings backend health check skipped (endpoint may not exist)"
+            curl -sf http://localhost:8000/health || echo "⚠️  Content analysis backend health check skipped (endpoint may not exist)"
             curl -sf http://localhost:9400/ || { echo "❌ Frontend health check failed"; exit 1; }
             
             echo "🎉 Deployment successful!"
@@ -160,10 +176,12 @@ jobs:
           echo "🔗 App: http://${{ env.TARGET_HOST }}" >> $GITHUB_STEP_SUMMARY
           echo "🔗 Main API: http://${{ env.TARGET_HOST }}/api" >> $GITHUB_STEP_SUMMARY
           echo "🔗 Ratings API: http://${{ env.TARGET_HOST }}:3001" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 Content API: http://${{ env.TARGET_HOST }}:8000" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Services" >> $GITHUB_STEP_SUMMARY
           echo "| Service | Container | Port |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|-----------|------|" >> $GITHUB_STEP_SUMMARY
           echo "| Main Backend | backend_multiple | 5000 |" >> $GITHUB_STEP_SUMMARY
           echo "| Ratings Backend | ratings_backend | 3001 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Content Analysis Backend | content_backend | 8000 |" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend | frontend_multiple | 9400 |" >> $GITHUB_STEP_SUMMARY

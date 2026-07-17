@@ -22,7 +22,11 @@ RUN cd frontend && npm install
 COPY trailytics_ratings/frontend/package*.json ./trailytics_ratings/frontend/
 RUN cd trailytics_ratings/frontend && npm install
 
-# ── Copy source code for both projects ──
+# ── Install content analysis frontend dependencies ──
+COPY trailytics_content_analysis/frontend/package*.json ./trailytics_content_analysis/frontend/
+RUN cd trailytics_content_analysis/frontend && npm install
+
+# ── Copy source code for all projects ──
 COPY frontend/ ./frontend/
 COPY trailytics_ratings/frontend/src/ ./trailytics_ratings/frontend/src/
 COPY trailytics_ratings/frontend/index.html ./trailytics_ratings/frontend/
@@ -30,8 +34,12 @@ COPY trailytics_ratings/frontend/vite.config.ts ./trailytics_ratings/frontend/
 COPY trailytics_ratings/frontend/tsconfig*.json ./trailytics_ratings/frontend/
 COPY trailytics_ratings/frontend/postcss.config.js ./trailytics_ratings/frontend/
 COPY trailytics_ratings/frontend/tailwind.config.js ./trailytics_ratings/frontend/
+COPY trailytics_content_analysis/frontend/src/ ./trailytics_content_analysis/frontend/src/
+COPY trailytics_content_analysis/frontend/index.html ./trailytics_content_analysis/frontend/
+COPY trailytics_content_analysis/frontend/vite.config.ts ./trailytics_content_analysis/frontend/
+COPY trailytics_content_analysis/frontend/tsconfig*.json ./trailytics_content_analysis/frontend/
 
-# ── Build the main frontend (which compiles ratings TSX inline) ──
+# ── Build the main frontend (which compiles ratings & content analysis TSX inline) ──
 RUN cd frontend && npm run build
 
 # Stage 2: Production — serve with Nginx
