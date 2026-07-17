@@ -14,6 +14,8 @@ export default function CommonContainer({
   onFiltersChange,
   hideFilters = false,
   disablePadding = false,
+  /** fullHeight: the child manages its own scrolling; disable the outer scroll Box */
+  fullHeight = false,
   children,
 }) {
   const { channels, selectedChannel, setSelectedChannel, platforms, platformMetadata, setPlatform, platform, platformsFetched } = React.useContext(FilterContext);
@@ -28,6 +30,7 @@ export default function CommonContainer({
       onFiltersChange={onFiltersChange}
       hideFilters={hideFilters}
       disablePadding={disablePadding}
+      fullHeight={fullHeight}
       channels={channels}
       selectedChannel={selectedChannel}
       setSelectedChannel={setSelectedChannel}
@@ -53,6 +56,7 @@ function CommonLayoutContent({
   onFiltersChange,
   hideFilters,
   disablePadding,
+  fullHeight,
   channels,
   selectedChannel,
   setSelectedChannel,
@@ -138,14 +142,19 @@ function CommonLayoutContent({
           }}
         />
 
-        {/* Scrollable only vertically */}
+        {/* Scrollable only vertically (or overflow:hidden when child manages scrolling) */}
         <Box
           sx={{
             flex: 1,
-            overflowY: "auto",
+            overflowY: fullHeight ? "hidden" : "auto",
             overflowX: "hidden", // 🔥 IMPORTANT
             minHeight: 0, // Ensure flex scrolling works
-            WebkitOverflowScrolling: "touch", // Smooth scroll on iOS
+            WebkitOverflowScrolling: fullHeight ? "auto" : "touch",
+            // fullHeight mode: become a flex column so the child can fill 100%
+            ...(fullHeight && {
+              display: "flex",
+              flexDirection: "column",
+            }),
           }}
         >
           <Container
@@ -155,8 +164,15 @@ function CommonLayoutContent({
               px: disablePadding ? 0 : { xs: 2, sm: 3 },
               py: disablePadding ? 0 : { xs: 2, sm: 3 },
               width: "100%",
-              flexDirection: "column",
               overflowX: "hidden", // 🔥 no horizontal scroll inside content
+              // fullHeight: stretch container to fill the scroll box
+              ...(fullHeight && {
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                minHeight: 0,
+                height: "100%",
+              }),
             }}
           >
             {children}

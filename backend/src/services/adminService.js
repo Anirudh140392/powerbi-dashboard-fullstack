@@ -146,11 +146,10 @@ export const getLiveUsers = async () => {
 };
 
 /**
- * Fetch all pending access requests
+ * Fetch all pending access requests from tb_user.
  */
 export const getPendingRequests = async () => {
     try {
-        // Fetch all rows where access = 'pending'
         const query = `
             SELECT 
                 toString(id) as id,
@@ -159,16 +158,18 @@ export const getPendingRequests = async () => {
                 toString(db_id) as db_id,
                 ip,
                 last_login as dateTime,
-                access as status
+                access as status,
+                device_token,
+                browser,
+                browser_version,
+                operating_system,
+                platform
             FROM tb_user
-            WHERE access = 'pending'
-            AND last_login >= today()
+            WHERE access = 'pending' AND last_login >= subtractDays(now(), 7)
             ORDER BY last_login DESC
-            LIMIT 1 BY user_email, ip
         `;
         const requests = await queryAdminDB(query);
 
-        // Fetch databases to map names
         const databases = await queryAdminDB("SELECT DISTINCT db_name, toString(db_id) as db_id FROM tb_database");
         const dbMap = new Map();
         databases.forEach(db => dbMap.set(db.db_id, db.db_name));
@@ -176,39 +177,40 @@ export const getPendingRequests = async () => {
         return requests.map(req => {
             const userDbIdStr = req.db_id;
             let finalDbName = 'Unknown';
-
-            // 1. Try direct map lookup first
             if (dbMap.has(userDbIdStr)) {
                 finalDbName = dbMap.get(userDbIdStr);
             } else {
-                // 2. Fuzzy match for BigInt/UInt64 precision issues
                 try {
                     const userDbIdNum = BigInt(userDbIdStr);
                     let closestDb = null;
                     let closestDiff = BigInt('999999999999999999');
-
                     for (const [dbId, name] of dbMap.entries()) {
                         const dbIdNum = BigInt(dbId);
                         const diff = userDbIdNum > dbIdNum ? userDbIdNum - dbIdNum : dbIdNum - userDbIdNum;
-                        if (diff < closestDiff) {
-                            closestDiff = diff;
-                            closestDb = name;
-                        }
+                        if (diff < closestDiff) { closestDiff = diff; closestDb = name; }
                     }
-
-                    // Accept if difference is very small (within tolerance for UInt64 precision errors)
-                    if (closestDiff < BigInt('1000')) {
-                        finalDbName = closestDb;
-                    }
-                } catch (e) {
-                    console.warn(`[AdminService] Error matching db_id for request ${req.id}:`, e.message);
-                }
+                    if (closestDiff < BigInt('1000')) finalDbName = closestDb;
+                } catch (e) { /* ignore */ }
             }
 
+            // Build user-friendly device info
+            const deviceDesc = [req.browser, req.browser_version, req.operating_system, req.platform]
+                .filter(Boolean).join(' / ') || req.ip || 'Unknown Device';
+
             return {
-                ...req,
+                id: req.id,
+                email: req.email,
+                name: req.name || '',
                 dbName: finalDbName,
-                dateTime: req.dateTime ? new Date(req.dateTime).toISOString().replace('T', ' ').split('.')[0] : 'N/A'
+                ip: req.ip || '',
+                status: req.status,
+                dateTime: req.dateTime ? new Date(req.dateTime).toISOString().replace('T', ' ').split('.')[0] : 'N/A',
+                deviceInfo: deviceDesc,
+                browser: req.browser || '',
+                browserVersion: req.browser_version || '',
+                os: req.operating_system || '',
+                platform: req.platform || '',
+                _source: 'device', // Use same source code path in controller/UI
             };
         });
     } catch (error) {
@@ -218,73 +220,76 @@ export const getPendingRequests = async () => {
 };
 
 /**
- * Update the access status for a specific login record
+ * Update the access status for a device request.
+ * @param {string} id - The row ID of the pending request in tb_user
+ * @param {string} status - 'allow' or 'deny'
+ * @param {string} userName - Optional user name to update
+ * @param {string} source - unused legacy source parameter
  */
-export const updateUserAccess = async (id, status, userName) => {
+export const updateUserAccess = async (id, status, userName, source = 'device') => {
     try {
-        // Find the record by id and update its access column
-        // Using ALTER TABLE UPDATE for ClickHouse Mutations
-        let query;
-        if (userName) {
-            const safeUserName = userName.replace(/'/g, "\\'");
-            
-            // user_id is a sorting key in ClickHouse, so we cannot update it via ALTER TABLE UPDATE.
-            // We must insert a new row with the new user_id and delete the old pending row.
-            const existing = await queryAdminDB(`
-                SELECT 
-                    user_email,
-                    user_role,
-                    password_hash,
-                    toString(db_id) as db_id_str,
-                    created_on,
-                    status as row_status,
-                    ip,
-                    db_status,
-                    tab_permissions
-                FROM tb_user 
-                WHERE toString(id) = '${id}' 
-                LIMIT 1
-            `);
-            
-            if (existing && existing.length > 0) {
-                const user = existing[0];
-                
-                // Get the new hash for user_name
-                const hashRes = await queryAdminDB(`SELECT toString(cityHash64('${safeUserName}')) as hash`);
-                const newUserId = hashRes[0].hash;
-                const newRowId = Date.now().toString();
-                
-                // Insert the new record representing the approved state
-                await insertAdminDB('tb_user', [{
-                    id: newRowId,
-                    user_id: newUserId,
-                    user_email: user.user_email,
-                    user_name: safeUserName,
-                    user_role: user.user_role,
-                    password_hash: user.password_hash,
-                    db_id: user.db_id_str,
-                    last_login: new Date().toISOString().replace('T', ' ').split('.')[0],
-                    created_on: user.created_on,
-                    status: user.row_status,
-                    ip: user.ip,
-                    access: status,
-                    db_status: user.db_status || 'active',
-                    tab_permissions: user.tab_permissions || ''
-                }]);
-                
-                // Delete the old row
-                await queryAdminDB(`ALTER TABLE tb_user DELETE WHERE toString(id) = '${id}'`);
-            } else {
-                throw new Error("Pending access request not found.");
-            }
-        } else {
-            const query = `
-                ALTER TABLE tb_user 
-                UPDATE access = '${status}' 
-                WHERE toString(id) = '${id}'
-            `;
-            await queryAdminDB(query);
+        const safeStatus = (status === 'approved' || status === 'allow') ? 'allow' : 'deny';
+
+        const existing = await queryAdminDB(`
+            SELECT 
+                user_email,
+                user_role,
+                password_hash,
+                toString(db_id) as db_id_str,
+                created_on,
+                status as row_status,
+                ip,
+                db_status,
+                tab_permissions,
+                device_token,
+                browser,
+                browser_version,
+                operating_system,
+                platform,
+                user_name
+            FROM tb_user 
+            WHERE toString(id) = '${id}' 
+            LIMIT 1
+        `);
+
+        if (!existing || existing.length === 0) {
+            throw new Error("Pending access request not found.");
         }
+
+        const user = existing[0];
+        const finalUserName = userName || user.user_name || '';
+        const safeUserName = finalUserName.replace(/'/g, "\\'");
+        
+        // Generate new user_id if name changes, or use existing user_id
+        const hashRes = await queryAdminDB(`SELECT toString(cityHash64('${safeUserName}')) as hash`);
+        const newUserId = hashRes[0].hash;
+        const newRowId = Date.now().toString();
+
+        // Insert approved/denied row with target access
+        await insertAdminDB('tb_user', [{
+            id: newRowId,
+            user_id: newUserId,
+            user_email: user.user_email,
+            user_name: finalUserName,
+            user_role: user.user_role,
+            password_hash: user.password_hash,
+            db_id: user.db_id_str,
+            last_login: new Date().toISOString().replace('T', ' ').split('.')[0],
+            created_on: user.created_on,
+            status: user.row_status,
+            ip: user.ip,
+            access: safeStatus,
+            db_status: user.db_status || 'active',
+            tab_permissions: user.tab_permissions || '',
+            device_token: user.device_token || '',
+            browser: user.browser || '',
+            browser_version: user.browser_version || '',
+            operating_system: user.operating_system || '',
+            platform: user.platform || '',
+        }]);
+
+        // Delete the old pending row to prevent double-processing/listing
+        await queryAdminDB(`ALTER TABLE tb_user DELETE WHERE toString(id) = '${id}'`);
 
         return { success: true };
     } catch (error) {

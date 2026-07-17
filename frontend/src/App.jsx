@@ -35,6 +35,7 @@ import WalkthroughModal from "./components/CommonLayout/WalkthroughModal";
 import AdminPanel from "./pages/Admin/AdminPanel";
 import PriorityAction from "./pages/SupplyChain/PriorityAction";
 import PDSScore from "./pages/PDSScore/PDSScore";
+import ReviewRatingPage from "./pages/ReviewRating/ReviewRatingPage";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -182,6 +183,12 @@ function AppContent() {
             <Route path="/pds-score" element={
               <ProtectedRoute>
                 <PDSScore />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/review-rating" element={
+              <ProtectedRoute>
+                <ReviewRatingPage />
               </ProtectedRoute>
             } />
 

@@ -9,12 +9,18 @@ const axiosInstance = axios.create({
 
     headers: {
         "Content-Type": "application/json",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
     },
 });
 
 // Request interceptor: attach JWT token to every request
 axiosInstance.interceptors.request.use(
     (config) => {
+        // Ensure cache control headers are always set
+        config.headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+        config.headers["Pragma"] = "no-cache";
+        
         const token = sessionStorage.getItem("token");
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
