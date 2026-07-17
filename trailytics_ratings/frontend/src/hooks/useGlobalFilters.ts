@@ -8,6 +8,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react';
+import { getActiveBrandName } from '../utils/tenant';
 import type { Review } from '../types';
 import type {
     GlobalFilterState,
@@ -325,7 +326,7 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
                     label: product,
                     product,
                     category: String(r.sentimentCategory || ''),
-                    brand: 'Prestige',
+                    brand: getActiveBrandName(),
                     reviewCount: 1,
                 });
             }

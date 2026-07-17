@@ -1,3 +1,4 @@
+import { getActiveBrandName } from '../utils/tenant';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     AlertTriangle,
@@ -1074,7 +1075,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                             <Target className="text-purple-500" size={20} />
                             <h3 className="font-bold text-slate-900 dark:text-white">Competitive Benchmark</h3>
                             <span className="text-[10px] bg-purple-100/80 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-full font-medium">
-                                {serverCompetitiveBenchmark.some(item => item.compCount > 0) ? 'Real Competitor Data' : 'Prestige Only'}
+                                {serverCompetitiveBenchmark.some(item => item.compCount > 0) ? 'Real Competitor Data' : `${getActiveBrandName()} Only`}
                             </span>
                         </div>
                         {/* Metric toggle */}
@@ -1104,7 +1105,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                     className="mb-4"
                                     ownMetrics={overallBenchmarkComparison.ownMetrics}
                                     competitorMetrics={overallBenchmarkComparison.competitorMetrics}
-                                    ownLabel="Prestige"
+                                    ownLabel={getActiveBrandName()}
                                     competitorLabel="Competitor Slice"
                                     comparisonTitle="Current slice rating comparison"
                                 />
@@ -1208,7 +1209,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                         <div className="flex items-center gap-4">
                                             <div className="flex items-center gap-1">
                                                 <div className="w-3 h-3 rounded bg-indigo-500" />
-                                                <span>Prestige</span>
+                                                <span>{getActiveBrandName()}</span>
                                             </div>
                                             {serverCompetitiveBenchmark.some(item => item.compCount > 0) && (
                                                 <div className="flex items-center gap-1">
@@ -1274,7 +1275,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                 {competitiveCanvasView === 'cloud' ? (
                                     <div className="flex gap-1 rounded-2xl border border-slate-200/70 bg-white/80 p-1 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/75">
                                         {([
-                                            { key: 'prestige', label: 'Prestige' },
+                                            { key: 'prestige', label: getActiveBrandName() },
                                             { key: 'competitor', label: 'Competitor' },
                                         ] as const).map(side => (
                                             <button
@@ -1309,7 +1310,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                                     className="rounded-[28px] border border-white/60 bg-white/75 p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/65"
                                                     ownMetrics={overallBenchmarkComparison.ownMetrics}
                                                     competitorMetrics={overallBenchmarkComparison.competitorMetrics}
-                                                    ownLabel="Prestige"
+                                                    ownLabel={getActiveBrandName()}
                                                     competitorLabel="Competitor Slice"
                                                     comparisonTitle="Radar slice comparison"
                                                 />
@@ -1319,12 +1320,12 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                                 <div className="rounded-[24px] border border-white/60 bg-white/75 px-4 py-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/65">
                                                     <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Shared sentiment axes</div>
                                                     <div className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{competitiveSignalStats.sharedCategoryCount}</div>
-                                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Only categories present for both Prestige and competitors are plotted.</p>
+                                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Only categories present for both {getActiveBrandName()} and competitors are plotted.</p>
                                                 </div>
                                                 <div className="rounded-[24px] border border-white/60 bg-white/75 px-4 py-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/65">
-                                                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Prestige category set</div>
+                                                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{getActiveBrandName()} category set</div>
                                                     <div className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{competitiveSignalStats.prestigeCategoryCount}</div>
-                                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Signal families present in the selected Prestige slice.</p>
+                                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Signal families present in the selected {getActiveBrandName()} slice.</p>
                                                 </div>
                                                 <div className="rounded-[24px] border border-white/60 bg-white/75 px-4 py-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/65">
                                                     <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Competitor category set</div>
@@ -1356,7 +1357,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                             {competitiveSignalSide === 'prestige' ? (
                                                 <>
                                                     <div>
-                                                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-500">Prestige signal field</div>
+                                                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-500">{getActiveBrandName()} signal field</div>
                                                         <h4 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">What your own reviews are saying most often</h4>
                                                         <p className="text-sm text-slate-500 dark:text-slate-400">One clean rotating sphere for the active slice. Click a signal cluster to drill down.</p>
                                                     </div>
@@ -1364,11 +1365,11 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                                         <WordSphere3D
                                                             reviews={reviews}
                                                             onCategoryClick={handleClick}
-                                                            title="Prestige review sphere"
+                                                            title={`${getActiveBrandName()} review sphere`}
                                                             subtitle="Rotate the issue universe and click a signal cluster to drill down"
                                                         />
                                                     ) : (
-                                                        <SectionLoadingState label="Loading Prestige word sphere..." />
+                                                        <SectionLoadingState label={`Loading ${getActiveBrandName()} word sphere...`} />
                                                     )}
                                                 </>
                                             ) : (

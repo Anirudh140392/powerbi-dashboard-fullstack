@@ -13,6 +13,7 @@ import type { GlobalFilterResult } from '../hooks/useGlobalFilters';
 import type { DatePreset, PriceFilterMode, RatingBifurcation } from '../types/filterTypes';
 import { getClassificationOptions } from '../config/productClassifications';
 import { useProductCategories, useSkuList, usePriceRanges } from '../hooks/useRatingsAPI';
+import { getActiveBrandName } from '../utils/tenant';
 
 
 interface GlobalFilterBarProps {
@@ -221,7 +222,7 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
 
     // Display values
     const platformLabel = availablePlatforms.find(p => p.id === filters.platform)?.label || 'All';
-    const scopeLabel = filters.brandScope === 'all' ? 'All' : filters.brandScope === 'prestige' ? 'Prestige' : 'Competition';
+    const scopeLabel = filters.brandScope === 'all' ? 'All' : filters.brandScope === 'prestige' ? getActiveBrandName() : 'Competition';
     const categoryLabel = filters.productCategory || 'All Categories';
     const sentimentLabel = filters.category.selectedCategory || 'All';
     const classLabel = classificationOptions.find(c => c.value === filters.category.classification)?.label || 'All';
@@ -455,8 +456,8 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                             />
                             <FilterDropdown isOpen={openDropdown === 'scope'} onClose={() => setOpenDropdown(null)}>
                                 {[
-                                    { key: 'all' as const, label: 'All Reviews', desc: 'Prestige + competitors' },
-                                    { key: 'prestige' as const, label: 'Prestige', desc: 'Only your brand' },
+                                    { key: 'all' as const, label: 'All Reviews', desc: `${getActiveBrandName()} + competitors` },
+                                    { key: 'prestige' as const, label: getActiveBrandName(), desc: 'Only your brand' },
                                     { key: 'competition' as const, label: 'Competition', desc: 'Only competitor brands' },
                                 ].map(b => (
                                     <button

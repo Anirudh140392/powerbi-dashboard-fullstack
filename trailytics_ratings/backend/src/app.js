@@ -27,9 +27,11 @@ app.use(cors(corsOptions));
 // Middlewares will be initialized here in the new architecture
 // Note: legacyApi already handles some middleware internally (like cors, body-parser)
 
-// Remove authentication and hardcode the company context from .env
+// Inject tenant context dynamically.
+// Priority: ?company_id query param → X-Company-ID header → COMPANY_ID env var (default tenant)
+// This allows the same ratings backend to serve any tenant without restart.
 app.use((req, res, next) => {
-    req.companyId = process.env.COMPANY_ID;
+    req.companyId = req.query.company_id || req.headers['x-company-id'] || process.env.COMPANY_ID;
     next();
 });
 

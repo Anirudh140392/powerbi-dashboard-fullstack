@@ -5,6 +5,7 @@
 import React, { useMemo } from 'react';
 import { Radar } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getActiveBrandName } from '../utils/tenant';
 import type { Review, SentimentCategory, RadarChartData } from '../types';
 
 interface CompetitorRadarChartProps {
@@ -171,7 +172,7 @@ const CompetitorRadarChart: React.FC<CompetitorRadarChartProps> = ({
                     <div className="flex items-center gap-4 mb-4 justify-center">
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
-                            <span className="text-xs text-slate-600 dark:text-slate-400">Prestige</span>
+                            <span className="text-xs text-slate-600 dark:text-slate-400">{getActiveBrandName()}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full bg-orange-400"></div>

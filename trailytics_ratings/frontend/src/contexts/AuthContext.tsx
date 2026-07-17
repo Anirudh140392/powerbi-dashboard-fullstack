@@ -1,13 +1,45 @@
-/**
- * AuthContext — Ratings-owned server-backed authentication context (Auth Bypassed)
- */
-
 import React, { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
-import { type AuthUser, persistAuthSession } from '../utils/auth';
+import { type AuthUser, persistAuthSession, clearStoredAuthSession } from '../utils/auth';
 
-// Real company ID — sourced from CLICKHOUSE_DB=prestige tenant in the ratings backend .env
-const HARDCODED_COMPANY_ID = '297e37ea-a5ac-47df-bebd-ac44e52b7979';
-const HARDCODED_COMPANY_NAME = 'prestige';
+/** 
+ * Resolves company identity for the ratings module.
+ * Priority:
+ *  1. VITE_COMPANY_ID env var  — set in root frontend .env for embedded mode, or ratings .env for standalone
+ *  2. Root Digital Shelf sessionStorage user → companyId / company_id
+ *  3. Hardcoded fallback (last resort — avoids throwing)
+ */
+function resolveRootUser(): { companyId: string; companyName: string } {
+    // 1. Env var — most reliable, set explicitly in .env for the active client
+    const envCompanyId = import.meta.env.VITE_COMPANY_ID as string | undefined;
+    const envCompanyName = import.meta.env.VITE_COMPANY_NAME as string | undefined;
+    if (envCompanyId) {
+        return {
+            companyId: envCompanyId,
+            companyName: envCompanyName || 'prestige',
+        };
+    }
+
+    // 2. Root Digital Shelf sessionStorage user (set after login in root frontend)
+    if (typeof window !== 'undefined') {
+        try {
+            const raw = window.sessionStorage.getItem('user');
+            if (raw) {
+                const rootUser = JSON.parse(raw);
+                const companyId = rootUser?.companyId || rootUser?.company_id;
+                const companyName = rootUser?.dbName || rootUser?.db_name || rootUser?.companyName;
+                if (companyId) {
+                    return { companyId, companyName: companyName || 'prestige' };
+                }
+            }
+        } catch (e) {
+            console.warn('[RatingsAuth] Could not parse root user from sessionStorage:', e);
+        }
+    }
+
+    // 3. Last-resort fallback (prevents crash, but data will be wrong)
+    console.warn('[RatingsAuth] VITE_COMPANY_ID not set — using hardcoded prestige fallback. Set VITE_COMPANY_ID in your .env file.');
+    return { companyId: '297e37ea-a5ac-47df-bebd-ac44e52b7979', companyName: 'prestige' };
+}
 
 export type LoginResult =
     | { status: 'success' }
@@ -34,27 +66,31 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+    const { companyId, companyName } = resolveRootUser();
+
     const dummyUser: AuthUser = {
         id: '1',
         username: 'admin',
         email: 'admin@trailytics.com',
         displayName: 'Admin User',
         role: 'admin',
-        companyId: HARDCODED_COMPANY_ID,
-        companyName: HARDCODED_COMPANY_NAME,
+        companyId,
+        companyName,
         allowedPlatformUuids: [],
         platformScope: 'all'
     };
 
-    // Persist the session to localStorage so resolveAuthCompanyId() / tenant.ts
-    // can find the companyId without requiring a real login flow.
+    // Always clear any previously cached session first (prevents stale company IDs
+    // from a different tenant persisting in localStorage and overriding the current one),
+    // then persist fresh with the resolved company ID.
     useEffect(() => {
+        clearStoredAuthSession();
         persistAuthSession({
             token: 'bypass-token',
             expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
             user: dummyUser,
         });
-    }, []);
+    }, [companyId, companyName]); // re-run if the active tenant changes
 
     const value = useMemo<AuthContextType>(() => ({
         user: dummyUser,
@@ -67,7 +103,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         startMfaEnrolment: async () => ({ ok: false, error: 'Disabled' }),
         completeMfaEnrolment: async () => ({ ok: false, error: 'Disabled' }),
         completeMfaVerify: async () => ({ ok: true }),
-    }), []);
+    }), [companyId, companyName]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
