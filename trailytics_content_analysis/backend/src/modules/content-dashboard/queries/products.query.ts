@@ -8,13 +8,42 @@ import { escapeSqlString, buildWhereClause } from '../utils/queryHelpers.js';
 // ---------------------------------------------------------------------------
 
 export function buildProductsQuery(params: ContentDashboardQuerySchema): string {
-  const { company, platform, search, sortBy, sortOrder, page, limit } = params;
+  const { company, platform, search, sortBy, sortOrder, page, limit, brand, category, skus } = params;
   const offset = (page - 1) * limit;
 
   const conditions: string[] = [];
 
   if (platform) {
     conditions.push(`LOWER(platform) LIKE LOWER('%${escapeSqlString(platform)}%')`);
+  }
+
+  if (skus) {
+    const skuList = skus.split(',').map(s => `'${escapeSqlString(s.trim().toLowerCase())}'`).filter(Boolean).join(',');
+    if (skuList) {
+      conditions.push(`LOWER(product_id) IN (${skuList})`);
+    }
+  }
+
+  if (brand || category) {
+    const subConditions: string[] = [];
+    if (brand) {
+      const brandList = brand.split(',').map(b => `'${escapeSqlString(b.trim().toLowerCase())}'`).filter(b => b !== "''").join(',');
+      if (brandList) subConditions.push(`LOWER(brand_name) IN (${brandList})`);
+    }
+    if (category) {
+      const catList = category.split(',').map(c => `'${escapeSqlString(c.trim().toLowerCase())}'`).filter(c => c !== "''").join(',');
+      if (catList) subConditions.push(`LOWER(brand_category) IN (${catList})`);
+    }
+    
+    if (subConditions.length > 0) {
+      conditions.push(`
+        product_id IN (
+          SELECT LOWER(web_pid) 
+          FROM \`${company}\`.rb_sku_platform 
+          WHERE ${subConditions.join(' AND ')}
+        )
+      `);
+    }
   }
 
   if (search) {

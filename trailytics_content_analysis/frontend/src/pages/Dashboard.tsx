@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Navbar from '../components/Navbar';
+import ContentDashboardFilterModal from '../components/ContentDashboardFilterModal';
 import { 
   ChevronDown, Check, Search, TrendingUp, TrendingDown, BarChart2, ImageIcon, ShoppingCart,
   ChevronRight, Activity, SlidersHorizontal, ExternalLink, Info, X, AlertCircle,
@@ -424,6 +426,147 @@ const RangeSlider = ({ min = 0, max = 100, value, onChange, label, displayValue 
 
 // --- SKU DRILL DOWN TABLE — now receives live API data via props ---
 
+// --- SKU SEARCH DROPDOWN ---
+const SkuSearchDropdown = ({
+  company, platform, category, brand,
+  selectedSkus, onSkusChange
+}: any) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [options, setOptions] = useState<{ product_id: string, title: string }[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchSkus = async () => {
+      if (!isOpen && selectedSkus.length === 0 && !searchTerm) return;
+      setIsLoading(true);
+      try {
+        const params = new URLSearchParams({ company });
+        if (platform && platform !== 'All') params.append('platform', Array.isArray(platform) ? platform.join(',') : platform);
+        if (category && category !== 'All') params.append('category', Array.isArray(category) ? category.join(',') : category);
+        if (brand && brand !== 'All') params.append('brand', Array.isArray(brand) ? brand.join(',') : brand);
+        if (searchTerm) params.append('search', searchTerm);
+
+        const res = await fetch(`${API_BASE}/content-dashboard/skus-search?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          setOptions(data.skus || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch SKUs for dropdown', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      void fetchSkus();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm, company, platform, category, brand, isOpen]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleSku = (sku: string) => {
+    if (selectedSkus.includes(sku)) {
+      onSkusChange(selectedSkus.filter((s: string) => s !== sku));
+    } else {
+      onSkusChange([...selectedSkus, sku]);
+    }
+  };
+
+  return (
+    <div className="relative w-80" ref={dropdownRef}>
+      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <input
+        type="text"
+        placeholder="Search and select SKUs..."
+        value={searchTerm}
+        onChange={(e) => {
+          setSearchTerm(e.target.value);
+          if (!isOpen) setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all shadow-sm"
+      />
+      
+      {/* Indicator badge if SKUs selected */}
+      {selectedSkus.length > 0 && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full pointer-events-none">
+          {selectedSkus.length}
+        </div>
+      )}
+
+      {isOpen && (
+        <div className="absolute top-full mt-2 w-full bg-white rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-200 overflow-hidden z-50 left-0 animate-in fade-in slide-in-from-top-2 duration-200 flex flex-col">
+          {/* Action Buttons */}
+          <div className="flex items-center justify-between p-2 border-b border-slate-100 bg-slate-50">
+            <button
+              type="button"
+              onClick={() => {
+                const allVisibleSkus = options.map(o => o.product_id);
+                const newSkus = Array.from(new Set([...selectedSkus, ...allVisibleSkus]));
+                onSkusChange(newSkus);
+              }}
+              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
+            >
+              Select All
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSkusChange([]);
+                setSearchTerm('');
+              }}
+              className="text-[11px] font-bold text-rose-500 hover:text-rose-600 px-2 py-1 rounded hover:bg-rose-50 transition-colors"
+            >
+              Clear All
+            </button>
+          </div>
+
+          <div className="p-2 space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
+            {isLoading && options.length === 0 ? (
+              <div className="text-center text-xs text-slate-400 py-3 font-medium">Loading...</div>
+            ) : options.length > 0 ? (
+              options.map((opt) => {
+                const sku = opt.product_id;
+                const title = opt.title;
+                const isSelected = selectedSkus.includes(sku);
+                return (
+                  <label key={sku} className="flex items-center space-x-3 cursor-pointer group hover:bg-slate-50 p-2 rounded-lg transition-colors">
+                    <div className="relative flex items-center shrink-0">
+                      <input type="checkbox" className="hidden" checked={isSelected} onChange={() => toggleSku(sku)} />
+                      <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center transition-all duration-200 ${isSelected ? 'bg-indigo-500 border-indigo-500 shadow-[0_2px_5px_rgba(99,102,241,0.3)]' : 'border-slate-300 bg-white group-hover:border-indigo-400'}`}>
+                        {isSelected && <Check size={11} strokeWidth={3} className="text-white" />}
+                      </div>
+                    </div>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <span className={`text-[12px] truncate ${isSelected ? 'text-slate-900 font-bold' : 'text-slate-600 font-medium group-hover:text-slate-900'}`}>{title}</span>
+                      <span className="text-[9px] text-slate-400 truncate">{sku}</span>
+                    </div>
+                  </label>
+                )
+              })
+            ) : (
+              <div className="text-center text-xs text-slate-400 py-3 font-medium">No SKUs found</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 interface SkuDrillDownTableProps {
   /** Products from the API (current page only) */
   products: ApiProduct[];
@@ -435,6 +578,8 @@ interface SkuDrillDownTableProps {
   rowsPerPage: number;
   /** Search text (controlled by parent) */
   search: string;
+  /** Selected SKUs (controlled by parent) */
+  skus: string[];
   /** Sort column (controlled by parent) */
   sortBy: string;
   /** Sort direction (controlled by parent) */
@@ -442,9 +587,16 @@ interface SkuDrillDownTableProps {
   onPageChange: (page: number) => void;
   onRowsPerPageChange: (rows: number) => void;
   onSearchChange: (value: string) => void;
+  onSkusChange: (skus: string[]) => void;
   onSortChange: (column: string, order: 'asc' | 'desc') => void;
   isLoading: boolean;
   error: string | null;
+  
+  // Dependencies for dynamic SKU search
+  company: string;
+  platform: string | string[];
+  category: string | string[];
+  brand: string | string[];
 }
 
 const SkuDrillDownTable = ({
@@ -453,18 +605,31 @@ const SkuDrillDownTable = ({
   currentPage,
   rowsPerPage,
   search,
+  skus,
   sortBy,
   sortOrder: _sortOrder,
   onPageChange,
   onRowsPerPageChange,
   onSearchChange,
+  onSkusChange,
   onSortChange: _onSortChange,
   isLoading,
   error,
+  company,
+  platform,
+  category,
+  brand,
 }: SkuDrillDownTableProps) => {
   const [expandedCell, setExpandedCell] = useState<{ ri: number, ci: number } | null>(null);
   const [lastExpandedCell, setLastExpandedCell] = useState<{ ri: number, ci: number } | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+  const [scoreTooltip, setScoreTooltip] = useState<{ visible: boolean; x: number; y: number; metricLabel: string; weightage: number; breakdown: any[] }>({ visible: false, x: 0, y: 0, metricLabel: '', weightage: 0, breakdown: [] });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(null), 2500);
+  };
 
   const toggleCell = (ri: number, ci: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -585,10 +750,95 @@ const SkuDrillDownTable = ({
   const metricLabels = ['Overall Score', 'Thumbnail Image Score', 'Thumbnail Video Score', 'Title Score', 'Bullet Score', 'A+ Image Score', 'Description Score'];
 
   return (
+    <>
+    {toastMessage && createPortal(
+      <div className="fixed bottom-6 right-6 z-[9999] bg-slate-900 text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2.5 font-bold text-sm animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <Check size={16} className="text-emerald-400" strokeWidth={3} />
+        {toastMessage}
+      </div>,
+      document.body
+    )}
     <div className="mb-10" ref={tableRef}>
       <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Content Coverage Breakdown</h2>
+          <div className="flex items-center">
+            <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Content Coverage Breakdown</h2>
+            <div className="relative group/tooltip inline-block ml-3 cursor-help">
+              <Info size={18} className="text-slate-400 group-hover/tooltip:text-indigo-500 transition-colors" />
+              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-4 hidden group-hover/tooltip:block w-[480px] bg-slate-900 text-white p-4 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] z-50 text-left border border-slate-700/50 pointer-events-none">
+                <h3 className="text-[13px] font-bold text-indigo-400 mb-3 uppercase tracking-wider flex items-center"><Target size={14} className="mr-2" /> Amazon Scoring Rules</h3>
+                <table className="w-full text-left border-collapse text-[11px]">
+                  <thead>
+                    <tr className="border-b border-slate-700 text-slate-400">
+                      <th className="py-2 px-3 font-bold w-1/3 uppercase tracking-wider">Category</th>
+                      <th className="py-2 px-3 font-bold w-1/5 text-center uppercase tracking-wider">Weightage</th>
+                      <th className="py-2 px-3 font-bold w-auto uppercase tracking-wider">Criteria</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    <tr className="hover:bg-slate-800/50 transition-colors">
+                      <td className="py-2 px-3 font-semibold text-white">Title Score</td>
+                      <td className="py-2 px-3 text-center text-indigo-300 font-bold">20</td>
+                      <td className="py-2 px-3 text-slate-300 leading-relaxed">
+                        <span className="font-bold text-white">20:</span> Title ≥ 100 chars<br/>
+                        <span className="font-bold text-white">10:</span> Title 50–99 chars<br/>
+                        <span className="font-bold text-white">0:</span> Title &lt; 50 chars
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-800/50 transition-colors">
+                      <td className="py-2 px-3 font-semibold text-white">Bullet Score</td>
+                      <td className="py-2 px-3 text-center text-indigo-300 font-bold">20</td>
+                      <td className="py-2 px-3 text-slate-300 leading-relaxed">
+                        <span className="font-bold text-white">20:</span> 4+ bullets<br/>
+                        <span className="font-bold text-white">10:</span> 1–3 bullets<br/>
+                        <span className="font-bold text-white">0:</span> No bullets
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-800/50 transition-colors">
+                      <td className="py-2 px-3 font-semibold text-white">Description Score</td>
+                      <td className="py-2 px-3 text-center text-indigo-300 font-bold">20</td>
+                      <td className="py-2 px-3 text-slate-300 leading-relaxed">
+                        <span className="font-bold text-white">20:</span> 400+ chars<br/>
+                        <span className="font-bold text-white">10:</span> 200–399 chars<br/>
+                        <span className="font-bold text-white">0:</span> &lt;200 chars
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-800/50 transition-colors">
+                      <td className="py-2 px-3 font-semibold text-white">Thumbnail Image Score</td>
+                      <td className="py-2 px-3 text-center text-indigo-300 font-bold">15</td>
+                      <td className="py-2 px-3 text-slate-300 leading-relaxed">
+                        <span className="font-bold text-white">15:</span> 7+ images<br/>
+                        <span className="font-bold text-white">5:</span> 1–6 images<br/>
+                        <span className="font-bold text-white">0:</span> No images
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-800/50 transition-colors">
+                      <td className="py-2 px-3 font-semibold text-white">Thumbnail Video Score</td>
+                      <td className="py-2 px-3 text-center text-indigo-300 font-bold">10</td>
+                      <td className="py-2 px-3 text-slate-300 leading-relaxed">
+                        <span className="font-bold text-white">10:</span> At least 1 video<br/>
+                        <span className="font-bold text-white">0:</span> No video
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-800/50 transition-colors">
+                      <td className="py-2 px-3 font-semibold text-white">A+ Image Score</td>
+                      <td className="py-2 px-3 text-center text-indigo-300 font-bold">15</td>
+                      <td className="py-2 px-3 text-slate-300 leading-relaxed">
+                        <span className="font-bold text-white">15:</span> At least 1 A+ image<br/>
+                        <span className="font-bold text-white">0:</span> No A+ images
+                      </td>
+                    </tr>
+                    <tr className="border-t border-slate-700 bg-slate-800/30">
+                      <td className="py-2 px-3 font-bold text-white uppercase tracking-wider text-xs">Total Score</td>
+                      <td className="py-2 px-3 text-center text-indigo-400 font-black text-xs">100</td>
+                      <td className="py-2 px-3 text-slate-300"></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div className="absolute right-full top-1/2 -translate-y-1/2 -mr-px border-[6px] border-transparent border-r-slate-900 drop-shadow-md"></div>
+              </div>
+            </div>
+          </div>
           <p className="text-sm text-slate-500 mt-1 font-medium">
             Click a specific score metric to expand its detailed breakdown and fixes
           </p>
@@ -622,17 +872,18 @@ const SkuDrillDownTable = ({
              </div>
           </div>
 
-          {/* Search bar — triggers API search */}
-          <div className="relative w-64">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by SKU or title…"
-              value={search}
-              onChange={(e) => { onSearchChange(e.target.value); onPageChange(1); }}
-              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all shadow-sm"
-            />
-          </div>
+          {/* SKU Search Dropdown */}
+          <SkuSearchDropdown 
+            company={company}
+            platform={platform === 'Amazon India' ? 'Amazon' : platform}
+            category={category}
+            brand={brand}
+            selectedSkus={skus}
+            onSkusChange={(newSkus: string[]) => {
+              onSkusChange(newSkus);
+              onPageChange(1);
+            }}
+          />
         </div>
       </div>
 
@@ -663,10 +914,21 @@ const SkuDrillDownTable = ({
                      <p className="text-[11px] leading-relaxed text-slate-200">
                        Contributes <span className="font-bold text-white bg-slate-700/50 px-1 rounded">{weightage}%</span> to the overall score.
                      </p>
-                     <div className="h-px bg-slate-700 my-2"></div>
-                     <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
-                       Calculated by dividing the obtained points by the total weightage of {weightage}.
-                     </p>
+                     
+                     {label !== 'Overall Score' && getDetailedBreakdown(label).length > 0 && (
+                       <>
+                         <div className="h-px bg-slate-700 my-2"></div>
+                         <div className="space-y-1.5">
+                           {getDetailedBreakdown(label).map((rule, idx) => (
+                             <div key={idx} className="flex items-start text-[10px] leading-tight">
+                               <span className="font-bold text-indigo-300 w-6 shrink-0">{rule.score}:</span>
+                               <span className="text-slate-300">{rule.check}</span>
+                             </div>
+                           ))}
+                         </div>
+                       </>
+                     )}
+                     
                      {/* Tooltip arrow */}
                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
                    </div>
@@ -731,9 +993,26 @@ const SkuDrillDownTable = ({
                           className="w-full h-full object-contain mix-blend-multiply opacity-80" 
                         />
                      </div>
-                     <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-slate-800 text-[13px] leading-tight truncate" title={row.title}>{row.title || row.productId}</h4>
+                     <div className="flex-1 min-w-0 relative group/sku cursor-default">
+                        <h4 
+                          className="font-bold text-slate-800 text-[13px] leading-tight line-clamp-2 select-none cursor-copy"
+                          onDoubleClick={() => {
+                            navigator.clipboard.writeText(row.title || row.productId);
+                            showToast('Copied!');
+                          }}
+                        >
+                          {row.title || row.productId}
+                        </h4>
                         <p className="text-[10px] text-slate-400 font-medium truncate">{row.productId}</p>
+                        
+                        {/* Custom Tooltip for full SKU name */}
+                        {row.title && (
+                          <div className="absolute left-0 bottom-full mb-2 hidden group-hover/sku:block w-max max-w-[350px] bg-slate-900 text-white p-3 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] z-[60] text-[12px] leading-relaxed pointer-events-none border border-slate-700/50">
+                            <span className="font-bold text-indigo-300 block mb-1 text-[10px] uppercase tracking-wider">Full SKU Name</span>
+                            {row.title}
+                            <div className="absolute top-full left-6 border-[6px] border-transparent border-t-slate-900"></div>
+                          </div>
+                        )}
                      </div>
                   </div>
 
@@ -779,16 +1058,28 @@ const SkuDrillDownTable = ({
                        const breakdownData = exactMatch.length > 0 ? exactMatch : fullBreakdown.length > 0 ? [fullBreakdown.reduce((prev, curr) => Math.abs(curr.score - (actualScore ?? 0)) < Math.abs(prev.score - (actualScore ?? 0)) ? curr : prev)] : fullBreakdown;
                        
                        return (
-                         <div className="p-6 bg-white border-t border-slate-100 rounded-b-[20px]">
+                         <div className="p-6 pb-16 bg-white border-t border-slate-100 rounded-b-[20px]">
                             <div className="mb-4 text-slate-400 text-sm font-medium">
                                {metricLabel} breakdown and fixes.
                             </div>
-                            <div className="border border-slate-100 rounded-[14px] overflow-hidden shadow-sm">
+                            <div className="border border-slate-100 rounded-[14px] shadow-sm">
                                <table className="w-full text-left table-fixed">
                                   <thead className="bg-slate-50/50">
                                      <tr>
                                         <th className="py-3 px-5 text-[13px] font-bold text-slate-900 border-b border-r border-slate-100 w-[40%]">Check</th>
-                                        <th className="py-3 px-5 text-[13px] font-bold text-slate-900 border-b border-r border-slate-100 w-[20%] text-center">Score</th>
+                                        <th className="py-3 px-5 text-[13px] font-bold text-slate-900 border-b border-r border-slate-100 w-[20%] text-center">
+                                           <div 
+                                             className="flex items-center justify-center cursor-help"
+                                             onMouseEnter={(e) => {
+                                               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                               setScoreTooltip({ visible: true, x: rect.left + rect.width / 2, y: rect.bottom + 8, metricLabel, weightage: weightages[activeCi] || 100, breakdown: fullBreakdown });
+                                             }}
+                                             onMouseLeave={() => setScoreTooltip(prev => ({ ...prev, visible: false }))}
+                                           >
+                                             Score
+                                             <Info size={13} className="ml-1 text-slate-400 hover:text-indigo-500 transition-colors" />
+                                           </div>
+                                        </th>
                                         <th className="py-3 px-5 text-[13px] font-bold text-slate-900 border-b border-r border-slate-100 w-[15%] text-center">Status</th>
                                         <th className="py-3 px-5 text-[13px] font-bold text-slate-900 border-b border-slate-100 w-[25%]">Action</th>
                                      </tr>
@@ -883,8 +1174,37 @@ const SkuDrillDownTable = ({
 
       </div>
     </div>
+
+    {/* Score tooltip: fixed overlay so it escapes table/overflow stacking context */}
+    {scoreTooltip.visible && (
+      <div
+        className="fixed z-[9999] w-56 bg-slate-800 text-white p-3 rounded-xl shadow-2xl border border-slate-700 pointer-events-none"
+        style={{ left: scoreTooltip.x, top: scoreTooltip.y, transform: 'translateX(-50%)' }}
+      >
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-800" />
+        <p className="font-bold text-[10px] uppercase tracking-wider text-indigo-300 mb-1.5">{scoreTooltip.metricLabel}</p>
+        <p className="text-[11px] leading-relaxed text-slate-200">
+          Contributes <span className="font-bold text-white bg-slate-700/50 px-1 rounded">{scoreTooltip.weightage}%</span> to the overall score.
+        </p>
+        {scoreTooltip.metricLabel !== 'Overall Score' && scoreTooltip.breakdown.length > 0 && (
+          <>
+            <div className="h-px bg-slate-700 my-2" />
+            <div className="space-y-1.5">
+              {scoreTooltip.breakdown.map((rule: any, idx: number) => (
+                <div key={idx} className="flex items-start text-[10px] leading-tight">
+                  <span className="font-bold text-indigo-300 w-6 shrink-0">{rule.score}:</span>
+                  <span className="text-slate-300">{rule.check}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    )}
+    </>
   );
 };
+
 
 
 export default function Dashboard() {
@@ -912,7 +1232,22 @@ export default function Dashboard() {
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
+  const [category, setCategory] = useState<string | string[]>('All');
+  const [brand, setBrand] = useState<string | string[]>('All');
+  const [skus, setSkus] = useState<string[]>([]);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
   const fetchDashboard = useCallback(async () => {
+    // If platform is explicitly set to an empty array (user cleared all platforms), show nothing
+    const platformIsEmpty = Array.isArray(platform) && platform.length === 0;
+
+    if (platformIsEmpty) {
+      setProducts([]);
+      setTotalCount(0);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setApiError(null);
     try {
@@ -923,11 +1258,24 @@ export default function Dashboard() {
         sortBy,
         sortOrder,
       });
-      let apiPlatform = platform;
-      if (platform === 'Amazon India') {
+      let apiPlatform: string | string[] = platform;
+      if (apiPlatform === 'Amazon India') {
         apiPlatform = 'Amazon';
+      } else if (Array.isArray(apiPlatform)) {
+        apiPlatform = (apiPlatform as string[]).map((p: string) => p === 'Amazon India' ? 'Amazon' : p).join(',') as string;
       }
-      if (apiPlatform) params.append('platform', apiPlatform);
+      if (apiPlatform && apiPlatform !== 'All') {
+        params.append('platform', apiPlatform as string);
+      }
+      if (category && category !== 'All') {
+        params.append('category', Array.isArray(category) ? category.join(',') : category);
+      }
+      if (brand && brand !== 'All') {
+        params.append('brand', Array.isArray(brand) ? brand.join(',') : brand);
+      }
+      if (skus.length > 0) {
+        params.append('skus', skus.join(','));
+      }
       if (search) params.append('search', search);
 
       const res = await fetch(`${API_BASE}/content-dashboard?${params.toString()}`);
@@ -936,7 +1284,6 @@ export default function Dashboard() {
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
       const data: ApiResponse = await res.json() as ApiResponse;
-      // We no longer set summary here because it is fetched separately
       setProducts(data.products);
       setTotalCount(data.pagination.total);
     } catch (err) {
@@ -946,7 +1293,7 @@ export default function Dashboard() {
     } finally {
       setIsLoading(false);
     }
-  }, [company, platform, page, rowsPerPage, search, sortBy, sortOrder]);
+  }, [company, platform, category, brand, skus, page, rowsPerPage, search, sortBy, sortOrder]);
 
   // Re-fetch products whenever any filter/pagination param changes
   useEffect(() => {
@@ -955,18 +1302,33 @@ export default function Dashboard() {
 
   // Fetch summary separately so it ignores search, pagination, and sorting
   const fetchSummaryData = useCallback(async () => {
+    // If platform is explicitly empty array, summary also shows nothing
+    const platformIsEmpty = Array.isArray(platform) && platform.length === 0;
+    if (platformIsEmpty) {
+      setSummary(null);
+      setIsSummaryLoading(false);
+      return;
+    }
+
     setIsSummaryLoading(true);
     try {
-      const params = new URLSearchParams({
-        company,
-        page: '1',
-        limit: '1',
-      });
-      let apiPlatform = platform;
-      if (platform === 'Amazon India') {
-        apiPlatform = 'Amazon';
+      const params = new URLSearchParams({ company, page: '1', limit: '1' });
+
+      // Normalize platform (same as fetchDashboard)
+      let apiPlatform: string = Array.isArray(platform)
+        ? (platform as string[]).map(p => p === 'Amazon India' ? 'Amazon' : p).join(',')
+        : platform === 'Amazon India' ? 'Amazon' : (platform as string);
+      if (apiPlatform && apiPlatform !== 'All') params.append('platform', apiPlatform);
+
+      // Apply category filter
+      if (category && category !== 'All') {
+        params.append('category', Array.isArray(category) ? category.join(',') : category as string);
       }
-      if (apiPlatform) params.append('platform', apiPlatform);
+
+      // Apply brand filter
+      if (brand && brand !== 'All') {
+        params.append('brand', Array.isArray(brand) ? brand.join(',') : brand as string);
+      }
 
       const res = await fetch(`${API_BASE}/content-dashboard?${params.toString()}`);
       if (res.ok) {
@@ -979,7 +1341,7 @@ export default function Dashboard() {
     } finally {
       setIsSummaryLoading(false);
     }
-  }, [company, platform]);
+  }, [company, platform, category, brand]);
 
   useEffect(() => {
     void fetchSummaryData();
@@ -1007,7 +1369,16 @@ export default function Dashboard() {
   return (
     <div className="h-screen w-full bg-slate-50/50 font-sans flex flex-col overflow-hidden">
       
-      <Navbar platform={platform || 'Amazon India'} onPlatformChange={setPlatform} />
+      <Navbar onFiltersClick={() => setIsFilterModalOpen(true)} />
+      
+      <ContentDashboardFilterModal 
+        open={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        company={company}
+        platform={platform} setPlatform={setPlatform}
+        category={category} setCategory={setCategory}
+        brand={brand} setBrand={setBrand}
+      />
 
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
 
@@ -1167,14 +1538,20 @@ export default function Dashboard() {
                   currentPage={page}
                   rowsPerPage={rowsPerPage}
                   search={search}
+                  skus={skus}
                   sortBy={sortBy}
                   sortOrder={sortOrder}
                   onPageChange={setPage}
-                  onRowsPerPageChange={(n) => { setRowsPerPage(n); setPage(1); }}
+                  onRowsPerPageChange={setRowsPerPage}
                   onSearchChange={setSearch}
+                  onSkusChange={setSkus}
                   onSortChange={handleSortChange}
                   isLoading={isLoading}
                   error={apiError}
+                  company={company}
+                  platform={platform}
+                  category={category}
+                  brand={brand}
                 />
               </section>
 
