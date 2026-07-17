@@ -8,6 +8,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "react": path.resolve(__dirname, "./node_modules/react"),
+      "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
+      "react-router-dom": path.resolve(__dirname, "./node_modules/react-router-dom"),
     },
     // Allow importing .tsx / .ts files from trailytics_ratings without extension
     extensions: ['.mjs', '.js', '.ts', '.tsx', '.jsx', '.json'],
