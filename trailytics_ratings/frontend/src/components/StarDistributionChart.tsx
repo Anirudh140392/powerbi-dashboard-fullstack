@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Star, Loader2 } from 'lucide-react';
-import { resolveCompanyId, getActiveBrandName } from '../utils/tenant';
+import { resolveCompanyId, getActiveBrandName, resolveDbName } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
 
 interface BrandDistribution {
@@ -36,6 +36,8 @@ export function StarDistributionChart({ category, platform, webPid }: Props) {
     const companyId = resolveCompanyId();
     const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || import.meta.env.VITE_RAILWAY_URL || '';
     const params = new URLSearchParams({ company_id: companyId });
+    const dbName = resolveDbName();
+    if (dbName) params.set('db_name', dbName);
     if (category) params.set('category', category);
     if (platform && platform !== 'all') params.set('platform', platform);
     if (webPid) params.set('web_pid', webPid);

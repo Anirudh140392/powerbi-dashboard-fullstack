@@ -659,9 +659,9 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                                     )}
                                     {!serverSkusLoading && (() => {
                                         const displayList = serverSkus
-                                            .filter(s => (s.product_name || s.web_pid).toLowerCase().includes(skuSearch.toLowerCase()))
+                                            .filter(s => ((s.product_name || '') + ' ' + (s.web_pid || '')).toLowerCase().includes(skuSearch.toLowerCase()))
                                             .slice(0, 100)
-                                            .map(s => ({ id: s.web_pid, label: s.product_name?.trim() || s.web_pid, reviewCount: s.review_count }));
+                                            .map(s => ({ id: s.web_pid || 'unknown', label: s.product_name?.trim() || s.web_pid || 'Unknown SKU', reviewCount: s.review_count }));
                                         if (displayList.length === 0) {
                                             return (
                                                 <div className="px-3 py-4 text-center text-[11px] text-slate-400">

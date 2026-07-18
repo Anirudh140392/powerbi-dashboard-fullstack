@@ -3,23 +3,17 @@ import { type AuthUser, persistAuthSession, clearStoredAuthSession } from '../ut
 
 /** 
  * Resolves company identity for the ratings module.
- * Priority:
- *  1. VITE_COMPANY_ID env var  — set in root frontend .env for embedded mode, or ratings .env for standalone
- *  2. Root Digital Shelf sessionStorage user → companyId / company_id
- *  3. Hardcoded fallback (last resort — avoids throwing)
+ * Priority order:
+ *  1. Root Digital Shelf sessionStorage user → companyId / company_id
+ *     (set after DS login; populated from admin_master.tb_database.company_id)
+ *  2. VITE_COMPANY_ID env var — fallback for standalone ratings mode
+ *  3. Hardcoded prestige fallback (last resort — avoids throwing)
+ *
+ * Priority 1 comes first so switching clients requires only a re-login in DS,
+ * not a manual .env change on the ratings frontend.
  */
 function resolveRootUser(): { companyId: string; companyName: string } {
-    // 1. Env var — most reliable, set explicitly in .env for the active client
-    const envCompanyId = import.meta.env.VITE_COMPANY_ID as string | undefined;
-    const envCompanyName = import.meta.env.VITE_COMPANY_NAME as string | undefined;
-    if (envCompanyId) {
-        return {
-            companyId: envCompanyId,
-            companyName: envCompanyName || 'prestige',
-        };
-    }
-
-    // 2. Root Digital Shelf sessionStorage user (set after login in root frontend)
+    // 1. Root Digital Shelf sessionStorage user — populated from tb_database.company_id on login
     if (typeof window !== 'undefined') {
         try {
             const raw = window.sessionStorage.getItem('user');
@@ -28,6 +22,7 @@ function resolveRootUser(): { companyId: string; companyName: string } {
                 const companyId = rootUser?.companyId || rootUser?.company_id;
                 const companyName = rootUser?.dbName || rootUser?.db_name || rootUser?.companyName;
                 if (companyId) {
+                    console.log('[RatingsAuth] Resolved companyId from DS sessionStorage:', companyId);
                     return { companyId, companyName: companyName || 'prestige' };
                 }
             }
@@ -36,8 +31,19 @@ function resolveRootUser(): { companyId: string; companyName: string } {
         }
     }
 
-    // 3. Last-resort fallback (prevents crash, but data will be wrong)
-    console.warn('[RatingsAuth] VITE_COMPANY_ID not set — using hardcoded prestige fallback. Set VITE_COMPANY_ID in your .env file.');
+    // 2. Env var — used in standalone ratings mode or when no DS session exists
+    const envCompanyId = import.meta.env.VITE_COMPANY_ID as string | undefined;
+    const envCompanyName = import.meta.env.VITE_COMPANY_NAME as string | undefined;
+    if (envCompanyId) {
+        console.log('[RatingsAuth] Resolved companyId from VITE_COMPANY_ID env var:', envCompanyId);
+        return {
+            companyId: envCompanyId,
+            companyName: envCompanyName || 'prestige',
+        };
+    }
+
+    // 3. Last-resort fallback (prevents crash, but data will be wrong for non-prestige clients)
+    console.warn('[RatingsAuth] No companyId found in sessionStorage or VITE_COMPANY_ID — using hardcoded prestige fallback.');
     return { companyId: '297e37ea-a5ac-47df-bebd-ac44e52b7979', companyName: 'prestige' };
 }
 
@@ -85,8 +91,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // then persist fresh with the resolved company ID.
     useEffect(() => {
         clearStoredAuthSession();
+        
+        let token = 'bypass-token';
+        if (typeof window !== 'undefined') {
+            const dsToken = window.sessionStorage.getItem('token');
+            if (dsToken) {
+                token = dsToken;
+            }
+        }
+
         persistAuthSession({
-            token: 'bypass-token',
+            token: token,
             expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
             user: dummyUser,
         });

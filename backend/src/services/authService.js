@@ -59,15 +59,16 @@ export async function loginUser(email, password, deviceInfo = {}) {
         throw new Error('Invalid email or password');
     }
 
-    // 3. Look up db_name from tb_database using db_id
+    // 3. Look up db_name and company_id from tb_database using db_id
     const databases = await queryAdminDB(
-        `SELECT db_name, toString(db_id) as db_id, logo_url 
+        `SELECT db_name, toString(db_id) as db_id, logo_url, company_id 
          FROM tb_database 
          WHERE status = 'active'`
     );
 
     let dbName = process.env.CLICKHOUSE_DB || 'colpal';
     let dbLogoUrl = "";
+    let companyId = process.env.RATINGS_COMPANY_ID || '';
     const userDbId = user.db_id_str;
 
     let matchedDb = databases.find(db => db.db_id === userDbId);
@@ -94,7 +95,14 @@ export async function loginUser(email, password, deviceInfo = {}) {
     if (matchedDb) {
         dbName = matchedDb.db_name;
         dbLogoUrl = matchedDb.logo_url || "";
-        console.log(`[Auth] ✅ Database mapped for ${user.user_email}: ${dbName} (id: ${userDbId})`);
+        // Filter out the null UUID sentinel (00000000-0000-0000-0000-000000000000)
+        // which is the default ClickHouse UUID('') value and means "not assigned".
+        const rawCid = matchedDb.company_id || '';
+        const isNullUuid = rawCid === '00000000-0000-0000-0000-000000000000';
+        if (rawCid && !isNullUuid) {
+            companyId = rawCid;
+        }
+        console.log(`[Auth] ✅ Database mapped for ${user.user_email}: ${dbName} (id: ${userDbId}) companyId: ${companyId || '(none)'}`);
     } else {
         console.warn(`[Auth] ⚠️ No matching database found for db_id=${userDbId}, using fallback: ${dbName}`);
     }
@@ -301,7 +309,8 @@ export async function loginUser(email, password, deviceInfo = {}) {
         dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus: dbStatusBool,
-        tabPermissions
+        tabPermissions,
+        companyId,          // ratings postgres company_id — sourced from tb_database.company_id
     };
 
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
@@ -315,7 +324,8 @@ export async function loginUser(email, password, deviceInfo = {}) {
             dbLogoUrl: dbLogoUrl,
             role: userRole,
             dbStatus: dbStatusBool,
-            tabPermissions
+            tabPermissions,
+            companyId,      // ratings postgres company_id — stored in sessionStorage for ratings tab
         },
         // Device token info for the controller to set the HTTP-only cookie
         deviceToken: resolvedDeviceToken,
@@ -391,21 +401,28 @@ export async function verifySession(token, deviceToken = null) {
         }
     }
 
-    // 4. Look up db_name from tb_database using token info
+    // 4. Look up db_name, logo_url and company_id from tb_database using token info
     let dbName = decoded.dbName || process.env.CLICKHOUSE_DB || 'colpal';
     let dbLogoUrl = decoded.dbLogoUrl || "";
+    let companyId = decoded.companyId || process.env.RATINGS_COMPANY_ID || '';
 
     try {
         const dbRows = await queryAdminDB(`
-            SELECT logo_url FROM tb_database 
+            SELECT logo_url, company_id FROM tb_database 
             WHERE lower(db_name) = '${dbName.toLowerCase()}' 
             LIMIT 1
         `);
         if (dbRows.length > 0) {
             dbLogoUrl = dbRows[0].logo_url || "";
+            // Filter out the null UUID sentinel (00000000-0000-0000-0000-000000000000)
+            const rawCid = dbRows[0].company_id || '';
+            const isNullUuid = rawCid === '00000000-0000-0000-0000-000000000000';
+            if (rawCid && !isNullUuid) {
+                companyId = rawCid;
+            }
         }
     } catch (e) {
-        console.warn('[Auth] Failed to fetch database logo during verify:', e.message);
+        console.warn('[Auth] Failed to fetch database info during verify:', e.message);
     }
 
     // 5. Fetch latest db_status and tab_permissions for this user
@@ -432,7 +449,7 @@ export async function verifySession(token, deviceToken = null) {
         console.warn('[Auth] Failed to fetch permissions during verify:', e.message);
     }
 
-    console.error(`[DEBUG_VERIFY_SESSION] returning userData: email=${decoded.email}, dbName=${dbName}, dbLogoUrl length=${dbLogoUrl ? dbLogoUrl.length : 0}`);
+    console.error(`[DEBUG_VERIFY_SESSION] returning userData: email=${decoded.email}, dbName=${dbName}, companyId=${companyId}, dbLogoUrl length=${dbLogoUrl ? dbLogoUrl.length : 0}`);
 
     return {
         email: decoded.email,
@@ -441,6 +458,7 @@ export async function verifySession(token, deviceToken = null) {
         dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus,
-        tabPermissions
+        tabPermissions,
+        companyId,      // ratings postgres company_id — passed to ratings tab via sessionStorage
     };
 }

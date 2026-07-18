@@ -11,7 +11,7 @@
  */
 import { useState, useRef } from 'react';
 import { Upload, FileText, Loader2, CheckCircle2, AlertCircle, X, Download } from 'lucide-react';
-import { resolveCompanyId } from '../../utils/tenant';
+import { resolveCompanyId, resolveDbName } from '../../utils/tenant';
 import { buildAuthHeaders } from '../../utils/auth';
 
 interface CsvRow {
@@ -83,7 +83,11 @@ export function BulkImportPanel() {
     try {
       const companyId = resolveCompanyId();
       const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || import.meta.env.VITE_RAILWAY_URL || '';
-      const res = await fetch(`${backendUrl}/api/ratings/products/bulk-import?company_id=${encodeURIComponent(companyId)}`, {
+      const params = new URLSearchParams({ company_id: companyId });
+      const dbName = resolveDbName();
+      if (dbName) params.set('db_name', dbName);
+      
+      const res = await fetch(`${backendUrl}/api/ratings/products/bulk-import?${params.toString()}`, {
         method: 'POST',
         headers: buildAuthHeaders({ 'Content-Type': 'application/json' }, companyId),
         body: JSON.stringify({ rows }),
