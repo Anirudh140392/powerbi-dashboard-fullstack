@@ -127,6 +127,7 @@ async function getGeoSource() {
             location: r('Location'),
             date: r('DATE'),
             platform: r('Platform'),
+            brand: r('Brand'),
             category: r('Category', r('Product_type')),
             compFlag: r('Comp_flag'),
             msl: hasMsl ? r('msl') : null
@@ -183,31 +184,59 @@ const formatLac = (val) => {
     return `₹${Math.round(val)}`;
 };
 
+/**
+ * Query maximum date in the table dynamically based on standard filters and metrics
+ */
+const getDynamicMaxDate = async (platform, channel, category, brand, metric) => {
+    const isMarketShare = metric === 'marketshare' || metric === 'Market Share';
+    const src = isMarketShare ? await getMsGeoSource() : await getGeoSource();
+    if (!src) return dayjs().endOf('day');
+
+    const conds = [];
+    if (platform && platform !== 'All') {
+        const list = platform.split(',').map(p => p.trim().toLowerCase());
+        conds.push(`lower(${src.f.platform}) IN (${list.map(p => `'${escapeStr(p)}'`).join(',')})`);
+    } else if (channel && channel !== 'All') {
+        conds.push(`${src.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`);
+    }
+    if (category && category !== 'All') {
+        conds.push(`lower(${src.f.category}) = '${escapeStr(category.toLowerCase())}'`);
+    }
+    if (src.f.compFlag) {
+        conds.push(`${src.f.compFlag} = 0`);
+    }
+    if (brand && brand !== 'All') {
+        const brandArr = normalizeFilterArray(brand);
+        if (brandArr && brandArr.length > 0) {
+            const brandCol = src.f.brand || src.f.groupBrand;
+            if (brandCol) {
+                conds.push(`lower(${brandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+            }
+        }
+    }
+
+    const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
+    const query = `SELECT MAX(toDate(${src.f.date})) as maxDate FROM ${src.table} ${whereClause}`;
+    try {
+        const result = await queryClickHouse(query);
+        const maxDateStr = result?.[0]?.maxDate;
+        if (maxDateStr && maxDateStr !== '1970-01-01' && maxDateStr !== '0000-00-00') {
+            return dayjs(maxDateStr).endOf('day');
+        }
+    } catch (err) {
+        console.error('[MapIntellect] Error fetching dynamic max date:', err);
+    }
+    
+    return await getCachedMaxDate();
+};
+
 // ── Main Data Function ───────────────────────────────────────────
 
 const getMapIntellectData = async (filters) => {
     console.log(`[MapIntellect][${getCurrentDbName()}] Computing dynamic data:`, JSON.stringify(filters));
 
-    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all', category, channel, msl } = filters;
+    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all', category, channel, msl, brand } = filters;
     const platform = filters.platform || 'All';
-
-    // Date range
-    let endDate = await getCachedMaxDate();
-    let startDate;
-
-    if (qStartDate && qEndDate) {
-        startDate = dayjs(qStartDate).startOf('day');
-        endDate = dayjs(qEndDate).endOf('day');
-    } else if (days) {
-        const daysBack = parseInt(days, 10) || 7;
-        startDate = endDate.subtract(daysBack - 1, 'day').startOf('day');
-    } else {
-        const monthsBack = parseInt(months, 10) || 1;
-        startDate = endDate.subtract(monthsBack, 'month').startOf('day');
-    }
-
-    const prevStartDate = startDate.subtract(1, 'month').startOf('day');
-    const prevEndDate = endDate.subtract(1, 'month').endOf('day');
 
     // Get dynamic sources
     const [pdpSrc, msSrc, ourBrands] = await Promise.all([
@@ -215,6 +244,27 @@ const getMapIntellectData = async (filters) => {
         getMsGeoSource(),
         getOurBrandsList()
     ]);
+
+    // Date range
+    let endDate;
+    let startDate;
+
+    if (qStartDate && qEndDate) {
+        startDate = dayjs(qStartDate).startOf('day');
+        endDate = dayjs(qEndDate).endOf('day');
+    } else {
+        endDate = await getDynamicMaxDate(platform, channel, category, brand, metric);
+        if (days) {
+            const daysBack = parseInt(days, 10) || 7;
+            startDate = endDate.subtract(daysBack - 1, 'day').startOf('day');
+        } else {
+            const monthsBack = parseInt(months, 10) || 1;
+            startDate = endDate.subtract(monthsBack, 'month').startOf('day');
+        }
+    }
+
+    const prevStartDate = startDate.subtract(1, 'month').startOf('day');
+    const prevEndDate = endDate.subtract(1, 'month').endOf('day');
 
     const buildConds = (src, sDate, eDate) => {
         if (!src) return '1=0';
@@ -235,6 +285,15 @@ const getMapIntellectData = async (filters) => {
             const mslArr = normalizeFilterArray(msl);
             if (mslArr && mslArr.includes('1') && !mslArr.includes('0')) {
                 conds.push(`toString(${src.f.msl}) = '1'`);
+            }
+        }
+        if (brand && brand !== 'All') {
+            const brandArr = normalizeFilterArray(brand);
+            if (brandArr && brandArr.length > 0) {
+                const brandCol = src.f.brand || src.f.groupBrand;
+                if (brandCol) {
+                    conds.push(`lower(${brandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+                }
             }
         }
         return conds.join(' AND ');
@@ -290,7 +349,12 @@ const getMapIntellectData = async (filters) => {
             const cityConditions = allowedMsCities.map(c => `lower(${msSrc.f.location}) LIKE '%${escapeStr(c.toLowerCase())}%'`).join(' OR ');
 
             let brandsCondition = 'FALSE';
-            if (ourBrands.length > 0) {
+            if (brand && brand !== 'All') {
+                const brandArr = normalizeFilterArray(brand);
+                if (brandArr && brandArr.length > 0) {
+                    brandsCondition = brandArr.map(b => `lower(${msSrc.f.groupBrand}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ');
+                }
+            } else if (ourBrands.length > 0) {
                 brandsCondition = ourBrands.map(b => `lower(${msSrc.f.groupBrand}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ');
             }
 
@@ -459,7 +523,46 @@ const getMapIntellectCategories = async (metric, platform, channel) => {
     }
 };
 
+/**
+ * Fetch distinct brands dynamically based on active metric and other filters
+ */
+const getMapIntellectBrands = async (platform, channel, metric) => {
+    const isMarketShare = metric === 'marketshare' || metric === 'Market Share';
+    
+    let query;
+    if (isMarketShare) {
+        // SELECT DISTINCT(`brand`) FROM rb_ms_olap where flag = 1 LIMIT 100
+        query = `SELECT DISTINCT(brand) as brand FROM rb_ms_olap WHERE flag = 1`;
+        if (platform && platform !== 'All') {
+            const list = platform.split(',').map(p => p.trim().toLowerCase());
+            query += ` AND lower(platform) IN (${list.map(p => `'${escapeStr(p)}'`).join(',')})`;
+        } else if (channel && channel !== 'All') {
+            query += ` AND platform IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`;
+        }
+        query += ` LIMIT 100`;
+    } else {
+        // SELECT distinct (`Brand`) FROM rb_pdp_olap where `Comp_flag` = 0 LIMIT 100
+        query = `SELECT DISTINCT(Brand) as brand FROM rb_pdp_olap WHERE Comp_flag = 0`;
+        if (platform && platform !== 'All') {
+            const list = platform.split(',').map(p => p.trim().toLowerCase());
+            query += ` AND lower(Platform) IN (${list.map(p => `'${escapeStr(p)}'`).join(',')})`;
+        } else if (channel && channel !== 'All') {
+            query += ` AND Platform IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`;
+        }
+        query += ` LIMIT 100`;
+    }
+
+    try {
+        const results = await queryClickHouse(query);
+        return results.map(r => r.brand).filter(Boolean).sort();
+    } catch (error) {
+        console.error('[MapIntellect] Error fetching brands:', error);
+        return [];
+    }
+};
+
 export default {
     getMapIntellectData,
-    getMapIntellectCategories
+    getMapIntellectCategories,
+    getMapIntellectBrands
 };
