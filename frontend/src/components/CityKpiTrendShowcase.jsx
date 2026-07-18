@@ -801,17 +801,10 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     }
   }, [pendingSectionValues, onFilterChange]);
 
-  // Reset filters
+  // Reset filters (clears selections in modal; click Apply to confirm)
   const handleResetFilters = React.useCallback(() => {
     setPendingSectionValues({});
-    setAppliedSectionValues({});
-    setShowFilterPanel(false);
-    setCurrentPage(1);
-    setCurrentColPage(1);
-    if (onFilterChange) {
-      onFilterChange({});
-    }
-  }, [onFilterChange]);
+  }, []);
 
   // Open modal: sync pending with currently applied
   const handleOpenFilterPanel = React.useCallback(() => {

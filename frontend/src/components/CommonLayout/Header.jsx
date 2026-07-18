@@ -316,6 +316,7 @@ function WatchTowerFilterModal({
     setDraftBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
+    setSearchTerm("");
   };
 
   // total active filter count across all tabs
@@ -867,6 +868,7 @@ function MarketShareFilterModal({
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftSubCategory("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -1366,6 +1368,7 @@ function PriorityActionFilterModal({
     setDraftPlatform("All");
     setDraftBrand("All");
     setDraftCity("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = PA_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -1975,6 +1978,7 @@ function AvailabilityFilterModal({
     setDraftBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -2616,6 +2620,7 @@ function VisibilityFilterModal({
     setDraftKeywordType(["All"]);
     setDraftKeyword(["All"]);
     setDraftRank("Top 10");
+    setSearchTerm("");
   };
 
   const totalActiveCount = VIS_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -2936,6 +2941,7 @@ function PricingFilterModal({
     setDraftBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -3199,6 +3205,7 @@ function PerformanceFilterModal({
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -3462,6 +3469,7 @@ function ContentFilterModal({
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -3784,6 +3792,7 @@ function InventoryFilterModal({
     setDraftBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -3973,7 +3982,6 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
   // ─── RESET ALL FILTERS TO DEFAULTS ───
   const handleResetFilters = React.useCallback(() => {
     // Reset data filter selections to "All" (defaults)
-    // NOTE: Channel and Platform are NOT reset — they are sidebar-controlled
     setSelectedCategory("All");
     setSelectedBrand("All");
     setSelectedLocation("All");
@@ -3984,6 +3992,10 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     setVisibilityMode("sos");
     if (setSelectedSubCategory) setSelectedSubCategory("All");
 
+    // Also reset Channel and Platform to "All" (or defaults if restricted)
+    setSelectedChannel("All");
+    setPlatform(hasRestrictedPlatforms ? platforms.filter(p => p !== 'All') : "All");
+
     // Reset Priority Action filters
     setPaPriority("All");
     setPaStatus("All");
@@ -3991,12 +4003,14 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     setPaBrand("All");
     setPaCity("All");
 
-    // Reset local page-level filters (brand, category only — preserve channel/platform)
+    // Reset local page-level filters (brand, category, platform, channel)
     if (onFiltersChange) {
       onFiltersChange(prev => ({
         ...prev,
         brand: undefined,
         category: undefined,
+        platform: hasRestrictedPlatforms ? platforms.filter(p => p !== 'All') : "All",
+        channel: "All",
       }));
     }
 
@@ -4010,6 +4024,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     setSelectedCategory, setSelectedBrand,
     setSelectedLocation, setSelectedMsl, setSelectedKeyword, setSelectedKeywordType,
     setSelectedRank, setVisibilityMode, setSelectedSubCategory,
+    setSelectedChannel, setPlatform, hasRestrictedPlatforms, platforms,
     setPaPriority, setPaStatus, setPaPlatform, setPaBrand, setPaCity,
     onFiltersChange, setUserSetDate, setComparisonLabel,
     refreshDates,

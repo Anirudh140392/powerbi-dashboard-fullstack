@@ -332,6 +332,19 @@ export default function SearchTermsPerformance() {
   // Removed local skuPlatform state - now using global platform filter
   const currentSkuPlatform = globalPlatform || "All";
 
+  // Reset local filters when global filters are reset to defaults
+  useEffect(() => {
+    const isGlobalPlatformReset = globalPlatform === "All" || (Array.isArray(globalPlatform) && globalPlatform.includes("All")) || globalPlatform === "";
+    const isGlobalBrandReset = selectedBrand === "All";
+    const isGlobalCategoryReset = selectedCategory === "All";
+    const isGlobalLocationReset = selectedLocation === "All";
+
+    if (isGlobalPlatformReset && isGlobalBrandReset && isGlobalCategoryReset && isGlobalLocationReset) {
+      setLocalFilters({ platform: [], category: [], brand: [] });
+      setTempLocalFilters({ platform: [], category: [], brand: [] });
+    }
+  }, [globalPlatform, selectedBrand, selectedCategory, selectedLocation]);
+
   const normalize = (val) => {
     if (!val || val === "All" || (Array.isArray(val) && val.length === 0)) return "All";
     return Array.isArray(val) ? val.join(',') : String(val);
