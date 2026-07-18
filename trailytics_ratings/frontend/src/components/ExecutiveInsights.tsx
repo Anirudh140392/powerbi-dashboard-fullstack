@@ -26,7 +26,10 @@ import {
     ClipboardCheck,
     Headphones,
     Radar,
-    Sparkles
+    Sparkles,
+    Cpu,
+    Truck,
+    Megaphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Review } from '../types';
@@ -705,7 +708,9 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                 { key: 'npd' as const, label: 'NPD', bucket: executiveHealth.npd, authorativeTotal: executiveHealth.npd.catalogueTotal ?? globalMetadata?.npdCount ?? executiveHealth.npd.total, color: 'indigo', icon: <Zap size={20} />, desc: 'New Product Development', tooltipDef: TOOLTIPS.npdCard },
                                 { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: executiveHealth.pareto.catalogueTotal ?? globalMetadata?.paretoCount ?? executiveHealth.pareto.total, color: 'indigo', icon: <Target size={20} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
                                 { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: executiveHealth.nonPareto.catalogueTotal ?? globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total, color: 'slate', icon: <Layers size={20} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
-                            ]).map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {
+                            ])
+                            .filter(card => card.authorativeTotal > 0 && (card.bucket.totalReviewCount ?? 0) > 0)
+                            .map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {
                                 const isExpanded = expandedPareto === key;
                                 // Build a healthy/watch/at-risk health bar from the rating-bifurcation buckets
                                 const healthTotal = (bucket?.np?.count || 0) + (bucket?.ni?.count || 0) + (bucket?.issue?.count || 0);
@@ -716,7 +721,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                 const fmtK = (n: number) => n >= 10000000 ? `${(n/10000000).toFixed(1)}Cr` : n >= 100000 ? `${(n/100000).toFixed(1)}L` : n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n);
                                 const reviewsN = bucket.totalReviewCount ?? 0;
                                 const ratingsN = Number(bucket.totalRatings || 0);
-                                const hasData = reviewsN > 0 || ratingsN > 0;
+
                                 return (
                                 <motion.div
                                     key={key}
@@ -753,23 +758,6 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                         </motion.div>
                                     </div>
 
-                                    {!hasData ? (
-                                        authorativeTotal > 0 ? (
-                                            // Catalogue SKUs exist but none have reviews in the window
-                                            // (common for NPD). Show the count, not just an empty message.
-                                            <div className="flex items-baseline gap-1.5 py-3">
-                                                <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums leading-none">
-                                                    {authorativeTotal.toLocaleString()}
-                                                </span>
-                                                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">SKUs</span>
-                                                <span className="text-[11px] text-slate-400 dark:text-slate-500 italic ml-1">· no reviews yet</span>
-                                            </div>
-                                        ) : (
-                                            <div className="text-[11px] text-slate-400 dark:text-slate-500 italic py-3">
-                                                No {label} SKUs yet
-                                            </div>
-                                        )
-                                    ) : (
                                     <>
                                     {/* Single dense stats row: hero count · ratings · counts · delta */}
                                     <div className="grid grid-cols-12 gap-3 items-center">
@@ -864,7 +852,6 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                         </div>
                                     )}
                                     </>
-                                    )}
                                 </motion.div>
                                 );
                             })}
@@ -994,13 +981,18 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {stakeholderSummary.map((sh, idx) => {
-                                // Icon-only color encoding (no card background). The category itself
-                                // is the signal; severity is conveyed by the negative count number.
-                                const icon = sh.name === 'Production'
+                                const shName = sh.name.toLowerCase();
+                                const icon = (shName.includes('production') || shName.includes('manufacturing'))
                                     ? <Factory size={18} />
-                                    : sh.name === 'QC'
+                                    : (shName.includes('qc') || shName.includes('quality') || shName.includes('safety'))
                                         ? <ClipboardCheck size={18} />
-                                        : <Headphones size={18} />;
+                                        : (shName.includes('r&d') || shName.includes('research'))
+                                            ? <Cpu size={18} />
+                                            : (shName.includes('logistic') || shName.includes('delivery'))
+                                                ? <Truck size={18} />
+                                                : (shName.includes('marketing') || shName.includes('sales'))
+                                                    ? <Megaphone size={18} />
+                                                    : <Headphones size={18} />;
                                 return (
                                     <motion.div
                                         key={sh.name}

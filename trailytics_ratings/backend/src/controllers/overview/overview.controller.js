@@ -328,17 +328,17 @@ export const getTrends = async (req, res) => {
                 CASE WHEN prior_total > 0 THEN toFloat64(prior_neg) / prior_total ELSE 0 END AS prior_neg_rate,
                 (CASE WHEN recent_total > 0 THEN toFloat64(recent_neg) / recent_total ELSE 0 END) - (CASE WHEN prior_total > 0 THEN toFloat64(prior_neg) / prior_total ELSE 0 END) AS change
             FROM aggregated
-            WHERE characteristic NOT IN ('General Feedback', 'Overall Quality', 'General') AND recent_total >= 15 AND prior_total >= 15
+            WHERE characteristic NOT IN ('General Feedback', 'Overall Quality', 'General') AND recent_total >= 5 AND prior_total >= 5
             ORDER BY change DESC
         `;
 
         console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
-        const escalating = rows.filter(r => r.change > 0.05 && r.recent_neg_rate > 0.25).slice(0, 10).map(r => ({
+        const escalating = rows.filter(r => r.change > 0.01 && r.recent_neg_rate > 0.10).slice(0, 10).map(r => ({
             characteristic: r.characteristic, recentNegativeRate: parseFloat(r.recent_neg_rate), olderNegativeRate: parseFloat(r.prior_neg_rate), change: parseFloat(r.change), recentCount: parseInt(r.recent_total), totalCount: parseInt(r.recent_total) + parseInt(r.prior_total), isEscalating: true, isImproving: false,
         }));
-        const improving = rows.filter(r => r.change < -0.05).sort((a, b) => parseFloat(a.change) - parseFloat(b.change)).slice(0, 10).map(r => ({
+        const improving = rows.filter(r => r.change < -0.01).sort((a, b) => parseFloat(a.change) - parseFloat(b.change)).slice(0, 10).map(r => ({
             characteristic: r.characteristic, recentNegativeRate: parseFloat(r.recent_neg_rate), olderNegativeRate: parseFloat(r.prior_neg_rate), change: parseFloat(r.change), recentCount: parseInt(r.recent_total), totalCount: parseInt(r.recent_total) + parseInt(r.prior_total), isEscalating: false, isImproving: true,
         }));
         res.json({ escalating, improving });
@@ -1159,7 +1159,8 @@ export const getProductHealth = async (req, res) => {
 export const getBenchmarkData = async (req, res) => {
     try {
         const { category, platform, date_from, date_to, period_months, price_mode, price_min, price_max } = req.query;
-        const queryParams = { companyId: String(req.companyId) };
+        const targetDb = getTargetDb(req);
+        const queryParams = { companyId: String(req.companyId), dbName: targetDb };
         const conditions = [
             'r.company_id = {companyId:String}',
             `(coalesce(r.is_competitor, 0) = 0 OR (isNotNull(r.brand) AND r.brand <> '' AND length(trim(r.brand)) >= 3 AND lower(trim(r.brand)) NOT IN ('the','not','and','gas','extracted','none','null','n/a','other','unknown','etc','for','was','were','our','your','its')))`
@@ -1201,7 +1202,7 @@ export const getBenchmarkData = async (req, res) => {
             ),
             scoped_reviews AS (
                 SELECT
-                    multiIf(coalesce(r.is_competitor, 0) = 0, 'Prestige', initcap(lower(r.brand))) AS brand,
+                    multiIf(coalesce(r.is_competitor, 0) = 0, initcap({dbName:String}), initcap(lower(r.brand))) AS brand,
                     coalesce(r.is_competitor, 0) AS is_competitor,
                     coalesce(nullIf(r.sentiment_category, ''), 'General') AS sentiment_category,
                     r.rating AS rev_rating, r.ml_inferred_rating AS rev_ml_rating, r.sentiment AS rev_sentiment, r.web_pid AS rev_web_pid, r.platform AS rev_platform,
@@ -1252,7 +1253,7 @@ export const getBenchmarkData = async (req, res) => {
                 GROUP BY brand, is_competitor
             )
             SELECT
-                t.brand, t.is_competitor, t.total_reviews, t.avg_rating, t.avg_ml_rating,
+                t.brand AS brand, t.is_competitor AS is_competitor, t.total_reviews, t.avg_rating, t.avg_ml_rating,
                 t.positive_count, t.negative_count, t.neutral_count,
                 l.total_rating_count AS rating_count, l.avg_pdp_rating AS pdp_rating,
                 c.cat_arr AS category_scores
@@ -1279,7 +1280,7 @@ export const getBenchmarkData = async (req, res) => {
             }
             return {
                 brand: row.brand,
-                is_competitor: row.is_competitor === 1,
+                is_competitor: row.is_competitor === 1 || row.is_competitor === true,
                 total_reviews: row.total_reviews,
                 avg_rating: row.avg_rating,
                 ml_rating: row.avg_ml_rating,
@@ -1291,7 +1292,7 @@ export const getBenchmarkData = async (req, res) => {
                 category_scores
             };
         });
-        res.json({ rows });
+        res.json({ benchmarks: rows });
     } catch (err) {
         console.error('Benchmark data error:', err);
         res.status(500).json({ error: err.message });
@@ -1385,7 +1386,7 @@ export const getCategoryHealth = async (req, res) => {
         const sql = `
             WITH latest_snapshots AS (
                 SELECT * FROM (
-                    SELECT web_pid, platform, price_rp, price_sp, category, pareto_status
+                    SELECT web_pid, platform, price_rp, price_sp, category, pareto_status, rating, rating_count
                     FROM product_snapshots
                     WHERE company_id = {companyId:String}
                     ORDER BY snapshot_date DESC, created_at DESC
@@ -1471,17 +1472,39 @@ export const getCategoryHealth = async (req, res) => {
                 WHERE r.company_id = {companyId:String} ${competitorFilter} ${platformFiltStr} ${reviewPriceFiltStr} ${catFiltStr} ${growthRangeFilter}
                 GROUP BY scm.category
             ),
+            cat_products AS (
+                SELECT
+                    scm.category AS cat_name,
+                    sum(ls.rating_count) AS total_ratings,
+                    round(sum(ls.rating * ls.rating_count) / nullIf(sum(ls.rating_count), 0), 2) AS avg_platform_rating
+                FROM sku_category_map scm
+                JOIN latest_snapshots ls ON ls.web_pid = scm.web_pid
+                GROUP BY scm.category
+            ),
+            cat_catalogue AS (
+                SELECT
+                    multiIf(trim(lower(mp.category)) IN ('other', 'others'), 'Others', initcap(trim(mp.category))) AS cat_name,
+                    count(DISTINCT mp.product_external_id) AS catalogue_sku_count
+                FROM products mp
+                WHERE mp.company_id = {companyId:String} AND mp.platform != '' AND mp.category != '' ${snapCompetitorFilter}
+                GROUP BY cat_name
+            ),
             combined_cats AS (
                 SELECT c.category AS category, c.sku_count AS sku_count, c.pareto_count AS pareto_count, c.non_pareto_count AS non_pareto_count, c.npd_count AS npd_count,
+                    coalesce(cc.catalogue_sku_count, c.sku_count) AS catalogue_sku_count,
                     coalesce(r.review_count, 0) AS review_count,
                     coalesce(r.sku_count, 0) AS review_sku_count,
                     r.avg_review_rating, r.avg_ml_rating, r.positive_count, r.negative_count, r.neutral_count,
+                    coalesce(cp.total_ratings, 0) AS total_ratings,
+                    cp.avg_platform_rating,
                     g.recent_reviews, g.prior_reviews, g.recent_rating, g.prior_rating,
                     multiIf(g.prior_reviews > 0, toFloat64(g.recent_reviews - g.prior_reviews) / g.prior_reviews * 100, 0.0) AS growth_pct,
                     multiIf(r.review_count > 0, (toFloat64(r.positive_count) - r.negative_count) / r.review_count * 50 + 50, 50.0) AS health_score
                 FROM cat_sku_counts c
                 LEFT JOIN cat_reviews r ON c.category = r.cat_name
                 LEFT JOIN cat_growth g ON c.category = g.cat_name
+                LEFT JOIN cat_products cp ON c.category = cp.cat_name
+                LEFT JOIN cat_catalogue cc ON c.category = cc.cat_name
                 WHERE c.sku_count > 0 OR r.review_count > 0
             )
             SELECT * FROM combined_cats ORDER BY review_count DESC
@@ -1493,35 +1516,53 @@ export const getCategoryHealth = async (req, res) => {
         const rows = await chRes.json();
         console.log("FIRST ROW:", rows[0]);
         
-        const totals = { skuCount: 0, catalogueSkuCount: 0, reviewSkuCount: 0, totalRatings: 0, reviewCount: 0, paretoCount: 0, nonParetoCount: 0, npdCount: 0 };
+        const totals = { skuCount: 0, catalogueSkuCount: 0, reviewSkuCount: 0, totalRatings: 0, reviewCount: 0, paretoCount: 0, nonParetoCount: 0, npdCount: 0, totalAvgPlatformRatingNumerator: 0, totalAvgPlatformRatingDenominator: 0 };
         const categories = rows.map(r => {
             totals.skuCount += Number(r.sku_count || 0);
-            totals.catalogueSkuCount += Number(r.sku_count || 0);
+            totals.catalogueSkuCount += Number(r.catalogue_sku_count || r.sku_count || 0);
             totals.reviewSkuCount += Number(r.review_sku_count || 0);
-            totals.totalRatings += Number(r.review_count || 0);
+            totals.totalRatings += Number(r.total_ratings || 0);
             totals.reviewCount += Number(r.review_count || 0);
             totals.paretoCount += Number(r.pareto_count || 0);
             totals.nonParetoCount += Number(r.non_pareto_count || 0);
             totals.npdCount += Number(r.npd_count || 0);
+            
+            if (r.avg_platform_rating !== null && r.total_ratings) {
+                totals.totalAvgPlatformRatingNumerator += Number(r.avg_platform_rating) * Number(r.total_ratings);
+                totals.totalAvgPlatformRatingDenominator += Number(r.total_ratings);
+            }
+            
             return {
-                name: r.category,
+                category: r.category,
+                catalogueSkuCount: Number(r.catalogue_sku_count || r.sku_count || 0),
                 skuCount: Number(r.sku_count || 0),
-                totalRatings: Number(r.review_count || 0),
                 reviewCount: Number(r.review_count || 0),
                 reviewSkuCount: Number(r.review_sku_count || 0),
-                avgPlatformRating: null,
-                userRating: r.avg_review_rating,
-                mlRating: r.avg_ml_rating,
-                pdpHealthRate: 0,
-                healthScore: r.health_score,
-                reviewGrowthPct: r.growth_pct,
-                recentReviewCount: r.recent_reviews,
-                olderReviewCount: r.prior_reviews,
-                recentAvgRating: r.recent_rating,
-                olderAvgRating: r.prior_rating,
-                positiveRate: r.review_count > 0 ? (r.positive_count / r.review_count) * 100 : 0
+                avgReviewRating: r.avg_review_rating !== null ? Number(r.avg_review_rating) : 0,
+                avgMlRating: r.avg_ml_rating !== null ? Number(r.avg_ml_rating) : null,
+                positiveCount: Number(r.positive_count || 0),
+                negativeCount: Number(r.negative_count || 0),
+                neutralCount: Number(r.neutral_count || 0),
+                totalRatings: Number(r.total_ratings || 0),
+                avgPlatformRating: r.avg_platform_rating !== null ? Number(r.avg_platform_rating) : null,
+                paretoCount: Number(r.pareto_count || 0),
+                nonParetoCount: Number(r.non_pareto_count || 0),
+                npdCount: Number(r.npd_count || 0),
+                growthPct: r.growth_pct !== null ? Number(r.growth_pct) : 0,
+                recentReviewCount: Number(r.recent_reviews || 0),
+                priorReviewCount: Number(r.prior_reviews || 0),
+                ratingGrowthDiff: (r.recent_rating || 0) - (r.prior_rating || 0),
+                recentAvgRating: r.recent_rating !== null ? Number(r.recent_rating) : 0,
+                priorAvgRating: r.prior_rating !== null ? Number(r.prior_rating) : 0
             };
         });
+        
+        totals.avgPlatformRating = totals.totalAvgPlatformRatingDenominator > 0 
+            ? totals.totalAvgPlatformRatingNumerator / totals.totalAvgPlatformRatingDenominator 
+            : null;
+        
+        delete totals.totalAvgPlatformRatingNumerator;
+        delete totals.totalAvgPlatformRatingDenominator;
         res.json({ categories, total: totals });
     } catch (err) {
         console.error('Category health error:', err);

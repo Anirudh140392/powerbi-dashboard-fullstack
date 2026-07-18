@@ -95,9 +95,9 @@ export function StarDistributionChart({ category, platform, webPid }: Props) {
                   <td className="py-3 px-5 border-r-2 border-slate-300 dark:border-slate-600">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200 truncate pr-2">
-                        {b.brand === 'Prestige' && <span title="Your Brand">👑</span>}
-                        <span className="truncate">{b.brand === 'Prestige' ? getActiveBrandName() : b.brand}</span>
-                        {b.is_competitor && b.brand !== 'Prestige' && (
+                        {b.brand === getActiveBrandName() && <span title="Your Brand">👑</span>}
+                        <span className="truncate">{b.brand}</span>
+                        {b.is_competitor && b.brand !== getActiveBrandName() && (
                           <span className="text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded shrink-0 leading-none">C</span>
                         )}
                       </div>

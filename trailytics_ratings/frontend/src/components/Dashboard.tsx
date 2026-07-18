@@ -17,10 +17,11 @@ import GlobalFilterBar from './GlobalFilterBar';
 
 // Hooks — ALL data from API
 import { useGlobalFilters } from '../hooks/useGlobalFilters';
-import { useReviews, useSummary, usePlatformOptions, useSentimentCategories, useTrends, useProductHealth, useProductCategories, type ReviewRow } from '../hooks/useRatingsAPI';
+import { useReviews, useSummary, usePlatformOptions, useSentimentCategories, useFilterOptions, useTrends, useProductHealth, useProductCategories, type ReviewRow } from '../hooks/useRatingsAPI';
 
 // Types
 import type { Review, CompetitorMention } from '../types';
+import { getActiveBrandName } from '../utils/tenant';
 
 const VerbatimMentionsCard = lazy(() => import('./VerbatimMentionsCard'));
 const CompetitorRadarChart = lazy(() => import('./CompetitorRadarChart'));
@@ -149,6 +150,7 @@ const Dashboard: React.FC = () => {
 
     const { platforms: serverPlatforms } = usePlatformOptions();
     const { categories: serverSentimentCategories } = useSentimentCategories();
+    const { paretoStatuses: serverParetoStatuses } = useFilterOptions();
 
     // Filter state from useGlobalFilters (UI state management only)
     const filterResult = useGlobalFilters({
@@ -156,6 +158,7 @@ const Dashboard: React.FC = () => {
         allCompetitorReviews: [],
         serverSentimentCategories,
         serverPlatforms,
+        serverParetoStatuses,
     });
 
     const { filters } = filterResult;
@@ -381,40 +384,42 @@ const Dashboard: React.FC = () => {
             <GlobalFilterBar 
                 filterResult={filterResult} 
                 tabsNode={
-                    <nav className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-1 border border-slate-200/40 dark:border-slate-700/40 w-max mx-auto">
-                        {TABS.map(tab => (
-                            <motion.button
-                                key={tab.key}
-                                onClick={() => {
-                                    setActiveTab(tab.key);
-                                    const params = new URLSearchParams(window.location.search);
-                                    params.set('tab', tab.key);
-                                    if (tab.key !== 'rules') params.delete('sub');
-                                    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
-                                }}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                title={tab.label}
-                                aria-label={tab.label}
-                                className={`relative px-3 xl:px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${activeTab === tab.key
-                                    ? 'text-white'
-                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                            >
-                                {activeTab === tab.key && (
-                                    <motion.div
-                                        layoutId="activeTab"
-                                        className="absolute inset-0 bg-indigo-600 rounded-lg shadow-md shadow-indigo-500/20"
-                                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                                    />
-                                )}
-                                <span className="relative z-10 flex items-center gap-1.5">
-                                    <span className="text-sm">{tab.icon}</span>
-                                    <span className="hidden xl:inline">{tab.label}</span>
-                                </span>
-                            </motion.button>
-                        ))}
-                    </nav>
+                    getActiveBrandName().toLowerCase() !== 'danone' ? (
+                        <nav className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-1 border border-slate-200/40 dark:border-slate-700/40 w-max mx-auto">
+                            {TABS.map(tab => (
+                                <motion.button
+                                    key={tab.key}
+                                    onClick={() => {
+                                        setActiveTab(tab.key);
+                                        const params = new URLSearchParams(window.location.search);
+                                        params.set('tab', tab.key);
+                                        if (tab.key !== 'rules') params.delete('sub');
+                                        window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+                                    }}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    title={tab.label}
+                                    aria-label={tab.label}
+                                    className={`relative px-3 xl:px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${activeTab === tab.key
+                                        ? 'text-white'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                >
+                                    {activeTab === tab.key && (
+                                        <motion.div
+                                            layoutId="activeTab"
+                                            className="absolute inset-0 bg-indigo-600 rounded-lg shadow-md shadow-indigo-500/20"
+                                            transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                                        />
+                                    )}
+                                    <span className="relative z-10 flex items-center gap-1.5">
+                                        <span className="text-sm">{tab.icon}</span>
+                                        <span className="hidden xl:inline">{tab.label}</span>
+                                    </span>
+                                </motion.button>
+                            ))}
+                        </nav>
+                    ) : null
                 }
             />
 

@@ -225,7 +225,7 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
     const scopeLabel = filters.brandScope === 'all' ? 'All' : filters.brandScope === 'prestige' ? getActiveBrandName() : 'Competition';
     const categoryLabel = filters.productCategory || 'All Categories';
     const sentimentLabel = filters.category.selectedCategory || 'All';
-    const classLabel = classificationOptions.find(c => c.value === filters.category.classification)?.label || 'All';
+    const classLabel = classificationOptions.find((c: any) => c.value === filters.category.classification)?.label || 'All';
     const skuLabel = filters.sku ? (filters.sku.length > 18 ? filters.sku.substring(0, 18) + '…' : filters.sku) : 'All';
     const RATING_BIFURCATION_OPTIONS: { value: RatingBifurcation; label: string; color: string }[] = [
         { value: 'NP',    label: 'No Problem (≥4.2★)',  color: 'text-emerald-600 dark:text-emerald-400' },
@@ -509,8 +509,8 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                                         No categories found.
                                     </div>
                                 ) : productCategories
-                                    .filter(pc => pc.category.toLowerCase().includes(categorySearch.toLowerCase()))
-                                    .map(pc => (
+                                    .filter((pc: { category: string }) => pc.category.toLowerCase().includes(categorySearch.toLowerCase()))
+                                    .map((pc: { category: string, count: number }) => (
                                         <button
                                             key={pc.category}
                                             onClick={() => { setProductCategory(pc.category); setOpenDropdown(null); }}

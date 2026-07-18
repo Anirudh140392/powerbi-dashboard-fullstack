@@ -186,12 +186,12 @@ function CategoryCard({
                     </h4>
                     {trendPositive && (
                         <span className={trendChipCls} title="Review volume vs prior period">
-                            <TrendingUp size={trendSevere ? 12 : 10} />+{growthPct}%
+                            <TrendingUp size={trendSevere ? 12 : 10} />+{Math.round(growthPct)}%
                         </span>
                     )}
                     {trendNegative && (
                         <span className={trendChipCls} title={trendSevere ? 'SEVERE DROP — review volume crashed >40% vs prior period' : 'Review volume vs prior period'}>
-                            <TrendingDown size={trendSevere ? 12 : 10} />{growthPct}%
+                            <TrendingDown size={trendSevere ? 12 : 10} />{Math.round(growthPct)}%
                         </span>
                     )}
                 </div>

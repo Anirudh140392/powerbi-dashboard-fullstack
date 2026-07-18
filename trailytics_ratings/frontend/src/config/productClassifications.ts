@@ -262,22 +262,16 @@ export function getClassificationMeta(type: ProductClassification): Classificati
  * Groups: Base classifications, then separator, then Health sub-splits
  */
 export function getClassificationOptions(): { value: ProductClassification | 'all'; label: string; icon: string; group?: string }[] {
-    const base = CLASSIFICATION_RULES.filter(r => !r.virtual).map(r => ({
+    const allowedTypes = ['pareto', 'non-pareto', 'npd'];
+    const base = CLASSIFICATION_RULES.filter(r => allowedTypes.includes(r.type)).map(r => ({
         value: r.type,
         label: r.label,
         icon: r.icon,
         group: 'classification',
     }));
-    const health = CLASSIFICATION_RULES.filter(r => r.virtual).map(r => ({
-        value: r.type,
-        label: r.label,
-        icon: r.icon,
-        group: 'health',
-    }));
     return [
         { value: 'all', label: 'All Types', icon: '📋' },
         ...base,
-        ...health,
     ];
 }
 

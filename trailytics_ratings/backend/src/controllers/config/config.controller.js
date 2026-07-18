@@ -1,36 +1,28 @@
 import pool from '../../config/db.js';
+import clickhouse from '../../config/clickhouse.js';
+
+const getTargetDb = (req) => {
+    return (req.query.db && req.query.db.toLowerCase() === 'danone') ? 'danone' : 'loreal';
+};
 
 export const getPlatformOptions = async (req, res) => {
     try {
         const { is_competitor } = req.query;
-        const params = [req.companyId];
+        const params = { companyId: String(req.companyId) };
         let competitorFilter = '';
 
         if (is_competitor !== undefined) {
-            competitorFilter = 'AND r.is_competitor = $2';
-            params.push(is_competitor === 'true');
+            competitorFilter = 'AND r.is_competitor = {isCompetitor:UInt8}';
+            params.isCompetitor = is_competitor === 'true' ? 1 : 0;
         }
 
-        // Recursive index skip-scan over idx_reviews_platform (company_id,
-        // platform): jump from one distinct platform to the next via ~N index
-        // lookups instead of a DISTINCT scan over all 4.2M rows. Same result,
-        // 62s -> ~0.2s. (Postgres has no native loose index scan.)
-        const { rows } = await pool.query(`
-            WITH RECURSIVE p AS (
-                (SELECT r.platform
-                   FROM ratings.reviews r
-                  WHERE r.company_id = $1 AND r.platform IS NOT NULL AND r.platform <> '' ${competitorFilter}
-                  ORDER BY r.platform LIMIT 1)
-                UNION ALL
-                SELECT (SELECT r.platform
-                          FROM ratings.reviews r
-                         WHERE r.company_id = $1 AND r.platform IS NOT NULL AND r.platform <> '' ${competitorFilter}
-                           AND r.platform > p.platform
-                         ORDER BY r.platform LIMIT 1)
-                FROM p WHERE p.platform IS NOT NULL
-            )
-            SELECT platform FROM p WHERE platform IS NOT NULL ORDER BY platform
-        `, params);
+        const chRes = await clickhouse.query({
+            database: getTargetDb(req),
+            query: `SELECT DISTINCT platform FROM ml_reviews r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.platform != '' ORDER BY platform`,
+            query_params: params,
+            format: 'JSONEachRow'
+        });
+        const rows = await chRes.json();
 
         res.json({ platforms: rows.map(row => row.platform) });
     } catch (err) {
@@ -83,14 +75,14 @@ export const getPriceRanges = async (req, res) => {
 
 export const getSentimentCategories = async (req, res) => {
     try {
-        const { rows } = await pool.query(
-            `SELECT sentiment_category AS category, COUNT(*) AS cnt
-             FROM ratings.reviews
-             WHERE company_id = $1 AND sentiment_category IS NOT NULL AND sentiment_category != ''
-             GROUP BY sentiment_category
-             ORDER BY cnt DESC`,
-            [req.companyId]
-        );
+        const params = { companyId: String(req.companyId) };
+        const chRes = await clickhouse.query({
+            database: getTargetDb(req),
+            query: `SELECT DISTINCT sentiment_category AS category FROM ml_reviews WHERE company_id = {companyId:String} AND sentiment_category != '' ORDER BY category`,
+            query_params: params,
+            format: 'JSONEachRow'
+        });
+        const rows = await chRes.json();
         res.json({ categories: rows.map(r => r.category) });
     } catch (err) {
         console.error('Sentiment-categories error:', err);

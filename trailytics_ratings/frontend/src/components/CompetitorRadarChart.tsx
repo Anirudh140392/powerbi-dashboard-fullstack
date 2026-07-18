@@ -164,7 +164,7 @@ const CompetitorRadarChart: React.FC<CompetitorRadarChartProps> = ({
                 <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 p-8 text-center text-sm text-slate-500 dark:text-slate-400">
                     {competitorReviews.length === 0
                         ? 'No competitor review data is available for this comparison.'
-                        : 'No comparable sentiment categories are available between Prestige and competitor reviews.'}
+                        : `No comparable sentiment categories are available between ${getActiveBrandName()} and competitor reviews.`}
                 </div>
             ) : (
                 <>

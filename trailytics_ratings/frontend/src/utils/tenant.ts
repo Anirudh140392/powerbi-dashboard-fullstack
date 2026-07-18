@@ -8,13 +8,7 @@ function syncCompanyId(value: string) {
 }
 
 export function resolveCompanyId(): string {
-    // 0. Env var — fastest, always wins. Set VITE_COMPANY_ID in .env to lock the tenant.
-    //    This must come BEFORE any localStorage read to prevent stale cached IDs from
-    //    a previous tenant overriding the configured one.
-    const envCompanyId = (import.meta.env.VITE_COMPANY_ID as string | undefined)?.trim();
-    if (envCompanyId) return envCompanyId;
-
-    // 1. Ratings-specific persisted auth session (set by AuthContext after env var check)
+    // 1. Ratings-specific persisted auth session (standalone auth mode)
     const authCompanyId = resolveAuthCompanyId()?.trim();
     if (authCompanyId) {
         syncCompanyId(authCompanyId);
@@ -35,6 +29,14 @@ export function resolveCompanyId(): string {
             }
         } catch (e) { /* ignore */ }
     }
+
+    // 3. Env var — fallback for dev when no session exists.
+    const envCompanyId = (import.meta.env.VITE_COMPANY_ID as string | undefined)?.trim();
+    if (envCompanyId) {
+        syncCompanyId(envCompanyId);
+        return envCompanyId;
+    }
+
 
     // 3. localStorage fallback (set by syncCompanyId on previous loads)
     if (typeof window !== 'undefined') {

@@ -64,6 +64,7 @@ interface UseGlobalFiltersProps {
     /** Sentiment categories from the server summary API — used when review arrays are empty */
     serverSentimentCategories?: string[];
     serverPlatforms?: string[];
+    serverParetoStatuses?: string[];
 }
 
 export interface GlobalFilterResult {
@@ -97,6 +98,7 @@ export interface GlobalFilterResult {
     availableSubcategories: string[];
     availableSkus: SkuOption[];
     availableBrands: string[];
+    availableParetoStatuses: string[];
 
     // Metrics
     totalPrestigeCount: number;
@@ -139,7 +141,7 @@ const DEFAULT_FILTERS: GlobalFilterState = {
     searchTerm: '',
 };
 
-export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, serverSentimentCategories, serverPlatforms }: UseGlobalFiltersProps): GlobalFilterResult {
+export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, serverSentimentCategories, serverPlatforms, serverParetoStatuses }: UseGlobalFiltersProps): GlobalFilterResult {
     const [filters, setFilters] = useState<GlobalFilterState>(DEFAULT_FILTERS);
 
     // --- Setters ---
@@ -498,6 +500,7 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         availableSubcategories,
         availableSkus,
         availableBrands,
+        availableParetoStatuses: serverParetoStatuses || [],
         totalPrestigeCount: filteredPrestigeReviews.length,
         totalCompetitorCount: filteredCompetitorReviews.length,
     };
