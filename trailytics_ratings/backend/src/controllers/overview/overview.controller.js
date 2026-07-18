@@ -6,7 +6,7 @@ const getTargetDb = (req) => {
 
 export const getSummary = async (req, res) => {
     try {
-        const { platform, category, pareto_status, web_pid, date_from, date_to, price_mode, price_min, price_max, is_competitor, sentiment_category } = req.query;
+        const { platform, category, pareto_status, web_pid, date_from, date_to, price_mode, price_min, price_max, is_competitor, sentiment_category, brand } = req.query;
 
         const queryParams = { companyId: String(req.companyId) };
         let where = ['rs.company_id = {companyId:String}'];
@@ -35,6 +35,10 @@ export const getSummary = async (req, res) => {
         if (web_pid) {
             where.push(`rs.web_pid = {webPid:String}`);
             queryParams.webPid = web_pid;
+        }
+        if (brand) {
+            where.push(`(ilike(rs.brand, {brand:String}) OR coalesce(rs.is_competitor, 0) = 1)`);
+            queryParams.brand = brand;
         }
 
         let dateWhere = [];
@@ -239,7 +243,7 @@ export const getSummary = async (req, res) => {
 export const getTrends = async (req, res) => {
     try {
         const periodMonths = parseInt(req.query.period_months) || 6;
-        const { category, pareto_status, web_pid, date_from, date_to, platform, price_mode, price_min, price_max, is_competitor } = req.query;
+        const { category, pareto_status, web_pid, date_from, date_to, platform, price_mode, price_min, price_max, is_competitor, brand } = req.query;
         const safePeriodMonths = Math.max(1, Math.min(periodMonths, 24));
         const queryParams = { companyId: String(req.companyId) };
         const extraFilters = [];
@@ -254,6 +258,10 @@ export const getTrends = async (req, res) => {
         if (platform && platform !== 'all') {
             extraFilters.push(`ilike(r.platform, {platform:String})`);
             queryParams.platform = platform;
+        }
+        if (brand) {
+            extraFilters.push(`(ilike(r.brand, {brand:String}) OR coalesce(r.is_competitor, 0) = 1)`);
+            queryParams.brand = brand;
         }
         if (category) {
             extraFilters.push(`ilike(coalesce(nullIf(ps.category, ''), nullIf(r.category, ''), nullIf(mp.category, '')), {category:String})`);
@@ -973,7 +981,7 @@ export const getPriceVariance = async (req, res) => {
 };
 export const getProductHealth = async (req, res) => {
     try {
-        const { category, pareto_status, web_pid, date_from, date_to, platform, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category } = req.query;
+        const { category, pareto_status, web_pid, date_from, date_to, platform, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category, brand } = req.query;
         const trendPeriod = Math.max(1, Math.min(parseInt(period_months) || 3, 24));
         const queryParams = { companyId: String(req.companyId) };
         const where = ['r.company_id = {companyId:String}', 'isNotNull(r.product_name)', 'isNotNull(r.review_date)'];
@@ -985,6 +993,7 @@ export const getProductHealth = async (req, res) => {
             where.push(`coalesce(r.is_competitor, 0) = 0`);
         }
         if (platform && platform !== 'all') { where.push(`ilike(r.platform, {platform:String})`); queryParams.platform = platform; }
+        if (brand) { where.push(`(ilike(r.brand, {brand:String}) OR coalesce(r.is_competitor, 0) = 1)`); queryParams.brand = brand; }
         if (category) {
             where.push(`ilike(coalesce(nullIf(ps.category, ''), nullIf(r.category, ''), nullIf(mp.category, '')), {category:String})`);
             queryParams.category = category;

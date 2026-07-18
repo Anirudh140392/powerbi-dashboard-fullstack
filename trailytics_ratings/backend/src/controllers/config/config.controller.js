@@ -192,6 +192,23 @@ export const getAlertScopeOptions = async (req, res) => {
 };
 
 
+export const getClientBrands = async (req, res) => {
+    try {
+        const params = { companyId: String(req.companyId) };
+        const chRes = await clickhouse.query({
+            database: getTargetDb(req),
+            query: `SELECT DISTINCT brand AS brand FROM ml_reviews WHERE company_id = {companyId:String} AND is_competitor = 0 AND brand != '' ORDER BY brand`,
+            query_params: params,
+            format: 'JSONEachRow'
+        });
+        const rows = await chRes.json();
+        res.json({ brands: rows.map(r => r.brand) });
+    } catch (err) {
+        console.error('Client-brands error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
 function buildPriceBuckets(values) {
     const sorted = values
         .map(v => Number(v))

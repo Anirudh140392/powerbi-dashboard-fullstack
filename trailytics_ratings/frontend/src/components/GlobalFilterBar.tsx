@@ -12,7 +12,7 @@ import {
 import type { GlobalFilterResult } from '../hooks/useGlobalFilters';
 import type { DatePreset, PriceFilterMode, RatingBifurcation } from '../types/filterTypes';
 import { getClassificationOptions } from '../config/productClassifications';
-import { useProductCategories, useSkuList, usePriceRanges } from '../hooks/useRatingsAPI';
+import { useProductCategories, useSkuList, usePriceRanges, useClientBrands } from '../hooks/useRatingsAPI';
 import { getActiveBrandName } from '../utils/tenant';
 
 
@@ -156,8 +156,10 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
         filters, setPlatform, setBrandScope, setCategory, setProductCategory,
         setClassification, setSku, setRatingBifurcation, setDatePreset, setCompetitorPlatform, setPriceMode, setPriceRange, resetFilters,
         availablePlatforms, availableCategories,
-        totalPrestigeCount, totalCompetitorCount,
     } = filterResult;
+
+    const { brands: clientBrands } = useClientBrands();
+    const availableClientBrands = clientBrands;
 
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
     const [categorySearch, setCategorySearch] = useState('');
@@ -446,6 +448,43 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                             </FilterDropdown>
                         </div>
 
+                        {/* ── Brand (Client Brands) ── */}
+                        {getActiveBrandName().toLowerCase() !== 'prestige' && (
+                            <div className="relative">
+                                <DropdownTrigger
+                                    label="Brand"
+                                    value={filters.brand || 'All Brands'}
+                                    isActive={!!filters.brand}
+                                    onClick={() => toggleDropdown('brand')}
+                                />
+                                <FilterDropdown isOpen={openDropdown === 'brand'} onClose={() => setOpenDropdown(null)}>
+                                    <button
+                                        onClick={() => { filterResult.setBrand(null); setOpenDropdown(null); }}
+                                        className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors
+                                            ${!filters.brand
+                                                ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold'
+                                                : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                            }`}
+                                    >
+                                        All Brands
+                                    </button>
+                                    {availableClientBrands.map(b => (
+                                        <button
+                                            key={b}
+                                            onClick={() => { filterResult.setBrand(b); setOpenDropdown(null); }}
+                                            className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors capitalize
+                                                ${filters.brand === b
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold'
+                                                    : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                                }`}
+                                        >
+                                            {b}
+                                        </button>
+                                    ))}
+                                </FilterDropdown>
+                            </div>
+                        )}
+
                         {/* ── Scope (Prestige / Competition / All) ── */}
                         <div className="relative">
                             <DropdownTrigger
@@ -563,30 +602,32 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                         </div>
 
                         {/* ── Type (Pareto / Non-Pareto / NPD / All) ── */}
-                        <div className="relative">
-                            <DropdownTrigger
-                                label="Type"
-                                value={classLabel}
-                                isActive={filters.category.classification !== 'all'}
-                                onClick={() => toggleDropdown('type')}
-                                icon={<Tag size={11} className="text-slate-400" />}
-                            />
-                            <FilterDropdown isOpen={openDropdown === 'type'} onClose={() => setOpenDropdown(null)}>
-                                {classificationOptions.map(opt => (
-                                    <button
-                                        key={opt.value}
-                                        onClick={() => { setClassification(opt.value); setOpenDropdown(null); }}
-                                        className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors
-                                            ${filters.category.classification === opt.value
-                                                ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold'
-                                                : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                                            }`}
-                                    >
-                                        {opt.icon} {opt.label}
-                                    </button>
-                                ))}
-                            </FilterDropdown>
-                        </div>
+                        {getActiveBrandName().toLowerCase() !== 'danone' && (
+                            <div className="relative">
+                                <DropdownTrigger
+                                    label="Type"
+                                    value={classLabel}
+                                    isActive={filters.category.classification !== 'all'}
+                                    onClick={() => toggleDropdown('type')}
+                                    icon={<Tag size={11} className="text-slate-400" />}
+                                />
+                                <FilterDropdown isOpen={openDropdown === 'type'} onClose={() => setOpenDropdown(null)}>
+                                    {classificationOptions.map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => { setClassification(opt.value); setOpenDropdown(null); }}
+                                            className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors
+                                                ${filters.category.classification === opt.value
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold'
+                                                    : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                                }`}
+                                        >
+                                            {opt.icon} {opt.label}
+                                        </button>
+                                    ))}
+                                </FilterDropdown>
+                            </div>
+                        )}
 
                         {/* ── Rating Bifurcation (visible when Type is selected) ── */}
                         <AnimatePresence>

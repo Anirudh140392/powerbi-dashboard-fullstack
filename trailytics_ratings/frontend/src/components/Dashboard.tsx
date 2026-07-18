@@ -4,9 +4,6 @@
  * ALL DATA FROM API — no static JSON imports
  */
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
-import { BarChart3, Sparkles } from 'lucide-react';
-import { AvatarMenu } from './AvatarMenu';
-import { NotificationBell } from './NotificationBell';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Components
@@ -184,6 +181,8 @@ const Dashboard: React.FC = () => {
         if (currentSentimentCategory) params.sentiment_category = currentSentimentCategory;
         // Product category (Pressure Cooker, Gas Stove, etc.) — from category card click
         if (currentCategory) params.category = currentCategory;
+        
+        if (filters.brand) params.brand = filters.brand;
         if (classification !== 'all') {
             // Map classification type to data value
             const statusMap: Record<string, string> = {
@@ -212,9 +211,12 @@ const Dashboard: React.FC = () => {
             params.price_min = filters.priceRange.min;
             params.price_max = filters.priceRange.max;
         }
+        if (filters.brand) {
+            params.brand = filters.brand;
+        }
 
         return params;
-    }, [currentCategory, currentSentimentCategory, classification, filters.brandScope, filters.dateRange, filters.sku, filters.productCategory, filters.ratingBifurcation, filters.platform, filters.trendPeriodMonths, filters.priceMode, filters.priceRange]);
+    }, [currentCategory, currentSentimentCategory, classification, filters.brandScope, filters.dateRange, filters.sku, filters.productCategory, filters.ratingBifurcation, filters.platform, filters.trendPeriodMonths, filters.priceMode, filters.priceRange, filters.brand]);
 
     // Categories list for pills — always fetch for all categories matching other filters (platform, etc.)
     const categoryListFilters = useMemo(() => {
@@ -386,7 +388,12 @@ const Dashboard: React.FC = () => {
                 tabsNode={
                     getActiveBrandName().toLowerCase() !== 'danone' ? (
                         <nav className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-1 border border-slate-200/40 dark:border-slate-700/40 w-max mx-auto">
-                            {TABS.map(tab => (
+                            {TABS.filter(tab => {
+                                if (getActiveBrandName().toLowerCase() === 'prestige' && ['master', 'rules', 'reviews'].includes(tab.key)) {
+                                    return false;
+                                }
+                                return true;
+                            }).map(tab => (
                                 <motion.button
                                     key={tab.key}
                                     onClick={() => {

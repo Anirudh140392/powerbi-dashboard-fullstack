@@ -1015,6 +1015,21 @@ export function useCompetitorBrands() {
 }
 
 // ============================================================================
+// Hook: useClientBrands — sessionStorage 30 min
+// ============================================================================
+export function useClientBrands() {
+    const [brands, setBrands] = useState<string[]>([]);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => {
+        fetchAPI<{ brands: string[] }>('/client-brands')
+            .then(result => { setBrands(result.brands); })
+            .catch(console.error)
+            .finally(() => setLoading(false));
+    }, []);
+    return { brands, loading };
+}
+
+// ============================================================================
 // Hook: useSpecTypeMappings — sessionStorage 30 min
 // ============================================================================
 export function useSpecTypeMappings() {

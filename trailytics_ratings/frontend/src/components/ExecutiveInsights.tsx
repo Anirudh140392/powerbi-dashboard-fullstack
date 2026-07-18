@@ -709,7 +709,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                 { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: executiveHealth.pareto.catalogueTotal ?? globalMetadata?.paretoCount ?? executiveHealth.pareto.total, color: 'indigo', icon: <Target size={20} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
                                 { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: executiveHealth.nonPareto.catalogueTotal ?? globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total, color: 'slate', icon: <Layers size={20} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
                             ])
-                            .filter(card => card.authorativeTotal > 0 && (card.bucket.totalReviewCount ?? 0) > 0)
+                            .filter(card => getActiveBrandName().toLowerCase() !== 'danone' && card.authorativeTotal > 0 && (card.bucket.totalReviewCount ?? 0) > 0)
                             .map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {
                                 const isExpanded = expandedPareto === key;
                                 // Build a healthy/watch/at-risk health bar from the rating-bifurcation buckets

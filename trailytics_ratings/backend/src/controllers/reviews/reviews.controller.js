@@ -49,7 +49,7 @@ export const getReviews = async (req, res) => {
             params.paretoStatus = pareto_status;
         }
         if (brand) {
-            where.push(`r.brand = {brand:String}`);
+            where.push(`(r.brand = {brand:String} OR coalesce(r.is_competitor, 0) = 1)`);
             params.brand = brand;
         }
         if (date_from) {

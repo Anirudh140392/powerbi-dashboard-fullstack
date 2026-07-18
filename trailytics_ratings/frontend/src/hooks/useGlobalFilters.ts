@@ -86,6 +86,7 @@ export interface GlobalFilterResult {
     setPriceMode: (mode: PriceFilterMode) => void;
     setPriceRange: (priceRange: { min: number; max: number } | null) => void;
     setSearchTerm: (term: string) => void;
+    setBrand: (brand: string | null) => void;
     resetFilters: () => void;
 
     // Filtered data
@@ -98,6 +99,7 @@ export interface GlobalFilterResult {
     availableSubcategories: string[];
     availableSkus: SkuOption[];
     availableBrands: string[];
+    availableClientBrands: string[];
     availableParetoStatuses: string[];
 
     // Metrics
@@ -139,6 +141,7 @@ const DEFAULT_FILTERS: GlobalFilterState = {
     priceMode: 'sp',
     priceRange: null,
     searchTerm: '',
+    brand: null,
 };
 
 export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, serverSentimentCategories, serverPlatforms, serverParetoStatuses }: UseGlobalFiltersProps): GlobalFilterResult {
@@ -229,6 +232,10 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
     
     const setSearchTerm = useCallback((searchTerm: string) => {
         setFilters(prev => ({ ...prev, searchTerm }));
+    }, []);
+
+    const setBrand = useCallback((brand: string | null) => {
+        setFilters(prev => ({ ...prev, brand }));
     }, []);
 
     const resetFilters = useCallback(() => {
@@ -345,6 +352,15 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         return Array.from(brands).sort();
     }, [dateFilteredCompetitor]);
 
+    // --- Available client brands ---
+    const availableClientBrands = useMemo(() => {
+        const brands = new Set<string>();
+        dateFilteredPrestige.forEach(r => {
+            if (r.brand) brands.add(r.brand);
+        });
+        return Array.from(brands).sort();
+    }, [dateFilteredPrestige]);
+
     // --- Apply category, SKU, and classification filters to prestige reviews ---
     // Classification now uses paretoStatus from enriched data (master-driven)
     const filteredPrestigeReviews = useMemo(() => {
@@ -412,8 +428,12 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
             });
         }
 
+        if (filters.brand) {
+            result = result.filter(r => r.brand === filters.brand);
+        }
+
         return result;
-    }, [dateFilteredPrestige, filters.category, filters.productCategory, filters.sku, filters.ratingBifurcation]);
+    }, [dateFilteredPrestige, filters.category, filters.productCategory, filters.sku, filters.ratingBifurcation, filters.searchTerm, filters.brand]);
 
     // --- Apply filters to competitor reviews (including platform filter) ---
     const filteredCompetitorReviews = useMemo(() => {
@@ -492,6 +512,7 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         setPriceMode,
         setPriceRange,
         setSearchTerm,
+        setBrand,
         resetFilters,
         filteredPrestigeReviews,
         filteredCompetitorReviews,
@@ -500,6 +521,7 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         availableSubcategories,
         availableSkus,
         availableBrands,
+        availableClientBrands,
         availableParetoStatuses: serverParetoStatuses || [],
         totalPrestigeCount: filteredPrestigeReviews.length,
         totalCompetitorCount: filteredCompetitorReviews.length,
