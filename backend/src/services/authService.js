@@ -298,6 +298,7 @@ export async function loginUser(email, password, deviceInfo = {}) {
         email: user.user_email,
         userName: user.user_name,
         dbName: dbName,
+        dbId: userDbId,
         dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus: dbStatusBool,
@@ -312,6 +313,7 @@ export async function loginUser(email, password, deviceInfo = {}) {
             email: user.user_email,
             name: user.user_name,
             dbName: dbName,
+            dbId: userDbId,
             dbLogoUrl: dbLogoUrl,
             role: userRole,
             dbStatus: dbStatusBool,
@@ -393,16 +395,20 @@ export async function verifySession(token, deviceToken = null) {
 
     // 4. Look up db_name from tb_database using token info
     let dbName = decoded.dbName || process.env.CLICKHOUSE_DB || 'colpal';
+    let dbId = decoded.dbId || '';
     let dbLogoUrl = decoded.dbLogoUrl || "";
 
     try {
         const dbRows = await queryAdminDB(`
-            SELECT logo_url FROM tb_database 
+            SELECT toString(db_id) as db_id, logo_url FROM tb_database 
             WHERE lower(db_name) = '${dbName.toLowerCase()}' 
             LIMIT 1
         `);
         if (dbRows.length > 0) {
             dbLogoUrl = dbRows[0].logo_url || "";
+            if (!dbId) {
+                dbId = dbRows[0].db_id || "";
+            }
         }
     } catch (e) {
         console.warn('[Auth] Failed to fetch database logo during verify:', e.message);
@@ -438,6 +444,7 @@ export async function verifySession(token, deviceToken = null) {
         email: decoded.email,
         name: decoded.userName,
         dbName: dbName,
+        dbId: dbId,
         dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus,

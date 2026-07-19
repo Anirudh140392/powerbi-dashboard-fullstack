@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { resolveCompanyId } from '../utils/tenant';
+import { resolveCompanyId, resolveCompanyName } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
 
 const API_ROOT = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
@@ -110,6 +110,7 @@ export async function fetchAPI<T>(
 ): Promise<T> {
     const query = new URLSearchParams();
     query.set('company_id', resolveCompanyId());
+    query.set('db_name', resolveCompanyName());
 
     for (const [key, value] of Object.entries(params || {})) {
         if (value !== undefined && value !== null && value !== '') {

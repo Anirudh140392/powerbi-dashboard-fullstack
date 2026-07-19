@@ -33,18 +33,56 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const dummyUser: AuthUser = {
-        id: '1',
-        username: 'admin',
-        email: 'admin@trailytics.com',
-        displayName: 'Admin User',
-        role: 'admin',
-        companyId: HARDCODED_COMPANY_ID,
-        companyName: HARDCODED_COMPANY_NAME,
-        allowedPlatformUuids: [],
-        platformScope: 'all'
-    };
+interface AuthProviderProps {
+    children: ReactNode;
+    companyId?: string;
+    companyName?: string;
+}
+
+function getSessionUser(): AuthUser | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        const stored = window.sessionStorage.getItem('user');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed.dbId && parsed.dbName) {
+                return {
+                    id: parsed.userId || '1',
+                    username: parsed.name || 'User',
+                    email: parsed.email || '',
+                    displayName: parsed.name || 'User',
+                    role: parsed.role || 'user',
+                    companyId: parsed.dbId,
+                    companyName: parsed.dbName,
+                    allowedPlatformUuids: [],
+                    platformScope: 'all'
+                };
+            }
+        }
+    } catch (e) {
+        console.error("Error reading parent session user:", e);
+    }
+    return null;
+}
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children, companyId, companyName }) => {
+    const dummyUser = useMemo<AuthUser>(() => {
+        const parentUser = getSessionUser();
+        const finalId = companyId || parentUser?.companyId || HARDCODED_COMPANY_ID;
+        const finalName = companyName || parentUser?.companyName || HARDCODED_COMPANY_NAME;
+
+        return {
+            id: parentUser?.id || '1',
+            username: parentUser?.username || 'admin',
+            email: parentUser?.email || 'admin@trailytics.com',
+            displayName: parentUser?.displayName || 'Admin User',
+            role: parentUser?.role || 'admin',
+            companyId: finalId,
+            companyName: finalName,
+            allowedPlatformUuids: [],
+            platformScope: 'all'
+        };
+    }, [companyId, companyName]);
 
     // Persist the session to localStorage so resolveAuthCompanyId() / tenant.ts
     // can find the companyId without requiring a real login flow.
@@ -54,7 +92,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
             user: dummyUser,
         });
-    }, []);
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('companyName', dummyUser.companyName);
+        }
+    }, [dummyUser]);
 
     const value = useMemo<AuthContextType>(() => ({
         user: dummyUser,
@@ -67,7 +108,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         startMfaEnrolment: async () => ({ ok: false, error: 'Disabled' }),
         completeMfaEnrolment: async () => ({ ok: false, error: 'Disabled' }),
         completeMfaVerify: async () => ({ ok: true }),
-    }), []);
+    }), [dummyUser]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -32,3 +32,11 @@ export function resolveCompanyId(): string {
 
     throw new Error('Company ID is unavailable. Sign in to establish the active Ratings tenant.');
 }
+
+export function resolveCompanyName(): string {
+    if (typeof window !== 'undefined') {
+        const stored = window.localStorage.getItem('companyName')?.trim();
+        if (stored) return stored;
+    }
+    return import.meta.env.VITE_COMPANY_NAME || 'prestige';
+}

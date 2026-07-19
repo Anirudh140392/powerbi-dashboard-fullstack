@@ -27,10 +27,19 @@ app.use(cors(corsOptions));
 // Middlewares will be initialized here in the new architecture
 // Note: legacyApi already handles some middleware internally (like cors, body-parser)
 
-// Remove authentication and hardcode the company context from .env
-app.use((req, res, next) => {
-    req.companyId = process.env.COMPANY_ID;
-    next();
+import { clickhouseStorage, resolveCompanyUuid } from './config/clickhouse.js';
+
+// Resolve dynamic company context and database name
+app.use(async (req, res, next) => {
+    const dbName = req.query.db_name || req.headers['x-db-name'] || process.env.CLICKHOUSE_DB || 'prestige';
+    const companyId = await resolveCompanyUuid(dbName);
+
+    req.companyId = companyId;
+    req.dbName = dbName;
+
+    clickhouseStorage.run({ dbName, companyId }, () => {
+        next();
+    });
 });
 
 // Health check endpoint
