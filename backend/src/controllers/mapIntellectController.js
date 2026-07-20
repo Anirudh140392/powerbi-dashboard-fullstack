@@ -36,3 +36,19 @@ export const getMapIntellectCategories = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };
+
+/**
+ * GET /api/map-intellect/brands
+ * Returns distinct brands for the map filters
+ */
+export const getMapIntellectBrands = async (req, res) => {
+    try {
+        const { platform, channel, metric } = req.query;
+        console.log('[MapIntellect Controller] Fetching brands for:', { platform, channel, metric });
+        const brands = await mapIntellectService.getMapIntellectBrands(platform, channel, metric);
+        res.json(brands);
+    } catch (error) {
+        console.error('[MapIntellect Controller] Error fetching brands:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};

@@ -150,6 +150,10 @@ export const getLiveUsers = async () => {
  */
 export const getPendingRequests = async () => {
     try {
+        // Exclude pending rows for users who already have an 'allow' row
+        // (i.e. previously approved users), since the auth flow now auto-allows
+        // them. Also excludes stale pending rows where the same device_token
+        // has already been approved (ClickHouse append-only model).
         const query = `
             SELECT 
                 toString(id) as id,
@@ -165,7 +169,13 @@ export const getPendingRequests = async () => {
                 operating_system,
                 platform
             FROM tb_user
-            WHERE access = 'pending' AND last_login >= subtractDays(now(), 7)
+            WHERE access = 'pending' 
+              AND last_login >= subtractDays(now(), 7)
+              AND user_email NOT IN (
+                  SELECT DISTINCT user_email 
+                  FROM tb_user 
+                  WHERE access = 'allow'
+              )
             ORDER BY last_login DESC
         `;
         const requests = await queryAdminDB(query);
