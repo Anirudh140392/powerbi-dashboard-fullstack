@@ -8205,7 +8205,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
         if (filterType === 'resellerNames') {
             // Fetch unique reseller names for DRL only — cascaded by platform
             if (dbName !== 'drl') return { options: [] };
-            const conditions = [`Reseller_Name IS NOT NULL`, `Reseller_Name != ''`];
+            const conditions = [`Reseller_Name IS NOT NULL`, `Reseller_Name != ''`, `Comp_flag = 0`];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }

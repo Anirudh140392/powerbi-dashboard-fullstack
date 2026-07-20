@@ -61,6 +61,9 @@ export const login = async (req, res) => {
         });
     } catch (error) {
         console.error('[Auth] Login failed:', error.message);
+        if (error.deviceToken) {
+            res.cookie('device_token', error.deviceToken, getDeviceCookieOptions());
+        }
         return res.status(401).json({
             success: false,
             error: error.message || 'Invalid email or password',

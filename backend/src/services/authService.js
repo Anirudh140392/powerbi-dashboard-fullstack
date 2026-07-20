@@ -129,17 +129,14 @@ export async function loginUser(email, password, deviceInfo = {}) {
     if (!isAdmin) {
         let matchedRow = null;
 
-        // Step A: Try device_token cookie (PRIMARY — survives fingerprint changes)
-        // NOTE: ClickHouse is append-only; multiple rows may exist for the same
-        // device_token with different access values (pending → allow). We MUST
-        // prefer the 'allow' row if one exists, otherwise we'd keep seeing
-        // "Access Pending" even after admin approval.
+        // Step A: Try device_token cookie (PRIMARY — uniquely identifies this browser/device)
         if (incomingDeviceToken) {
             const tokenRows = await queryAdminDB(
                 `SELECT access, device_token, ip
                  FROM tb_user
                  WHERE user_email = {email:String}
                    AND device_token = {dtoken:String}
+                   AND device_token != ''
                  ORDER BY
                    CASE access WHEN 'allow' THEN 0 WHEN 'deny' THEN 1 ELSE 2 END,
                    last_login DESC
@@ -152,104 +149,57 @@ export async function loginUser(email, password, deviceInfo = {}) {
             }
         }
 
-        // Step B: Fall back to fingerprint/IP lookup (SECONDARY)
-        // Same priority logic: prefer 'allow' over stale 'pending' rows.
-        if (!matchedRow && fingerprintId) {
-            const fpRows = await queryAdminDB(
-                `SELECT access, device_token, ip
-                 FROM tb_user
-                 WHERE user_email = {email:String}
-                   AND ip = {fp:String}
-                 ORDER BY
-                   CASE access WHEN 'allow' THEN 0 WHEN 'deny' THEN 1 ELSE 2 END,
-                   last_login DESC
-                 LIMIT 1`,
-                { email: user.user_email, fp: fingerprintId }
-            );
-            if (fpRows.length > 0) {
-                matchedRow = fpRows[0];
-                console.log(`[DEBUG_AUTH] Fingerprint match for ${user.user_email}: access=${matchedRow.access}`);
-                // If approved but cookie was lost/cleared, we'll issue a fresh cookie
-                if ((matchedRow.access || '').toLowerCase().trim() === 'allow') {
-                    isNewDeviceToken = true;
-                    // Use the existing token if the row had one, else generate a new one
-                    if (!matchedRow.device_token) {
-                        isNewDeviceToken = true;
-                    }
-                }
-            }
-        }
-
-        // Step C: Evaluate access status
+        // Step B: Evaluate access status or create pending request for new device
         if (matchedRow) {
             const currentAccess = (matchedRow.access || '').toLowerCase().trim();
 
             if (currentAccess === 'allow') {
                 // ✅ Approved — allow login
-                resolvedDeviceToken = matchedRow.device_token || incomingDeviceToken || generateDeviceToken();
-                isNewDeviceToken = isNewDeviceToken || !matchedRow.device_token;
+                resolvedDeviceToken = matchedRow.device_token || incomingDeviceToken;
                 console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} via approved device`);
             } else if (currentAccess === 'deny') {
                 throw new Error('Access Denied: Your access request has been rejected by an administrator.');
             } else {
-                // pending
-                throw new Error('Access Pending: Your request is still awaiting administrator review.');
+                // Pending request already exists for this device
+                const err = new Error('Access Pending: Your request is still awaiting administrator review.');
+                err.deviceToken = incomingDeviceToken;
+                throw err;
             }
         } else {
-            // Step D: No existing record for this specific device.
-            // Before creating a brand-new pending request, check if this user
-            // already has ANY approved row (from a previously approved device).
-            // If so, grant access automatically — they're an approved user who
-            // is just using a new/changed device/browser.
-            const approvedRows = await queryAdminDB(
-                `SELECT access, device_token, ip
-                 FROM tb_user
-                 WHERE user_email = {email:String}
-                   AND access = 'allow'
-                 ORDER BY last_login DESC
-                 LIMIT 1`,
-                { email: user.user_email }
-            );
-
-            if (approvedRows.length > 0) {
-                // User was previously approved — auto-allow this new device
-                console.log(`[DEBUG_AUTH] User ${user.user_email} already approved on another device, auto-allowing new device`);
-                const newToken = generateDeviceToken();
-                resolvedDeviceToken = newToken;
-                isNewDeviceToken = true;
-            } else {
-                // Genuinely new user with no prior approvals → create pending row
-                console.log(`[DEBUG_AUTH] No existing device record for ${user.user_email}, creating pending request`);
-                const newToken = generateDeviceToken();
-                try {
-                    const rowId = Date.now().toString();
-                    await insertAdminDB('tb_user', [{
-                        id: rowId,
-                        user_id: user.user_id_str,
-                        user_email: user.user_email,
-                        user_name: user.user_name,
-                        user_role: userRole,
-                        password_hash: user.password_hash,
-                        db_id: user.db_id_str,
-                        last_login: new Date().toISOString().replace('T', ' ').split('.')[0],
-                        created_on: user.created_on,
-                        status: 'active',
-                        ip: fingerprintId || clientIp || '0.0.0.0',
-                        access: 'pending',
-                        db_status: user.db_status || 'active',
-                        tab_permissions: user.tab_permissions || '',
-                        device_token: newToken,
-                        browser: browser || '',
-                        browser_version: browserVersion || '',
-                        operating_system: os || '',
-                        platform: platform || '',
-                    }]);
-                    console.log(`[DEBUG_AUTH] Created new pending request for ${user.user_email}`);
-                } catch (ipError) {
-                    console.error(`[DEBUG_AUTH] Failed to insert pending row:`, ipError.message);
-                }
-                throw new Error('Access Request Submitted: Please wait for admin approval.');
+            // Step C: No existing record for this specific device/browser.
+            // Every new device requires explicit admin approval.
+            console.log(`[DEBUG_AUTH] New device detected for ${user.user_email}, creating pending access request`);
+            const newToken = generateDeviceToken();
+            try {
+                const rowId = Date.now().toString();
+                await insertAdminDB('tb_user', [{
+                    id: rowId,
+                    user_id: user.user_id_str,
+                    user_email: user.user_email,
+                    user_name: user.user_name,
+                    user_role: userRole,
+                    password_hash: user.password_hash,
+                    db_id: user.db_id_str,
+                    last_login: new Date().toISOString().replace('T', ' ').split('.')[0],
+                    created_on: user.created_on,
+                    status: 'active',
+                    ip: fingerprintId || clientIp || '0.0.0.0',
+                    access: 'pending',
+                    db_status: user.db_status || 'active',
+                    tab_permissions: user.tab_permissions || '',
+                    device_token: newToken,
+                    browser: browser || '',
+                    browser_version: browserVersion || '',
+                    operating_system: os || '',
+                    platform: platform || '',
+                }]);
+                console.log(`[DEBUG_AUTH] Created new pending request in tb_user for ${user.user_email} with token ${newToken}`);
+            } catch (ipError) {
+                console.error(`[DEBUG_AUTH] Failed to insert pending row:`, ipError.message);
             }
+            const err = new Error('Access Pending: Your request is still awaiting administrator review.');
+            err.deviceToken = newToken;
+            throw err;
         }
     } else {
         console.log(`[DEBUG_AUTH] ENFORCEMENT: Admin bypass for ${user.user_email}`);
@@ -333,16 +283,20 @@ export async function loginUser(email, password, deviceInfo = {}) {
     }
 
     // 6. Generate JWT token
+    // NOTE: Do NOT include dbLogoUrl or tabPermissions in the JWT payload.
+    // dbLogoUrl is a base64-encoded image (10-20KB+) and tabPermissions is a large
+    // JSON object. Including them causes the Authorization header to exceed nginx's
+    // default 8KB header buffer limit, resulting in "400 Bad Request - Request Header
+    // Or Cookie Too Large" on the server. These values are returned separately in
+    // the login response and stored in sessionStorage.
     const tokenPayload = {
         userId: user.user_id,
         email: user.user_email,
         userName: user.user_name,
         dbName: dbName,
-        dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus: dbStatusBool,
-        tabPermissions,
-        companyId,          // ratings postgres company_id — sourced from tb_database.company_id
+        companyId,
     };
 
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
