@@ -1,3 +1,4 @@
+import { getActiveBrandName } from '../utils/tenant';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     AlertTriangle,
@@ -25,7 +26,10 @@ import {
     ClipboardCheck,
     Headphones,
     Radar,
-    Sparkles
+    Sparkles,
+    Cpu,
+    Truck,
+    Megaphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Review } from '../types';
@@ -704,7 +708,9 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                 { key: 'npd' as const, label: 'NPD', bucket: executiveHealth.npd, authorativeTotal: executiveHealth.npd.catalogueTotal ?? globalMetadata?.npdCount ?? executiveHealth.npd.total, color: 'indigo', icon: <Zap size={20} />, desc: 'New Product Development', tooltipDef: TOOLTIPS.npdCard },
                                 { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: executiveHealth.pareto.catalogueTotal ?? globalMetadata?.paretoCount ?? executiveHealth.pareto.total, color: 'indigo', icon: <Target size={20} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
                                 { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: executiveHealth.nonPareto.catalogueTotal ?? globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total, color: 'slate', icon: <Layers size={20} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
-                            ]).map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {
+                            ])
+                            .filter(card => getActiveBrandName().toLowerCase() !== 'danone' && card.authorativeTotal > 0 && (card.bucket.totalReviewCount ?? 0) > 0)
+                            .map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {
                                 const isExpanded = expandedPareto === key;
                                 // Build a healthy/watch/at-risk health bar from the rating-bifurcation buckets
                                 const healthTotal = (bucket?.np?.count || 0) + (bucket?.ni?.count || 0) + (bucket?.issue?.count || 0);
@@ -715,7 +721,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                 const fmtK = (n: number) => n >= 10000000 ? `${(n/10000000).toFixed(1)}Cr` : n >= 100000 ? `${(n/100000).toFixed(1)}L` : n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n);
                                 const reviewsN = bucket.totalReviewCount ?? 0;
                                 const ratingsN = Number(bucket.totalRatings || 0);
-                                const hasData = reviewsN > 0 || ratingsN > 0;
+
                                 return (
                                 <motion.div
                                     key={key}
@@ -752,23 +758,6 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                         </motion.div>
                                     </div>
 
-                                    {!hasData ? (
-                                        authorativeTotal > 0 ? (
-                                            // Catalogue SKUs exist but none have reviews in the window
-                                            // (common for NPD). Show the count, not just an empty message.
-                                            <div className="flex items-baseline gap-1.5 py-3">
-                                                <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums leading-none">
-                                                    {authorativeTotal.toLocaleString()}
-                                                </span>
-                                                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">SKUs</span>
-                                                <span className="text-[11px] text-slate-400 dark:text-slate-500 italic ml-1">· no reviews yet</span>
-                                            </div>
-                                        ) : (
-                                            <div className="text-[11px] text-slate-400 dark:text-slate-500 italic py-3">
-                                                No {label} SKUs yet
-                                            </div>
-                                        )
-                                    ) : (
                                     <>
                                     {/* Single dense stats row: hero count · ratings · counts · delta */}
                                     <div className="grid grid-cols-12 gap-3 items-center">
@@ -863,7 +852,6 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                         </div>
                                     )}
                                     </>
-                                    )}
                                 </motion.div>
                                 );
                             })}
@@ -993,13 +981,18 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {stakeholderSummary.map((sh, idx) => {
-                                // Icon-only color encoding (no card background). The category itself
-                                // is the signal; severity is conveyed by the negative count number.
-                                const icon = sh.name === 'Production'
+                                const shName = sh.name.toLowerCase();
+                                const icon = (shName.includes('production') || shName.includes('manufacturing'))
                                     ? <Factory size={18} />
-                                    : sh.name === 'QC'
+                                    : (shName.includes('qc') || shName.includes('quality') || shName.includes('safety'))
                                         ? <ClipboardCheck size={18} />
-                                        : <Headphones size={18} />;
+                                        : (shName.includes('r&d') || shName.includes('research'))
+                                            ? <Cpu size={18} />
+                                            : (shName.includes('logistic') || shName.includes('delivery'))
+                                                ? <Truck size={18} />
+                                                : (shName.includes('marketing') || shName.includes('sales'))
+                                                    ? <Megaphone size={18} />
+                                                    : <Headphones size={18} />;
                                 return (
                                     <motion.div
                                         key={sh.name}
@@ -1074,7 +1067,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                             <Target className="text-purple-500" size={20} />
                             <h3 className="font-bold text-slate-900 dark:text-white">Competitive Benchmark</h3>
                             <span className="text-[10px] bg-purple-100/80 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-full font-medium">
-                                {serverCompetitiveBenchmark.some(item => item.compCount > 0) ? 'Real Competitor Data' : 'Prestige Only'}
+                                {serverCompetitiveBenchmark.some(item => item.compCount > 0) ? 'Real Competitor Data' : `${getActiveBrandName()} Only`}
                             </span>
                         </div>
                         {/* Metric toggle */}
@@ -1104,7 +1097,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                     className="mb-4"
                                     ownMetrics={overallBenchmarkComparison.ownMetrics}
                                     competitorMetrics={overallBenchmarkComparison.competitorMetrics}
-                                    ownLabel="Prestige"
+                                    ownLabel={getActiveBrandName()}
                                     competitorLabel="Competitor Slice"
                                     comparisonTitle="Current slice rating comparison"
                                 />
@@ -1208,7 +1201,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                         <div className="flex items-center gap-4">
                                             <div className="flex items-center gap-1">
                                                 <div className="w-3 h-3 rounded bg-indigo-500" />
-                                                <span>Prestige</span>
+                                                <span>{getActiveBrandName()}</span>
                                             </div>
                                             {serverCompetitiveBenchmark.some(item => item.compCount > 0) && (
                                                 <div className="flex items-center gap-1">
@@ -1274,7 +1267,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                 {competitiveCanvasView === 'cloud' ? (
                                     <div className="flex gap-1 rounded-2xl border border-slate-200/70 bg-white/80 p-1 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/75">
                                         {([
-                                            { key: 'prestige', label: 'Prestige' },
+                                            { key: 'prestige', label: getActiveBrandName() },
                                             { key: 'competitor', label: 'Competitor' },
                                         ] as const).map(side => (
                                             <button
@@ -1309,7 +1302,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                                     className="rounded-[28px] border border-white/60 bg-white/75 p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/65"
                                                     ownMetrics={overallBenchmarkComparison.ownMetrics}
                                                     competitorMetrics={overallBenchmarkComparison.competitorMetrics}
-                                                    ownLabel="Prestige"
+                                                    ownLabel={getActiveBrandName()}
                                                     competitorLabel="Competitor Slice"
                                                     comparisonTitle="Radar slice comparison"
                                                 />
@@ -1319,12 +1312,12 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                                 <div className="rounded-[24px] border border-white/60 bg-white/75 px-4 py-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/65">
                                                     <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Shared sentiment axes</div>
                                                     <div className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{competitiveSignalStats.sharedCategoryCount}</div>
-                                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Only categories present for both Prestige and competitors are plotted.</p>
+                                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Only categories present for both {getActiveBrandName()} and competitors are plotted.</p>
                                                 </div>
                                                 <div className="rounded-[24px] border border-white/60 bg-white/75 px-4 py-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/65">
-                                                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Prestige category set</div>
+                                                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{getActiveBrandName()} category set</div>
                                                     <div className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{competitiveSignalStats.prestigeCategoryCount}</div>
-                                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Signal families present in the selected Prestige slice.</p>
+                                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Signal families present in the selected {getActiveBrandName()} slice.</p>
                                                 </div>
                                                 <div className="rounded-[24px] border border-white/60 bg-white/75 px-4 py-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/65">
                                                     <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Competitor category set</div>
@@ -1356,7 +1349,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                             {competitiveSignalSide === 'prestige' ? (
                                                 <>
                                                     <div>
-                                                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-500">Prestige signal field</div>
+                                                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-500">{getActiveBrandName()} signal field</div>
                                                         <h4 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">What your own reviews are saying most often</h4>
                                                         <p className="text-sm text-slate-500 dark:text-slate-400">One clean rotating sphere for the active slice. Click a signal cluster to drill down.</p>
                                                     </div>
@@ -1364,11 +1357,11 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                                         <WordSphere3D
                                                             reviews={reviews}
                                                             onCategoryClick={handleClick}
-                                                            title="Prestige review sphere"
+                                                            title={`${getActiveBrandName()} review sphere`}
                                                             subtitle="Rotate the issue universe and click a signal cluster to drill down"
                                                         />
                                                     ) : (
-                                                        <SectionLoadingState label="Loading Prestige word sphere..." />
+                                                        <SectionLoadingState label={`Loading ${getActiveBrandName()} word sphere...`} />
                                                     )}
                                                 </>
                                             ) : (

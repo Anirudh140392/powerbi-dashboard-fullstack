@@ -55,7 +55,7 @@ export function getAuthToken(): string | null {
     return getStoredAuthSession()?.token ?? null;
 }
 
-export function buildAuthHeaders(init?: HeadersInit, companyId?: string): Headers {
+export function buildAuthHeaders(init?: HeadersInit, _companyId?: string): Headers {
     const headers = new Headers(init);
     const session = getStoredAuthSession();
     if (session?.token) {

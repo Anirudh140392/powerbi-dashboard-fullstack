@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { resolveCompanyId, resolveCompanyName } from '../utils/tenant';
+import { resolveCompanyId, resolveCompanyName, resolveDbName } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
 
 const API_ROOT = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
@@ -111,6 +111,10 @@ export async function fetchAPI<T>(
     const query = new URLSearchParams();
     query.set('company_id', resolveCompanyId());
     query.set('db_name', resolveCompanyName());
+
+    // db_name tells the backend which ClickHouse database to query (e.g. 'prestige' vs 'danone')
+    const dbName = resolveDbName();
+    if (dbName) query.set('db_name', dbName);
 
     for (const [key, value] of Object.entries(params || {})) {
         if (value !== undefined && value !== null && value !== '') {
@@ -1004,6 +1008,21 @@ export function useCompetitorBrands() {
     const [loading, setLoading] = useState(true);
     useEffect(() => {
         fetchAPI<{ brands: string[] }>('/competitor-brands')
+            .then(result => { setBrands(result.brands); })
+            .catch(console.error)
+            .finally(() => setLoading(false));
+    }, []);
+    return { brands, loading };
+}
+
+// ============================================================================
+// Hook: useClientBrands — sessionStorage 30 min
+// ============================================================================
+export function useClientBrands() {
+    const [brands, setBrands] = useState<string[]>([]);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => {
+        fetchAPI<{ brands: string[] }>('/client-brands')
             .then(result => { setBrands(result.brands); })
             .catch(console.error)
             .finally(() => setLoading(false));

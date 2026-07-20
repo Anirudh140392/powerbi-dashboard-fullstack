@@ -2,6 +2,7 @@ import React from 'react';
 import { BarChart3, MessageSquare, Sparkles, Star } from 'lucide-react';
 import type { RatingMetrics } from '../../types/ratingMetrics';
 import { formatCompactCountValue, formatCountValue, formatRatingValue } from '../../utils/ratingMetrics';
+import { getActiveBrandName } from '../../utils/tenant';
 
 type RatingSummaryInlineProps = {
     metrics: RatingMetrics | null;
@@ -149,7 +150,7 @@ export const RatingSummaryInline: React.FC<RatingSummaryInlineProps> = ({
 export const RatingSummaryCompare: React.FC<RatingSummaryCompareProps> = ({
     ownMetrics,
     competitorMetrics,
-    ownLabel = 'Prestige',
+    ownLabel = getActiveBrandName(),
     competitorLabel = 'Competitor',
     comparisonTitle,
     className = '',

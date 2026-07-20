@@ -1,4 +1,9 @@
 import pool from '../config/db.js';
+import clickhouse from '../config/clickhouse.js';
+
+const getTargetDb = (req) => {
+    return (req.query.db && req.query.db.toLowerCase() === 'danone') ? 'danone' : 'loreal';
+};
 
 export const getProductHealth = async (req, res) => {
     try {
@@ -212,149 +217,95 @@ export const getProductHealth = async (req, res) => {
     }
 };
 
-export const getSkuList = async (req, res) => {
+  export const getSkuList = async (req, res) => {
     try {
-        const { category, pareto_status, rating_bifurcation, platform, price_mode, price_min, price_max } = req.query;
+        const { category, pareto_status, rating_bifurcation, platform, price_mode, price_min, price_max, is_competitor } = req.query;
 
-        const params = [req.companyId];
-        const filters = [];
+        let extraFilters = '';
+        const queryParams = { companyId: String(req.companyId) };
 
-        // Category filter via reviews join
-        if (category) {
-            params.push(category);
-            filters.push(`EXISTS (
-                SELECT 1 FROM ratings.reviews rv
-                LEFT JOIN masters.products mp2
-                    ON mp2.company_id = rv.company_id
-                   AND mp2.product_external_id = rv.web_pid
-                   AND LOWER(mp2.platform) = LOWER(rv.platform)
-                LEFT JOIN LATERAL (
-                    SELECT ps3.category
-                    FROM ratings.product_snapshots ps3
-                    WHERE ps3.company_id = rv.company_id
-                      AND ps3.web_pid = rv.web_pid
-                      AND LOWER(ps3.platform) = LOWER(rv.platform)
-                    ORDER BY ps3.snapshot_date DESC, ps3.created_at DESC NULLS LAST
-                    LIMIT 1
-                ) snap ON true
-                WHERE rv.company_id = ps.company_id AND rv.web_pid = ps.web_pid
-                  AND LOWER(rv.platform) = LOWER(ps.platform)
-                  -- rv is already tied to this exact SKU (web_pid+platform), whose
-                  -- reviews all share its scope — the hardcoded is_competitor=false
-                  -- wrongly dropped competitor SKUs under a category filter.
-                  AND LOWER(TRIM(COALESCE(NULLIF(snap.category, ''), NULLIF(mp2.category, ''), NULLIF(rv.category, '')))) = LOWER(TRIM($${params.length}))
-            )`);
+        if (is_competitor === 'true' || is_competitor === 'false') {
+            extraFilters += ' AND coalesce(r.is_competitor, 0) = {isCompetitor:UInt8}';
+            queryParams.isCompetitor = is_competitor === 'true' ? 1 : 0;
         }
 
-        // Pareto status filter (Pareto / Non-Pareto / NPD)
+        if (platform && platform !== 'all') {
+            extraFilters += ' AND ilike(r.platform, {platform:String})';
+            queryParams.platform = platform;
+        }
+
+        if (category) {
+            extraFilters += ` AND ilike(trim(coalesce(nullIf(ls.category, ''), nullIf(r.category, ''), nullIf(mp.category, ''))), {category:String})`;
+            queryParams.category = category;
+        }
+
         if (pareto_status) {
             if (pareto_status === 'Non-Pareto') {
-                // Non-Pareto includes: Non-Pareto, Non-Pareto (Unclassified), NULL
-                filters.push(`(COALESCE(mp.pareto_status, ps.pareto_status) NOT IN ('Pareto', 'NPD') OR COALESCE(mp.pareto_status, ps.pareto_status) IS NULL)`);
+                extraFilters += ` AND (coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, '')) NOT IN ('Pareto', 'NPD') OR coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, '')) IS NULL)`;
             } else {
-                params.push(pareto_status);
-                filters.push(`COALESCE(mp.pareto_status, ps.pareto_status) = $${params.length}`);
+                extraFilters += ` AND coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, '')) = {paretoStatus:String}`;
+                queryParams.paretoStatus = pareto_status;
             }
         }
 
-        // Rating bifurcation filter on PDP rating
         if (rating_bifurcation === 'NP') {
-            filters.push(`ps.rating >= 4.2`);
+            extraFilters += ` AND ls.rating >= 4.2`;
         } else if (rating_bifurcation === 'Issue') {
-            filters.push(`ps.rating < 4.0`);
+            extraFilters += ` AND ls.rating < 4.0`;
         } else if (rating_bifurcation === 'NI') {
-            filters.push(`ps.rating >= 4.0 AND ps.rating < 4.2`);
+            extraFilters += ` AND ls.rating >= 4.0 AND ls.rating < 4.2`;
         }
 
-        // Platform filter
-        if (platform && platform !== 'all') {
-            params.push(platform);
-            filters.push(`ps.platform ILIKE $${params.length}`);
-        }
         if (price_min !== undefined && price_min !== '') {
-            const priceExpr = price_mode === 'rp'
-                ? 'COALESCE(ps.price_rp, mp.mrp)'
-                : 'COALESCE(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
-            params.push(Number(price_min));
-            filters.push(`${priceExpr} >= $${params.length}`);
+            const priceExpr = price_mode === 'rp' ? 'coalesce(ls.price_rp, mp.mrp)' : 'coalesce(ls.price_sp, mp.selling_price, mp.mop, ls.price_rp, mp.mrp)';
+            extraFilters += ` AND ${priceExpr} >= {priceMin:Float64}`;
+            queryParams.priceMin = Number(price_min);
         }
+
         if (price_max !== undefined && price_max !== '') {
-            const priceExpr = price_mode === 'rp'
-                ? 'COALESCE(ps.price_rp, mp.mrp)'
-                : 'COALESCE(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
-            params.push(Number(price_max));
-            filters.push(`${priceExpr} <= $${params.length}`);
-        }
-
-        const whereClause = filters.length > 0 ? 'AND ' + filters.join(' AND ') : '';
-
-        // Direct category guard on the snapshot/product row to prevent cross-category leakage
-        // Append category as a separate param for the main query guard
-        let categoryGuard = '';
-        if (category) {
-            params.push(category);
-            categoryGuard = `AND LOWER(TRIM(COALESCE(NULLIF(ps.category, ''), NULLIF(mp.category, ''), NULLIF(mp.master_category, '')))) = LOWER(TRIM($${params.length}))`;
+            const priceExpr = price_mode === 'rp' ? 'coalesce(ls.price_rp, mp.mrp)' : 'coalesce(ls.price_sp, mp.selling_price, mp.mop, ls.price_rp, mp.mrp)';
+            extraFilters += ` AND ${priceExpr} <= {priceMax:Float64}`;
+            queryParams.priceMax = Number(price_max);
         }
 
         const sql = `
+            WITH latest_snapshots AS (
+                SELECT * FROM (
+                    SELECT web_pid, platform, product_name, pareto_status, rating, price_rp, price_sp, category
+                    FROM product_snapshots
+                    WHERE company_id = {companyId:String}
+                    ORDER BY snapshot_date DESC, created_at DESC
+                ) LIMIT 1 BY lower(platform), web_pid
+            )
             SELECT
-                ps.web_pid,
-                COALESCE(NULLIF(TRIM(mp.product_name), ''), NULLIF(TRIM(ps.product_name), ''), ps.web_pid) AS product_name,
-                ps.rating                                    AS pdp_rating,
-                COALESCE(mp.pareto_status, ps.pareto_status) AS pareto_status,
-                COALESCE(ps.price_rp, mp.mrp)               AS price_rp,
-                COALESCE(ps.price_sp, mp.selling_price, mp.mop) AS price_sp,
-                (
-                    SELECT COUNT(*) FROM ratings.reviews rv
-                    WHERE rv.company_id = ps.company_id AND rv.web_pid = ps.web_pid
-                      AND (CASE 
-                        WHEN $${params.length + 1} = 'true' THEN rv.is_competitor = true
-                        WHEN $${params.length + 1} = 'false' THEN rv.is_competitor = false
-                        ELSE true
-                      END)
-                ) AS review_count
-            FROM ratings.product_snapshots ps
-            LEFT JOIN masters.products mp
-                ON mp.company_id = ps.company_id
-               AND mp.product_external_id = ps.web_pid
-               AND LOWER(mp.platform) = LOWER(ps.platform)
-            WHERE ps.company_id = $1
-              AND (CASE 
-                WHEN $${params.length + 1} = 'true' THEN ps.is_competitor = true
-                WHEN $${params.length + 1} = 'false' THEN ps.is_competitor = false
-                ELSE true
-              END)
-              AND ps.snapshot_date = (
-                  SELECT MAX(snapshot_date) FROM ratings.product_snapshots
-                  WHERE company_id = $1
-                    AND web_pid = ps.web_pid
-                    AND LOWER(platform) = LOWER(ps.platform)
-                    AND (CASE 
-                      WHEN $${params.length + 1} = 'true' THEN is_competitor = true
-                      WHEN $${params.length + 1} = 'false' THEN is_competitor = false
-                      ELSE true
-                    END)
-              )
-              ${whereClause}
-              ${categoryGuard}
-            ORDER BY review_count DESC, ps.product_name
-            LIMIT 500
+                r.web_pid AS web_pid,
+                any(coalesce(nullIf(mp.product_name, ''), nullIf(ls.product_name, ''), r.web_pid)) AS product_name,
+                any(ls.rating) AS pdp_rating,
+                any(coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, ''))) AS pareto_status,
+                count() AS review_count
+            FROM ml_reviews r
+            LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
+            LEFT JOIN latest_snapshots ls ON ls.web_pid = r.web_pid AND lower(ls.platform) = lower(r.platform)
+            WHERE r.company_id = {companyId:String} ${extraFilters}
+            GROUP BY r.web_pid
+            ORDER BY review_count DESC, product_name
         `;
 
-        const { is_competitor = 'false' } = req.query;
-        params.push(is_competitor);
-        const { rows } = await pool.query(sql, params);
-        const skus = rows.map(r => ({
-            web_pid: r.web_pid,
-            product_name: r.product_name,
-            pdp_rating: r.pdp_rating ? parseFloat(r.pdp_rating) : null,
-            pareto_status: r.pareto_status || null,
+        const chRes = await clickhouse.query({
+            database: getTargetDb(req),
+            query: sql,
+            query_params: queryParams,
+            format: 'JSONEachRow'
+        });
+        
+        const skus = await chRes.json();
+        res.json({ skus: skus.map(r => ({
+            ...r,
             review_count: parseInt(r.review_count || 0),
-        }));
-
-        res.json({ skus, total: skus.length });
+            pdp_rating: r.pdp_rating ? parseFloat(r.pdp_rating) : null,
+        })) });
     } catch (err) {
-        console.error('SKU list error:', err);
+        console.error('Sku list error:', err);
         res.status(500).json({ error: err.message });
     }
 };

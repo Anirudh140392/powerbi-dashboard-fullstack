@@ -12,7 +12,8 @@ import {
 import type { GlobalFilterResult } from '../hooks/useGlobalFilters';
 import type { DatePreset, PriceFilterMode, RatingBifurcation } from '../types/filterTypes';
 import { getClassificationOptions } from '../config/productClassifications';
-import { useProductCategories, useSkuList, usePriceRanges } from '../hooks/useRatingsAPI';
+import { useProductCategories, useSkuList, usePriceRanges, useClientBrands } from '../hooks/useRatingsAPI';
+import { getActiveBrandName } from '../utils/tenant';
 
 
 interface GlobalFilterBarProps {
@@ -155,8 +156,10 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
         filters, setPlatform, setBrandScope, setCategory, setProductCategory,
         setClassification, setSku, setRatingBifurcation, setDatePreset, setCompetitorPlatform, setPriceMode, setPriceRange, resetFilters,
         availablePlatforms, availableCategories,
-        totalPrestigeCount, totalCompetitorCount,
     } = filterResult;
+
+    const { brands: clientBrands } = useClientBrands();
+    const availableClientBrands = clientBrands;
 
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
     const [categorySearch, setCategorySearch] = useState('');
@@ -221,10 +224,10 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
 
     // Display values
     const platformLabel = availablePlatforms.find(p => p.id === filters.platform)?.label || 'All';
-    const scopeLabel = filters.brandScope === 'all' ? 'All' : filters.brandScope === 'prestige' ? 'Prestige' : 'Competition';
+    const scopeLabel = filters.brandScope === 'all' ? 'All' : filters.brandScope === 'prestige' ? getActiveBrandName() : 'Competition';
     const categoryLabel = filters.productCategory || 'All Categories';
     const sentimentLabel = filters.category.selectedCategory || 'All';
-    const classLabel = classificationOptions.find(c => c.value === filters.category.classification)?.label || 'All';
+    const classLabel = classificationOptions.find((c: any) => c.value === filters.category.classification)?.label || 'All';
     const skuLabel = filters.sku ? (filters.sku.length > 18 ? filters.sku.substring(0, 18) + '…' : filters.sku) : 'All';
     const RATING_BIFURCATION_OPTIONS: { value: RatingBifurcation; label: string; color: string }[] = [
         { value: 'NP',    label: 'No Problem (≥4.2★)',  color: 'text-emerald-600 dark:text-emerald-400' },
@@ -445,6 +448,43 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                             </FilterDropdown>
                         </div>
 
+                        {/* ── Brand (Client Brands) ── */}
+                        {getActiveBrandName().toLowerCase() !== 'prestige' && (
+                            <div className="relative">
+                                <DropdownTrigger
+                                    label="Brand"
+                                    value={filters.brand || 'All Brands'}
+                                    isActive={!!filters.brand}
+                                    onClick={() => toggleDropdown('brand')}
+                                />
+                                <FilterDropdown isOpen={openDropdown === 'brand'} onClose={() => setOpenDropdown(null)}>
+                                    <button
+                                        onClick={() => { filterResult.setBrand(null); setOpenDropdown(null); }}
+                                        className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors
+                                            ${!filters.brand
+                                                ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold'
+                                                : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                            }`}
+                                    >
+                                        All Brands
+                                    </button>
+                                    {availableClientBrands.map(b => (
+                                        <button
+                                            key={b}
+                                            onClick={() => { filterResult.setBrand(b); setOpenDropdown(null); }}
+                                            className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors capitalize
+                                                ${filters.brand === b
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold'
+                                                    : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                                }`}
+                                        >
+                                            {b}
+                                        </button>
+                                    ))}
+                                </FilterDropdown>
+                            </div>
+                        )}
+
                         {/* ── Scope (Prestige / Competition / All) ── */}
                         <div className="relative">
                             <DropdownTrigger
@@ -455,8 +495,8 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                             />
                             <FilterDropdown isOpen={openDropdown === 'scope'} onClose={() => setOpenDropdown(null)}>
                                 {[
-                                    { key: 'all' as const, label: 'All Reviews', desc: 'Prestige + competitors' },
-                                    { key: 'prestige' as const, label: 'Prestige', desc: 'Only your brand' },
+                                    { key: 'all' as const, label: 'All Reviews', desc: `${getActiveBrandName()} + competitors` },
+                                    { key: 'prestige' as const, label: getActiveBrandName(), desc: 'Only your brand' },
                                     { key: 'competition' as const, label: 'Competition', desc: 'Only competitor brands' },
                                 ].map(b => (
                                     <button
@@ -508,8 +548,8 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                                         No categories found.
                                     </div>
                                 ) : productCategories
-                                    .filter(pc => pc.category.toLowerCase().includes(categorySearch.toLowerCase()))
-                                    .map(pc => (
+                                    .filter((pc: { category: string }) => pc.category.toLowerCase().includes(categorySearch.toLowerCase()))
+                                    .map((pc: { category: string, count: number }) => (
                                         <button
                                             key={pc.category}
                                             onClick={() => { setProductCategory(pc.category); setOpenDropdown(null); }}
@@ -562,30 +602,32 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                         </div>
 
                         {/* ── Type (Pareto / Non-Pareto / NPD / All) ── */}
-                        <div className="relative">
-                            <DropdownTrigger
-                                label="Type"
-                                value={classLabel}
-                                isActive={filters.category.classification !== 'all'}
-                                onClick={() => toggleDropdown('type')}
-                                icon={<Tag size={11} className="text-slate-400" />}
-                            />
-                            <FilterDropdown isOpen={openDropdown === 'type'} onClose={() => setOpenDropdown(null)}>
-                                {classificationOptions.map(opt => (
-                                    <button
-                                        key={opt.value}
-                                        onClick={() => { setClassification(opt.value); setOpenDropdown(null); }}
-                                        className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors
-                                            ${filters.category.classification === opt.value
-                                                ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold'
-                                                : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                                            }`}
-                                    >
-                                        {opt.icon} {opt.label}
-                                    </button>
-                                ))}
-                            </FilterDropdown>
-                        </div>
+                        {getActiveBrandName().toLowerCase() !== 'danone' && (
+                            <div className="relative">
+                                <DropdownTrigger
+                                    label="Type"
+                                    value={classLabel}
+                                    isActive={filters.category.classification !== 'all'}
+                                    onClick={() => toggleDropdown('type')}
+                                    icon={<Tag size={11} className="text-slate-400" />}
+                                />
+                                <FilterDropdown isOpen={openDropdown === 'type'} onClose={() => setOpenDropdown(null)}>
+                                    {classificationOptions.map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => { setClassification(opt.value); setOpenDropdown(null); }}
+                                            className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors
+                                                ${filters.category.classification === opt.value
+                                                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-semibold'
+                                                    : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                                }`}
+                                        >
+                                            {opt.icon} {opt.label}
+                                        </button>
+                                    ))}
+                                </FilterDropdown>
+                            </div>
+                        )}
 
                         {/* ── Rating Bifurcation (visible when Type is selected) ── */}
                         <AnimatePresence>
@@ -658,9 +700,9 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                                     )}
                                     {!serverSkusLoading && (() => {
                                         const displayList = serverSkus
-                                            .filter(s => (s.product_name || s.web_pid).toLowerCase().includes(skuSearch.toLowerCase()))
+                                            .filter(s => ((s.product_name || '') + ' ' + (s.web_pid || '')).toLowerCase().includes(skuSearch.toLowerCase()))
                                             .slice(0, 100)
-                                            .map(s => ({ id: s.web_pid, label: s.product_name?.trim() || s.web_pid, reviewCount: s.review_count }));
+                                            .map(s => ({ id: s.web_pid || 'unknown', label: s.product_name?.trim() || s.web_pid || 'Unknown SKU', reviewCount: s.review_count }));
                                         if (displayList.length === 0) {
                                             return (
                                                 <div className="px-3 py-4 text-center text-[11px] text-slate-400">

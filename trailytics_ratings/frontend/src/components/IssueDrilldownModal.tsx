@@ -14,7 +14,7 @@
 import { useEffect, useState } from 'react';
 import { X, Users, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
-import { resolveCompanyId } from '../utils/tenant';
+import { resolveCompanyId, getActiveBrandName, resolveDbName } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
 
 interface DrilldownData {
@@ -35,6 +35,8 @@ export function IssueDrilldownModal({ issue, onClose }: { issue: string; onClose
     const companyId = resolveCompanyId();
     const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || import.meta.env.VITE_RAILWAY_URL || '';
     const params = new URLSearchParams({ company_id: companyId });
+    const dbName = resolveDbName();
+    if (dbName) params.set('db_name', dbName);
     setLoading(true);
     fetch(`${backendUrl}/api/ratings/issue/${encodeURIComponent(issue)}/drilldown?${params.toString()}`, {
       headers: buildAuthHeaders({}, companyId),
@@ -149,7 +151,7 @@ export function IssueDrilldownModal({ issue, onClose }: { issue: string; onClose
                 </div>
 
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-                  <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-3">Top affected Prestige SKUs</div>
+                  <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-3">Top affected {getActiveBrandName()} SKUs</div>
                   <div className="space-y-1.5 max-h-72 overflow-y-auto">
                     {data.topSkus.map((s, i) => (
                       <a key={i}

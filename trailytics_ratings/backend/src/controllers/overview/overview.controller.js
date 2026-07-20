@@ -1,9 +1,12 @@
-
 import clickhouse from '../../config/clickhouse.js';
+
+const getTargetDb = (req) => {
+    return req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
+};
 
 export const getSummary = async (req, res) => {
     try {
-        const { platform, category, pareto_status, web_pid, date_from, date_to, price_mode, price_min, price_max, is_competitor, sentiment_category } = req.query;
+        const { platform, category, pareto_status, web_pid, date_from, date_to, price_mode, price_min, price_max, is_competitor, sentiment_category, brand } = req.query;
 
         const queryParams = { companyId: String(req.companyId) };
         let where = ['rs.company_id = {companyId:String}'];
@@ -32,6 +35,10 @@ export const getSummary = async (req, res) => {
         if (web_pid) {
             where.push(`rs.web_pid = {webPid:String}`);
             queryParams.webPid = web_pid;
+        }
+        if (brand) {
+            where.push(`(ilike(rs.brand, {brand:String}) OR coalesce(rs.is_competitor, 0) = 1)`);
+            queryParams.brand = brand;
         }
 
         let dateWhere = [];
@@ -130,7 +137,7 @@ export const getSummary = async (req, res) => {
             FROM filtered_reviews
         `;
 
-        const combinedMetricsResult = await clickhouse.query({ query: baseScopeSql, query_params: queryParams, format: 'JSONEachRow' });
+        const combinedMetricsResult = await clickhouse.query({ database: getTargetDb(req), query: baseScopeSql, query_params: queryParams, format: 'JSONEachRow' });
         const combinedMetricsRows = await combinedMetricsResult.json();
         const metrics = combinedMetricsRows[0] || {};
 
@@ -170,6 +177,7 @@ export const getSummary = async (req, res) => {
         let pdpMetrics = {};
         try {
             const snapRes = await clickhouse.query({
+                database: getTargetDb(req),
                 query: `
                     WITH latest_snapshots AS (
                         SELECT * FROM (
@@ -235,7 +243,7 @@ export const getSummary = async (req, res) => {
 export const getTrends = async (req, res) => {
     try {
         const periodMonths = parseInt(req.query.period_months) || 6;
-        const { category, pareto_status, web_pid, date_from, date_to, platform, price_mode, price_min, price_max, is_competitor } = req.query;
+        const { category, pareto_status, web_pid, date_from, date_to, platform, price_mode, price_min, price_max, is_competitor, brand } = req.query;
         const safePeriodMonths = Math.max(1, Math.min(periodMonths, 24));
         const queryParams = { companyId: String(req.companyId) };
         const extraFilters = [];
@@ -250,6 +258,10 @@ export const getTrends = async (req, res) => {
         if (platform && platform !== 'all') {
             extraFilters.push(`ilike(r.platform, {platform:String})`);
             queryParams.platform = platform;
+        }
+        if (brand) {
+            extraFilters.push(`(ilike(r.brand, {brand:String}) OR coalesce(r.is_competitor, 0) = 1)`);
+            queryParams.brand = brand;
         }
         if (category) {
             extraFilters.push(`ilike(coalesce(nullIf(ps.category, ''), nullIf(r.category, ''), nullIf(mp.category, '')), {category:String})`);
@@ -324,17 +336,17 @@ export const getTrends = async (req, res) => {
                 CASE WHEN prior_total > 0 THEN toFloat64(prior_neg) / prior_total ELSE 0 END AS prior_neg_rate,
                 (CASE WHEN recent_total > 0 THEN toFloat64(recent_neg) / recent_total ELSE 0 END) - (CASE WHEN prior_total > 0 THEN toFloat64(prior_neg) / prior_total ELSE 0 END) AS change
             FROM aggregated
-            WHERE characteristic NOT IN ('General Feedback', 'Overall Quality', 'General') AND recent_total >= 15 AND prior_total >= 15
+            WHERE characteristic NOT IN ('General Feedback', 'Overall Quality', 'General') AND recent_total >= 5 AND prior_total >= 5
             ORDER BY change DESC
         `;
 
-        const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
-        const escalating = rows.filter(r => r.change > 0.05 && r.recent_neg_rate > 0.25).slice(0, 10).map(r => ({
+        const escalating = rows.filter(r => r.change > 0.01 && r.recent_neg_rate > 0.10).slice(0, 10).map(r => ({
             characteristic: r.characteristic, recentNegativeRate: parseFloat(r.recent_neg_rate), olderNegativeRate: parseFloat(r.prior_neg_rate), change: parseFloat(r.change), recentCount: parseInt(r.recent_total), totalCount: parseInt(r.recent_total) + parseInt(r.prior_total), isEscalating: true, isImproving: false,
         }));
-        const improving = rows.filter(r => r.change < -0.05).sort((a, b) => parseFloat(a.change) - parseFloat(b.change)).slice(0, 10).map(r => ({
+        const improving = rows.filter(r => r.change < -0.01).sort((a, b) => parseFloat(a.change) - parseFloat(b.change)).slice(0, 10).map(r => ({
             characteristic: r.characteristic, recentNegativeRate: parseFloat(r.recent_neg_rate), olderNegativeRate: parseFloat(r.prior_neg_rate), change: parseFloat(r.change), recentCount: parseInt(r.recent_total), totalCount: parseInt(r.recent_total) + parseInt(r.prior_total), isEscalating: false, isImproving: true,
         }));
         res.json({ escalating, improving });
@@ -409,7 +421,7 @@ export const getTimeline = async (req, res) => {
             ORDER BY month, category
         `;
         
-        const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         const monthMap = {};
@@ -455,7 +467,7 @@ export const getRatingTrend = async (req, res) => {
                   AND week_start >= addDays(today(), -{daysClamped:Int32})
                 ORDER BY week_start ASC, platform ASC
             `;
-            const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+            console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const wrows = await chRes.json();
             
             return res.json({
@@ -490,7 +502,7 @@ export const getRatingTrend = async (req, res) => {
             GROUP BY snapshot_date, platform
             ORDER BY snapshot_date ASC, platform ASC
         `;
-        const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         res.json({
@@ -657,7 +669,7 @@ export const getExecutiveHealth = async (req, res) => {
               FROM product_health
               ORDER BY pdp_rating ASC
         `;
-        const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         const classifyPareto = (status) => {
@@ -774,7 +786,7 @@ export const getExecutiveHealth = async (req, res) => {
             if (platform && platform !== 'all') { catParams.platform = platform; cPlatform = ` AND ilike(mp.platform, {platform:String})`; }
             if (filterCategory) { catParams.filterCategory = filterCategory; cCategory = ` AND ilike(coalesce(nullIf(mp.category, ''), ''), {filterCategory:String})`; }
             
-            const catRes = await clickhouse.query({ query: `
+            const catRes = await clickhouse.query({ database: getTargetDb(req), query: `
                 SELECT CASE WHEN pareto_status = 'Pareto' THEN 'Pareto' WHEN pareto_status = 'NPD' THEN 'NPD' ELSE 'Non-Pareto' END AS bucket, count(DISTINCT product_external_id) AS skus
                 FROM products mp WHERE mp.company_id = {companyId:String} ${cCompetitor} AND isNotNull(mp.platform) ${cPlatform} ${cCategory} GROUP BY 1
             `, query_params: catParams, format: 'JSONEachRow' });
@@ -798,7 +810,7 @@ export const getExecutiveHealth = async (req, res) => {
             let prCatClause = '';
             if (filterCategory) { prParams.filterCategory = filterCategory; prCatClause = ` WHERE ilike(trim(rev.resolved_category), {filterCategory:String})`; }
             
-            const prRes = await clickhouse.query({ query: `
+            const prRes = await clickhouse.query({ database: getTargetDb(req), query: `
                 WITH latest_snapshots AS (
                     SELECT * FROM (SELECT web_pid, platform, category, pareto_status FROM product_snapshots WHERE company_id = {companyId:String} ORDER BY snapshot_date DESC, created_at DESC) LIMIT 1 BY web_pid, lower(platform)
                 ),
@@ -857,7 +869,7 @@ export const getRatingMismatch = async (req, res) => {
              ORDER BY abs(r.rating - r.ml_inferred_rating) DESC, r.review_date DESC
              LIMIT {limit:Int32}
         `;
-        const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         const sumSql = `
@@ -866,7 +878,7 @@ export const getRatingMismatch = async (req, res) => {
               FROM ml_reviews r ${mp_join}
              WHERE ${baseWhere.join(' AND ')}
         `;
-        const sumRes = await clickhouse.query({ query: sumSql, query_params: queryParams, format: 'JSONEachRow' });
+        const sumRes = await clickhouse.query({ database: getTargetDb(req), query: sumSql, query_params: queryParams, format: 'JSONEachRow' });
         const sumRows = await sumRes.json();
 
         res.json({
@@ -890,7 +902,7 @@ export const getReviewTimeline = async (req, res) => {
         const lim = Math.min(parseInt(limit, 10) || 500, 2000);
         queryParams.limit = lim;
 
-        const chRes = await clickhouse.query({ query: `
+        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: `
             SELECT id, rating, sentiment, review_date, review_title, review_text,
                    specific_issue, sentiment_category, platform
               FROM reviews
@@ -949,16 +961,17 @@ export const getPriceVariance = async (req, res) => {
                        min(effective_price) AS min_price, max(effective_price) AS max_price, avg(effective_price) AS avg_price
                 FROM base GROUP BY brand_name, is_competitor, master_category
             ),
-            prestige_baseline AS (SELECT master_category, median_price FROM agg WHERE lower(brand_name) = 'prestige')
+            -- Own-brand baseline: any product where is_competitor = 0 (not hardcoded to 'prestige')
+            own_brand_baseline AS (SELECT master_category, median_price FROM agg WHERE is_competitor = 0)
             SELECT a.brand_name AS brand, a.is_competitor, a.master_category AS category,
                    a.sku_count, round(a.median_price, 0) AS median_price, round(a.min_price, 0) AS min_price,
                    round(a.max_price, 0) AS max_price, round(a.avg_price, 0) AS avg_price,
-                   round(pb.median_price, 0) AS prestige_median,
-                   CASE WHEN isNotNull(pb.median_price) AND pb.median_price > 0 THEN round(((a.median_price - pb.median_price) / pb.median_price * 100), 1) ELSE NULL END AS pct_vs_prestige
-            FROM agg a LEFT JOIN prestige_baseline pb ON pb.master_category = a.master_category
+                   round(ob.median_price, 0) AS own_brand_median,
+                   CASE WHEN isNotNull(ob.median_price) AND ob.median_price > 0 THEN round(((a.median_price - ob.median_price) / ob.median_price * 100), 1) ELSE NULL END AS pct_vs_own_brand
+            FROM agg a LEFT JOIN own_brand_baseline ob ON ob.master_category = a.master_category
             ORDER BY a.master_category, a.sku_count DESC
         `;
-        const chRes = await clickhouse.query({ query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
         res.json({ rows });
     } catch (err) {
@@ -966,3 +979,610 @@ export const getPriceVariance = async (req, res) => {
         res.json({ rows: [] });
     }
 };
+export const getProductHealth = async (req, res) => {
+    try {
+        const { category, pareto_status, web_pid, date_from, date_to, platform, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category, brand } = req.query;
+        const trendPeriod = Math.max(1, Math.min(parseInt(period_months) || 3, 24));
+        const queryParams = { companyId: String(req.companyId) };
+        const where = ['r.company_id = {companyId:String}', 'isNotNull(r.product_name)', 'isNotNull(r.review_date)'];
+
+        if (is_competitor && is_competitor !== 'all') {
+            where.push(`coalesce(r.is_competitor, 0) = {isCompetitor:UInt8}`);
+            queryParams.isCompetitor = is_competitor === 'true' ? 1 : 0;
+        } else if (is_competitor === undefined || is_competitor === '') {
+            where.push(`coalesce(r.is_competitor, 0) = 0`);
+        }
+        if (platform && platform !== 'all') { where.push(`ilike(r.platform, {platform:String})`); queryParams.platform = platform; }
+        if (brand) { where.push(`(ilike(r.brand, {brand:String}) OR coalesce(r.is_competitor, 0) = 1)`); queryParams.brand = brand; }
+        if (category) {
+            where.push(`ilike(coalesce(nullIf(ps.category, ''), nullIf(r.category, ''), nullIf(mp.category, '')), {category:String})`);
+            queryParams.category = category;
+        }
+        if (sentiment_category && sentiment_category !== 'all') {
+            where.push(`ilike(r.sentiment_category, {sentimentCategory:String})`);
+            queryParams.sentimentCategory = sentiment_category;
+        }
+        if (pareto_status) {
+            where.push(`coalesce(nullIf(mp.pareto_status, ''), nullIf(ps.pareto_status, ''), nullIf(r.pareto_status, '')) = {paretoStatus:String}`);
+            queryParams.paretoStatus = pareto_status;
+        }
+        if (web_pid) { where.push(`r.web_pid = {webPid:String}`); queryParams.webPid = web_pid; }
+
+        if (price_min !== undefined && price_min !== '') {
+            const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
+            where.push(`${priceExpr} >= {priceMin:Float64}`);
+            queryParams.priceMin = Number(price_min);
+        }
+        if (price_max !== undefined && price_max !== '') {
+            const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
+            where.push(`${priceExpr} <= {priceMax:Float64}`);
+            queryParams.priceMax = Number(price_max);
+        }
+
+        let recentPeriodFilter, priorPeriodFilter, combinedWindowFilter;
+        if (date_from && date_to) {
+            queryParams.dateFrom = date_from;
+            queryParams.dateTo = date_to;
+            const midpointExpr = `(toDate({dateFrom:String}) + toUInt32((toDate({dateTo:String}) - toDate({dateFrom:String})) / 2))`;
+            recentPeriodFilter = `r.review_date >= ${midpointExpr} AND r.review_date <= toDate({dateTo:String})`;
+            priorPeriodFilter = `r.review_date >= toDate({dateFrom:String}) AND r.review_date < ${midpointExpr}`;
+            combinedWindowFilter = `r.review_date >= toDate({dateFrom:String}) AND r.review_date <= toDate({dateTo:String})`;
+        } else {
+            const recentStartExpr = `subtractMonths(today(), ${trendPeriod})`;
+            const priorStartExpr = `subtractMonths(today(), ${trendPeriod * 2})`;
+            recentPeriodFilter = `r.review_date >= ${recentStartExpr}`;
+            priorPeriodFilter = `r.review_date >= ${priorStartExpr} AND r.review_date < ${recentStartExpr}`;
+            combinedWindowFilter = `r.review_date >= ${priorStartExpr}`;
+        }
+        where.push(combinedWindowFilter);
+
+        const sql = `
+            WITH latest_snapshots AS (
+                SELECT * FROM (
+                    SELECT web_pid, platform, price_rp, price_sp, category, pareto_status
+                    FROM product_snapshots
+                    WHERE company_id = {companyId:String}
+                    ORDER BY snapshot_date DESC, created_at DESC
+                ) LIMIT 1 BY lower(platform), web_pid
+            ),
+            product_stats AS (
+                SELECT
+                    substring(r.product_name, 1, 80) AS product,
+                    count() AS total,
+                    countIf(r.sentiment = 'Positive') AS positive,
+                    countIf(r.sentiment = 'Negative') AS negative,
+                    countIf(r.sentiment = 'Neutral') AS neutral,
+                    countIf(${recentPeriodFilter}) AS recent_total,
+                    countIf(${recentPeriodFilter} AND r.sentiment = 'Negative') AS recent_neg,
+                    countIf(${priorPeriodFilter}) AS older_total,
+                    countIf(${priorPeriodFilter} AND r.sentiment = 'Negative') AS older_neg
+                FROM ml_reviews r
+                LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
+                LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid AND lower(ps.platform) = lower(r.platform)
+                WHERE ${where.join(' AND ')}
+                GROUP BY substring(r.product_name, 1, 80)
+                HAVING count() >= 10
+            )
+            SELECT
+                product, total, positive, negative, neutral,
+                recent_total, recent_neg, older_total, older_neg,
+                multiIf(total > 0, toFloat64(positive) / total, 0.0) AS positive_rate,
+                multiIf(total > 0, toFloat64(negative) / total, 0.0) AS negative_rate,
+                round(multiIf(total > 0, (toFloat64(positive) - negative) / total * 50 + 50, 50.0), 0) AS health_score,
+                multiIf(
+                    recent_total > 0 AND older_total > 0 AND (toFloat64(recent_neg) / recent_total - toFloat64(older_neg) / older_total) > 0.05, 'declining',
+                    recent_total > 0 AND older_total > 0 AND (toFloat64(recent_neg) / recent_total - toFloat64(older_neg) / older_total) < -0.05, 'improving',
+                    'stable'
+                ) AS trend
+            FROM product_stats
+            ORDER BY total DESC
+            LIMIT 30
+        `;
+        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const rows = await chRes.json();
+
+        // Also get monthly ratings per product (top 20 only)
+        const topProducts = rows.slice(0, 20).map(r => r.product);
+        let monthlyData = {};
+
+        if (topProducts.length > 0) {
+            const mParams = { companyId: String(req.companyId), topProducts };
+            const mWhere = ['r.company_id = {companyId:String}', 'substring(r.product_name, 1, 80) IN {topProducts:Array(String)}', 'isNotNull(r.review_date)'];
+
+            if (is_competitor && is_competitor !== 'all') {
+                mWhere.push(`coalesce(r.is_competitor, 0) = {isCompetitor:UInt8}`);
+                mParams.isCompetitor = is_competitor === 'true' ? 1 : 0;
+            }
+            if (category) {
+                mWhere.push(`ilike(coalesce(nullIf(ps.category, ''), nullIf(r.category, ''), nullIf(mp.category, '')), {category:String})`);
+                mParams.category = category;
+            }
+            if (pareto_status) {
+                mWhere.push(`coalesce(nullIf(mp.pareto_status, ''), nullIf(ps.pareto_status, ''), nullIf(r.pareto_status, '')) = {paretoStatus:String}`);
+                mParams.paretoStatus = pareto_status;
+            }
+            if (date_from) { mWhere.push(`r.review_date >= toDate({dateFrom:String})`); mParams.dateFrom = date_from; }
+            if (date_to) { mWhere.push(`r.review_date <= toDate({dateTo:String})`); mParams.dateTo = date_to; }
+            
+            if (price_min !== undefined && price_min !== '') {
+                const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
+                mWhere.push(`${priceExpr} >= {priceMin:Float64}`);
+                mParams.priceMin = Number(price_min);
+            }
+            if (price_max !== undefined && price_max !== '') {
+                const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
+                mWhere.push(`${priceExpr} <= {priceMax:Float64}`);
+                mParams.priceMax = Number(price_max);
+            }
+
+            const monthSql = `
+                WITH latest_snapshots AS (
+                    SELECT * FROM (
+                        SELECT web_pid, platform, price_rp, price_sp, category, pareto_status
+                        FROM product_snapshots
+                        WHERE company_id = {companyId:String}
+                        ORDER BY snapshot_date DESC, created_at DESC
+                    ) LIMIT 1 BY lower(platform), web_pid
+                )
+                SELECT
+                    substring(r.product_name, 1, 80) AS product,
+                    substring(toString(r.review_date), 1, 7) AS month,
+                    round(avg(r.rating), 2) AS avg_rating,
+                    count() AS count
+                FROM ml_reviews r
+                LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
+                LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid AND lower(ps.platform) = lower(r.platform)
+                WHERE ${mWhere.join(' AND ')}
+                GROUP BY product, month
+                ORDER BY product, month
+            `;
+            const mRes = await clickhouse.query({ database: getTargetDb(req), query: monthSql, query_params: mParams, format: 'JSONEachRow' });
+            const mRows = await mRes.json();
+            mRows.forEach(r => {
+                if (!monthlyData[r.product]) monthlyData[r.product] = [];
+                monthlyData[r.product].push({
+                    month: r.month,
+                    avg: parseFloat(r.avg_rating),
+                    count: parseInt(r.count),
+                });
+            });
+        }
+
+        const products = rows.map(r => ({
+            product: r.product,
+            healthScore: parseInt(r.health_score),
+            totalMentions: parseInt(r.total),
+            positiveRate: parseFloat(r.positive_rate),
+            negativeRate: parseFloat(r.negative_rate),
+            trend: r.trend,
+            monthlyRatings: (monthlyData[r.product] || []).slice(-12),
+        }));
+
+        res.json({ products });
+    } catch (err) {
+        console.error('Product health error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const getBenchmarkData = async (req, res) => {
+    try {
+        const { category, platform, date_from, date_to, period_months, price_mode, price_min, price_max } = req.query;
+        const targetDb = getTargetDb(req);
+        const queryParams = { companyId: String(req.companyId), dbName: targetDb };
+        const conditions = [
+            'r.company_id = {companyId:String}',
+            `(coalesce(r.is_competitor, 0) = 0 OR (isNotNull(r.brand) AND r.brand <> '' AND length(trim(r.brand)) >= 3 AND lower(trim(r.brand)) NOT IN ('the','not','and','gas','extracted','none','null','n/a','other','unknown','etc','for','was','were','our','your','its')))`
+        ];
+
+        if (category) {
+            conditions.push(`ilike(trim(coalesce(nullIf(ps.category, ''), nullIf(r.category, ''), nullIf(mp.category, ''))), {category:String})`);
+            queryParams.category = category;
+        }
+        if (platform && platform !== 'all') {
+            conditions.push(`ilike(r.platform, {platform:String})`);
+            queryParams.platform = platform;
+        }
+        if (date_from) { conditions.push(`r.review_date >= toDate({dateFrom:String})`); queryParams.dateFrom = date_from; }
+        if (date_to) { conditions.push(`r.review_date <= toDate({dateTo:String})`); queryParams.dateTo = date_to; }
+        else if (!date_from && period_months) {
+            const safePeriodMonths = Math.max(1, Math.min(parseInt(period_months) || 6, 24));
+            conditions.push(`r.review_date >= subtractMonths(today(), ${safePeriodMonths})`);
+        }
+        if (price_min !== undefined && price_min !== '') {
+            const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
+            conditions.push(`${priceExpr} >= {priceMin:Float64}`);
+            queryParams.priceMin = Number(price_min);
+        }
+        if (price_max !== undefined && price_max !== '') {
+            const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
+            conditions.push(`${priceExpr} <= {priceMax:Float64}`);
+            queryParams.priceMax = Number(price_max);
+        }
+
+        const sql = `
+            WITH latest_snapshots AS (
+                SELECT * FROM (
+                    SELECT web_pid, platform, price_rp, price_sp, category, rating, rating_count
+                    FROM product_snapshots
+                    WHERE company_id = {companyId:String}
+                    ORDER BY snapshot_date DESC, created_at DESC
+                ) LIMIT 1 BY lower(platform), web_pid
+            ),
+            scoped_reviews AS (
+                SELECT
+                    multiIf(coalesce(r.is_competitor, 0) = 0, initcap({dbName:String}), initcap(lower(r.brand))) AS brand,
+                    coalesce(r.is_competitor, 0) AS is_competitor,
+                    coalesce(nullIf(r.sentiment_category, ''), 'General') AS sentiment_category,
+                    r.rating AS rev_rating, r.ml_inferred_rating AS rev_ml_rating, r.sentiment AS rev_sentiment, r.web_pid AS rev_web_pid, r.platform AS rev_platform,
+                    ps.rating AS pdp_rating, ps.rating_count AS rating_count
+                FROM ml_reviews r
+                LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
+                LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid AND lower(ps.platform) = lower(r.platform)
+                WHERE ${conditions.join(' AND ')}
+            ),
+            brand_totals AS (
+                SELECT
+                    brand, is_competitor,
+                    count() AS total_reviews,
+                    round(avg(rev_rating), 2) AS avg_rating,
+                    round(avg(rev_ml_rating), 2) AS avg_ml_rating,
+                    countIf(rev_sentiment = 'Positive') AS positive_count,
+                    countIf(rev_sentiment = 'Negative') AS negative_count,
+                    countIf(rev_sentiment = 'Neutral') AS neutral_count
+                FROM scoped_reviews
+                GROUP BY brand, is_competitor
+                HAVING count() >= 3
+            ),
+            brand_listing_metrics AS (
+                SELECT
+                    sr.brand, sr.is_competitor,
+                    sum(coalesce(sr.rating_count, 0)) AS total_rating_count,
+                    round(sum(coalesce(sr.pdp_rating, 0) * coalesce(sr.rating_count, 0)) / nullIf(sum(coalesce(sr.rating_count, 0)), 0), 2) AS avg_pdp_rating
+                FROM (
+                    SELECT DISTINCT brand, is_competitor, rev_web_pid, rev_platform, pdp_rating, rating_count
+                    FROM scoped_reviews
+                ) sr
+                GROUP BY sr.brand, sr.is_competitor
+            ),
+            category_agg AS (
+                SELECT brand, is_competitor, sentiment_category,
+                    count() AS cat_total,
+                    countIf(rev_sentiment = 'Positive') AS cat_positive,
+                    countIf(rev_sentiment = 'Negative') AS cat_negative,
+                    round(avg(rev_rating), 2) AS cat_avg_rating,
+                    round(avg(rev_ml_rating), 2) AS cat_avg_ml_rating
+                FROM scoped_reviews
+                GROUP BY brand, is_competitor, sentiment_category
+            ),
+            category_json AS (
+                SELECT brand, is_competitor,
+                    groupArray(tuple(sentiment_category, cat_total, cat_positive, cat_negative, cat_avg_rating, cat_avg_ml_rating)) AS cat_arr
+                FROM category_agg
+                GROUP BY brand, is_competitor
+            )
+            SELECT
+                t.brand AS brand, t.is_competitor AS is_competitor, t.total_reviews, t.avg_rating, t.avg_ml_rating,
+                t.positive_count, t.negative_count, t.neutral_count,
+                l.total_rating_count AS rating_count, l.avg_pdp_rating AS pdp_rating,
+                c.cat_arr AS category_scores
+            FROM brand_totals t
+            LEFT JOIN brand_listing_metrics l ON t.brand = l.brand AND t.is_competitor = l.is_competitor
+            LEFT JOIN category_json c ON t.brand = c.brand AND t.is_competitor = c.is_competitor
+            ORDER BY t.total_reviews DESC
+        `;
+        
+        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const rawRows = await chRes.json();
+        const rows = rawRows.map(row => {
+            const category_scores = {};
+            if (row.category_scores) {
+                row.category_scores.forEach(cat => {
+                    category_scores[cat[0]] = {
+                        total: cat[1],
+                        positive: cat[2],
+                        negative: cat[3],
+                        avg_rating: cat[4],
+                        avg_ml_rating: cat[5]
+                    };
+                });
+            }
+            return {
+                brand: row.brand,
+                is_competitor: row.is_competitor === 1 || row.is_competitor === true,
+                total_reviews: row.total_reviews,
+                avg_rating: row.avg_rating,
+                ml_rating: row.avg_ml_rating,
+                positive_count: row.positive_count,
+                negative_count: row.negative_count,
+                neutral_count: row.neutral_count,
+                rating_count: row.rating_count,
+                pdp_rating: row.pdp_rating,
+                category_scores
+            };
+        });
+        res.json({ benchmarks: rows });
+    } catch (err) {
+        console.error('Benchmark data error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const getCategoryHealth = async (req, res) => {
+    try {
+        const { date_from, date_to, platform, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category, category } = req.query;
+        const trendPeriod = parseInt(period_months) || 3;
+
+        const queryParams = { companyId: String(req.companyId) };
+        let currentScopeFilter, growthRangeFilter, recentFilter, priorFilter;
+        const platformFilters = [];
+        const snapPlatformFilters = [];
+        const reviewPriceFilters = [];
+        const snapPriceFilters = [];
+        let competitorFilter = '';
+        let snapCompetitorFilter = '';
+        const sentimentCategoryFilters = [];
+        const catFilters = [];
+        const snapCatFilters = [];
+
+        if (is_competitor === 'true' || is_competitor === 'false') {
+            competitorFilter = `AND coalesce(r.is_competitor, 0) = {isCompetitor:UInt8}`;
+            snapCompetitorFilter = `AND coalesce(mp.is_competitor, 0) = {isCompetitor:UInt8}`;
+            queryParams.isCompetitor = is_competitor === 'true' ? 1 : 0;
+        } else if (is_competitor === 'all') {
+            competitorFilter = '';
+            snapCompetitorFilter = '';
+        } else {
+            competitorFilter = `AND coalesce(r.is_competitor, 0) = 0`;
+            snapCompetitorFilter = `AND coalesce(mp.is_competitor, 0) = 0`;
+        }
+
+        if (sentiment_category && sentiment_category !== 'all') {
+            sentimentCategoryFilters.push(`r.sentiment_category ILIKE {sentimentCategory:String}`);
+            queryParams.sentimentCategory = sentiment_category;
+        }
+
+        if (category) {
+            catFilters.push(`coalesce(nullIf(ps_latest.category, ''), nullIf(r.category, ''), nullIf(mp.category, '')) ILIKE {category:String}`);
+            snapCatFilters.push(`coalesce(nullIf(ls.category, ''), nullIf(mp.category, '')) ILIKE {category:String}`);
+            queryParams.category = category;
+        }
+
+        if (platform && platform !== 'all') {
+            platformFilters.push(`ilike(r.platform, {platform:String})`);
+            snapPlatformFilters.push(`ilike(ls.platform, {platform:String})`);
+            queryParams.platform = platform;
+        }
+
+        if (price_min !== undefined && price_min !== '') {
+            const reviewPriceExpr = price_mode === 'rp' ? 'coalesce(ps_latest.price_rp, mp.mrp)' : 'coalesce(ps_latest.price_sp, mp.selling_price, mp.mop, ps_latest.price_rp, mp.mrp)';
+            const snapPriceExpr = price_mode === 'rp' ? 'coalesce(ls.price_rp, mp.mrp)' : 'coalesce(ls.price_sp, mp.selling_price, mp.mop, ls.price_rp, mp.mrp)';
+            reviewPriceFilters.push(`${reviewPriceExpr} >= {priceMin:Float64}`);
+            snapPriceFilters.push(`${snapPriceExpr} >= {priceMin:Float64}`);
+            queryParams.priceMin = Number(price_min);
+        }
+        if (price_max !== undefined && price_max !== '') {
+            const reviewPriceExpr = price_mode === 'rp' ? 'coalesce(ps_latest.price_rp, mp.mrp)' : 'coalesce(ps_latest.price_sp, mp.selling_price, mp.mop, ps_latest.price_rp, mp.mrp)';
+            const snapPriceExpr = price_mode === 'rp' ? 'coalesce(ls.price_rp, mp.mrp)' : 'coalesce(ls.price_sp, mp.selling_price, mp.mop, ls.price_rp, mp.mrp)';
+            reviewPriceFilters.push(`${reviewPriceExpr} <= {priceMax:Float64}`);
+            snapPriceFilters.push(`${snapPriceExpr} <= {priceMax:Float64}`);
+            queryParams.priceMax = Number(price_max);
+        }
+
+        if (date_from && date_to) {
+            queryParams.dateFrom = date_from;
+            queryParams.dateTo = date_to;
+            const midpointExpr = `(toDate({dateFrom:String}) + toUInt32((toDate({dateTo:String}) - toDate({dateFrom:String})) / 2))`;
+            currentScopeFilter = `AND r.review_date >= toDate({dateFrom:String}) AND r.review_date <= toDate({dateTo:String})`;
+            growthRangeFilter = currentScopeFilter;
+            recentFilter = `AND r.review_date >= ${midpointExpr} AND r.review_date <= toDate({dateTo:String})`;
+            priorFilter = `AND r.review_date >= toDate({dateFrom:String}) AND r.review_date < ${midpointExpr}`;
+        } else {
+            const lookbackMonths = trendPeriod * 2;
+            currentScopeFilter = `AND r.review_date >= subtractMonths(today(), ${trendPeriod})`;
+            growthRangeFilter = `AND r.review_date >= subtractMonths(today(), ${lookbackMonths})`;
+            recentFilter = `AND r.review_date >= subtractMonths(today(), ${trendPeriod})`;
+            priorFilter = `AND r.review_date >= subtractMonths(today(), ${lookbackMonths}) AND r.review_date < subtractMonths(today(), ${trendPeriod})`;
+        }
+        
+        const reviewPriceFiltStr = reviewPriceFilters.length ? 'AND ' + reviewPriceFilters.join(' AND ') : '';
+        const snapPriceFiltStr = snapPriceFilters.length ? 'AND ' + snapPriceFilters.join(' AND ') : '';
+        const platformFiltStr = platformFilters.length ? 'AND ' + platformFilters.join(' AND ') : '';
+        const snapPlatformFiltStr = snapPlatformFilters.length ? 'AND ' + snapPlatformFilters.join(' AND ') : '';
+        const catFiltStr = catFilters.length ? 'AND ' + catFilters.join(' AND ') : '';
+        const snapCatFiltStr = snapCatFilters.length ? 'AND ' + snapCatFilters.join(' AND ') : '';
+
+        const snapshotDateFilter = date_from 
+            ? `AND snapshot_date >= toDate({dateFrom:String})`
+            : `AND snapshot_date >= subtractMonths(today(), ${trendPeriod * 2})`;
+
+        const sql = `
+            WITH latest_snapshots AS (
+                SELECT * FROM (
+                    SELECT web_pid, platform, price_rp, price_sp, category, pareto_status, rating, rating_count
+                    FROM product_snapshots
+                    WHERE company_id = {companyId:String} ${snapshotDateFilter}
+                    ORDER BY snapshot_date DESC, created_at DESC
+                ) LIMIT 1 BY lower(platform), web_pid
+            ),
+            snap_cats AS (
+                SELECT
+                    ls.web_pid, lower(ls.platform) as platform_key,
+                    nullIf(mp.sku_code, '') AS sku_code,
+                    coalesce(nullIf(ls.category, ''), nullIf(mp.category, '')) AS raw_category,
+                    coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, '')) AS raw_pareto_status,
+                    coalesce(ls.price_rp, mp.mrp) AS price_rp,
+                    coalesce(ls.price_sp, mp.selling_price, mp.mop) AS price_sp
+                FROM latest_snapshots ls
+                LEFT JOIN products mp ON mp.company_id = {companyId:String} AND mp.product_external_id = ls.web_pid AND lower(mp.platform) = lower(ls.platform)
+                WHERE coalesce(nullIf(ls.category, ''), nullIf(mp.category, '')) != ''
+                  ${snapCompetitorFilter}
+                  ${snapPlatformFiltStr}
+            ),
+            review_only_cats AS (
+                SELECT * FROM (
+                    SELECT
+                        r.web_pid, lower(r.platform) as platform_key,
+                        nullIf(mp.sku_code, '') AS sku_code,
+                        coalesce(nullIf(r.category, ''), nullIf(mp.category, '')) AS raw_category,
+                        coalesce(nullIf(mp.pareto_status, ''), nullIf(r.pareto_status, '')) AS raw_pareto_status,
+                        mp.mrp AS price_rp,
+                        coalesce(mp.selling_price, mp.mop) AS price_sp
+                    FROM ml_reviews r
+                    LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
+                    WHERE r.company_id = {companyId:String}
+                      ${competitorFilter}
+                      ${platformFiltStr}
+                      AND coalesce(nullIf(r.category, ''), nullIf(mp.category, '')) != ''
+                      ${growthRangeFilter}
+                      AND r.web_pid NOT IN (SELECT web_pid FROM snap_cats)
+                    ORDER BY r.review_date DESC
+                ) LIMIT 1 BY web_pid
+            ),
+            sku_category_map AS (
+                SELECT web_pid, platform_key, sku_code, coalesce(sku_code, web_pid) AS canonical_sku,
+                    multiIf(trim(lower(raw_category)) IN ('other', 'others'), 'Others', initcap(trim(raw_category))) AS category,
+                    raw_pareto_status AS pareto_status,
+                    price_rp, price_sp
+                FROM (
+                    SELECT * FROM snap_cats
+                    UNION ALL
+                    SELECT * FROM review_only_cats
+                )
+            ),
+            cat_sku_counts AS (
+                SELECT category,
+                    count(DISTINCT canonical_sku) AS sku_count,
+                    count(DISTINCT canonical_sku) FILTER (WHERE pareto_status = 'Pareto') AS pareto_count,
+                    count(DISTINCT canonical_sku) FILTER (WHERE pareto_status IN ('Non-Pareto', 'Non-Pareto (Unclassified)') OR pareto_status IS NULL) AS non_pareto_count,
+                    count(DISTINCT canonical_sku) FILTER (WHERE pareto_status = 'NPD') AS npd_count
+                FROM sku_category_map scm
+                WHERE 1=1 ${snapCatFiltStr.replace("coalesce(nullIf(ls.category, ''), nullIf(mp.category, ''))", "category")} ${snapPriceFiltStr.replace(/ls\./g, 'scm.').replace(/mp\.mrp/g, 'scm.price_rp').replace(/mp\.selling_price/g, 'scm.price_sp').replace(/mp\.mop/g, 'scm.price_sp')}
+                GROUP BY category
+            ),
+            cat_reviews AS (
+                SELECT
+                    scm.category AS cat_name,
+                    count() AS review_count,
+                    count(DISTINCT r.web_pid) AS sku_count,
+                    round(avg(r.rating), 2) AS avg_review_rating,
+                    round(avg(r.ml_inferred_rating), 2) AS avg_ml_rating,
+                    countIf(r.sentiment = 'Positive') AS positive_count,
+                    countIf(r.sentiment = 'Negative') AS negative_count,
+                    countIf(r.sentiment = 'Neutral') AS neutral_count
+                FROM ml_reviews r
+                JOIN sku_category_map scm ON scm.web_pid = r.web_pid AND scm.platform_key = lower(r.platform)
+                WHERE r.company_id = {companyId:String} ${competitorFilter} ${currentScopeFilter}
+                ${sentimentCategoryFilters.length ? 'AND ' + sentimentCategoryFilters.join(' AND ') : ''}
+                GROUP BY scm.category
+            ),
+            cat_growth AS (
+                SELECT scm.category AS cat_name,
+                    countIf(1=1 ${recentFilter}) AS recent_reviews,
+                    countIf(1=1 ${priorFilter}) AS prior_reviews,
+                    round(avgIf(r.rating, 1=1 ${recentFilter}), 2) AS recent_rating,
+                    round(avgIf(r.rating, 1=1 ${priorFilter}), 2) AS prior_rating
+                FROM ml_reviews r
+                JOIN sku_category_map scm ON scm.web_pid = r.web_pid AND scm.platform_key = lower(r.platform)
+                WHERE r.company_id = {companyId:String} ${competitorFilter} ${growthRangeFilter}
+                ${sentimentCategoryFilters.length ? 'AND ' + sentimentCategoryFilters.join(' AND ') : ''}
+                GROUP BY scm.category
+            ),
+            cat_products AS (
+                SELECT
+                    scm.category AS cat_name,
+                    sum(ls.rating_count) AS total_ratings,
+                    round(sum(ls.rating * ls.rating_count) / nullIf(sum(ls.rating_count), 0), 2) AS avg_platform_rating
+                FROM sku_category_map scm
+                JOIN latest_snapshots ls ON ls.web_pid = scm.web_pid AND lower(ls.platform) = scm.platform_key
+                GROUP BY scm.category
+            ),
+            cat_catalogue AS (
+                SELECT
+                    multiIf(trim(lower(mp.category)) IN ('other', 'others'), 'Others', initcap(trim(mp.category))) AS cat_name,
+                    count(DISTINCT mp.product_external_id) AS catalogue_sku_count
+                FROM products mp
+                WHERE mp.company_id = {companyId:String} AND mp.platform != '' AND mp.category != '' ${snapCompetitorFilter}
+                GROUP BY cat_name
+            ),
+            combined_cats AS (
+                SELECT c.category AS category, c.sku_count AS sku_count, c.pareto_count AS pareto_count, c.non_pareto_count AS non_pareto_count, c.npd_count AS npd_count,
+                    coalesce(cc.catalogue_sku_count, c.sku_count) AS catalogue_sku_count,
+                    coalesce(r.review_count, 0) AS review_count,
+                    coalesce(r.sku_count, 0) AS review_sku_count,
+                    r.avg_review_rating, r.avg_ml_rating, r.positive_count, r.negative_count, r.neutral_count,
+                    coalesce(cp.total_ratings, 0) AS total_ratings,
+                    cp.avg_platform_rating,
+                    g.recent_reviews, g.prior_reviews, g.recent_rating, g.prior_rating,
+                    multiIf(g.prior_reviews > 0, toFloat64(g.recent_reviews - g.prior_reviews) / g.prior_reviews * 100, 0.0) AS growth_pct,
+                    multiIf(r.review_count > 0, (toFloat64(r.positive_count) - r.negative_count) / r.review_count * 50 + 50, 50.0) AS health_score
+                FROM cat_sku_counts c
+                LEFT JOIN cat_reviews r ON c.category = r.cat_name
+                LEFT JOIN cat_growth g ON c.category = g.cat_name
+                LEFT JOIN cat_products cp ON c.category = cp.cat_name
+                LEFT JOIN cat_catalogue cc ON c.category = cc.cat_name
+                WHERE c.sku_count > 0 OR r.review_count > 0
+            )
+            SELECT * FROM combined_cats ORDER BY review_count DESC
+        `;
+        
+        console.log("SQL:", sql);
+        console.log("PARAMS:", queryParams);
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const rows = await chRes.json();
+        console.log("FIRST ROW:", rows[0]);
+        
+        const totals = { skuCount: 0, catalogueSkuCount: 0, reviewSkuCount: 0, totalRatings: 0, reviewCount: 0, paretoCount: 0, nonParetoCount: 0, npdCount: 0, totalAvgPlatformRatingNumerator: 0, totalAvgPlatformRatingDenominator: 0 };
+        const categories = rows.map(r => {
+            totals.skuCount += Number(r.sku_count || 0);
+            totals.catalogueSkuCount += Number(r.catalogue_sku_count || r.sku_count || 0);
+            totals.reviewSkuCount += Number(r.review_sku_count || 0);
+            totals.totalRatings += Number(r.total_ratings || 0);
+            totals.reviewCount += Number(r.review_count || 0);
+            totals.paretoCount += Number(r.pareto_count || 0);
+            totals.nonParetoCount += Number(r.non_pareto_count || 0);
+            totals.npdCount += Number(r.npd_count || 0);
+            
+            if (r.avg_platform_rating !== null && r.total_ratings) {
+                totals.totalAvgPlatformRatingNumerator += Number(r.avg_platform_rating) * Number(r.total_ratings);
+                totals.totalAvgPlatformRatingDenominator += Number(r.total_ratings);
+            }
+            
+            return {
+                category: r.category,
+                catalogueSkuCount: Number(r.catalogue_sku_count || r.sku_count || 0),
+                skuCount: Number(r.sku_count || 0),
+                reviewCount: Number(r.review_count || 0),
+                reviewSkuCount: Number(r.review_sku_count || 0),
+                avgReviewRating: r.avg_review_rating !== null ? Number(r.avg_review_rating) : 0,
+                avgMlRating: r.avg_ml_rating !== null ? Number(r.avg_ml_rating) : null,
+                positiveCount: Number(r.positive_count || 0),
+                negativeCount: Number(r.negative_count || 0),
+                neutralCount: Number(r.neutral_count || 0),
+                totalRatings: Number(r.total_ratings || 0),
+                avgPlatformRating: r.avg_platform_rating !== null ? Number(r.avg_platform_rating) : null,
+                paretoCount: Number(r.pareto_count || 0),
+                nonParetoCount: Number(r.non_pareto_count || 0),
+                npdCount: Number(r.npd_count || 0),
+                growthPct: r.growth_pct !== null ? Number(r.growth_pct) : 0,
+                recentReviewCount: Number(r.recent_reviews || 0),
+                priorReviewCount: Number(r.prior_reviews || 0),
+                ratingGrowthDiff: (r.recent_rating || 0) - (r.prior_rating || 0),
+                recentAvgRating: r.recent_rating !== null ? Number(r.recent_rating) : 0,
+                priorAvgRating: r.prior_rating !== null ? Number(r.prior_rating) : 0
+            };
+        });
+        
+        totals.avgPlatformRating = totals.totalAvgPlatformRatingDenominator > 0 
+            ? totals.totalAvgPlatformRatingNumerator / totals.totalAvgPlatformRatingDenominator 
+            : null;
+        
+        delete totals.totalAvgPlatformRatingNumerator;
+        delete totals.totalAvgPlatformRatingDenominator;
+        res.json({ categories, total: totals });
+    } catch (err) {
+        console.error('Category health error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+

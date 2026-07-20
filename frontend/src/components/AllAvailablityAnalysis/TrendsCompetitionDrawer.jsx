@@ -1036,10 +1036,8 @@ export default function TrendsCompetitionDrawer({
           params: { filterType: 'cities', platform: platformParam, brand: brandParam, resellerName: resellerParam }
         });
         if (cancelled) return;
-        const defaultCities = (citiesRes.data?.options || [])
-          .filter(c => c !== 'All' && c !== 'All India')
-          .filter(c => TIER_1_CITIES.some(t => c.toLowerCase().includes(t.toLowerCase())));
-        const cities = ["All India", ...defaultCities];
+        const cities = (citiesRes.data?.options || [])
+          .filter(c => c && c !== 'All');
         setFilterOptions(prev => ({ ...prev, cities }));
       } catch (error) {
         console.error("[TrendsDrawer] Error fetching cascaded cities:", error);
@@ -1047,7 +1045,7 @@ export default function TrendsCompetitionDrawer({
     };
     fetchCities();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.ResellerName, isDrl, TIER_1_CITIES]);
+  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.ResellerName, isDrl]);
 
   // Effect 4: Fetch SKUs when platform + brand + category + resellerName changes (cascading)
   useEffect(() => {

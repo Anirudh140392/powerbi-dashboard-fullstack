@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Star, Loader2 } from 'lucide-react';
-import { resolveCompanyId } from '../utils/tenant';
+import { resolveCompanyId, getActiveBrandName, resolveDbName } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
 
 interface BrandDistribution {
@@ -36,6 +36,8 @@ export function StarDistributionChart({ category, platform, webPid }: Props) {
     const companyId = resolveCompanyId();
     const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || import.meta.env.VITE_RAILWAY_URL || '';
     const params = new URLSearchParams({ company_id: companyId });
+    const dbName = resolveDbName();
+    if (dbName) params.set('db_name', dbName);
     if (category) params.set('category', category);
     if (platform && platform !== 'all') params.set('platform', platform);
     if (webPid) params.set('web_pid', webPid);
@@ -95,9 +97,9 @@ export function StarDistributionChart({ category, platform, webPid }: Props) {
                   <td className="py-3 px-5 border-r-2 border-slate-300 dark:border-slate-600">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200 truncate pr-2">
-                        {b.brand === 'Prestige' && <span title="Your Brand">👑</span>}
+                        {b.brand === getActiveBrandName() && <span title="Your Brand">👑</span>}
                         <span className="truncate">{b.brand}</span>
-                        {b.is_competitor && b.brand !== 'Prestige' && (
+                        {b.is_competitor && b.brand !== getActiveBrandName() && (
                           <span className="text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded shrink-0 leading-none">C</span>
                         )}
                       </div>
