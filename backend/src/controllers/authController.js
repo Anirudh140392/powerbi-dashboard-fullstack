@@ -1,7 +1,7 @@
 // src/controllers/authController.js
 import crypto from 'crypto';
 import { loginUser, verifySession } from '../services/authService.js';
-import { getDeviceCookieOptions } from '../services/deviceService.js';
+import { getDeviceCookieOptions, updateDeviceTokenMap } from '../services/deviceService.js';
 
 /**
  * POST /api/auth/login
@@ -48,10 +48,15 @@ export const login = async (req, res) => {
             ip: clientIp,
         });
 
-        // Set device_token as HTTP-only secure cookie
-        // This cookie persists across browser updates, OS updates, etc.
+        // Set device_token as HTTP-only secure cookie map (supports multiple logged in clients)
         if (result.deviceToken) {
-            res.cookie('device_token', result.deviceToken, getDeviceCookieOptions());
+            const updatedCookie = updateDeviceTokenMap(
+                deviceTokenFromCookie,
+                result.user?.dbId,
+                email,
+                result.deviceToken
+            );
+            res.cookie('device_token', updatedCookie, getDeviceCookieOptions());
         }
 
         return res.status(200).json({
@@ -62,7 +67,13 @@ export const login = async (req, res) => {
     } catch (error) {
         console.error('[Auth] Login failed:', error.message);
         if (error.deviceToken) {
-            res.cookie('device_token', error.deviceToken, getDeviceCookieOptions());
+            const updatedCookie = updateDeviceTokenMap(
+                deviceTokenFromCookie,
+                error.dbId,
+                email,
+                error.deviceToken
+            );
+            res.cookie('device_token', updatedCookie, getDeviceCookieOptions());
         }
         return res.status(401).json({
             success: false,
