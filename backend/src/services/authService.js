@@ -188,60 +188,38 @@ export async function loginUser(email, password, deviceInfo = {}) {
                 throw new Error('Access Pending: Your request is still awaiting administrator review.');
             }
         } else {
-            // Step D: No existing record for this specific device.
-            // Before creating a brand-new pending request, check if this user
-            // already has ANY approved row (from a previously approved device).
-            // If so, grant access automatically — they're an approved user who
-            // is just using a new/changed device/browser.
-            const approvedRows = await queryAdminDB(
-                `SELECT access, device_token, ip
-                 FROM tb_user
-                 WHERE user_email = {email:String}
-                   AND access = 'allow'
-                 ORDER BY last_login DESC
-                 LIMIT 1`,
-                { email: user.user_email }
-            );
-
-            if (approvedRows.length > 0) {
-                // User was previously approved — auto-allow this new device
-                console.log(`[DEBUG_AUTH] User ${user.user_email} already approved on another device, auto-allowing new device`);
-                const newToken = generateDeviceToken();
-                resolvedDeviceToken = newToken;
-                isNewDeviceToken = true;
-            } else {
-                // Genuinely new user with no prior approvals → create pending row
-                console.log(`[DEBUG_AUTH] No existing device record for ${user.user_email}, creating pending request`);
-                const newToken = generateDeviceToken();
-                try {
-                    const rowId = Date.now().toString();
-                    await insertAdminDB('tb_user', [{
-                        id: rowId,
-                        user_id: user.user_id_str,
-                        user_email: user.user_email,
-                        user_name: user.user_name,
-                        user_role: userRole,
-                        password_hash: user.password_hash,
-                        db_id: user.db_id_str,
-                        last_login: new Date().toISOString().replace('T', ' ').split('.')[0],
-                        created_on: user.created_on,
-                        status: 'active',
-                        ip: fingerprintId || clientIp || '0.0.0.0',
-                        access: 'pending',
-                        db_status: user.db_status || 'active',
-                        tab_permissions: user.tab_permissions || '',
-                        device_token: newToken,
-                        browser: browser || '',
-                        browser_version: browserVersion || '',
-                        operating_system: os || '',
-                        platform: platform || '',
-                    }]);
-                    console.log(`[DEBUG_AUTH] Created new pending request for ${user.user_email}`);
-                } catch (ipError) {
-                    console.error(`[DEBUG_AUTH] Failed to insert pending row:`, ipError.message);
-                }
-                throw new Error('Access Request Submitted: Please wait for admin approval.');
+            // Step D: No existing record for this specific device/browser.
+            // Every new device requires explicit admin approval.
+            console.log(`[DEBUG_AUTH] New device detected for ${user.user_email}, creating pending access request`);
+            const newToken = generateDeviceToken();
+            try {
+                const rowId = Date.now().toString();
+                await insertAdminDB('tb_user', [{
+                    id: rowId,
+                    user_id: user.user_id_str,
+                    user_email: user.user_email,
+                    user_name: user.user_name,
+                    user_role: userRole,
+                    password_hash: user.password_hash,
+                    db_id: user.db_id_str,
+                    last_login: new Date().toISOString().replace('T', ' ').split('.')[0],
+                    created_on: user.created_on,
+                    status: 'active',
+                    ip: fingerprintId || clientIp || '0.0.0.0',
+                    access: 'pending',
+                    db_status: user.db_status || 'active',
+                    tab_permissions: user.tab_permissions || '',
+                    device_token: newToken,
+                    browser: browser || '',
+                    browser_version: browserVersion || '',
+                    operating_system: os || '',
+                    platform: platform || '',
+                }]);
+                console.log(`[DEBUG_AUTH] Created new pending request for ${user.user_email}`);
+            } catch (ipError) {
+                console.error(`[DEBUG_AUTH] Failed to insert pending row:`, ipError.message);
             }
+            throw new Error('Access Request Submitted: Please wait for admin approval.');
         }
     } else {
         console.log(`[DEBUG_AUTH] ENFORCEMENT: Admin bypass for ${user.user_email}`);
