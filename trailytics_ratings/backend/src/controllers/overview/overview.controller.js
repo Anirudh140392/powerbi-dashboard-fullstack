@@ -1324,6 +1324,7 @@ export const getCategoryHealth = async (req, res) => {
         const sentimentCategoryFilters = [];
         const catFilters = [];
         const snapCatFilters = [];
+        const masterPlatformFilters = [];
 
         if (is_competitor === 'true' || is_competitor === 'false') {
             competitorFilter = `AND coalesce(r.is_competitor, 0) = {isCompetitor:UInt8}`;
@@ -1351,6 +1352,7 @@ export const getCategoryHealth = async (req, res) => {
         if (platform && platform !== 'all') {
             platformFilters.push(`ilike(r.platform, {platform:String})`);
             snapPlatformFilters.push(`ilike(ls.platform, {platform:String})`);
+            masterPlatformFilters.push(`ilike(mp.platform, {platform:String})`);
             queryParams.platform = platform;
         }
 
@@ -1389,6 +1391,7 @@ export const getCategoryHealth = async (req, res) => {
         const snapPriceFiltStr = snapPriceFilters.length ? 'AND ' + snapPriceFilters.join(' AND ') : '';
         const platformFiltStr = platformFilters.length ? 'AND ' + platformFilters.join(' AND ') : '';
         const snapPlatformFiltStr = snapPlatformFilters.length ? 'AND ' + snapPlatformFilters.join(' AND ') : '';
+        const masterPlatformFiltStr = masterPlatformFilters.length ? 'AND ' + masterPlatformFilters.join(' AND ') : '';
         const catFiltStr = catFilters.length ? 'AND ' + catFilters.join(' AND ') : '';
         const snapCatFiltStr = snapCatFilters.length ? 'AND ' + snapCatFilters.join(' AND ') : '';
 
@@ -1502,7 +1505,7 @@ export const getCategoryHealth = async (req, res) => {
                     multiIf(trim(lower(mp.category)) IN ('other', 'others'), 'Others', initcap(trim(mp.category))) AS cat_name,
                     count(DISTINCT mp.product_external_id) AS catalogue_sku_count
                 FROM products mp
-                WHERE mp.company_id = {companyId:String} AND mp.platform != '' AND mp.category != '' ${snapCompetitorFilter}
+                WHERE mp.company_id = {companyId:String} AND mp.platform != '' AND mp.category != '' ${snapCompetitorFilter} ${masterPlatformFiltStr}
                 GROUP BY cat_name
             ),
             combined_cats AS (
@@ -1582,6 +1585,98 @@ export const getCategoryHealth = async (req, res) => {
         res.json({ categories, total: totals });
     } catch (err) {
         console.error('Category health error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const getStarDistribution = async (req, res) => {
+    try {
+        const { category, platform, web_pid } = req.query;
+        const queryParams = { companyId: String(req.companyId) };
+        const conditions = [
+            'ps.company_id = {companyId:String}',
+            "ps.star_distribution != ''",
+            "ps.star_distribution != '{}'"
+        ];
+        
+        if (category) {
+            conditions.push(`ilike(coalesce(nullIf(mp.master_category,''), nullIf(mp.category,''), nullIf(ps.category,'')), {category:String})`);
+            queryParams.category = category;
+        }
+        if (platform && platform !== 'all') {
+            conditions.push(`lower(ps.platform) = lower({platform:String})`);
+            queryParams.platform = platform;
+        }
+        if (web_pid) {
+            conditions.push(`upper(ps.web_pid) = upper({webPid:String})`);
+            queryParams.webPid = web_pid;
+        }
+
+        const sql = `
+            WITH latest AS (
+                SELECT * FROM (
+                    SELECT web_pid, platform, star_distribution, category, brand
+                    FROM product_snapshots ps
+                    WHERE company_id = {companyId:String}
+                    ORDER BY snapshot_date DESC, created_at DESC
+                ) LIMIT 1 BY web_pid, lower(platform)
+            ),
+            matched AS (
+                SELECT 
+                    coalesce(nullIf(mp.brand_name,''), nullIf(ps.brand,''), 'Unknown') AS brand,
+                    coalesce(mp.is_competitor, 0) AS is_competitor,
+                    ps.star_distribution AS sd
+                FROM latest ps
+                LEFT JOIN products mp ON mp.company_id = {companyId:String} 
+                     AND mp.product_external_id = ps.web_pid 
+                     AND lower(mp.platform) = lower(ps.platform)
+                WHERE ${conditions.map(w => w.replace('ps.company_id = {companyId:String}', '1=1')).join(' AND ')}
+            )
+            SELECT brand, is_competitor,
+                sum(coalesce(toFloat64(nullIf(JSONExtractString(sd, '1'), '')), 0)) AS s1,
+                sum(coalesce(toFloat64(nullIf(JSONExtractString(sd, '2'), '')), 0)) AS s2,
+                sum(coalesce(toFloat64(nullIf(JSONExtractString(sd, '3'), '')), 0)) AS s3,
+                sum(coalesce(toFloat64(nullIf(JSONExtractString(sd, '4'), '')), 0)) AS s4,
+                sum(coalesce(toFloat64(nullIf(JSONExtractString(sd, '5'), '')), 0)) AS s5
+            FROM matched
+            GROUP BY brand, is_competitor
+        `;
+        
+        const chRes = await clickhouse.query({ 
+            database: getTargetDb(req), 
+            query: sql, 
+            query_params: queryParams, 
+            format: 'JSONEachRow' 
+        });
+        const rows = await chRes.json();
+        
+        const byBrand = new Map();
+        for (const r of rows) {
+            if (!byBrand.has(r.brand)) {
+                byBrand.set(r.brand, { brand: r.brand, is_competitor: r.is_competitor === 1 || r.is_competitor === true, dist: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, total: 0 });
+            }
+            const e = byBrand.get(r.brand);
+            for (const s of [1, 2, 3, 4, 5]) {
+                const c = parseInt(r['s' + s], 10) || 0;
+                e.dist[s] += c;
+                e.total += c;
+            }
+        }
+        
+        const result = [...byBrand.values()].map(b => ({
+            brand: b.brand,
+            is_competitor: b.is_competitor,
+            total: b.total,
+            distribution: [1, 2, 3, 4, 5].map(s => ({
+                star: s, 
+                count: b.dist[s] || 0,
+                pct: b.total > 0 ? Math.round(100 * (b.dist[s] || 0) / b.total) : 0,
+            })),
+        })).sort((a, b) => b.total - a.total);
+        
+        res.json({ brands: result });
+    } catch (err) {
+        console.error('star-distribution error:', err);
         res.status(500).json({ error: err.message });
     }
 };

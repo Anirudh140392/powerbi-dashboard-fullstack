@@ -566,7 +566,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
         return {
             ownMetrics: ownRow ? createRatingMetrics({
                 pdp_rating: ownRow.pdp_rating ? Number(ownRow.pdp_rating) : null,
-                user_rating: ownRow.user_rating ? Number(ownRow.user_rating) : null,
+                user_rating: (ownRow.user_rating || ownRow.avg_rating) ? Number(ownRow.user_rating || ownRow.avg_rating) : null,
                 ml_rating: ownRow.ml_rating ? Number(ownRow.ml_rating) : null,
                 review_count: Number(ownRow.review_count || ownRow.total_reviews || 0),
                 rating_count: Number(ownRow.rating_count || 0),

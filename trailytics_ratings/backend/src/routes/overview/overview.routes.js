@@ -10,7 +10,8 @@ import {
     getPriceVariance,
     getProductHealth,
     getCategoryHealth,
-    getBenchmarkData
+    getBenchmarkData,
+    getStarDistribution
 } from '../../controllers/overview/overview.controller.js';
 
 const router = express.Router();
@@ -27,5 +28,6 @@ router.get('/price-variance', getPriceVariance);
 router.get('/product-health', getProductHealth);
 router.get('/category-health', getCategoryHealth);
 router.get('/benchmark-data', getBenchmarkData);
+router.get('/star-distribution', getStarDistribution);
 
 export default router;
