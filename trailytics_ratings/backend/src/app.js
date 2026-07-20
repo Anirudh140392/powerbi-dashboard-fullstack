@@ -27,12 +27,24 @@ app.use(cors(corsOptions));
 // Middlewares will be initialized here in the new architecture
 // Note: legacyApi already handles some middleware internally (like cors, body-parser)
 
-// Inject tenant context dynamically.
-// Priority: ?company_id query param → X-Company-ID header → COMPANY_ID env var (default tenant)
-// This allows the same ratings backend to serve any tenant without restart.
-app.use((req, res, next) => {
-    req.companyId = req.query.company_id || req.headers['x-company-id'] || process.env.COMPANY_ID;
-    next();
+import { clickhouseStorage, resolveCompanyUuid } from './config/clickhouse.js';
+
+// Resolve dynamic company context and database name
+// Priority: db_name from request → resolve company_id dynamically
+// Fallback: explicit company_id from query param or header
+app.use(async (req, res, next) => {
+    const dbName = req.query.db_name || req.headers['x-db-name'] || process.env.CLICKHOUSE_DB || 'prestige';
+    
+    // Try explicit company_id first (from query param or header), otherwise resolve from db_name
+    const explicitCompanyId = req.query.company_id || req.headers['x-company-id'];
+    const companyId = explicitCompanyId || await resolveCompanyUuid(dbName);
+
+    req.companyId = companyId;
+    req.dbName = dbName;
+
+    clickhouseStorage.run({ dbName, companyId }, () => {
+        next();
+    });
 });
 
 // Health check endpoint

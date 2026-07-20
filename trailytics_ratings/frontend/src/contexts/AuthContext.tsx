@@ -71,20 +71,62 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const { companyId, companyName } = resolveRootUser();
+interface AuthProviderProps {
+    children: ReactNode;
+    companyId?: string;
+    companyName?: string;
+}
 
-    const dummyUser: AuthUser = {
-        id: '1',
-        username: 'admin',
-        email: 'admin@trailytics.com',
-        displayName: 'Admin User',
-        role: 'admin',
-        companyId,
-        companyName,
-        allowedPlatformUuids: [],
-        platformScope: 'all'
-    };
+function getSessionUser(): AuthUser | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        const stored = window.sessionStorage.getItem('user');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed.dbId && parsed.dbName) {
+                return {
+                    id: parsed.userId || '1',
+                    username: parsed.name || 'User',
+                    email: parsed.email || '',
+                    displayName: parsed.name || 'User',
+                    role: parsed.role || 'user',
+                    companyId: parsed.companyId || parsed.dbId,
+                    companyName: parsed.dbName,
+                    allowedPlatformUuids: [],
+                    platformScope: 'all'
+                };
+            }
+        }
+    } catch (e) {
+        console.error("Error reading parent session user:", e);
+    }
+    return null;
+}
+
+const HARDCODED_COMPANY_ID = '297e37ea-a5ac-47df-bebd-ac44e52b7979';
+const HARDCODED_COMPANY_NAME = 'prestige';
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children, companyId, companyName }) => {
+    // Also try resolveRootUser for standalone mode fallback
+    const rootUser = resolveRootUser();
+
+    const dummyUser = useMemo<AuthUser>(() => {
+        const parentUser = getSessionUser();
+        const finalId = companyId || parentUser?.companyId || rootUser.companyId || HARDCODED_COMPANY_ID;
+        const finalName = companyName || parentUser?.companyName || rootUser.companyName || HARDCODED_COMPANY_NAME;
+
+        return {
+            id: parentUser?.id || '1',
+            username: parentUser?.username || 'admin',
+            email: parentUser?.email || 'admin@trailytics.com',
+            displayName: parentUser?.displayName || 'Admin User',
+            role: parentUser?.role || 'admin',
+            companyId: finalId,
+            companyName: finalName,
+            allowedPlatformUuids: [],
+            platformScope: 'all'
+        };
+    }, [companyId, companyName]);
 
     // Always clear any previously cached session first (prevents stale company IDs
     // from a different tenant persisting in localStorage and overriding the current one),
@@ -105,7 +147,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
             user: dummyUser,
         });
-    }, [companyId, companyName]); // re-run if the active tenant changes
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('companyName', dummyUser.companyName);
+        }
+    }, [dummyUser]);
 
     const value = useMemo<AuthContextType>(() => ({
         user: dummyUser,
@@ -118,7 +163,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         startMfaEnrolment: async () => ({ ok: false, error: 'Disabled' }),
         completeMfaEnrolment: async () => ({ ok: false, error: 'Disabled' }),
         completeMfaVerify: async () => ({ ok: true }),
-    }), [companyId, companyName]);
+    }), [dummyUser]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

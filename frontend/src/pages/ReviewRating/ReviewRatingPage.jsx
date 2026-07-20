@@ -15,6 +15,7 @@ import React from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import TrailyticsTypewriterLoader from "../../components/insights/TrailyticsTypewriterLoader";
 import "./ReviewRatingPage.css";
+import { useAuth } from "../../utils/AuthContext";
 
 // Import the ratings AuthProvider so companyId is seeded into localStorage
 import { AuthProvider as RatingsAuthProvider } from "../../../../trailytics_ratings/frontend/src/contexts/AuthContext.tsx";
@@ -25,8 +26,10 @@ const RatingsDashboard = React.lazy(() =>
 );
 
 export default function ReviewRatingPage() {
+  const { user } = useAuth();
+
   return (
-    <RatingsAuthProvider>
+    <RatingsAuthProvider companyId={user?.dbId} companyName={user?.dbName}>
       {/*
        * fullHeight=true  → the content Box uses overflow:hidden and becomes a
        *                    flex column so the Dashboard's own <main> can scroll.

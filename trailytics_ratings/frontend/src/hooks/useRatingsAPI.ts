@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { resolveCompanyId, resolveDbName } from '../utils/tenant';
+import { resolveCompanyId, resolveCompanyName, resolveDbName } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
 
 const API_ROOT = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || '';
@@ -110,6 +110,7 @@ export async function fetchAPI<T>(
 ): Promise<T> {
     const query = new URLSearchParams();
     query.set('company_id', resolveCompanyId());
+    query.set('db_name', resolveCompanyName());
 
     // db_name tells the backend which ClickHouse database to query (e.g. 'prestige' vs 'danone')
     const dbName = resolveDbName();

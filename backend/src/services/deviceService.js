@@ -62,3 +62,56 @@ export function getDeviceCookieOptions() {
         path: '/',
     };
 }
+
+/**
+ * Parse device token cookie value, which can be either a plain token string
+ * or a JSON map of client DB IDs / emails to tokens.
+ */
+export function parseDeviceTokens(cookieVal) {
+    if (!cookieVal) return {};
+    if (typeof cookieVal === 'object') return cookieVal;
+    try {
+        const parsed = JSON.parse(cookieVal);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            return parsed;
+        }
+    } catch (e) {
+        // Plain string token from legacy cookie
+    }
+    return { _default: String(cookieVal).trim() };
+}
+
+/**
+ * Extract the device token for a specific client (dbId or userEmail).
+ */
+export function getDeviceTokenForClient(cookieVal, dbId, email) {
+    if (!cookieVal) return null;
+    const map = parseDeviceTokens(cookieVal);
+    const keyDb = dbId ? String(dbId).trim() : null;
+    const keyEmail = email ? String(email).trim().toLowerCase() : null;
+
+    if (keyDb && map[keyDb]) return map[keyDb];
+    if (keyEmail && map[keyEmail]) return map[keyEmail];
+    if (map._default) return map._default;
+    return null;
+}
+
+/**
+ * Update the token map in the cookie value with a new token for the given client.
+ */
+export function updateDeviceTokenMap(cookieVal, dbId, email, newToken) {
+    const map = parseDeviceTokens(cookieVal);
+    const primaryKey = dbId ? String(dbId).trim() : (email ? String(email).trim().toLowerCase() : '_default');
+    
+    // Remove legacy _default if migrating to mapped format
+    if (primaryKey !== '_default' && map._default) {
+        delete map._default;
+    }
+
+    map[primaryKey] = newToken;
+    if (email && primaryKey !== String(email).trim().toLowerCase()) {
+        map[String(email).trim().toLowerCase()] = newToken;
+    }
+
+    return JSON.stringify(map);
+}

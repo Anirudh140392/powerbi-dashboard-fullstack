@@ -142,3 +142,11 @@ function capitalizeDbName(name: string): string {
     // Generic: replace underscores, title-case each word
     return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
+
+export function resolveCompanyName(): string {
+    if (typeof window !== 'undefined') {
+        const stored = window.localStorage.getItem('companyName')?.trim();
+        if (stored) return stored;
+    }
+    return import.meta.env.VITE_COMPANY_NAME || 'prestige';
+}
