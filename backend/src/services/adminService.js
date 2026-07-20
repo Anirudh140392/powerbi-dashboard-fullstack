@@ -156,27 +156,31 @@ export const getPendingRequests = async () => {
         // has already been approved (ClickHouse append-only model).
         const query = `
             SELECT 
-                toString(id) as id,
+                argMax(toString(id), last_login) as id,
                 user_email as email,
-                user_name as name,
-                toString(db_id) as db_id,
-                ip,
-                last_login as dateTime,
-                access as status,
+                argMax(user_name, last_login) as name,
+                argMax(toString(db_id), last_login) as db_id,
+                argMax(ip, last_login) as ip,
+                max(last_login) as dateTime,
+                'pending' as status,
                 device_token,
-                browser,
-                browser_version,
-                operating_system,
-                platform
+                argMax(browser, last_login) as browser,
+                argMax(browser_version, last_login) as browser_version,
+                argMax(operating_system, last_login) as operating_system,
+                argMax(platform, last_login) as platform
             FROM tb_user
-            WHERE access = 'pending' 
-              AND last_login >= subtractDays(now(), 7)
-              AND user_email NOT IN (
-                  SELECT DISTINCT user_email 
-                  FROM tb_user 
-                  WHERE access = 'allow'
+            WHERE access = 'pending'
+              AND last_login >= subtractDays(now(), 3)
+              AND (
+                device_token = '' OR 
+                device_token NOT IN (
+                    SELECT DISTINCT device_token 
+                    FROM tb_user 
+                    WHERE access = 'allow' AND device_token != ''
+                )
               )
-            ORDER BY last_login DESC
+            GROUP BY user_email, device_token
+            ORDER BY dateTime DESC
         `;
         const requests = await queryAdminDB(query);
 
