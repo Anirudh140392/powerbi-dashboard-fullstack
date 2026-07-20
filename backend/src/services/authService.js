@@ -325,15 +325,19 @@ export async function loginUser(email, password, deviceInfo = {}) {
     }
 
     // 6. Generate JWT token
+    // NOTE: Do NOT include dbLogoUrl or tabPermissions in the JWT payload.
+    // dbLogoUrl is a base64-encoded image (10-20KB+) and tabPermissions is a large
+    // JSON object. Including them causes the Authorization header to exceed nginx's
+    // default 8KB header buffer limit, resulting in "400 Bad Request - Request Header
+    // Or Cookie Too Large" on the server. These values are returned separately in
+    // the login response and stored in sessionStorage.
     const tokenPayload = {
         userId: user.user_id,
         email: user.user_email,
         userName: user.user_name,
         dbName: dbName,
-        dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus: dbStatusBool,
-        tabPermissions
     };
 
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
