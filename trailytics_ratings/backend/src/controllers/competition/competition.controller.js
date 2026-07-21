@@ -12,47 +12,43 @@ export const getCompetitorMentions = async (req, res) => {
         if (!companyId) {
             return res.status(400).json({ error: 'Company ID required' });
         }
-        const queryParams = { companyId: String(companyId) };
-        const where = ['company_id = {companyId:String}'];
-        
-        if (brand)     { where.push(`lower(brand) = lower({brand:String})`); queryParams.brand = brand; }
-        if (platform)  { where.push(`lower(platform) = lower({platform:String})`); queryParams.platform = platform; }
-        if (date_from) { where.push(`review_date >= toDate({dateFrom:String})`); queryParams.dateFrom = date_from; }
-        if (date_to)   { where.push(`review_date <= toDate({dateTo:String})`); queryParams.dateTo = date_to; }
-        if (!date_from && !date_to) { where.push(`review_date >= subtractMonths(today(), 6)`); }
-        
+        const params = [String(companyId)];
+        const where = ['company_id = $1'];
+        let idx = 2;
+
+        if (brand)     { where.push(`LOWER(brand) = LOWER($${idx++})`); params.push(brand); }
+        if (platform)  { where.push(`LOWER(platform) = LOWER($${idx++})`); params.push(platform); }
+        if (date_from) { where.push(`review_date >= $${idx++}`); params.push(date_from); }
+        if (date_to)   { where.push(`review_date <= $${idx++}`); params.push(date_to); }
+        if (!date_from && !date_to) { where.push(`review_date >= (CURRENT_DATE - INTERVAL '6 months')`); }
+
         const whereSql = where.join(' AND ');
         const targetLimit = Math.min(parseInt(limit, 10) || 100, 500);
-        queryParams.limit = targetLimit;
-
-        const aggQuery = `
-            SELECT lower(brand) AS brand,
-                   uniqExact(review_id) AS total,
-                   uniqExactIf(review_id, is_favorable = 1) AS favorable,
-                   uniqExactIf(review_id, sentiment = 'Negative' AND is_favorable = 0) AS unfavorable,
-                   uniqExactIf(review_id, is_favorable = 0 AND sentiment != 'Negative') AS neutral
-            FROM competitor_mentions
-            WHERE ${whereSql}
-            GROUP BY brand
-            ORDER BY total DESC
-        `;
-        
-        const sampleQuery = `
-            SELECT id, review_id, web_pid, platform, brand, context, sentiment,
-                   is_favorable, review_date, review_rating, scanned_at
-            FROM competitor_mentions
-            WHERE ${whereSql}
-            ORDER BY review_date DESC NULLS LAST, id DESC
-            LIMIT {limit:Int32}
-        `;
 
         const [aggRes, sampleRes] = await Promise.all([
-            clickhouse.query({ database: getTargetDb(req), query: aggQuery, query_params: queryParams, format: 'JSONEachRow' }),
-            clickhouse.query({ database: getTargetDb(req), query: sampleQuery, query_params: queryParams, format: 'JSONEachRow' }),
+            pool.query(`
+                SELECT LOWER(brand) AS brand,
+                       COUNT(DISTINCT review_id) AS total,
+                       COUNT(DISTINCT review_id) FILTER (WHERE is_favorable) AS favorable,
+                       COUNT(DISTINCT review_id) FILTER (WHERE sentiment = 'Negative' AND NOT is_favorable) AS unfavorable,
+                       COUNT(DISTINCT review_id) FILTER (WHERE NOT is_favorable AND sentiment <> 'Negative') AS neutral
+                FROM ratings.competitor_mentions
+                WHERE ${whereSql}
+                GROUP BY LOWER(brand)
+                ORDER BY total DESC
+            `, params),
+            pool.query(`
+                SELECT id, review_id, web_pid, platform, brand, context, sentiment,
+                       is_favorable, review_date, review_rating, scanned_at
+                FROM ratings.competitor_mentions
+                WHERE ${whereSql}
+                ORDER BY review_date DESC NULLS LAST, id DESC
+                LIMIT $${idx}
+            `, [...params, targetLimit]),
         ]);
 
-        const aggRows = await aggRes.json();
-        const sampleRows = await sampleRes.json();
+        const aggRows = aggRes.rows;
+        const sampleRows = sampleRes.rows;
 
         const total = aggRows.reduce((s, r) => s + parseInt(r.total, 10), 0);
         res.json({
@@ -71,7 +67,7 @@ export const getCompetitorMentions = async (req, res) => {
                 brand: r.brand,
                 context: r.context,
                 sentiment: r.sentiment,
-                isFavorable: r.is_favorable === 1 || r.is_favorable === true,
+                isFavorable: r.is_favorable === true || r.is_favorable === 1,
                 reviewDate: r.review_date,
                 reviewRating: r.review_rating,
                 webPid: r.web_pid,
