@@ -11,8 +11,11 @@ import { getDeviceCookieOptions, updateDeviceTokenMap } from '../services/device
  * Sets: device_token HTTP-only cookie on successful login
  */
 export const login = async (req, res) => {
+    const deviceTokenFromCookie = req.cookies?.device_token || null;
+    const { email } = req.body || {};
+
     try {
-        const { email, password, visitorId, publicIp, browser, browserVersion, os, platform } = req.body;
+        const { password, visitorId, publicIp, browser, browserVersion, os, platform } = req.body;
 
         if (!email || !password) {
             return res.status(400).json({
@@ -31,9 +34,6 @@ export const login = async (req, res) => {
         } else if (clientIp.startsWith('::ffff:')) {
             clientIp = clientIp.substring(7);
         }
-
-        // Read device_token from HTTP-only cookie (primary device identifier)
-        const deviceTokenFromCookie = req.cookies?.device_token || null;
 
         // Use visitorId (FingerprintJS) as fingerprint, fall back to publicIp for backward compat
         const fingerprintId = visitorId || publicIp || '';

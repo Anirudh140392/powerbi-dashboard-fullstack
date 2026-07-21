@@ -175,7 +175,8 @@ export async function loginUser(email, password, deviceInfo = {}) {
 
             if (currentAccess === 'allow') {
                 // ✅ Approved — allow login
-                resolvedDeviceToken = clientDeviceToken || matchedRow.device_token || generateDeviceToken();
+                const isValidTok = (t) => t && typeof t === 'string' && !t.includes('{') && !t.includes('%') && t.length > 5;
+                resolvedDeviceToken = isValidTok(clientDeviceToken) ? clientDeviceToken : (isValidTok(matchedRow.device_token) ? matchedRow.device_token : generateDeviceToken());
                 console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} via approved device/user for client db_id=${user.db_id_str}`);
             } else if (currentAccess === 'deny') {
                 throw new Error('Access Denied: Your access request has been rejected by an administrator.');
@@ -403,7 +404,9 @@ export async function verifySession(token, deviceToken = null) {
                 `SELECT access FROM tb_user 
                  WHERE user_email = {email:String}
                    AND db_id = {dbId:String}
-                 ORDER BY last_login DESC
+                 ORDER BY
+                   CASE access WHEN 'allow' THEN 0 WHEN 'deny' THEN 1 ELSE 2 END,
+                   last_login DESC
                  LIMIT 1`,
                 { email: decoded.email, dbId: decoded.dbId }
             );

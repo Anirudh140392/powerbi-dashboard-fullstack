@@ -66,19 +66,32 @@ export function getDeviceCookieOptions() {
 /**
  * Parse device token cookie value, which can be either a plain token string
  * or a JSON map of client DB IDs / emails to tokens.
+ * Handles URL-encoded cookie values automatically.
  */
 export function parseDeviceTokens(cookieVal) {
     if (!cookieVal) return {};
     if (typeof cookieVal === 'object') return cookieVal;
+    
+    let raw = String(cookieVal).trim();
+    if (raw.startsWith('j:')) {
+        raw = raw.substring(2);
+    }
+    if (raw.includes('%')) {
+        try {
+            raw = decodeURIComponent(raw);
+        } catch (e) {
+            // Ignore URI decode errors
+        }
+    }
     try {
-        const parsed = JSON.parse(cookieVal);
+        const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
             return parsed;
         }
     } catch (e) {
         // Plain string token from legacy cookie
     }
-    return { _default: String(cookieVal).trim() };
+    return { _default: raw };
 }
 
 /**
@@ -90,9 +103,18 @@ export function getDeviceTokenForClient(cookieVal, dbId, email) {
     const keyDb = dbId ? String(dbId).trim() : null;
     const keyEmail = email ? String(email).trim().toLowerCase() : null;
 
-    if (keyDb && map[keyDb]) return map[keyDb];
-    if (keyEmail && map[keyEmail]) return map[keyEmail];
-    if (map._default) return map._default;
+    let token = null;
+    if (keyDb && map[keyDb]) {
+        token = map[keyDb];
+    } else if (keyEmail && map[keyEmail]) {
+        token = map[keyEmail];
+    } else if (map._default) {
+        token = map._default;
+    }
+
+    if (token && typeof token === 'string' && !token.includes('{') && !token.includes('%')) {
+        return token;
+    }
     return null;
 }
 
@@ -108,10 +130,13 @@ export function updateDeviceTokenMap(cookieVal, dbId, email, newToken) {
         delete map._default;
     }
 
-    map[primaryKey] = newToken;
-    if (email && primaryKey !== String(email).trim().toLowerCase()) {
-        map[String(email).trim().toLowerCase()] = newToken;
+    if (newToken && typeof newToken === 'string' && !newToken.includes('{') && !newToken.includes('%')) {
+        map[primaryKey] = newToken;
+        if (email && primaryKey !== String(email).trim().toLowerCase()) {
+            map[String(email).trim().toLowerCase()] = newToken;
+        }
     }
 
     return JSON.stringify(map);
 }
+
