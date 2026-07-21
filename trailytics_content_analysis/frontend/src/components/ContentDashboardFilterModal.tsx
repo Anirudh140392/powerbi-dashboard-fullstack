@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Monitor, LayoutGrid, Tag, SlidersHorizontal, X, Search, Check } from 'lucide-react';
+import { LayoutGrid, Tag, SlidersHorizontal, X, Search, Check } from 'lucide-react';
 
 const FILTER_TABS = [
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand",    label: "Brand",    icon: Tag },
 ];
@@ -24,21 +23,18 @@ export default function ContentDashboardFilterModal({
   open,
   onClose,
   company,
-  platform, setPlatform,
   category, setCategory,
   brand,    setBrand,
 }: any) {
-  const [activeTab, setActiveTab] = useState("platform");
+  const [activeTab, setActiveTab] = useState("category");
   const [searchTerm, setSearchTerm] = useState("");
 
   // Available options (fetched once per modal open)
-  const [localPlatforms, setLocalPlatforms]   = useState<string[]>([]);
   const [localCategories, setLocalCategories] = useState<string[]>([]);
   const [localBrands, setLocalBrands]         = useState<string[]>([]);
   const [isLoading, setIsLoading]             = useState(false);
 
   // Draft selections: null = "all selected", string[] = explicit list (may be empty = none)
-  const [draftPlatform, setDraftPlatform]   = useState<string[] | null>(null);
   const [draftCategory, setDraftCategory]   = useState<string[] | null>(null);
   const [draftBrand, setDraftBrand]         = useState<string[] | null>(null);
 
@@ -51,7 +47,6 @@ export default function ContentDashboardFilterModal({
       const res = await fetch(`/api/content-dashboard/cascaded-filters?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.platforms)  setLocalPlatforms(data.platforms);
         if (data.categories) setLocalCategories(data.categories);
         if (data.brands)     setLocalBrands(data.brands);
       }
@@ -65,10 +60,9 @@ export default function ContentDashboardFilterModal({
   // Sync drafts & fetch options when modal opens
   useEffect(() => {
     if (open) {
-      setDraftPlatform(normalizeToArray(platform).length === 0 ? null : normalizeToArray(platform));
       setDraftCategory(normalizeToArray(category).length === 0 ? null : normalizeToArray(category));
       setDraftBrand(normalizeToArray(brand).length === 0 ? null : normalizeToArray(brand));
-      setActiveTab("platform");
+      setActiveTab("category");
       setSearchTerm("");
       fetchOptions();
     }
@@ -82,7 +76,6 @@ export default function ContentDashboardFilterModal({
     draft: string[] | null;
     setDraft: (v: string[] | null) => void;
   }> = {
-    platform: { options: localPlatforms,  draft: draftPlatform,  setDraft: setDraftPlatform  },
     category: { options: localCategories, draft: draftCategory,  setDraft: setDraftCategory  },
     brand:    { options: localBrands,     draft: draftBrand,     setDraft: setDraftBrand      },
   };
@@ -136,14 +129,12 @@ export default function ContentDashboardFilterModal({
       if (d.length === 0) return [];                              // none → empty array (dashboard shows nothing)
       return d;
     };
-    setPlatform(toParent(draftPlatform, localPlatforms));
     setCategory(toParent(draftCategory, localCategories));
     setBrand(toParent(draftBrand, localBrands));
     onClose();
   };
 
   const handleResetAll = () => {
-    setDraftPlatform(null);
     setDraftCategory(null);
     setDraftBrand(null);
   };
