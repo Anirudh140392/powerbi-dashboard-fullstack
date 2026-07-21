@@ -1,15 +1,10 @@
-The reason Pareto matched the frontend but Non-Pareto did not is because of this specific filter in your query:
+import { createClient } from '@clickhouse/client';
 
-```sql
-AND snapshot_date >= subtractMonths(today(), 3)
-```
+const client = createClient({
+  url: 'http://localhost:8123',
+});
 
-**Explanation**: 
-Pareto (high-value) SKUs are typically scraped frequently, so all of them have snapshots from within the last 3 months. However, many **Non-Pareto** SKUs are older or less frequently updated, meaning their latest snapshot in the `product_snapshots` table is older than 3 months. When this date filter is applied, those Non-Pareto SKUs are completely excluded from the query's output, leading to much lower counts than the frontend (which includes all historical products in the catalog).
-
-Here is the corrected SQL query without that filter. It now perfectly matches the frontend numbers for Non-Pareto (`NP: 537`, `NI: 251`, `Issue: 88`, `Critical: 276`, `NoRating: 178`). I also added a check for `rating = 0` or `rating_count = 0` into the `NoRating` bucket to be robust.
-
-```sql
+const q = `
 WITH latest_snapshots AS (
     SELECT *
     FROM (
@@ -17,6 +12,7 @@ WITH latest_snapshots AS (
                rating, rating_count, pareto_status, star_distribution
         FROM product_snapshots
         WHERE company_id = '297e37ea-a5ac-47df-bebd-ac44e52b7979'
+          AND snapshot_date >= subtractMonths(today(), 3)
         ORDER BY snapshot_date DESC, created_at DESC
     )
     LIMIT 1 BY web_pid
@@ -30,8 +26,7 @@ sku_health AS (
         coalesce(toFloat64(JSONExtractString(ls.star_distribution, '1')), 0)
             / nullIf(ls.rating_count, 0) AS one_star_pct,
         CASE
-            -- Include rating=0 or rating_count=0 as NoRating to prevent them falling into 'Issue'
-            WHEN ls.rating IS NULL OR ls.rating = 0 OR ls.rating_count = 0             THEN 'NoRating'
+            WHEN ls.rating IS NULL                                                      THEN 'NoRating'
             WHEN coalesce(toFloat64(JSONExtractString(ls.star_distribution,'1')),0)
                  / nullIf(ls.rating_count,0) > 0.15                                    THEN 'Critical'
             WHEN ls.rating >= 4.2                                                       THEN 'NP'
@@ -55,4 +50,12 @@ SELECT
 FROM sku_health
 GROUP BY bucket, health_status
 ORDER BY bucket, health_status;
-```
+`;
+
+async function run() {
+    const rs = await client.query({ query: q, format: 'JSONEachRow' });
+    const data = await rs.json();
+    console.log(data);
+}
+
+run().catch(console.error);

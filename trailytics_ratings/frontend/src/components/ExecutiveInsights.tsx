@@ -29,7 +29,8 @@ import {
     Sparkles,
     Cpu,
     Truck,
-    Megaphone
+    Megaphone,
+    HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Review } from '../types';
@@ -872,12 +873,13 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                             {executiveHealth[expandedPareto].name} — Rating Bifurcation
                                             <InfoTooltip definition={TOOLTIPS.ratingBifurcation} placement="right" />
                                         </h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                                             {([
                                                 { status: 'np' as const, label: 'No Problem (NP)', desc: '≥4.2 Rating', icon: <CheckCircle2 size={16} />, color: 'emerald' },
                                                 { status: 'ni' as const, label: 'No Issue (NI)', desc: '4.0–4.2 Rating', icon: <Shield size={16} />, color: 'blue' },
                                                 { status: 'issue' as const, label: 'Issue', desc: '<4.0 Rating', icon: <XCircle size={16} />, color: 'orange' },
                                                 { status: 'critical' as const, label: 'Critical Issue', desc: '>15% 1-Star', icon: <AlertTriangle size={16} />, color: 'red' },
+                                                { status: 'noRating' as const, label: 'No Rating', desc: 'No PDP rating yet', icon: <HelpCircle size={16} />, color: 'slate' },
                                             ]).map(({ status, label, desc, icon, color }) => {
                                                 const group = executiveHealth[expandedPareto!][status];
                                                 return (
