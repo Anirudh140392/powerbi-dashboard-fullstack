@@ -151,14 +151,36 @@ export async function loginUser(email, password, deviceInfo = {}) {
             }
         }
 
-        // Step B: Evaluate access status or create pending request for new device
+        // Step B: Fall back to email-level approval ONLY if this device already had
+        // a cookie token for this client (returning device with stale/rotated token).
+        // For genuinely NEW devices (no cookie token), skip this so they go to Step D
+        // which creates a pending approval request for admin review.
+        if (!matchedRow && clientDeviceToken) {
+            const emailRows = await queryAdminDB(
+                `SELECT access, device_token, ip
+                 FROM tb_user
+                 WHERE user_email = {email:String}
+                   AND db_id = {dbId:String}
+                   AND access = 'allow'
+                 ORDER BY last_login DESC
+                 LIMIT 1`,
+                { email: user.user_email, dbId: user.db_id_str }
+            );
+            if (emailRows.length > 0) {
+                matchedRow = emailRows[0];
+                console.log(`[DEBUG_AUTH] Email-level approval match for ${user.user_email} (db_id: ${user.db_id_str}): access=${matchedRow.access}`);
+            }
+        }
+
+        // Step C: Evaluate access status or create pending request for new device
         if (matchedRow) {
             const currentAccess = (matchedRow.access || '').toLowerCase().trim();
 
             if (currentAccess === 'allow') {
                 // ✅ Approved — allow login
-                resolvedDeviceToken = matchedRow.device_token || clientDeviceToken;
-                console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} via approved device for client db_id=${user.db_id_str}`);
+                const isValidTok = (t) => t && typeof t === 'string' && !t.includes('{') && !t.includes('%') && t.length > 5;
+                resolvedDeviceToken = isValidTok(clientDeviceToken) ? clientDeviceToken : (isValidTok(matchedRow.device_token) ? matchedRow.device_token : generateDeviceToken());
+                console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} via approved device/user for client db_id=${user.db_id_str}`);
             } else if (currentAccess === 'deny') {
                 throw new Error('Access Denied: Your access request has been rejected by an administrator.');
             } else {
@@ -169,60 +191,41 @@ export async function loginUser(email, password, deviceInfo = {}) {
                 throw err;
             }
         } else {
-            // Step C: No existing record for this specific device/browser token for this client.
-            // Check if user was previously approved for THIS client (db_id).
-            const existingAllowed = await queryAdminDB(
-                `SELECT device_token FROM tb_user
-                 WHERE user_email = {email:String}
-                   AND db_id = {dbId:String}
-                   AND access = 'allow'
-                 ORDER BY last_login DESC
-                 LIMIT 1`,
-                { email: user.user_email, dbId: user.db_id_str }
-            );
-
-            if (existingAllowed.length > 0) {
-                // User was previously approved for this client — grant access with a new device token
-                const newToken = generateDeviceToken();
-                resolvedDeviceToken = newToken;
-                isNewDeviceToken = true;
-                console.log(`[DEBUG_AUTH] Previously approved user ${user.user_email} for client db_id=${user.db_id_str}, issuing new device token`);
-            } else {
-                // Truly new user/device for this client — requires admin approval
-                console.log(`[DEBUG_AUTH] New device detected for ${user.user_email} (db_id: ${user.db_id_str}), creating pending access request`);
-                const newToken = generateDeviceToken();
-                try {
-                    const rowId = Date.now().toString();
-                    await insertAdminDB('tb_user', [{
-                        id: rowId,
-                        user_id: user.user_id_str,
-                        user_email: user.user_email,
-                        user_name: user.user_name,
-                        user_role: userRole,
-                        password_hash: user.password_hash,
-                        db_id: user.db_id_str,
-                        last_login: new Date().toISOString().replace('T', ' ').split('.')[0],
-                        created_on: user.created_on,
-                        status: 'active',
-                        ip: fingerprintId || clientIp || '0.0.0.0',
-                        access: 'pending',
-                        db_status: user.db_status || 'active',
-                        tab_permissions: user.tab_permissions || '',
-                        device_token: newToken,
-                        browser: browser || '',
-                        browser_version: browserVersion || '',
-                        operating_system: os || '',
-                        platform: platform || '',
-                    }]);
-                    console.log(`[DEBUG_AUTH] Created new pending request in tb_user for ${user.user_email} (db_id: ${user.db_id_str}) with token ${newToken}`);
-                } catch (ipError) {
-                    console.error(`[DEBUG_AUTH] Failed to insert pending row:`, ipError.message);
-                }
-                const err = new Error('Access Pending: Your request is still awaiting administrator review.');
-                err.deviceToken = newToken;
-                err.dbId = user.db_id_str;
-                throw err;
+            // Step D: No existing record for this specific device or email for this client.
+            // Require admin approval for new user/device. Re-use existing token if available to avoid token churn.
+            const newToken = clientDeviceToken || generateDeviceToken();
+            console.log(`[DEBUG_AUTH] New device/user detected for ${user.user_email} (db_id: ${user.db_id_str}), creating pending access request with token ${newToken}`);
+            try {
+                const rowId = Date.now().toString();
+                await insertAdminDB('tb_user', [{
+                    id: rowId,
+                    user_id: user.user_id_str,
+                    user_email: user.user_email,
+                    user_name: user.user_name,
+                    user_role: userRole,
+                    password_hash: user.password_hash,
+                    db_id: user.db_id_str,
+                    last_login: new Date().toISOString().replace('T', ' ').split('.')[0],
+                    created_on: user.created_on,
+                    status: 'active',
+                    ip: fingerprintId || clientIp || '0.0.0.0',
+                    access: 'pending',
+                    db_status: user.db_status || 'active',
+                    tab_permissions: user.tab_permissions || '',
+                    device_token: newToken,
+                    browser: browser || '',
+                    browser_version: browserVersion || '',
+                    operating_system: os || '',
+                    platform: platform || '',
+                }]);
+                console.log(`[DEBUG_AUTH] Created new pending request in tb_user for ${user.user_email} (db_id: ${user.db_id_str}) with token ${newToken}`);
+            } catch (ipError) {
+                console.error(`[DEBUG_AUTH] Failed to insert pending row:`, ipError.message);
             }
+            const err = new Error('Access Pending: Your request is still awaiting administrator review.');
+            err.deviceToken = newToken;
+            err.dbId = user.db_id_str;
+            throw err;
         }
     } else {
         console.log(`[DEBUG_AUTH] ENFORCEMENT: Admin bypass for ${user.user_email}`);
@@ -404,7 +407,9 @@ export async function verifySession(token, deviceToken = null) {
                 `SELECT access FROM tb_user 
                  WHERE user_email = {email:String}
                    AND db_id = {dbId:String}
-                 ORDER BY last_login DESC
+                 ORDER BY
+                   CASE access WHEN 'allow' THEN 0 WHEN 'deny' THEN 1 ELSE 2 END,
+                   last_login DESC
                  LIMIT 1`,
                 { email: decoded.email, dbId: decoded.dbId }
             );
