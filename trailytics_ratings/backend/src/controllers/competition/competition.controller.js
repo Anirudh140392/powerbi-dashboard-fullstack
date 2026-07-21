@@ -93,7 +93,11 @@ export const getCompetitorMentions = async (req, res) => {
 export const getCompetitorMatrix = async (req, res) => {
     try {
         const { platform, category, date_from, date_to, period_months } = req.query;
-        const queryParams = { companyId: String(req.companyId) };
+        const companyId = req.query.company_id || req.query.companyId || req.companyId;
+        if (!companyId) {
+            return res.status(400).json({ error: 'Company ID required' });
+        }
+        const queryParams = { companyId: String(companyId) };
         let where = ['company_id = {companyId:String}'];
 
         if (platform && platform !== 'all') { where.push(`ilike(platform, {platform:String})`); queryParams.platform = platform; }
