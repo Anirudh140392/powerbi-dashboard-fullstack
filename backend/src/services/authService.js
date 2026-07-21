@@ -151,14 +151,32 @@ export async function loginUser(email, password, deviceInfo = {}) {
             }
         }
 
-        // Step B: Evaluate access status or create pending request for new device
+        // Step B: Fall back to checking if user email already has an approved ('allow') access row for this client
+        if (!matchedRow) {
+            const emailRows = await queryAdminDB(
+                `SELECT access, device_token, ip
+                 FROM tb_user
+                 WHERE user_email = {email:String}
+                   AND db_id = {dbId:String}
+                   AND access = 'allow'
+                 ORDER BY last_login DESC
+                 LIMIT 1`,
+                { email: user.user_email, dbId: user.db_id_str }
+            );
+            if (emailRows.length > 0) {
+                matchedRow = emailRows[0];
+                console.log(`[DEBUG_AUTH] Email-level approval match for ${user.user_email} (db_id: ${user.db_id_str}): access=${matchedRow.access}`);
+            }
+        }
+
+        // Step C: Evaluate access status or create pending request for new device
         if (matchedRow) {
             const currentAccess = (matchedRow.access || '').toLowerCase().trim();
 
             if (currentAccess === 'allow') {
                 // ✅ Approved — allow login
-                resolvedDeviceToken = matchedRow.device_token || clientDeviceToken;
-                console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} via approved device for client db_id=${user.db_id_str}`);
+                resolvedDeviceToken = clientDeviceToken || matchedRow.device_token || generateDeviceToken();
+                console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} via approved device/user for client db_id=${user.db_id_str}`);
             } else if (currentAccess === 'deny') {
                 throw new Error('Access Denied: Your access request has been rejected by an administrator.');
             } else {
@@ -169,10 +187,10 @@ export async function loginUser(email, password, deviceInfo = {}) {
                 throw err;
             }
         } else {
-            // Step C: No existing record for this specific device/browser token for this client.
-            // Require admin approval for every new device.
-            console.log(`[DEBUG_AUTH] New device detected for ${user.user_email} (db_id: ${user.db_id_str}), creating pending access request`);
-            const newToken = generateDeviceToken();
+            // Step D: No existing record for this specific device or email for this client.
+            // Require admin approval for new user/device. Re-use existing token if available to avoid token churn.
+            const newToken = clientDeviceToken || generateDeviceToken();
+            console.log(`[DEBUG_AUTH] New device/user detected for ${user.user_email} (db_id: ${user.db_id_str}), creating pending access request with token ${newToken}`);
             try {
                 const rowId = Date.now().toString();
                 await insertAdminDB('tb_user', [{

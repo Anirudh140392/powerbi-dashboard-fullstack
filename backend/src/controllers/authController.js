@@ -23,7 +23,7 @@ export const login = async (req, res) => {
 
         // Extract real client IP for logging purposes
         let clientIp = req.ip || req.socket?.remoteAddress || '';
-        if (req.headers['x-forwarded-for']) {
+        if (req.headers && req.headers['x-forwarded-for']) {
             clientIp = req.headers['x-forwarded-for'].split(',')[0].trim();
         }
         if (clientIp === '::1') {
