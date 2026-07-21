@@ -151,8 +151,11 @@ export async function loginUser(email, password, deviceInfo = {}) {
             }
         }
 
-        // Step B: Fall back to checking if user email already has an approved ('allow') access row for this client
-        if (!matchedRow) {
+        // Step B: Fall back to email-level approval ONLY if this device already had
+        // a cookie token for this client (returning device with stale/rotated token).
+        // For genuinely NEW devices (no cookie token), skip this so they go to Step D
+        // which creates a pending approval request for admin review.
+        if (!matchedRow && clientDeviceToken) {
             const emailRows = await queryAdminDB(
                 `SELECT access, device_token, ip
                  FROM tb_user
