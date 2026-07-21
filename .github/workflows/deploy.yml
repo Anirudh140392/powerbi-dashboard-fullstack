@@ -51,7 +51,7 @@ jobs:
             echo "TARGET_VITE_API_URL=${VITE_API_DEV_URL}" >> $GITHUB_ENV
           elif [ "${{ github.ref_name }}" = "enhancement_01122025_marico_kenil" ]; then
             echo "DEPLOY_ENV=marico" >> $GITHUB_ENV
-            echo "APP_DIR=/project/enhancement_01122025_marico_kenil" >> $GITHUB_ENV
+            echo "APP_DIR=/project/powerbi-dashboard-fullstack" >> $GITHUB_ENV
             echo "TARGET_HOST=${{ secrets.EC2_HOST_MARICO }}" >> $GITHUB_ENV
             echo "TARGET_SSH_KEY<<EOF" >> $GITHUB_ENV
             echo "${{ secrets.EC2_SSH_KEY_MARICO }}" >> $GITHUB_ENV
