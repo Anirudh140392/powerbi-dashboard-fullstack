@@ -48,7 +48,7 @@ export default function ContentDashboardFilterModal({
     setIsLoading(true);
     try {
       const params = new URLSearchParams({ company });
-      const res = await fetch(`http://localhost:8000/api/content-dashboard/cascaded-filters?${params.toString()}`);
+      const res = await fetch(`/api/content-dashboard/cascaded-filters?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         if (data.platforms)  setLocalPlatforms(data.platforms);
