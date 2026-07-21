@@ -1455,10 +1455,10 @@ export const getCategoryHealth = async (req, res) => {
             ),
             cat_sku_counts AS (
                 SELECT category,
-                    count(DISTINCT canonical_sku) AS sku_count,
-                    count(DISTINCT canonical_sku) FILTER (WHERE pareto_status = 'Pareto') AS pareto_count,
-                    count(DISTINCT canonical_sku) FILTER (WHERE pareto_status IN ('Non-Pareto', 'Non-Pareto (Unclassified)') OR pareto_status IS NULL) AS non_pareto_count,
-                    count(DISTINCT canonical_sku) FILTER (WHERE pareto_status = 'NPD') AS npd_count
+                    uniqExact(canonical_sku) AS sku_count,
+                    uniqExactIf(canonical_sku, pareto_status = 'Pareto') AS pareto_count,
+                    uniqExactIf(canonical_sku, pareto_status IN ('Non-Pareto', 'Non-Pareto (Unclassified)') OR pareto_status IS NULL) AS non_pareto_count,
+                    uniqExactIf(canonical_sku, pareto_status = 'NPD') AS npd_count
                 FROM sku_category_map scm
                 WHERE 1=1 ${snapCatFiltStr.replace("coalesce(nullIf(ls.category, ''), nullIf(mp.category, ''))", "category")} ${snapPriceFiltStr.replace(/ls\./g, 'scm.').replace(/mp\.mrp/g, 'scm.price_rp').replace(/mp\.selling_price/g, 'scm.price_sp').replace(/mp\.mop/g, 'scm.price_sp')}
                 GROUP BY category
