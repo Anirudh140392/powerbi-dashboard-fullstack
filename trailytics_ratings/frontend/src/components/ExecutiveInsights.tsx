@@ -92,6 +92,8 @@ interface ExecutiveInsightsProps {
     globalPriceRange?: { min: number; max: number } | null;
     globalBrandScope?: string | null;
     globalSentimentCategory?: string | null;
+    /** Global SKU (web_pid) filter from GlobalFilterBar — drills every section down to a single SKU */
+    globalSku?: string;
     headlineMetrics?: any;
 }
 
@@ -193,7 +195,7 @@ const SectionLoadingState: React.FC<{ label: string }> = ({ label }) => (
 // MAIN COMPONENT
 // ============================================================================
 
-const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competitorReviews = [], onCharacteristicClick, serverTrends, serverTrendsLoading = false, serverProductHealth, serverProductHealthLoading = false, onRequestHeavyData, onCategorySelect, externalSelectedCategory, globalParetoStatus, globalRatingBifurcation, onClassificationSelect, externalClassification, globalPlatform, globalTrendPeriodMonths, globalDateFrom, globalDateTo, globalPriceMode, globalPriceRange, globalBrandScope, globalSentimentCategory, headlineMetrics }) => {
+const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competitorReviews = [], onCharacteristicClick, serverTrends, serverTrendsLoading = false, serverProductHealth, serverProductHealthLoading = false, onRequestHeavyData, onCategorySelect, externalSelectedCategory, globalParetoStatus, globalRatingBifurcation, onClassificationSelect, externalClassification, globalPlatform, globalTrendPeriodMonths, globalDateFrom, globalDateTo, globalPriceMode, globalPriceRange, globalBrandScope, globalSentimentCategory, globalSku, headlineMetrics }) => {
     const selectedPeriod = globalTrendPeriodMonths || 6;
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
     const [productHealthTab, setProductHealthTab] = useState<'declining' | 'improving'>('declining');
@@ -281,10 +283,13 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
         globalBrandScope,
         globalSentimentCategory,
         currentCategory,
+        globalParetoStatus || null,
+        globalRatingBifurcation || null,
+        globalSku || null,
     );
     const { data: executiveHealth, loading: healthLoading } = useExecutiveHealth(
         currentCategory,
-        null,
+        globalParetoStatus || null,
         globalRatingBifurcation,
         globalPlatform,
         globalTrendPeriodMonths,
@@ -294,6 +299,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
         globalPriceRange,
         globalBrandScope,
         globalSentimentCategory,
+        globalSku || null,
         { enabled: belowFoldDataReady },
     );
     const { data: nlpIssues, loading: issuesLoading } = useIssuesBreakdown(
@@ -308,6 +314,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
         globalPriceRange,
         globalBrandScope,
         globalSentimentCategory,
+        globalSku || null,
         { enabled: belowFoldDataReady },
     );
     const { benchmarks, loading: benchmarkLoading } = useBenchmarkData(
@@ -320,6 +327,8 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
             price_mode: globalPriceMode || undefined,
             price_min: globalPriceRange?.min,
             price_max: globalPriceRange?.max,
+            web_pid: globalSku || undefined,
+            sentiment_category: globalSentimentCategory || undefined,
         },
         { enabled: benchmarkDataReady },
     );
@@ -703,14 +712,15 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                     <>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {([
-                                // authorativeTotal prefers the catalogue count (executive-health now returns
-                                // per-bucket catalogueTotal from masters.products) so NPD/Pareto reflect the
-                                // full catalogue, not just SKUs reviewed in the window (NPD was showing 1 vs 19).
-                                { key: 'npd' as const, label: 'NPD', bucket: executiveHealth.npd, authorativeTotal: executiveHealth.npd.catalogueTotal ?? globalMetadata?.npdCount ?? executiveHealth.npd.total, color: 'indigo', icon: <Zap size={20} />, desc: 'New Product Development', tooltipDef: TOOLTIPS.npdCard },
-                                { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: executiveHealth.pareto.catalogueTotal ?? globalMetadata?.paretoCount ?? executiveHealth.pareto.total, color: 'indigo', icon: <Target size={20} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
-                                { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: executiveHealth.nonPareto.catalogueTotal ?? globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total, color: 'slate', icon: <Layers size={20} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
+                                { key: 'npd' as const, label: 'NPD', bucket: executiveHealth.npd, authorativeTotal: (globalRatingBifurcation || globalParetoStatus) ? (globalMetadata?.npdCount ?? executiveHealth.npd.total) : (executiveHealth.npd.catalogueTotal ?? globalMetadata?.npdCount ?? executiveHealth.npd.total), color: 'indigo', icon: <Zap size={20} />, desc: 'New Product Development', tooltipDef: TOOLTIPS.npdCard },
+                                { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: (globalRatingBifurcation || globalParetoStatus) ? (globalMetadata?.paretoCount ?? executiveHealth.pareto.total) : (executiveHealth.pareto.catalogueTotal ?? globalMetadata?.paretoCount ?? executiveHealth.pareto.total), color: 'indigo', icon: <Target size={20} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
+                                { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: (globalRatingBifurcation || globalParetoStatus) ? (globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total) : (executiveHealth.nonPareto.catalogueTotal ?? globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total), color: 'slate', icon: <Layers size={20} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
                             ])
-                            .filter(card => getActiveBrandName().toLowerCase() !== 'danone' && card.authorativeTotal > 0 && (card.bucket.totalReviewCount ?? 0) > 0)
+                            .filter(card => getActiveBrandName().toLowerCase() !== 'danone' && card.authorativeTotal > 0)
+                            .filter(card => {
+                                if (card.key === 'npd') return (card.bucket.totalReviewCount ?? 0) > 0;
+                                return true;
+                            })
                             .map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {
                                 const isExpanded = expandedPareto === key;
                                 // Build a healthy/watch/at-risk health bar from the rating-bifurcation buckets
@@ -1798,6 +1808,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                     date_to: globalDateTo,
                     is_competitor: globalBrandScope === 'prestige' ? 'false' : globalBrandScope === 'competition' ? 'true' : 'all',
                     sentiment_category: globalSentimentCategory,
+                    web_pid: globalSku,
                     price_mode: globalPriceMode,
                     price_min: globalPriceRange?.min,
                     price_max: globalPriceRange?.max,

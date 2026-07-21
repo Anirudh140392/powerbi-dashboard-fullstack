@@ -6,7 +6,7 @@ const getTargetDb = (req) => {
 
 export const getSummary = async (req, res) => {
     try {
-        const { platform, category, pareto_status, web_pid, date_from, date_to, price_mode, price_min, price_max, is_competitor, sentiment_category, brand } = req.query;
+        const { platform, category, pareto_status, web_pid, date_from, date_to, price_mode, price_min, price_max, is_competitor, sentiment_category, brand, rating_bifurcation } = req.query;
 
         const queryParams = { companyId: String(req.companyId) };
         let where = ['rs.company_id = {companyId:String}'];
@@ -29,8 +29,12 @@ export const getSummary = async (req, res) => {
             queryParams.sentimentCategory = sentiment_category;
         }
         if (pareto_status) {
-            where.push(`rs.resolved_pareto_status = {paretoStatus:String}`);
-            queryParams.paretoStatus = pareto_status;
+            if (pareto_status === 'Non-Pareto') {
+                where.push(`(rs.resolved_pareto_status NOT IN ('Pareto', 'NPD') OR rs.resolved_pareto_status IS NULL)`);
+            } else {
+                where.push(`rs.resolved_pareto_status = {paretoStatus:String}`);
+                queryParams.paretoStatus = pareto_status;
+            }
         }
         if (web_pid) {
             where.push(`rs.web_pid = {webPid:String}`);
@@ -64,6 +68,12 @@ export const getSummary = async (req, res) => {
         if (price_max !== undefined && price_max !== '') {
             where.push(`${priceExpr} <= {priceMax:Float64}`);
             queryParams.priceMax = Number(price_max);
+        }
+        
+        if (rating_bifurcation) {
+            if (rating_bifurcation === 'NP') { where.push(`rs.resolved_pdp_rating >= 4.2`); }
+            else if (rating_bifurcation === 'Issue') { where.push(`rs.resolved_pdp_rating < 4.0`); }
+            else if (rating_bifurcation === 'NI') { where.push(`rs.resolved_pdp_rating >= 4.0 AND rs.resolved_pdp_rating < 4.2`); }
         }
 
         const whereClause = where.join(' AND ');
@@ -171,6 +181,11 @@ export const getSummary = async (req, res) => {
         if (price_max !== undefined && price_max !== '') {
             snapWhere.push(`${snapPriceExpr} <= {priceMax:Float64}`);
             snapParams.priceMax = Number(price_max);
+        }
+        if (rating_bifurcation) {
+            if (rating_bifurcation === 'NP') { snapWhere.push(`sc.rating >= 4.2`); }
+            else if (rating_bifurcation === 'Issue') { snapWhere.push(`sc.rating < 4.0`); }
+            else if (rating_bifurcation === 'NI') { snapWhere.push(`sc.rating >= 4.0 AND sc.rating < 4.2`); }
         }
         const snapWhereSql = snapWhere.length ? `WHERE ${snapWhere.join(' AND ')}` : '';
 
@@ -290,6 +305,12 @@ export const getTrends = async (req, res) => {
             extraFilters.push(`${priceExpr} <= {priceMax:Float64}`);
             queryParams.priceMax = Number(price_max);
         }
+        
+        if (rating_bifurcation) {
+            if (rating_bifurcation === 'NP') { extraFilters.push(`ps.rating >= 4.2`); }
+            else if (rating_bifurcation === 'Issue') { extraFilters.push(`ps.rating < 4.0`); }
+            else if (rating_bifurcation === 'NI') { extraFilters.push(`ps.rating >= 4.0 AND ps.rating < 4.2`); }
+        }
 
         let recentPeriodFilter; let priorPeriodFilter; let combinedWindowFilter;
         if (date_from && date_to) {
@@ -358,7 +379,7 @@ export const getTrends = async (req, res) => {
 
 export const getTimeline = async (req, res) => {
     try {
-        const { category: filterCategory, pareto_status, web_pid, date_from, date_to, platform, price_mode, price_min, price_max, is_competitor } = req.query;
+        const { category: filterCategory, pareto_status, web_pid, date_from, date_to, platform, price_mode, price_min, price_max, is_competitor, rating_bifurcation } = req.query;
         const queryParams = { companyId: String(req.companyId) };
         const extraFilters = [];
         
@@ -381,6 +402,11 @@ export const getTimeline = async (req, res) => {
             const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
             extraFilters.push(`${priceExpr} <= {priceMax:Float64}`); queryParams.priceMax = Number(price_max);
         }
+        if (rating_bifurcation) {
+            if (rating_bifurcation === 'NP') { extraFilters.push(`ps.rating >= 4.2`); }
+            else if (rating_bifurcation === 'Issue') { extraFilters.push(`ps.rating < 4.0`); }
+            else if (rating_bifurcation === 'NI') { extraFilters.push(`ps.rating >= 4.0 AND ps.rating < 4.2`); }
+        }
         
         if (!date_from && !date_to && req.query.period_months) {
             const pm = Math.max(1, Math.min(parseInt(req.query.period_months, 10) || 6, 24));
@@ -388,7 +414,7 @@ export const getTimeline = async (req, res) => {
         }
         
         const extraWhere = extraFilters.length > 0 ? 'AND ' + extraFilters.join(' AND ') : '';
-        const needsPriceJoins = (price_min !== undefined && price_min !== '') || (price_max !== undefined && price_max !== '');
+        const needsPriceJoins = (price_min !== undefined && price_min !== '') || (price_max !== undefined && price_max !== '') || !!rating_bifurcation;
         
         // ClickHouse doesn't support LATERAL JOIN in the same way, but since we just need the latest price_rp/price_sp per product,
         // we can join on a subquery that gets the latest snapshot per product.
@@ -396,7 +422,7 @@ export const getTimeline = async (req, res) => {
             LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
             LEFT JOIN (
                 SELECT * FROM (
-                    SELECT company_id, web_pid, platform, price_rp, price_sp
+                    SELECT company_id, web_pid, platform, price_rp, price_sp, rating
                     FROM product_snapshots
                     WHERE company_id = {companyId:String}
                     ORDER BY snapshot_date DESC, created_at DESC
@@ -524,7 +550,7 @@ export const getRatingTrend = async (req, res) => {
 
 export const getExecutiveHealth = async (req, res) => {
     try {
-        const { category: filterCategory, pareto_status: filterParetoStatus, rating_bifurcation, platform, period_months, date_from, date_to, price_mode, price_min, price_max, is_competitor, sentiment_category } = req.query;
+        const { category: filterCategory, pareto_status: filterParetoStatus, rating_bifurcation, platform, period_months, date_from, date_to, price_mode, price_min, price_max, is_competitor, sentiment_category, web_pid } = req.query;
         const trendPeriod = parseInt(period_months) || 3;
 
         const queryParams = { companyId: String(req.companyId) };
@@ -556,6 +582,12 @@ export const getExecutiveHealth = async (req, res) => {
             masterPlatformFilter += ` AND ilike(mp.platform, {platform:String})`;
         }
 
+        if (web_pid) {
+            queryParams.webPid = String(web_pid);
+            latestSnapshotFilters += ` AND ps.web_pid = {webPid:String}`;
+            reviewScopeFilter += ` AND r.web_pid = {webPid:String}`;
+        }
+
         if (date_from && date_to) {
             queryParams.dateFrom = date_from; queryParams.dateTo = date_to;
             reviewScopeFilter += ` AND r.review_date >= toDate({dateFrom:String}) AND r.review_date <= toDate({dateTo:String})`;
@@ -581,8 +613,12 @@ export const getExecutiveHealth = async (req, res) => {
         else if (rating_bifurcation === 'NI') { ratingFilter = `AND ls.rating >= 4.0 AND ls.rating < 4.2`; }
 
         if (filterParetoStatus) {
-            queryParams.filterParetoStatus = filterParetoStatus;
-            paretoFilter = `AND coalesce(mp.pareto_status, ls.pareto_status) = {filterParetoStatus:String}`;
+            if (filterParetoStatus === 'Non-Pareto') {
+                paretoFilter = `AND (coalesce(mp.pareto_status, ls.pareto_status, rs.pareto_status) NOT IN ('Pareto', 'NPD') OR coalesce(mp.pareto_status, ls.pareto_status, rs.pareto_status) IS NULL)`;
+            } else {
+                queryParams.filterParetoStatus = filterParetoStatus;
+                paretoFilter = `AND coalesce(mp.pareto_status, ls.pareto_status, rs.pareto_status) = {filterParetoStatus:String}`;
+            }
         }
 
         if (price_min !== undefined && price_min !== '') {
@@ -608,6 +644,7 @@ export const getExecutiveHealth = async (req, res) => {
                       FROM product_snapshots ps
                       LEFT JOIN products mp ON mp.company_id = ps.company_id AND mp.product_external_id = ps.web_pid AND lower(mp.platform) = lower(ps.platform)
                       WHERE ps.company_id = {companyId:String} ${snapshotCompetitorFilter} AND coalesce(nullIf(ps.category, ''), nullIf(mp.category, '')) != '' AND ps.snapshot_date >= addMonths(today(), -${trendPeriod}) ${latestSnapshotFilters}
+                        ${sentiment_category && sentiment_category !== 'all' ? `AND ps.web_pid IN (SELECT web_pid FROM ml_reviews WHERE company_id = {companyId:String} AND sentiment_category ILIKE {sentimentCategory:String} AND review_date >= addMonths(today(), -24))` : ''}
                       ORDER BY ps.snapshot_date DESC, ps.created_at DESC
                   ) LIMIT 1 BY web_pid
               ),
@@ -668,6 +705,7 @@ export const getExecutiveHealth = async (req, res) => {
                   END AS health_status
               FROM product_health
               ORDER BY pdp_rating ASC
+              SETTINGS max_memory_usage = 2000000000;
         `;
         console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
@@ -776,7 +814,7 @@ export const getExecutiveHealth = async (req, res) => {
         const catalogueCounts = { Pareto: 0, 'Non-Pareto': 0, NPD: 0 };
         try {
             const catParams = { companyId: String(req.companyId) };
-            let cCompetitor = '', cPlatform = '', cCategory = '';
+            let cCompetitor = '', cPlatform = '', cCategory = '', cWebPid = '';
             if (is_competitor === 'true' || is_competitor === 'false') {
                 catParams.isCompetitor = is_competitor === 'true' ? 1 : 0;
                 cCompetitor = ` AND coalesce(mp.is_competitor, 0) = {isCompetitor:UInt8}`;
@@ -785,10 +823,11 @@ export const getExecutiveHealth = async (req, res) => {
             }
             if (platform && platform !== 'all') { catParams.platform = platform; cPlatform = ` AND ilike(mp.platform, {platform:String})`; }
             if (filterCategory) { catParams.filterCategory = filterCategory; cCategory = ` AND ilike(coalesce(nullIf(mp.category, ''), ''), {filterCategory:String})`; }
+            if (web_pid) { catParams.webPid = String(web_pid); cWebPid = ` AND mp.product_external_id = {webPid:String}`; }
             
             const catRes = await clickhouse.query({ database: getTargetDb(req), query: `
                 SELECT CASE WHEN pareto_status = 'Pareto' THEN 'Pareto' WHEN pareto_status = 'NPD' THEN 'NPD' ELSE 'Non-Pareto' END AS bucket, count(DISTINCT product_external_id) AS skus
-                FROM products mp WHERE mp.company_id = {companyId:String} ${cCompetitor} AND isNotNull(mp.platform) ${cPlatform} ${cCategory} GROUP BY 1
+                FROM products mp WHERE mp.company_id = {companyId:String} ${cCompetitor} AND isNotNull(mp.platform) ${cPlatform} ${cCategory} ${cWebPid} GROUP BY 1
             `, query_params: catParams, format: 'JSONEachRow' });
             const catRows = await catRes.json();
             catRows.forEach(r => { catalogueCounts[r.bucket] = parseInt(r.skus); });
@@ -807,6 +846,7 @@ export const getExecutiveHealth = async (req, res) => {
             } else {
                 prWhere += ` AND r.review_date >= addMonths(today(), -${trendPeriod})`;
             }
+            if (web_pid) { prParams.webPid = String(web_pid); prWhere += ` AND r.web_pid = {webPid:String}`; }
             let prCatClause = '';
             if (filterCategory) { prParams.filterCategory = filterCategory; prCatClause = ` WHERE ilike(trim(rev.resolved_category), {filterCategory:String})`; }
             
@@ -981,7 +1021,7 @@ export const getPriceVariance = async (req, res) => {
 };
 export const getProductHealth = async (req, res) => {
     try {
-        const { category, pareto_status, web_pid, date_from, date_to, platform, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category, brand } = req.query;
+        const { category, pareto_status, web_pid, date_from, date_to, platform, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category, brand, rating_bifurcation } = req.query;
         const trendPeriod = Math.max(1, Math.min(parseInt(period_months) || 3, 24));
         const queryParams = { companyId: String(req.companyId) };
         const where = ['r.company_id = {companyId:String}', 'isNotNull(r.product_name)', 'isNotNull(r.review_date)'];
@@ -1017,6 +1057,12 @@ export const getProductHealth = async (req, res) => {
             const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
             where.push(`${priceExpr} <= {priceMax:Float64}`);
             queryParams.priceMax = Number(price_max);
+        }
+        
+        if (rating_bifurcation) {
+            if (rating_bifurcation === 'NP') { where.push(`ps.rating >= 4.2`); }
+            else if (rating_bifurcation === 'Issue') { where.push(`ps.rating < 4.0`); }
+            else if (rating_bifurcation === 'NI') { where.push(`ps.rating >= 4.0 AND ps.rating < 4.2`); }
         }
 
         let recentPeriodFilter, priorPeriodFilter, combinedWindowFilter;
@@ -1167,7 +1213,7 @@ export const getProductHealth = async (req, res) => {
 
 export const getBenchmarkData = async (req, res) => {
     try {
-        const { category, platform, date_from, date_to, period_months, price_mode, price_min, price_max } = req.query;
+        const { category, platform, date_from, date_to, period_months, price_mode, price_min, price_max, web_pid, sentiment_category } = req.query;
         const targetDb = getTargetDb(req);
         const queryParams = { companyId: String(req.companyId), dbName: targetDb };
         const conditions = [
@@ -1200,6 +1246,37 @@ export const getBenchmarkData = async (req, res) => {
             queryParams.priceMax = Number(price_max);
         }
 
+        // Sentiment filter applies uniformly to Prestige + Competitor rows so the whole
+        // benchmark section (totals, ratings, review counts) reflects only that sentiment.
+        if (sentiment_category && sentiment_category !== 'all') {
+            conditions.push(`ilike(r.sentiment_category, {sentimentCategory:String})`);
+            queryParams.sentimentCategory = sentiment_category;
+        }
+
+        // SKU drill-down: Prestige rows are pinned to the exact web_pid. Competitors don't
+        // share a web_pid with Prestige, so they're scoped to the selected SKU's category instead
+        // (standard cross-brand benchmark behavior).
+        let skuTargetCte = '';
+        let skuCondition = '';
+        if (web_pid) {
+            queryParams.webPid = String(web_pid);
+            skuTargetCte = `,
+            sku_target AS (
+                SELECT category FROM (
+                    SELECT coalesce(nullIf(ps2.category, ''), nullIf(mp2.category, '')) AS category
+                    FROM product_snapshots ps2
+                    LEFT JOIN products mp2 ON mp2.company_id = ps2.company_id AND mp2.product_external_id = ps2.web_pid AND lower(mp2.platform) = lower(ps2.platform)
+                    WHERE ps2.company_id = {companyId:String} AND ps2.web_pid = {webPid:String}
+                    ORDER BY ps2.snapshot_date DESC
+                    LIMIT 1
+                )
+            )`;
+            skuCondition = `AND (
+                (coalesce(r.is_competitor, 0) = 0 AND r.web_pid = {webPid:String})
+                OR (coalesce(r.is_competitor, 0) = 1 AND coalesce(nullIf(ps.category, ''), nullIf(r.category, ''), nullIf(mp.category, '')) IN (SELECT category FROM sku_target))
+            )`;
+        }
+
         const sql = `
             WITH latest_snapshots AS (
                 SELECT * FROM (
@@ -1208,7 +1285,7 @@ export const getBenchmarkData = async (req, res) => {
                     WHERE company_id = {companyId:String}
                     ORDER BY snapshot_date DESC, created_at DESC
                 ) LIMIT 1 BY lower(platform), web_pid
-            ),
+            )${skuTargetCte},
             scoped_reviews AS (
                 SELECT
                     multiIf(coalesce(r.is_competitor, 0) = 0, initcap({dbName:String}), initcap(lower(r.brand))) AS brand,
@@ -1220,6 +1297,7 @@ export const getBenchmarkData = async (req, res) => {
                 LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
                 LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid AND lower(ps.platform) = lower(r.platform)
                 WHERE ${conditions.join(' AND ')}
+                ${skuCondition}
             ),
             brand_totals AS (
                 SELECT
@@ -1310,7 +1388,7 @@ export const getBenchmarkData = async (req, res) => {
 
 export const getCategoryHealth = async (req, res) => {
     try {
-        const { date_from, date_to, platform, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category, category } = req.query;
+        const { date_from, date_to, platform, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category, category, pareto_status, rating_bifurcation, web_pid } = req.query;
         const trendPeriod = parseInt(period_months) || 3;
 
         const queryParams = { companyId: String(req.companyId) };
@@ -1322,6 +1400,14 @@ export const getCategoryHealth = async (req, res) => {
         let competitorFilter = '';
         let snapCompetitorFilter = '';
         const sentimentCategoryFilters = [];
+        // SKU (web_pid) drill-down — scopes the whole category-health response to a single SKU
+        let webPidFilterPlain = ''; let webPidFilterLs = ''; let webPidFilterR = '';
+        if (web_pid) {
+            queryParams.webPid = String(web_pid);
+            webPidFilterPlain = ' AND web_pid = {webPid:String}';
+            webPidFilterLs = ' AND ls.web_pid = {webPid:String}';
+            webPidFilterR = ' AND r.web_pid = {webPid:String}';
+        }
         const catFilters = [];
         const snapCatFilters = [];
         const masterPlatformFilters = [];
@@ -1348,6 +1434,24 @@ export const getCategoryHealth = async (req, res) => {
             snapCatFilters.push(`coalesce(nullIf(ls.category, ''), nullIf(mp.category, '')) ILIKE {category:String}`);
             queryParams.category = category;
         }
+
+        let snapParetoFilter = '';
+        let reviewParetoFilter = '';
+        if (pareto_status) {
+            if (pareto_status === 'Non-Pareto') {
+                snapParetoFilter = `AND (coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, '')) NOT IN ('Pareto', 'NPD') OR coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, '')) IS NULL)`;
+                reviewParetoFilter = `AND (coalesce(nullIf(mp.pareto_status, ''), nullIf(r.pareto_status, '')) NOT IN ('Pareto', 'NPD') OR coalesce(nullIf(mp.pareto_status, ''), nullIf(r.pareto_status, '')) IS NULL)`;
+            } else {
+                snapParetoFilter = `AND coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, '')) = {paretoStatus:String}`;
+                reviewParetoFilter = `AND coalesce(nullIf(mp.pareto_status, ''), nullIf(r.pareto_status, '')) = {paretoStatus:String}`;
+                queryParams.paretoStatus = pareto_status;
+            }
+        }
+
+        let snapRatingFilter = '';
+        if (rating_bifurcation === 'NP') { snapRatingFilter = `AND ls.rating >= 4.2`; }
+        else if (rating_bifurcation === 'Issue') { snapRatingFilter = `AND ls.rating < 4.0`; }
+        else if (rating_bifurcation === 'NI') { snapRatingFilter = `AND ls.rating >= 4.0 AND ls.rating < 4.2`; }
 
         if (platform && platform !== 'all') {
             platformFilters.push(`ilike(r.platform, {platform:String})`);
@@ -1404,7 +1508,8 @@ export const getCategoryHealth = async (req, res) => {
                 SELECT * FROM (
                     SELECT web_pid, platform, price_rp, price_sp, category, pareto_status, rating, rating_count
                     FROM product_snapshots
-                    WHERE company_id = {companyId:String} ${snapshotDateFilter}
+                    WHERE company_id = {companyId:String} ${snapshotDateFilter} ${webPidFilterPlain}
+                    ${sentiment_category && sentiment_category !== 'all' ? `AND web_pid IN (SELECT r.web_pid FROM ml_reviews r WHERE r.company_id = {companyId:String} AND r.sentiment_category ILIKE {sentimentCategory:String} ${growthRangeFilter.replace(/mp\./g, 'r.')})` : ''}
                     ORDER BY snapshot_date DESC, created_at DESC
                 ) LIMIT 1 BY lower(platform), web_pid
             ),
@@ -1421,6 +1526,9 @@ export const getCategoryHealth = async (req, res) => {
                 WHERE coalesce(nullIf(ls.category, ''), nullIf(mp.category, '')) != ''
                   ${snapCompetitorFilter}
                   ${snapPlatformFiltStr}
+                  ${snapParetoFilter}
+                  ${snapRatingFilter}
+                  ${webPidFilterLs}
             ),
             review_only_cats AS (
                 SELECT * FROM (
@@ -1438,6 +1546,10 @@ export const getCategoryHealth = async (req, res) => {
                       ${platformFiltStr}
                       AND coalesce(nullIf(r.category, ''), nullIf(mp.category, '')) != ''
                       ${growthRangeFilter}
+                      ${reviewParetoFilter}
+                      ${rating_bifurcation ? 'AND 1=0' : ''} -- If filtering by rating, review-only SKUs have no rating so they are excluded
+                      ${sentimentCategoryFilters.length ? 'AND ' + sentimentCategoryFilters.join(' AND ') : ''}
+                      ${webPidFilterR}
                       AND r.web_pid NOT IN (SELECT web_pid FROM snap_cats)
                     ORDER BY r.review_date DESC
                 ) LIMIT 1 BY web_pid
@@ -1477,6 +1589,7 @@ export const getCategoryHealth = async (req, res) => {
                 JOIN sku_category_map scm ON scm.web_pid = r.web_pid AND scm.platform_key = lower(r.platform)
                 WHERE r.company_id = {companyId:String} ${competitorFilter} ${currentScopeFilter}
                 ${sentimentCategoryFilters.length ? 'AND ' + sentimentCategoryFilters.join(' AND ') : ''}
+                ${webPidFilterR}
                 GROUP BY scm.category
             ),
             cat_growth AS (
@@ -1489,6 +1602,7 @@ export const getCategoryHealth = async (req, res) => {
                 JOIN sku_category_map scm ON scm.web_pid = r.web_pid AND scm.platform_key = lower(r.platform)
                 WHERE r.company_id = {companyId:String} ${competitorFilter} ${growthRangeFilter}
                 ${sentimentCategoryFilters.length ? 'AND ' + sentimentCategoryFilters.join(' AND ') : ''}
+                ${webPidFilterR}
                 GROUP BY scm.category
             ),
             cat_products AS (
@@ -1505,7 +1619,7 @@ export const getCategoryHealth = async (req, res) => {
                     multiIf(trim(lower(mp.category)) IN ('other', 'others'), 'Others', initcap(trim(mp.category))) AS cat_name,
                     count(DISTINCT mp.product_external_id) AS catalogue_sku_count
                 FROM products mp
-                WHERE mp.company_id = {companyId:String} AND mp.platform != '' AND mp.category != '' ${snapCompetitorFilter} ${masterPlatformFiltStr}
+                WHERE mp.company_id = {companyId:String} AND mp.platform != '' AND mp.category != '' ${snapCompetitorFilter} ${masterPlatformFiltStr} ${web_pid ? 'AND mp.product_external_id = {webPid:String}' : ''}
                 GROUP BY cat_name
             ),
             combined_cats AS (
@@ -1527,6 +1641,7 @@ export const getCategoryHealth = async (req, res) => {
                 WHERE c.sku_count > 0 OR r.review_count > 0
             )
             SELECT * FROM combined_cats ORDER BY review_count DESC
+            SETTINGS max_memory_usage = 2000000000;
         `;
         
         console.log("SQL:", sql);

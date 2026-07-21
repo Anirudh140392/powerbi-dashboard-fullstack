@@ -477,6 +477,7 @@ const Dashboard: React.FC = () => {
                                     globalPriceRange={filters.priceRange}
                                     globalBrandScope={filters.brandScope}
                                     globalSentimentCategory={currentSentimentCategory}
+                                    globalSku={apiFilters.web_pid as string | undefined}
                                     headlineMetrics={headlineMetrics}
                                 />
                             </motion.div>
@@ -497,6 +498,7 @@ const Dashboard: React.FC = () => {
                                         onCategoryClick={(category) => {
                                             setSelectedCharacteristic(category);
                                         }}
+                                        globalParetoStatus={apiFilters.pareto_status as string | undefined}
                                     />
                                 </Suspense>
                             </motion.div>
@@ -524,6 +526,7 @@ const Dashboard: React.FC = () => {
                                         }}
                                         externalSelectedCategory={filters.productCategory}
                                         allCategories={allProductCategories}
+                                        globalPlatform={filters.platform}
                                     />
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                         <CompetitorRadarChart reviews={filteredPrestigeReviews} competitorReviews={filteredCompetitorReviews} />

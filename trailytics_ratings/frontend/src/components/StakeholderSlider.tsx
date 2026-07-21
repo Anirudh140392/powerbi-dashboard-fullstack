@@ -54,6 +54,7 @@ interface StakeholderSliderProps {
         price_max?: number | null;
         is_competitor?: string | null;
         sentiment_category?: string | null;
+        web_pid?: string | null;
     };
 }
 

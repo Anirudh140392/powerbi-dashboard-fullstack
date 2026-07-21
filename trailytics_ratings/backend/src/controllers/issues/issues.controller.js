@@ -7,10 +7,15 @@ const getTargetDb = (req) => {
 
 export const getIssuesBreakdown = async (req, res) => {
     try {
-        const { category: filterCategory, pareto_status: filterParetoStatus, rating_bifurcation, platform, date_from, date_to, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category } = req.query;
+        const { category: filterCategory, pareto_status: filterParetoStatus, rating_bifurcation, platform, date_from, date_to, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category, web_pid } = req.query;
 
         const queryParams = { companyId: String(req.companyId) };
         const extraFilters = [];
+
+        if (web_pid) {
+            queryParams.webPid = String(web_pid);
+            extraFilters.push(`r.web_pid = {webPid:String}`);
+        }
 
         if (is_competitor === 'true' || is_competitor === 'false') {
             extraFilters.push(`coalesce(r.is_competitor, 0) = {isCompetitor:UInt8}`);

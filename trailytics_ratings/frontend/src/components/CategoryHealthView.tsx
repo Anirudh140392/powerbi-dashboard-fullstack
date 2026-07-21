@@ -31,6 +31,8 @@ import { useSpecTypeMappings, normalizeCategory } from '../hooks/useRatingsAPI';
 interface Props {
     reviews: Review[];
     onCategoryClick?: (category: string) => void;
+    /** Global Pareto/Type filter from GlobalFilterBar (e.g. 'Pareto', 'Non-Pareto', 'NPD') */
+    globalParetoStatus?: string;
 }
 
 interface CategoryCard {
@@ -153,7 +155,7 @@ const PALETTES = [
 // ============================================================================
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function CategoryHealthView({ reviews, onCategoryClick: _onCategoryClick }: Props) {
+function CategoryHealthView({ reviews, onCategoryClick: _onCategoryClick, globalParetoStatus }: Props) {
     const [viewDimension, setViewDimension] = useState<ViewDimension>('feedback');
     const [drillLevel, setDrillLevel] = useState<DrillLevel>('overview');
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -173,7 +175,15 @@ function CategoryHealthView({ reviews, onCategoryClick: _onCategoryClick }: Prop
     const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
     const [issueSkuSelected, setIssueSkuSelected] = useState<string | null>(null);
     const [issueRatingFilter, setIssueRatingFilter] = useState<number | null>(null);
-    const [paretoFilter, setParetoFilter] = useState<'all' | 'Pareto' | 'Non-Pareto' | 'NPD'>('all');
+    // Pareto filter is now driven by the global filter bar (globalParetoStatus prop)
+    // Map the API pareto_status value back to the internal filter format
+    const paretoFilter: 'all' | 'Pareto' | 'Non-Pareto' | 'NPD' = useMemo(() => {
+        if (!globalParetoStatus) return 'all';
+        if (globalParetoStatus === 'Pareto') return 'Pareto';
+        if (globalParetoStatus === 'Non-Pareto' || globalParetoStatus === 'Non-Pareto (Unclassified)') return 'Non-Pareto';
+        if (globalParetoStatus === 'NPD') return 'NPD';
+        return 'all';
+    }, [globalParetoStatus]);
     const [drilldownIssue, setDrilldownIssue] = useState<string | null>(null);
 
     const { mappings: specTypeMappings } = useSpecTypeMappings();
@@ -653,26 +663,17 @@ function CategoryHealthView({ reviews, onCategoryClick: _onCategoryClick }: Prop
                         {showPercentMode ? '% of Total' : 'Counts'}
                     </motion.button>
 
-                    {/* Pareto / Non-Pareto / NPD toggle */}
-                    <div className="flex items-center bg-slate-100/80 dark:bg-slate-800/80 rounded-xl p-0.5 border border-slate-200/40 dark:border-slate-700/40">
-                        <Filter size={12} className="text-slate-400 mx-1.5" />
-                        {(['all', 'Pareto', 'Non-Pareto', 'NPD'] as const).map(opt => (
-                            <button
-                                key={opt}
-                                onClick={() => setParetoFilter(opt)}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
-                                    paretoFilter === opt
-                                        ? opt === 'Pareto' ? 'bg-emerald-500 text-white shadow-sm'
-                                            : opt === 'NPD' ? 'bg-purple-500 text-white shadow-sm'
-                                                : opt === 'Non-Pareto' ? 'bg-slate-600 text-white shadow-sm'
-                                                    : 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                                }`}
-                            >
-                                {opt === 'all' ? 'All' : opt === 'Pareto' ? '🏆 Pareto' : opt === 'NPD' ? '🆕 NPD' : '📦 Non-Pareto'}
-                            </button>
-                        ))}
-                    </div>
+                    {/* Pareto filter is now controlled via GlobalFilterBar → Type dropdown */}
+                    {paretoFilter !== 'all' && (
+                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${
+                            paretoFilter === 'Pareto' ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
+                            : paretoFilter === 'NPD' ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300'
+                            : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300'
+                        }`}>
+                            <Filter size={11} />
+                            {paretoFilter === 'Pareto' ? '🏆 Pareto' : paretoFilter === 'NPD' ? '🆕 NPD' : '📦 Non-Pareto'}
+                        </div>
+                    )}
                 </div>
             </div>
 

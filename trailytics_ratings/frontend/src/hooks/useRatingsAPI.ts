@@ -525,6 +525,7 @@ export function useExecutiveHealth(
     priceRange?: { min: number; max: number } | null,
     brandScope?: string | null,
     sentimentCategory?: string | null,
+    sku?: string | null,
     options: HookOptions = {},
 ) {
     const [data, setData] = useState<ExecutiveHealthData | null>(null);
@@ -550,13 +551,14 @@ export function useExecutiveHealth(
         else if (brandScope === 'competition') params.is_competitor = 'true';
         else if (brandScope === 'all') params.is_competitor = 'all';
         if (sentimentCategory) params.sentiment_category = sentimentCategory;
+        if (sku) params.web_pid = sku;
         
         setLoading(true);
         fetchAPI<ExecutiveHealthData>('/executive-health', params)
             .then(result => { setData(result); })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [enabled, category, paretoStatus, ratingBifurcation, platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, sentimentCategory]);
+    }, [enabled, category, paretoStatus, ratingBifurcation, platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, sentimentCategory, sku]);
 
     return { data, loading };
 }
@@ -618,6 +620,9 @@ export function useCategoryHealth(
     brandScope?: string | null,
     sentimentCategory?: string | null,
     category?: string | null,
+    paretoStatus?: string | null,
+    ratingBifurcation?: string | null,
+    sku?: string | null,
 ) {
     const [data, setData] = useState<CategoryHealthItem[]>([]);
     const [globalMetadata, setGlobalMetadata] = useState<GlobalCategoryMetadata>({ 
@@ -655,6 +660,9 @@ export function useCategoryHealth(
 
         if (sentimentCategory) params.sentiment_category = sentimentCategory;
         if (category) params.category = category;
+        if (paretoStatus) params.pareto_status = paretoStatus;
+        if (ratingBifurcation) params.rating_bifurcation = ratingBifurcation;
+        if (sku) params.web_pid = sku;
 
         setLoading(true);
         fetchAPI<{ categories: CategoryHealthItem[], total?: GlobalCategoryMetadata }>('/category-health', params)
@@ -668,7 +676,7 @@ export function useCategoryHealth(
             })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, sentimentCategory, category]);
+    }, [platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, sentimentCategory, category, paretoStatus, ratingBifurcation, sku]);
 
     return { data, globalMetadata, loading };
 }
@@ -741,6 +749,7 @@ export function useIssuesBreakdown(
     priceRange?: { min: number; max: number } | null,
     brandScope?: string | null,
     sentimentCategory?: string | null,
+    sku?: string | null,
     options: HookOptions = {},
 ) {
     const [data, setData] = useState<NlpIssue[]>([]);
@@ -766,12 +775,13 @@ export function useIssuesBreakdown(
         else if (brandScope === 'competition') params.is_competitor = 'true';
         else if (brandScope === 'all') params.is_competitor = 'all';
         if (sentimentCategory) params.sentiment_category = sentimentCategory;
+        if (sku) params.web_pid = sku;
         setLoading(true);
         fetchAPI<{ issues: NlpIssue[] }>('/issues-breakdown', params)
             .then(result => { setData(result.issues); })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [enabled, category, paretoStatus, ratingBifurcation, platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, sentimentCategory]);
+    }, [enabled, category, paretoStatus, ratingBifurcation, platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, sentimentCategory, sku]);
 
     return { data, loading };
 }
@@ -900,6 +910,7 @@ export function useStakeholderDetail(
         price_max?: number | null;
         sentiment_category?: string | null;
         is_competitor?: string | null;
+        web_pid?: string | null;
     }
 ) {
     const [data, setData] = useState<StakeholderIssue[]>([]);
@@ -924,6 +935,7 @@ export function useStakeholderDetail(
         if (filters?.price_max !== undefined && filters?.price_max !== null) params.price_max = String(filters.price_max);
         if (filters?.sentiment_category) params.sentiment_category = filters.sentiment_category;
         if (filters?.is_competitor) params.is_competitor = filters.is_competitor;
+        if (filters?.web_pid) params.web_pid = filters.web_pid;
 
         setLoading(true);
         fetchAPI<StakeholderDetailResponse>('/stakeholder-detail', params)
@@ -933,7 +945,7 @@ export function useStakeholderDetail(
             })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [stakeholderName, filters?.category, filters?.pareto_status, filters?.rating_bifurcation, filters?.platform, filters?.date_from, filters?.date_to, filters?.price_mode, filters?.price_min, filters?.price_max, filters?.sentiment_category, filters?.is_competitor]);
+    }, [stakeholderName, filters?.category, filters?.pareto_status, filters?.rating_bifurcation, filters?.platform, filters?.date_from, filters?.date_to, filters?.price_mode, filters?.price_min, filters?.price_max, filters?.sentiment_category, filters?.is_competitor, filters?.web_pid]);
 
     return { data, uniqueSkuCount, loading };
 }
