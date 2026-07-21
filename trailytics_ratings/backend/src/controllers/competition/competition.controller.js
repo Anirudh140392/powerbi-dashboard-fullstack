@@ -8,7 +8,11 @@ const getTargetDb = (req) => {
 export const getCompetitorMentions = async (req, res) => {
     try {
         const { brand, platform, date_from, date_to, limit = 100 } = req.query;
-        const queryParams = { companyId: String(req.companyId) };
+        const companyId = req.query.company_id || req.query.companyId || req.companyId;
+        if (!companyId) {
+            return res.status(400).json({ error: 'Company ID required' });
+        }
+        const queryParams = { companyId: String(companyId) };
         const where = ['company_id = {companyId:String}'];
         
         if (brand)     { where.push(`lower(brand) = lower({brand:String})`); queryParams.brand = brand; }
@@ -23,10 +27,10 @@ export const getCompetitorMentions = async (req, res) => {
 
         const aggQuery = `
             SELECT lower(brand) AS brand,
-                   count(DISTINCT review_id) AS total,
-                   count(DISTINCT review_id) FILTER (WHERE is_favorable = 1) AS favorable,
-                   count(DISTINCT review_id) FILTER (WHERE sentiment = 'Negative' AND is_favorable = 0) AS unfavorable,
-                   count(DISTINCT review_id) FILTER (WHERE is_favorable = 0 AND sentiment != 'Negative') AS neutral
+                   uniqExact(review_id) AS total,
+                   uniqExactIf(review_id, is_favorable = 1) AS favorable,
+                   uniqExactIf(review_id, sentiment = 'Negative' AND is_favorable = 0) AS unfavorable,
+                   uniqExactIf(review_id, is_favorable = 0 AND sentiment != 'Negative') AS neutral
             FROM competitor_mentions
             WHERE ${whereSql}
             GROUP BY brand
