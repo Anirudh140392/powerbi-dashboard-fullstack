@@ -716,13 +716,10 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                 { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: (globalRatingBifurcation || globalParetoStatus) ? (globalMetadata?.paretoCount ?? executiveHealth.pareto.total) : (executiveHealth.pareto.catalogueTotal ?? globalMetadata?.paretoCount ?? executiveHealth.pareto.total), color: 'indigo', icon: <Target size={20} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
                                 { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: (globalRatingBifurcation || globalParetoStatus) ? (globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total) : (executiveHealth.nonPareto.catalogueTotal ?? globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total), color: 'slate', icon: <Layers size={20} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
                             ])
-                            .filter(card => getActiveBrandName().toLowerCase() !== 'danone' && card.authorativeTotal > 0)
-                            .filter(card => {
-                                if (card.key === 'npd') return (card.bucket.totalReviewCount ?? 0) > 0;
-                                return true;
-                            })
+                            .filter(() => getActiveBrandName().toLowerCase() !== 'danone')
                             .map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {
                                 const isExpanded = expandedPareto === key;
+                                const hasSkus = Number(authorativeTotal || 0) > 0;
                                 // Build a healthy/watch/at-risk health bar from the rating-bifurcation buckets
                                 const healthTotal = (bucket?.np?.count || 0) + (bucket?.ni?.count || 0) + (bucket?.issue?.count || 0);
                                 const healthyPct = healthTotal > 0 ? ((bucket?.np?.count || 0) / healthTotal) * 100 : 0;
@@ -769,6 +766,12 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                         </motion.div>
                                     </div>
 
+                                    {!hasSkus ? (
+                                    <div className="flex items-center gap-2 py-3 text-slate-400 dark:text-slate-500">
+                                        <HelpCircle size={14} className="shrink-0" />
+                                        <span className="text-xs font-medium">No SKUs match the current filters</span>
+                                    </div>
+                                    ) : (
                                     <>
                                     {/* Single dense stats row: hero count · ratings · counts · delta */}
                                     <div className="grid grid-cols-12 gap-3 items-center">
@@ -863,6 +866,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                         </div>
                                     )}
                                     </>
+                                    )}
                                 </motion.div>
                                 );
                             })}
