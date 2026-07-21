@@ -224,3 +224,5 @@ jobs:
           echo "| Ratings Backend | ratings_backend | 3001 |" >> $GITHUB_STEP_SUMMARY
           echo "| Content Analysis Backend | content_backend | 8000 |" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend | frontend_multiple | 9400 |" >> $GITHUB_STEP_SUMMARY
+
+          
