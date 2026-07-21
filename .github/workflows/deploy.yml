@@ -30,6 +30,8 @@ jobs:
             echo "EOF" >> $GITHUB_ENV
             echo "TARGET_USER=${{ secrets.EC2_USER }}" >> $GITHUB_ENV
             echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_URL }}" >> $GITHUB_ENV
+            echo "TARGET_ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}" >> $GITHUB_ENV
+            echo "TARGET_VITE_API_URL=${{ secrets.VITE_API_URL }}" >> $GITHUB_ENV
           elif [ "${{ github.ref_name }}" = "enhancement_01122025_dev_kenil" ]; then
             echo "DEPLOY_ENV=development" >> $GITHUB_ENV
             echo "TARGET_HOST=${{ secrets.EC2_DEV_HOST }}" >> $GITHUB_ENV
@@ -38,6 +40,14 @@ jobs:
             echo "EOF" >> $GITHUB_ENV
             echo "TARGET_USER=${{ secrets.EC2_USER }}" >> $GITHUB_ENV
             echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_DEV_URL }}" >> $GITHUB_ENV
+            
+            ALLOWED_ORIGINS_DEV="${{ secrets.ALLOWED_ORIGINS_DEV }}"
+            [ -z "$ALLOWED_ORIGINS_DEV" ] && ALLOWED_ORIGINS_DEV="${{ secrets.ALLOWED_ORIGINS }}"
+            echo "TARGET_ALLOWED_ORIGINS=${ALLOWED_ORIGINS_DEV}" >> $GITHUB_ENV
+
+            VITE_API_DEV_URL="${{ secrets.VITE_API_DEV_URL }}"
+            [ -z "$VITE_API_DEV_URL" ] && VITE_API_DEV_URL="${{ secrets.VITE_API_URL }}"
+            echo "TARGET_VITE_API_URL=${VITE_API_DEV_URL}" >> $GITHUB_ENV
           fi
           echo "🎯 Deploying to ${{ github.ref_name }} environment"
 
@@ -91,7 +101,7 @@ jobs:
           API_PORT=3001
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
           VITE_RAILWAY_URL=${{ secrets.VITE_RAILWAY_URL }}
-          ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
+          ALLOWED_ORIGINS=${{ env.TARGET_ALLOWED_ORIGINS }}
           CLICKHOUSE_HOST=${{ env.TARGET_CLICKHOUSE_URL }}
           CLICKHOUSE_DB=${{ secrets.CLICKHOUSE_DB }}
           CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}
@@ -106,6 +116,23 @@ jobs:
           PUBLIC_DASHBOARD_URL=${{ secrets.PUBLIC_DASHBOARD_URL }}
           EOF
             echo "✅ Ratings backend .env file created"
+          ENDSSH
+
+      - name: Create frontend .env files on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.TARGET_USER }}@${{ env.TARGET_HOST }} << 'ENDSSH'
+            cd ${{ env.APP_DIR }}
+            mkdir -p trailytics_ratings/frontend
+            cat > trailytics_ratings/frontend/.env << 'EOF'
+          VITE_API_URL=${{ env.TARGET_VITE_API_URL }}
+          VITE_RAILWAY_URL=${{ secrets.VITE_RAILWAY_URL }}
+          VITE_COMPANY_ID=${{ secrets.COMPANY_ID }}
+          EOF
+            mkdir -p frontend
+            cat > frontend/.env << 'EOF'
+          VITE_API_URL=${{ env.TARGET_VITE_API_URL }}
+          EOF
+            echo "✅ Frontend .env files created for ${{ env.DEPLOY_ENV }} environment"
           ENDSSH
 
       - name: Create content analysis backend .env file on EC2
