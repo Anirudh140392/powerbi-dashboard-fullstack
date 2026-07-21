@@ -6,6 +6,7 @@ on:
     branches:
       - enhancement_01122025_backend_kenil
       - enhancement_01122025_dev_kenil
+      - enhancement_01122025_marico_kenil
   workflow_dispatch:  # Allow manual trigger
 
 env:
@@ -48,6 +49,17 @@ jobs:
             VITE_API_DEV_URL="${{ secrets.VITE_API_DEV_URL }}"
             [ -z "$VITE_API_DEV_URL" ] && VITE_API_DEV_URL="${{ secrets.VITE_API_URL }}"
             echo "TARGET_VITE_API_URL=${VITE_API_DEV_URL}" >> $GITHUB_ENV
+          elif [ "${{ github.ref_name }}" = "enhancement_01122025_marico_kenil" ]; then
+            echo "DEPLOY_ENV=marico" >> $GITHUB_ENV
+            echo "APP_DIR=/project/enhancement_01122025_marico_kenil" >> $GITHUB_ENV
+            echo "TARGET_HOST=${{ secrets.EC2_HOST_MARICO }}" >> $GITHUB_ENV
+            echo "TARGET_SSH_KEY<<EOF" >> $GITHUB_ENV
+            echo "${{ secrets.EC2_SSH_KEY_MARICO }}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+            echo "TARGET_USER=${{ secrets.EC2_USERNAME_MARICO }}" >> $GITHUB_ENV
+            echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_MARICO_URL }}" >> $GITHUB_ENV
+            echo "TARGET_ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}" >> $GITHUB_ENV
+            echo "TARGET_VITE_API_URL=${{ secrets.VITE_API_URL }}" >> $GITHUB_ENV
           fi
           echo "🎯 Deploying to ${{ github.ref_name }} environment"
 
