@@ -1,4 +1,4 @@
-{
+  {
   "name": "backend",
   "version": "1.0.0",
   "description": "",
@@ -6,7 +6,7 @@
   "main": "src/app.js",
   "scripts": {
     "redis": "redis-server",
-    "dev": "concurrently \"nodemon --max-http-header-size=81920 src/app.js\" \"npm run dev --prefix ../trailytics_ratings/backend\" \"npm run dev --prefix ../trailytics_content_analysis/backend\"",
+    "dev": "concurrently \"nodemon --max-http-header-size=81920 src/app.js\" \"cd ../trailytics_ratings/backend && npm run dev\" \"cd ../trailytics_content_analysis/backend && npm run dev\"",
     "start": "node --max-http-header-size=81920 src/app.js"
   },
   "keywords": [],
