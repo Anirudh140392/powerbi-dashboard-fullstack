@@ -104,6 +104,25 @@ const MarketCatOverview = ({
         filterLogic: 'OR',
     })
 
+    // Reset advanced/local filters when global filters are reset to defaults
+    useEffect(() => {
+        const isGlobalPlatformReset = globalPlatform === "All" || (Array.isArray(globalPlatform) && globalPlatform.includes("All")) || globalPlatform === "";
+        const isGlobalBrandReset = selectedBrand === "All";
+        const isGlobalCategoryReset = selectedCategory === "All";
+        const isGlobalLocationReset = selectedLocation === "All";
+
+        if (isGlobalPlatformReset && isGlobalBrandReset && isGlobalCategoryReset && isGlobalLocationReset) {
+            setAdvancedFilters({
+                categories: [],
+                cities: [],
+                dateFrom: '',
+                dateTo: '',
+                kpis: ['categorySize', 'mwMarketShare', 'mwSales', 'mlMarketShare'],
+                filterLogic: 'OR',
+            });
+        }
+    }, [globalPlatform, selectedBrand, selectedCategory, selectedLocation]);
+
     // Backend data state
     const [backendData, setBackendData] = useState(null);
     const [dataLoading, setDataLoading] = useState(true);

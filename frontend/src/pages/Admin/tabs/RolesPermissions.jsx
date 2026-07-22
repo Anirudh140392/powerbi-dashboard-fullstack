@@ -72,7 +72,7 @@ const RolesPermissions = () => {
         "Market Coverage", "Visibility Analysis", "Market Share", "Sales Data", 
         "Pricing Analysis", "Performance Marketing", "Portfolio Analysis", "Content Analysis",
         "Inventory Analysis", "Play it Yourself", "Category RCA",
-        "Scheduled Reports", "Download Report", "Ad Auto", "Rating", "Supply", "Content", "Priority Action", "PDS Score"
+        "Scheduled Reports", "Download Report", "Ad Auto", "Rating", "Review Rating", "Supply", "Content", "Priority Action", "PDS Score"
     ];
 
     const [usersData, setUsersData] = useState([]);

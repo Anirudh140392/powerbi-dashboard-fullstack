@@ -1,0 +1,50 @@
+@source "../../../../trailytics_content_analysis/frontend/src";
+@import "../../../../trailytics_content_analysis/frontend/src/index.css";
+/*
+ * ContentAnalysisPage — CSS isolation wrapper
+ */
+
+/* ── layout: fill the flex column parent that CommonContainer's Container gives us ── */
+.content-analysis-isolated {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f8fafc;
+  /* Dashboard's root div uses h-full – give it a real pixel-height context */
+  height: 100%;
+}
+
+/* ── undo the Digital Shelf global font override inside ratings ── */
+.content-analysis-isolated *:not(svg):not(svg *):not(.material-icons):not([class*="icon"]) {
+  font-family: 'Inter', 'Mulish', system-ui, sans-serif !important;
+}
+
+/* ── undo Digital Shelf table text-transform ── */
+.content-analysis-isolated table tbody td {
+  text-transform: none !important;
+}
+
+/* ── undo MUI component text-transform ── */
+.content-analysis-isolated .MuiTableCell-body,
+.content-analysis-isolated .MuiChip-label,
+.content-analysis-isolated .MuiListItemText-primary,
+.content-analysis-isolated .MuiAutocomplete-option,
+.content-analysis-isolated [data-slot="badge"],
+.content-analysis-isolated .MuiSelect-select,
+.content-analysis-isolated .MuiMenuItem-root {
+  text-transform: none !important;
+}
+
+/* ── recharts ── */
+.content-analysis-isolated .recharts-tooltip-item-value,
+.content-analysis-isolated .recharts-legend-item-text {
+  text-transform: none !important;
+}
+
+/* ── ensure Suspense fallback also centers inside the full height ── */
+.content-analysis-isolated > * {
+  min-height: 0;
+}

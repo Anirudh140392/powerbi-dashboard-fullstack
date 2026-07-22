@@ -6,7 +6,7 @@
   "main": "src/app.js",
   "scripts": {
     "redis": "redis-server",
-    "dev": "concurrently \"nodemon --max-http-header-size=81920 src/app.js\"",
+    "dev": "concurrently \"nodemon --max-http-header-size=81920 src/app.js\" \"npm run dev --prefix ../trailytics_ratings/backend\" \"npm run dev --prefix ../trailytics_content_analysis/backend\"",
     "start": "node --max-http-header-size=81920 src/app.js"
   },
   "keywords": [],
@@ -17,6 +17,7 @@
     "@clickhouse/client-common": "^1.16.0",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dayjs": "^1.11.19",
     "dotenv": "^17.2.3",
@@ -28,6 +29,7 @@
     "socket.io": "^4.8.3",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
+    "uuid": "^14.0.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

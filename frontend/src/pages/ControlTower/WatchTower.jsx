@@ -595,6 +595,7 @@ export default function WatchTower() {
   // Sync loading state with filter changes to prevent one-frame flicker
   const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${selectedChannel}-${selectedMsl}`;
   const [prevFilterKey, setPrevFilterKey] = useState(currentFilterKey);
+  const lastFetchedOverviewKey = useRef(null);
 
   if (prevFilterKey !== currentFilterKey) {
     setPrevFilterKey(currentFilterKey);
@@ -602,6 +603,8 @@ export default function WatchTower() {
     // setCategoryDataLoading(true); // Handled by categoryFilterKey now
     setPerformanceLoading(true);
     setFetchError(null);
+    // Force re-fetch even if the key matches a previously-fetched one (e.g. after reset)
+    lastFetchedOverviewKey.current = null;
   }
 
   const [prevCategoryFilterKey, setPrevCategoryFilterKey] = useState(categoryFilterKey);
@@ -609,8 +612,6 @@ export default function WatchTower() {
     setPrevCategoryFilterKey(categoryFilterKey);
     setCategoryDataLoading(true);
   }
-
-  const lastFetchedOverviewKey = useRef(null);
 
   // Single debounced data-fetch effect — reads context directly, no intermediate state
   useEffect(() => {

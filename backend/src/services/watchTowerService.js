@@ -73,6 +73,12 @@ const DELIVERY_TIME_SQL = (col, dateCol = 'DATE') => `
 let aggTableExists = null;
 const AGG_TABLE_NAME = 'watchtower_agg_daily';
 
+async function getRcaSkuDimBrandColumn() {
+    const cols = await getTableColumns('rca_sku_dim');
+    if (columnExists(cols, 'brand_name')) return resolveColumn(cols, 'brand_name');
+    return resolveColumn(cols, 'brand');
+}
+
 /**
  * Checks if the aggregated table exists in ClickHouse.
  * Results are cached in-memory for the lifetime of the process.
@@ -476,8 +482,9 @@ const getCachedValidBrandNames = async () => {
 
     dbCache.validBrandNames.promise = (async () => {
         try {
+            const brandCol = await getRcaSkuDimBrandColumn();
             // ClickHouse query
-            const query = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != '' ORDER BY brand_name`;
+            const query = `SELECT DISTINCT ${brandCol} AS brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND ${brandCol} IS NOT NULL AND ${brandCol} != '' ORDER BY brand_name`;
             const results = await queryClickHouse(query);
             const result = results.map(b => b.brand_name).filter(Boolean);
             dbCache.validBrandNames = { data: result, timestamp: Date.now(), promise: null };
@@ -4591,7 +4598,8 @@ const getSummaryMetrics = async (filters) => {
 
 const getBrands = async (platform, includeCompetitors = false) => {
     try {
-        const conditions = [`brand_name IS NOT NULL`, `brand_name != ''`];
+        const brandCol = await getRcaSkuDimBrandColumn();
+        const conditions = [`${brandCol} IS NOT NULL`, `${brandCol} != ''`];
         if (platform && platform !== 'All') {
             const platArr = normalizeFilterArray(platform);
             if (platArr.length === 1) {
@@ -4604,7 +4612,7 @@ const getBrands = async (platform, includeCompetitors = false) => {
             conditions.push(`comp_flag = 0`);
         }
 
-        const query = `SELECT DISTINCT brand_name as brand FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY brand`;
+        const query = `SELECT DISTINCT ${brandCol} as brand FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY brand`;
         const results = await queryClickHouse(query);
         return results.map(r => r.brand).filter(Boolean);
     } catch (error) {
@@ -6779,7 +6787,8 @@ const getCategoryOverview = async (filters) => {
     if (brandArr && brandArr.length > 0) {
         brandInClause = `(${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`;
     } else {
-        const ourBrandsRaw = await queryClickHouse(`SELECT DISTINCT lower(brand_name) as brand FROM rca_sku_dim WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL`);
+        const brandCol = await getRcaSkuDimBrandColumn();
+        const ourBrandsRaw = await queryClickHouse(`SELECT DISTINCT lower(${brandCol}) as brand FROM rca_sku_dim WHERE toString(comp_flag) = '0' AND ${brandCol} IS NOT NULL`);
         if (ourBrandsRaw && ourBrandsRaw.length > 0) {
             brandInClause = `(${ourBrandsRaw.map(b => `'${escapeStr(b.brand)}'`).join(', ')})`;
         }
@@ -8197,7 +8206,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
         if (filterType === 'resellerNames') {
             // Fetch unique reseller names for DRL only — cascaded by platform
             if (dbName !== 'drl') return { options: [] };
-            const conditions = [`Reseller_Name IS NOT NULL`, `Reseller_Name != ''`];
+            const conditions = [`Reseller_Name IS NOT NULL`, `Reseller_Name != ''`, `Comp_flag = 0`];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }

@@ -269,6 +269,7 @@ export const FilterProvider = ({ children }) => {
                 setChannels(res.data);
                 // Keep current selection if still valid, otherwise select first non-All
                 setSelectedChannel(prev => {
+                    if (prev === "All") return "All"; // Preserve explicit "All" selection (e.g. after reset)
                     const validChannels = res.data.filter(c => c !== 'All');
                     if (validChannels.includes(prev)) return prev;
                     return validChannels.length > 0 ? validChannels[0] : 'All';
@@ -445,6 +446,7 @@ export const FilterProvider = ({ children }) => {
                     setPlatforms(res.data);
                     // Keep "All" or current selection if it's still valid
                     setPlatform(prevPlatform => {
+                        if (prevPlatform === "All") return "All"; // Preserve "All" on reset
                         if (channelChanged) return res.data[0];
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
                         const validPlatforms = currentList.filter(p => res.data.includes(p));

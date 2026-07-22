@@ -13,7 +13,10 @@ export default function CommonContainer({
   filters,
   onFiltersChange,
   hideFilters = false,
+  hideHeader = false,
   disablePadding = false,
+  /** fullHeight: the child manages its own scrolling; disable the outer scroll Box */
+  fullHeight = false,
   children,
 }) {
   const { channels, selectedChannel, setSelectedChannel, platforms, platformMetadata, setPlatform, platform, platformsFetched } = React.useContext(FilterContext);
@@ -27,7 +30,9 @@ export default function CommonContainer({
       filters={filters}
       onFiltersChange={onFiltersChange}
       hideFilters={hideFilters}
+      hideHeader={hideHeader}
       disablePadding={disablePadding}
+      fullHeight={fullHeight}
       channels={channels}
       selectedChannel={selectedChannel}
       setSelectedChannel={setSelectedChannel}
@@ -52,7 +57,9 @@ function CommonLayoutContent({
   filters,
   onFiltersChange,
   hideFilters,
+  hideHeader,
   disablePadding,
+  fullHeight,
   channels,
   selectedChannel,
   setSelectedChannel,
@@ -127,25 +134,32 @@ function CommonLayoutContent({
       >
         <NotificationScroller />
 
-        <Header
-          title={title}
-          onMenuClick={() => setMobileMenuOpen(true)}
-          filters={filters}
-          onFiltersChange={onFiltersChange}
-          hideFilters={hideFilters}
-          sx={{
-            overflowX: "hidden", // <-- prevents header small horizontal shift
-          }}
-        />
+        {!hideHeader && (
+          <Header
+            title={title}
+            onMenuClick={() => setMobileMenuOpen(true)}
+            filters={filters}
+            onFiltersChange={onFiltersChange}
+            hideFilters={hideFilters}
+            sx={{
+              overflowX: "hidden", // <-- prevents header small horizontal shift
+            }}
+          />
+        )}
 
-        {/* Scrollable only vertically */}
+        {/* Scrollable only vertically (or overflow:hidden when child manages scrolling) */}
         <Box
           sx={{
             flex: 1,
-            overflowY: "auto",
+            overflowY: fullHeight ? "hidden" : "auto",
             overflowX: "hidden", // 🔥 IMPORTANT
             minHeight: 0, // Ensure flex scrolling works
-            WebkitOverflowScrolling: "touch", // Smooth scroll on iOS
+            WebkitOverflowScrolling: fullHeight ? "auto" : "touch",
+            // fullHeight mode: become a flex column so the child can fill 100%
+            ...(fullHeight && {
+              display: "flex",
+              flexDirection: "column",
+            }),
           }}
         >
           <Container
@@ -155,8 +169,15 @@ function CommonLayoutContent({
               px: disablePadding ? 0 : { xs: 2, sm: 3 },
               py: disablePadding ? 0 : { xs: 2, sm: 3 },
               width: "100%",
-              flexDirection: "column",
               overflowX: "hidden", // 🔥 no horizontal scroll inside content
+              // fullHeight: stretch container to fill the scroll box
+              ...(fullHeight && {
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                minHeight: 0,
+                height: "100%",
+              }),
             }}
           >
             {children}

@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node --max-http-header-size=81920 ./node_modules/vite/bin/vite.js",
+    "dev": "npx concurrently \"node --max-http-header-size=81920 ./node_modules/vite/bin/vite.js\" \"npm run dev --prefix ../trailytics_ratings/frontend\" \"npm run dev --prefix ../trailytics_content_analysis/frontend\"",
     "build": "vite build",
     "render-build": "rm -rf node_modules package-lock.json && npm install && vite build",
     "lint": "eslint .",

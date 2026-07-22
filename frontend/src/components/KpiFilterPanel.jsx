@@ -266,9 +266,7 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
 
   // Sync selected state when value prop changes (e.g., when reopening filter panel)
   React.useEffect(() => {
-    if (value !== undefined) {
-      setSelected(new Set(value));
-    }
+    setSelected(new Set(value || []));
   }, [value]);
 
   const searched = useMemo(() => {
@@ -416,17 +414,15 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
 
       {/* Search & Actions - Simplify for small lists */}
       <div className="mb-2 flex flex-col sm:flex-row sm:items-center gap-2">
-        {options.length >= 15 && (
-          <input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Search..."
-            className="h-8 w-full sm:flex-1 rounded-lg border border-slate-200 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-          />
-        )}
+        <input
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          placeholder="Search..."
+          className="h-8 w-full sm:flex-1 rounded-lg border border-slate-200 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+        />
         <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto justify-end">
           <button
             type="button"

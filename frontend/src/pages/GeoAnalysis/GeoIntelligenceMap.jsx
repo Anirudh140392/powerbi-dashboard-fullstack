@@ -5,10 +5,13 @@ import { STATES, CITIES } from "./indiaData"; // Assuming we can use these coord
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import axiosInstance from "../../api/axiosInstance";
 import dayjs from "dayjs";
-import { IconButton } from "@mui/material";
+import { IconButton, Popover } from "@mui/material";
 import { HelpOutline as HelpIcon } from "@mui/icons-material";
 import { useHelp } from "../../utils/HelpContext";
 import { FilterContext } from "../../utils/FilterContext";
+import { DateRange } from "react-date-range";
+import "react-date-range/dist/styles.css"; // main style file
+import "react-date-range/dist/theme/default.css"; // theme css file
 
 // --- Constants & Types ---
 const INDIA_BOUNDS = [
@@ -41,6 +44,8 @@ export default function GeoIntelligenceMap() {
         selectedChannel,
         platforms: contextPlatforms,
         msls,
+        selectedBrand: globalSelectedBrand,
+        setSelectedBrand: globalSetSelectedBrand,
     } = useContext(FilterContext);
 
     const mapContainer = useRef(null);
@@ -56,6 +61,25 @@ export default function GeoIntelligenceMap() {
     const [platforms, setPlatforms] = useState([]);
     const [category, setCategory] = useState("All");
     const [categories, setCategories] = useState([]);
+
+    // --- Brand State ---
+    const [brand, setBrand] = useState(globalSelectedBrand || "All");
+    const [brands, setBrands] = useState([]);
+
+    // --- Custom Date Range State ---
+    const [dateRangeAnchorEl, setDateRangeAnchorEl] = useState(null);
+    const [customStartDate, setCustomStartDate] = useState(null);
+    const [customEndDate, setCustomEndDate] = useState(null);
+    const [rangeSelection, setRangeSelection] = useState([
+        {
+            startDate: new Date(),
+            endDate: new Date(),
+            key: "selection",
+        },
+    ]);
+
+    const dateRangeOpen = Boolean(dateRangeAnchorEl);
+    const dateRangeId = dateRangeOpen ? "date-range-popover-map" : undefined;
 
     // --- MSL Filter State & Actions ---
     const [selectedMsls, setSelectedMsls] = useState(["All"]);
@@ -93,6 +117,68 @@ export default function GeoIntelligenceMap() {
             }
         }
     };
+
+    // --- Brand Synchronization & Fetch ---
+    const handleBrandChange = (val) => {
+        setBrand(val);
+        if (globalSetSelectedBrand) {
+            globalSetSelectedBrand(val);
+        }
+    };
+
+    useEffect(() => {
+        if (globalSelectedBrand) {
+            setBrand(globalSelectedBrand);
+        }
+    }, [globalSelectedBrand]);
+
+    useEffect(() => {
+        const fetchBrands = async () => {
+            try {
+                const res = await axiosInstance.get('/map-intellect/brands', {
+                    params: { platform, channel: selectedChannel, metric }
+                });
+                setBrands(res.data || []);
+                // If current brand is not in new list, reset to All
+                if (brand !== "All" && res.data && !res.data.includes(brand)) {
+                    handleBrandChange("All");
+                }
+            } catch (error) {
+                console.error('[MapIntellect] Failed to fetch brands:', error);
+                setBrands([]);
+            }
+        };
+        fetchBrands();
+    }, [platform, selectedChannel, metric]);
+
+    // --- Custom Date Range Handlers ---
+    const handleDateRangeClick = (event) => {
+        setDateRangeAnchorEl(event.currentTarget);
+    };
+
+    const handleDateRangeClose = () => {
+        setDateRangeAnchorEl(null);
+    };
+
+    const handleDateRangeSelect = (ranges) => {
+        const { selection } = ranges;
+        setRangeSelection([selection]);
+        setCustomStartDate(dayjs(selection.startDate));
+        setCustomEndDate(dayjs(selection.endDate));
+        setTimePeriod("Custom");
+    };
+
+    useEffect(() => {
+        if (selectedPeriod.startDate && selectedPeriod.endDate) {
+            setRangeSelection([
+                {
+                    startDate: dayjs(selectedPeriod.startDate).toDate(),
+                    endDate: dayjs(selectedPeriod.endDate).toDate(),
+                    key: "selection"
+                }
+            ]);
+        }
+    }, [selectedPeriod]);
 
     // --- Sync platform from global FilterContext (sidebar channel/platform selection) ---
     useEffect(() => {
@@ -171,7 +257,9 @@ export default function GeoIntelligenceMap() {
                 }
                 params += `&metric=${metricParam}`;
 
-                if (timePeriod === "MTD") {
+                if (timePeriod === "Custom" && customStartDate && customEndDate) {
+                    params += `&startDate=${customStartDate.format('YYYY-MM-DD')}&endDate=${customEndDate.format('YYYY-MM-DD')}`;
+                } else if (timePeriod === "MTD") {
                     params += `&months=1`;
                 } else if (timePeriod === "7D") {
                     params += `&days=7`;
@@ -183,6 +271,10 @@ export default function GeoIntelligenceMap() {
 
                 if (category && category !== 'All') {
                     params += `&category=${encodeURIComponent(category)}`;
+                }
+                
+                if (brand && brand !== 'All') {
+                    params += `&brand=${encodeURIComponent(brand)}`;
                 }
                 
                 if (selectedChannel && selectedChannel !== 'All') {
@@ -222,7 +314,7 @@ export default function GeoIntelligenceMap() {
             }
         };
         fetchData();
-    }, [platform, metric, timePeriod, category, selectedChannel, selectedMsls]); // Added category, channel, and selectedMsls dependency
+    }, [platform, metric, timePeriod, category, brand, selectedChannel, selectedMsls, customStartDate, customEndDate]); // Added category, channel, and selectedMsls dependency
 
     // --- Intercept Nation-level Data ---
     const nationData = useMemo(() => {
@@ -541,6 +633,40 @@ export default function GeoIntelligenceMap() {
 
                         <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
 
+                        {/* Brand Dropdown */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                            <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>Brand</span>
+                            <div style={{ position: "relative" }}>
+                                <select
+                                    value={brand}
+                                    onChange={(e) => handleBrandChange(e.target.value)}
+                                    style={{
+                                        appearance: "none",
+                                        background: "#f8fafc",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: "8px",
+                                        padding: "6px 28px 6px 10px",
+                                        fontSize: "12px",
+                                        fontWeight: "700",
+                                        color: "#0f172a",
+                                        cursor: "pointer",
+                                        minWidth: "85px",
+                                        textTransform: "capitalize"
+                                    }}
+                                >
+                                    <option value="All">All Brands</option>
+                                    {brands.map(b => (
+                                        <option key={b} value={b}>{b}</option>
+                                    ))}
+                                </select>
+                                <div style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
+
                         {/* MSL Dropdown */}
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                             <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>MSL</span>
@@ -641,8 +767,9 @@ export default function GeoIntelligenceMap() {
                                     </button>
                                 ))}
                             </div>
-                            {selectedPeriod.startDate && (
-                                <div style={{
+                            <div 
+                                onClick={handleDateRangeClick}
+                                style={{
                                     fontSize: "10px",
                                     fontWeight: "700",
                                     color: "#475569",
@@ -652,12 +779,33 @@ export default function GeoIntelligenceMap() {
                                     display: "flex",
                                     alignItems: "center",
                                     gap: "4px",
-                                    border: "1px solid #e2e8f0"
-                                }}>
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                                    {dayjs(selectedPeriod.startDate).format("DD MMM")} - {dayjs(selectedPeriod.endDate).format("DD MMM, YY")}
-                                </div>
-                            )}
+                                    border: "1px solid #e2e8f0",
+                                    cursor: "pointer"
+                                }}
+                            >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                                {selectedPeriod.startDate ? (
+                                    `${dayjs(selectedPeriod.startDate).format("DD MMM")} - ${dayjs(selectedPeriod.endDate).format("DD MMM, YY")}`
+                                ) : "Select Date Range"}
+                            </div>
+                            <Popover
+                                id={dateRangeId}
+                                open={dateRangeOpen}
+                                anchorEl={dateRangeAnchorEl}
+                                onClose={handleDateRangeClose}
+                                anchorOrigin={{
+                                    vertical: "bottom",
+                                    horizontal: "left",
+                                }}
+                            >
+                                <DateRange
+                                    editableDateInputs={true}
+                                    onChange={handleDateRangeSelect}
+                                    moveRangeOnFirstSelection={false}
+                                    ranges={rangeSelection}
+                                    rangeColors={["#2563eb"]}
+                                />
+                            </Popover>
                         </div>
 
                         <IconButton 

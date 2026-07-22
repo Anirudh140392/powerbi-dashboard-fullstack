@@ -310,6 +310,13 @@ export default function PriorityAction() {
         setCurrentPage(1);
     }, [activeTab, searchTerm, selectedCategory, selectedPriority, selectedStatus, selectedPlatform, selectedBrand, selectedCity, timeStart, timeEnd]);
 
+    // Reset local search term when global PA filters are reset to All
+    useEffect(() => {
+        if (selectedPriority === "All" && selectedStatus === "All" && selectedPlatform === "All" && selectedBrand === "All" && selectedCity === "All") {
+            setSearchTerm("");
+        }
+    }, [selectedPriority, selectedStatus, selectedPlatform, selectedBrand, selectedCity]);
+
     // SKU Trend states
     const [trendSku, setTrendSku] = useState(null); // { webPid, skuName }
     const [trendData, setTrendData] = useState(null);

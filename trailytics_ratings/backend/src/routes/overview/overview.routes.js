@@ -1,0 +1,33 @@
+import express from 'express';
+import { 
+    getSummary,
+    getTrends,
+    getTimeline,
+    getRatingTrend,
+    getExecutiveHealth,
+    getRatingMismatch,
+    getReviewTimeline,
+    getPriceVariance,
+    getProductHealth,
+    getCategoryHealth,
+    getBenchmarkData,
+    getStarDistribution
+} from '../../controllers/overview/overview.controller.js';
+
+const router = express.Router();
+
+router.get('/summary', getSummary);
+router.get('/trends', getTrends);
+router.get('/timeline', getTimeline);
+router.get('/rating-trend', getRatingTrend);
+router.get('/executive-health', getExecutiveHealth);
+router.get('/rating-mismatch', getRatingMismatch);
+router.get('/review-timeline', getReviewTimeline);
+router.get('/price-variance', getPriceVariance);
+
+router.get('/product-health', getProductHealth);
+router.get('/category-health', getCategoryHealth);
+router.get('/benchmark-data', getBenchmarkData);
+router.get('/star-distribution', getStarDistribution);
+
+export default router;

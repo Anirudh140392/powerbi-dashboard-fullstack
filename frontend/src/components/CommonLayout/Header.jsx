@@ -29,7 +29,7 @@ import { AppThemeContext } from "../../utils/ThemeContext";
 import { FilterContext } from "../../utils/FilterContext";
 import DateRangeComparePicker from "./DateRangeComparePicker";
 
-import { ChevronDown, ChevronUp, Search, SlidersHorizontal, X, Layers, Monitor, LayoutGrid, Tag, MapPin, Hash, Type, Info, ListFilter } from "lucide-react";
+import { ChevronDown, ChevronUp, Search, SlidersHorizontal, X, Layers, Monitor, LayoutGrid, Tag, MapPin, Hash, Type, Info, ListFilter, RotateCcw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CustomHeaderDropdown from "./CustomHeaderDropdown";
 import axiosInstance from "../../api/axiosInstance";
@@ -316,6 +316,7 @@ function WatchTowerFilterModal({
     setDraftBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
+    setSearchTerm("");
   };
 
   // total active filter count across all tabs
@@ -867,6 +868,7 @@ function MarketShareFilterModal({
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftSubCategory("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -1366,6 +1368,7 @@ function PriorityActionFilterModal({
     setDraftPlatform("All");
     setDraftBrand("All");
     setDraftCity("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = PA_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -1975,6 +1978,7 @@ function AvailabilityFilterModal({
     setDraftBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -2616,6 +2620,7 @@ function VisibilityFilterModal({
     setDraftKeywordType(["All"]);
     setDraftKeyword(["All"]);
     setDraftRank("Top 10");
+    setSearchTerm("");
   };
 
   const totalActiveCount = VIS_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -2936,6 +2941,7 @@ function PricingFilterModal({
     setDraftBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -3199,6 +3205,7 @@ function PerformanceFilterModal({
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -3462,6 +3469,7 @@ function ContentFilterModal({
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -3784,6 +3792,7 @@ function InventoryFilterModal({
     setDraftBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
+    setSearchTerm("");
   };
 
   const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -3939,6 +3948,8 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     setPaCity,
     paFilters,
     setPaFilters,
+    refreshDates,
+    refreshFilters,
   } = React.useContext(FilterContext);
 
   const hasRestrictedPlatforms = React.useMemo(() => {
@@ -3967,6 +3978,57 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
   const currentChannel = filters?.channel || selectedChannel;
   const currentPlatform = filters?.platform || platform;
   const currentBrand = filters?.brand || selectedBrand;
+
+  // ─── RESET ALL FILTERS TO DEFAULTS ───
+  const handleResetFilters = React.useCallback(() => {
+    // Reset data filter selections to "All" (defaults)
+    setSelectedCategory("All");
+    setSelectedBrand("All");
+    setSelectedLocation("All");
+    setSelectedMsl("All");
+    setSelectedKeyword(["All"]);
+    setSelectedKeywordType(["All"]);
+    setSelectedRank("Top 10");
+    setVisibilityMode("sos");
+    if (setSelectedSubCategory) setSelectedSubCategory("All");
+
+    // Also reset Channel and Platform to "All" (or defaults if restricted)
+    setSelectedChannel("All");
+    setPlatform(hasRestrictedPlatforms ? platforms.filter(p => p !== 'All') : "All");
+
+    // Reset Priority Action filters
+    setPaPriority("All");
+    setPaStatus("All");
+    setPaPlatform("All");
+    setPaBrand("All");
+    setPaCity("All");
+
+    // Reset local page-level filters (brand, category, platform, channel)
+    if (onFiltersChange) {
+      onFiltersChange(prev => ({
+        ...prev,
+        brand: undefined,
+        category: undefined,
+        platform: hasRestrictedPlatforms ? platforms.filter(p => p !== 'All') : "All",
+        channel: "All",
+      }));
+    }
+
+    // Reset dates to server defaults by clearing userSetDate and re-fetching
+    setUserSetDate(false);
+    setComparisonLabel("VS PREV. PERIOD");
+
+    // Re-fetch default dates from the backend
+    if (refreshDates) refreshDates();
+  }, [
+    setSelectedCategory, setSelectedBrand,
+    setSelectedLocation, setSelectedMsl, setSelectedKeyword, setSelectedKeywordType,
+    setSelectedRank, setVisibilityMode, setSelectedSubCategory,
+    setSelectedChannel, setPlatform, hasRestrictedPlatforms, platforms,
+    setPaPriority, setPaStatus, setPaPlatform, setPaBrand, setPaCity,
+    onFiltersChange, setUserSetDate, setComparisonLabel,
+    refreshDates,
+  ]);
 
   const location = useLocation();
 
@@ -4230,7 +4292,44 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
               {/* ============ WATCH TOWER / MARKET SHARE / PRICING ANALYSIS / INVENTORY ANALYSIS: SINGLE FILTER BUTTON ============ */}
               {(title === "Business Overview" || title === "Insights" || title === "Market Share" || title === "Market Coverage" || title === "Availability Analysis" || title === "Visibility Analysis" || title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis" || title === "Priority Action") ? (
                 <>
-                  <Box sx={{ display: "flex", alignItems: "flex-end" }}>
+                  <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1 }}>
+                    {/* RESET FILTERS BUTTON */}
+                    <Tooltip title="Reset all filters to defaults" arrow placement="bottom">
+                      <Button
+                        onClick={handleResetFilters}
+                        variant="outlined"
+                        startIcon={<RotateCcw size={14} strokeWidth={2.5} />}
+                        sx={{
+                          height: "36px",
+                          textTransform: "none",
+                          borderRadius: "10px",
+                          borderColor: "#e2e8f0",
+                          color: "#64748b",
+                          fontWeight: 600,
+                          fontSize: "0.82rem",
+                          fontFamily: "'Inter', 'Roboto', sans-serif",
+                          px: 1.8,
+                          gap: 0.3,
+                          letterSpacing: "0.01em",
+                          bgcolor: "white",
+                          transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                          "&:hover": {
+                            borderColor: "#cbd5e1",
+                            transform: "translateY(-2px)",
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                            "& .reset-icon": {
+                              transform: "rotate(-180deg)",
+                            },
+                          },
+                        }}
+                      >
+                        <Box component="span" className="reset-icon" sx={{ display: "inline-flex", transition: "transform 0.4s ease" }}>
+                        </Box>
+                        Reset
+                      </Button>
+                    </Tooltip>
+
+                    {/* FILTERS BUTTON */}
                     <Button
                       onClick={() => {
                         if (title === "Business Overview" || title === "Insights") setFilterModalOpen(true);

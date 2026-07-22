@@ -324,6 +324,32 @@ const PlatformOverviewNew = ({
     })
     const fetchIdRef = useRef(0)
 
+    // Reset advanced/local filters when global filters are reset to defaults
+    useEffect(() => {
+        const isGlobalPlatformReset = globalPlatform === "All" || (Array.isArray(globalPlatform) && globalPlatform.includes("All")) || globalPlatform === "";
+        const isGlobalBrandReset = selectedBrand === "All";
+        const isGlobalCategoryReset = selectedCategory === "All";
+        const isGlobalLocationReset = selectedLocation === "All";
+
+        if (isGlobalPlatformReset && isGlobalBrandReset && isGlobalCategoryReset && isGlobalLocationReset) {
+            setAdvancedFilters({
+                brands: [],
+                categories: [],
+                platforms: [],
+                skus: [],
+                skuName: '',
+                skuCode: '',
+                dateFrom: '',
+                dateTo: '',
+                msl: '0',
+                kpis: defaultKpiKeys,
+                filterLogic: 'OR',
+            });
+            setLocalPlatformFilter('');
+            setSkuPlatformFilter('');
+        }
+    }, [globalPlatform, selectedBrand, selectedCategory, selectedLocation, defaultKpiKeys]);
+
     // Re-sync glanceKpis when dimension changes or channel/platform changes
     useEffect(() => {
         if (dimension === 'sku') {

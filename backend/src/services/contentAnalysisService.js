@@ -330,18 +330,27 @@ export const getContentAnalysisPlatformBreakdown = async (filters, isCompare = f
 
 export const getContentAnalysisPlatforms = async () => {
     try {
-        const query = `SELECT DISTINCT Platform FROM rb_product_verify WHERE Platform != '\\\\N' AND Platform != '' ORDER BY Platform`;
+        const query = `SELECT DISTINCT Platform FROM rb_product_verify WHERE isNotNull(Platform) AND Platform != '\\\\N' AND Platform != '' ORDER BY Platform`;
         const result = await queryClickHouse(query);
-        return result.map(row => row.Platform);
+        const platforms = result.map(row => row.Platform).filter(Boolean);
+        if (platforms && platforms.length > 0) return platforms;
+
+        // Fallback to rb_pdp_olap if rb_product_verify returns empty
+        const fallbackQuery = `SELECT DISTINCT Platform FROM rb_pdp_olap WHERE isNotNull(Platform) AND Platform != '\\\\N' AND Platform != '' ORDER BY Platform`;
+        const fallbackResult = await queryClickHouse(fallbackQuery);
+        const fallbackPlatforms = fallbackResult.map(row => row.Platform).filter(Boolean);
+        if (fallbackPlatforms && fallbackPlatforms.length > 0) return fallbackPlatforms;
+
+        return ['Amazon', 'Blinkit', 'Flipkart', 'Zepto', 'Instamart'];
     } catch (error) {
         console.error("Error in getContentAnalysisPlatforms:", error);
-        throw error;
+        return ['Amazon', 'Blinkit', 'Flipkart', 'Zepto', 'Instamart'];
     }
 };
 
 export const getContentAnalysisCategories = async (platform) => {
     try {
-        let query = `SELECT DISTINCT Category FROM rb_product_verify WHERE Category != '\\\\N' AND Category != ''`;
+        let query = `SELECT DISTINCT Category FROM rb_product_verify WHERE isNotNull(Category) AND Category != '\\\\N' AND Category != ''`;
         if (platform && platform !== 'All') {
             const rawPlatform = platform;
             let platforms = [];
@@ -362,7 +371,32 @@ export const getContentAnalysisCategories = async (platform) => {
         }
         query += ` ORDER BY Category`;
         const result = await queryClickHouse(query);
-        return result.map(row => row.Category);
+        const categories = result.map(row => row.Category).filter(Boolean);
+        if (categories && categories.length > 0) return categories;
+
+        // Fallback to rb_pdp_olap if rb_product_verify returns empty
+        let fallbackQuery = `SELECT DISTINCT Category FROM rb_pdp_olap WHERE isNotNull(Category) AND Category != '\\\\N' AND Category != ''`;
+        if (platform && platform !== 'All') {
+            const rawPlatform = platform;
+            let platforms = [];
+            if (Array.isArray(rawPlatform)) {
+                platforms = rawPlatform;
+            } else if (typeof rawPlatform === 'string') {
+                platforms = rawPlatform.split(',');
+            }
+            platforms = platforms.map(p => p.trim().toLowerCase()).filter(p => p !== 'all' && p !== '');
+
+            if (platforms.length > 0) {
+                const orConditions = platforms.map(p => {
+                    if (p === 'instamart') return "lower(Platform) = 'swiggy'";
+                    return `lower(Platform) = '${p}'`;
+                });
+                fallbackQuery += ` AND (${orConditions.join(' OR ')})`;
+            }
+        }
+        fallbackQuery += ` ORDER BY Category`;
+        const fallbackResult = await queryClickHouse(fallbackQuery);
+        return fallbackResult.map(row => row.Category).filter(Boolean);
     } catch (error) {
         console.error("Error in getContentAnalysisCategories:", error);
         return [];

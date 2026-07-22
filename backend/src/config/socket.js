@@ -28,6 +28,16 @@ async function queryDb(dbName, sql) {
     return result.json();
 }
 
+async function tableExists(dbName, tableName) {
+    try {
+        const rows = await queryDb(dbName, `EXISTS TABLE ${tableName}`);
+        return rows[0]?.result === 1 || rows[0]?.result === '1';
+    } catch (e) {
+        console.warn(`[Socket] Failed to check table ${tableName} in ${dbName}:`, e.message);
+        return false;
+    }
+}
+
 // Cache of column maps per database/table to avoid DESCRIBE overhead during polling
 const columnsCache = new Map(); // Key: `${dbName}:${tableName}` -> Map(lowerKey -> actualName)
 
@@ -246,8 +256,12 @@ async function fetchMaxDates(dbName) {
 
     // tb_content_score_data — Content Analysis page
     try {
-        const rows = await queryDb(dbName, `SELECT MAX(toDate(extraction_timestamp)) as maxDate FROM tb_content_score_data`);
-        dates.tb_content_score_data = rows[0]?.maxDate || null;
+        if (await tableExists(dbName, 'tb_content_score_data')) {
+            const rows = await queryDb(dbName, `SELECT MAX(toDate(extraction_timestamp)) as maxDate FROM tb_content_score_data`);
+            dates.tb_content_score_data = rows[0]?.maxDate || null;
+        } else {
+            dates.tb_content_score_data = null;
+        }
     } catch (e) {
         console.warn(`[Socket] tb_content_score_data query failed for ${dbName}:`, e.message);
         dates.tb_content_score_data = null;
