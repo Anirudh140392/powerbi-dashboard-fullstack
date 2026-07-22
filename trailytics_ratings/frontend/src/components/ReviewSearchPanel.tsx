@@ -10,7 +10,7 @@
  */
 import { useState } from 'react';
 import { Search, Loader2, Filter, X } from 'lucide-react';
-import { resolveCompanyId } from '../utils/tenant';
+import { resolveCompanyId, resolveDbName } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
 
 interface SearchResult {
@@ -55,6 +55,8 @@ export function ReviewSearchPanel() {
       const companyId = resolveCompanyId();
       const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || import.meta.env.VITE_RAILWAY_URL || '';
       const params = new URLSearchParams({ company_id: companyId, q, limit: '100' });
+      const dbName = resolveDbName();
+      if (dbName) params.set('db_name', dbName);
       if (filters.brand_scope !== 'all') params.set('brand_scope', filters.brand_scope);
       if (filters.platform !== 'all') params.set('platform', filters.platform);
       if (filters.sentiment) params.set('sentiment', filters.sentiment);

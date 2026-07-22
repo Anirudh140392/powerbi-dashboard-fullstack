@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import { X, Loader2, AlertCircle, MessageSquare } from 'lucide-react';
 import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { resolveCompanyId } from '../../utils/tenant';
+import { resolveCompanyId, resolveDbName } from '../../utils/tenant';
 import { buildAuthHeaders } from '../../utils/auth';
 
 interface Review {
@@ -46,6 +46,8 @@ export function ReviewTimelineModal({ webPid, productName, platform, onClose }: 
     const companyId = resolveCompanyId();
     const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || import.meta.env.VITE_RAILWAY_URL || '';
     const params = new URLSearchParams({ company_id: companyId, web_pid: webPid });
+    const dbName = resolveDbName();
+    if (dbName) params.set('db_name', dbName);
     if (platform) params.set('platform', platform);
     setLoading(true);
     fetch(`${backendUrl}/api/ratings/review-timeline?${params.toString()}`, {

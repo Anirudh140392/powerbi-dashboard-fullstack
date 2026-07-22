@@ -1,158 +1,160 @@
 import pool from '../../config/db.js';
+import clickhouse from '../../config/clickhouse.js';
+
+const getTargetDb = (req) => {
+    return req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
+};
 
 export const getStakeholderDetail = async (req, res) => {
     try {
         const { stakeholder, category: filterCategory, pareto_status: filterParetoStatus, rating_bifurcation, platform, date_from, date_to, price_mode, price_min, price_max, sentiment_category } = req.query;
         if (!stakeholder) return res.status(400).json({ error: 'stakeholder param required' });
 
-        const mappingResult = await pool.query(
-            `SELECT sentiment_subcategory, display_label FROM ratings.stakeholder_mappings 
-             WHERE company_id = $1 AND stakeholder = $2 ORDER BY sort_order`,
-            [req.companyId, stakeholder]
-        );
-        const subcategories = mappingResult.rows.map(r => r.sentiment_subcategory);
+        const chMappingSql = `
+            SELECT sentiment_subcategory, any(display_label) AS display_label, any(stakeholder) AS stakeholder
+            FROM stakeholder_mappings
+            WHERE company_id = {companyId:String} AND stakeholder_mappings.stakeholder = {stakeholder:String}
+            GROUP BY sentiment_subcategory
+        `;
+        const chMappingRes = await clickhouse.query({
+            database: getTargetDb(req),
+            query: chMappingSql,
+            query_params: { companyId: String(req.companyId), stakeholder },
+            format: 'JSONEachRow'
+        });
+        const mappingRows = await chMappingRes.json();
+        const subcategories = mappingRows.map(r => r.sentiment_subcategory);
+        console.log('Subcategories:', subcategories, 'for companyId:', req.companyId, 'stakeholder:', stakeholder);
         const labelMap = {};
-        mappingResult.rows.forEach(r => { labelMap[r.sentiment_subcategory] = r.display_label; });
+        mappingRows.forEach(r => { labelMap[r.sentiment_subcategory] = r.display_label; });
 
         if (subcategories.length === 0) return res.json({ issues: [] });
 
-        const params = [req.companyId, ...subcategories];
-        const subPlaceholders = subcategories.map((_, i) => `$${i + 2}`).join(',');
-
-        let categoryFilter = '';
-        let paretoFilter = '';
-        let ratingFilter = '';
-        let platformFilter = '';
-        let dateFilter = '';
-        let priceFilter = '';
-        let sentimentCategoryFilter = '';
+        const queryParams = { companyId: String(req.companyId), subcategories };
+        let extraFilters = [];
 
         if (sentiment_category && sentiment_category !== 'all') {
-            params.push(sentiment_category);
-            sentimentCategoryFilter = `AND r.sentiment_category ILIKE $${params.length}`;
+            queryParams.sentimentCategory = sentiment_category;
+            extraFilters.push(`ilike(r.sentiment_category, {sentimentCategory:String})`);
         }
 
         if (platform && platform !== 'all') {
-            params.push(platform);
-            platformFilter = `AND r.platform ILIKE $${params.length}`;
+            queryParams.platform = platform;
+            extraFilters.push(`ilike(r.platform, {platform:String})`);
         }
         if (date_from) {
-            params.push(date_from);
-            dateFilter += ` AND r.review_date >= $${params.length}`;
+            queryParams.dateFrom = date_from;
+            extraFilters.push(`r.review_date >= toDate({dateFrom:String})`);
         }
         if (date_to) {
-            params.push(date_to);
-            dateFilter += ` AND r.review_date <= $${params.length}`;
+            queryParams.dateTo = date_to;
+            extraFilters.push(`r.review_date <= toDate({dateTo:String})`);
         }
         if (filterCategory) {
-            params.push(filterCategory);
-            categoryFilter = `AND TRIM(COALESCE(NULLIF(ps.category, ''), NULLIF(r.category, ''), NULLIF(mp.category, ''))) ILIKE $${params.length}`;
+            queryParams.filterCategory = filterCategory;
+            extraFilters.push(`ilike(trim(coalesce(nullIf(ps.category, ''), nullIf(r.category, ''), nullIf(mp.category, ''))), {filterCategory:String})`);
         }
         if (filterParetoStatus) {
             if (filterParetoStatus === 'Non-Pareto') {
-                paretoFilter = `AND (COALESCE(mp.pareto_status, ps.pareto_status, r.pareto_status) NOT IN ('Pareto', 'NPD') OR COALESCE(mp.pareto_status, ps.pareto_status, r.pareto_status) IS NULL)`;
+                extraFilters.push(`(coalesce(mp.pareto_status, ps.pareto_status, r.pareto_status) NOT IN ('Pareto', 'NPD') OR coalesce(mp.pareto_status, ps.pareto_status, r.pareto_status) IS NULL)`);
             } else {
-                params.push(filterParetoStatus);
-                paretoFilter = `AND COALESCE(NULLIF(mp.pareto_status, ''), NULLIF(ps.pareto_status, ''), NULLIF(r.pareto_status, '')) = $${params.length}`;
+                queryParams.filterParetoStatus = filterParetoStatus;
+                extraFilters.push(`coalesce(nullIf(mp.pareto_status, ''), nullIf(ps.pareto_status, ''), nullIf(r.pareto_status, '')) = {filterParetoStatus:String}`);
             }
         }
         if (rating_bifurcation === 'NP') {
-            ratingFilter = `AND ps.rating >= 4.2`;
+            extraFilters.push(`ps.rating >= 4.2`);
         } else if (rating_bifurcation === 'Issue') {
-            ratingFilter = `AND ps.rating < 4.0`;
+            extraFilters.push(`ps.rating < 4.0`);
         } else if (rating_bifurcation === 'NI') {
-            ratingFilter = `AND ps.rating >= 4.0 AND ps.rating < 4.2`;
+            extraFilters.push(`ps.rating >= 4.0 AND ps.rating < 4.2`);
         }
         if (price_min !== undefined && price_min !== '') {
-            const priceExpr = price_mode === 'rp'
-                ? 'COALESCE(ps.price_rp, mp.mrp)'
-                : 'COALESCE(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
-            params.push(Number(price_min));
-            priceFilter += ` AND ${priceExpr} >= $${params.length}`;
+            const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
+            queryParams.priceMin = Number(price_min);
+            extraFilters.push(`${priceExpr} >= {priceMin:Float64}`);
         }
         if (price_max !== undefined && price_max !== '') {
-            const priceExpr = price_mode === 'rp'
-                ? 'COALESCE(ps.price_rp, mp.mrp)'
-                : 'COALESCE(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
-            params.push(Number(price_max));
-            priceFilter += ` AND ${priceExpr} <= $${params.length}`;
+            const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
+            queryParams.priceMax = Number(price_max);
+            extraFilters.push(`${priceExpr} <= {priceMax:Float64}`);
         }
+
+        const { is_competitor = 'false' } = req.query;
+        if (is_competitor === 'true') extraFilters.push(`coalesce(r.is_competitor, false) = true`);
+        else if (is_competitor === 'false') extraFilters.push(`coalesce(r.is_competitor, false) = false`);
+
+        const extraWhere = extraFilters.length > 0 ? `AND ${extraFilters.join(' AND ')}` : '';
 
         const sql = `
             WITH latest_snapshots AS (
-                SELECT DISTINCT ON (web_pid, LOWER(platform))
-                    web_pid, platform, price_rp, price_sp, category, pareto_status, rating
-                FROM ratings.product_snapshots
-                WHERE company_id = $1
-                ORDER BY web_pid, LOWER(platform), snapshot_date DESC, created_at DESC NULLS LAST
-            ),
-            sku_issues AS (
-                SELECT
-                    r.sentiment_subcategory,
-                    r.web_pid,
-                    MAX(r.product_name) AS product_name,
-                    MAX(ps.rating) AS pdp_rating,
-                    COUNT(*) FILTER (WHERE r.sentiment = 'Negative') AS neg_count,
-                    COUNT(*) AS total_count
-                FROM ratings.reviews r
-                LEFT JOIN masters.products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND LOWER(mp.platform) = LOWER(r.platform)
-                LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid AND LOWER(ps.platform) = LOWER(r.platform)
-                WHERE r.company_id = $1
-                  AND (CASE
-                    WHEN $${params.length + 1} = 'true' THEN r.is_competitor = true
-                    WHEN $${params.length + 1} = 'false' THEN r.is_competitor = false
-                    ELSE true
-                  END)
-                  AND r.sentiment_subcategory IN (${subPlaceholders})
-                  ${categoryFilter}
-                  ${paretoFilter}
-                  ${ratingFilter}
-                  ${platformFilter}
-                  ${dateFilter}
-                  ${priceFilter}
-                  ${sentimentCategoryFilter}
-                GROUP BY r.sentiment_subcategory, r.web_pid
+                SELECT * FROM (
+                    SELECT web_pid, platform, category, pareto_status, rating, price_rp, price_sp
+                    FROM product_snapshots
+                    WHERE company_id = {companyId:String}
+                    ORDER BY snapshot_date DESC, created_at DESC
+                ) LIMIT 1 BY web_pid, lower(platform)
             )
             SELECT
-                sentiment_subcategory,
-                SUM(neg_count)::int AS negative_count,
-                SUM(total_count)::int AS total_count,
-                COUNT(DISTINCT web_pid)::int AS sku_count,
-                json_agg(json_build_object(
-                    'web_pid', web_pid,
-                    'product_name', product_name,
-                    'pdp_rating', pdp_rating,
-                    'negCount', neg_count,
-                    'totalCount', total_count
-                ) ORDER BY neg_count DESC) AS skus
-            FROM sku_issues
-            GROUP BY sentiment_subcategory
-            ORDER BY SUM(neg_count) DESC
+                r.sentiment_subcategory,
+                r.web_pid AS web_pid,
+                any(r.product_name) AS product_name,
+                any(ps.rating) AS pdp_rating,
+                countIf(r.sentiment = 'Negative') AS neg_count,
+                count() AS total_count
+            FROM ml_reviews r
+            LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
+            LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid AND lower(ps.platform) = lower(r.platform)
+            WHERE r.company_id = {companyId:String}
+              AND r.sentiment_subcategory IN ({subcategories:Array(String)})
+              ${extraWhere}
+            GROUP BY r.sentiment_subcategory, r.web_pid
         `;
 
-        const { is_competitor = 'false' } = req.query;
-        params.push(is_competitor);
-        const { rows } = await pool.query(sql, params);
-        const issues = rows.map(r => ({
-            subcategory: r.sentiment_subcategory,
-            label: labelMap[r.sentiment_subcategory] || r.sentiment_subcategory.replace(/_/g, ' '),
-            negativeCount: r.negative_count,
-            totalCount: r.total_count,
-            skuCount: r.sku_count,
-            skus: r.skus.map(s => ({
-                web_pid: s.web_pid,
-                product_name: s.product_name,
-                pdp_rating: s.pdp_rating ? parseFloat(s.pdp_rating) : null,
-                negCount: parseInt(s.negCount),
-                totalCount: parseInt(s.totalCount),
-            })),
-        }));
-        
-        const uniqueSkuCount = new Set(
-            issues.flatMap(issue => issue.skus.map(sku => sku.web_pid)).filter(Boolean)
-        ).size;
+        const chRes = await clickhouse.query({
+            database: getTargetDb(req),
+            query: sql,
+            query_params: queryParams,
+            format: 'JSONEachRow'
+        });
+        const rows = await chRes.json();
 
-        res.json({ issues, uniqueSkuCount });
+        const subcatMap = {};
+        const uniqueSkus = new Set();
+
+        rows.forEach(r => {
+            if (!subcatMap[r.sentiment_subcategory]) {
+                subcatMap[r.sentiment_subcategory] = {
+                    subcategory: r.sentiment_subcategory,
+                    label: labelMap[r.sentiment_subcategory] || r.sentiment_subcategory.replace(/_/g, ' '),
+                    negativeCount: 0,
+                    totalCount: 0,
+                    skuCount: 0,
+                    skus: []
+                };
+            }
+
+            subcatMap[r.sentiment_subcategory].negativeCount += parseInt(r.neg_count || 0);
+            subcatMap[r.sentiment_subcategory].totalCount += parseInt(r.total_count || 0);
+
+            uniqueSkus.add(r.web_pid);
+
+            subcatMap[r.sentiment_subcategory].skus.push({
+                web_pid: r.web_pid,
+                product_name: r.product_name,
+                pdp_rating: r.pdp_rating !== null ? parseFloat(r.pdp_rating) : null,
+                negCount: parseInt(r.neg_count || 0),
+                totalCount: parseInt(r.total_count || 0)
+            });
+        });
+
+        const issues = Object.values(subcatMap).map(issue => {
+            issue.skuCount = issue.skus.length;
+            issue.skus.sort((a, b) => b.negCount - a.negCount);
+            return issue;
+        }).sort((a, b) => b.negativeCount - a.negativeCount);
+
+        res.json({ issues, uniqueSkuCount: uniqueSkus.size });
     } catch (err) {
         console.error('Stakeholder detail error:', err);
         res.status(500).json({ error: err.message });

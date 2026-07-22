@@ -4,9 +4,6 @@
  * ALL DATA FROM API — no static JSON imports
  */
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
-import { BarChart3, Sparkles } from 'lucide-react';
-import { AvatarMenu } from './AvatarMenu';
-import { NotificationBell } from './NotificationBell';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Components
@@ -17,10 +14,11 @@ import GlobalFilterBar from './GlobalFilterBar';
 
 // Hooks — ALL data from API
 import { useGlobalFilters } from '../hooks/useGlobalFilters';
-import { useReviews, useSummary, usePlatformOptions, useSentimentCategories, useTrends, useProductHealth, useProductCategories, type ReviewRow } from '../hooks/useRatingsAPI';
+import { useReviews, useSummary, usePlatformOptions, useSentimentCategories, useFilterOptions, useTrends, useProductHealth, useProductCategories, type ReviewRow } from '../hooks/useRatingsAPI';
 
 // Types
 import type { Review, CompetitorMention } from '../types';
+import { getActiveBrandName } from '../utils/tenant';
 
 const VerbatimMentionsCard = lazy(() => import('./VerbatimMentionsCard'));
 const CompetitorRadarChart = lazy(() => import('./CompetitorRadarChart'));
@@ -149,6 +147,7 @@ const Dashboard: React.FC = () => {
 
     const { platforms: serverPlatforms } = usePlatformOptions();
     const { categories: serverSentimentCategories } = useSentimentCategories();
+    const { paretoStatuses: serverParetoStatuses } = useFilterOptions();
 
     // Filter state from useGlobalFilters (UI state management only)
     const filterResult = useGlobalFilters({
@@ -156,6 +155,7 @@ const Dashboard: React.FC = () => {
         allCompetitorReviews: [],
         serverSentimentCategories,
         serverPlatforms,
+        serverParetoStatuses,
     });
 
     const { filters } = filterResult;
@@ -181,6 +181,8 @@ const Dashboard: React.FC = () => {
         if (currentSentimentCategory) params.sentiment_category = currentSentimentCategory;
         // Product category (Pressure Cooker, Gas Stove, etc.) — from category card click
         if (currentCategory) params.category = currentCategory;
+        
+        if (filters.brand) params.brand = filters.brand;
         if (classification !== 'all') {
             // Map classification type to data value
             const statusMap: Record<string, string> = {
@@ -209,9 +211,12 @@ const Dashboard: React.FC = () => {
             params.price_min = filters.priceRange.min;
             params.price_max = filters.priceRange.max;
         }
+        if (filters.brand) {
+            params.brand = filters.brand;
+        }
 
         return params;
-    }, [currentCategory, currentSentimentCategory, classification, filters.brandScope, filters.dateRange, filters.sku, filters.productCategory, filters.ratingBifurcation, filters.platform, filters.trendPeriodMonths, filters.priceMode, filters.priceRange]);
+    }, [currentCategory, currentSentimentCategory, classification, filters.brandScope, filters.dateRange, filters.sku, filters.productCategory, filters.ratingBifurcation, filters.platform, filters.trendPeriodMonths, filters.priceMode, filters.priceRange, filters.brand]);
 
     // Categories list for pills — always fetch for all categories matching other filters (platform, etc.)
     const categoryListFilters = useMemo(() => {
@@ -381,40 +386,47 @@ const Dashboard: React.FC = () => {
             <GlobalFilterBar 
                 filterResult={filterResult} 
                 tabsNode={
-                    <nav className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-1 border border-slate-200/40 dark:border-slate-700/40 w-max mx-auto">
-                        {TABS.map(tab => (
-                            <motion.button
-                                key={tab.key}
-                                onClick={() => {
-                                    setActiveTab(tab.key);
-                                    const params = new URLSearchParams(window.location.search);
-                                    params.set('tab', tab.key);
-                                    if (tab.key !== 'rules') params.delete('sub');
-                                    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
-                                }}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                title={tab.label}
-                                aria-label={tab.label}
-                                className={`relative px-3 xl:px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${activeTab === tab.key
-                                    ? 'text-white'
-                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                                    }`}
-                            >
-                                {activeTab === tab.key && (
-                                    <motion.div
-                                        layoutId="activeTab"
-                                        className="absolute inset-0 bg-indigo-600 rounded-lg shadow-md shadow-indigo-500/20"
-                                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                                    />
-                                )}
-                                <span className="relative z-10 flex items-center gap-1.5">
-                                    <span className="text-sm">{tab.icon}</span>
-                                    <span className="hidden xl:inline">{tab.label}</span>
-                                </span>
-                            </motion.button>
-                        ))}
-                    </nav>
+                    getActiveBrandName().toLowerCase() !== 'danone' ? (
+                        <nav className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-1 border border-slate-200/40 dark:border-slate-700/40 w-max mx-auto">
+                            {TABS.filter(tab => {
+                                if (getActiveBrandName().toLowerCase() === 'prestige' && ['master', 'rules', 'reviews'].includes(tab.key)) {
+                                    return false;
+                                }
+                                return true;
+                            }).map(tab => (
+                                <motion.button
+                                    key={tab.key}
+                                    onClick={() => {
+                                        setActiveTab(tab.key);
+                                        const params = new URLSearchParams(window.location.search);
+                                        params.set('tab', tab.key);
+                                        if (tab.key !== 'rules') params.delete('sub');
+                                        window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+                                    }}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    title={tab.label}
+                                    aria-label={tab.label}
+                                    className={`relative px-3 xl:px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${activeTab === tab.key
+                                        ? 'text-white'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                >
+                                    {activeTab === tab.key && (
+                                        <motion.div
+                                            layoutId="activeTab"
+                                            className="absolute inset-0 bg-indigo-600 rounded-lg shadow-md shadow-indigo-500/20"
+                                            transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                                        />
+                                    )}
+                                    <span className="relative z-10 flex items-center gap-1.5">
+                                        <span className="text-sm">{tab.icon}</span>
+                                        <span className="hidden xl:inline">{tab.label}</span>
+                                    </span>
+                                </motion.button>
+                            ))}
+                        </nav>
+                    ) : null
                 }
             />
 

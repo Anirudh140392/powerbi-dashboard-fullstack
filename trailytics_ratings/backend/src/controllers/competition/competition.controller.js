@@ -1,49 +1,59 @@
 import pool from '../../config/db.js';
+import clickhouse from '../../config/clickhouse.js';
+
+const getTargetDb = (req) => {
+    return req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
+};
 
 export const getCompetitorMentions = async (req, res) => {
     try {
         const { brand, platform, date_from, date_to, limit = 100 } = req.query;
-        const params = [req.companyId];
-        const where = ['company_id = $1'];
-        let idx = 2;
-        if (brand)     { where.push(`LOWER(brand) = LOWER($${idx++})`); params.push(brand); }
-        if (platform)  { where.push(`LOWER(platform) = LOWER($${idx++})`); params.push(platform); }
-        if (date_from) { where.push(`review_date >= $${idx++}`);     params.push(date_from); }
-        if (date_to)   { where.push(`review_date <= $${idx++}`);     params.push(date_to); }
-        // Default to a 6-month window like the rest of the dashboard, so undated /
-        // ancient rows don't fold into an all-time headline.
-        if (!date_from && !date_to) { where.push(`review_date >= (CURRENT_DATE - INTERVAL '6 months')`); }
+        const queryParams = { companyId: String(req.companyId) };
+        const where = ['company_id = {companyId:String}'];
+        
+        if (brand)     { where.push(`lower(brand) = lower({brand:String})`); queryParams.brand = brand; }
+        if (platform)  { where.push(`lower(platform) = lower({platform:String})`); queryParams.platform = platform; }
+        if (date_from) { where.push(`review_date >= toDate({dateFrom:String})`); queryParams.dateFrom = date_from; }
+        if (date_to)   { where.push(`review_date <= toDate({dateTo:String})`); queryParams.dateTo = date_to; }
+        if (!date_from && !date_to) { where.push(`review_date >= subtractMonths(today(), 6)`); }
+        
         const whereSql = where.join(' AND ');
+        const targetLimit = Math.min(parseInt(limit, 10) || 100, 500);
+        queryParams.limit = targetLimit;
 
-        const [agg, sample] = await Promise.all([
-            pool.query(`
-                -- Collapse case-variant brand rows (e.g. 'hawkins' + 'Hawkins') that the
-                -- scanner stored verbatim, and de-dupe the same review counted under both
-                -- variants: group on LOWER(brand) and count DISTINCT review_id (not COUNT(*)).
-                SELECT LOWER(brand) AS brand,
-                       COUNT(DISTINCT review_id) AS total,
-                       COUNT(DISTINCT review_id) FILTER (WHERE is_favorable) AS favorable,
-                       COUNT(DISTINCT review_id) FILTER (WHERE sentiment = 'Negative' AND NOT is_favorable) AS unfavorable,
-                       COUNT(DISTINCT review_id) FILTER (WHERE NOT is_favorable AND sentiment <> 'Negative') AS neutral
-                FROM ratings.competitor_mentions
-                WHERE ${whereSql}
-                GROUP BY LOWER(brand)
-                ORDER BY total DESC
-            `, params),
-            pool.query(`
-                SELECT id, review_id, web_pid, platform, brand, context, sentiment,
-                       is_favorable, review_date, review_rating, scanned_at
-                FROM ratings.competitor_mentions
-                WHERE ${whereSql}
-                ORDER BY review_date DESC NULLS LAST, id DESC
-                LIMIT $${idx}
-            `, [...params, Math.min(parseInt(limit, 10) || 100, 500)]),
+        const aggQuery = `
+            SELECT lower(brand) AS brand,
+                   count(DISTINCT review_id) AS total,
+                   count(DISTINCT review_id) FILTER (WHERE is_favorable = 1) AS favorable,
+                   count(DISTINCT review_id) FILTER (WHERE sentiment = 'Negative' AND is_favorable = 0) AS unfavorable,
+                   count(DISTINCT review_id) FILTER (WHERE is_favorable = 0 AND sentiment != 'Negative') AS neutral
+            FROM competitor_mentions
+            WHERE ${whereSql}
+            GROUP BY brand
+            ORDER BY total DESC
+        `;
+        
+        const sampleQuery = `
+            SELECT id, review_id, web_pid, platform, brand, context, sentiment,
+                   is_favorable, review_date, review_rating, scanned_at
+            FROM competitor_mentions
+            WHERE ${whereSql}
+            ORDER BY review_date DESC NULLS LAST, id DESC
+            LIMIT {limit:Int32}
+        `;
+
+        const [aggRes, sampleRes] = await Promise.all([
+            clickhouse.query({ database: getTargetDb(req), query: aggQuery, query_params: queryParams, format: 'JSONEachRow' }),
+            clickhouse.query({ database: getTargetDb(req), query: sampleQuery, query_params: queryParams, format: 'JSONEachRow' }),
         ]);
 
-        const total = agg.rows.reduce((s, r) => s + parseInt(r.total, 10), 0);
+        const aggRows = await aggRes.json();
+        const sampleRows = await sampleRes.json();
+
+        const total = aggRows.reduce((s, r) => s + parseInt(r.total, 10), 0);
         res.json({
             total,
-            byBrand: agg.rows.map(r => ({
+            byBrand: aggRows.map(r => ({
                 brand: r.brand,
                 total: parseInt(r.total, 10),
                 favorable: parseInt(r.favorable, 10),
@@ -51,13 +61,13 @@ export const getCompetitorMentions = async (req, res) => {
                 neutral: parseInt(r.neutral, 10),
                 favorableRate: parseInt(r.total, 10) > 0 ? parseInt(r.favorable, 10) / parseInt(r.total, 10) : 0,
             })),
-            sample: sample.rows.map(r => ({
+            sample: sampleRows.map(r => ({
                 id: r.id,
                 reviewId: r.review_id,
                 brand: r.brand,
                 context: r.context,
                 sentiment: r.sentiment,
-                isFavorable: r.is_favorable,
+                isFavorable: r.is_favorable === 1 || r.is_favorable === true,
                 reviewDate: r.review_date,
                 reviewRating: r.review_rating,
                 webPid: r.web_pid,
@@ -79,38 +89,37 @@ export const getCompetitorMentions = async (req, res) => {
 export const getCompetitorMatrix = async (req, res) => {
     try {
         const { platform, category, date_from, date_to, period_months } = req.query;
-        let where = ['company_id = $1'];
-        let params = [req.companyId];
-        let idx = 2;
+        const queryParams = { companyId: String(req.companyId) };
+        let where = ['company_id = {companyId:String}'];
 
-        if (platform && platform !== 'all') { where.push(`platform ILIKE $${idx++}`); params.push(platform); }
-        if (category) { where.push(`category ILIKE $${idx++}`); params.push(category); }
-        if (date_from) { where.push(`review_date >= $${idx++}`); params.push(date_from); }
-        if (date_to) { where.push(`review_date <= $${idx++}`); params.push(date_to); }
-        // Default 6-month window when no explicit dates — the Competition tab used
-        // to show ALL-TIME here (no date filter), so it never matched the exec's
-        // 6-month pull. Mirrors the window used by summary/category-health/etc.
+        if (platform && platform !== 'all') { where.push(`ilike(platform, {platform:String})`); queryParams.platform = platform; }
+        if (category) { where.push(`ilike(category, {category:String})`); queryParams.category = category; }
+        if (date_from) { where.push(`review_date >= toDate({dateFrom:String})`); queryParams.dateFrom = date_from; }
+        if (date_to) { where.push(`review_date <= toDate({dateTo:String})`); queryParams.dateTo = date_to; }
+        
         if (!date_from && !date_to) {
             const pm = Math.max(1, Math.min(parseInt(period_months, 10) || 6, 24));
-            where.push(`review_date >= CURRENT_DATE - INTERVAL '${pm} months'`);
+            where.push(`review_date >= subtractMonths(today(), ${pm})`);
         }
 
         const sql = `
             SELECT
-                INITCAP(LOWER(brand)) AS brand,
+                initcap(lower(brand)) AS brand,
                 is_competitor,
-                COUNT(*) as total_reviews,
-                ROUND(AVG(rating)::numeric, 2) as avg_rating,
-                ROUND(AVG(quality_score)::numeric, 2) as avg_quality,
+                count() as total_reviews,
+                round(avg(rating), 2) as avg_rating,
+                round(avg(quality_score), 2) as avg_quality,
                 category as primary_category
-            FROM ratings.reviews
+            FROM ml_reviews
             WHERE ${where.join(' AND ')}
-            GROUP BY INITCAP(LOWER(brand)), is_competitor, category
+            GROUP BY brand, is_competitor, category
             ORDER BY total_reviews DESC
             LIMIT 50
         `;
         
-        const { rows } = await pool.query(sql, params);
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const rows = await chRes.json();
+
         res.json({ success: true, matrix: rows });
     } catch (err) {
         console.error('Competitor Matrix error:', err);
@@ -119,7 +128,10 @@ export const getCompetitorMatrix = async (req, res) => {
 };
 
 // ============================================================================
-// GET /api/ratings/product-health — Product health scores (server-side)
+// NOTE: The following endpoints for competitor mappings (CRUD operations) 
+// are intentionally kept in Postgres as they deal with configuration and 
+// administrative data. The corresponding tables (ratings.competitor_mapping_pairs 
+// and ratings.competitor_mapping_types) do not exist in the ClickHouse 'prestige' DB.
 // ============================================================================
 
 export const getCompetitorMappings = async (req, res) => {
@@ -459,22 +471,21 @@ export const exportCompetitorMappingPairs = async (req, res) => {
 
 export const getCompetitorBrands = async (req, res) => {
     try {
-        // Defensive filter: legacy text-extraction left junk like "The", "not",
-        // "Gas", "Extracted" in ratings.reviews.brand for thousands of rows.
-        // Constrain to brands that look real: >= 3 chars, not in a stop-word
-        // list, and present on at least 3 reviews (to drop one-off noise).
-        const { rows } = await pool.query(
-            `SELECT brand FROM (
-                SELECT INITCAP(LOWER(brand)) AS brand, COUNT(*) n FROM ratings.reviews
-                WHERE company_id = $1 AND is_competitor = true
-                  AND brand IS NOT NULL AND brand != ''
-                  AND LENGTH(brand) >= 3
-                  AND LOWER(brand) NOT IN ('the','not','and','gas','extracted','none','null','n/a','other','unknown','etc','for','was','were','our','your','its')
-                GROUP BY INITCAP(LOWER(brand))
-                HAVING COUNT(*) >= 3
-            ) t ORDER BY brand ASC`,
-            [req.companyId]
-        );
+        const queryParams = { companyId: String(req.companyId) };
+        const sql = `
+            SELECT brand FROM (
+                SELECT initcap(lower(brand)) AS brand, count() AS n FROM ml_reviews
+                WHERE company_id = {companyId:String} AND coalesce(is_competitor, 0) = 1
+                  AND isNotNull(brand) AND brand != ''
+                  AND length(brand) >= 3
+                  AND lower(brand) NOT IN ('the','not','and','gas','extracted','none','null','n/a','other','unknown','etc','for','was','were','our','your','its')
+                GROUP BY brand
+                HAVING count() >= 3
+            ) ORDER BY brand ASC
+        `;
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const rows = await chRes.json();
+        
         res.json({ brands: rows.map(r => r.brand) });
     } catch (err) {
         console.error('Competitor-brands error:', err);

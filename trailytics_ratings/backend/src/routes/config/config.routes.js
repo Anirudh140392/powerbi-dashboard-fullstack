@@ -6,8 +6,10 @@ import {
     getSpecTypeMappings,
     getCompanyConfig,
     getBrandConfig,
-    getAlertScopeOptions
+    getAlertScopeOptions,
+    getClientBrands
 } from '../../controllers/config/config.controller.js';
+import { getSkuList } from '../../controllers/misc_temp.js';
 
 const router = express.Router();
 
@@ -18,5 +20,7 @@ router.get('/spec-type-mappings', getSpecTypeMappings);
 router.get('/company-config', getCompanyConfig);
 router.get('/brand-config', getBrandConfig);
 router.get('/alert-scope-options', getAlertScopeOptions);
+router.get('/sku-list', getSkuList);
+router.get('/client-brands', getClientBrands);
 
 export default router;

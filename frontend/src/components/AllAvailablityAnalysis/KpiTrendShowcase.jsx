@@ -1528,9 +1528,9 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
   const [city, setCity] = useState(() => {
     if (drawerFilters?.City) {
-      return drawerFilters.City === 'All' ? CITIES[0] : drawerFilters.City;
+      return drawerFilters.City === 'All' ? 'All India' : drawerFilters.City;
     }
-    return CITIES[0];
+    return 'All India';
   });
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [filters, setFilters] = useState(() => {
@@ -1670,6 +1670,36 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
     }));
     setCity('All India');
   }, [resellerName]);
+
+  // --- Dynamic city list from database (Location column of rb_pdp_olap) ---
+  const [citiesList, setCitiesList] = useState(['All India']);
+
+  useEffect(() => {
+    const fetchCities = async () => {
+      try {
+        const platformParam = platform && platform !== 'All' ? platform : undefined;
+        const res = await axiosInstance.get('/watchtower/trends-filter-options', {
+          params: {
+            filterType: 'cities',
+            platform: platformParam,
+            ...(isDrl && resellerName && resellerName !== 'All' ? { resellerName } : {}),
+          }
+        });
+        if (res.data?.options && res.data.options.length > 0) {
+          const newCities = ['All India', ...res.data.options];
+          setCitiesList(newCities);
+          // If current city is not in the new list, reset to All India
+          setCity(prev => {
+            if (!newCities.includes(prev)) return 'All India';
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.error('[KpiTrendShowcase] Error fetching cities:', err);
+      }
+    };
+    fetchCities();
+  }, [platform, isDrl, resellerName]);
 
   const [selectedBrandIds, setSelectedBrandIds] = useState([]);
   const [selectedSkuIds, setSelectedSkuIds] = useState([]);
@@ -2102,7 +2132,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
               <SelectValue placeholder="Select city" />
             </SelectTrigger>
             <SelectContent>
-              {CITIES.map((c) => (
+              {citiesList.map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
                 </SelectItem>

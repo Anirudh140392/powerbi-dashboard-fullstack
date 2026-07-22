@@ -13,6 +13,7 @@ interface WordSphereProps {
 interface CategoryData {
     text: string;
     count: number;
+    sentimentScore: number;
 }
 
 const WordSphere3D: React.FC<WordSphereProps> = ({
@@ -30,16 +31,25 @@ const WordSphere3D: React.FC<WordSphereProps> = ({
 
     // Aggregate by subcategory for granular data
     const categoryData = useMemo(() => {
-        const frequencyMap: Record<string, number> = {};
+        const frequencyMap: Record<string, { count: number, sentimentScore: number }> = {};
 
         reviews.forEach(review => {
             const category = review.subcategory || review.sentimentCategory || 'General';
             const displayName = category.replace(/_/g, ' ');
-            frequencyMap[displayName] = (frequencyMap[displayName] || 0) + 1;
+            
+            if (!frequencyMap[displayName]) {
+                frequencyMap[displayName] = { count: 0, sentimentScore: 0 };
+            }
+            
+            frequencyMap[displayName].count += 1;
+            
+            const sent = typeof review.sentiment === 'string' ? review.sentiment.toLowerCase() : '';
+            if (sent === 'positive') frequencyMap[displayName].sentimentScore += 1;
+            else if (sent === 'negative') frequencyMap[displayName].sentimentScore -= 1;
         });
 
         const items: CategoryData[] = Object.entries(frequencyMap)
-            .map(([text, count]) => ({ text, count }))
+            .map(([text, data]) => ({ text, count: data.count, sentimentScore: data.sentimentScore / data.count }))
             .filter(item => !['General', 'General Feedback', 'Overall Quality'].includes(item.text))
             .sort((a, b) => b.count - a.count)
             .slice(0, 18); // Top 18 for readable sphere
@@ -69,7 +79,13 @@ const WordSphere3D: React.FC<WordSphereProps> = ({
             const fontSize = 14 + normalized * 22; // 14px to 36px
             const fontWeight = normalized > 0.5 ? 700 : 500;
             const opacity = 0.6 + normalized * 0.4; // 0.6 to 1.0
-            return `<span style="font-size:${fontSize}px;font-weight:${fontWeight};opacity:${opacity}" data-category="${c.text}" data-count="${c.count}">${c.text}</span>`;
+            
+            // Color based on sentiment
+            let color = 'inherit';
+            if (c.sentimentScore > 0.3) color = '#10b981'; // emerald-500
+            else if (c.sentimentScore < -0.3) color = '#ef4444'; // red-500
+            
+            return `<span style="font-size:${fontSize}px;font-weight:${fontWeight};opacity:${opacity};color:${color}" data-category="${c.text}" data-count="${c.count}">${c.text}</span>`;
         });
 
         const options = {

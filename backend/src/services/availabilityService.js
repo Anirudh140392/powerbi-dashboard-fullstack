@@ -2502,7 +2502,10 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             if (filterType === 'resellerNames') {
                 const dbName = getCurrentDbName();
                 if (dbName === 'drl') {
-                    const resellerConditions = [`Reseller_Name IS NOT NULL AND Reseller_Name != ''`];
+                    const resellerConditions = [
+                        `Reseller_Name IS NOT NULL AND Reseller_Name != ''`,
+                        `Comp_flag = 0`
+                    ];
                     
                     const platformCond = await buildPlatformChannelCond(platform, channel);
                     if (platformCond) {

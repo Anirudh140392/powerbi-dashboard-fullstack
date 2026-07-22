@@ -35,6 +35,15 @@ export const contentDashboardQuerySchema = z.object({
   /** Full-text search across product_id and title */
   search: z.string().max(200).optional(),
 
+  /** Comma-separated list of brands */
+  brand: z.string().max(2000).optional(),
+
+  /** Comma-separated list of categories */
+  category: z.string().max(2000).optional(),
+
+  /** Comma-separated list of SKUs */
+  skus: z.string().max(10000).optional(),
+
   /** Column to sort by */
   sortBy: z.enum(ALLOWED_SORT_COLUMNS).default('score'),
 

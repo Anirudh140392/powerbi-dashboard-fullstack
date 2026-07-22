@@ -98,6 +98,7 @@ export interface GlobalFilterState {
     priceMode: PriceFilterMode;
     priceRange: { min: number; max: number } | null;
     searchTerm: string;
+    brand: string | null;
 }
 
 export interface FilteredDataResult {

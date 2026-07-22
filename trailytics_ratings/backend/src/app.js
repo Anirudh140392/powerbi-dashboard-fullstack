@@ -30,9 +30,14 @@ app.use(cors(corsOptions));
 import { clickhouseStorage, resolveCompanyUuid } from './config/clickhouse.js';
 
 // Resolve dynamic company context and database name
+// Priority: db_name from request → resolve company_id dynamically
+// Fallback: explicit company_id from query param or header
 app.use(async (req, res, next) => {
     const dbName = req.query.db_name || req.headers['x-db-name'] || process.env.CLICKHOUSE_DB || 'prestige';
-    const companyId = await resolveCompanyUuid(dbName);
+    
+    // Try explicit company_id first (from query param or header), otherwise resolve from db_name
+    const explicitCompanyId = req.query.company_id || req.headers['x-company-id'];
+    const companyId = explicitCompanyId || await resolveCompanyUuid(dbName);
 
     req.companyId = companyId;
     req.dbName = dbName;

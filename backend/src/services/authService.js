@@ -59,15 +59,16 @@ export async function loginUser(email, password, deviceInfo = {}) {
         throw new Error('Invalid email or password');
     }
 
-    // 3. Look up db_name from tb_database using db_id
+    // 3. Look up db_name and company_id from tb_database using db_id
     const databases = await queryAdminDB(
-        `SELECT db_name, toString(db_id) as db_id, logo_url 
+        `SELECT db_name, toString(db_id) as db_id, logo_url, company_id 
          FROM tb_database 
          WHERE status = 'active'`
     );
 
     let dbName = process.env.CLICKHOUSE_DB || 'colpal';
     let dbLogoUrl = "";
+    let companyId = process.env.RATINGS_COMPANY_ID || '';
     const userDbId = user.db_id_str;
 
     let matchedDb = databases.find(db => db.db_id === userDbId);
@@ -94,7 +95,14 @@ export async function loginUser(email, password, deviceInfo = {}) {
     if (matchedDb) {
         dbName = matchedDb.db_name;
         dbLogoUrl = matchedDb.logo_url || "";
-        console.log(`[Auth] ✅ Database mapped for ${user.user_email}: ${dbName} (id: ${userDbId})`);
+        // Filter out the null UUID sentinel (00000000-0000-0000-0000-000000000000)
+        // which is the default ClickHouse UUID('') value and means "not assigned".
+        const rawCid = matchedDb.company_id || '';
+        const isNullUuid = rawCid === '00000000-0000-0000-0000-000000000000';
+        if (rawCid && !isNullUuid) {
+            companyId = rawCid;
+        }
+        console.log(`[Auth] ✅ Database mapped for ${user.user_email}: ${dbName} (id: ${userDbId}) companyId: ${companyId || '(none)'}`);
     } else {
         console.warn(`[Auth] ⚠️ No matching database found for db_id=${userDbId}, using fallback: ${dbName}`);
     }
@@ -121,14 +129,17 @@ export async function loginUser(email, password, deviceInfo = {}) {
     if (!isAdmin) {
         let matchedRow = null;
 
-        // Step A: Try device_token cookie (PRIMARY — survives fingerprint changes)
+        // Step A: Try device_token cookie (PRIMARY — uniquely identifies this browser/device)
         if (incomingDeviceToken) {
             const tokenRows = await queryAdminDB(
                 `SELECT access, device_token, ip
                  FROM tb_user
                  WHERE user_email = {email:String}
                    AND device_token = {dtoken:String}
-                 ORDER BY last_login DESC
+                   AND device_token != ''
+                 ORDER BY
+                   CASE access WHEN 'allow' THEN 0 WHEN 'deny' THEN 1 ELSE 2 END,
+                   last_login DESC
                  LIMIT 1`,
                 { email: user.user_email, dtoken: incomingDeviceToken }
             );
@@ -138,49 +149,26 @@ export async function loginUser(email, password, deviceInfo = {}) {
             }
         }
 
-        // Step B: Fall back to fingerprint/IP lookup (SECONDARY)
-        if (!matchedRow && fingerprintId) {
-            const fpRows = await queryAdminDB(
-                `SELECT access, device_token, ip
-                 FROM tb_user
-                 WHERE user_email = {email:String}
-                   AND ip = {fp:String}
-                 ORDER BY last_login DESC
-                 LIMIT 1`,
-                { email: user.user_email, fp: fingerprintId }
-            );
-            if (fpRows.length > 0) {
-                matchedRow = fpRows[0];
-                console.log(`[DEBUG_AUTH] Fingerprint match for ${user.user_email}: access=${matchedRow.access}`);
-                // If approved but cookie was lost/cleared, we'll issue a fresh cookie
-                if ((matchedRow.access || '').toLowerCase().trim() === 'allow') {
-                    isNewDeviceToken = true;
-                    // Use the existing token if the row had one, else generate a new one
-                    if (!matchedRow.device_token) {
-                        isNewDeviceToken = true;
-                    }
-                }
-            }
-        }
-
-        // Step C: Evaluate access status
+        // Step B: Evaluate access status or create pending request for new device
         if (matchedRow) {
             const currentAccess = (matchedRow.access || '').toLowerCase().trim();
 
             if (currentAccess === 'allow') {
                 // ✅ Approved — allow login
-                resolvedDeviceToken = matchedRow.device_token || incomingDeviceToken || generateDeviceToken();
-                isNewDeviceToken = isNewDeviceToken || !matchedRow.device_token;
+                resolvedDeviceToken = matchedRow.device_token || incomingDeviceToken;
                 console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} via approved device`);
             } else if (currentAccess === 'deny') {
                 throw new Error('Access Denied: Your access request has been rejected by an administrator.');
             } else {
-                // pending
-                throw new Error('Access Pending: Your request is still awaiting administrator review.');
+                // Pending request already exists for this device
+                const err = new Error('Access Pending: Your request is still awaiting administrator review.');
+                err.deviceToken = incomingDeviceToken;
+                throw err;
             }
         } else {
-            // Step D: No existing record for this device → create a pending row
-            console.log(`[DEBUG_AUTH] No existing device record for ${user.user_email}, creating pending request`);
+            // Step C: No existing record for this specific device/browser.
+            // Every new device requires explicit admin approval.
+            console.log(`[DEBUG_AUTH] New device detected for ${user.user_email}, creating pending access request`);
             const newToken = generateDeviceToken();
             try {
                 const rowId = Date.now().toString();
@@ -205,11 +193,13 @@ export async function loginUser(email, password, deviceInfo = {}) {
                     operating_system: os || '',
                     platform: platform || '',
                 }]);
-                console.log(`[DEBUG_AUTH] Created new pending request for ${user.user_email}`);
+                console.log(`[DEBUG_AUTH] Created new pending request in tb_user for ${user.user_email} with token ${newToken}`);
             } catch (ipError) {
                 console.error(`[DEBUG_AUTH] Failed to insert pending row:`, ipError.message);
             }
-            throw new Error('Access Request Submitted: Please wait for admin approval.');
+            const err = new Error('Access Pending: Your request is still awaiting administrator review.');
+            err.deviceToken = newToken;
+            throw err;
         }
     } else {
         console.log(`[DEBUG_AUTH] ENFORCEMENT: Admin bypass for ${user.user_email}`);
@@ -293,6 +283,12 @@ export async function loginUser(email, password, deviceInfo = {}) {
     }
 
     // 6. Generate JWT token
+    // NOTE: Do NOT include dbLogoUrl or tabPermissions in the JWT payload.
+    // dbLogoUrl is a base64-encoded image (10-20KB+) and tabPermissions is a large
+    // JSON object. Including them causes the Authorization header to exceed nginx's
+    // default 8KB header buffer limit, resulting in "400 Bad Request - Request Header
+    // Or Cookie Too Large" on the server. These values are returned separately in
+    // the login response and stored in sessionStorage.
     const tokenPayload = {
         userId: user.user_id,
         email: user.user_email,
@@ -302,7 +298,7 @@ export async function loginUser(email, password, deviceInfo = {}) {
         dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus: dbStatusBool,
-        tabPermissions
+        companyId,
     };
 
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
@@ -317,7 +313,8 @@ export async function loginUser(email, password, deviceInfo = {}) {
             dbLogoUrl: dbLogoUrl,
             role: userRole,
             dbStatus: dbStatusBool,
-            tabPermissions
+            tabPermissions,
+            companyId,      // ratings postgres company_id — stored in sessionStorage for ratings tab
         },
         // Device token info for the controller to set the HTTP-only cookie
         deviceToken: resolvedDeviceToken,
@@ -393,14 +390,15 @@ export async function verifySession(token, deviceToken = null) {
         }
     }
 
-    // 4. Look up db_name from tb_database using token info
+    // 4. Look up db_name, logo_url and company_id from tb_database using token info
     let dbName = decoded.dbName || process.env.CLICKHOUSE_DB || 'colpal';
     let dbId = decoded.dbId || '';
     let dbLogoUrl = decoded.dbLogoUrl || "";
+    let companyId = decoded.companyId || process.env.RATINGS_COMPANY_ID || '';
 
     try {
         const dbRows = await queryAdminDB(`
-            SELECT toString(db_id) as db_id, logo_url FROM tb_database 
+            SELECT toString(db_id) as db_id, logo_url, company_id FROM tb_database 
             WHERE lower(db_name) = '${dbName.toLowerCase()}' 
             LIMIT 1
         `);
@@ -409,9 +407,15 @@ export async function verifySession(token, deviceToken = null) {
             if (!dbId) {
                 dbId = dbRows[0].db_id || "";
             }
+            // Filter out the null UUID sentinel (00000000-0000-0000-0000-000000000000)
+            const rawCid = dbRows[0].company_id || '';
+            const isNullUuid = rawCid === '00000000-0000-0000-0000-000000000000';
+            if (rawCid && !isNullUuid) {
+                companyId = rawCid;
+            }
         }
     } catch (e) {
-        console.warn('[Auth] Failed to fetch database logo during verify:', e.message);
+        console.warn('[Auth] Failed to fetch database info during verify:', e.message);
     }
 
     // 5. Fetch latest db_status and tab_permissions for this user
@@ -438,7 +442,7 @@ export async function verifySession(token, deviceToken = null) {
         console.warn('[Auth] Failed to fetch permissions during verify:', e.message);
     }
 
-    console.error(`[DEBUG_VERIFY_SESSION] returning userData: email=${decoded.email}, dbName=${dbName}, dbLogoUrl length=${dbLogoUrl ? dbLogoUrl.length : 0}`);
+    console.error(`[DEBUG_VERIFY_SESSION] returning userData: email=${decoded.email}, dbName=${dbName}, companyId=${companyId}, dbLogoUrl length=${dbLogoUrl ? dbLogoUrl.length : 0}`);
 
     return {
         email: decoded.email,
@@ -448,6 +452,7 @@ export async function verifySession(token, deviceToken = null) {
         dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus,
-        tabPermissions
+        tabPermissions,
+        companyId,      // ratings postgres company_id — passed to ratings tab via sessionStorage
     };
 }

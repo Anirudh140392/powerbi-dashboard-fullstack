@@ -10,7 +10,7 @@
  */
 import { useEffect, useState } from 'react';
 import { IndianRupee, Loader2, ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react';
-import { resolveCompanyId } from '../utils/tenant';
+import { resolveCompanyId, resolveDbName } from '../utils/tenant';
 import { buildAuthHeaders } from '../utils/auth';
 
 interface VarianceRow {
@@ -51,6 +51,8 @@ export function PriceVarianceStrip({ category, platform, visibleBrands }: Props)
     const companyId = resolveCompanyId();
     const backendUrl = (import.meta.env.VITE_RATINGS_API_URL || import.meta.env.VITE_API_URL) || import.meta.env.VITE_RAILWAY_URL || '';
     const params = new URLSearchParams({ company_id: companyId, category });
+    const dbName = resolveDbName();
+    if (dbName) params.set('db_name', dbName);
     if (platform && platform !== 'all') params.set('platform', platform);
     setLoading(true);
     fetch(`${backendUrl}/api/ratings/price-variance?${params.toString()}`, {
