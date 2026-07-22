@@ -16,3 +16,5 @@ async function checkRows() {
     process.exit();
 }
 checkRows();
+
+
