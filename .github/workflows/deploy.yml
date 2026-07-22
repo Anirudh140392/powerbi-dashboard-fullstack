@@ -179,17 +179,17 @@ jobs:
             git reset --hard origin/${{ github.ref_name }}
             
             echo "🛑 Stopping and removing all managed containers..."
-            sudo docker stop backend_multiple frontend_multiple ratings_backend content_backend || true
-            sudo docker rm backend_multiple frontend_multiple ratings_backend content_backend || true
+            docker stop backend_multiple frontend_multiple ratings_backend content_backend || true
+            docker rm backend_multiple frontend_multiple ratings_backend content_backend || true
             
             echo "🔨 Building and starting all containers..."
-            sudo docker compose up -d --build
+            docker compose up -d --build
             
             echo "⏳ Waiting for services to start..."
             sleep 15
             
             echo "🔍 Checking container status..."
-            sudo docker compose ps
+            docker compose ps
             
             echo "✅ Health checks..."
             curl -sf http://localhost:5000/health || { echo "❌ Main backend health check failed"; exit 1; }
