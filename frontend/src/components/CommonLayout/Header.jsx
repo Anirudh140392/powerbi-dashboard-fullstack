@@ -225,7 +225,7 @@ function WatchTowerFilterModal({
     channel: { options: channels, value: draftChannel, onChange: setDraftChannel },
     platform: { options: localPlatforms.filter(p => p !== 'All'), value: draftPlatform, onChange: setDraftPlatform },
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
-    brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
+    brand: { options: localCategories, value: draftBrand, onChange: setDraftBrand },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
     msl: { options: localMsls, value: draftMsl, onChange: setDraftMsl },
   };
