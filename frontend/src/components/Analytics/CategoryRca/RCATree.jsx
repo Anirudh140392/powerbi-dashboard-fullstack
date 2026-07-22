@@ -195,6 +195,70 @@ const CoolGreyBackground = () => (
   <Box sx={{ position: "absolute", inset: 0, zIndex: 0, background: "#ffffff" }} />
 );
 
+const FALLBACK_LOGOS = {
+  'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Blinkit-yellow-app-icon.svg',
+  'instamart': '/instamart_photo.png',
+  'swiggy instamart': '/instamart_photo.png',
+  'swiggy': '/instamart_photo.png',
+  'zepto': 'https://upload.wikimedia.org/wikipedia/commons/8/81/Zepto_Logo.svg',
+  'flipkart': 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Flipkart-logo.png',
+  'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+  '1_mg': 'https://upload.wikimedia.org/wikipedia/commons/b/b3/1mg_Logo.svg',
+  '1mg': 'https://upload.wikimedia.org/wikipedia/commons/b/b3/1mg_Logo.svg',
+  'apollo 247': 'https://upload.wikimedia.org/wikipedia/commons/8/86/Apollo_Hospitals_Logo.svg',
+  'amazon pharmacy': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+};
+
+const PlatformCardLogo = ({ platform, size = 48 }) => {
+  const key = (platform || '').toLowerCase().trim();
+  if (!key || key === 'all' || key === 'omni') return null;
+  const logoSrc = FALLBACK_LOGOS[key];
+
+  if (logoSrc) {
+    return (
+      <Box
+        component="img"
+        src={logoSrc}
+        alt={platform}
+        onError={(e) => { e.target.style.display = 'none'; }}
+        sx={{
+          width: size,
+          height: size,
+          objectFit: 'contain',
+          borderRadius: '12px',
+          bgcolor: '#ffffff',
+          p: 0.5,
+          border: '2px solid rgba(15, 23, 42, 0.1)',
+          boxShadow: '0 6px 16px rgba(0,0,0,0.1)',
+          flexShrink: 0,
+        }}
+      />
+    );
+  }
+
+  return (
+    <Box
+      sx={{
+        width: size,
+        height: size,
+        borderRadius: '12px',
+        bgcolor: '#6366f1',
+        color: '#ffffff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '14px',
+        fontWeight: 900,
+        border: '2px solid rgba(15, 23, 42, 0.1)',
+        boxShadow: '0 6px 16px rgba(0,0,0,0.1)',
+        flexShrink: 0,
+      }}
+    >
+      {platform?.slice(0, 2)?.toUpperCase()}
+    </Box>
+  );
+};
+
 // --- AI Insight Badge ---
 const AiInsightBadge = ({ text }) => (
   <motion.div
@@ -517,9 +581,14 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
           <Typography sx={{ fontSize: "22px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1.5px", color: "#0f172a" }}>
             {category === "ad" ? "Ad " : category === "organic" ? "Organic " : ""}{kpiLabel.toUpperCase()} {kpiLabel.toLowerCase().includes("keyword") ? "SOS " : ""}DIAGNOSTIC TRACE
           </Typography>
-          <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8", letterSpacing: "0.5px" }}>
-            PRO INTELLIGENCE • DEEP-DIVE RCA MODULE • {platform?.toUpperCase() || "OMNI"}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5 }}>
+            <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8", letterSpacing: "0.5px" }}>
+              PRO INTELLIGENCE • DEEP-DIVE RCA MODULE • {platform?.toUpperCase() || "OMNI"}
+            </Typography>
+            {platform && platform.toLowerCase() !== 'all' && platform.toLowerCase() !== 'omni' && (
+              <PlatformCardLogo platform={platform} size={22} />
+            )}
+          </Box>
         </Box>
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
           <Tooltip title="Download Complete Trace CSV">
@@ -761,6 +830,7 @@ const KpiNode = ({ data }) => {
     metrics,
     keywordMetrics,
     hoveredNodeId, // Single source of truth for global hover
+    platform = "",
   } = data;
 
   const [localHover, setLocalHover] = useState(false);
@@ -866,7 +936,11 @@ const KpiNode = ({ data }) => {
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 4.5, pt: 3.0 }}>
-          <Box sx={{ width: 36, height: 36, borderRadius: "12px", bgcolor: accentColor, boxShadow: `0 0 35px ${accentColor}55` }} />
+          {platform && platform.toLowerCase() !== 'all' && platform.toLowerCase() !== 'omni' ? (
+            <PlatformCardLogo platform={platform} size={54} />
+          ) : (
+            <Box sx={{ width: 36, height: 36, borderRadius: "12px", bgcolor: accentColor, boxShadow: `0 0 35px ${accentColor}55` }} />
+          )}
           <Typography sx={{ fontSize: TYPO.labelSize, fontWeight: TYPO.weightBold, color: TYPO.primary, letterSpacing: "-1.0px" }}>
             {label}
           </Typography>

@@ -26,7 +26,49 @@ import dayjs from "dayjs";
  * - Integration with RCATree
  */
 
-const SelectBox = ({ label, value, onChange, options = [], width = '100%', widePopup = false }) => (
+const FALLBACK_LOGOS = {
+    'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Blinkit-yellow-app-icon.svg',
+    'instamart': '/instamart_photo.png',
+    'swiggy instamart': '/instamart_photo.png',
+    'swiggy': '/instamart_photo.png',
+    'zepto': 'https://upload.wikimedia.org/wikipedia/commons/8/81/Zepto_Logo.svg',
+    'flipkart': 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Flipkart-logo.png',
+    'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+    '1_mg': 'https://upload.wikimedia.org/wikipedia/commons/b/b3/1mg_Logo.svg',
+    '1mg': 'https://upload.wikimedia.org/wikipedia/commons/b/b3/1mg_Logo.svg',
+    'apollo 247': 'https://upload.wikimedia.org/wikipedia/commons/8/86/Apollo_Hospitals_Logo.svg',
+    'amazon pharmacy': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+};
+
+const PlatformLogo = ({ name, logoMap = {} }) => {
+    const key = (name || '').toLowerCase().trim();
+    if (key === 'all' || key === 'all platforms') {
+        return (
+            <Box sx={{ width: 22, height: 22, borderRadius: '6px', bgcolor: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', mr: 1.2, flexShrink: 0 }}>
+                <Zap size={14} color="#6366f1" strokeWidth={2.5} />
+            </Box>
+        );
+    }
+    const logoSrc = logoMap[key] || FALLBACK_LOGOS[key];
+    if (logoSrc) {
+        return (
+            <Box
+                component="img"
+                src={logoSrc}
+                alt={name}
+                onError={(e) => { e.target.style.display = 'none'; }}
+                sx={{ width: 22, height: 22, objectFit: 'contain', borderRadius: '4px', mr: 1.2, flexShrink: 0 }}
+            />
+        );
+    }
+    return (
+        <Box sx={{ width: 22, height: 22, borderRadius: '6px', bgcolor: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 900, mr: 1.2, flexShrink: 0 }}>
+            {name?.slice(0, 1)?.toUpperCase() || '?'}
+        </Box>
+    );
+};
+
+const SelectBox = ({ label, value, onChange, options = [], width = '100%', widePopup = false, isPlatform = false, logoMap = {} }) => (
     <Box sx={{ mb: 4.5 }}>
         <Typography sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', mb: 1.5, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
             {label}
@@ -45,7 +87,8 @@ const SelectBox = ({ label, value, onChange, options = [], width = '100%', wideP
             size="small"
             getOptionLabel={(option) => option || ''}
             renderOption={(props, option) => (
-                <li {...props} key={option}>
+                <li {...props} key={option} style={{ ...props.style, display: 'flex', alignItems: 'center' }}>
+                    {isPlatform && <PlatformLogo name={option} logoMap={logoMap} />}
                     <Typography sx={{ fontSize: '13px', fontWeight: 600, width: '100%', ...(widePopup ? { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.4 } : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }) }}>
                         {option}
                     </Typography>
@@ -54,7 +97,7 @@ const SelectBox = ({ label, value, onChange, options = [], width = '100%', wideP
             sx={{
                 width,
                 '& .MuiInputBase-root': {
-                    padding: '6px 14px !important',
+                    padding: isPlatform ? '4px 14px !important' : '6px 14px !important',
                     fontSize: '13px',
                     border: '1px solid rgba(15, 23, 42, 0.1)',
                     borderRadius: '14px',
@@ -116,6 +159,12 @@ const SelectBox = ({ label, value, onChange, options = [], width = '100%', wideP
                     variant="outlined"
                     InputProps={{
                         ...params.InputProps,
+                        startAdornment: (
+                            <>
+                                {isPlatform && value && <PlatformLogo name={value} logoMap={logoMap} />}
+                                {params.InputProps.startAdornment}
+                            </>
+                        ),
                         sx: { fontSize: '13px' }
                     }}
                 />
@@ -134,7 +183,9 @@ const SelectBox = ({ label, value, onChange, options = [], width = '100%', wideP
                         py: '8px !important',
                         px: '12px !important',
                         mb: 0.25,
-                        ...(widePopup ? { whiteSpace: 'normal', wordBreak: 'break-word' } : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block !important' }),
+                        display: 'flex !important',
+                        alignItems: 'center !important',
+                        ...(widePopup ? { whiteSpace: 'normal', wordBreak: 'break-word' } : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }),
                         '&:hover': {
                             backgroundColor: 'rgba(79, 70, 229, 0.06)',
                         },
@@ -156,6 +207,7 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
     // Dynamic filter options from DB
     const [platformOptions, setPlatformOptions] = useState([]);
     const [platformChannels, setPlatformChannels] = useState([]);
+    const [platformLogoMap, setPlatformLogoMap] = useState({});
     const [categoryOptions, setCategoryOptions] = useState([]);
     const [brandOptions, setBrandOptions] = useState([]);
     const [skuOptions, setSkuOptions] = useState(['All SKUs']);
@@ -192,27 +244,55 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
         const load = async () => {
             setFiltersLoading(true);
             try {
-                const [platRes, catRes, brandRes] = await Promise.all([
+                const [platRes, catRes, brandRes, metaRes] = await Promise.all([
                     axiosInstance.get('/watchtower/platform-channels'),
                     axiosInstance.get('/watchtower/categories'),
-                    axiosInstance.get('/watchtower/brands')
+                    axiosInstance.get('/watchtower/brands'),
+                    axiosInstance.get('/watchtower/platform-metadata').catch(() => ({ data: [] }))
                 ]);
                 if (cancelled) return;
 
                 const fetchedMappings = platRes.data || [];
                 setPlatformChannels(fetchedMappings);
-                const plats = fetchedMappings.map(m => m.platform);
+                const fetchedPlats = fetchedMappings.map(m => m.platform);
+
+                // Build metadata map for platform logos
+                const metaMap = {};
+                (metaRes.data || []).forEach(m => {
+                    if (m.pf_name && m.platform_description) {
+                        metaMap[m.pf_name.toLowerCase().trim()] = m.platform_description;
+                    }
+                });
+                setPlatformLogoMap(metaMap);
 
                 const cats = ['All', ...(catRes.data || [])];
                 const brands = ['All Brands', ...(brandRes.data || [])];
-                setPlatformOptions(plats);
                 setCategoryOptions(cats);
                 setBrandOptions(brands);
 
-                // Apply initialData or defaults once options are available
-                setPlatform(initialData.platform && plats.includes(initialData.platform) ? initialData.platform : (plats[0] || ''));
-                setCategory(initialData.category && cats.includes(initialData.category) ? initialData.category : (cats[0] || ''));
-                setBrand(initialData.brand && brands.includes(initialData.brand) ? initialData.brand : 'All Brands');
+                // Check if opened for a specific platform vs "All"
+                const isSpecific = initialData.platform && 
+                    initialData.platform.toLowerCase() !== 'all' && 
+                    initialData.platform.toLowerCase() !== 'overall';
+
+                if (isSpecific) {
+                    const matchedPlat = fetchedPlats.find(p => p.toLowerCase() === initialData.platform.toLowerCase());
+                    const singlePlat = matchedPlat || initialData.platform;
+                    setPlatformOptions([singlePlat]);
+                    setPlatform(singlePlat);
+                } else {
+                    const allPlats = ['All', ...fetchedPlats];
+                    setPlatformOptions(allPlats);
+                    const initialPlat = initialData.platform ? allPlats.find(p => p.toLowerCase() === initialData.platform.toLowerCase()) : null;
+                    setPlatform(initialPlat || 'All');
+                }
+
+                const initialCat = initialData.category ? cats.find(c => c.toLowerCase() === initialData.category.toLowerCase()) : null;
+                setCategory(initialCat || cats[0] || 'All');
+
+                const initialBrand = initialData.brand ? brands.find(b => b.toLowerCase() === initialData.brand.toLowerCase()) : null;
+                setBrand(initialBrand || 'All Brands');
+
                 setSku('All SKUs');
             } catch (err) {
                 console.error('[RCAModal] Failed to load filter options:', err);
@@ -224,18 +304,32 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
         };
         load();
         return () => { cancelled = true; };
-    }, [open]);
+    }, [open, initialData.platform]);
 
     // Update platform when initialData changes (e.g., when opening RCA for a different entity)
     useEffect(() => {
-        if (initialData.platform && platformOptions.includes(initialData.platform)) {
-            setPlatform(initialData.platform);
+        if (initialData.platform) {
+            const isSpecific = initialData.platform.toLowerCase() !== 'all' && initialData.platform.toLowerCase() !== 'overall';
+            if (isSpecific) {
+                const matchedPlat = platformOptions.find(p => p.toLowerCase() === initialData.platform.toLowerCase());
+                const singlePlat = matchedPlat || initialData.platform;
+                setPlatformOptions([singlePlat]);
+                setPlatform(singlePlat);
+            } else {
+                setPlatform('All');
+            }
         }
-        if (initialData.category && categoryOptions.includes(initialData.category)) {
-            setCategory(initialData.category);
+        if (initialData.category) {
+            const matchedCat = categoryOptions.find(c => c.toLowerCase() === initialData.category.toLowerCase());
+            if (matchedCat) {
+                setCategory(matchedCat);
+            }
         }
-        if (initialData.brand && brandOptions.includes(initialData.brand)) {
-            setBrand(initialData.brand);
+        if (initialData.brand) {
+            const matchedBrand = brandOptions.find(b => b.toLowerCase() === initialData.brand.toLowerCase());
+            if (matchedBrand) {
+                setBrand(matchedBrand);
+            }
         }
     }, [initialData, open]);
 
@@ -337,6 +431,14 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                             PRO INTELLIGENCE PIPELINE V2.0
                         </Typography>
                     </Box>
+                    {platform && platform.toLowerCase() !== 'all' && (
+                        <Box sx={{ ml: 2, display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 0.75, borderRadius: '14px', bgcolor: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.18)' }}>
+                            <PlatformLogo name={platform} logoMap={platformLogoMap} />
+                            <Typography sx={{ fontSize: '13px', fontWeight: 800, color: '#4f46e5', textTransform: 'capitalize' }}>
+                                {platform}
+                            </Typography>
+                        </Box>
+                    )}
                 </Box>
 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -400,7 +502,7 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                             </Typography>
                         </Box>
 
-                        <SelectBox label="Marketplace Engine" value={platform} onChange={setPlatform} options={platformOptions} />
+                        <SelectBox label="Marketplace Engine" value={platform} onChange={setPlatform} options={platformOptions} isPlatform logoMap={platformLogoMap} />
                         <SelectBox label="Category Vertical" value={category} onChange={setCategory} options={categoryOptions} />
                         <SelectBox label="Brand Identity" value={brand} onChange={setBrand} options={brandOptions} />
 

@@ -144,6 +144,8 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
                 // Add combined filters
                 const combined = getCombinedFilters();
                 Object.entries(combined).forEach(([key, value]) => {
+                    // Skip single platform filter when in Platform view mode so all platforms are displayed side-by-side
+                    if (reportType === 'platform' && key === 'platform') return;
                     if (value && value !== 'All') {
                         if (Array.isArray(value)) {
                             if (value.length > 0) value.forEach(v => params.append(key, v));

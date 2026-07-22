@@ -53,7 +53,7 @@ const RCADashboard = () => {
 
         if (fetchedMappings.length > 0) {
           setPlatformChannels(fetchedMappings);
-          const fetchedPlatforms = fetchedMappings.map(m => m.platform);
+          const fetchedPlatforms = ['All', ...fetchedMappings.map(m => m.platform)];
           setPlatforms(fetchedPlatforms);
           setPlatform(fetchedPlatforms[0]);
         }

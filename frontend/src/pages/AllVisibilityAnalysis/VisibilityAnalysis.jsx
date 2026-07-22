@@ -225,9 +225,9 @@ export default function VisibilityAnalysis() {
     try {
       setLoading(prev => ({ ...prev, matrix: true }));
       setApiErrors(prev => ({ ...prev, matrix: null }));
-      // Platform KPI Matrix uses selected platform filter or defaults to All
+      // Platform KPI Matrix shows ALL platforms across the board — platform is always 'All'
       const matrixBaseParams = {
-        platform: (filters.platform && filters.platform !== 'All') ? (Array.isArray(filters.platform) ? filters.platform.join(',').toLowerCase() : String(filters.platform).toLowerCase()) : 'All',
+        platform: 'All',
         brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
         location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
         zone: filters.zone || 'All',
@@ -320,7 +320,7 @@ export default function VisibilityAnalysis() {
 
     const queryParams = new URLSearchParams(baseParams).toString();
     const matrixParams = new URLSearchParams({
-      platform: (filters.platform && filters.platform !== 'All') ? (Array.isArray(filters.platform) ? filters.platform.join(',').toLowerCase() : String(filters.platform).toLowerCase()) : 'All',
+      platform: 'All',
       brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
       location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
       keyword: filters.keyword || 'All',
