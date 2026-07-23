@@ -362,7 +362,7 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
 
     // Reseller_Name filter (DRL DB context only)
     const dbName = getCurrentDbName();
-    if (dbName === 'drl') {
+    if (dbName === 'drl' || dbName === 'prestige') {
         const resellerVal = filters.resellerName || filters.resellerNames;
         if (resellerVal && resellerVal !== 'All' && resellerVal !== 'all') {
             const rArr = Array.isArray(resellerVal) ? resellerVal : [resellerVal];
@@ -2521,7 +2521,7 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
             if (filterType === 'resellerNames') {
                 const dbName = getCurrentDbName();
-                if (dbName === 'drl') {
+                if (dbName === 'drl' || dbName === 'prestige') {
                     const resellerConditions = [
                         `Reseller_Name IS NOT NULL AND Reseller_Name != ''`,
                         `Comp_flag = 0`

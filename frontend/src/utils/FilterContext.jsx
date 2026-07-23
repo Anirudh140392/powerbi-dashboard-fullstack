@@ -415,6 +415,23 @@ export const FilterProvider = ({ children }) => {
                     if (newChannels.length > 0) {
                         console.log("[FilterContext] Refreshed channels for Visibility Analysis:", newChannels);
                         setChannels(newChannels);
+                        setSelectedChannel(prev => {
+                            if (prev === "All") return "All";
+                            const lowerPrev = prev.toLowerCase();
+                            // Handle mapping from Ecom/QuickComm to ecommerce/quickcomm
+                            if (['ecom', 'ecommerce', 'e-commerce'].includes(lowerPrev)) {
+                                const found = newChannels.find(c => ['ecommerce', 'ecom'].includes(c.toLowerCase()));
+                                if (found) return found;
+                            }
+                            if (lowerPrev === 'quickcomm' || lowerPrev === 'quick commerce' || lowerPrev.includes('quick')) {
+                                const found = newChannels.find(c => ['quickcomm', 'quick commerce', 'quick_commerce'].includes(c.toLowerCase()));
+                                if (found) return found;
+                            }
+                            const exactMatch = newChannels.find(c => c.toLowerCase() === lowerPrev);
+                            if (exactMatch) return exactMatch;
+                            const validChannels = newChannels.filter(c => c !== 'All');
+                            return validChannels.length > 0 ? validChannels[0] : 'All';
+                        });
                     }
                 }
             } else if (window.location.hash.includes('/content-analysis') || window.location.hash.includes('/content-score')) {

@@ -741,7 +741,10 @@ export default function TrendsCompetitionDrawer({
   const drlUser = useMemo(() => {
     try { return JSON.parse(sessionStorage.getItem('user')); } catch { return null; }
   }, []);
-  const isDrl = drlUser?.dbName?.toLowerCase() === 'drl';
+  const isDrl = (() => {
+    const db = drlUser?.dbName?.toLowerCase();
+    return db === 'drl' || db === 'prestige';
+  })();
   const [resellerOptions, setResellerOptions] = useState([]);
 
   // Fetch reseller name options for DRL - cascaded by platform

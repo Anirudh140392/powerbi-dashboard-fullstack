@@ -8184,7 +8184,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
 
         // Reseller_Name filter (DRL DB context only)
         const dbName = getCurrentDbName();
-        const resellerArr = (dbName === 'drl' && resellerName && resellerName !== 'All' && resellerName !== 'all')
+        const resellerArr = ((dbName === 'drl' || dbName === 'prestige') && resellerName && resellerName !== 'All' && resellerName !== 'all')
             ? normalizeFilterArray(resellerName)
             : null;
 
@@ -8205,7 +8205,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
 
         if (filterType === 'resellerNames') {
             // Fetch unique reseller names for DRL only — cascaded by platform
-            if (dbName !== 'drl') return { options: [] };
+            if (dbName !== 'drl' && dbName !== 'prestige') return { options: [] };
             const conditions = [`Reseller_Name IS NOT NULL`, `Reseller_Name != ''`, `Comp_flag = 0`];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
@@ -8331,7 +8331,7 @@ const getCompetitionData = async (filters = {}) => {
 
         // Reseller_Name filter (DRL DB context only)
         const dbName = getCurrentDbName();
-        const resellerArr = (dbName === 'drl' && filters.resellerName && filters.resellerName !== 'All')
+        const resellerArr = ((dbName === 'drl' || dbName === 'prestige') && filters.resellerName && filters.resellerName !== 'All')
             ? normalizeFilterArray(filters.resellerName)
             : null;
 
@@ -9047,7 +9047,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
         const brandArr = normalizeFilterArray(brand);
 
         const dbName = getCurrentDbName();
-        const resellerArr = (dbName === 'drl' && resellerName && resellerName !== 'All' && resellerName !== 'all')
+        const resellerArr = ((dbName === 'drl' || dbName === 'prestige') && resellerName && resellerName !== 'All' && resellerName !== 'all')
             ? normalizeFilterArray(resellerName)
             : null;
 
@@ -9392,7 +9392,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
         // Reseller_Name filter for DRL
         const dbNameForTrends = getCurrentDbName();
-        const resellerArrTrends = (dbNameForTrends === 'drl' && filters.resellerName && filters.resellerName !== 'All')
+        const resellerArrTrends = ((dbNameForTrends === 'drl' || dbNameForTrends === 'prestige') && filters.resellerName && filters.resellerName !== 'All')
             ? normalizeFilterArray(filters.resellerName)
             : null;
         if (resellerArrTrends && resellerArrTrends.length > 0) {

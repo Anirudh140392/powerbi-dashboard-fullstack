@@ -79,7 +79,8 @@ export default function OsaDetailTableLight({
     const isDrlClient = useMemo(() => {
         try {
             const u = JSON.parse(sessionStorage.getItem('user'));
-            return u?.dbName?.toLowerCase() === 'drl';
+            const db = u?.dbName?.toLowerCase();
+            return db === 'drl' || db === 'prestige';
         } catch {
             return false;
         }

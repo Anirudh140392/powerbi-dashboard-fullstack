@@ -77,28 +77,25 @@ function buildChannelCondition(channel, columnName = 'platform_name', platform =
 
     if (channels.length === 0 || channels.every(c => c.toLowerCase() === 'all')) return "1=1";
 
-    const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(String(c).toLowerCase()));
-    const isQuickComm = channels.some(c => String(c).toLowerCase().includes('quick'));
-    const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(String(c).toLowerCase()));
+    const mappedChannels = [];
+    channels.forEach(c => {
+        const lower = String(c).toLowerCase();
+        if (['ecommerce', 'e-commerce', 'ecom'].includes(lower)) {
+            mappedChannels.push("'ecommerce'", "'ecom'");
+        } else if (lower.includes('quick') || lower === 'qcomm') {
+            mappedChannels.push("'quickcomm'", "'quick commerce'", "'quick_commerce'");
+        } else if (['modern trades', 'moderntrade'].includes(lower)) {
+            mappedChannels.push("'moderntrade'", "'modern trades'", "'modern_trade'");
+        } else {
+            mappedChannels.push(`'${escapeStr(lower)}'`);
+        }
+    });
 
-    // Distinct lists for platforms
-    const ecomPlatforms = ['Amazon', 'Flipkart'];
-    const quickPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Swiggy'];
-
-    let conditions = [];
-
-    if (isQuickComm) {
-        conditions.push(`lower(${columnName}) IN (${quickPlatforms.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
-    } else if (isEcom && !isModernTrade) {
-        // If Ecommerce selected (and NOT Modern Trade or Quick Commerce), only show pure Ecom platforms
-        conditions.push(`lower(${columnName}) IN (${ecomPlatforms.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
-    } else if (isModernTrade && !isEcom) {
-        // If Modern Trade selected (and NOT Ecom), exclude all Ecom and Quick platforms
-        const allEcomQuick = [...ecomPlatforms, ...quickPlatforms];
-        conditions.push(`lower(${columnName}) NOT IN (${allEcomQuick.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+    if (mappedChannels.length > 0) {
+        return `lower(${columnName}) IN (SELECT DISTINCT lower(platform) FROM rca_sku_dim WHERE lower(channel) IN (${mappedChannels.join(', ')}))`;
     }
 
-    return conditions.length > 0 ? conditions.join(' OR ') : "1=1";
+    return "1=1";
 }
 
 
