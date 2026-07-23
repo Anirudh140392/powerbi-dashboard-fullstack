@@ -26,6 +26,13 @@ import {
     ArrowLeft,
     Calendar,
     Link2,
+    Bell,
+    Phone,
+    Mail,
+    Trash2,
+    Edit3,
+    Plus,
+    Smartphone,
 } from "lucide-react";
 
 
@@ -52,6 +59,7 @@ import { FilterContext } from "@/utils/FilterContext";
 import { fetchInsights, fetchInsightsFilters, fetchCorrelations, fetchCorrelationsTrend } from "@/api/insightsService";
 import AIInsightsPanelLive from "@/components/insights/AIInsightsPanelLive";
 import TrailyticsTypewriterLoader from "@/components/insights/TrailyticsTypewriterLoader";
+import CreateIntelligentAlertModal from "@/components/insights/CreateIntelligentAlertModal";
 import CustomHeaderDropdown from "@/components/CommonLayout/CustomHeaderDropdown";
 import DateRangeComparePicker from "@/components/CommonLayout/DateRangeComparePicker";
 import dayjs from "dayjs";
@@ -2747,6 +2755,46 @@ const InsightsSignalHub = () => {
     const [selectedId, setSelectedId] = useState(null);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [showAIPanel, setShowAIPanel] = useState(false);
+    const [isCreateAlertOpen, setIsCreateAlertOpen] = useState(false);
+
+    // Saved Alerts List State (Initial mock items matching 1st image)
+    const [savedAlerts, setSavedAlerts] = useState([
+        {
+            id: "alert_1",
+            name: "test one 1",
+            status: "Active",
+            phone: "+918765456789",
+            email: "shubham@gmail.com",
+            frequency: "Realtime",
+            threshold: "15%",
+        },
+        {
+            id: "alert_2",
+            name: "client test alert",
+            status: "Active",
+            phone: "+919079840970",
+            email: "0shubhamit@gmail.com",
+            frequency: "Monthly",
+            threshold: "60%",
+        },
+    ]);
+
+    const handleSaveAlert = (newAlert) => {
+        const formattedAlert = {
+            id: newAlert.id || `alert_${Date.now()}`,
+            name: newAlert.name || "Custom Alert",
+            status: "Active",
+            phone: newAlert.channels?.whatsapp || "+91 98765 43210",
+            email: newAlert.channels?.email || "alert@company.com",
+            frequency: newAlert.frequency || "Realtime",
+            threshold: `${newAlert.thresholdValue || 15}%`,
+        };
+        setSavedAlerts(prev => [formattedAlert, ...prev]);
+    };
+
+    const handleDeleteAlert = (alertId) => {
+        setSavedAlerts(prev => prev.filter(a => a.id !== alertId));
+    };
 
     // ── Co-Relations state ──
     const [showCorrelations, setShowCorrelations] = useState(false);
@@ -3194,6 +3242,143 @@ const InsightsSignalHub = () => {
 
 
 
+                    {/* ── Alerts & Notifications Section (Matches 1st Image) ─────────────────────── */}
+                    <div style={{
+                        background: "#ffffff",
+                        borderRadius: "16px",
+                        border: "1px solid #e2e8f0",
+                        padding: "20px 24px",
+                        marginBottom: "24px",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "16px",
+                    }}>
+                        {/* Section Header Row */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                <div style={{
+                                    width: 42,
+                                    height: 42,
+                                    borderRadius: "12px",
+                                    background: "linear-gradient(135deg, #0047FF 0%, #0036C8 100%)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    boxShadow: "0 4px 12px rgba(0, 71, 255, 0.25)",
+                                }}>
+                                    <Bell size={20} color="#ffffff" strokeWidth={2.2} />
+                                </div>
+                                <div>
+                                    <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.01em" }}>
+                                        Alerts & Notifications
+                                    </h2>
+                                    <p style={{ fontSize: "12.5px", color: "#64748b", margin: "2px 0 0 0", fontWeight: 400 }}>
+                                        Configure weekly/daily campaign reports and channel delivery (WhatsApp or Email)
+                                    </p>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => setIsCreateAlertOpen(true)}
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                    padding: "10px 22px",
+                                    borderRadius: "24px",
+                                    background: "linear-gradient(135deg, #0047FF 0%, #0036C8 100%)",
+                                    color: "#ffffff",
+                                    fontSize: "13.5px",
+                                    fontWeight: 700,
+                                    border: "none",
+                                    cursor: "pointer",
+                                    boxShadow: "0 4px 14px rgba(0, 71, 255, 0.35)",
+                                    transition: "all 0.18s ease",
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = "translateY(-1px)";
+                                    e.currentTarget.style.boxShadow = "0 6px 18px rgba(0, 71, 255, 0.45)";
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = "translateY(0)";
+                                    e.currentTarget.style.boxShadow = "0 4px 14px rgba(0, 71, 255, 0.35)";
+                                }}
+                            >
+                                <Plus size={18} strokeWidth={2.5} />
+                                Add Alert
+                            </button>
+                        </div>
+
+                        {/* Cards List */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                            {savedAlerts.map((alert) => (
+                                <div
+                                    key={alert.id}
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        padding: "14px 18px",
+                                        borderRadius: "14px",
+                                        background: "#f8fafc",
+                                        border: "1px solid #f1f5f9",
+                                        transition: "all 0.15s ease",
+                                    }}
+                                >
+                                    <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                                        {/* Channel Icons (Phone + Email) */}
+                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                            <div style={{ width: 36, height: 36, borderRadius: "10px", background: "#dcfce7", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                <Smartphone size={18} color="#10b981" />
+                                            </div>
+                                            <div style={{ width: 36, height: 36, borderRadius: "10px", background: "#e0f2fe", border: "1px solid #bae6fd", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                <Mail size={18} color="#0284c7" />
+                                            </div>
+                                        </div>
+
+                                        {/* Alert Text Details */}
+                                        <div>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                                <span style={{ fontSize: "14px", fontWeight: 700, color: "#1e293b" }}>
+                                                    {alert.name}
+                                                </span>
+                                                <span style={{ fontSize: "11px", fontWeight: 700, color: "#059669", background: "#d1fae5", padding: "2px 8px", borderRadius: "12px" }}>
+                                                    Active
+                                                </span>
+                                            </div>
+                                            <div style={{ fontSize: "12.5px", color: "#64748b", marginTop: "3px" }}>
+                                                {alert.phone} & {alert.email} • {alert.frequency} • Threshold: {alert.threshold}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Actions: Edit & Delete */}
+                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsCreateAlertOpen(true)}
+                                            style={{ background: "none", border: "none", cursor: "pointer", padding: "6px", color: "#94a3b8", borderRadius: "6px", transition: "all 0.12s ease" }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.color = "#0047FF"; e.currentTarget.style.background = "#eff6ff"; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.background = "none"; }}
+                                        >
+                                            <Edit3 size={18} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteAlert(alert.id)}
+                                            style={{ background: "none", border: "none", cursor: "pointer", padding: "6px", color: "#94a3b8", borderRadius: "6px", transition: "all 0.12s ease" }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.background = "#fef2f2"; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.background = "none"; }}
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
                     {/* ── Signal Grid ─────────────────────────────────────── */}
                     {loading ? (
                         <div className="insights-signal-grid" style={{
@@ -3268,6 +3453,16 @@ const InsightsSignalHub = () => {
                     showAIPanel={showAIPanel}
                     onCloseAIPanel={() => setShowAIPanel(false)}
                     loading={loading}
+                />
+
+                {/* ── Create Intelligent Alert Modal ─────────────────────── */}
+                <CreateIntelligentAlertModal
+                    open={isCreateAlertOpen}
+                    onClose={() => setIsCreateAlertOpen(false)}
+                    onSaveAlert={(alertData) => {
+                        console.log("New Alert Created:", alertData);
+                        handleSaveAlert(alertData);
+                    }}
                 />
 
                 {/* ── Co-Relations Full-Screen Modal ─────────────────────── */}
