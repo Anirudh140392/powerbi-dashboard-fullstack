@@ -418,7 +418,9 @@ export const FilterProvider = ({ children }) => {
                     }
                 }
             } else if (window.location.hash.includes('/content-analysis') || window.location.hash.includes('/content-score')) {
-                const res = await axiosInstance.get("/content-analysis/platforms");
+                const res = await axiosInstance.get("/content-analysis/platforms", {
+                    params: { channel: selectedChannel === "All" ? undefined : selectedChannel }
+                });
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched dynamic platforms from Content Analysis:", res.data);
                     setPlatforms(res.data);

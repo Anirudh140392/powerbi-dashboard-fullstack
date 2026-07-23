@@ -1,5 +1,6 @@
 
 import { queryClickHouse } from '../config/clickhouse.js';
+import { getTableColumns, columnExists, resolveColumn } from '../utils/schemaHelper.js';
 
 import fs from 'fs';
 
@@ -328,18 +329,33 @@ export const getContentAnalysisPlatformBreakdown = async (filters, isCompare = f
     }
 };
 
-export const getContentAnalysisPlatforms = async () => {
+export const getContentAnalysisPlatforms = async (channel) => {
     try {
-        const query = `SELECT DISTINCT Platform FROM rb_product_verify WHERE isNotNull(Platform) AND Platform != '\\\\N' AND Platform != '' ORDER BY Platform`;
+        const pdpCols = await getTableColumns('rb_pdp_olap');
+        const hasChannelPdp = columnExists(pdpCols, 'channel');
+        const pdpPlatformCol = resolveColumn(pdpCols, 'platform', 'Platform');
+        const pdpChannelCol = resolveColumn(pdpCols, 'channel', 'Channel');
+
+        const contentCols = await getTableColumns('rb_content_olap');
+        const contentPlatformCol = resolveColumn(contentCols, 'platform', 'Platform');
+        
+        let query = `SELECT DISTINCT ${contentPlatformCol} AS Platform FROM rb_content_olap WHERE isNotNull(${contentPlatformCol}) AND ${contentPlatformCol} != '\\\\N' AND ${contentPlatformCol} != ''`;
+        if (hasChannelPdp && channel && channel !== 'All') {
+            const channelLower = channel.toLowerCase();
+            const isEcom = channelLower.includes('ecom') || channelLower.includes('e-com');
+            const isQcomm = channelLower.includes('quick') || channelLower.includes('qcomm');
+            const mappedChannel = isEcom ? 'ecommerce' : (isQcomm ? 'quickcomm' : channelLower.replace(/'/g, "''"));
+            query += ` AND lower(${contentPlatformCol}) IN (
+                SELECT lower(${pdpPlatformCol}) 
+                FROM rb_pdp_olap 
+                WHERE isNotNull(${pdpPlatformCol}) AND lower(${pdpChannelCol}) = '${mappedChannel}'
+            )`;
+        }
+        query += ` ORDER BY Platform`;
+        
         const result = await queryClickHouse(query);
         const platforms = result.map(row => row.Platform).filter(Boolean);
         if (platforms && platforms.length > 0) return platforms;
-
-        // Fallback to rb_pdp_olap if rb_product_verify returns empty
-        const fallbackQuery = `SELECT DISTINCT Platform FROM rb_pdp_olap WHERE isNotNull(Platform) AND Platform != '\\\\N' AND Platform != '' ORDER BY Platform`;
-        const fallbackResult = await queryClickHouse(fallbackQuery);
-        const fallbackPlatforms = fallbackResult.map(row => row.Platform).filter(Boolean);
-        if (fallbackPlatforms && fallbackPlatforms.length > 0) return fallbackPlatforms;
 
         return ['Amazon', 'Blinkit', 'Flipkart', 'Zepto', 'Instamart'];
     } catch (error) {

@@ -867,6 +867,9 @@ export const getExecutiveHealth = async (req, res) => {
             if (web_pid) { prParams.webPid = String(web_pid); prWhere += ` AND r.web_pid = {webPid:String}`; }
             let prCatClause = '';
             if (filterCategory) { prParams.filterCategory = filterCategory; prCatClause = ` WHERE ilike(trim(rev.resolved_category), {filterCategory:String})`; }
+            if (totalCatalogSkus > 0) { prWhere += ` AND mp.web_pid IS NOT NULL`; }
+            prWhere += ` AND coalesce(nullIf(r.category, ''), nullIf(mp.category, '')) != ''`;
+            if (sentiment_category && sentiment_category !== 'all') { prParams.sentimentCategory = sentiment_category; prWhere += ` AND ilike(r.sentiment_category, {sentimentCategory:String})`; }
             
             const prRes = await clickhouse.query({ database: getTargetDb(req), query: `
                 WITH master_dedup AS (
@@ -883,7 +886,7 @@ export const getExecutiveHealth = async (req, res) => {
                     SELECT * FROM (SELECT web_pid, platform, category, pareto_status FROM product_snapshots WHERE company_id = {companyId:String} ORDER BY snapshot_date DESC, created_at DESC) LIMIT 1 BY web_pid, lower(platform)
                 ),
                 rev AS (
-                    SELECT coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, ''), nullIf(r.pareto_status, '')) AS resolved_pareto,
+                    SELECT CASE WHEN mp.pareto_status = 'Pareto' THEN 'Pareto' WHEN mp.pareto_status = 'NPD' THEN 'NPD' ELSE 'Non-Pareto' END AS resolved_pareto,
                            CASE WHEN trim(lower(coalesce(nullIf(ls.category, ''), nullIf(r.category, ''), nullIf(mp.category, '')))) IN ('other', 'others') THEN 'Others' ELSE initcap(trim(coalesce(nullIf(ls.category, ''), nullIf(r.category, ''), nullIf(mp.category, '')))) END AS resolved_category
                     FROM ml_reviews r LEFT JOIN master_dedup mp ON mp.web_pid = r.web_pid LEFT JOIN latest_snapshots ls ON ls.web_pid = r.web_pid AND lower(ls.platform) = lower(r.platform) WHERE ${prWhere}
                 )

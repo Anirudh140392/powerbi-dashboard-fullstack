@@ -4451,7 +4451,8 @@ const getPlatforms = async (channel) => {
         let query;
         if (hasChannel && channel && channel !== 'All') {
             const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
-            const searchPattern = isEcom ? '%ecom%' : (channel.toLowerCase().includes('quick') ? '%quick%' : `%${channel.toLowerCase().replace(/'/g, "''")}%`);
+            const isQcomm = channel.toLowerCase().includes('quick') || channel.toLowerCase().includes('qcomm');
+            const searchPattern = isEcom ? '%ecom%' : (isQcomm ? '%quick%' : `%${channel.toLowerCase().replace(/'/g, "''")}%`);
             query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND lower(${channelCol}) LIKE '${searchPattern}' ORDER BY platform`;
         } else {
             query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' ORDER BY platform`;
