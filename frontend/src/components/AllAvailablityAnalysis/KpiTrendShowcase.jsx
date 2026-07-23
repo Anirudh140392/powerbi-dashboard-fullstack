@@ -1629,7 +1629,10 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
   const user = useMemo(() => {
     try { return JSON.parse(sessionStorage.getItem('user')); } catch { return null; }
   }, []);
-  const isDrl = user?.dbName?.toLowerCase() === 'drl';
+  const isDrl = (() => {
+    const db = user?.dbName?.toLowerCase();
+    return db === 'drl' || db === 'prestige';
+  })();
   const [resellerName, setResellerName] = useState('All');
   const [resellerOptions, setResellerOptions] = useState([]);
 

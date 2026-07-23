@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
+import { buildDynamicSkuUrl } from './pricingAnalysisService.js';
 
 const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
 const EXCLUDED_PLATFORMS = ['BigBasket', 'Amazon', 'Flipkart'];
@@ -76,28 +77,25 @@ function buildChannelCondition(channel, columnName = 'platform_name', platform =
 
     if (channels.length === 0 || channels.every(c => c.toLowerCase() === 'all')) return "1=1";
 
-    const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(String(c).toLowerCase()));
-    const isQuickComm = channels.some(c => String(c).toLowerCase().includes('quick'));
-    const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(String(c).toLowerCase()));
+    const mappedChannels = [];
+    channels.forEach(c => {
+        const lower = String(c).toLowerCase();
+        if (['ecommerce', 'e-commerce', 'ecom'].includes(lower)) {
+            mappedChannels.push("'ecommerce'", "'ecom'");
+        } else if (lower.includes('quick') || lower === 'qcomm') {
+            mappedChannels.push("'quickcomm'", "'quick commerce'", "'quick_commerce'");
+        } else if (['modern trades', 'moderntrade'].includes(lower)) {
+            mappedChannels.push("'moderntrade'", "'modern trades'", "'modern_trade'");
+        } else {
+            mappedChannels.push(`'${escapeStr(lower)}'`);
+        }
+    });
 
-    // Distinct lists for platforms
-    const ecomPlatforms = ['Amazon', 'Flipkart'];
-    const quickPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Swiggy'];
-
-    let conditions = [];
-
-    if (isQuickComm) {
-        conditions.push(`lower(${columnName}) IN (${quickPlatforms.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
-    } else if (isEcom && !isModernTrade) {
-        // If Ecommerce selected (and NOT Modern Trade or Quick Commerce), only show pure Ecom platforms
-        conditions.push(`lower(${columnName}) IN (${ecomPlatforms.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
-    } else if (isModernTrade && !isEcom) {
-        // If Modern Trade selected (and NOT Ecom), exclude all Ecom and Quick platforms
-        const allEcomQuick = [...ecomPlatforms, ...quickPlatforms];
-        conditions.push(`lower(${columnName}) NOT IN (${allEcomQuick.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+    if (mappedChannels.length > 0) {
+        return `lower(${columnName}) IN (SELECT DISTINCT lower(platform) FROM rca_sku_dim WHERE lower(channel) IN (${mappedChannels.join(', ')}))`;
     }
 
-    return conditions.length > 0 ? conditions.join(' OR ') : "1=1";
+    return "1=1";
 }
 
 
@@ -3178,6 +3176,48 @@ class VisibilityService {
         try {
             const skus = await queryClickHouse(query, params);
             console.log(`[VisibilityService] getSkuDrilldown returned ${skus.length} SKUs`);
+
+            // Enrich SKUs with page_url and image_url from rb_sku_platform
+            if (skus.length > 0) {
+                try {
+                    const esc = (s) => String(s).replace(/'/g, "''");
+                    const pidList = skus.map(s => `'${esc(s.skuName)}'`).join(',');
+                    const enrichQuery = `
+                        SELECT lower(web_pid) as w_pid, any(web_pid) as orig_pid,
+                               any(image_url) as img_url,
+                               any(page_url) as page_url,
+                               any(platform_name) as platform_name
+                        FROM rb_sku_platform
+                        WHERE lower(web_pid) IN (${pidList})
+                        GROUP BY w_pid
+                    `;
+                    const enrichData = await queryClickHouse(enrichQuery);
+
+                    const imgMap = {};
+                    const urlMap = {};
+                    enrichData.forEach(r => {
+                        const key = String(r.w_pid).toLowerCase();
+                        if (r.img_url) imgMap[key] = r.img_url;
+                        // Build URL: prefer dynamic (correct casing) over stale DB page_url
+                        const pidForUrl = r.orig_pid || r.w_pid;
+                        let rawUrl = null;
+                        if (r.platform_name) {
+                            rawUrl = buildDynamicSkuUrl(r.platform_name, pidForUrl);
+                        }
+                        if (!rawUrl) rawUrl = r.page_url || null;
+                        if (rawUrl) urlMap[key] = rawUrl;
+                    });
+
+                    skus.forEach(s => {
+                        const key = String(s.skuName).toLowerCase();
+                        s.imageUrl = imgMap[key] || null;
+                        s.page_url = urlMap[key] || null;
+                    });
+                } catch (enrichErr) {
+                    console.error('[VisibilityService] Failed to enrich SKU drilldown with URLs:', enrichErr);
+                }
+            }
+
             return { skus };
         } catch (error) {
             console.error('[VisibilityService] Error getting SKU drilldown:', error);
@@ -3952,28 +3992,47 @@ class VisibilityService {
                 };
             });
 
-            // Fetch SKU images from rb_sku_platform only when in SKU view mode
+            // Fetch SKU images and page_url from rb_sku_platform only when in SKU view mode
             if (viewMode === 'sku') {
                 const webPids = Object.values(itemsMap).map(i => i.web_pid).filter(Boolean);
                 if (webPids.length > 0) {
                     try {
                         const imgQuery = `
-                                SELECT web_pid, any(image_url) as img
+                                SELECT lower(web_pid) as w_pid, any(web_pid) as orig_pid,
+                                       any(image_url) as img,
+                                       any(page_url) as page_url,
+                                       any(platform_name) as platform_name
                                 FROM rb_sku_platform
-                                WHERE web_pid IN (${webPids.map(id => `'${escapeCH(String(id))}'`).join(',')})
-                                GROUP BY web_pid
+                                WHERE lower(web_pid) IN (${webPids.map(id => `'${escapeCH(String(id).toLowerCase())}'`).join(',')})
+                                GROUP BY w_pid
                             `;
                         const imgData = await queryClickHouse(imgQuery);
                         const imgMap = new Map();
-                        imgData.forEach(row => imgMap.set(String(row.web_pid), row.img));
+                        const urlMap = new Map();
+                        imgData.forEach(row => {
+                            const key = String(row.w_pid).toLowerCase();
+                            imgMap.set(key, row.img);
+                            // Build URL: prefer dynamic (correct casing via orig_pid) over DB page_url
+                            const pidForUrl = row.orig_pid || row.w_pid;
+                            let rawUrl = null;
+                            if (row.platform_name) {
+                                rawUrl = buildDynamicSkuUrl(row.platform_name, pidForUrl);
+                            }
+                            if (!rawUrl) rawUrl = row.page_url || null;
+                            if (rawUrl) urlMap.set(key, rawUrl);
+                        });
 
                         Object.values(itemsMap).forEach(item => {
-                            if (item.web_pid && imgMap.has(String(item.web_pid))) {
-                                const imgUrl = imgMap.get(String(item.web_pid)) ? String(imgMap.get(String(item.web_pid))).split(',')[0].trim() : null;
-                                item.imageUrl = imgUrl || null;
+                            if (item.web_pid) {
+                                const key = String(item.web_pid).toLowerCase();
+                                const imgUrl = imgMap.has(key)
+                                    ? (String(imgMap.get(key)).split(',')[0].trim() || null)
+                                    : null;
+                                item.imageUrl = imgUrl;
+                                item.page_url = urlMap.get(key) || null;
                             }
                         });
-                        console.log(`[VisibilityService] Fetched ${imgData.size} SKU images from rb_sku_platform using web_pid`);
+                        console.log(`[VisibilityService] Fetched ${imgData.length} SKU images/urls from rb_sku_platform using web_pid`);
                     } catch (imgError) {
                         console.error('[VisibilityService] Failed to fetch SKU images from rb_sku_platform:', imgError);
                     }

@@ -565,6 +565,30 @@ export const createUser = async ({ email, password, role, status, db_id }) => {
         const id = Date.now().toString();
         const currentTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0];
         
+        // Fetch tab_permissions from an existing user with the same db_id
+        // so the new user inherits the default permission set for that database
+        let defaultTabPermissions = '';
+        try {
+            const permQuery = `
+                SELECT tab_permissions
+                FROM tb_user
+                WHERE toString(db_id) = '${db_id}'
+                  AND tab_permissions != ''
+                  AND status != 'deleted'
+                ORDER BY last_login DESC
+                LIMIT 1
+            `;
+            const permRows = await queryAdminDB(permQuery);
+            if (permRows && permRows.length > 0 && permRows[0].tab_permissions) {
+                defaultTabPermissions = permRows[0].tab_permissions;
+                console.log(`[AdminService] createUser: Inherited tab_permissions from existing user for db_id=${db_id}`);
+            } else {
+                console.log(`[AdminService] createUser: No existing tab_permissions found for db_id=${db_id}, using empty`);
+            }
+        } catch (permErr) {
+            console.error('[AdminService] createUser: Failed to fetch default tab_permissions, using empty:', permErr.message);
+        }
+
         await insertAdminDB('tb_user', [{
             id: id,
             user_id: user_id,
@@ -579,7 +603,7 @@ export const createUser = async ({ email, password, role, status, db_id }) => {
             ip: "", 
             access: "pending",
             db_status: "active",
-            tab_permissions: ""
+            tab_permissions: defaultTabPermissions
         }]);
 
         return { success: true, id, user_id };

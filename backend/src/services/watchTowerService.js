@@ -17,6 +17,7 @@ import isoWeek from 'dayjs/plugin/isoWeek.js';
 import weekOfYear from 'dayjs/plugin/weekOfYear.js';
 import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 import { getTableColumns, resolveColumn, columnExists } from '../utils/schemaHelper.js';
+import { buildDynamicSkuUrl } from './pricingAnalysisService.js';
 
 dayjs.extend(isoWeek);
 dayjs.extend(weekOfYear);
@@ -8184,7 +8185,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
 
         // Reseller_Name filter (DRL DB context only)
         const dbName = getCurrentDbName();
-        const resellerArr = (dbName === 'drl' && resellerName && resellerName !== 'All' && resellerName !== 'all')
+        const resellerArr = ((dbName === 'drl' || dbName === 'prestige') && resellerName && resellerName !== 'All' && resellerName !== 'all')
             ? normalizeFilterArray(resellerName)
             : null;
 
@@ -8205,7 +8206,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
 
         if (filterType === 'resellerNames') {
             // Fetch unique reseller names for DRL only — cascaded by platform
-            if (dbName !== 'drl') return { options: [] };
+            if (dbName !== 'drl' && dbName !== 'prestige') return { options: [] };
             const conditions = [`Reseller_Name IS NOT NULL`, `Reseller_Name != ''`, `Comp_flag = 0`];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
@@ -8331,7 +8332,7 @@ const getCompetitionData = async (filters = {}) => {
 
         // Reseller_Name filter (DRL DB context only)
         const dbName = getCurrentDbName();
-        const resellerArr = (dbName === 'drl' && filters.resellerName && filters.resellerName !== 'All')
+        const resellerArr = ((dbName === 'drl' || dbName === 'prestige') && filters.resellerName && filters.resellerName !== 'All')
             ? normalizeFilterArray(filters.resellerName)
             : null;
 
@@ -9047,7 +9048,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
         const brandArr = normalizeFilterArray(brand);
 
         const dbName = getCurrentDbName();
-        const resellerArr = (dbName === 'drl' && resellerName && resellerName !== 'All' && resellerName !== 'all')
+        const resellerArr = ((dbName === 'drl' || dbName === 'prestige') && resellerName && resellerName !== 'All' && resellerName !== 'all')
             ? normalizeFilterArray(resellerName)
             : null;
 
@@ -9392,7 +9393,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
         // Reseller_Name filter for DRL
         const dbNameForTrends = getCurrentDbName();
-        const resellerArrTrends = (dbNameForTrends === 'drl' && filters.resellerName && filters.resellerName !== 'All')
+        const resellerArrTrends = ((dbNameForTrends === 'drl' || dbNameForTrends === 'prestige') && filters.resellerName && filters.resellerName !== 'All')
             ? normalizeFilterArray(filters.resellerName)
             : null;
         if (resellerArrTrends && resellerArrTrends.length > 0) {
@@ -11732,23 +11733,57 @@ const getSkuOverview = async (filters) => {
     const prevOrgSovNumSkuMap = buildSkuKwMap(prevOrgSovNumSku);
     const prevOrgSovDenomSkuMap = buildSkuKwMap(prevOrgSovDenomSku);
 
-    // Fetch SKU images from rb_sku_platform using web_pid
+    // Fetch SKU details from rb_sku_platform using web_pid
     const skuWebPids = currSkuMetrics.map(r => r.web_pid).filter(Boolean);
     let skuImageMap = {};
+    let skuUrlMap = {};
     if (skuWebPids.length > 0) {
         try {
+            const skuCols = await getTableColumns('rb_sku_platform');
+            let selectCols = ['LOWER(web_pid) as web_pid', 'any(image_url) as img'];
+            let hasPageUrl = false;
+            let hasPlatformName = false;
+
+            if (skuCols.size > 0) {
+                if (columnExists(skuCols, 'page_url')) {
+                    selectCols.push('any(page_url) as page_url');
+                    hasPageUrl = true;
+                }
+                if (columnExists(skuCols, 'platform_name')) {
+                    selectCols.push('any(platform_name) as platform_name');
+                    hasPlatformName = true;
+                }
+            }
+
             const imgData = await queryClickHouse(`
-                SELECT web_pid, any(image_url) as img
+                SELECT ${selectCols.join(', ')}
                 FROM rb_sku_platform
-                WHERE web_pid IN (${skuWebPids.map(id => `'${escapeStr(String(id))}'`).join(',')})
+                WHERE LOWER(web_pid) IN (${skuWebPids.map(id => `'${escapeStr(String(id).toLowerCase())}'`).join(',')})
                 GROUP BY web_pid
             `);
             imgData.forEach(row => {
-                skuImageMap[String(row.web_pid)] = row.img;
+                const key = String(row.web_pid).toLowerCase();
+                skuImageMap[key] = row.img;
+
+                let raw = (hasPageUrl && row.page_url) || null;
+                if (!raw && hasPlatformName && row.platform_name) {
+                    raw = buildDynamicSkuUrl(row.platform_name, row.web_pid);
+                }
+                if (raw) {
+                    try {
+                        const u = new URL(raw);
+                        const parts = u.pathname.split('/');
+                        parts[parts.length - 1] = parts[parts.length - 1].toUpperCase();
+                        u.pathname = parts.join('/');
+                        skuUrlMap[key] = u.toString();
+                    } catch (_) {
+                        skuUrlMap[key] = raw;
+                    }
+                }
             });
-            console.log(`[getSkuOverview] Fetched ${Object.keys(skuImageMap).length} SKU images from rb_sku_platform`);
+            console.log(`[getSkuOverview] Fetched ${Object.keys(skuImageMap).length} SKU details from rb_sku_platform`);
         } catch (imgError) {
-            console.error('[getSkuOverview] Failed to fetch SKU images from rb_sku_platform:', imgError);
+            console.error('[getSkuOverview] Failed to fetch SKU details from rb_sku_platform:', imgError);
         }
     }
 
@@ -11857,7 +11892,8 @@ const getSkuOverview = async (filters) => {
             key: `sku_${idx}_${skuName.toLowerCase().replace(/\s+/g, '_').substring(0, 30)} `,
             label: skuName,
             type: "SKU",
-            logo: (dataRaw.web_pid && skuImageMap[String(dataRaw.web_pid)]) || null,
+            logo: (dataRaw.web_pid && skuImageMap[String(dataRaw.web_pid).toLowerCase()]) || null,
+            page_url: (dataRaw.web_pid && skuUrlMap[String(dataRaw.web_pid).toLowerCase()]) || null,
             offtakeShare: parseFloat(offtakeShare.toFixed(2)),
             columns: generateKpiColumns({
                 offtake, availability, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, categorySize: hasMsCheck ? currSkuCategorySize : null, adSov, organicSov, buyBoxPct, deliveryTime,

@@ -15,6 +15,7 @@ dayjs.extend(customParseFormat);
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 import { getTableColumns, columnExists, resolveColumn } from '../utils/schemaHelper.js';
+import { buildDynamicSkuUrl } from './pricingAnalysisService.js';
 
 /**
  * Helper to get table column mappings based on the current tenant's database.
@@ -361,7 +362,7 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
 
     // Reseller_Name filter (DRL DB context only)
     const dbName = getCurrentDbName();
-    if (dbName === 'drl') {
+    if (dbName === 'drl' || dbName === 'prestige') {
         const resellerVal = filters.resellerName || filters.resellerNames;
         if (resellerVal && resellerVal !== 'All' && resellerVal !== 'all') {
             const rArr = Array.isArray(resellerVal) ? resellerVal : [resellerVal];
@@ -1974,30 +1975,49 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
 
             const escapeStr = (str) => String(str).replace(/'/g, "''");
 
-            // Fetch SKU images from rb_sku_platform
+            // Fetch SKU images and page URLs from rb_sku_platform
             if (formattedData.length > 0) {
                 try {
                     const skuListStr = formattedData.map(item => `'${escapeStr(item.sku)}'`).join(',');
                     const imgQuery = `
-                        SELECT lower(web_pid) as w_pid, any(image_url) as img_url 
+                        SELECT lower(web_pid) as w_pid, any(web_pid) as orig_pid,
+                               any(image_url) as img_url,
+                               any(page_url) as page_url, any(platform_name) as platform_name
                         FROM rb_sku_platform 
                         WHERE lower(web_pid) IN (${skuListStr}) 
-                        AND image_url IS NOT NULL 
-                        AND image_url != '' 
                         GROUP BY w_pid
                     `;
                     const imgData = await queryClickHouse(imgQuery);
 
                     const imgMap = {};
+                    const urlMap = {};
                     imgData.forEach(r => {
-                        imgMap[r.w_pid] = r.img_url;
+                        const key = String(r.w_pid).toLowerCase();
+                        if (r.img_url) imgMap[key] = r.img_url;
+
+                        // Resolve page URL.
+                        // Priority: always try to build dynamic URL first using orig_pid
+                        // (original-case from DB e.g. B0CGXQSHJZ) because page_url stored
+                        // in the DB may have been saved with the wrong (lowercase) casing.
+                        // Only fall back to DB page_url if we cannot build one dynamically.
+                        const pidForUrl = r.orig_pid || r.w_pid;
+                        let rawUrl = null;
+                        if (r.platform_name) {
+                            rawUrl = buildDynamicSkuUrl(r.platform_name, pidForUrl);
+                        }
+                        if (!rawUrl) {
+                            rawUrl = r.page_url || null;
+                        }
+                        if (rawUrl) urlMap[key] = rawUrl;
                     });
 
                     formattedData.forEach(item => {
-                        item.imageUrl = imgMap[item.sku] || null;
+                        const key = String(item.sku).toLowerCase();
+                        item.imageUrl = imgMap[key] || null;
+                        item.page_url = urlMap[key] || null;
                     });
                 } catch (imgError) {
-                    console.error('[getAbsoluteOsaPercentageDetail] Failed to fetch SKU images:', imgError);
+                    console.error('[getAbsoluteOsaPercentageDetail] Failed to fetch SKU images/urls:', imgError);
                 }
             }
 
@@ -2501,7 +2521,7 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
             if (filterType === 'resellerNames') {
                 const dbName = getCurrentDbName();
-                if (dbName === 'drl') {
+                if (dbName === 'drl' || dbName === 'prestige') {
                     const resellerConditions = [
                         `Reseller_Name IS NOT NULL AND Reseller_Name != ''`,
                         `Comp_flag = 0`

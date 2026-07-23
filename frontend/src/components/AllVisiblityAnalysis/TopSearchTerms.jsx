@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
-import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Check, Loader2, PieChart, Download } from "lucide-react";
+import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Check, Loader2, PieChart, Download, ExternalLink } from "lucide-react";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import { motion, AnimatePresence } from "framer-motion";
 import { fetchVisibilityBrandDrilldown, fetchVisibilitySkuDrilldown, fetchVisibilityCityDrilldown } from "../../api/visibilityService";
@@ -536,7 +536,29 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                                                                 >
                                                                     {isSkuExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                                                                 </button>
-                                                                <span className="truncate max-w-[180px]" title={sku.skuName}>{sku.skuName}</span>
+                                                                {sku.imageUrl && (
+                                                                    <img
+                                                                        src={sku.imageUrl}
+                                                                        alt={sku.skuName}
+                                                                        className="w-7 h-7 object-contain rounded bg-white border border-slate-100 shadow-sm flex-shrink-0"
+                                                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                                                    />
+                                                                )}
+                                                                <div className="flex items-center gap-1 min-w-0">
+                                                                    <span className="truncate max-w-[180px]" title={sku.skuName}>{sku.skuName}</span>
+                                                                    {sku.page_url && (
+                                                                        <a
+                                                                            href={sku.page_url}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                            className="flex-shrink-0 p-0.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                                                                            title="Open product page"
+                                                                        >
+                                                                            <ExternalLink className="h-3 w-3" />
+                                                                        </a>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </td>
                                                          <td className="px-6 py-2 text-[10px] text-slate-500 font-semibold">
