@@ -81,7 +81,7 @@ function getTheme(_idx: number) {
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 function SkeletonCard() {
     return (
-        <div className="shrink-0 w-52 h-44 rounded-2xl bg-slate-100 dark:bg-slate-800/60 animate-pulse border border-slate-200/60 dark:border-slate-700/40" />
+        <div className="shrink-0 w-[210px] h-[260px] rounded-2xl bg-slate-100 dark:bg-slate-800/60 animate-pulse" />
     );
 }
 
@@ -158,26 +158,24 @@ function CategoryCard({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: Math.min(index * 0.03, 0.25), type: 'spring', stiffness: 300, damping: 28 }}
-            whileHover={{ y: -3 }}
-            whileTap={{ scale: 0.98 }}
             onClick={onClick}
             role="button"
             aria-pressed={isActive}
             className={`
-                shrink-0 w-56 h-[210px] rounded-xl cursor-pointer select-none relative
-                transition-all duration-200
-                border
+                shrink-0 w-[210px] h-[260px] rounded-2xl cursor-pointer select-none relative
+                transition-colors duration-200 border-[3px]
                 ${isActive
-                    ? 'border-indigo-500 ring-1 ring-indigo-500/30 shadow-md shadow-indigo-500/10'
-                    : trendSevere
-                        ? 'border-rose-300 dark:border-rose-800/60 hover:border-rose-500 hover:shadow-sm'
-                        : 'border-slate-200 dark:border-slate-700/60 hover:border-indigo-400 hover:shadow-sm'
+                    ? 'bg-indigo-50/40 dark:bg-indigo-950/20 border-black dark:border-white shadow-md'
+                    : trendNegative
+                        ? 'bg-rose-50/40 dark:bg-rose-950/10 hover:bg-rose-100 dark:hover:bg-rose-900/40 border-transparent'
+                        : trendPositive
+                            ? 'bg-white dark:bg-slate-900 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border-transparent'
+                            : 'bg-white dark:bg-slate-900 hover:bg-amber-100 dark:hover:bg-amber-900/40 border-transparent'
                 }
-                bg-white dark:bg-slate-900
             `}
             style={{ '--card-accent': theme.accent } as React.CSSProperties}
         >
-            <div className="p-3.5 flex flex-col h-full gap-2">
+            <div className="p-4 flex flex-col h-full gap-3">
                 {/* Header: icon + category name + trend pill */}
                 <div className="flex items-start gap-2">
                     <span className="text-xl leading-none flex-shrink-0">{icon}</span>
@@ -199,7 +197,7 @@ function CategoryCard({
                 {/* Hero: catalogue SKU count (authoritative), with the active subset
                     — SKUs that have reviews in the selected window — as a sub-label,
                     so "listed" vs "active" never look like contradictory numbers. */}
-                <div className="flex items-baseline gap-1.5 -mt-0.5">
+                <div className="flex items-baseline flex-wrap gap-1.5 -mt-0.5">
                     <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums leading-none">
                         {(catalogueSkuCount ?? skuCount).toLocaleString()}
                     </span>
@@ -238,7 +236,7 @@ function CategoryCard({
                 </div>
 
                 {/* Footer: labelled counts + pareto/npd */}
-                <div className="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 mt-auto tabular-nums">
+                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mt-auto tabular-nums pt-1 border-t border-slate-50 dark:border-slate-800/50">
                     <span className="flex items-center gap-1" title={`${reviewCount.toLocaleString()} text reviews collected`}>
                         <MessageSquare size={10} />
                         <span className="font-semibold text-slate-700 dark:text-slate-300">{reviewsFormatted}</span>
@@ -264,14 +262,6 @@ function CategoryCard({
                 </div>
             </div>
 
-            {/* Active bottom accent line */}
-            {isActive && (
-                <motion.div
-                    layoutId="categoryActiveBar"
-                    className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-indigo-500"
-                    transition={{ type: 'spring', bounce: 0.25, duration: 0.45 }}
-                />
-            )}
         </motion.div>
     );
 }
@@ -302,21 +292,19 @@ function AllCategoriesCard({
 }) {
     return (
         <motion.div
-            whileHover={{ y: -3 }}
-            whileTap={{ scale: 0.98 }}
             onClick={onClick}
             role="button"
             aria-pressed={isActive}
             className={`
-                shrink-0 w-56 h-[210px] rounded-xl cursor-pointer select-none relative
-                transition-all duration-200 border
+                shrink-0 w-[210px] h-[260px] rounded-2xl cursor-pointer select-none relative
+                transition-colors duration-200 border-[3px]
                 ${isActive
-                    ? 'border-indigo-500 ring-1 ring-indigo-500/30 shadow-md shadow-indigo-500/10 bg-white dark:bg-slate-900'
-                    : 'border-slate-200 dark:border-slate-700/60 hover:border-indigo-400 hover:shadow-sm bg-white dark:bg-slate-900'
+                    ? 'bg-indigo-50/40 dark:bg-indigo-950/20 border-black dark:border-white shadow-md'
+                    : 'bg-white dark:bg-slate-900 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 border-transparent'
                 }
             `}
         >
-            <div className="p-3.5 flex flex-col h-full gap-2">
+            <div className="p-4 flex flex-col h-full gap-3">
                 {/* Header — matches per-category card layout (icon + name + trend pill slot) */}
                 <div className="flex items-start gap-2">
                     <div className={`p-1.5 rounded-lg flex-shrink-0 ${isActive ? 'bg-indigo-500/15' : 'bg-slate-100 dark:bg-slate-800'}`}>
@@ -331,7 +319,7 @@ function AllCategoriesCard({
                 </div>
 
                 {/* Hero: catalogue SKU count, with active subset as a sub-label */}
-                <div className="flex items-baseline gap-1.5 -mt-0.5">
+                <div className="flex items-baseline flex-wrap gap-1.5 -mt-0.5">
                     <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums leading-none">
                         {Number(totalSkus).toLocaleString()}
                     </span>
@@ -367,7 +355,7 @@ function AllCategoriesCard({
                 </div>
 
                 {/* Footer — same shape as per-category card footer */}
-                <div className="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 mt-auto tabular-nums">
+                <div className="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 mt-auto tabular-nums pt-1 border-t border-slate-50 dark:border-slate-800/50">
                     <span className="flex items-center gap-1">
                         <MessageSquare size={10} />
                         <span className="font-semibold text-slate-700 dark:text-slate-300">{reviewsAll}</span>
@@ -384,13 +372,6 @@ function AllCategoriesCard({
                 </div>
             </div>
 
-            {isActive && (
-                <motion.div
-                    layoutId="categoryActiveBar"
-                    className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-indigo-500"
-                    transition={{ type: 'spring', bounce: 0.25, duration: 0.45 }}
-                />
-            )}
         </motion.div>
     );
 }
@@ -553,7 +534,7 @@ const CategoryCardsStrip: React.FC<CategoryCardsStripProps> = ({
                     <div className="w-28 h-4 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
                     <div className="w-16 h-4 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
                 </div>
-                <div className="flex gap-3 overflow-hidden">
+                <div className="flex gap-3 overflow-hidden p-2">
                     {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
                 </div>
             </div>
@@ -641,18 +622,20 @@ const CategoryCardsStrip: React.FC<CategoryCardsStripProps> = ({
                     />
 
                     {/* Per-category cards */}
-                    {categories.map((cat, idx) => (
-                        <CategoryCard
-                            key={cat.category}
-                            {...cat}
-                            isActive={selectedCategory === cat.category}
-                            onClick={() => {
-                                onCategorySelect(selectedCategory === cat.category ? null : cat.category);
-                                setHasInteracted(true);
-                            }}
-                            index={idx}
-                        />
-                    ))}
+                    {categories
+                        .filter(cat => selectedCategory === null || selectedCategory === cat.category)
+                        .map((cat, idx) => (
+                            <CategoryCard
+                                key={cat.category}
+                                {...cat}
+                                isActive={selectedCategory === cat.category}
+                                onClick={() => {
+                                    onCategorySelect(selectedCategory === cat.category ? null : cat.category);
+                                    setHasInteracted(true);
+                                }}
+                                index={idx}
+                            />
+                        ))}
                 </div>
             </div>
 

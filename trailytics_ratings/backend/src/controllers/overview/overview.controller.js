@@ -617,12 +617,9 @@ export const getExecutiveHealth = async (req, res) => {
         else if (rating_bifurcation === 'NI') { ratingFilter = `AND ls.rating >= 4.0 AND ls.rating < 4.2`; }
 
         if (filterParetoStatus) {
-            if (filterParetoStatus === 'Non-Pareto') {
-                paretoFilter = `AND (CASE WHEN mp.pareto_status = 'Pareto' THEN 'Pareto' WHEN mp.pareto_status = 'NPD' THEN 'NPD' ELSE 'Non-Pareto' END) = 'Non-Pareto'`;
-            } else {
-                queryParams.filterParetoStatus = filterParetoStatus;
-                paretoFilter = `AND (CASE WHEN mp.pareto_status = 'Pareto' THEN 'Pareto' WHEN mp.pareto_status = 'NPD' THEN 'NPD' ELSE 'Non-Pareto' END) = {filterParetoStatus:String}`;
-            }
+            queryParams.filterParetoStatus = filterParetoStatus;
+            // Removed paretoFilter construction here so Executive Health (Pareto/NPD) cards 
+            // remain static and show the total distribution even when a specific status is filtered globally.
         }
 
         if (price_min !== undefined && price_min !== '') {
@@ -643,7 +640,7 @@ export const getExecutiveHealth = async (req, res) => {
                         CASE WHEN pareto_status = 'Pareto' THEN 'Pareto' WHEN pareto_status = 'NPD' THEN 'NPD' ELSE 'Non-Pareto' END, 
                         CASE WHEN pareto_status = 'Pareto' THEN 3 WHEN pareto_status = 'NPD' THEN 2 ELSE 1 END
                     ) AS bucket
-                    FROM products mp WHERE mp.company_id = {companyId:String} ${masterCompetitorFilter} AND isNotNull(mp.platform) ${masterPlatformFilter} ${masterCategoryFilter} ${web_pid ? 'AND mp.product_external_id = {webPid:String}' : ''} GROUP BY product_external_id
+                    FROM products mp WHERE mp.company_id = {companyId:String} ${masterCompetitorFilter} AND coalesce(nullIf(mp.category, ''), '') != '' AND mp.platform != '' ${masterPlatformFilter} ${masterCategoryFilter} ${web_pid ? 'AND mp.product_external_id = {webPid:String}' : ''} GROUP BY product_external_id
                 ) GROUP BY bucket
             `, query_params: queryParams, format: 'JSONEachRow' });
             const catRows = await catRes.json();
@@ -653,7 +650,7 @@ export const getExecutiveHealth = async (req, res) => {
 
         const catalogSkuScope = totalCatalogSkus > 0 ? `
                   UNION DISTINCT
-                  SELECT product_external_id AS web_pid FROM products mp WHERE mp.company_id = {companyId:String} ${masterCompetitorFilter} AND isNotNull(mp.platform) ${masterPlatformFilter} ${masterCategoryFilter} ${web_pid ? 'AND mp.product_external_id = {webPid:String}' : ''}
+                  SELECT product_external_id AS web_pid FROM products mp WHERE mp.company_id = {companyId:String} ${masterCompetitorFilter} AND coalesce(nullIf(mp.category, ''), '') != '' AND mp.platform != '' ${masterPlatformFilter} ${masterCategoryFilter} ${web_pid ? 'AND mp.product_external_id = {webPid:String}' : ''}
         ` : '';
         const catalogOnlyFilter = totalCatalogSkus > 0 ? `AND mp.web_pid IS NOT NULL` : '';
 
@@ -679,7 +676,7 @@ export const getExecutiveHealth = async (req, res) => {
                   SELECT * FROM (
                       SELECT mp.product_external_id AS web_pid, mp.pareto_status, mp.category, mp.subcategory, mp.business_segment
                       FROM products mp
-                      WHERE mp.company_id = {companyId:String} ${masterCompetitorFilter} AND isNotNull(mp.platform) ${masterPlatformFilter} ${masterCategoryFilter}
+                      WHERE mp.company_id = {companyId:String} ${masterCompetitorFilter} AND coalesce(nullIf(mp.category, ''), '') != '' AND mp.platform != '' ${masterPlatformFilter} ${masterCategoryFilter}
                       ORDER BY 
                           CASE WHEN mp.pareto_status = 'Pareto' THEN 3 WHEN mp.pareto_status = 'NPD' THEN 2 WHEN mp.pareto_status IS NOT NULL AND mp.pareto_status != '' THEN 1 ELSE 0 END DESC,
                           (mp.category IS NOT NULL AND mp.category != '') DESC
@@ -1468,13 +1465,16 @@ export const getCategoryHealth = async (req, res) => {
 
         let snapParetoFilter = '';
         let reviewParetoFilter = '';
+        let masterParetoFilter = '';
         if (pareto_status) {
             if (pareto_status === 'Non-Pareto') {
                 snapParetoFilter = `AND (coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, '')) NOT IN ('Pareto', 'NPD') OR coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, '')) IS NULL)`;
                 reviewParetoFilter = `AND (coalesce(nullIf(mp.pareto_status, ''), nullIf(r.pareto_status, '')) NOT IN ('Pareto', 'NPD') OR coalesce(nullIf(mp.pareto_status, ''), nullIf(r.pareto_status, '')) IS NULL)`;
+                masterParetoFilter = `AND (mp.pareto_status NOT IN ('Pareto', 'NPD') OR mp.pareto_status IS NULL)`;
             } else {
                 snapParetoFilter = `AND coalesce(nullIf(mp.pareto_status, ''), nullIf(ls.pareto_status, '')) = {paretoStatus:String}`;
                 reviewParetoFilter = `AND coalesce(nullIf(mp.pareto_status, ''), nullIf(r.pareto_status, '')) = {paretoStatus:String}`;
+                masterParetoFilter = `AND mp.pareto_status = {paretoStatus:String}`;
                 queryParams.paretoStatus = pareto_status;
             }
         }
@@ -1650,12 +1650,13 @@ export const getCategoryHealth = async (req, res) => {
                     multiIf(trim(lower(mp.category)) IN ('other', 'others'), 'Others', initcap(trim(mp.category))) AS cat_name,
                     count(DISTINCT mp.product_external_id) AS catalogue_sku_count
                 FROM products mp
-                WHERE mp.company_id = {companyId:String} AND mp.platform != '' AND mp.category != '' ${snapCompetitorFilter} ${masterPlatformFiltStr} ${web_pid ? 'AND mp.product_external_id = {webPid:String}' : ''}
+                WHERE mp.company_id = {companyId:String} AND mp.platform != '' AND mp.category != '' ${snapCompetitorFilter} ${masterPlatformFiltStr} ${masterParetoFilter} ${web_pid ? 'AND mp.product_external_id = {webPid:String}' : ''}
                 GROUP BY cat_name
             ),
             combined_cats AS (
-                SELECT c.category AS category, c.sku_count AS sku_count, c.pareto_count AS pareto_count, c.non_pareto_count AS non_pareto_count, c.npd_count AS npd_count,
-                    coalesce(cc.catalogue_sku_count, c.sku_count) AS catalogue_sku_count,
+                SELECT coalesce(cc.cat_name, c.category) AS category, 
+                    coalesce(c.sku_count, 0) AS sku_count, coalesce(c.pareto_count, 0) AS pareto_count, coalesce(c.non_pareto_count, 0) AS non_pareto_count, coalesce(c.npd_count, 0) AS npd_count,
+                    coalesce(cc.catalogue_sku_count, c.sku_count, 0) AS catalogue_sku_count,
                     coalesce(r.review_count, 0) AS review_count,
                     coalesce(r.sku_count, 0) AS review_sku_count,
                     r.avg_review_rating, r.avg_ml_rating, r.positive_count, r.negative_count, r.neutral_count,
@@ -1664,14 +1665,13 @@ export const getCategoryHealth = async (req, res) => {
                     g.recent_reviews, g.prior_reviews, g.recent_rating, g.prior_rating,
                     multiIf(g.prior_reviews > 0, toFloat64(g.recent_reviews - g.prior_reviews) / g.prior_reviews * 100, 0.0) AS growth_pct,
                     multiIf(r.review_count > 0, (toFloat64(r.positive_count) - r.negative_count) / r.review_count * 50 + 50, 50.0) AS health_score
-                FROM cat_sku_counts c
-                LEFT JOIN cat_reviews r ON c.category = r.cat_name
-                LEFT JOIN cat_growth g ON c.category = g.cat_name
-                LEFT JOIN cat_products cp ON c.category = cp.cat_name
-                LEFT JOIN cat_catalogue cc ON c.category = cc.cat_name
-                WHERE c.sku_count > 0 OR r.review_count > 0
+                FROM cat_catalogue cc
+                FULL OUTER JOIN cat_sku_counts c ON cc.cat_name = c.category
+                LEFT JOIN cat_reviews r ON coalesce(cc.cat_name, c.category) = r.cat_name
+                LEFT JOIN cat_growth g ON coalesce(cc.cat_name, c.category) = g.cat_name
+                LEFT JOIN cat_products cp ON coalesce(cc.cat_name, c.category) = cp.cat_name
             )
-            SELECT * FROM combined_cats ORDER BY review_count DESC
+            SELECT * FROM combined_cats ORDER BY review_count DESC, catalogue_sku_count DESC
             SETTINGS max_memory_usage = 2000000000;
         `;
         
