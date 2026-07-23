@@ -1771,7 +1771,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                             }}
                         >
                             <BookmarkPlus size={18} />
-                            Save Alert
+                            Submit Alert
                         </button>
                     </div>
 
