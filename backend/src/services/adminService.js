@@ -515,6 +515,110 @@ export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions) =>
 };
 
 /**
+ * Fetch Insights.kpi config for a database based on its most active user
+ */
+export const getDatabaseInsights = async (dbId) => {
+    try {
+        const precisionLostDbId = Number(dbId).toString();
+        const query = `
+            SELECT tab_permissions
+            FROM tb_user
+            WHERE (toString(db_id) = '${dbId}' OR toString(db_id) = '${precisionLostDbId}')
+              AND tab_permissions != ''
+              AND status != 'deleted'
+            ORDER BY last_login DESC
+            LIMIT 1
+        `;
+        const rows = await queryAdminDB(query);
+        if (rows && rows.length > 0 && rows[0].tab_permissions) {
+            try {
+                const perms = JSON.parse(rows[0].tab_permissions);
+                if (perms && perms.Insights && perms.Insights.kpi) {
+                    return perms.Insights.kpi;
+                }
+            } catch (e) {
+                console.error('[AdminService] getDatabaseInsights JSON parse error:', e.message);
+            }
+        }
+        return {}; // return empty object if no config found or no users
+    } catch (error) {
+        console.error('[AdminService] getDatabaseInsights failed:', error.message);
+        throw error;
+    }
+};
+
+/**
+ * Update Insights.kpi config for all users in a specific database
+ */
+export const updateDatabaseInsights = async (dbId, insightsKpi) => {
+    try {
+        // Fetch all users for this db_id
+        const precisionLostDbId = Number(dbId).toString();
+        const query = `
+            SELECT toString(user_id) as user_id, tab_permissions
+            FROM tb_user
+            WHERE (toString(db_id) = '${dbId}' OR toString(db_id) = '${precisionLostDbId}')
+              AND status != 'deleted'
+        `;
+        const users = await queryAdminDB(query);
+        console.log(`[AdminService] updateDatabaseInsights: dbId=${dbId}, usersFound=${users?.length}`);
+        
+        if (!users || users.length === 0) {
+            console.log(`[AdminService] updateDatabaseInsights: No users found, cannot update tab_permissions.`);
+            return { success: false, error: 'No active users found for this client database to apply settings to.' };
+        }
+
+        // Group users by the new tab_permissions string to minimize mutations
+        const updateGroups = {};
+
+        for (const user of users) {
+            let perms = {};
+            try {
+                if (user.tab_permissions) {
+                    perms = JSON.parse(user.tab_permissions);
+                }
+            } catch (e) {}
+
+            if (!perms.Insights) {
+                perms.Insights = { access: true, kpi: {} };
+            }
+            if (!perms.Insights.kpi) {
+                perms.Insights.kpi = {};
+            }
+
+            // Merge the new insights config
+            perms.Insights.kpi = { ...perms.Insights.kpi, ...insightsKpi };
+
+            const jsonStr = JSON.stringify(perms).replace(/'/g, "\\'");
+            
+            if (!updateGroups[jsonStr]) {
+                updateGroups[jsonStr] = [];
+            }
+            updateGroups[jsonStr].push(user.user_id);
+        }
+
+        // Execute batch updates
+        for (const [jsonStr, userIds] of Object.entries(updateGroups)) {
+            const userIdsList = userIds.map(id => `'${id}'`).join(',');
+            const updateQuery = `
+                ALTER TABLE tb_user
+                UPDATE tab_permissions = '${jsonStr}'
+                WHERE toString(user_id) IN (${userIdsList})
+                SETTINGS mutations_sync = 1
+            `;
+            console.log(`[AdminService] updateDatabaseInsights executing query for ${userIds.length} users...`);
+            await queryAdminDB(updateQuery);
+            console.log(`[AdminService] updateDatabaseInsights query successful.`);
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('[AdminService] updateDatabaseInsights failed:', error.message);
+        throw error;
+    }
+};
+
+/**
  * Fetch available databases from tb_database
  */
 export const getDatabases = async () => {

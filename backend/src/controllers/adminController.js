@@ -332,6 +332,79 @@ export const updateDatabaseLogo = async (req, res) => {
 };
 
 /**
+ * GET /api/admin/databases/insights
+ * Returns the Insights.kpi config for a given database
+ */
+export const getDatabaseInsights = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const { db_id } = req.query;
+        if (!db_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'db_id is required'
+            });
+        }
+
+        const insightsKpi = await adminService.getDatabaseInsights(db_id);
+
+        return res.status(200).json({
+            success: true,
+            data: insightsKpi
+        });
+    } catch (error) {
+        console.error('[AdminController] getDatabaseInsights failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};
+
+/**
+ * PATCH /api/admin/databases/insights
+ * Updates the Insights.kpi config for a given database across all its users
+ */
+export const updateDatabaseInsights = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const { db_id, insights } = req.body;
+        if (!db_id || typeof insights !== 'object') {
+            return res.status(400).json({
+                success: false,
+                error: 'db_id and insights object are required'
+            });
+        }
+
+        await adminService.updateDatabaseInsights(db_id, insights);
+
+        // Clear permissions cache for all users? Or let it be updated on refresh
+        return res.status(200).json({
+            success: true,
+            message: 'Database insights configuration updated successfully'
+        });
+    } catch (error) {
+        console.error('[AdminController] updateDatabaseInsights failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};
+
+/**
  * POST /api/admin/databases
  * Creates a new database in ClickHouse
  */
