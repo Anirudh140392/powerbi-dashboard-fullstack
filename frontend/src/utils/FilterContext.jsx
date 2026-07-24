@@ -15,7 +15,7 @@ const FALLBACK_PLATFORMS = ["Blinkit", "Zepto", "Instamart"];
 const FALLBACK_CATEGORIES = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
 const FALLBACK_LOCATIONS = [];
 const FALLBACK_BRANDS = [];
-const FALLBACK_CHANNELS = ["Ecom", "QuickComm"];
+const FALLBACK_CHANNELS = []; // Dynamic — fetched from rca_sku_dim / rb_pdp_olap on mount
 
 export const FilterProvider = ({ children }) => {
     const { isLoggedIn } = useAuth();
@@ -24,7 +24,7 @@ export const FilterProvider = ({ children }) => {
 
     // Channel state (fetched dynamically from rca_sku_dim)
     const [channels, setChannels] = useState(FALLBACK_CHANNELS);
-    const [selectedChannel, setSelectedChannel] = useState(FALLBACK_CHANNELS[0] || "All");
+    const [selectedChannel, setSelectedChannel] = useState("All");
 
     // Platform state
     const [platforms, setPlatforms] = useState([]);
@@ -269,9 +269,10 @@ export const FilterProvider = ({ children }) => {
                 setChannels(res.data);
                 // Keep current selection if still valid, otherwise select first non-All
                 setSelectedChannel(prev => {
-                    if (prev === "All") return "All"; // Preserve explicit "All" selection (e.g. after reset)
                     const validChannels = res.data.filter(c => c !== 'All');
-                    if (validChannels.includes(prev)) return prev;
+                    // If prev is a valid channel in the new list, keep it
+                    if (prev !== "All" && validChannels.includes(prev)) return prev;
+                    // Otherwise select the first available channel
                     return validChannels.length > 0 ? validChannels[0] : 'All';
                 });
             } else {

@@ -176,6 +176,29 @@ const getLogoDimensions = (dbName, isCollapsed) => {
   return { containerHeight, imageHeight, imageWidth: 'auto', maxWidth };
 };
 
+/**
+ * Generic channel label formatter.
+ * Maps known channel names to short display labels, title-cases unknown ones.
+ * Supports any new channel that appears in the database dynamically.
+ */
+const CHANNEL_LABEL_MAP = {
+  'quickcomm': 'QComm',
+  'quick commerce': 'QComm',
+  'quick_commerce': 'QComm',
+  'ecommerce': 'EComm',
+  'ecom': 'EComm',
+  'e-commerce': 'EComm',
+  'modern trades': 'Modern Trade',
+  'moderntrade': 'Modern Trade',
+  'modern_trade': 'Modern Trade',
+};
+
+const formatChannelLabel = (ch) => {
+  const mapped = CHANNEL_LABEL_MAP[ch.toLowerCase()];
+  if (mapped) return mapped;
+  // Title-case fallback: "some channel" → "Some Channel"
+  return ch.replace(/\b\w/g, c => c.toUpperCase());
+};
 
 
 const Sidebar = ({
@@ -702,7 +725,7 @@ const Sidebar = ({
           </>
         )}
 
-        {user?.dbName !== 'emami' && (<Box sx={{
+        {user?.dbName !== 'emami' && channels.filter(ch => ch !== 'All').length > 0 && (<Box sx={{
           display: 'flex',
           flexDirection: isCollapsed ? 'column' : 'row',
           gap: isCollapsed ? 1 : 3,
@@ -714,19 +737,9 @@ const Sidebar = ({
           width: '100%',
           borderBottom: isCollapsed ? 'none' : '1px solid rgba(0, 0, 0, 0.08)',
         }}>
-          {channels.filter(ch => ch !== 'All').sort((a, b) => {
-            const getOrder = (ch) => {
-              const lower = ch.toLowerCase();
-              if (lower === 'quickcomm' || lower === 'quick commerce') return 1;
-              if (lower === 'ecommerce' || lower === 'ecom') return 2;
-              return 3;
-            };
-            return getOrder(a) - getOrder(b);
-          }).map((ch) => {
+          {channels.filter(ch => ch !== 'All').sort((a, b) => a.localeCompare(b)).map((ch) => {
             const isSelected = selectedChannel === ch;
-            let displayLabel = ch;
-            if (ch.toLowerCase() === 'quickcomm' || ch.toLowerCase() === 'quick commerce') displayLabel = 'QComm';
-            else if (ch.toLowerCase() === 'ecommerce' || ch.toLowerCase() === 'ecom') displayLabel = 'EComm';
+            const displayLabel = formatChannelLabel(ch);
 
             if (isCollapsed) {
               return (
