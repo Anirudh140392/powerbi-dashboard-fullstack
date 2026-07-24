@@ -273,7 +273,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
             onCategorySelect(cat);
         }
     };
-    const { data: categoryHealthData, globalMetadata, loading: categoryHealthLoading } = useCategoryHealth(
+    const { data: categoryHealthData, loading: categoryHealthLoading } = useCategoryHealth(
         globalPlatform,
         globalTrendPeriodMonths,
         globalDateFrom,
@@ -688,7 +688,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                 {/* ===== CATEGORY CARDS STRIP ===== */}
                 <CategoryCardsStrip
                     categories={categoryHealthData}
-                    globalMetadata={globalMetadata}
+
                     loading={categoryHealthLoading}
                     selectedCategory={currentCategory}
                     onCategorySelect={handleCategorySelect}
@@ -711,9 +711,9 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {([
-                                { key: 'npd' as const, label: 'NPD', bucket: executiveHealth.npd, authorativeTotal: executiveHealth.npd.catalogueTotal ?? globalMetadata?.npdCount ?? executiveHealth.npd.total, color: 'indigo', icon: <Zap size={14} />, desc: 'New Product Development', tooltipDef: TOOLTIPS.npdCard },
-                                { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: executiveHealth.pareto.catalogueTotal ?? globalMetadata?.paretoCount ?? executiveHealth.pareto.total, color: 'indigo', icon: <Target size={14} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
-                                { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: executiveHealth.nonPareto.catalogueTotal ?? globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total, color: 'slate', icon: <Layers size={14} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
+                                { key: 'npd' as const, label: 'NPD', bucket: executiveHealth.npd, authorativeTotal: executiveHealth.npd.total, color: 'indigo', icon: <Zap size={14} />, desc: 'New Product Development', tooltipDef: TOOLTIPS.npdCard },
+                                { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: executiveHealth.pareto.total, color: 'indigo', icon: <Target size={14} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
+                                { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: executiveHealth.nonPareto.total, color: 'slate', icon: <Layers size={14} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
                             ])
                             .filter(() => getActiveBrandName().toLowerCase() !== 'danone')
                             .map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {

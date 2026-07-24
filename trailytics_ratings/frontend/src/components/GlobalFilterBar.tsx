@@ -495,7 +495,7 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                                                                 ?.map(s => {
                                                                     const id = s.web_pid || 'unknown';
                                                                     const label = s.product_name?.trim() || s.web_pid || 'Unknown SKU';
-                                                                    const isSelected = filters.sku.includes(id);
+                                                                    const isSelected = stagedFilters.sku.includes(id);
                                                                     return (
                                                                         <div
                                                                             key={id}
@@ -546,33 +546,33 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                                                 </div>
 
                                                 {/* Rating Bifurcation */}
-                                                {filters.category.classification !== 'all' && (
+                                                {stagedFilters.category.classification !== 'all' && (
                                                     <div>
                                                         <label className="block text-[11px] font-bold tracking-wider text-slate-500 uppercase mb-3">Rating Breakup</label>
                                                         <div className="grid grid-cols-1 gap-2">
                                                             <button
-                                                                onClick={() => setRatingBifurcation(null)}
+                                                                onClick={() => setStagedFilters(prev => ({ ...prev, ratingBifurcation: null }))}
                                                                 className={`text-left px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors border shadow-sm flex items-center justify-between ${
-                                                                    !filters.ratingBifurcation
+                                                                    !stagedFilters.ratingBifurcation
                                                                         ? 'bg-indigo-50/50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700 dark:text-indigo-300'
                                                                         : 'bg-white border-slate-200/80 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                                                                 }`}
                                                             >
                                                                 <span>All Ratings</span>
-                                                                {!filters.ratingBifurcation && <Check size={16} />}
+                                                                {!stagedFilters.ratingBifurcation && <Check size={16} />}
                                                             </button>
                                                             {RATING_BIFURCATION_OPTIONS.map(opt => (
                                                                 <button
                                                                     key={opt.value}
-                                                                    onClick={() => setRatingBifurcation(opt.value)}
+                                                                    onClick={() => setStagedFilters(prev => ({ ...prev, ratingBifurcation: opt.value }))}
                                                                     className={`text-left px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors border shadow-sm flex items-center justify-between ${
-                                                                        filters.ratingBifurcation === opt.value
+                                                                        stagedFilters.ratingBifurcation === opt.value
                                                                             ? 'bg-indigo-50/50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700 dark:text-indigo-300'
                                                                             : 'bg-white border-slate-200/80 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                                                                     }`}
                                                                 >
-                                                                    <span className={filters.ratingBifurcation === opt.value ? 'text-indigo-700 dark:text-indigo-300' : opt.color}>{opt.label}</span>
-                                                                    {filters.ratingBifurcation === opt.value && <Check size={16} className="text-indigo-500" />}
+                                                                    <span className={stagedFilters.ratingBifurcation === opt.value ? 'text-indigo-700 dark:text-indigo-300' : opt.color}>{opt.label}</span>
+                                                                    {stagedFilters.ratingBifurcation === opt.value && <Check size={16} className="text-indigo-500" />}
                                                                 </button>
                                                             ))}
                                                         </div>
@@ -583,8 +583,8 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                                                 <div>
                                                     <label className="block text-[11px] font-bold tracking-wider text-slate-500 uppercase mb-3">Sentiment Classification</label>
                                                     <select
-                                                        value={filters.category.selectedCategory || ''}
-                                                        onChange={(e) => setCategory(e.target.value || null)}
+                                                        value={stagedFilters.category.selectedCategory || ''}
+                                                        onChange={(e) => setStagedFilters(prev => ({ ...prev, category: { ...prev.category, selectedCategory: e.target.value || null } }))}
                                                         className="w-full px-3 py-1.5 text-[13px] rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 shadow-sm"
                                                     >
                                                         <option value="">All Sentiments</option>
@@ -602,9 +602,9 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                                                             {priceModeOptions.map(option => (
                                                                 <button
                                                                     key={option.value}
-                                                                    onClick={() => { setPriceMode(option.value); setPriceRange(null); }}
+                                                                    onClick={() => setStagedFilters(prev => ({ ...prev, priceMode: option.value, priceRange: null }))}
                                                                     className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                                                                        filters.priceMode === option.value
+                                                                        stagedFilters.priceMode === option.value
                                                                             ? 'bg-white dark:bg-slate-600 text-indigo-600 dark:text-indigo-300 shadow-sm'
                                                                             : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                                                                     }`}
@@ -615,12 +615,12 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                                                         </div>
                                                     </div>
                                                     <select
-                                                        value={filters.priceRange ? `${filters.priceRange.min}-${filters.priceRange.max}` : ''}
+                                                        value={stagedFilters.priceRange ? `${stagedFilters.priceRange.min}-${stagedFilters.priceRange.max}` : ''}
                                                         onChange={(e) => {
-                                                            if (!e.target.value) setPriceRange(null);
+                                                            if (!e.target.value) setStagedFilters(prev => ({ ...prev, priceRange: null }));
                                                             else {
                                                                 const [min, max] = e.target.value.split('-').map(Number);
-                                                                setPriceRange({ min, max });
+                                                                setStagedFilters(prev => ({ ...prev, priceRange: { min, max } }));
                                                             }
                                                         }}
                                                         className="w-full px-3 py-1.5 text-[13px] rounded-lg border border-slate-200/80 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 shadow-sm"
