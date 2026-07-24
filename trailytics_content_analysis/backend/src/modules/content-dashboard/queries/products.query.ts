@@ -14,13 +14,13 @@ export function buildProductsQuery(params: ContentDashboardQuerySchema): string 
   const conditions: string[] = [];
 
   if (platform) {
-    conditions.push(`LOWER(platform) LIKE LOWER('%${escapeSqlString(platform)}%')`);
+    conditions.push(`LOWER(o.platform) LIKE LOWER('%${escapeSqlString(platform)}%')`);
   }
 
   if (skus) {
     const skuList = skus.split(',').map(s => `'${escapeSqlString(s.trim().toLowerCase())}'`).filter(Boolean).join(',');
     if (skuList) {
-      conditions.push(`LOWER(product_id) IN (${skuList})`);
+      conditions.push(`LOWER(o.product_id) IN (${skuList})`);
     }
   }
 
@@ -37,7 +37,7 @@ export function buildProductsQuery(params: ContentDashboardQuerySchema): string 
     
     if (subConditions.length > 0) {
       conditions.push(`
-        product_id IN (
+        LOWER(o.product_id) IN (
           SELECT LOWER(web_pid) 
           FROM \`${company}\`.rb_sku_platform 
           WHERE ${subConditions.join(' AND ')}
@@ -49,7 +49,7 @@ export function buildProductsQuery(params: ContentDashboardQuerySchema): string 
   if (search) {
     const s = escapeSqlString(search);
     conditions.push(
-      `(LOWER(product_id) LIKE LOWER('%${s}%') OR LOWER(title) LIKE LOWER('%${s}%'))`
+      `(LOWER(o.product_id) LIKE LOWER('%${s}%') OR LOWER(COALESCE(s.sku_name, s.sku_title, o.title)) LIKE LOWER('%${s}%'))`
     );
   }
 
@@ -69,21 +69,26 @@ export function buildProductsQuery(params: ContentDashboardQuerySchema): string 
     video_score: 'thumbnail_video_score',
     title: 'title'
   };
-  const dbSortBy = sortMap[sortBy] || 'total_score';
+  const dbSortBy = sortMap[sortBy] ? (sortMap[sortBy] === 'title' ? 'title' : `o.${sortMap[sortBy]}`) : 'o.total_score';
 
   // Select only required columns — no SELECT *
   return `
     SELECT
-      product_id,
-      title,
-      total_score AS score,
-      title_score,
-      bullet_score AS bullet_point_score,
-      description_score,
-      aplus_image_score AS aplus_score,
-      thumbnail_image_score AS thumbnail_score,
-      thumbnail_video_score AS video_score
-    FROM \`${company}\`.rb_content_olap
+      o.product_id,
+      COALESCE(s.sku_name, s.sku_title, o.title) AS title,
+      o.total_score AS score,
+      o.title_score,
+      o.bullet_score AS bullet_point_score,
+      o.description_score,
+      o.aplus_image_score AS aplus_score,
+      o.thumbnail_image_score AS thumbnail_score,
+      o.thumbnail_video_score AS video_score
+    FROM \`${company}\`.rb_content_olap o
+    LEFT JOIN (
+      SELECT web_pid, any(sku_name) as sku_name, any(sku_title) as sku_title
+      FROM \`${company}\`.rb_sku_platform
+      GROUP BY web_pid
+    ) s ON LOWER(o.product_id) = LOWER(s.web_pid)
     ${where}
     ORDER BY ${dbSortBy} ${order}
     LIMIT ${limit} OFFSET ${offset}
