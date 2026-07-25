@@ -744,6 +744,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             delete baseFilterParams.endDate;
             delete baseFilterParams.dates;
             delete baseFilterParams.months;
+            if (vMode === 'platform') {
+                delete baseFilterParams.platform;
+            }
 
             // Note: We intentionally keep the grouping column filters (platform/location/category)
             // in baseFilterParams so that user-applied segment filters are respected.
@@ -1385,6 +1388,9 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
             delete baseFilterParams.endDate;
             delete baseFilterParams.dates;
             delete baseFilterParams.months;
+            if (vMode === 'platform') {
+                delete baseFilterParams.platform;
+            }
 
             const baseWhereClause = await buildAvailabilityWhereClause(baseFilterParams);
             const baseFilter = baseWhereClause !== '1=1' ? ` AND ${baseWhereClause}` : '';

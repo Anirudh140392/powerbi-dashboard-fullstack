@@ -264,12 +264,10 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     const getCombinedFilters = () => {
         const combined = { ...globalFilters };
 
-        // Segment-level overrides
-        // If segment-level filters are applied, they should OVERRIDE global ones.
-        // We also remove the global keys (location, category) to prevent additive filtering
-        // in backend services that might handle both keys.
-
-        if (appliedFilters.platform?.length > 0) {
+        // For Platform matrix view, clear platform filter so all platforms come side-by-side
+        if (reportType === 'platform') {
+            combined.platform = 'All';
+        } else if (appliedFilters.platform?.length > 0) {
             combined.platform = appliedFilters.platform;
         }
 

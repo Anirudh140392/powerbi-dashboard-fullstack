@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dispatch Sheet — High-Priority KPI Pitch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #12151A;
+    --panel: #1B2028;
+    --panel-2: #20262F;
+    --line: #2B323C;
+    --ink: #E9ECEF;
+    --muted: #8B93A1;
+    --lime: #C6FF3D;
+    --amber: #FFB648;
+    --coral: #FF6B4A;
+  }
+  *{ box-sizing: border-box; }
+  html,body{
+    margin:0; padding:0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap{
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ---------- Header ---------- */
+  .console-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding: 14px 20px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin-bottom: 28px;
+  }
+  .console-header .brand{
+    display:flex; align-items:center; gap:10px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .dot{
+    width:8px; height:8px; border-radius:50%;
+    background: var(--lime);
+    box-shadow: 0 0 8px var(--lime);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{ opacity:1; }
+    50%{ opacity:0.35; }
+  }
+  .console-header .ts{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  h1.title{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size: clamp(28px, 5vw, 42px);
+    line-height: 1.05;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .title .hi{ color: var(--lime); }
+  p.subtitle{
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 560px;
+    margin: 0 0 36px;
+  }
+
+  section{ margin-bottom: 44px; }
+  .section-label{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--lime);
+    margin-bottom: 12px;
+    display:flex;
+    align-items:center;
+    gap: 10px;
+  }
+  .section-label::after{
+    content:"";
+    flex:1;
+    height:1px;
+    background: var(--line);
+  }
+
+  /* ---------- Manifest (priority list) ---------- */
+  .manifest{
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--panel);
+  }
+  .stop{
+    display:grid;
+    grid-template-columns: 44px 1fr auto;
+    gap: 16px;
+    align-items: start;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+    transition: background 0.15s ease;
+  }
+  .stop:last-child{ border-bottom:none; }
+  .stop:hover{ background: var(--panel-2); }
+  .stop .num{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .stop-body h3{
+    margin: 0 0 4px;
+    font-family:'Space Grotesk', sans-serif;
+    font-size: 16.5px;
+    font-weight: 700;
+  }
+  .stop-body p{
+    margin: 0;
+    color: var(--muted);
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+  .tag{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+    height: fit-content;
+    border: 1px solid transparent;
+  }
+  .tag.ready{ color: var(--lime); border-color: rgba(198,255,61,0.35); background: rgba(198,255,61,0.08); }
+  .tag.input{ color: var(--amber); border-color: rgba(255,182,72,0.35); background: rgba(255,182,72,0.08); }
+  .tag.new{ color: var(--coral); border-color: rgba(255,107,74,0.35); background: rgba(255,107,74,0.08); }
+
+  .pitch-order{
+    margin-top: 14px;
+    padding: 14px 18px;
+    border-left: 2px solid var(--lime);
+    background: var(--panel);
+    border-radius: 0 8px 8px 0;
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .pitch-order strong{ color: var(--ink); }
+
+  /* ---------- Receipt (WhatsApp template) ---------- */
+  .receipt-frame{
+    display:flex;
+    justify-content:center;
+  }
+  .receipt{
+    width: 100%;
+    max-width: 460px;
+    background: #F4F5F0;
+    color: #1A1D14;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.65;
+    position: relative;
+    padding: 26px 24px 30px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+  }
+  .receipt::before, .receipt::after{
+    content:"";
+    position:absolute;
+    left:0; right:0;
+    height:12px;
+    background:
+      linear-gradient(135deg, var(--bg) 50%, transparent 50%) 0 0/16px 16px repeat-x,
+      linear-gradient(-135deg, var(--bg) 50%, transparent 50%) 0 0/16px 16px repeat-x;
+  }
+  .receipt::before{ top:-1px; background-position: 0 0, 8px 0; }
+  .receipt::after{ bottom:-1px; transform: rotate(180deg); background-position: 0 0, 8px 0; }
+
+  .receipt .r-head{
+    text-align:center;
+    border-bottom: 1px dashed #9a9d8d;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+  }
+  .receipt .r-head .brand{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .receipt .r-head .meta{
+    font-size: 10.5px;
+    color: #5c5f52;
+    margin-top: 4px;
+  }
+  .receipt p{ margin: 0 0 12px; white-space: pre-wrap; }
+  .receipt .r-foot{
+    border-top: 1px dashed #9a9d8d;
+    padding-top: 10px;
+    margin-top: 6px;
+    font-size: 10.5px;
+    color: #5c5f52;
+    text-align:center;
+  }
+  .barcode{
+    height: 28px;
+    margin: 14px 0 8px;
+    background: repeating-linear-gradient(
+      90deg,
+      #1A1D14 0px, #1A1D14 2px,
+      transparent 2px, transparent 5px,
+      #1A1D14 5px, #1A1D14 6px,
+      transparent 6px, transparent 10px
+    );
+    opacity: 0.85;
+  }
+
+  .copy-row{
+    display:flex;
+    justify-content:center;
+    margin-top: 18px;
+  }
+  .copy-btn{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--lime);
+    border: none;
+    padding: 11px 22px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    box-shadow: 0 0 0 rgba(198,255,61,0);
+  }
+  .copy-btn:hover{
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(198,255,61,0.25);
+  }
+  .copy-btn:active{ transform: translateY(0); }
+  .copy-btn.copied{ background: var(--ink); color: var(--bg); }
+
+  footer{
+    text-align:center;
+    color: var(--muted);
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 50px;
+  }
+
+  @media (max-width: 560px){
+    .stop{ grid-template-columns: 32px 1fr; }
+    .stop .tag{ grid-column: 1 / -1; justify-self: start; margin-top: 6px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="console-header">
+    <div class="brand"><span class="dot"></span> Dark Store Analytics — Sales Dispatch</div>
+    <div class="ts" id="clock">--:--:--</div>
+  </div>
+
+  <h1 class="title">High-priority pitch,<br>ready to <span class="hi">roll out</span>.</h1>
+  <p class="subtitle">Six KPIs to lead with, ordered by how fast they close — plus a WhatsApp message ready to send today.</p>
+
+  <section>
+    <div class="section-label">Priority manifest — 6 stops</div>
+    <div class="manifest">
+
+      <div class="stop">
+        <div class="num">01</div>
+        <div class="stop-body">
+          <h3>Predictive Stockout Alerts</h3>
+          <p>Turns reactive OOS reporting into a 24–48hr early warning. Easy "yes" — zero new data required.</p>
+        </div>
+        <div class="tag ready">Zero input</div>
+      </div>
+
+      <div class="stop">
+        <div class="num">02</div>
+        <div class="stop-body">
+          <h3>MRP / Price Violation Alerts</h3>
+          <p>Compliance and brand-risk angle sells itself. Needs only an MRP list from the client.</p>
+        </div>
+        <div class="tag input">Needs MRP list</div>
+      </div>
+
+      <div class="stop">
+        <div class="num">03</div>
+        <div class="stop-body">
+          <h3>OSA-to-Sales Loss Attribution by City/Platform</h3>
+          <p>Converts a vague loss number into ₹ impact by city — the number that gets budget approved.</p>
+        </div>
+        <div class="tag ready">Zero input</div>
+      </div>
+
+      <div class="stop">
+        <div class="num">04</div>
+        <div class="stop-body">
+          <h3>Competitor Price-Cut Alerts</h3>
+          <p>Same-day competitive response, easy to demo live with data already on hand.</p>
+        </div>
+        <div class="tag ready">Zero input</div>
+      </div>
+
+      <div class="stop">
+        <div class="num">05</div>
+        <div class="stop-body">
+          <h3>Search Rank Movement Alerts</h3>
+          <p>Same-day visibility fixes. Needs only a priority keyword list.</p>
+        </div>
+        <div class="tag input">Needs keywords</div>
+      </div>
+
+      <div class="stop">
+        <div class="num">06</div>
+        <div class="stop-body">
+          <h3>Rating Trend Alerts <span style="color:var(--muted); font-weight:500;">(new tab)</span></h3>
+          <p>The forward-looking upsell once new scraping is live — differentiates from competitor dashboards.</p>
+        </div>
+        <div class="tag new">New data pull</div>
+      </div>
+
+    </div>
+
+    <div class="pitch-order">
+      <strong>Pitch order:</strong> open with 01 and 04 (zero client effort, instant value) to win quick buy-in.
+      Use 03 to justify expanding the engagement. Bring in 02 and 05 to open the data conversation.
+      Close with 06 as the forward-looking upsell.
+    </div>
+  </section>
+
+  <section>
+    <div class="section-label">Message template — WhatsApp</div>
+    <div class="receipt-frame">
+      <div class="receipt" id="receiptText">
+        <div class="r-head">
+          <div class="brand">Outreach Slip</div>
+          <div class="meta" id="dateStamp">DISPATCH · —</div>
+        </div>
+        <p>Hi [Name], quick update on the dashboard 👋</p>
+        <p>We've mapped out new alerts that build on your existing data — no extra setup needed for most:</p>
+        <p>📦 Predictive stockout alerts (24-48hrs early warning)
+💰 City-wise sales-loss breakdown from OOS
+🎯 Same-day competitor price-cut alerts</p>
+        <p>A couple of these unlock even more value with a small input from your side (MRP list / priority keywords).</p>
+        <p>Can we hop on a quick call this week to walk through it? Happy to share the full breakdown too.</p>
+        <div class="barcode"></div>
+        <div class="r-foot">tap copy · paste into whatsapp · send</div>
+      </div>
+    </div>
+    <div class="copy-row">
+      <button class="copy-btn" id="copyBtn" onclick="copyTemplate()">Copy message</button>
+    </div>
+  </section>
+
+  <footer>Dark Store Analytics · Sales Enablement</footer>
+</div>
+
+<script>
+  const rawMessage = `Hi [Name], quick update on the dashboard 👋
+
+We've mapped out new alerts that build on your existing data — no extra setup needed for most:
+
+📦 Predictive stockout alerts (24-48hrs early warning)
+💰 City-wise sales-loss breakdown from OOS
+🎯 Same-day competitor price-cut alerts
+
+A couple of these unlock even more value with a small input from your side (MRP list / priority keywords).
+
+Can we hop on a quick call this week to walk through it? Happy to share the full breakdown too.`;
+
+  function copyTemplate(){
+    const btn = document.getElementById('copyBtn');
+    const finish = (ok) => {
+      btn.textContent = ok ? 'Copied ✓' : 'Select & copy manually';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy message';
+        btn.classList.remove('copied');
+      }, 1800);
+    };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(rawMessage).then(() => finish(true)).catch(() => finish(false));
+    } else {
+      finish(false);
+    }
+  }
+
+  function tick(){
+    const now = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    document.getElementById('clock').textContent =
+      `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  const today = new Date();
+  const dateOpts = { day:'2-digit', month:'short', year:'numeric' };
+  document.getElementById('dateStamp').textContent =
+    'DISPATCH · ' + today.toLocaleDateString('en-IN', dateOpts).toUpperCase();
+</script>
+
+</body>
+</html>

@@ -118,6 +118,11 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
     const getCombinedFilters = () => {
         const combined = { ...globalFilters };
 
+        // For Platform matrix view, clear platform filter so all platforms come side-by-side
+        if (reportType === 'platform') {
+            combined.platform = 'All';
+        }
+
         if (globalFilters.location) {
             combined.cities = globalFilters.location;
         }
