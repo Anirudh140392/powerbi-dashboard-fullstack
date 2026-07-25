@@ -128,10 +128,10 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const [comparisonPeriod, setComparisonPeriod] = useState("vs 7-Day Average");
 
     // Multi-Select Scope Selection State (Platforms & Brands)
-    const [selectedPlatforms, setSelectedPlatforms] = useState(["Blinkit"]);
+    const [selectedPlatforms, setSelectedPlatforms] = useState([]);
     const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
 
-    const [selectedBrands, setSelectedBrands] = useState(["Mamaearth"]);
+    const [selectedBrands, setSelectedBrands] = useState([]);
     const [showBrandDropdown, setShowBrandDropdown] = useState(false);
 
     // Dynamic Lists (from Global FilterContext + Backend API)
@@ -193,6 +193,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
             setIsCustomAlertName(false);
             setAlertName("Low OSA + Active Ads Alert");
             setSelectedPresetIds(["low_osa_ads"]);
+            setSelectedPlatforms([]);
+            setSelectedBrands([]);
         }
     }, [open, editingAlert]);
 
@@ -307,23 +309,13 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                 }
             }
 
-            const sourcePlatforms = platList.length > 0 ? platList : ["Amazon", "Flipkart", "Blinkit", "Zepto", "Instamart", "Myntra", "JioMart"];
+            const sourcePlatforms = platList.length > 0 ? platList : (filterCtx.platforms || []);
             const allFormattedPlatforms = sourcePlatforms
                 .filter(p => p && p !== "All" && p !== "All Platforms")
                 .map(formatPlatformName);
             const formattedPlatforms = Array.from(new Set(allFormattedPlatforms));
 
             setAvailablePlatforms(formattedPlatforms);
-
-            // Sync active selected platforms from global filter context
-            if (filterCtx.platform && filterCtx.platform !== "All") {
-                const currentPlats = Array.isArray(filterCtx.platform)
-                    ? filterCtx.platform.map(formatPlatformName)
-                    : [formatPlatformName(filterCtx.platform)];
-                if (currentPlats.length > 0) setSelectedPlatforms(Array.from(new Set(currentPlats)));
-            } else if (formattedPlatforms.length > 0 && selectedPlatforms.length === 0) {
-                setSelectedPlatforms([formattedPlatforms[0]]);
-            }
         };
 
         loadDynamicPlatforms();
@@ -359,19 +351,13 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                 }
             }
 
-            const sourceBrands = brandList.length > 0 ? brandList : ["Mamaearth", "The Derma Co", "Aqualogica", "Dr. Sheth's", "Cadbury", "Ferrero", "Amul"];
+            const sourceBrands = brandList.length > 0 ? brandList : (filterCtx.brands || []);
             const allFormattedBrands = sourceBrands
                 .filter(b => b && b !== "All" && b !== "All Brands")
                 .map(b => String(b).trim());
             const finalBrands = Array.from(new Set(allFormattedBrands));
 
             setAvailableBrands(finalBrands);
-
-            // Sync active selected brand from global filter context if available
-            if (filterCtx.selectedBrand && filterCtx.selectedBrand !== "All") {
-                const activeBrands = Array.isArray(filterCtx.selectedBrand) ? filterCtx.selectedBrand : [filterCtx.selectedBrand];
-                setSelectedBrands(activeBrands);
-            }
         };
 
         loadDynamicBrands();
