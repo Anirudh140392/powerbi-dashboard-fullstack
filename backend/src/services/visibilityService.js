@@ -861,7 +861,8 @@ class VisibilityService {
                 }
 
                 // Helper to add condition if not excluded
-                const addCond = (val, col, exclusionKeys) => {
+                const addCond = (val, col, exclusionKeys = []) => {
+                    if (exclusionKeys.includes(col) || exclusionKeys.includes('platform_name') && col === 'platform_name') return;
                     // If a specific filter is provided (not "All"), we should respect it even if it's the dimension being aggregated
                     // This allows the user to drill down into a specific city/category in the matrix view
                     if (val && val !== 'All' && val !== 'all') {
@@ -949,7 +950,7 @@ class VisibilityService {
             };
 
             // Execute all queries in parallel for efficiency
-            const platQueries = getMatrixQueries('platform_name', 'platform');
+            const platQueries = getMatrixQueries('platform_name', 'platform', ['platform_name', 'platform']);
             const formQueries = getMatrixQueries('keyword_category', 'format');
             const cityQueries = getMatrixQueries('location_name', 'city');
 
