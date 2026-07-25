@@ -197,8 +197,8 @@ const PlatformOverviewNew = ({
         { key: 'aov', label: 'AOV' },
     ]
     const [dimension, setDimension] = useState('platform')
-    const [localPlatformFilter, setLocalPlatformFilter] = useState('')
-    const [skuPlatformFilter, setSkuPlatformFilter] = useState('')
+    const [localPlatformFilter, setLocalPlatformFilter] = useState('All')
+    const [skuPlatformFilter, setSkuPlatformFilter] = useState('All')
     const [toastMessage, setToastMessage] = useState('');
 
     const handleCopy = async (title, value) => {
@@ -211,20 +211,15 @@ const PlatformOverviewNew = ({
         }
     };
 
-    // Automatically set default platform to first valid platform when 'All' is selected
+    // Initialize default local platform filters to 'All' ONCE on mount
+    const isInitializedRef = useRef(false);
     useEffect(() => {
-        if (globalPlatforms?.length > 0) {
-            const validPlatforms = globalPlatforms.filter(p => p !== 'All');
-            if (validPlatforms.length > 0) {
-                if (localPlatformFilter === 'All' || !validPlatforms.includes(localPlatformFilter)) {
-                    setLocalPlatformFilter(validPlatforms[0]);
-                }
-                if (skuPlatformFilter === 'All' || !validPlatforms.includes(skuPlatformFilter)) {
-                    setSkuPlatformFilter(validPlatforms[0]);
-                }
-            }
+        if (!isInitializedRef.current && globalPlatforms?.length > 0) {
+            isInitializedRef.current = true;
+            setLocalPlatformFilter('All');
+            setSkuPlatformFilter('All');
         }
-    }, [globalPlatforms, localPlatformFilter, skuPlatformFilter]);
+    }, [globalPlatforms]);
 
     // Determine the active platform filter for non-platform, non-sku dimensions
     // (Brand, Category, Month now use a platform dropdown instead of channel)
@@ -324,7 +319,7 @@ const PlatformOverviewNew = ({
     })
     const fetchIdRef = useRef(0)
 
-    // Reset advanced/local filters when global filters are reset to defaults
+    // Reset advanced filters when global filters are reset to defaults
     useEffect(() => {
         const isGlobalPlatformReset = globalPlatform === "All" || (Array.isArray(globalPlatform) && globalPlatform.includes("All")) || globalPlatform === "";
         const isGlobalBrandReset = selectedBrand === "All";
@@ -345,8 +340,6 @@ const PlatformOverviewNew = ({
                 kpis: defaultKpiKeys,
                 filterLogic: 'OR',
             });
-            setLocalPlatformFilter('');
-            setSkuPlatformFilter('');
         }
     }, [globalPlatform, selectedBrand, selectedCategory, selectedLocation, defaultKpiKeys]);
 
@@ -471,10 +464,10 @@ const PlatformOverviewNew = ({
         // For SKU dimension, use the local skuPlatformFilter to override platform
         // For Brand/Category/Month, use localPlatformFilter to override platform
         let reqPlatform;
-        if (dimension === 'sku' && skuPlatformFilter && skuPlatformFilter !== 'All') {
-            reqPlatform = skuPlatformFilter;
-        } else if (dimension !== 'platform' && dimension !== 'sku' && localPlatformFilter && localPlatformFilter !== 'All') {
-            reqPlatform = localPlatformFilter;
+        if (dimension === 'sku') {
+            reqPlatform = skuPlatformFilter || 'All';
+        } else if (dimension !== 'platform') {
+            reqPlatform = localPlatformFilter || 'All';
         } else {
             reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
                 : (globalPlatform === 'All' ? 'All' : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
@@ -582,19 +575,21 @@ const PlatformOverviewNew = ({
         // Wait for essential context data
         if (!datesFetched || !platformsFetched) return;
 
-        // Skip fetching if the filter key hasn't actually changed.
-        // We intentionally do NOT check apiLoading here — re-fetching on the same
-        // filterKey just because loading is true causes race conditions where
-        // in-flight responses get silently dropped.
-        if (lastFetchedKey.current === filterKey) return;
+        if (lastFetchedKey.current === filterKey) {
+            setApiLoading(false);
+            return;
+        }
 
         const currentFetchId = ++fetchIdRef.current;
 
         const debounceTimer = setTimeout(() => {
-            if (currentFetchId !== fetchIdRef.current) return;
+            if (currentFetchId !== fetchIdRef.current) {
+                setApiLoading(false);
+                return;
+            }
             lastFetchedKey.current = filterKey;
-            fetchDimensionDataRef.current(currentFetchId)
-        }, 1000);
+            fetchDimensionDataRef.current(currentFetchId);
+        }, 50);
 
         return () => clearTimeout(debounceTimer);
     }, [filterKey, datesFetched, platformsFetched]);
@@ -723,7 +718,7 @@ const PlatformOverviewNew = ({
         }
 
         return result
-    }, [apiData, dimension, globalPlatform])
+    }, [apiData, dimension, globalPlatform, localPlatformFilter, skuPlatformFilter])
 
 
     // Pagination logic
@@ -794,11 +789,12 @@ const PlatformOverviewNew = ({
                             {dimension === 'sku' && (
                                 <div className="relative flex items-center">
                                     <select
-                                        value={skuPlatformFilter}
+                                        value={skuPlatformFilter === 'All' ? 'All' : (globalPlatforms?.find(p => p.toLowerCase() === (skuPlatformFilter || '').toLowerCase()) || skuPlatformFilter || 'All')}
                                         onChange={(e) => setSkuPlatformFilter(e.target.value)}
                                         className="appearance-none bg-indigo-50 border border-indigo-100 text-indigo-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-indigo-100/50"
                                         style={{ fontFamily: 'Roboto, sans-serif' }}
                                     >
+                                        <option value="All">All Platforms</option>
                                         {globalPlatforms?.filter(p => p !== 'All').map(p => (
                                             <option key={p} value={p}>{p}</option>
                                         ))}
@@ -810,11 +806,12 @@ const PlatformOverviewNew = ({
                             {dimension !== 'platform' && dimension !== 'sku' && (
                                 <div className="relative flex items-center">
                                     <select
-                                        value={localPlatformFilter || ''}
+                                        value={localPlatformFilter === 'All' ? 'All' : (globalPlatforms?.find(p => p.toLowerCase() === (localPlatformFilter || '').toLowerCase()) || localPlatformFilter || 'All')}
                                         onChange={(e) => setLocalPlatformFilter(e.target.value)}
                                         className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
                                         style={{ fontFamily: 'Roboto, sans-serif' }}
                                     >
+                                        <option value="All">All Platforms</option>
                                         {globalPlatforms?.filter(p => p !== 'All').map(p => (
                                             <option key={p} value={p}>{p}</option>
                                         ))}

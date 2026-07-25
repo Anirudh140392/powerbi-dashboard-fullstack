@@ -56,7 +56,7 @@ import {
 } from "@/components/ui/popover";
 import CommonContainer from "@/components/CommonLayout/CommonContainer";
 import { FilterContext } from "@/utils/FilterContext";
-import { fetchInsights, fetchInsightsFilters, fetchCorrelations, fetchCorrelationsTrend } from "@/api/insightsService";
+import { fetchInsights, fetchInsightsFilters, fetchCorrelations, fetchCorrelationsTrend, fetchAlerts, deleteAlertApi } from "@/api/insightsService";
 import AIInsightsPanelLive from "@/components/insights/AIInsightsPanelLive";
 import TrailyticsTypewriterLoader from "@/components/insights/TrailyticsTypewriterLoader";
 import CreateIntelligentAlertModal from "@/components/insights/CreateIntelligentAlertModal";
@@ -2749,51 +2749,63 @@ const InsightsSignalHub = () => {
     } = useContext(FilterContext);
 
     const [fetchedInsights, setFetchedInsights] = useState([]);
-    const [fetchedFilterOptions, setFetchedFilterOptions] = useState({ categories: [], productLines: [], geographies: [] });
+    const [fetchedFilterOptions, setFetchedFilterOptions] = useState({ categories: [], productLines: [], geographies: [], platforms: [], brands: [] });
     const [loading, setLoading] = useState(false);
 
     const [selectedId, setSelectedId] = useState(null);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [showAIPanel, setShowAIPanel] = useState(false);
     const [isCreateAlertOpen, setIsCreateAlertOpen] = useState(false);
+    const [editingAlert, setEditingAlert] = useState(null);
 
-    // Saved Alerts List State (Initial mock items matching 1st image)
-    const [savedAlerts, setSavedAlerts] = useState([
-        {
-            id: "alert_1",
-            name: "test one 1",
+    // Helper to format backend alert row to UI structure
+    const formatAlertRow = useCallback((a) => {
+        const phone = a.whatsapp_no || a.phone || (a.channels?.whatsapp) || "";
+        const email = a.send_email || a.email || (a.channels?.email) || "";
+        const contactParts = [phone, email].filter(Boolean);
+        return {
+            id: a.id || a.id_str || `alert_${Date.now()}`,
+            name: a.alert_name || a.name || "Custom Alert",
             status: "Active",
-            phone: "+918765456789",
-            email: "shubham@gmail.com",
-            frequency: "Realtime",
-            threshold: "15%",
-        },
-        {
-            id: "alert_2",
-            name: "client test alert",
-            status: "Active",
-            phone: "+919079840970",
-            email: "0shubhamit@gmail.com",
-            frequency: "Monthly",
-            threshold: "60%",
-        },
-    ]);
+            phone: phone || "-",
+            email: email || "-",
+            contactText: contactParts.length > 0 ? contactParts.join(" & ") : "No contact details",
+            frequency: a.alert_frequency || a.frequency || "Real-time",
+            threshold: a.threshold_value != null ? `${a.threshold_value}%` : (a.threshold || "15%"),
+            raw: a,
+        };
+    }, []);
+
+    // Saved Alerts List State
+    const [savedAlerts, setSavedAlerts] = useState([]);
+
+    // Load alerts on mount
+    useEffect(() => {
+        const loadAlerts = async () => {
+            try {
+                const res = await fetchAlerts();
+                if (res?.success && Array.isArray(res.data)) {
+                    setSavedAlerts(res.data.map(formatAlertRow));
+                }
+            } catch (err) {
+                console.error("Failed to load alerts:", err);
+            }
+        };
+        loadAlerts();
+    }, [formatAlertRow]);
 
     const handleSaveAlert = (newAlert) => {
-        const formattedAlert = {
-            id: newAlert.id || `alert_${Date.now()}`,
-            name: newAlert.name || "Custom Alert",
-            status: "Active",
-            phone: newAlert.channels?.whatsapp || "+91 98765 43210",
-            email: newAlert.channels?.email || "alert@company.com",
-            frequency: newAlert.frequency || "Realtime",
-            threshold: `${newAlert.thresholdValue || 15}%`,
-        };
-        setSavedAlerts(prev => [formattedAlert, ...prev]);
+        const formattedAlert = formatAlertRow(newAlert);
+        setSavedAlerts(prev => [formattedAlert, ...prev.filter(a => a.id !== formattedAlert.id)]);
     };
 
-    const handleDeleteAlert = (alertId) => {
-        setSavedAlerts(prev => prev.filter(a => a.id !== alertId));
+    const handleDeleteAlert = async (alertId) => {
+        try {
+            await deleteAlertApi(alertId);
+            setSavedAlerts(prev => prev.filter(a => a.id !== alertId));
+        } catch (err) {
+            console.error("Failed to delete alert:", err);
+        }
     };
 
     // ── Co-Relations state ──
@@ -3280,7 +3292,10 @@ const InsightsSignalHub = () => {
                             </div>
 
                             <button
-                                onClick={() => setIsCreateAlertOpen(true)}
+                                onClick={() => {
+                                    setEditingAlert(null);
+                                    setIsCreateAlertOpen(true);
+                                }}
                                 style={{
                                     display: "flex",
                                     alignItems: "center",
@@ -3312,70 +3327,79 @@ const InsightsSignalHub = () => {
 
                         {/* Cards List */}
                         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                            {savedAlerts.map((alert) => (
-                                <div
-                                    key={alert.id}
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "space-between",
-                                        padding: "14px 18px",
-                                        borderRadius: "14px",
-                                        background: "#f8fafc",
-                                        border: "1px solid #f1f5f9",
-                                        transition: "all 0.15s ease",
-                                    }}
-                                >
-                                    <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                                        {/* Channel Icons (Phone + Email) */}
-                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                            <div style={{ width: 36, height: 36, borderRadius: "10px", background: "#dcfce7", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                <Smartphone size={18} color="#10b981" />
-                                            </div>
-                                            <div style={{ width: 36, height: 36, borderRadius: "10px", background: "#e0f2fe", border: "1px solid #bae6fd", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                <Mail size={18} color="#0284c7" />
-                                            </div>
-                                        </div>
-
-                                        {/* Alert Text Details */}
-                                        <div>
-                                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                                <span style={{ fontSize: "14px", fontWeight: 700, color: "#1e293b" }}>
-                                                    {alert.name}
-                                                </span>
-                                                <span style={{ fontSize: "11px", fontWeight: 700, color: "#059669", background: "#d1fae5", padding: "2px 8px", borderRadius: "12px" }}>
-                                                    Active
-                                                </span>
-                                            </div>
-                                            <div style={{ fontSize: "12.5px", color: "#64748b", marginTop: "3px" }}>
-                                                {alert.phone} & {alert.email} • {alert.frequency} • Threshold: {alert.threshold}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Actions: Edit & Delete */}
-                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsCreateAlertOpen(true)}
-                                            style={{ background: "none", border: "none", cursor: "pointer", padding: "6px", color: "#94a3b8", borderRadius: "6px", transition: "all 0.12s ease" }}
-                                            onMouseEnter={(e) => { e.currentTarget.style.color = "#0047FF"; e.currentTarget.style.background = "#eff6ff"; }}
-                                            onMouseLeave={(e) => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.background = "none"; }}
-                                        >
-                                            <Edit3 size={18} />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDeleteAlert(alert.id)}
-                                            style={{ background: "none", border: "none", cursor: "pointer", padding: "6px", color: "#94a3b8", borderRadius: "6px", transition: "all 0.12s ease" }}
-                                            onMouseEnter={(e) => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.background = "#fef2f2"; }}
-                                            onMouseLeave={(e) => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.background = "none"; }}
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
-                                    </div>
+                            {savedAlerts.length === 0 ? (
+                                <div style={{ padding: "24px", textAlign: "center", color: "#94a3b8", fontSize: "13px", background: "#f8fafc", borderRadius: "12px", border: "1px dashed #cbd5e1" }}>
+                                    No active alerts configured. Click "Add Alert" to create your first alert rule.
                                 </div>
-                            ))}
+                            ) : (
+                                savedAlerts.map((alert) => (
+                                    <div
+                                        key={alert.id}
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            padding: "14px 18px",
+                                            borderRadius: "14px",
+                                            background: "#f8fafc",
+                                            border: "1px solid #f1f5f9",
+                                            transition: "all 0.15s ease",
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                                            {/* Channel Icons (Phone + Email) */}
+                                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                <div style={{ width: 36, height: 36, borderRadius: "10px", background: alert.phone && alert.phone !== "-" ? "#dcfce7" : "#f1f5f9", border: alert.phone && alert.phone !== "-" ? "1px solid #bbf7d0" : "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                    <Smartphone size={18} color={alert.phone && alert.phone !== "-" ? "#10b981" : "#94a3b8"} />
+                                                </div>
+                                                <div style={{ width: 36, height: 36, borderRadius: "10px", background: alert.email && alert.email !== "-" ? "#e0f2fe" : "#f1f5f9", border: alert.email && alert.email !== "-" ? "1px solid #bae6fd" : "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                    <Mail size={18} color={alert.email && alert.email !== "-" ? "#0284c7" : "#94a3b8"} />
+                                                </div>
+                                            </div>
+
+                                            {/* Alert Text Details */}
+                                            <div>
+                                                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                                    <span style={{ fontSize: "14px", fontWeight: 700, color: "#1e293b" }}>
+                                                        {alert.name}
+                                                    </span>
+                                                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#059669", background: "#d1fae5", padding: "2px 8px", borderRadius: "12px" }}>
+                                                        Active
+                                                    </span>
+                                                </div>
+                                                <div style={{ fontSize: "12.5px", color: "#64748b", marginTop: "3px" }}>
+                                                    {alert.contactText || `${alert.phone} & ${alert.email}`} • {alert.frequency} • Threshold: {alert.threshold}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Actions: Edit & Delete */}
+                                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setEditingAlert(alert.raw || alert);
+                                                    setIsCreateAlertOpen(true);
+                                                }}
+                                                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px", color: "#94a3b8", borderRadius: "6px", transition: "all 0.12s ease" }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.color = "#0047FF"; e.currentTarget.style.background = "#eff6ff"; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.background = "none"; }}
+                                            >
+                                                <Edit3 size={18} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteAlert(alert.id)}
+                                                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px", color: "#94a3b8", borderRadius: "6px", transition: "all 0.12s ease" }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.background = "#fef2f2"; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.background = "none"; }}
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
 
@@ -3458,11 +3482,18 @@ const InsightsSignalHub = () => {
                 {/* ── Create Intelligent Alert Modal ─────────────────────── */}
                 <CreateIntelligentAlertModal
                     open={isCreateAlertOpen}
-                    onClose={() => setIsCreateAlertOpen(false)}
-                    onSaveAlert={(alertData) => {
-                        console.log("New Alert Created:", alertData);
-                        handleSaveAlert(alertData);
+                    onClose={() => {
+                        setIsCreateAlertOpen(false);
+                        setEditingAlert(null);
                     }}
+                    onSaveAlert={(alertData) => {
+                        console.log("Alert Saved:", alertData);
+                        handleSaveAlert(alertData);
+                        setEditingAlert(null);
+                    }}
+                    initialPlatforms={fetchedFilterOptions.platforms}
+                    initialBrands={fetchedFilterOptions.brands}
+                    editingAlert={editingAlert}
                 />
 
                 {/* ── Co-Relations Full-Screen Modal ─────────────────────── */}

@@ -188,6 +188,10 @@ const server = app.listen(port, () => {
 // Initialize WebSocket server for real-time notifications
 initSocket(server);
 
+// Start the background email alert cron scheduler
+import { initAlertCron } from './services/alertCronService.js';
+initAlertCron();
+
 // Extend server timeout to 10 minutes (600,000ms) for large report downloads
 server.timeout = 10 * 60 * 1000;
 server.keepAliveTimeout = 10 * 60 * 1000;

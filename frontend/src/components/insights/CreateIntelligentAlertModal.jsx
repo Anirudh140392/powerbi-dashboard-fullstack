@@ -12,10 +12,12 @@ import {
     Sliders,
     Zap,
     AlertTriangle,
-    Edit3
+    Edit3,
+    Loader2
 } from "lucide-react";
 import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
+import { createAlert, updateAlert } from "../../api/insightsService";
 
 // Defined Alert Rule Presets
 const ALERT_PRESETS = [
@@ -34,9 +36,9 @@ const ALERT_PRESETS = [
         id: "low_osa_ads",
         name: "Low OSA + Active Ads Alert",
         category: "Performance Marketing & Ad Efficiency",
-        metrics: ["OSA %", "Ad Spend", "Campaign Status"],
-        formula: "OSA < Threshold AND Ad Spend > 0 AND Campaign Active",
-        condition: "OSA below threshold with active ad campaigns running",
+        metrics: ["OSA %", "Ad Spend"],
+        formula: "OSA < Threshold AND Ad Spend > 0",
+        condition: "OSA below threshold with active ad spend (Ad Spend > 0)",
         operator: "lt",
         defaultThreshold: "85",
         severity: "Critical",
@@ -109,7 +111,7 @@ const getPlatformLogo = (platName, platformMetadata = []) => {
     return null;
 };
 
-export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert }) {
+export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert, initialPlatforms, initialBrands, editingAlert = null }) {
     const filterCtx = useContext(FilterContext) || {};
 
     // Multi-Select Preset Rules State
@@ -142,7 +144,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const [editingRuleId, setEditingRuleId] = useState(null);
 
     // Frequency & Severity Custom Dropdowns State
-    const [frequency, setFrequency] = useState("Real-time");
+    const [frequency, setFrequency] = useState("Hourly");
     const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false);
 
     const [severity, setSeverity] = useState("Critical");
@@ -153,6 +155,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const [whatsappNotify, setWhatsappNotify] = useState(false);
     const [whatsappNumber, setWhatsappNumber] = useState("");
     const [showSuccessToast, setShowSuccessToast] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState("");
 
     const presetDropdownRef = useRef(null);
     const platformDropdownRef = useRef(null);
@@ -162,27 +166,43 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
 
     const selectedPresets = ALERT_PRESETS.filter(p => selectedPresetIds.includes(p.id));
 
+    // Sync values when editing an existing alert
+    useEffect(() => {
+        if (open && editingAlert) {
+            setAlertName(editingAlert.alert_name || editingAlert.alertName || "Untitled Custom Alert");
+            setIsCustomAlertName(true);
+            setEmailAddress(editingAlert.send_email || editingAlert.email || "");
+            setEmailNotify(!!(editingAlert.send_email || editingAlert.email));
+            setWhatsappNumber(editingAlert.whatsapp_no || editingAlert.phone || "");
+            setWhatsappNotify(!!(editingAlert.whatsapp_no || editingAlert.phone));
+            if (Array.isArray(editingAlert.platforms) && editingAlert.platforms.length > 0) {
+                setSelectedPlatforms(editingAlert.platforms);
+            }
+            if (Array.isArray(editingAlert.brands) && editingAlert.brands.length > 0) {
+                setSelectedBrands(editingAlert.brands);
+            }
+            setTriggerOperator(editingAlert.conditional_operator || editingAlert.operator || "lt");
+            setThresholdValue(editingAlert.threshold_value !== undefined ? String(editingAlert.threshold_value) : String(editingAlert.threshold || "85"));
+            setComparisonPeriod(editingAlert.benchmark_period || "vs 7-Day Average");
+            setFrequency(editingAlert.alert_frequency || editingAlert.frequency || "Hourly");
+            setSeverity(editingAlert.severity_level || editingAlert.severity || "Critical");
+            if (editingAlert.alert_type) {
+                setSelectedPresetIds(editingAlert.alert_type.split(','));
+            }
+        } else if (open && !editingAlert) {
+            setIsCustomAlertName(false);
+            setAlertName("Low OSA + Active Ads Alert");
+            setSelectedPresetIds(["low_osa_ads"]);
+        }
+    }, [open, editingAlert]);
+
     // Toggle Multi-Select Platforms
     const handleTogglePlatform = (plat) => {
-        if (plat === "All Platforms") {
-            if (selectedPlatforms.includes("All Platforms") || selectedPlatforms.length === availablePlatforms.length) {
-                setSelectedPlatforms([]);
-            } else {
-                setSelectedPlatforms(["All Platforms", ...availablePlatforms]);
-            }
-            return;
-        }
-
         let updated;
         if (selectedPlatforms.includes(plat)) {
-            updated = selectedPlatforms.filter(p => p !== plat && p !== "All Platforms");
+            updated = selectedPlatforms.filter(p => p !== plat);
         } else {
-            const nextList = [...selectedPlatforms.filter(p => p !== "All Platforms"), plat];
-            if (nextList.length === availablePlatforms.length && availablePlatforms.length > 0) {
-                updated = ["All Platforms", ...nextList];
-            } else {
-                updated = nextList;
-            }
+            updated = [...selectedPlatforms, plat];
         }
         setSelectedPlatforms(updated);
     };
@@ -212,22 +232,21 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         setSelectedBrands(updated);
     };
 
-    // Handle Multi-Select Preset Toggle (Allows unselecting all presets cleanly)
+    // Handle Single-Select Preset Toggle (Allows only one option at a time)
     const handleTogglePreset = (presetId) => {
         let updated;
         if (selectedPresetIds.includes(presetId)) {
-            updated = selectedPresetIds.filter(id => id !== presetId);
+            updated = [];
         } else {
-            updated = [...selectedPresetIds, presetId];
+            updated = [presetId];
         }
 
         setSelectedPresetIds(updated);
 
         const activePresets = ALERT_PRESETS.filter(p => updated.includes(p.id));
 
-        // Auto-update category & severity from latest active preset if any remain
         if (activePresets.length > 0) {
-            const latest = activePresets[activePresets.length - 1];
+            const latest = activePresets[0];
             setCategory(latest.category);
             setTriggerOperator(latest.operator);
             setThresholdValue(latest.defaultThreshold);
@@ -238,10 +257,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         if (!isCustomAlertName) {
             if (activePresets.length === 0) {
                 setAlertName("");
-            } else if (activePresets.length === 1) {
+            } else {
                 setAlertName(activePresets[0].name);
-            } else if (activePresets.length > 1) {
-                setAlertName(activePresets.map(p => p.name.replace(" Alert", "")).join(" + ") + " Alert");
             }
         }
     };
@@ -269,24 +286,29 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // 1. Fetch & Sync Dynamic Platforms from Global Filter Context / Backend API
+    // 1. Fetch & Sync Dynamic Platforms from Global Filter Context / Backend API / rca_sku_dim
     useEffect(() => {
         if (!open) return;
 
         const loadDynamicPlatforms = async () => {
-            let platList = filterCtx.platforms && filterCtx.platforms.length > 0 ? filterCtx.platforms : [];
-
-            try {
-                if (platList.length === 0) {
-                    const resPlat = await axiosInstance.get("/watchtower/platforms");
-                    if (resPlat.data && Array.isArray(resPlat.data)) platList = resPlat.data;
+            let platList = [];
+            
+            if (Array.isArray(initialPlatforms) && initialPlatforms.length > 0) {
+                platList = initialPlatforms;
+            } else {
+                platList = filterCtx.platforms && filterCtx.platforms.length > 0 ? filterCtx.platforms : [];
+                try {
+                    if (platList.length === 0) {
+                        const resPlat = await axiosInstance.get("/watchtower/platforms");
+                        if (resPlat.data && Array.isArray(resPlat.data)) platList = resPlat.data;
+                    }
+                } catch (err) {
+                    console.warn("[CreateIntelligentAlertModal] Dynamic platforms fetch error:", err);
                 }
-            } catch (err) {
-                console.warn("[CreateIntelligentAlertModal] Dynamic platforms fetch error:", err);
             }
 
-            const defaultPlatforms = ["Amazon", "Flipkart", "Blinkit", "Zepto", "Instamart", "Myntra", "JioMart"];
-            const allFormattedPlatforms = [...platList, ...defaultPlatforms]
+            const sourcePlatforms = platList.length > 0 ? platList : ["Amazon", "Flipkart", "Blinkit", "Zepto", "Instamart", "Myntra", "JioMart"];
+            const allFormattedPlatforms = sourcePlatforms
                 .filter(p => p && p !== "All" && p !== "All Platforms")
                 .map(formatPlatformName);
             const formattedPlatforms = Array.from(new Set(allFormattedPlatforms));
@@ -305,36 +327,40 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         };
 
         loadDynamicPlatforms();
-    }, [open, filterCtx.platforms, filterCtx.platform]);
+    }, [open, filterCtx.platforms, filterCtx.platform, initialPlatforms]);
 
-    // 2. Fetch & Sync Dynamic Brands dynamically based on Selected Platforms & Global Filter API
+    // 2. Fetch & Sync Dynamic Brands dynamically based on Selected Platforms & Global Filter API / rca_sku_dim
     useEffect(() => {
         if (!open) return;
 
         const loadDynamicBrands = async () => {
             let brandList = [];
 
-            try {
-                const params = {};
-                if (selectedPlatforms.length > 0 && !selectedPlatforms.includes("All Platforms")) {
-                    params.platform = selectedPlatforms[0].toLowerCase();
+            if (Array.isArray(initialBrands) && initialBrands.length > 0) {
+                brandList = initialBrands;
+            } else {
+                try {
+                    const params = {};
+                    if (selectedPlatforms.length > 0 && !selectedPlatforms.includes("All Platforms")) {
+                        params.platform = selectedPlatforms[0].toLowerCase();
+                    }
+
+                    const resBrand = await axiosInstance.get("/watchtower/brands", { params });
+                    if (resBrand.data && Array.isArray(resBrand.data)) {
+                        brandList = resBrand.data;
+                    }
+                } catch (err) {
+                    console.warn("[CreateIntelligentAlertModal] Dynamic brands API fetch error:", err);
                 }
 
-                const resBrand = await axiosInstance.get("/watchtower/brands", { params });
-                if (resBrand.data && Array.isArray(resBrand.data)) {
-                    brandList = resBrand.data;
+                // Fallback to global FilterContext brands if API returns empty
+                if (brandList.length === 0 && filterCtx.brands && filterCtx.brands.length > 0) {
+                    brandList = filterCtx.brands;
                 }
-            } catch (err) {
-                console.warn("[CreateIntelligentAlertModal] Dynamic brands API fetch error:", err);
             }
 
-            // Fallback to global FilterContext brands if API returns empty
-            if (brandList.length === 0 && filterCtx.brands && filterCtx.brands.length > 0) {
-                brandList = filterCtx.brands;
-            }
-
-            const defaultBrands = ["Mamaearth", "The Derma Co", "Aqualogica", "Dr. Sheth's", "Cadbury", "Ferrero", "Amul"];
-            const allFormattedBrands = [...brandList, ...defaultBrands]
+            const sourceBrands = brandList.length > 0 ? brandList : ["Mamaearth", "The Derma Co", "Aqualogica", "Dr. Sheth's", "Cadbury", "Ferrero", "Amul"];
+            const allFormattedBrands = sourceBrands
                 .filter(b => b && b !== "All" && b !== "All Brands")
                 .map(b => String(b).trim());
             const finalBrands = Array.from(new Set(allFormattedBrands));
@@ -349,49 +375,54 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         };
 
         loadDynamicBrands();
-    }, [open, selectedPlatforms, filterCtx.brands, filterCtx.selectedBrand]);
+    }, [open, selectedPlatforms, filterCtx.brands, filterCtx.selectedBrand, initialBrands]);
 
     if (!open) return null;
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        const newAlert = {
-            id: `alert_${Date.now()}`,
-            name: alertName || "Untitled Custom Alert",
-            presetIds: selectedPresetIds,
-            selectedPresets: selectedPresets.map(p => ({
-                id: p.id,
-                name: p.name,
-                category: p.category,
-                formula: customFormulas[p.id] || p.formula,
-                condition: customConditions[p.id] || p.condition,
-            })),
-            category,
-            metricsRequired: Array.from(new Set(selectedPresets.flatMap(p => p.metrics))),
-            formulas: selectedPresets.map(p => customFormulas[p.id] || p.formula),
-            triggerOperator,
-            thresholdValue: thresholdValue || "15",
-            comparisonPeriod,
-            platforms: selectedPlatforms.includes("All Platforms") ? availablePlatforms : selectedPlatforms,
-            brands: selectedBrands.includes("All Brands") ? availableBrands : selectedBrands,
-            frequency,
-            severity,
-            channels: {
-                email: emailNotify ? (emailAddress || "Enabled") : null,
-                whatsapp: whatsappNotify ? (whatsappNumber || "Enabled") : null,
-            },
-            createdAt: new Date().toISOString(),
-        };
+        setIsSubmitting(true);
+        setSubmitError("");
 
-        if (onSaveAlert) {
-            onSaveAlert(newAlert);
+        try {
+            // Map form fields to the backend API schema (matches admin_master.tb_alert columns)
+            const apiPayload = {
+                alertName: alertName || "Untitled Custom Alert",
+                alertType: selectedPresetIds.join(','),
+                sendEmail: emailNotify ? (emailAddress || "") : "",
+                whatsappNo: whatsappNotify ? (whatsappNumber || "") : "",
+                platforms: selectedPlatforms.includes("All Platforms") ? availablePlatforms : selectedPlatforms,
+                brands: selectedBrands.includes("All Brands") ? availableBrands : selectedBrands,
+                conditionalOperator: triggerOperator,
+                thresholdValue: parseFloat(thresholdValue) || 0,
+                benchmarkPeriod: comparisonPeriod,
+                alertFrequency: frequency,
+                severityLevel: severity,
+            };
+
+            let response;
+            if (editingAlert && editingAlert.id) {
+                response = await updateAlert(editingAlert.id, apiPayload);
+            } else {
+                response = await createAlert(apiPayload);
+            }
+
+            if (response.success && onSaveAlert) {
+                // Pass the server-returned alert data to the parent
+                onSaveAlert(response.data);
+            }
+
+            setShowSuccessToast(true);
+            setTimeout(() => {
+                setShowSuccessToast(false);
+                onClose();
+            }, 1200);
+        } catch (err) {
+            console.error("[CreateAlert] Submit error:", err);
+            setSubmitError(err?.response?.data?.error || err.message || "Failed to save alert");
+        } finally {
+            setIsSubmitting(false);
         }
-
-        setShowSuccessToast(true);
-        setTimeout(() => {
-            setShowSuccessToast(false);
-            onClose();
-        }, 1200);
     };
 
     return (
@@ -649,30 +680,6 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                     gap: "2px",
                                                 }}
                                             >
-                                                {/* All Platforms Toggle */}
-                                                <div
-                                                    onClick={() => handleTogglePlatform("All Platforms")}
-                                                    style={{
-                                                        padding: "8px 12px",
-                                                        borderRadius: "8px",
-                                                        background: selectedPlatforms.includes("All Platforms") ? "#eff6ff" : "transparent",
-                                                        color: selectedPlatforms.includes("All Platforms") ? "#0047FF" : "#1e293b",
-                                                        fontSize: "12.5px",
-                                                        fontWeight: 700,
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "space-between",
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                                        <div style={{ width: 18, height: 18, borderRadius: 4, border: selectedPlatforms.includes("All Platforms") ? "none" : "1.5px solid #cbd5e1", background: selectedPlatforms.includes("All Platforms") ? "#0047FF" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                            {selectedPlatforms.includes("All Platforms") && <Check size={13} color="#fff" strokeWidth={3} />}
-                                                        </div>
-                                                        <span>All Platforms</span>
-                                                    </div>
-                                                </div>
-
                                                 {/* Individual Platforms */}
                                                 {availablePlatforms.map((plat) => {
                                                     const isSelected = selectedPlatforms.includes(plat);
@@ -879,10 +886,10 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                 </span>
                             </div>
 
-                            {/* 1. SELECT ALERT CONDITION(S) (Top Row with Pill Badges) */}
+                            {/* 1. SELECT ALERT CONDITION (Top Row with Pill Badges) */}
                             <div style={{ marginBottom: "16px" }}>
                                 <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
-                                    SELECT ALERT CONDITION(S)
+                                    SELECT ALERT CONDITION
                                 </label>
 
                                 <div style={{ position: "relative" }} ref={presetDropdownRef}>
@@ -909,7 +916,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                     >
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center", flex: 1 }}>
                                             {selectedPresets.length === 0 ? (
-                                                <span style={{ fontSize: "13px", color: "#94a3b8" }}>Select one or more alert conditions...</span>
+                                                <span style={{ fontSize: "13px", color: "#94a3b8" }}>Select an alert condition...</span>
                                             ) : (
                                                 selectedPresets.map((p) => (
                                                     <span
@@ -1339,27 +1346,6 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                         <span style={{ fontSize: "12px", fontWeight: 800, color: "#0047FF" }}>
                                                             {preset.name} Rules
                                                         </span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setEditingRuleId(isEditingThis ? null : preset.id)}
-                                                            style={{
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                gap: "4px",
-                                                                padding: "3px 10px",
-                                                                borderRadius: "6px",
-                                                                border: "1px solid #bfdbfe",
-                                                                background: isEditingThis ? "#0047FF" : "#eff6ff",
-                                                                color: isEditingThis ? "#ffffff" : "#0047FF",
-                                                                fontSize: "11px",
-                                                                fontWeight: 700,
-                                                                cursor: "pointer",
-                                                                transition: "all 0.12s ease",
-                                                            }}
-                                                        >
-                                                            <Edit3 size={12} />
-                                                            {isEditingThis ? "Done" : "Edit"}
-                                                        </button>
                                                     </div>
 
                                                     {/* Formula Box */}
@@ -1585,7 +1571,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                     gap: "2px",
                                                 }}
                                             >
-                                                {["Real-time", "Hourly", "Daily Digest", "Weekly Summary"].map((freqOption) => (
+                                                {["Hourly", "Daily Digest", "Weekly Summary"].map((freqOption) => (
                                                     <div
                                                         key={freqOption}
                                                         onClick={() => {
@@ -1743,9 +1729,16 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                             Cancel
                         </button>
 
+                        {submitError && (
+                            <div style={{ fontSize: "12px", color: "#ef4444", fontWeight: 600, padding: "6px 12px", background: "#fef2f2", borderRadius: "8px", border: "1px solid #fecaca" }}>
+                                {submitError}
+                            </div>
+                        )}
+
                         <button
                             type="button"
                             onClick={handleSubmit}
+                            disabled={isSubmitting}
                             style={{
                                 display: "flex",
                                 alignItems: "center",
@@ -1753,25 +1746,30 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                 padding: "10px 26px",
                                 borderRadius: "10px",
                                 border: "none",
-                                background: "linear-gradient(135deg, #0047FF 0%, #0036C8 100%)",
+                                background: isSubmitting ? "#94a3b8" : "linear-gradient(135deg, #0047FF 0%, #0036C8 100%)",
                                 color: "#ffffff",
                                 fontSize: "13.5px",
                                 fontWeight: 700,
-                                cursor: "pointer",
-                                boxShadow: "0 4px 14px rgba(0, 71, 255, 0.35)",
+                                cursor: isSubmitting ? "not-allowed" : "pointer",
+                                boxShadow: isSubmitting ? "none" : "0 4px 14px rgba(0, 71, 255, 0.35)",
                                 transition: "all 0.18s ease",
+                                opacity: isSubmitting ? 0.7 : 1,
                             }}
                             onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = "translateY(-1px)";
-                                e.currentTarget.style.boxShadow = "0 6px 18px rgba(0, 71, 255, 0.45)";
+                                if (!isSubmitting) {
+                                    e.currentTarget.style.transform = "translateY(-1px)";
+                                    e.currentTarget.style.boxShadow = "0 6px 18px rgba(0, 71, 255, 0.45)";
+                                }
                             }}
                             onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = "translateY(0)";
-                                e.currentTarget.style.boxShadow = "0 4px 14px rgba(0, 71, 255, 0.35)";
+                                if (!isSubmitting) {
+                                    e.currentTarget.style.transform = "translateY(0)";
+                                    e.currentTarget.style.boxShadow = "0 4px 14px rgba(0, 71, 255, 0.35)";
+                                }
                             }}
                         >
-                            <BookmarkPlus size={18} />
-                            Submit Alert
+                            {isSubmitting ? <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> : <BookmarkPlus size={18} />}
+                            {isSubmitting ? "Saving..." : "Submit Alert"}
                         </button>
                     </div>
 

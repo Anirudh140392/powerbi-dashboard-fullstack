@@ -92,6 +92,8 @@ export async function loginUser(email, password, deviceInfo = {}) {
         }
     }
 
+    let resolvedDbId = matchedDb ? matchedDb.db_id : userDbId;
+
     if (matchedDb) {
         dbName = matchedDb.db_name;
         dbLogoUrl = matchedDb.logo_url || "";
@@ -102,7 +104,7 @@ export async function loginUser(email, password, deviceInfo = {}) {
         if (rawCid && !isNullUuid) {
             companyId = rawCid;
         }
-        console.log(`[Auth] ✅ Database mapped for ${user.user_email}: ${dbName} (id: ${userDbId}) companyId: ${companyId || '(none)'}`);
+        console.log(`[Auth] ✅ Database mapped for ${user.user_email}: ${dbName} (id: ${resolvedDbId}) companyId: ${companyId || '(none)'}`);
     } else {
         console.warn(`[Auth] ⚠️ No matching database found for db_id=${userDbId}, using fallback: ${dbName}`);
     }
@@ -110,6 +112,8 @@ export async function loginUser(email, password, deviceInfo = {}) {
     // Workaround for readonly permission on tb_user: force mars for user
     if (user.user_email === 'kenilkavar@gmail.com') {
         dbName = 'mars';
+        const marsDb = databases.find(d => d.db_name === 'mars');
+        if (marsDb) resolvedDbId = marsDb.db_id;
         console.log(`[Auth] 💡 Manual override: forcing dbName='mars' for ${user.user_email}`);
     }
 
@@ -320,7 +324,7 @@ export async function loginUser(email, password, deviceInfo = {}) {
         email: user.user_email,
         userName: user.user_name,
         dbName: dbName,
-        dbId: userDbId,
+        dbId: resolvedDbId,
         dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus: dbStatusBool,
@@ -335,7 +339,7 @@ export async function loginUser(email, password, deviceInfo = {}) {
             email: user.user_email,
             name: user.user_name,
             dbName: dbName,
-            dbId: userDbId,
+            dbId: resolvedDbId,
             dbLogoUrl: dbLogoUrl,
             role: userRole,
             dbStatus: dbStatusBool,
@@ -436,9 +440,7 @@ export async function verifySession(token, deviceToken = null) {
         `);
         if (dbRows.length > 0) {
             dbLogoUrl = dbRows[0].logo_url || "";
-            if (!dbId) {
-                dbId = dbRows[0].db_id || "";
-            }
+            dbId = dbRows[0].db_id || dbId;
             // Filter out the null UUID sentinel (00000000-0000-0000-0000-000000000000)
             const rawCid = dbRows[0].company_id || '';
             const isNullUuid = rawCid === '00000000-0000-0000-0000-000000000000';
