@@ -386,7 +386,7 @@ const Dashboard: React.FC = () => {
             <GlobalFilterBar 
                 filterResult={filterResult} 
                 tabsNode={
-                    getActiveBrandName().toLowerCase() !== 'danone' ? (
+                    getActiveBrandName().toLowerCase() === 'prestige' ? (
                         <nav className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-1 border border-slate-200/40 dark:border-slate-700/40 w-max mx-auto">
                             {TABS.filter(tab => {
                                 if (getActiveBrandName().toLowerCase() === 'prestige' && ['master', 'rules', 'reviews'].includes(tab.key)) {

@@ -429,7 +429,7 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
                                                 </div>
 
                                                 {/* Type (Pareto) */}
-                                                {getActiveBrandName().toLowerCase() !== 'danone' && (
+                                                {false && (
                                                     <div>
                                                         <label className="block text-[11px] font-bold tracking-wider text-slate-500 uppercase mb-3">Type</label>
                                                         <div className="grid grid-cols-1 gap-3">
