@@ -29,7 +29,22 @@ const adminClickhouse = createClient({
  */
 export const queryAdminDB = async (query, params = {}) => {
     try {
-        console.log('[AdminDB] Executing query:', query.substring(0, 200));
+        const trimmed = query.trim().toUpperCase();
+        const isMutationOrDdl = trimmed.startsWith('ALTER') || trimmed.startsWith('UPDATE') || trimmed.startsWith('DELETE') || trimmed.startsWith('INSERT') || trimmed.startsWith('CREATE') || trimmed.startsWith('DROP');
+
+        if (isMutationOrDdl) {
+            console.log('[AdminDB] Executing DDL/Mutation command:', query.substring(0, 200));
+            await adminClickhouse.command({
+                query,
+                query_params: params,
+                clickhouse_settings: {
+                    max_query_size: 100 * 1024 * 1024,
+                }
+            });
+            return [];
+        }
+
+        console.log('[AdminDB] Executing SELECT query:', query.substring(0, 200));
         const result = await adminClickhouse.query({
             query,
             query_params: params,

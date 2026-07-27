@@ -4,6 +4,8 @@ import nodemailer from 'nodemailer';
 import { queryAdminDB } from '../config/adminClickhouse.js';
 import { decrypt } from '../utils/encryption.js';
 import { generateAlertEmailHtml } from '../utils/alertEmailTemplate.js';
+import { generateWhatsappAlertText } from '../utils/whatsappTemplate.js';
+import { sendWhatsappMessage } from './whatsappService.js';
 
 let cronIntervalId = null;
 
@@ -239,7 +241,8 @@ export const runEmailAlertsJob = async () => {
                 benchmark_period,
                 alert_frequency,
                 severity_level,
-                toString(last_email_sent) as last_email_sent
+                toString(last_email_sent) as last_email_sent,
+                toString(last_whatsapp_msg_sent) as last_whatsapp_msg_sent
             FROM tb_alert
         `);
 
@@ -446,47 +449,81 @@ export const runEmailAlertsJob = async () => {
                 }
 
                 if (isTriggered) {
-                    // Check frequency cooldown (Hourly, Daily, Weekly)
-                    const freqCheck = shouldSendBasedOnFrequency(alert.last_email_sent, alert.alert_frequency);
-                    if (!freqCheck.allowed) {
-                        console.log(`[AlertCron] Rule triggered for "${alert.alert_name}" on ${dbName}, BUT skipped dispatch: ${freqCheck.reason}`);
-                        continue;
+                    console.log(`[AlertCron] 🚨 Rule TRIGGERED for "${alert.alert_name}" on ${dbName} [Condition: ${metricDetails.conditionText}]`);
+
+                    // 1. Email Alert Dispatch
+                    if (sendEmail && sendEmail.includes('@')) {
+                        const emailFreqCheck = shouldSendBasedOnFrequency(alert.last_email_sent, alert.alert_frequency);
+                        if (emailFreqCheck.allowed) {
+                            console.log(`[AlertCron] Email frequency check passed (${emailFreqCheck.reason})! Sending HTML alert email to ${sendEmail}...`);
+
+                            const emailHtml = generateAlertEmailHtml({
+                                alert,
+                                dbName,
+                                istNow,
+                                currency,
+                                metricDetails
+                            });
+
+                            const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
+                            const mailOptions = {
+                                from: `"Trailytics Alerts" <${fromEmail}>`,
+                                to: sendEmail,
+                                subject: `🚨 ALERT TRIGGERED: ${alert.alert_name}`,
+                                text: `Hi,\n\nAn intelligent alert rule has been triggered for your dashboard.\n\nAlert: ${alert.alert_name}\nDatabase: ${dbName}\nSeverity: ${alert.severity_level || 'Warning'}\nPlatforms: ${alert.platforms.join(', ') || 'All'}\nBrands: ${alert.brands.join(', ') || 'All'}\nCondition: ${metricDetails.conditionText}\n\nBest regards,\nTrailytics Team`,
+                                html: emailHtml,
+                            };
+
+                            try {
+                                const info = await transporter.sendMail(mailOptions);
+                                console.log(`[AlertCron] HTML email sent successfully to ${sendEmail}. Message ID: ${info.messageId}`);
+
+                                // Update last_email_sent timestamp in ClickHouse
+                                const updateQuery = `
+                                    ALTER TABLE admin_master.tb_alert 
+                                    UPDATE last_email_sent = parseDateTimeBestEffort('${istNow}') 
+                                    WHERE id = toUUID('${alert.id}')
+                                `;
+                                await queryAdminDB(updateQuery);
+                                console.log(`[AlertCron] Saved current IST date & time to last_email_sent for alert "${alert.alert_name}" (${alert.id}): ${istNow} IST`);
+                            } catch (sendErr) {
+                                console.error(`[AlertCron] Failed to send email to ${sendEmail}:`, sendErr.message);
+                            }
+                        } else {
+                            console.log(`[AlertCron] Email skipped for "${alert.alert_name}": ${emailFreqCheck.reason}`);
+                        }
                     }
 
-                    if (sendEmail && sendEmail.includes('@')) {
-                        console.log(`[AlertCron] Rule triggered & frequency check passed (${freqCheck.reason})! Sending HTML alert email to ${sendEmail}...`);
+                    // 2. WhatsApp Alert Dispatch
+                    const targetWhatsappNo = (whatsappNo || process.env.Whatsapp_Number || process.env.WHATSAPP_NUMBER || '8766258384').trim();
+                    if (targetWhatsappNo) {
+                        const whatsappFreqCheck = shouldSendBasedOnFrequency(alert.last_whatsapp_msg_sent, alert.alert_frequency);
+                        if (whatsappFreqCheck.allowed) {
+                            console.log(`[AlertCron] WhatsApp frequency check passed (${whatsappFreqCheck.reason})! Dispatching WhatsApp alert to ${targetWhatsappNo}...`);
 
-                        const emailHtml = generateAlertEmailHtml({
-                            alert,
-                            dbName,
-                            istNow,
-                            currency,
-                            metricDetails
-                        });
+                            const nameFromEmail = sendEmail ? sendEmail.split('@')[0] : '';
+                            const recipientName = nameFromEmail ? (nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1)) : 'there';
+                            const whatsappMsgText = generateWhatsappAlertText(recipientName);
 
-                        const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
-                        const mailOptions = {
-                            from: `"Trailytics Alerts" <${fromEmail}>`,
-                            to: sendEmail,
-                            subject: `🚨 ALERT TRIGGERED: ${alert.alert_name}`,
-                            text: `Hi,\n\nAn intelligent alert rule has been triggered for your dashboard.\n\nAlert: ${alert.alert_name}\nDatabase: ${dbName}\nSeverity: ${alert.severity_level || 'Warning'}\nPlatforms: ${alert.platforms.join(', ') || 'All'}\nBrands: ${alert.brands.join(', ') || 'All'}\nCondition: ${metricDetails.conditionText}\n\nBest regards,\nTrailytics Team`,
-                            html: emailHtml,
-                        };
+                            try {
+                                await sendWhatsappMessage({
+                                    to: targetWhatsappNo,
+                                    text: whatsappMsgText
+                                });
 
-                        const info = await transporter.sendMail(mailOptions);
-                        console.log(`[AlertCron] HTML email sent successfully to ${sendEmail}. Message ID: ${info.messageId}`);
-
-                        // Update last_email_sent timestamp in ClickHouse
-                        try {
-                            const updateQuery = `
-                                ALTER TABLE admin_master.tb_alert 
-                                UPDATE last_email_sent = parseDateTimeBestEffort('${istNow}') 
-                                WHERE id = toUUID('${alert.id}')
-                            `;
-                            await queryAdminDB(updateQuery);
-                            console.log(`[AlertCron] Saved current IST date & time to last_email_sent for alert "${alert.alert_name}" (${alert.id}): ${istNow} IST`);
-                        } catch (updateErr) {
-                            console.error(`[AlertCron] Failed to update last_email_sent for alert "${alert.alert_name}":`, updateErr.message);
+                                // Update last_whatsapp_msg_sent timestamp in ClickHouse
+                                const updateWaQuery = `
+                                    ALTER TABLE admin_master.tb_alert 
+                                    UPDATE last_whatsapp_msg_sent = parseDateTimeBestEffort('${istNow}') 
+                                    WHERE id = toUUID('${alert.id}')
+                                `;
+                                await queryAdminDB(updateWaQuery);
+                                console.log(`[AlertCron] Saved current IST date & time to last_whatsapp_msg_sent for alert "${alert.alert_name}" (${alert.id}): ${istNow} IST`);
+                            } catch (waErr) {
+                                console.error(`[AlertCron] Failed to send WhatsApp message to ${targetWhatsappNo}:`, waErr.message);
+                            }
+                        } else {
+                            console.log(`[AlertCron] WhatsApp skipped for "${alert.alert_name}": ${whatsappFreqCheck.reason}`);
                         }
                     }
                 }

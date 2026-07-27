@@ -1,6 +1,4 @@
-// src/services/alertService.js
-// Service layer for managing alerts in admin_master.tb_alert ClickHouse table
-// Email and WhatsApp number are stored ENCRYPTED (AES-256-CBC) and decrypted on read.
+import crypto from 'crypto';
 import { insertAdminDB, queryAdminDB } from '../config/adminClickhouse.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 
@@ -69,7 +67,9 @@ export const createAlert = async (data) => {
     const encryptedWhatsapp = encrypt(whatsappNo);
     const istNow = getISTDateTimeString();
 
+    const alertId = crypto.randomUUID();
     const row = {
+        id: alertId,
         db_id: rawDbId,
         send_email: encryptedEmail,
         whatsapp_no: encryptedWhatsapp,
@@ -109,10 +109,8 @@ export const createAlert = async (data) => {
             created_on,
             edited_on
         FROM tb_alert
-        WHERE db_id = {dbId:String}
-        ORDER BY created_on DESC
-        LIMIT 1`,
-        { dbId: rawDbId }
+        WHERE tb_alert.id = toUUID('${alertId}')
+        LIMIT 1`
     );
 
     // Decrypt sensitive fields before returning to client
@@ -238,7 +236,7 @@ export const updateAlertById = async (alertId, dbId, data) => {
             alert_frequency = '${alertFrequency.replace(/'/g, "\\'")}',
             severity_level = '${severityLevel.replace(/'/g, "\\'")}',
             edited_on = parseDateTimeBestEffort('${istNow}')
-        WHERE id = toUUID('${alertId}') AND db_id = '${dbId}'
+        WHERE id = toUUID('${alertId}')
     `;
 
     console.log('[AlertService] Updating alert ID:', alertId, '| alert_name:', alertName);
