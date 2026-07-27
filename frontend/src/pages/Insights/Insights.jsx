@@ -2737,7 +2737,7 @@ const StatsPillsSkeleton = () => (
 
 const InsightsSignalHub = () => {
     const { user } = useAuth();
-    const insightsKpiConfig = user?.tabPermissions?.Insights?.kpi || {};
+    const [insightsKpiConfig, setInsightsKpiConfig] = useState(user?.tabPermissions?.Insights?.kpi || {});
 
     const {
         refreshFilters,
@@ -2899,6 +2899,9 @@ const InsightsSignalHub = () => {
                     ...(compareEnd ? { compareEndDate: compareEnd.format("YYYY-MM-DD") } : {}),
                 };
                 const data = await fetchInsights(apiPayload);
+                if (data?.insightsKpi) {
+                    setInsightsKpiConfig(data.insightsKpi);
+                }
                 const apiResponseList = data?.success && Array.isArray(data?.data) ? data.data : [];
                 const apiBrandName = apiResponseList.find((i) => i.brandName)?.brandName || "Brand";
                 const enforcedInsights = REQUIRED_SIGNAL_TYPES.map((requiredType) => {

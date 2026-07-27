@@ -390,7 +390,9 @@ export const updateDatabaseInsights = async (req, res) => {
 
         await adminService.updateDatabaseInsights(db_id, insights);
 
-        // Clear permissions cache for all users? Or let it be updated on refresh
+        // Clear permissions cache so changes take effect immediately
+        clearPermissionsCache();
+
         return res.status(200).json({
             success: true,
             message: 'Database insights configuration updated successfully'
