@@ -85,6 +85,7 @@ jobs:
           ENABLE_DEBUG_LOGS=true
           Alert_email=${{ secrets.ALERT_EMAIL || 'business@trailytics.com' }}
           Alert_email_password=${{ secrets.ALERT_EMAIL_PASSWORD || 'Marketing@!22' }}
+          Whatsapp_Number=${{ secrets.WHATSAPP_NUMBER || '8766258384' }}
           EOF
             echo "✅ Main backend .env file created for ${{ env.DEPLOY_ENV }} environment"
           ENDSSH

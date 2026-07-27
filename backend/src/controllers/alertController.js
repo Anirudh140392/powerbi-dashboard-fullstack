@@ -24,7 +24,7 @@ const getExactDbId = async (reqUser) => {
         }
     }
 
-    return reqUser.dbId || '';
+    return reqUser.dbId || reqUser.dbName || 'default_db';
 };
 
 /**
