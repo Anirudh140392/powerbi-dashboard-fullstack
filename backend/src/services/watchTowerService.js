@@ -672,17 +672,32 @@ const getPmConversionBulk = async (start, end, platformFilter, locationFilter, c
  * Shared KPI column generator with change calculations
  */
 const generateKpiColumns = ({
-    offtake, availability, sos, marketShare, spend, roas, inorgSales, conversion, cpm, cpc, asp, aov = 0, promoMyBrand = 0, promoCompete = 0, categorySize, adSov = 0, organicSov = 0, buyBoxPct = 0, deliveryTime = null,
-    prevOfftake = 0, prevAvailability = 0, prevSos = 0, prevMarketShare = 0, prevSpend = 0, prevRoas = 0, prevInorgSales = 0, prevConversion = 0, prevCpm = 0, prevCpc = 0, prevAsp = 0, prevAov = 0, prevPromoMyBrand = 0, prevPromoCompete = 0, prevCategorySize = 0, prevAdSov = 0, prevOrganicSov = 0, prevBuyBoxPct = 0, prevDeliveryTime = null,
+    offtake, availability, sos, marketShare, spend, roas, inorgSales, conversion, cpm, cpc, asp, aov = 0, promoMyBrand = 0, promoCompete = 0, categorySize, adSov = 0, organicSov = 0, buyBoxPct = 0, deliveryTime = null, tacos = null,
+    prevOfftake = 0, prevAvailability = 0, prevSos = 0, prevMarketShare = 0, prevSpend = 0, prevRoas = 0, prevInorgSales = 0, prevConversion = 0, prevCpm = 0, prevCpc = 0, prevAsp = 0, prevAov = 0, prevPromoMyBrand = 0, prevPromoCompete = 0, prevCategorySize = 0, prevAdSov = 0, prevOrganicSov = 0, prevBuyBoxPct = 0, prevDeliveryTime = null, prevTacos = null,
     offtakeUnits = 0, inorgUnits = 0, prevOfftakeUnits = 0, prevInorgUnits = 0
 }) => {
     const isNA = (val) => val === null || val === undefined || val === 0 || val === "0";
 
     const safeChange = (curr, prev, calcFn) => (isNA(curr) || isNA(prev)) ? null : calcFn(curr, prev);
 
+    // Compute TACoS = sum(Ad spend) / sum(Sales) * 100
+    // Ad spend comes from rb_pm_olap (spend), Sales comes from rb_pdp_olap (offtake)
+    const computedTacos = (tacos !== null && tacos !== undefined)
+        ? tacos
+        : ((spend !== null && spend !== undefined && offtake !== null && offtake !== undefined && parseFloat(offtake) > 0)
+            ? (parseFloat(spend) / parseFloat(offtake)) * 100
+            : null);
+
+    const computedPrevTacos = (prevTacos !== null && prevTacos !== undefined)
+        ? prevTacos
+        : ((prevSpend !== null && prevSpend !== undefined && prevOfftake !== null && prevOfftake !== undefined && parseFloat(prevOfftake) > 0)
+            ? (parseFloat(prevSpend) / parseFloat(prevOfftake)) * 100
+            : null);
+
     const offtakeChange = safeChange(offtake, prevOfftake, calcChange);
     const quantitySoldChange = safeChange(offtakeUnits, prevOfftakeUnits, calcChange);
     const spendChange = safeChange(spend, prevSpend, calcChange);
+    const tacosChange = safeChange(computedTacos, computedPrevTacos, calcPPChange);
     const roasChange = safeChange(roas, prevRoas, calcChange);
     const inorgSalesChange = safeChange(inorgSales, prevInorgSales, calcChange);
     const conversionChange = safeChange(conversion, prevConversion, calcPPChange);
@@ -720,6 +735,7 @@ const generateKpiColumns = ({
         { title: "Quantity Sold", value: fmtUnits(offtakeUnits), change: { text: fmtChg(quantitySoldChange), positive: quantitySoldChange >= 0 }, meta: { units: "units", change: fmtChg(quantitySoldChange) } },
         { title: "Category Size", value: fmtCurr(categorySize), change: { text: fmtChg(categorySizeChange), positive: categorySizeChange >= 0 }, meta: { units: "market", change: fmtChg(categorySizeChange) } },
         { title: "Spend", value: fmtCurr(spend), change: { text: fmtChg(spendChange), positive: spendChange >= 0 }, meta: { units: "spend", change: fmtChg(spendChange) } },
+        { title: "TACoS", value: fmtPct(computedTacos), change: { text: fmtChg(tacosChange, true), positive: tacosChange <= 0 }, meta: { units: "Spend / Sales", change: fmtChg(tacosChange, true) } },
         { title: "ROAS", value: fmtX(roas), change: { text: fmtChg(roasChange), positive: roasChange >= 0 }, meta: { units: "return", change: fmtChg(roasChange) } },
         { title: "Inorg Sales", value: fmtCurr(inorgSales), change: { text: fmtChg(inorgSalesChange), positive: inorgSalesChange >= 0 }, meta: { units: `${formatUnits(inorgUnits)} units`, change: fmtChg(inorgSalesChange) } },
         { title: "Conversion", value: fmtPct(conversion), change: { text: fmtChg(conversionChange, true), positive: conversionChange >= 0 }, meta: { units: "Orders / Clicks", change: fmtChg(conversionChange, true) } },
@@ -5296,7 +5312,7 @@ const getPlatformOverview = async (filters) => {
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
     // Build base conditions for rb_pdp_olap
-    const buildOfftakeConds = (start, end) => {
+    const buildOfftakeConds = (start, end, skipLocation = false) => {
         // If using aggregated table, column names are lowercase and simple
         const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
         const conds = [`${dateCol} BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
@@ -5313,7 +5329,7 @@ const getPlatformOverview = async (filters) => {
         }
 
         const locCol = src.isAgg ? 'location' : 'Location';
-        if (locationArr && locationArr.length > 0) {
+        if (!skipLocation && locationArr && locationArr.length > 0) {
             const platformCol = src.isAgg ? 'platform' : 'Platform';
             const locCond = buildLocationQueryCond(locationArr, platformArr, locCol, platformCol);
             if (locCond) conds.push(locCond);
@@ -6002,6 +6018,42 @@ const getPlatformOverview = async (filters) => {
     const allMarketShare = hasTier23 ? null : await getMarketShare(startDate, endDate, 'All', rawCategory, null, locationArr, channel);
     const prevAllMarketShare = hasTier23 ? null : await getMarketShare(momStart, momEnd, 'All', rawCategory, null, locationArr, channel);
 
+    // If location filter is active, fetch location-unfiltered Sales for TACoS denominator
+    const hasLocationFilter = locationArr && locationArr.length > 0 && locationArr.some(l => l && String(l).toLowerCase() !== 'all');
+    let allOfftakeNoLoc = allOfftake;
+    let prevAllOfftakeNoLoc = prevAllOfftake;
+    let currDataNoLoc = currData;
+    let prevDataNoLoc = prevData;
+
+    if (hasLocationFilter) {
+        try {
+            const allCondsNoLoc = buildOfftakeConds(startDate, endDate, true);
+            const prevAllCondsNoLoc = buildOfftakeConds(momStart, momEnd, true);
+            const currOfftakeCondsNoLoc = buildOfftakeConds(startDate, endDate, true);
+            const prevOfftakeCondsNoLoc = buildOfftakeConds(momStart, momEnd, true);
+
+            const [allNoLocRes, prevAllNoLocRes, cNoLoc, pNoLoc] = await Promise.all([
+                queryClickHouse(`SELECT SUM(${src.f.sales}) as total_sales FROM ${src.table} WHERE ${allCondsNoLoc}`),
+                queryClickHouse(`SELECT SUM(${src.f.sales}) as total_sales FROM ${src.table} WHERE ${prevAllCondsNoLoc}`),
+                queryClickHouse(`SELECT ${src.f.platform} as Platform, SUM(${src.f.sales}) as sales FROM ${src.table} WHERE ${currOfftakeCondsNoLoc} GROUP BY Platform`),
+                queryClickHouse(`SELECT ${src.f.platform} as Platform, SUM(${src.f.sales}) as sales FROM ${src.table} WHERE ${prevOfftakeCondsNoLoc} GROUP BY Platform`)
+            ]);
+            if (allNoLocRes.length > 0 && allNoLocRes[0].total_sales !== undefined) {
+                allOfftakeNoLoc = parseFloat(allNoLocRes[0].total_sales || 0);
+            }
+            if (prevAllNoLocRes.length > 0 && prevAllNoLocRes[0].total_sales !== undefined) {
+                prevAllOfftakeNoLoc = parseFloat(prevAllNoLocRes[0].total_sales || 0);
+            }
+            currDataNoLoc = cNoLoc;
+            prevDataNoLoc = pNoLoc;
+        } catch (e) {
+            console.warn('[getPlatformOverview] Failed to fetch no-location sales for TACoS:', e.message);
+        }
+    }
+
+    const allTacos = (allSpend !== null && allOfftakeNoLoc !== null && allOfftakeNoLoc > 0) ? (allSpend / allOfftakeNoLoc) * 100 : null;
+    const prevAllTacos = (prevAllSpend !== null && prevAllOfftakeNoLoc !== null && prevAllOfftakeNoLoc > 0) ? (prevAllSpend / prevAllOfftakeNoLoc) * 100 : null;
+
     const hasPlatformFilter = platformArr && platformArr.length > 0;
     if (!hasPlatformFilter) {
         platformOverview.push({
@@ -6010,8 +6062,8 @@ const getPlatformOverview = async (filters) => {
             type: 'Overall',
             logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
             columns: generateKpiColumns({
-                offtake: allOfftake, availability: allAvailability, sos: allSos, marketShare: allMarketShare, spend: allSpend, roas: allRoas, inorgSales: allInorgSales, conversion: allConversion, cpm: allCpm, cpc: allCpc, asp: allAsp, aov: (allOrders > 0 ? allAdSales / allOrders : 0), promoMyBrand: allPromoMyBrand, promoCompete: allPromoCompete, categorySize: sumCatSize, adSov: allAdSov, organicSov: allOrganicSov,
-                prevOfftake: prevAllOfftake, prevAvailability: prevAllAvailability, prevSos: prevAllSos, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllInorgSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc, prevAsp: prevAllAsp, prevAov: (prevAllOrders > 0 ? prevAllAdSales / prevAllOrders : 0), prevPromoMyBrand: prevAllPromoMyBrand, prevPromoCompete: prevAllPromoCompete, prevCategorySize: prevSumCatSize, prevAdSov: prevAllAdSov, prevOrganicSov: prevAllOrganicSov,
+                offtake: allOfftake, availability: allAvailability, sos: allSos, marketShare: allMarketShare, spend: allSpend, roas: allRoas, inorgSales: allInorgSales, conversion: allConversion, cpm: allCpm, cpc: allCpc, asp: allAsp, aov: (allOrders > 0 ? allAdSales / allOrders : 0), promoMyBrand: allPromoMyBrand, promoCompete: allPromoCompete, categorySize: sumCatSize, adSov: allAdSov, organicSov: allOrganicSov, tacos: allTacos,
+                prevOfftake: prevAllOfftake, prevAvailability: prevAllAvailability, prevSos: prevAllSos, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllInorgSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc, prevAsp: prevAllAsp, prevAov: (prevAllOrders > 0 ? prevAllAdSales / prevAllOrders : 0), prevPromoMyBrand: prevAllPromoMyBrand, prevPromoCompete: prevAllPromoCompete, prevCategorySize: prevSumCatSize, prevAdSov: prevAllAdSov, prevOrganicSov: prevAllOrganicSov, prevTacos: prevAllTacos,
                 offtakeUnits: allOfftakeUnits, inorgUnits: allInorgUnits, prevOfftakeUnits: prevAllOfftakeUnits, prevInorgUnits: prevAllInorgUnits
             })
         });
@@ -6167,6 +6219,15 @@ const getPlatformOverview = async (filters) => {
             return 0; // if not found, we want fallback to null later
         };
 
+        const cNoLoc = currDataNoLoc.find(d => d.Platform && d.Platform.toLowerCase() === key);
+        const pNoLoc = prevDataNoLoc.find(d => d.Platform && d.Platform.toLowerCase() === key);
+
+        const offtakeNoLoc = hasLocationFilter ? (parseFloat(cNoLoc?.sales || 0)) : offtake;
+        const prevOfftakeNoLoc = hasLocationFilter ? (parseFloat(pNoLoc?.sales || 0)) : prevOfftake;
+
+        const tacos = (totalSpend !== null && offtakeNoLoc !== null && offtakeNoLoc > 0) ? (totalSpend / offtakeNoLoc) * 100 : null;
+        const prevTacos = (prevSpend !== null && prevOfftakeNoLoc !== null && prevOfftakeNoLoc > 0) ? (prevSpend / prevOfftakeNoLoc) * 100 : null;
+
         const currCatSizeAbsolute = fuzzyGet(currCatSizeByPlatformMap, p.label) || null;
         const prevCatSizeAbsolute = fuzzyGet(prevCatSizeByPlatformMap, p.label) || null;
 
@@ -6176,8 +6237,8 @@ const getPlatformOverview = async (filters) => {
             type: p.type,
             logo: p.logo,
             columns: generateKpiColumns({
-                offtake, availability, sos, marketShare, spend: totalSpend, roas, inorgSales, conversion, cpm, cpc, asp, aov: (totalOrders > 0 ? totalAdSales / totalOrders : 0), promoMyBrand, promoCompete, categorySize: currCatSizeAbsolute, adSov, organicSov,
-                prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevCatSizeAbsolute, prevAdSov, prevOrganicSov,
+                offtake, availability, sos, marketShare, spend: totalSpend, roas, inorgSales, conversion, cpm, cpc, asp, aov: (totalOrders > 0 ? totalAdSales / totalOrders : 0), promoMyBrand, promoCompete, categorySize: currCatSizeAbsolute, adSov, organicSov, tacos,
+                prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevCatSizeAbsolute, prevAdSov, prevOrganicSov, prevTacos,
                 offtakeUnits, inorgUnits, prevOfftakeUnits, prevInorgUnits
             })
         });
@@ -12304,7 +12365,7 @@ const getPerformanceBreakdownData = async (filters) => {
         const data = await queryClickHouse(query);
 
         let totals = {
-            impressions: 0, clicks: 0, ctr: 0, spends: 0, cpc: 0, orders: 0, cvr: 0, sales: 0, atc: 0, aov: 0, tacos: 0, totalClicks: 0
+            impressions: 0, clicks: 0, ctr: 0, spends: 0, cpc: 0, orders: 0, cvr: 0, sales: 0, atc: 0, aov: 0, totalClicks: 0
         };
 
         const parsedData = data.map(row => {
@@ -12314,7 +12375,6 @@ const getPerformanceBreakdownData = async (filters) => {
             const spends = parseFloat(scaled.group_spends) || 0;
             const orders = parseFloat(scaled.group_orders) || 0;
             const sales = parseFloat(scaled.group_sales) || 0;
-            const tacos = sales > 0 ? (spends / sales) * 100 : 0;
 
             totals.impressions += impressions;
             totals.clicks += parseFloat(scaled.group_clicks_ecom) || 0;
@@ -12336,8 +12396,7 @@ const getPerformanceBreakdownData = async (filters) => {
                 cvr: parseFloat(scaled.cvr) || 0,
                 sales,
                 atc: parseFloat(scaled.group_atc) || 0,
-                aov: orders > 0 ? sales / orders : 0,
-                tacos
+                aov: orders > 0 ? sales / orders : 0
             };
         });
 
@@ -12351,7 +12410,6 @@ const getPerformanceBreakdownData = async (filters) => {
         totals.cpc = totals.totalClicks > 0 ? totals.spends / totals.totalClicks : 0;
         totals.cvr = totals.totalClicks > 0 ? (totals.orders / totals.totalClicks) * 100 : 0;
         totals.aov = totals.orders > 0 ? totals.sales / totals.orders : 0;
-        totals.tacos = totals.sales > 0 ? (totals.spends / totals.sales) * 100 : 0;
 
         // ── Period Comparison ───────────────────────────────────────────────
         let period_comparison = null;
@@ -12420,8 +12478,6 @@ const getPerformanceBreakdownData = async (filters) => {
                     const spends = parseFloat(scaled.group_spends) || 0;
                     const sales = parseFloat(scaled.group_sales) || 0;
 
-                    const tacos = sales > 0 ? (spends / sales) * 100 : 0;
-
                     return {
                         tag: scaled.tag || 'Unknown',
                         impressions,
@@ -12433,8 +12489,7 @@ const getPerformanceBreakdownData = async (filters) => {
                         orders,
                         cvr: totalClicks > 0 ? (orders / totalClicks) * 100 : 0,
                         sales,
-                        aov: orders > 0 ? sales / orders : 0,
-                        tacos
+                        aov: orders > 0 ? sales / orders : 0
                     };
                 });
 
