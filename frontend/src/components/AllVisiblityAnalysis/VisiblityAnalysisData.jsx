@@ -113,9 +113,9 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
         setLocalError(null);
 
         const params = new URLSearchParams({
-          platform: (localMatrixFilters.platform && localMatrixFilters.platform !== 'All')
+          platform: activeTab === 'platform' ? 'All' : ((localMatrixFilters.platform && localMatrixFilters.platform !== 'All')
             ? (Array.isArray(localMatrixFilters.platform) ? localMatrixFilters.platform.join(',').toLowerCase() : String(localMatrixFilters.platform).toLowerCase())
-            : 'All',
+            : 'All'),
           brand: (localMatrixFilters.brand && localMatrixFilters.brand !== 'All')
             ? (Array.isArray(localMatrixFilters.brand) ? localMatrixFilters.brand.join(',').toLowerCase() : String(localMatrixFilters.brand).toLowerCase())
             : 'All',

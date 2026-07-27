@@ -83,6 +83,8 @@ jobs:
           CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}
           CLICKHOUSE_DB=${{ secrets.CLICKHOUSE_DB }}
           ENABLE_DEBUG_LOGS=true
+          Alert_email=${{ secrets.ALERT_EMAIL || 'business@trailytics.com' }}
+          Alert_email_password=${{ secrets.ALERT_EMAIL_PASSWORD || 'Marketing@!22' }}
           EOF
             echo "✅ Main backend .env file created for ${{ env.DEPLOY_ENV }} environment"
           ENDSSH

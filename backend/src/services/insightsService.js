@@ -2927,19 +2927,23 @@ export const getInsightsData = async (filters) => {
 
 export const getInsightsFilterOptions = async () => {
     try {
-        const [catData, prodData] = await Promise.all([
+        const [catData, prodData, platData, brandData] = await Promise.all([
             queryClickHouse("SELECT DISTINCT category FROM rca_sku_dim WHERE category != '' AND category IS NOT NULL ORDER BY category"),
             queryClickHouse("SELECT DISTINCT Product FROM rb_pdp_olap WHERE Product != '' AND Product IS NOT NULL ORDER BY Product LIMIT 200"),
+            queryClickHouse("SELECT DISTINCT platform FROM rca_sku_dim WHERE platform != '' AND platform IS NOT NULL ORDER BY platform"),
+            queryClickHouse("SELECT DISTINCT brand_name FROM rca_sku_dim WHERE brand_name != '' AND brand_name IS NOT NULL ORDER BY brand_name"),
         ]);
 
         return {
             categories: catData.map(r => r.category),
             productLines: prodData.map(r => r.Product),
             geographies: ALLOWED_CITIES,
+            platforms: platData.map(r => r.platform),
+            brands: brandData.map(r => r.brand_name),
         };
     } catch (e) {
         console.error("Error fetching insights filter options:", e);
-        return { categories: [], productLines: [], geographies: [] };
+        return { categories: [], productLines: [], geographies: [], platforms: [], brands: [] };
     }
 };
 
