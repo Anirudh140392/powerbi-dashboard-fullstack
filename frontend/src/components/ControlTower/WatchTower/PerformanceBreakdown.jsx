@@ -324,7 +324,8 @@ function getKwalityWallsSample(groupBy) {
             cpc: clk > 0 ? spends / clk : 0,
             orders, cvr: clk > 0 ? (orders / clk) * 100 : 0,
             sales,
-            aov: orders > 0 ? sales / orders : 0
+            aov: orders > 0 ? sales / orders : 0,
+            tacos: sales > 0 ? (spends / sales) * 100 : 0
         };
     };
     let data = [];
@@ -332,11 +333,12 @@ function getKwalityWallsSample(groupBy) {
     else if (groupBy === "brand") { data = [mkRow("Kwality Wall's", 10432000, 132800, 3724000, 29240, 16456000, 60.8), mkRow("Cornetto", 4121000, 50320, 1319000, 10450, 6084000, 21.5), mkRow("Magnum", 2734000, 31200, 1070450, 8520, 4159000, 17.7)]; }
     else if (groupBy === "sku") { data = [mkRow("Cornetto Chocolate Cone 120 ml", 3821000, 46820, 1218000, 9640, 5542000, 19.9), mkRow("Magnum Classic 80 ml", 2434000, 27800, 972000, 7610, 3745000, 15.9), mkRow("Kwality Wall's Feast Chocolate Bar 65 ml", 2215000, 25140, 861000, 6840, 3129000, 14.1), mkRow("Kwality Wall's Paddle Pop 70 ml", 1762000, 19400, 612450, 5340, 2484000, 10.0), mkRow("Kwality Wall's Cassatta Slice 100 ml", 1629000, 17160, 545000, 4860, 2158000, 8.9)]; }
     else { data = [mkRow("Ice Creams", 8923000, 108120, 3112000, 24110, 13645000, 50.8), mkRow("Frozen Desserts", 5214000, 61340, 1675000, 13280, 7423000, 27.4), mkRow("Kulfi", 4319000, 44860, 1335450, 10820, 5731000, 21.8)]; }
-    const totals = data.reduce((acc, r) => { acc.impressions += r.impressions; acc.clicks += r.clicks; acc.atc += (r.atc || 0); acc.spends += r.spends; acc.orders += r.orders; acc.sales += r.sales; return acc; }, { impressions: 0, clicks: 0, atc: 0, ctr: 0, spend_percent_share: 100, spends: 0, cpc: 0, orders: 0, cvr: 0, sales: 0, aov: 0 });
+    const totals = data.reduce((acc, r) => { acc.impressions += r.impressions; acc.clicks += r.clicks; acc.atc += (r.atc || 0); acc.spends += r.spends; acc.orders += r.orders; acc.sales += r.sales; return acc; }, { impressions: 0, clicks: 0, atc: 0, ctr: 0, spend_percent_share: 100, spends: 0, cpc: 0, orders: 0, cvr: 0, sales: 0, aov: 0, tacos: 0 });
     totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
     totals.cpc = totals.clicks > 0 ? totals.spends / totals.clicks : 0;
     totals.cvr = totals.clicks > 0 ? (totals.orders / totals.clicks) * 100 : 0;
     totals.aov = totals.orders > 0 ? (totals.sales / totals.orders) : 0;
+    totals.tacos = totals.sales > 0 ? (totals.spends / totals.sales) * 100 : 0;
     const scale = (rows, factor) => rows.map((r) => ({ 
         ...r, 
         impressions: Math.max(0, Math.round(r.impressions * factor)), 
@@ -495,6 +497,7 @@ export function AggregatedViewTable() {
                 calcTotals.cpc = totalClicks > 0 ? (calcTotals.spends / totalClicks) : 0;
                 calcTotals.cvr = totalClicks > 0 ? (calcTotals.orders / totalClicks) * 100 : 0;
                 calcTotals.aov = calcTotals.orders > 0 ? (calcTotals.sales / calcTotals.orders) : 0;
+                calcTotals.tacos = calcTotals.sales > 0 ? (calcTotals.spends / calcTotals.sales) * 100 : 0;
 
                 setTotals(calcTotals);
                 setUntagged(result.untagged || null);
@@ -526,7 +529,7 @@ export function AggregatedViewTable() {
     const formatNumber = (num) => { if (num === null || num === undefined) return "—"; if (num >= 10000000) return `${(num / 10000000).toFixed(2)} Cr`; if (num >= 100000) return `${(num / 100000).toFixed(2)} Lac`; if (num >= 1000) return `${(num / 1000).toFixed(1)} K`; return num.toLocaleString("en-IN"); };
     const formatCurrency = (num) => (num === null || num === undefined ? "—" : `₹${formatNumber(num)}`);
     const getPeriodData = (tag, periodKey) => { if (!periodComparison || !periodComparison[periodKey]) return null; return periodComparison[periodKey].find((d) => d.tag === tag) || null; };
-    const thCls = (dm) => `px-2 py-3 text-right text-xs font-semibold uppercase tracking-wider ${dm ? "text-slate-400" : "text-slate-500"}`;
+    const thCls = (dm) => `px-2 py-3 text-right text-xs font-semibold uppercase tracking-wider whitespace-nowrap ${dm ? "text-slate-400" : "text-slate-500"}`;
 
     return (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border overflow-hidden ${darkMode ? "bg-gradient-to-br from-slate-800 via-slate-800 to-slate-900 border-slate-700" : "bg-white border-slate-200 shadow-xl shadow-slate-200/50"}`}>
@@ -585,13 +588,13 @@ export function AggregatedViewTable() {
                         </div>
                         <button onClick={() => {
                             // CSV Download
-                            const headers = [currentDimension.label, "Impressions", "Clicks", "ATC", "CTR", "% Spends", "Spends", "CPC", "Orders", "AOV", "CVR", "Ad Sales"];
+                            const headers = [currentDimension.label, "Impressions", "Clicks", "ATC", "CTR", "Spend %", "Spends", "CPC", "Orders", "AOV", "CVR", "Ad Sales", "TACoS"];
                             const csvRows = [headers.join(",")];
                             data.forEach(row => {
                                 csvRows.push([
                                     `"${row.tag || ''}"`, row.impressions, row.clicks, row.atc, `${(row.ctr || 0).toFixed(2)}%`,
                                     `${(row.spend_percent_share || 0).toFixed(1)}%`, row.spends, (row.cpc || 0).toFixed(2),
-                                    row.orders, (row.aov || 0).toFixed(2), `${(row.cvr || 0).toFixed(2)}%`, row.sales
+                                    row.orders, (row.aov || 0).toFixed(2), `${(row.cvr || 0).toFixed(2)}%`, row.sales, `${(row.tacos || 0).toFixed(2)}%`
                                 ].join(","));
                             });
                             const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
@@ -605,12 +608,12 @@ export function AggregatedViewTable() {
             </div>
             {/* Table */}
             <div className="w-full overflow-x-auto">
-                <table className="w-full table-fixed" style={{ minWidth: '900px' }}>
-                    <colgroup><col className="w-[16%]" /><col className="w-[8%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[9%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[9%]" /><col className="w-[7%]" /><col className="w-[9%]" /></colgroup>
+                <table className="w-full table-fixed" style={{ minWidth: '1100px' }}>
+                    <colgroup><col className="w-[14%]" /><col className="w-[8%]" /><col className="w-[6%]" /><col className="w-[5%]" /><col className="w-[6%]" /><col className="w-[7%]" /><col className="w-[8%]" /><col className="w-[6%]" /><col className="w-[6%]" /><col className="w-[7%]" /><col className="w-[6%]" /><col className="w-[8%]" /><col className="w-[7%]" /></colgroup>
                     <thead>
                         <tr className={darkMode ? "bg-slate-800/50" : "bg-slate-50/50"}>
-                            <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{currentDimension.label}</th>
-                            {["Impressions", "Clicks", "ATC", "CTR", "% Spends", "Spends", "CPC", "Orders", "AOV", "CVR", "Ad Sales"].map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
+                            <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{currentDimension.label}</th>
+                            {["Impressions", "Clicks", "ATC", "CTR", "Spend %", "Spends", "CPC", "Orders", "AOV", "CVR", "Ad Sales", "TACoS"].map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
@@ -628,14 +631,15 @@ export function AggregatedViewTable() {
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.aov)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatPercent(totals.cvr)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.sales)}</td>
+                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatPercent(totals.tacos)}</td>
                             </tr>
                         )}
                         {loading ? (
-                            [...Array(5)].map((_, i) => (<tr key={i}><td colSpan={10} className="px-4 py-3"><div className={`h-8 rounded-lg animate-pulse ${darkMode ? "bg-slate-700" : "bg-slate-100"}`} /></td></tr>))
+                            [...Array(5)].map((_, i) => (<tr key={i}><td colSpan={13} className="px-4 py-3"><div className={`h-8 rounded-lg animate-pulse ${darkMode ? "bg-slate-700" : "bg-slate-100"}`} /></td></tr>))
                         ) : apiError ? (
-                            <tr><td colSpan={10}><ErrorRetryOverlay onRetry={fetchData} message={apiError} /></td></tr>
+                            <tr><td colSpan={13}><ErrorRetryOverlay onRetry={fetchData} message={apiError} /></td></tr>
                         ) : data.length === 0 ? (
-                            <tr><td colSpan={10} className="px-4 py-12 text-center"><LayoutGrid className={`w-12 h-12 mx-auto mb-3 ${darkMode ? "text-slate-600" : "text-slate-300"}`} /><p className={`text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}>No data available</p></td></tr>
+                            <tr><td colSpan={13} className="px-4 py-12 text-center"><LayoutGrid className={`w-12 h-12 mx-auto mb-3 ${darkMode ? "text-slate-600" : "text-slate-300"}`} /><p className={`text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}>No data available</p></td></tr>
                         ) : (
                             paginatedData.map((row, idx) => (
                                 <React.Fragment key={row.tag || idx}>
@@ -647,7 +651,7 @@ export function AggregatedViewTable() {
                                                 <span className="font-medium text-sm truncate" title={row.tag}>{row.tag}</span>
                                             </div>
                                         </td>
-                                        {[formatNumber(row.impressions), formatNumber(row.clicks), formatNumber(row.atc), formatPercent(row.ctr), `${row.spend_percent_share.toFixed(1)}%`, formatCurrency(row.spends), formatCurrency(row.cpc), formatNumber(row.orders), formatCurrency(row.aov), formatPercent(row.cvr), formatCurrency(row.sales)].map((val, ci) => (
+                                        {[formatNumber(row.impressions), formatNumber(row.clicks), formatNumber(row.atc), formatPercent(row.ctr), `${row.spend_percent_share.toFixed(1)}%`, formatCurrency(row.spends), formatCurrency(row.cpc), formatNumber(row.orders), formatCurrency(row.aov), formatPercent(row.cvr), formatCurrency(row.sales), formatPercent(row.tacos)].map((val, ci) => (
                                             <td key={ci} className={`px-2 py-3 text-right text-sm ${ci === 4 ? (darkMode ? "text-slate-400" : "text-slate-500") : (darkMode ? "text-slate-200" : "text-slate-700")}`}>{val}</td>
                                         ))}
                                     </motion.tr>
@@ -677,6 +681,7 @@ export function AggregatedViewTable() {
                                                         <td key={i} className={`px-2 py-2 text-right text-sm ${darkMode ? "text-slate-400" : "text-slate-600"}`}>{v}</td>
                                                     ))}
                                                     <td className={`px-2 py-2 text-right text-sm ${darkMode ? "text-emerald-400" : "text-emerald-600"}`}>{pd ? formatCurrency(pd.sales) : "—"}</td>
+                                                    <td className={`px-2 py-2 text-right text-sm ${darkMode ? "text-slate-400" : "text-slate-600"}`}>{pd?.tacos ? formatPercent(pd.tacos) : (pd?.sales > 0 ? formatPercent((pd.spends / pd.sales) * 100) : "—")}</td>
                                                 </motion.tr>
                                             );
                                         })}

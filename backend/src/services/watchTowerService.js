@@ -12304,7 +12304,7 @@ const getPerformanceBreakdownData = async (filters) => {
         const data = await queryClickHouse(query);
 
         let totals = {
-            impressions: 0, clicks: 0, ctr: 0, spends: 0, cpc: 0, orders: 0, cvr: 0, sales: 0, atc: 0, aov: 0, totalClicks: 0
+            impressions: 0, clicks: 0, ctr: 0, spends: 0, cpc: 0, orders: 0, cvr: 0, sales: 0, atc: 0, aov: 0, tacos: 0, totalClicks: 0
         };
 
         const parsedData = data.map(row => {
@@ -12314,6 +12314,7 @@ const getPerformanceBreakdownData = async (filters) => {
             const spends = parseFloat(scaled.group_spends) || 0;
             const orders = parseFloat(scaled.group_orders) || 0;
             const sales = parseFloat(scaled.group_sales) || 0;
+            const tacos = sales > 0 ? (spends / sales) * 100 : 0;
 
             totals.impressions += impressions;
             totals.clicks += parseFloat(scaled.group_clicks_ecom) || 0;
@@ -12335,7 +12336,8 @@ const getPerformanceBreakdownData = async (filters) => {
                 cvr: parseFloat(scaled.cvr) || 0,
                 sales,
                 atc: parseFloat(scaled.group_atc) || 0,
-                aov: orders > 0 ? sales / orders : 0
+                aov: orders > 0 ? sales / orders : 0,
+                tacos
             };
         });
 
@@ -12349,6 +12351,7 @@ const getPerformanceBreakdownData = async (filters) => {
         totals.cpc = totals.totalClicks > 0 ? totals.spends / totals.totalClicks : 0;
         totals.cvr = totals.totalClicks > 0 ? (totals.orders / totals.totalClicks) * 100 : 0;
         totals.aov = totals.orders > 0 ? totals.sales / totals.orders : 0;
+        totals.tacos = totals.sales > 0 ? (totals.spends / totals.sales) * 100 : 0;
 
         // ── Period Comparison ───────────────────────────────────────────────
         let period_comparison = null;
@@ -12417,6 +12420,8 @@ const getPerformanceBreakdownData = async (filters) => {
                     const spends = parseFloat(scaled.group_spends) || 0;
                     const sales = parseFloat(scaled.group_sales) || 0;
 
+                    const tacos = sales > 0 ? (spends / sales) * 100 : 0;
+
                     return {
                         tag: scaled.tag || 'Unknown',
                         impressions,
@@ -12428,7 +12433,8 @@ const getPerformanceBreakdownData = async (filters) => {
                         orders,
                         cvr: totalClicks > 0 ? (orders / totalClicks) * 100 : 0,
                         sales,
-                        aov: orders > 0 ? sales / orders : 0
+                        aov: orders > 0 ? sales / orders : 0,
+                        tacos
                     };
                 });
 
