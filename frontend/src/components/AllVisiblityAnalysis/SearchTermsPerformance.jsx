@@ -1046,7 +1046,7 @@ export default function SearchTermsPerformance() {
                       )}
                       {row.searchVolume > 0 && activeView === "keyword" ? (
                         <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>
-                          Search Vol. {row.searchVolume.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                          Search Vol. {row.searchVolume.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%
                         </span>
                       ) : (row.volShare > 0 && activeView === "keyword" ? (
                         <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>

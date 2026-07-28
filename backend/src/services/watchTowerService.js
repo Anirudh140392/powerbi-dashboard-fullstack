@@ -8764,20 +8764,36 @@ const getCompetitionData = async (filters = {}) => {
         // Query per-SKU sales from rb_ms_olap (since rb_pdp_olap competitor sales are 0)
         const [skuSalesQuery, skuSalesQueryPrev] = await Promise.all([
             queryClickHouse(`
-                SELECT item_name, SUM(toFloat64OrZero(toString(sales))) as sku_sales
+                SELECT item_name, any(category) as category, SUM(toFloat64OrZero(toString(sales))) as sku_sales
                 FROM rb_ms_olap
                 WHERE ${baseMsConds.join(' AND ')} AND item_name IS NOT NULL AND item_name != ''
                 GROUP BY item_name
             `),
             queryClickHouse(`
-                SELECT item_name, SUM(toFloat64OrZero(toString(sales))) as sku_sales
+                SELECT item_name, any(category) as category, SUM(toFloat64OrZero(toString(sales))) as sku_sales
                 FROM rb_ms_olap
                 WHERE ${baseMsConds.join(' AND ').replace(startDate.format('YYYY-MM-DD'), momStartDate.format('YYYY-MM-DD')).replace(endDate.format('YYYY-MM-DD'), momEndDate.format('YYYY-MM-DD'))} AND item_name IS NOT NULL AND item_name != ''
                 GROUP BY item_name
             `)
         ]);
-        const skuSalesMap = new Map(skuSalesQuery.map(r => [r.item_name?.toLowerCase(), parseFloat(r.sku_sales || 0)]));
-        const skuSalesMapPrev = new Map(skuSalesQueryPrev.map(r => [r.item_name?.toLowerCase(), parseFloat(r.sku_sales || 0)]));
+        const skuMsMap = new Map();
+        skuSalesQuery.forEach(r => {
+            if (r.item_name) {
+                skuMsMap.set(r.item_name.toLowerCase().trim(), {
+                    sales: parseFloat(r.sku_sales || 0),
+                    category: r.category ? r.category.toLowerCase().trim() : ''
+                });
+            }
+        });
+        const skuMsMapPrev = new Map();
+        skuSalesQueryPrev.forEach(r => {
+            if (r.item_name) {
+                skuMsMapPrev.set(r.item_name.toLowerCase().trim(), {
+                    sales: parseFloat(r.sku_sales || 0),
+                    category: r.category ? r.category.toLowerCase().trim() : ''
+                });
+            }
+        });
 
         // Also query category totals from rb_ms_olap to cover all bases
         const [subCategorySalesQuery, subCategorySalesQueryPrev] = await Promise.all([
@@ -9027,11 +9043,43 @@ const getCompetitionData = async (filters = {}) => {
             const prevAvgPrice = parseFloat(prevSku.avg_price || 0);
             const priceDelta = calcChange(avgPrice, prevAvgPrice);
 
-            // Market Share: Use the brand's averaged market share directly from helper
-            const hasMsData = brandSalesMap.has(sku.Brand?.toLowerCase());
-            const marketShare = hasMsData ? (brandSalesMap.get(sku.Brand?.toLowerCase()) || 0) : null;
-            const marketSharePrev = brandSalesMapPrev.get(sku.Brand?.toLowerCase()) || 0;
-            const marketShareDelta = marketShare === null ? null : calcChange(marketShare, marketSharePrev);
+            // Calculate SKU Market Share: SKU sales in rb_ms_olap * 100.0 / Total Category sales in rb_ms_olap
+            const getSkuMarketShare = (prodName, catName, msMap, catSalesMap) => {
+                if (!prodName) return null;
+                const lowerProd = prodName.toLowerCase().trim();
+                let item = msMap.get(lowerProd);
+
+                if (!item) {
+                    for (const [k, v] of msMap.entries()) {
+                        if (lowerProd.includes(k) || k.includes(lowerProd)) {
+                            item = v;
+                            break;
+                        }
+                    }
+                }
+
+                if (!item || !item.sales || item.sales <= 0) {
+                    return 0;
+                }
+
+                const skuCat = item.category || (catName ? catName.toLowerCase().trim() : '');
+                let catTotal = catSalesMap.get(skuCat) || 0;
+                if (catTotal === 0) {
+                    catTotal = Array.from(catSalesMap.values()).reduce((sum, val) => sum + val, 0);
+                }
+
+                if (catTotal > 0) {
+                    return (item.sales * 100.0) / catTotal;
+                }
+                return 0;
+            };
+
+            const skuMsCurr = getSkuMarketShare(sku.Product, skuCategory, skuMsMap, categoryTotalSalesMap);
+            const skuMsPrev = getSkuMarketShare(sku.Product, skuCategory, skuMsMapPrev, categoryTotalSalesMapPrev);
+
+            const hasMsData = brandSalesMap.has(sku.Brand?.toLowerCase()) || (skuMsCurr !== null && skuMsCurr > 0);
+            const marketShare = skuMsCurr;
+            const marketShareDelta = marketShare === null ? null : calcChange(marketShare, skuMsPrev || 0);
 
             // Category Share: Our brands' share in this SKU's specific category
             const lowerSkuCat = skuCategory.toLowerCase();
@@ -9064,8 +9112,13 @@ const getCompetitionData = async (filters = {}) => {
             };
         });
 
-        // Sort by OSA descending
-        skuMetrics.sort((a, b) => (b.OSA?.value || 0) - (a.OSA?.value || 0));
+        // Sort by Market Share descending, falling back to OSA descending
+        skuMetrics.sort((a, b) => {
+            const msA = Number(a.MarketShare?.value) || 0;
+            const msB = Number(b.MarketShare?.value) || 0;
+            if (msB !== msA) return msB - msA;
+            return (b.OSA?.value || 0) - (a.OSA?.value || 0);
+        });
         const topSkus = skuMetrics;
 
         console.log(`[getCompetitionData] Returning ${topBrands.length} brands and ${topSkus.length} SKUs`);

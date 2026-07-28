@@ -1567,7 +1567,8 @@ class VisibilityService {
                 } else {
                     const limitClause = 'LIMIT 50';
 
-                    const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'rb_kw_olap'`);
+                    const targetDb = filters.dbName || getCurrentDbName();
+                    const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap'`);
                     const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
                     const searchVolumeSelect = hasSearchVolPct
                         ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)`
@@ -3738,7 +3739,8 @@ class VisibilityService {
                 ? `lowerUTF8(t1.keyword_search_product) = lowerUTF8('${escapeCH(sku)}')`
                 : ((brand && brand !== 'All') || viewMode === 'brand' || viewMode === 'sku') ? '1=1' : `lower(t1.brand) IN (${ownBrandSubquery})`;
 
-            const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'rb_kw_olap'`);
+            const targetDb = filters.dbName || getCurrentDbName();
+            const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = '${targetDb}' AND table = 'rb_kw_olap'`);
             const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
             const searchVolumeSelect = hasSearchVolPct
                 ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)`
