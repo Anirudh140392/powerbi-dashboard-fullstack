@@ -1,5 +1,5 @@
 // src/routes/admin.js
-import { getUsers, deleteUser, getLiveUsers, getPendingRequests, updateUserAccess, getPermissionsUsers, updateDbStatus, updateTabPermissions, getDatabases, updateDatabaseLogo, createDatabase, createUser, createWalkthroughNotification, getAdminPlatforms } from '../controllers/adminController.js';
+import { getUsers, deleteUser, getLiveUsers, getPendingRequests, updateUserAccess, getPermissionsUsers, updateDbStatus, updateTabPermissions, getDatabases, updateDatabaseLogo, getDatabaseInsights, updateDatabaseInsights, createDatabase, createUser, createWalkthroughNotification, getAdminPlatforms } from '../controllers/adminController.js';
 
 export default (app) => {
     // Middleware to log Admin API calls
@@ -159,6 +159,20 @@ export default (app) => {
      */
     app.get('/api/admin/databases', getDatabases);
     app.patch('/api/admin/databases/logo', updateDatabaseLogo);
+    
+    /**
+     * @swagger
+     * /api/admin/databases/insights:
+     *   get:
+     *     summary: Get Insights KPI config for a database
+     *     security:
+     *       - bearerAuth: []
+     *     responses:
+     *       200:
+     *         description: Successful response
+     */
+    app.get('/api/admin/databases/insights', getDatabaseInsights);
+    app.patch('/api/admin/databases/insights', updateDatabaseInsights);
 
     /**
      * @swagger

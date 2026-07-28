@@ -273,7 +273,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
             onCategorySelect(cat);
         }
     };
-    const { data: categoryHealthData, globalMetadata, loading: categoryHealthLoading } = useCategoryHealth(
+    const { data: categoryHealthData, loading: categoryHealthLoading } = useCategoryHealth(
         globalPlatform,
         globalTrendPeriodMonths,
         globalDateFrom,
@@ -688,7 +688,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                 {/* ===== CATEGORY CARDS STRIP ===== */}
                 <CategoryCardsStrip
                     categories={categoryHealthData}
-                    globalMetadata={globalMetadata}
+
                     loading={categoryHealthLoading}
                     selectedCategory={currentCategory}
                     onCategorySelect={handleCategorySelect}
@@ -701,287 +701,291 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                     </div>
                 ) : executiveHealth && (
                     <>
-                        <div className="flex items-center justify-between mt-6 mb-2">
-                            <div className="flex items-center gap-2">
-                                <Target size={16} className="text-indigo-500" />
-                                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                                    Pareto Status
-                                </h3>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {([
-                                { key: 'npd' as const, label: 'NPD', bucket: executiveHealth.npd, authorativeTotal: executiveHealth.npd.catalogueTotal ?? globalMetadata?.npdCount ?? executiveHealth.npd.total, color: 'indigo', icon: <Zap size={14} />, desc: 'New Product Development', tooltipDef: TOOLTIPS.npdCard },
-                                { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: executiveHealth.pareto.catalogueTotal ?? globalMetadata?.paretoCount ?? executiveHealth.pareto.total, color: 'indigo', icon: <Target size={14} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
-                                { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: executiveHealth.nonPareto.catalogueTotal ?? globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total, color: 'slate', icon: <Layers size={14} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
-                            ])
-                            .filter(() => getActiveBrandName().toLowerCase() !== 'danone')
-                            .map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {
-                                const isExpanded = expandedPareto === key;
-                                const isFilteredOut = globalParetoStatus && globalParetoStatus !== 'all' && (
-                                    (globalParetoStatus === 'Pareto' && key !== 'pareto') ||
-                                    (globalParetoStatus === 'Non-Pareto' && key !== 'nonPareto') ||
-                                    (globalParetoStatus === 'NPD' && key !== 'npd')
-                                );
-                                const hasSkus = !isFilteredOut && Number(authorativeTotal || 0) > 0;
-                                // Build a healthy/watch/at-risk health bar from the rating-bifurcation buckets
-                                const healthTotal = (bucket?.np?.count || 0) + (bucket?.ni?.count || 0) + (bucket?.issue?.count || 0);
-                                const healthyPct = healthTotal > 0 ? ((bucket?.np?.count || 0) / healthTotal) * 100 : 0;
-                                const watchPct = healthTotal > 0 ? ((bucket?.ni?.count || 0) / healthTotal) * 100 : 0;
-                                const atRiskPct = healthTotal > 0 ? ((bucket?.issue?.count || 0) / healthTotal) * 100 : 0;
-                                // Helpers for compact number formatting
-                                const fmtK = (n: number) => n >= 10000000 ? `${(n/10000000).toFixed(1)}Cr` : n >= 100000 ? `${(n/100000).toFixed(1)}L` : n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n);
-                                const reviewsN = bucket.totalReviewCount ?? 0;
-                                const ratingsN = Number(bucket.totalRatings || 0);
+                        {false && (
+                            <>
+                                <div className="flex items-center justify-between mt-6 mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <Target size={16} className="text-indigo-500" />
+                                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                                            Pareto Status
+                                        </h3>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {([
+                                        { key: 'npd' as const, label: 'NPD', bucket: executiveHealth.npd, authorativeTotal: executiveHealth.npd.total, color: 'indigo', icon: <Zap size={14} />, desc: 'New Product Development', tooltipDef: TOOLTIPS.npdCard },
+                                        { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: executiveHealth.pareto.total, color: 'indigo', icon: <Target size={14} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
+                                        { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: executiveHealth.nonPareto.total, color: 'slate', icon: <Layers size={14} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
+                                    ])
+                                    .filter(() => getActiveBrandName().toLowerCase() !== 'danone')
+                                    .map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {
+                                        const isExpanded = expandedPareto === key;
+                                        const isFilteredOut = globalParetoStatus && globalParetoStatus !== 'all' && (
+                                            (globalParetoStatus === 'Pareto' && key !== 'pareto') ||
+                                            (globalParetoStatus === 'Non-Pareto' && key !== 'nonPareto') ||
+                                            (globalParetoStatus === 'NPD' && key !== 'npd')
+                                        );
+                                        const hasSkus = !isFilteredOut && Number(authorativeTotal || 0) > 0;
+                                        // Build a healthy/watch/at-risk health bar from the rating-bifurcation buckets
+                                        const healthTotal = (bucket?.np?.count || 0) + (bucket?.ni?.count || 0) + (bucket?.issue?.count || 0);
+                                        const healthyPct = healthTotal > 0 ? ((bucket?.np?.count || 0) / healthTotal) * 100 : 0;
+                                        const watchPct = healthTotal > 0 ? ((bucket?.ni?.count || 0) / healthTotal) * 100 : 0;
+                                        const atRiskPct = healthTotal > 0 ? ((bucket?.issue?.count || 0) / healthTotal) * 100 : 0;
+                                        // Helpers for compact number formatting
+                                        const fmtK = (n: number) => n >= 10000000 ? `${(n/10000000).toFixed(1)}Cr` : n >= 100000 ? `${(n/100000).toFixed(1)}L` : n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n);
+                                        const reviewsN = bucket.totalReviewCount ?? 0;
+                                        const ratingsN = Number(bucket.totalRatings || 0);
 
-                                return (
-                                <motion.div
-                                    key={key}
-                                    initial={{ opacity: 0, y: 8 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    whileHover={{ y: -3 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={() => handleParetoCardClick(key)}
-                                    className={`relative p-3.5 rounded-xl cursor-pointer select-none transition-all duration-200 border bg-white dark:bg-slate-900 ${
-                                        isExpanded
-                                            ? 'border-indigo-500 shadow-md shadow-indigo-500/10'
-                                            : 'border-slate-200 dark:border-slate-700/60 hover:border-indigo-400 hover:shadow-sm'
-                                    }`}
-                                >
-                                    <div className="flex flex-col h-full gap-2">
-                                        {/* Header */}
-                                        <div className="flex items-start gap-2">
-                                            <div className={`p-1.5 rounded-lg flex-shrink-0 ${isExpanded ? 'bg-indigo-500/15 text-indigo-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-                                                {icon}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="text-[12px] font-semibold text-slate-800 dark:text-slate-100 leading-tight pt-0.5 line-clamp-1 flex items-center gap-1">
-                                                    {label}
-                                                    <InfoTooltip definition={tooltipDef} placement="top" size="sm" />
-                                                </h3>
-                                                <div className="text-[10px] text-slate-400 truncate">· {desc}</div>
+                                        return (
+                                        <motion.div
+                                            key={key}
+                                            initial={{ opacity: 0, y: 8 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            whileHover={{ y: -3 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={() => handleParetoCardClick(key)}
+                                            className={`relative p-3.5 rounded-xl cursor-pointer select-none transition-all duration-200 border bg-white dark:bg-slate-900 ${
+                                                isExpanded
+                                                    ? 'border-indigo-500 shadow-md shadow-indigo-500/10'
+                                                    : 'border-slate-200 dark:border-slate-700/60 hover:border-indigo-400 hover:shadow-sm'
+                                            }`}
+                                        >
+                                            <div className="flex flex-col h-full gap-2">
+                                                {/* Header */}
+                                                <div className="flex items-start gap-2">
+                                                    <div className={`p-1.5 rounded-lg flex-shrink-0 ${isExpanded ? 'bg-indigo-500/15 text-indigo-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                                                        {icon}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="text-[12px] font-semibold text-slate-800 dark:text-slate-100 leading-tight pt-0.5 line-clamp-1 flex items-center gap-1">
+                                                            {label}
+                                                            <InfoTooltip definition={tooltipDef} placement="top" size="sm" />
+                                                        </h3>
+                                                        <div className="text-[10px] text-slate-400 truncate">· {desc}</div>
+                                                    </div>
+                                                    
+                                                    {bucket.reviewGrowthPct !== 0 && (
+                                                        <span className={`inline-flex items-center gap-0.5 font-semibold shrink-0 rounded-md px-1.5 py-0.5 text-[10px] ${
+                                                            bucket.reviewGrowthPct > 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400'
+                                                        }`} title="Review volume vs prior period">
+                                                            {bucket.reviewGrowthPct > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                                                            {bucket.reviewGrowthPct > 0 ? '+' : ''}{bucket.reviewGrowthPct}% vol
+                                                        </span>
+                                                    )}
+                                                    <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="shrink-0 pt-1">
+                                                        <ChevronDown size={14} className="text-slate-400" />
+                                                    </motion.div>
+                                                </div>
+
+                                                {isFilteredOut ? (
+                                                <div className="flex items-center gap-2 py-3 text-slate-400 dark:text-slate-500">
+                                                    <HelpCircle size={14} className="shrink-0" />
+                                                    <span className="text-xs font-medium">N/A - Filtered out by Type</span>
+                                                </div>
+                                                ) : !hasSkus ? (
+                                                <div className="flex items-center gap-2 py-3 text-slate-400 dark:text-slate-500">
+                                                    <HelpCircle size={14} className="shrink-0" />
+                                                    <span className="text-xs font-medium">No SKUs match the current filters</span>
+                                                </div>
+                                                ) : (
+                                                <>
+                                                    {/* Hero */}
+                                                    <div className="flex items-baseline flex-wrap gap-1.5 mt-1">
+                                                        <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums leading-none">
+                                                            {Number(authorativeTotal).toLocaleString()}
+                                                        </span>
+                                                        <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">SKUS</span>
+                                                        {(bucket.reviewSkuCount !== undefined && bucket.reviewSkuCount > 0) && (
+                                                            <span className="text-[10px] text-slate-400 font-medium tabular-nums" title={`${bucket.reviewSkuCount.toLocaleString()} SKUs with at least one review in selected window`}>
+                                                                · {bucket.reviewSkuCount.toLocaleString()} reviewed
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Ratings Grid */}
+                                                    <div className="flex items-stretch border-y border-slate-100 dark:border-slate-800 py-1.5 mt-2">
+                                                        {[
+                                                            { label: 'PDP', value: bucket.avgPlatformRating },
+                                                            { label: 'User', value: bucket.userRating },
+                                                            { label: 'ML', value: bucket.mlRating },
+                                                        ].map((m, i) => (
+                                                            <React.Fragment key={m.label}>
+                                                                {i > 0 && <div className="w-px bg-slate-100 dark:bg-slate-800" />}
+                                                                <div className="flex-1 flex flex-col items-center justify-center min-w-0">
+                                                                    <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{m.label}</span>
+                                                                    <span className="text-base font-bold text-slate-800 dark:text-slate-100 tabular-nums leading-tight">
+                                                                        {m.value != null ? Number(m.value).toFixed(1) : '—'}
+                                                                    </span>
+                                                                </div>
+                                                            </React.Fragment>
+                                                        ))}
+                                                        
+                                                        <div className="w-px bg-slate-100 dark:bg-slate-800" />
+                                                        <div className="flex-1 flex flex-col items-center justify-center min-w-0">
+                                                            <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">Δ VS PRIOR</span>
+                                                            <span className={`text-sm font-bold tabular-nums leading-tight inline-flex items-center gap-0.5 mt-0.5 ${
+                                                                bucket.ratingGrowthDiff > 0 ? 'text-emerald-600 dark:text-emerald-400'
+                                                                : bucket.ratingGrowthDiff < 0 ? 'text-rose-600 dark:text-rose-400'
+                                                                : 'text-slate-400'
+                                                            }`}>
+                                                                {bucket.ratingGrowthDiff !== 0 && <Star size={10} className="fill-current" />}
+                                                                {bucket.ratingGrowthDiff > 0 ? '+' : ''}{bucket.ratingGrowthDiff || '0'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Footer Counts & Health Bar */}
+                                                    <div className="flex flex-col gap-2 mt-auto pt-1">
+                                                        <div className="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 tabular-nums">
+                                                            <span className="flex items-center gap-1" title={`${reviewsN.toLocaleString()} text reviews collected`}>
+                                                                <MessageSquare size={10} />
+                                                                <span className="font-semibold text-slate-700 dark:text-slate-300">{fmtK(reviewsN)}</span>
+                                                                <span className="text-slate-400">rev</span>
+                                                            </span>
+                                                            <span className="flex items-center gap-1" title={`${ratingsN.toLocaleString()} PDP star ratings (no text)`}>
+                                                                <BarChart3 size={10} />
+                                                                <span className="font-semibold text-slate-700 dark:text-slate-300">{fmtK(ratingsN)}</span>
+                                                                <span className="text-slate-400">rat</span>
+                                                            </span>
+                                                            {healthTotal > 0 && (
+                                                                <div className="flex gap-1.5 shrink-0 ml-auto">
+                                                                    {bucket?.np?.count > 0 && (
+                                                                        <span className="inline-flex items-center gap-0.5 font-semibold text-emerald-700 dark:text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{bucket.np.count}</span>
+                                                                    )}
+                                                                    {bucket?.ni?.count > 0 && (
+                                                                        <span className="inline-flex items-center gap-0.5 font-semibold text-amber-700 dark:text-amber-400"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{bucket.ni.count}</span>
+                                                                    )}
+                                                                    {bucket?.issue?.count > 0 && (
+                                                                        <span className="inline-flex items-center gap-0.5 font-semibold text-rose-700 dark:text-rose-400"><span className="w-1.5 h-1.5 rounded-full bg-rose-500" />{bucket.issue.count}</span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        
+                                                        {healthTotal > 0 && (
+                                                            <div className="flex h-1.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 w-full" title={`${Math.round(healthyPct)}% healthy · ${Math.round(watchPct)}% watch · ${Math.round(atRiskPct)}% at-risk`}>
+                                                                {healthyPct > 0 && <div style={{ width: `${healthyPct}%` }} className="bg-emerald-500" />}
+                                                                {watchPct > 0 && <div style={{ width: `${watchPct}%` }} className="bg-amber-500" />}
+                                                                {atRiskPct > 0 && <div style={{ width: `${atRiskPct}%` }} className="bg-rose-500" />}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </>
+                                                )}
                                             </div>
                                             
-                                            {bucket.reviewGrowthPct !== 0 && (
-                                                <span className={`inline-flex items-center gap-0.5 font-semibold shrink-0 rounded-md px-1.5 py-0.5 text-[10px] ${
-                                                    bucket.reviewGrowthPct > 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400'
-                                                }`} title="Review volume vs prior period">
-                                                    {bucket.reviewGrowthPct > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                                                    {bucket.reviewGrowthPct > 0 ? '+' : ''}{bucket.reviewGrowthPct}% vol
-                                                </span>
+                                            {isExpanded && (
+                                                <motion.div
+                                                    layoutId="paretoActiveBar"
+                                                    className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-indigo-500"
+                                                    transition={{ type: 'spring', bounce: 0.25, duration: 0.45 }}
+                                                />
                                             )}
-                                            <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="shrink-0 pt-1">
-                                                <ChevronDown size={14} className="text-slate-400" />
-                                            </motion.div>
-                                        </div>
+                                        </motion.div>
+                                        );
+                                    })}
+                                </div>
 
-                                        {isFilteredOut ? (
-                                        <div className="flex items-center gap-2 py-3 text-slate-400 dark:text-slate-500">
-                                            <HelpCircle size={14} className="shrink-0" />
-                                            <span className="text-xs font-medium">N/A - Filtered out by Type</span>
-                                        </div>
-                                        ) : !hasSkus ? (
-                                        <div className="flex items-center gap-2 py-3 text-slate-400 dark:text-slate-500">
-                                            <HelpCircle size={14} className="shrink-0" />
-                                            <span className="text-xs font-medium">No SKUs match the current filters</span>
-                                        </div>
-                                        ) : (
-                                        <>
-                                            {/* Hero */}
-                                            <div className="flex items-baseline flex-wrap gap-1.5 mt-1">
-                                                <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums leading-none">
-                                                    {Number(authorativeTotal).toLocaleString()}
-                                                </span>
-                                                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">SKUS</span>
-                                                {(bucket.reviewSkuCount !== undefined && bucket.reviewSkuCount > 0) && (
-                                                    <span className="text-[10px] text-slate-400 font-medium tabular-nums" title={`${bucket.reviewSkuCount.toLocaleString()} SKUs with at least one review in selected window`}>
-                                                        · {bucket.reviewSkuCount.toLocaleString()} reviewed
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {/* Ratings Grid */}
-                                            <div className="flex items-stretch border-y border-slate-100 dark:border-slate-800 py-1.5 mt-2">
-                                                {[
-                                                    { label: 'PDP', value: bucket.avgPlatformRating },
-                                                    { label: 'User', value: bucket.userRating },
-                                                    { label: 'ML', value: bucket.mlRating },
-                                                ].map((m, i) => (
-                                                    <React.Fragment key={m.label}>
-                                                        {i > 0 && <div className="w-px bg-slate-100 dark:bg-slate-800" />}
-                                                        <div className="flex-1 flex flex-col items-center justify-center min-w-0">
-                                                            <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{m.label}</span>
-                                                            <span className="text-base font-bold text-slate-800 dark:text-slate-100 tabular-nums leading-tight">
-                                                                {m.value != null ? Number(m.value).toFixed(1) : '—'}
-                                                            </span>
-                                                        </div>
-                                                    </React.Fragment>
-                                                ))}
-                                                
-                                                <div className="w-px bg-slate-100 dark:bg-slate-800" />
-                                                <div className="flex-1 flex flex-col items-center justify-center min-w-0">
-                                                    <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">Δ VS PRIOR</span>
-                                                    <span className={`text-sm font-bold tabular-nums leading-tight inline-flex items-center gap-0.5 mt-0.5 ${
-                                                        bucket.ratingGrowthDiff > 0 ? 'text-emerald-600 dark:text-emerald-400'
-                                                        : bucket.ratingGrowthDiff < 0 ? 'text-rose-600 dark:text-rose-400'
-                                                        : 'text-slate-400'
-                                                    }`}>
-                                                        {bucket.ratingGrowthDiff !== 0 && <Star size={10} className="fill-current" />}
-                                                        {bucket.ratingGrowthDiff > 0 ? '+' : ''}{bucket.ratingGrowthDiff || '0'}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            {/* Footer Counts & Health Bar */}
-                                            <div className="flex flex-col gap-2 mt-auto pt-1">
-                                                <div className="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 tabular-nums">
-                                                    <span className="flex items-center gap-1" title={`${reviewsN.toLocaleString()} text reviews collected`}>
-                                                        <MessageSquare size={10} />
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{fmtK(reviewsN)}</span>
-                                                        <span className="text-slate-400">rev</span>
-                                                    </span>
-                                                    <span className="flex items-center gap-1" title={`${ratingsN.toLocaleString()} PDP star ratings (no text)`}>
-                                                        <BarChart3 size={10} />
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{fmtK(ratingsN)}</span>
-                                                        <span className="text-slate-400">rat</span>
-                                                    </span>
-                                                    {healthTotal > 0 && (
-                                                        <div className="flex gap-1.5 shrink-0 ml-auto">
-                                                            {bucket?.np?.count > 0 && (
-                                                                <span className="inline-flex items-center gap-0.5 font-semibold text-emerald-700 dark:text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{bucket.np.count}</span>
-                                                            )}
-                                                            {bucket?.ni?.count > 0 && (
-                                                                <span className="inline-flex items-center gap-0.5 font-semibold text-amber-700 dark:text-amber-400"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{bucket.ni.count}</span>
-                                                            )}
-                                                            {bucket?.issue?.count > 0 && (
-                                                                <span className="inline-flex items-center gap-0.5 font-semibold text-rose-700 dark:text-rose-400"><span className="w-1.5 h-1.5 rounded-full bg-rose-500" />{bucket.issue.count}</span>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                
-                                                {healthTotal > 0 && (
-                                                    <div className="flex h-1.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 w-full" title={`${Math.round(healthyPct)}% healthy · ${Math.round(watchPct)}% watch · ${Math.round(atRiskPct)}% at-risk`}>
-                                                        {healthyPct > 0 && <div style={{ width: `${healthyPct}%` }} className="bg-emerald-500" />}
-                                                        {watchPct > 0 && <div style={{ width: `${watchPct}%` }} className="bg-amber-500" />}
-                                                        {atRiskPct > 0 && <div style={{ width: `${atRiskPct}%` }} className="bg-rose-500" />}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </>
-                                        )}
-                                    </div>
-                                    
-                                    {isExpanded && (
+                                {/* ===== DRILL-DOWN LEVEL 2: Rating Bifurcation (NP / Issue / NI) ===== */}
+                                <AnimatePresence>
+                                    {expandedPareto && executiveHealth[expandedPareto] && (
                                         <motion.div
-                                            layoutId="paretoActiveBar"
-                                            className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-indigo-500"
-                                            transition={{ type: 'spring', bounce: 0.25, duration: 0.45 }}
-                                        />
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="overflow-hidden"
+                                        >
+                                            <div className="card p-5">
+                                                <h3 className="font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                                                    <Activity size={16} className="text-indigo-500" />
+                                                    {executiveHealth[expandedPareto].name} — Rating Bifurcation
+                                                    <InfoTooltip definition={TOOLTIPS.ratingBifurcation} placement="right" />
+                                                </h3>
+                                                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                                                    {([
+                                                        { status: 'np' as const, label: 'No Problem (NP)', desc: '≥4.2 Rating', icon: <CheckCircle2 size={16} />, color: 'emerald' },
+                                                        { status: 'ni' as const, label: 'No Issue (NI)', desc: '4.0–4.2 Rating', icon: <Shield size={16} />, color: 'blue' },
+                                                        { status: 'issue' as const, label: 'Issue', desc: '<4.0 Rating', icon: <XCircle size={16} />, color: 'orange' },
+                                                        { status: 'critical' as const, label: 'Critical Issue', desc: '>15% 1-Star', icon: <AlertTriangle size={16} />, color: 'red' },
+                                                        { status: 'noRating' as const, label: 'No Rating', desc: 'No PDP rating yet', icon: <HelpCircle size={16} />, color: 'slate' },
+                                                    ]).map(({ status, label, desc, icon, color }) => {
+                                                        const group = executiveHealth[expandedPareto!][status];
+                                                        return (
+                                                            <motion.div
+                                                                key={status}
+                                                                initial={{ opacity: 0, y: 8 }}
+                                                                animate={{ opacity: 1, y: 0 }}
+                                                                whileHover={{ scale: 1.02 }}
+                                                                onClick={() => {
+                                                                    if (!expandedPareto || !executiveHealth?.[expandedPareto]) return;
+                                                                    setSkuModalData({
+                                                                        skus: group.skus,
+                                                                        bucketLabel: executiveHealth[expandedPareto].name,
+                                                                        statusLabel: label,
+                                                                        statusColor: color,
+                                                                        totalRatings: group.totalRatings,
+                                                                        avgPlatformRating: group.avgPlatformRating,
+                                                                        positiveRate: group.positiveRate,
+                                                                    });
+                                                                }}
+                                                                className={`p-4 rounded-xl cursor-pointer transition-all border-2 border-slate-200/40 dark:border-slate-700/40 hover:border-${color}-300 dark:hover:border-${color}-600 hover:shadow-md bg-gradient-to-br from-${color}-500/5 to-transparent`}
+                                                            >
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <div className={`text-${color}-500`}>{icon}</div>
+                                                                    <div>
+                                                                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{label}</span>
+                                                                        <p className="text-[9px] text-slate-400">{desc}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-baseline gap-1.5">
+                                                                    <span className={`text-2xl font-bold text-${color}-600 dark:text-${color}-400`}>
+                                                                        {group.count}
+                                                                    </span>
+                                                                    <span className="text-xs text-slate-400">SKUs</span>
+                                                                </div>
+                                                                <div className="mt-2">
+                                                                    <RatingSummaryInline
+                                                                        metrics={createRatingMetrics({
+                                                                            pdp_rating: group.avgPlatformRating,
+                                                                            user_rating: group.userRating ?? null,
+                                                                            ml_rating: group.mlRating ?? null,
+                                                                            review_count: group.totalReviewCount ?? 0,
+                                                                            rating_count: group.totalRatings,
+                                                                        })}
+                                                                        title={`${label} group`}
+                                                                    />
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-1">
+                                                                    {group.positiveRate > 0 && (
+                                                                        <span className="flex items-center gap-0.5 text-[9px] text-emerald-500 font-medium">
+                                                                            <TrendingUp size={9} />
+                                                                            {group.positiveRate}%
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </motion.div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </motion.div>
                                     )}
-                                </motion.div>
-                                );
-                            })}
-                        </div>
+                                </AnimatePresence>
 
-                        {/* ===== DRILL-DOWN LEVEL 2: Rating Bifurcation (NP / Issue / NI) ===== */}
-                        <AnimatePresence>
-                            {expandedPareto && executiveHealth[expandedPareto] && (
-                                <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    className="overflow-hidden"
-                                >
-                                    <div className="card p-5">
-                                        <h3 className="font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
-                                            <Activity size={16} className="text-indigo-500" />
-                                            {executiveHealth[expandedPareto].name} — Rating Bifurcation
-                                            <InfoTooltip definition={TOOLTIPS.ratingBifurcation} placement="right" />
-                                        </h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                                            {([
-                                                { status: 'np' as const, label: 'No Problem (NP)', desc: '≥4.2 Rating', icon: <CheckCircle2 size={16} />, color: 'emerald' },
-                                                { status: 'ni' as const, label: 'No Issue (NI)', desc: '4.0–4.2 Rating', icon: <Shield size={16} />, color: 'blue' },
-                                                { status: 'issue' as const, label: 'Issue', desc: '<4.0 Rating', icon: <XCircle size={16} />, color: 'orange' },
-                                                { status: 'critical' as const, label: 'Critical Issue', desc: '>15% 1-Star', icon: <AlertTriangle size={16} />, color: 'red' },
-                                                { status: 'noRating' as const, label: 'No Rating', desc: 'No PDP rating yet', icon: <HelpCircle size={16} />, color: 'slate' },
-                                            ]).map(({ status, label, desc, icon, color }) => {
-                                                const group = executiveHealth[expandedPareto!][status];
-                                                return (
-                                                    <motion.div
-                                                        key={status}
-                                                        initial={{ opacity: 0, y: 8 }}
-                                                        animate={{ opacity: 1, y: 0 }}
-                                                        whileHover={{ scale: 1.02 }}
-                                                        onClick={() => {
-                                                            if (!expandedPareto || !executiveHealth?.[expandedPareto]) return;
-                                                            setSkuModalData({
-                                                                skus: group.skus,
-                                                                bucketLabel: executiveHealth[expandedPareto].name,
-                                                                statusLabel: label,
-                                                                statusColor: color,
-                                                                totalRatings: group.totalRatings,
-                                                                avgPlatformRating: group.avgPlatformRating,
-                                                                positiveRate: group.positiveRate,
-                                                            });
-                                                        }}
-                                                        className={`p-4 rounded-xl cursor-pointer transition-all border-2 border-slate-200/40 dark:border-slate-700/40 hover:border-${color}-300 dark:hover:border-${color}-600 hover:shadow-md bg-gradient-to-br from-${color}-500/5 to-transparent`}
-                                                    >
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <div className={`text-${color}-500`}>{icon}</div>
-                                                            <div>
-                                                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{label}</span>
-                                                                <p className="text-[9px] text-slate-400">{desc}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-baseline gap-1.5">
-                                                            <span className={`text-2xl font-bold text-${color}-600 dark:text-${color}-400`}>
-                                                                {group.count}
-                                                            </span>
-                                                            <span className="text-xs text-slate-400">SKUs</span>
-                                                        </div>
-                                                        <div className="mt-2">
-                                                            <RatingSummaryInline
-                                                                metrics={createRatingMetrics({
-                                                                    pdp_rating: group.avgPlatformRating,
-                                                                    user_rating: group.userRating ?? null,
-                                                                    ml_rating: group.mlRating ?? null,
-                                                                    review_count: group.totalReviewCount ?? 0,
-                                                                    rating_count: group.totalRatings,
-                                                                })}
-                                                                title={`${label} group`}
-                                                            />
-                                                        </div>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            {group.positiveRate > 0 && (
-                                                                <span className="flex items-center gap-0.5 text-[9px] text-emerald-500 font-medium">
-                                                                    <TrendingUp size={9} />
-                                                                    {group.positiveRate}%
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </motion.div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        {/* SKU List Modal (replaces inline Level 3 table) */}
-                        <SkuListModal
-                            isOpen={!!skuModalData}
-                            onClose={() => setSkuModalData(null)}
-                            skus={skuModalData?.skus ?? []}
-                            bucketLabel={skuModalData?.bucketLabel ?? ''}
-                            statusLabel={skuModalData?.statusLabel ?? ''}
-                            statusColor={skuModalData?.statusColor ?? 'slate'}
-                            totalRatings={skuModalData?.totalRatings ?? 0}
-                            avgPlatformRating={skuModalData?.avgPlatformRating ?? null}
-                            positiveRate={skuModalData?.positiveRate ?? 0}
-                        />
+                                {/* SKU List Modal (replaces inline Level 3 table) */}
+                                <SkuListModal
+                                    isOpen={!!skuModalData}
+                                    onClose={() => setSkuModalData(null)}
+                                    skus={skuModalData?.skus ?? []}
+                                    bucketLabel={skuModalData?.bucketLabel ?? ''}
+                                    statusLabel={skuModalData?.statusLabel ?? ''}
+                                    statusColor={skuModalData?.statusColor ?? 'slate'}
+                                    totalRatings={skuModalData?.totalRatings ?? 0}
+                                    avgPlatformRating={skuModalData?.avgPlatformRating ?? null}
+                                    positiveRate={skuModalData?.positiveRate ?? 0}
+                                />
+                            </>
+                        )}
                     </>
                 )}
 

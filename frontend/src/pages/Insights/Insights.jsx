@@ -66,6 +66,7 @@ import dayjs from "dayjs";
 import { Typography, Divider, Skeleton, Tooltip } from "@mui/material";
 import InsightsOnboardingTour, { DrillDownTour } from "@/components/insights/InsightsOnboardingTour";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
+import { useAuth } from "@/utils/AuthContext";
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -2515,7 +2516,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex-1 flex flex-col h-full" style={{ maxWidth: "100%" }}>
+                        <div className="flex-1 flex flex-col h-full" style={{ maxWidth: "100%", minHeight: 0 }}>
                             {/* Modal Header */}
                             <div className="modal-header-container" style={{
                                 background: "#fff",
@@ -2637,7 +2638,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                             </div>
 
                             {/* Body */}
-                            <div className="modal-body-container" style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fafcff", overflow: "hidden" }}>
+                            <div className="modal-body-container" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "#fafcff", overflow: "hidden" }}>
                                 {loading ? (
                                     <div style={{ flex: 1, padding: "24px" }}>
                                         <div className="skeleton-pulse" style={{ width: "100%", height: "100%", borderRadius: "12px" }} />
@@ -2735,6 +2736,9 @@ const StatsPillsSkeleton = () => (
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
 const InsightsSignalHub = () => {
+    const { user } = useAuth();
+    const [insightsKpiConfig, setInsightsKpiConfig] = useState(user?.tabPermissions?.Insights?.kpi || {});
+
     const {
         refreshFilters,
         maxDate,
@@ -2895,6 +2899,9 @@ const InsightsSignalHub = () => {
                     ...(compareEnd ? { compareEndDate: compareEnd.format("YYYY-MM-DD") } : {}),
                 };
                 const data = await fetchInsights(apiPayload);
+                if (data?.insightsKpi) {
+                    setInsightsKpiConfig(data.insightsKpi);
+                }
                 const apiResponseList = data?.success && Array.isArray(data?.data) ? data.data : [];
                 const apiBrandName = apiResponseList.find((i) => i.brandName)?.brandName || "Brand";
                 const enforcedInsights = REQUIRED_SIGNAL_TYPES.map((requiredType) => {
@@ -2917,7 +2924,33 @@ const InsightsSignalHub = () => {
 
     const allInsights = useMemo(() => fetchedInsights, [fetchedInsights]);
 
-    const filteredInsights = allInsights;
+    const filteredInsights = useMemo(() => {
+        return allInsights.filter(insight => {
+            const meta = SIGNAL_META[insight.type];
+            if (!meta) return true;
+
+            const typeToKey = {
+                "Share Headroom Hotspots": "share_headroom_hotspots",
+                "Price Parity Radar": "price_parity_radar",
+                "DS Listing Summary": "ds_listing_summary",
+                "Competitor OSA Weak Spots": "competitor_osa_weak_spots",
+                "Remove Ad Low OSA": "remove_ad_low_osa",
+                "Surplus Stock": "surplus_stock",
+                "Prioritise PO": "prioritise_po",
+                "Transfer Issue": "transfer_issue",
+                "New Market Entry": "new_market_entry",
+                "Dark Store Coverage Gaps": "dark_store_coverage_gaps",
+                "New Dark Store Expansion": "new_dark_store_expansion",
+                "Co-Relations": "co_relations"
+            };
+
+            const key = typeToKey[insight.type];
+            if (key && typeof insightsKpiConfig[key] !== 'undefined') {
+                return insightsKpiConfig[key] === true;
+            }
+            return true;
+        });
+    }, [allInsights, insightsKpiConfig]);
 
     const selected = useMemo(() => allInsights.find((x) => x.id === selectedId) ?? null, [allInsights, selectedId]);
     const totalImpact = filteredInsights.reduce((s, i) => s + (i.impactInr || 0), 0);
@@ -3021,7 +3054,7 @@ const InsightsSignalHub = () => {
     };
 
     return (
-        <CommonContainer title="Insights" disablePadding={true}>
+        <CommonContainer title="Insights" disablePadding={true} fullHeight={true}>
             <InsightsOnboardingTour enabled={!loading && fetchedInsights.length > 0} />
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
@@ -3097,17 +3130,8 @@ const InsightsSignalHub = () => {
                 /* ── Responsive Signal Grid ── */
                 .insights-signal-grid {
                     display: grid;
-                    grid-template-columns: repeat(4, 1fr);
+                    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
                     gap: 12px;
-                }
-                @media (max-width: 1400px) {
-                    .insights-signal-grid { grid-template-columns: repeat(3, 1fr); }
-                }
-                @media (max-width: 1100px) {
-                    .insights-signal-grid { grid-template-columns: repeat(2, 1fr); }
-                }
-                @media (max-width: 700px) {
-                    .insights-signal-grid { grid-template-columns: 1fr; }
                 }
                 /* ── Responsive Filter Grid ── */
                 .insights-filter-grid {
@@ -3178,14 +3202,13 @@ const InsightsSignalHub = () => {
 
             <div className="insights-page" style={{
                 background: "#f8fafc",
-                height: "100%",
                 flex: 1,
                 display: "flex",
                 flexDirection: "column",
-                overflow: "hidden",
                 position: "relative",
             }}>
                 <div className="insights-main-container" style={{ width: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+
 
                     {/* ── Page Header ──────────────────────────────────── ┐*/}
                     <div style={{

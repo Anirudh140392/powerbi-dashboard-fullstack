@@ -273,9 +273,22 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         const { startDate: sDate, endDate: eDate } = filters.dateRange;
         return allCompetitorReviews.filter(r => {
             const d = new Date(r.date);
-            return d >= sDate && d <= eDate;
+            const inDate = d >= sDate && d <= eDate;
+            if (!inDate) return false;
+            
+            if (filters.priceRange) {
+                const rAny = r as any;
+                const price = filters.priceMode === 'rp'
+                    ? (rAny.priceRp ?? undefined)
+                    : (rAny.priceSp ?? rAny.priceRp ?? undefined);
+                // Only exclude if price data is present AND outside the selected range
+                if (price !== undefined && price !== null && (price < filters.priceRange.min || price > filters.priceRange.max)) {
+                    return false;
+                }
+            }
+            return true;
         });
-    }, [allCompetitorReviews, filters.dateRange]);
+    }, [allCompetitorReviews, filters.dateRange, filters.priceMode, filters.priceRange]);
 
     // --- Available categories (server-driven only) ---
     const availableCategories = useMemo(() => {
@@ -454,6 +467,19 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
             result = result.filter(r => r.platform === filters.competitorPlatform);
         }
 
+        // Apply Product Category filter
+        if (filters.productCategory) {
+            result = result.filter(r => {
+                const rAny = r as any;
+                return rAny.category === filters.productCategory || rAny.productCategory === filters.productCategory;
+            });
+        }
+
+        // Apply Brand filter if it is a competitor brand
+        if (filters.brand) {
+            result = result.filter(r => r.brand === filters.brand);
+        }
+
         // Apply Search Term filter
         if (filters.searchTerm) {
             const term = filters.searchTerm.toLowerCase();
@@ -467,7 +493,7 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         }
 
         return result;
-    }, [dateFilteredCompetitor, filters.category, filters.competitorPlatform, filters.searchTerm]);
+    }, [dateFilteredCompetitor, filters.category, filters.productCategory, filters.brand, filters.competitorPlatform, filters.searchTerm]);
 
     // --- Available platforms (config-driven) ---
     const PLATFORM_METADATA: Record<string, { label: string; icon: string; color: string }> = {

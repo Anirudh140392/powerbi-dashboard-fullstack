@@ -19,7 +19,8 @@ export const getInsights = async (req, res) => {
         
         res.status(200).json({
             success: true,
-            data: result
+            data: result,
+            insightsKpi: req.user?.tabPermissions?.Insights?.kpi || {}
         });
     } catch (error) {
         console.error('Error in getInsights:', error);

@@ -26,13 +26,13 @@ import {
     MessageSquare,
     BarChart3,
 } from 'lucide-react';
-import type { CategoryHealthItem, GlobalCategoryMetadata } from '../hooks/useRatingsAPI';
+import type { CategoryHealthItem } from '../hooks/useRatingsAPI';
 import { createRatingMetrics } from '../utils/ratingMetrics';
 import { formatCompactCountValue, formatRatingValue } from '../utils/ratingMetrics';
 
 interface CategoryCardsStripProps {
     categories: CategoryHealthItem[];
-    globalMetadata?: GlobalCategoryMetadata;
+
     loading: boolean;
     selectedCategory: string | null;
     onCategorySelect: (category: string | null) => void;
@@ -416,7 +416,6 @@ function ScrollArrow({
 // ─── Main component ───────────────────────────────────────────────────────────
 const CategoryCardsStrip: React.FC<CategoryCardsStripProps> = ({
     categories,
-    globalMetadata,
     loading,
     selectedCategory,
     onCategorySelect,
@@ -512,10 +511,10 @@ const CategoryCardsStrip: React.FC<CategoryCardsStripProps> = ({
     };
 
     // ── Aggregate "All" stats ─────────────────────────────────────────────────
-    const totalReviewedSkusAll = globalMetadata?.reviewSkuCount ?? categories.reduce((s, c) => s + (c.reviewSkuCount ?? 0), 0);
-    const totalSkusAll = globalMetadata?.catalogueSkuCount ?? categories.reduce((s, c) => s + (c.catalogueSkuCount ?? c.skuCount), 0);
-    const totalReviewsAll = globalMetadata?.reviewCount ?? categories.reduce((s, c) => s + c.reviewCount, 0);
-    const totalRatingsAll = globalMetadata?.totalRatings ?? categories.reduce((s, c) => s + c.totalRatings, 0);
+    const totalReviewedSkusAll = categories.reduce((s, c) => s + (c.reviewSkuCount ?? 0), 0);
+    const totalSkusAll = categories.reduce((s, c) => s + (c.catalogueSkuCount ?? c.skuCount), 0);
+    const totalReviewsAll = categories.reduce((s, c) => s + c.reviewCount, 0);
+    const totalRatingsAll = categories.reduce((s, c) => s + c.totalRatings, 0);
     const weightedUser = categories.reduce((s, c) => s + (c.avgReviewRating || 0) * c.reviewCount, 0);
     const weightedMl = categories.reduce((s, c) => s + ((c.avgMlRating ?? 0)) * c.reviewCount, 0);
     const weightedPdp = categories.reduce((s, c) => s + ((c.avgPlatformRating ?? 0)) * c.totalRatings, 0);
