@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { FilterContext } from '../../utils/FilterContext';
+import { useAuth } from '../../utils/AuthContext';
+import { getClientDisplayName } from '../../utils/formatters';
 import axiosInstance from '../../api/axiosInstance';
 import {
   Box,
@@ -81,12 +83,14 @@ const ScoreCard = ({ title, score, isGreen }) => (
 );
 
 const HeaderControls = ({ title, onBack }) => {
+  const { user } = useAuth();
+  const clientName = useMemo(() => getClientDisplayName(user), [user]);
   const isKeyInsights = title === "KEY-INSIGHTS";
   return (
     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, alignItems: 'center', width: '100%' }}>
       {/* Override title area for sub-views */}
       <Typography variant="h6" sx={{ fontWeight: 500, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-        {!isKeyInsights && <>MARS <span style={{ fontWeight: 500, fontSize: '0.95rem', color: '#334155' }}>CONTENT ANALYSIS </span></>}
+        {!isKeyInsights && <>{clientName} <span style={{ fontWeight: 500, fontSize: '0.95rem', color: '#334155' }}>CONTENT ANALYSIS </span></>}
         {isKeyInsights ? title : `(${title})`}
       </Typography>
       <IconButton onClick={onBack} sx={{ bgcolor: 'white', border: '1px solid #cbd5e1', borderRadius: '50%', width: 34, height: 34, '&:hover': { bgcolor: '#f6f8fb' } }}>

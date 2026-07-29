@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ChevronRight, ChevronLeft, Sparkles, AlertTriangle,
@@ -6,12 +6,14 @@ import {
     Megaphone, MapPin, Store, Package, Eye,
     ArrowRightLeft, Target, Layers, TrendingUp, Zap, Table2, Bot
 } from "lucide-react";
+import { useAuth } from "../../utils/AuthContext";
+import { getClientDisplayName } from "../../utils/formatters";
 
 const STORAGE_KEY = "insights_tour_v9";
 const DD_KEY = "insights_dd_tour_v7";
 
-const STEPS = [
-    { target: ".dynamic-insights-bar", title: "AI Insight Engine", description: "Your automated command center. MARS continuously scans millions of retail data points — pricing, availability, market share, ad performance — and surfaces the highest-impact opportunities here every day.", icon: Sparkles, iconColor: "#8b5cf6" },
+const getSteps = (clientName = "MARS") => [
+    { target: ".dynamic-insights-bar", title: "AI Insight Engine", description: `Your automated command center. ${clientName} continuously scans millions of retail data points — pricing, availability, market share, ad performance — and surfaces the highest-impact opportunities here every day.`, icon: Sparkles, iconColor: "#8b5cf6" },
     { target: ".tour-active-signals", title: "Active Signals Counter", description: "This badge shows the total number of live insights currently flagged across all categories. Each signal represents a specific, actionable opportunity or risk that requires your attention.", icon: Target, iconColor: "#10b981" },
     { target: ".tour-total-opportunity", title: "Total Opportunity Value", description: "The cumulative revenue impact of all active signals, expressed in INR. Use this metric to prioritize — higher values mean bigger bottom-line impact if you act.", icon: TrendingUp, iconColor: "#3b82f6" },
     { target: ".tour-card-share-headroom-hotspots", title: "Share Headroom Hotspots", description: "Identifies product-location combinations where your market share has room to grow. Each row shows the offtake loss impact — the revenue you're missing because competitors are capturing demand you could serve.", icon: BarChart3, iconColor: "#4a6fa5" },
@@ -28,9 +30,9 @@ const STEPS = [
     { target: ".tour-card-new-dark-store-expansion", title: "New Dark Store Expansion", description: "Recommends locations for new dark store deployments based on demand heatmaps, competitor dark store density, and delivery radius optimization.", icon: Store, iconColor: "#6d28d9" },
 ];
 
-const DD_STEPS = [
+const getDdSteps = (clientName = "MARS") => [
     { target: ".modal-header-title-text", title: "Signal Header", description: "Shows the insight type and category. The KPI badges summarize the key metrics at a glance — fill rate, match percentage, and the total revenue impact of this signal.", icon: Eye, iconColor: "#6366f1" },
-    { target: ".dynamic-insights-bar", title: "AI Prescription Bar", description: "MARS's AI engine provides a one-line prescription — a plain-English summary of the most important action to take based on this signal's evidence data.", icon: Bot, iconColor: "#8b5cf6" },
+    { target: ".dynamic-insights-bar", title: "AI Prescription Bar", description: `${clientName}'s AI engine provides a one-line prescription — a plain-English summary of the most important action to take based on this signal's evidence data.`, icon: Bot, iconColor: "#8b5cf6" },
     { target: ".modal-body-container", title: "Evidence Table", description: "The full evidence dataset powering this signal. Each row represents a specific product-location-competitor combination with granular metrics. You can sort, filter, and export this data for deeper analysis.", icon: Table2, iconColor: "#3b82f6" },
 ];
 
@@ -346,7 +348,7 @@ const ConfirmExit = ({ onLeave, onStay }) => (
 
 // ─── Welcome ────────────────────────────────────────────────────────────────
 
-const Welcome = ({ onStart, onSkip }) => (
+const Welcome = ({ onStart, onSkip, clientName = "MARS" }) => (
     <motion.div className="t-welcome-bg"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
         <motion.div className="t-welcome"
@@ -360,7 +362,7 @@ const Welcome = ({ onStart, onSkip }) => (
                 <Sparkles size={26} color="#fff" />
             </div>
             <h2>Welcome to Insights</h2>
-            <p>Take a quick tour to learn how MARS turns raw data into actionable, revenue-driving opportunities across your entire retail landscape.</p>
+            <p>Take a quick tour to learn how {clientName} turns raw data into actionable, revenue-driving opportunities across your entire retail landscape.</p>
             <div className="t-wbtns">
                 <button className="t-wskip" onClick={onSkip}>Maybe Later</button>
                 <button className="t-wgo" onClick={onStart}>Start Tour <ChevronRight size={18} /></button>
@@ -372,6 +374,10 @@ const Welcome = ({ onStart, onSkip }) => (
 // ─── Tour Engine ────────────────────────────────────────────────────────────
 
 const InsightsOnboardingTour = ({ enabled = true }) => {
+    const { user } = useAuth();
+    const clientName = useMemo(() => getClientDisplayName(user), [user]);
+    const steps = useMemo(() => getSteps(clientName), [clientName]);
+
     const [phase, setPhase] = useState("idle"); // idle | welcome | touring | confirm | done
     const [step, setStep] = useState(0);
     const [rect, setRect] = useState(null);
@@ -385,30 +391,30 @@ const InsightsOnboardingTour = ({ enabled = true }) => {
     }, [enabled]);
 
     const measure = useCallback(() => {
-        const s = STEPS[step];
+        const s = steps[step];
         if (!s) return;
         const el = document.querySelector(s.target);
         if (el) {
             const r = el.getBoundingClientRect();
             setRect({ x: r.x, y: r.y, width: r.width, height: r.height });
         }
-    }, [step]);
+    }, [step, steps]);
 
     useEffect(() => {
         if (phase !== "touring") return;
-        const s = STEPS[step];
+        const s = steps[step];
         const el = document.querySelector(s?.target);
         if (el) {
             el.scrollIntoView({ behavior: "smooth", block: "center" });
             const t1 = setTimeout(measure, 100);
             const t2 = setTimeout(measure, 400);
             return () => { clearTimeout(t1); clearTimeout(t2); };
-        } else if (step < STEPS.length - 1) {
+        } else if (step < steps.length - 1) {
             setStep(i => i + 1);
         } else {
             finish();
         }
-    }, [phase, step, measure]);
+    }, [phase, step, measure, steps]);
 
     useEffect(() => {
         if (phase !== "touring") return;
@@ -429,14 +435,14 @@ const InsightsOnboardingTour = ({ enabled = true }) => {
     return (
         <AnimatePresence>
             {phase === "welcome" && (
-                <Welcome key="w" onStart={() => { setStep(0); setPhase("touring"); }} onSkip={finish} />
+                <Welcome key="w" clientName={clientName} onStart={() => { setStep(0); setPhase("touring"); }} onSkip={finish} />
             )}
             {(phase === "touring" || phase === "confirm") && (
                 <div key="t">
                     <Spotlight rect={rect} onOverlayClick={handleOverlayClick} />
-                    <Tooltip step={STEPS[step]} stepIndex={step}
-                        totalSteps={STEPS.length} targetRect={rect}
-                        onNext={() => step < STEPS.length - 1 ? setStep(i => i + 1) : finish()}
+                    <Tooltip step={steps[step]} stepIndex={step}
+                        totalSteps={steps.length} targetRect={rect}
+                        onNext={() => step < steps.length - 1 ? setStep(i => i + 1) : finish()}
                         onPrev={() => setStep(i => i - 1)} onSkip={finish} />
                 </div>
             )}
@@ -448,6 +454,10 @@ const InsightsOnboardingTour = ({ enabled = true }) => {
 };
 
 export const DrillDownTour = ({ enabled = true }) => {
+    const { user } = useAuth();
+    const clientName = useMemo(() => getClientDisplayName(user), [user]);
+    const ddSteps = useMemo(() => getDdSteps(clientName), [clientName]);
+
     const [phase, setPhase] = useState("idle");
     const [step, setStep] = useState(0);
     const [rect, setRect] = useState(null);
@@ -462,30 +472,30 @@ export const DrillDownTour = ({ enabled = true }) => {
     }, [enabled]);
 
     const measure = useCallback(() => {
-        const s = DD_STEPS[step];
+        const s = ddSteps[step];
         if (!s) return;
         const el = document.querySelector(s.target);
         if (el) {
             const r = el.getBoundingClientRect();
             setRect({ x: r.x, y: r.y, width: r.width, height: r.height });
         }
-    }, [step]);
+    }, [step, ddSteps]);
 
     useEffect(() => {
         if (phase !== "touring") return;
-        const s = DD_STEPS[step];
+        const s = ddSteps[step];
         const el = document.querySelector(s?.target);
         if (el) {
             el.scrollIntoView({ behavior: "smooth", block: "center" });
             const t1 = setTimeout(measure, 100);
             const t2 = setTimeout(measure, 400);
             return () => { clearTimeout(t1); clearTimeout(t2); };
-        } else if (step < DD_STEPS.length - 1) {
+        } else if (step < ddSteps.length - 1) {
             setStep(i => i + 1);
         } else {
             finish();
         }
-    }, [phase, step, measure]);
+    }, [phase, step, measure, ddSteps]);
 
     const finish = useCallback(() => {
         setPhase("done");
@@ -498,9 +508,9 @@ export const DrillDownTour = ({ enabled = true }) => {
             {(phase === "touring" && !confirm) && (
                 <div key="d">
                     <Spotlight rect={rect} onOverlayClick={() => setConfirm(true)} />
-                    <Tooltip step={DD_STEPS[step]} stepIndex={step}
-                        totalSteps={DD_STEPS.length} targetRect={rect}
-                        onNext={() => step < DD_STEPS.length - 1 ? setStep(i => i + 1) : finish()}
+                    <Tooltip step={ddSteps[step]} stepIndex={step}
+                        totalSteps={ddSteps.length} targetRect={rect}
+                        onNext={() => step < ddSteps.length - 1 ? setStep(i => i + 1) : finish()}
                         onPrev={() => setStep(i => i - 1)} onSkip={finish} />
                 </div>
             )}
