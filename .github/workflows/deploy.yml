@@ -85,7 +85,10 @@ jobs:
           ENABLE_DEBUG_LOGS=true
           Alert_email=${{ secrets.ALERT_EMAIL || 'business@trailytics.com' }}
           Alert_email_password=${{ secrets.ALERT_EMAIL_PASSWORD || 'Marketing@!22' }}
-          Whatsapp_Number=${{ secrets.WHATSAPP_NUMBER || '8766258384' }}
+          WHATSAPP_PHONE_NUMBER_ID=${{ secrets.WHATSAPP_PHONE_NUMBER_ID || '1283810401472038' }}
+          WHATSAPP_ACCESS_TOKEN=${{ secrets.WHATSAPP_ACCESS_TOKEN || 'EAAPMTMAVpQEBSBNxvjgROhRGV46WSYpGTKyvh3XOxuWfQp8wyMr0i3BzroskRPWHDWlU0aQYJubg4ssghpHak8ePQN15ck5L9SJiB1PElNVwSZAGGhMSaFY1v99UC4iIYLktojcmbETYO9CxxtIkJDzL3dFYbM9tWqhQOWNsjSBPRAZCkHwYdwDuAZC9VqZBAQZDZD' }}
+          WHATSAPP_TEMPLATE_NAME=${{ secrets.WHATSAPP_TEMPLATE_NAME || 'digital_insight_alert' }}
+          WHATSAPP_TEMPLATE_LANG=${{ secrets.WHATSAPP_TEMPLATE_LANG || 'en' }}
           EOF
             echo "✅ Main backend .env file created for ${{ env.DEPLOY_ENV }} environment"
           ENDSSH

@@ -20,6 +20,7 @@ const adminClickhouse = createClient({
     },
     keep_alive: {
         enabled: true,
+        idle_socket_ttl: 15000,
     },
 });
 

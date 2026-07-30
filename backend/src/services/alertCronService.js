@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer';
 import { queryAdminDB } from '../config/adminClickhouse.js';
 import { decrypt } from '../utils/encryption.js';
 import { generateAlertEmailHtml } from '../utils/alertEmailTemplate.js';
-import { generateWhatsappAlertText } from '../utils/whatsappTemplate.js';
+import { buildAlertTemplateComponents, buildAlertFullText } from '../utils/whatsappTemplate.js';
 import { sendWhatsappMessage } from './whatsappService.js';
 
 let cronIntervalId = null;
@@ -49,6 +49,32 @@ const evalCondition = (val, op, thresh) => {
         return Math.abs(val - thresh) < 0.01;
     }
     return val < thresh;
+};
+
+/**
+ * Format string operators into mathematical symbols (e.g. "gt" -> ">", "lt" -> "<")
+ */
+const formatOperatorSymbol = (op) => {
+    if (!op) return '<';
+    const lowerOp = String(op).toLowerCase();
+    if (lowerOp.includes('gte') || lowerOp.includes('>=')) return '>=';
+    if (lowerOp.includes('greater') || lowerOp.includes('gt') || lowerOp.includes('>')) return '>';
+    if (lowerOp.includes('lte') || lowerOp.includes('<=')) return '<=';
+    if (lowerOp.includes('equal') || lowerOp.includes('eq') || lowerOp.includes('=')) return '=';
+    return '<';
+};
+
+/**
+ * Extract user-selected platform name for display (e.g. "Blinkit", "Amazon")
+ */
+const getPlatformLabel = (platforms) => {
+    if (Array.isArray(platforms) && platforms.length > 0) {
+        const filtered = platforms.filter(p => p && p !== 'All Platforms');
+        if (filtered.length > 0) {
+            return filtered.join(', ');
+        }
+    }
+    return '';
 };
 
 /**
@@ -296,10 +322,14 @@ export const runEmailAlertsJob = async () => {
                     const osa = deno > 0 ? (neno / deno) * 100 : 100;
                     
                     isTriggered = evalCondition(osa, alert.conditional_operator, threshold);
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+                    const opSym = formatOperatorSymbol(alert.conditional_operator);
+
                     metricDetails = {
                         ruleType: 'Low OSA Alert',
                         calculatedOSA: `${osa.toFixed(2)}%`,
-                        conditionText: `Category OSA (${osa.toFixed(2)}%) ${alert.conditional_operator || '<'} ${threshold}%`,
+                        conditionText: `${platPrefix}OSA (${osa.toFixed(2)}%) ${opSym} ${threshold}%`,
                     };
                 }
                 // Rule 2: Low OSA + Active Ads Alert (low_osa_ads)
@@ -333,11 +363,15 @@ export const runEmailAlertsJob = async () => {
                     const isOsaMet = evalCondition(osa, alert.conditional_operator, threshold);
                     isTriggered = isOsaMet && adSpend > 0;
 
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+                    const opSym = formatOperatorSymbol(alert.conditional_operator);
+
                     metricDetails = {
                         ruleType: 'Low OSA + Active Ads Alert',
                         calculatedOSA: `${osa.toFixed(2)}%`,
                         adSpend: `${currency}${adSpend.toFixed(2)}`,
-                        conditionText: `OSA (${osa.toFixed(2)}%) ${alert.conditional_operator || '<'} ${threshold}% AND Ad Spend (${currency}${adSpend.toFixed(2)}) > 0`,
+                        conditionText: `${platPrefix}OSA (${osa.toFixed(2)}%) ${opSym} ${threshold}% AND Ad Spend (${currency}${adSpend.toFixed(2)}) > 0`,
                     };
                 }
                 // Rule 3: Sharp Promo/Discount Change Alert (promo_discount_change)
@@ -369,12 +403,15 @@ export const runEmailAlertsJob = async () => {
                     const shiftPct = baseDisc > 0 ? Math.abs(((currDisc - baseDisc) / baseDisc) * 100) : Math.abs(currDisc - baseDisc);
                     isTriggered = shiftPct >= threshold;
 
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+
                     metricDetails = {
                         ruleType: 'Sharp Promo/Discount Change Alert',
                         currentDiscount: `${currDisc.toFixed(2)}%`,
                         baselineDiscount: `${baseDisc.toFixed(2)}%`,
                         discountShift: `${shiftPct.toFixed(2)}%`,
-                        conditionText: `Discount Shift (${shiftPct.toFixed(2)}%) >= ${threshold}%`,
+                        conditionText: `${platPrefix}Discount Shift (${shiftPct.toFixed(2)}%) >= ${threshold}% [Curr: ${currDisc.toFixed(2)}%, Base: ${baseDisc.toFixed(2)}%]`,
                     };
                 }
                 // Rule 4: Category Health Alert (category_health)
@@ -415,14 +452,19 @@ export const runEmailAlertsJob = async () => {
                     // Health check: Triggered if OSA < threshold OR discount > threshold
                     isTriggered = osa < threshold || discount > threshold;
 
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+
+                    const formattedAdSpend = `${currency}${Math.round(adSpend).toLocaleString('en-IN')}`;
+
                     metricDetails = {
                         ruleType: 'Category Health Alert',
                         calculatedOSA: `${osa.toFixed(2)}%`,
                         averagePrice: `${currency}${price.toFixed(2)}`,
                         averageASP: `${currency}${asp.toFixed(2)}`,
                         averageDiscount: `${discount.toFixed(2)}%`,
-                        adSpend: `${currency}${adSpend.toFixed(2)}`,
-                        conditionText: `Multi-metric health deterioration evaluated against threshold ${threshold}%`,
+                        adSpend: formattedAdSpend,
+                        conditionText: `${platPrefix}Category Health • OSA: ${osa.toFixed(2)}%, Discount: ${discount.toFixed(2)}%, Ad Spend: ${formattedAdSpend}`,
                     };
                 }
                 // Fallback default (OSA Check)
@@ -441,10 +483,14 @@ export const runEmailAlertsJob = async () => {
                     const osa = deno > 0 ? (neno / deno) * 100 : 100;
                     
                     isTriggered = evalCondition(osa, alert.conditional_operator, threshold);
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+                    const opSym = formatOperatorSymbol(alert.conditional_operator);
+
                     metricDetails = {
                         ruleType: alert.alert_name || 'Custom Alert',
                         calculatedOSA: `${osa.toFixed(2)}%`,
-                        conditionText: `OSA (${osa.toFixed(2)}%) ${alert.conditional_operator || '<'} ${threshold}%`,
+                        conditionText: `${platPrefix}OSA (${osa.toFixed(2)}%) ${opSym} ${threshold}%`,
                     };
                 }
 
@@ -501,14 +547,27 @@ export const runEmailAlertsJob = async () => {
                         if (whatsappFreqCheck.allowed) {
                             console.log(`[AlertCron] WhatsApp frequency check passed (${whatsappFreqCheck.reason})! Dispatching WhatsApp alert to ${targetWhatsappNo}...`);
 
-                            const nameFromEmail = sendEmail ? sendEmail.split('@')[0] : '';
-                            const recipientName = nameFromEmail ? (nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1)) : 'there';
-                            const whatsappMsgText = generateWhatsappAlertText(recipientName);
+                            const recipientName = 'there';
+                            const brandName = dbName ? (dbName.charAt(0).toUpperCase() + dbName.slice(1)) : 'Prestige';
+                            const alertSummaryText = metricDetails.conditionText || `🔴 ${alert.alert_name} triggered for ${brandName}`;
+
+                            const components = buildAlertTemplateComponents({
+                                recipientName,
+                                clientName: brandName,
+                                lines: alertSummaryText,
+                                dashboardPathParam: '',
+                            });
+                            const fullText = buildAlertFullText({
+                                recipientName,
+                                clientName: brandName,
+                                lines: alertSummaryText,
+                            });
 
                             try {
                                 await sendWhatsappMessage({
                                     to: targetWhatsappNo,
-                                    text: whatsappMsgText
+                                    components,
+                                    text: fullText,
                                 });
 
                                 // Update last_whatsapp_msg_sent timestamp in ClickHouse
@@ -537,16 +596,16 @@ export const runEmailAlertsJob = async () => {
 };
 
 /**
- * Start the background interval task running every 30 minutes
+ * Start the background interval task running every 2 minutes
  */
 export const initAlertCron = () => {
-    const INTERVAL_MS = 30 * 60 * 1000;
+    const INTERVAL_MS = 2 * 60 * 1000;
 
     if (cronIntervalId) {
         clearInterval(cronIntervalId);
     }
 
-    console.log(`[AlertCron] Initializing alert scheduler (runs every 30 minutes)`);
+    console.log(`[AlertCron] Initializing alert scheduler (runs every 2 minutes)`);
     
     cronIntervalId = setInterval(() => {
         runEmailAlertsJob().catch(err => {
