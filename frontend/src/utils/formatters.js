@@ -1,4 +1,38 @@
 /**
+ * Derive formatted client display name from logged in user or sessionStorage
+ * @param {object} user - User object from AuthContext
+ * @returns {string} Client display name (e.g. MARS, Mamaearth, boAt, Zydus)
+ */
+export const getClientDisplayName = (user) => {
+    try {
+        const u = user || JSON.parse(sessionStorage.getItem('user') || '{}');
+        const db = u?.dbName ? String(u.dbName).toLowerCase().trim() : '';
+        if (!db) return 'Trailytics';
+
+        if (db === 'mamaearth') return 'Mamaearth';
+        if (db === 'mars_petcare') return 'Mars Petcare';
+        if (db === 'mars_dmart' || db === 'mars') return 'MARS';
+        if (db === 'boat') return 'boAt';
+        if (db === 'zydus' || db === 'hm_zydus') return 'Zydus';
+        if (db === 'sugar') return 'Sugar';
+        if (db === 'pidilite') return 'Pidilite';
+        if (db === 'cheffin') return 'Cheffin';
+        if (db === 'drl') return 'DRL';
+        if (db === 'emami') return 'Emami';
+        if (db === 'hm_titan_bags') return 'Fastrack';
+        if (db === 'hm_titan_skinn') return 'Titan Skinn';
+        if (db === 'hm_titan_perfume') return 'Titan Perfume';
+        if (db === 'hm_amz_dev') return 'Amazon Device';
+        if (db === 'hm_stahl') return 'Stahl';
+        if (db === 'trailytics') return 'Trailytics';
+
+        return db.replace(/^hm_/, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    } catch (e) {
+        return 'Trailytics';
+    }
+};
+
+/**
  * Format numbers to Indian currency format (K, Lac, Cr, B)
  * @param {number} num - Number to format
  * @param {number} decimals - Number of decimal places (default: 2)

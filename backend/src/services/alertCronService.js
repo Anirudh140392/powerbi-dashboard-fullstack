@@ -537,16 +537,16 @@ export const runEmailAlertsJob = async () => {
 };
 
 /**
- * Start the background interval task running every 2 minutes
+ * Start the background interval task running every 30 minutes
  */
 export const initAlertCron = () => {
-    const INTERVAL_MS = 2 * 60 * 1000;
+    const INTERVAL_MS = 30 * 60 * 1000;
 
     if (cronIntervalId) {
         clearInterval(cronIntervalId);
     }
 
-    console.log(`[AlertCron] Initializing email alert scheduler (runs every 2 minutes)`);
+    console.log(`[AlertCron] Initializing alert scheduler (runs every 30 minutes)`);
     
     cronIntervalId = setInterval(() => {
         runEmailAlertsJob().catch(err => {

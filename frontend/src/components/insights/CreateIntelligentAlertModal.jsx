@@ -33,17 +33,6 @@ const ALERT_PRESETS = [
         severity: "High",
     },
     {
-        id: "low_osa_ads",
-        name: "Low OSA + Active Ads Alert",
-        category: "Performance Marketing & Ad Efficiency",
-        metrics: ["OSA %", "Ad Spend"],
-        formula: "OSA < Threshold AND Ad Spend > 0",
-        condition: "OSA below threshold with active ad spend (Ad Spend > 0)",
-        operator: "lt",
-        defaultThreshold: "85",
-        severity: "Critical",
-    },
-    {
         id: "promo_discount_change",
         name: "Sharp Promo/Discount Change Alert",
         category: "Pricing Positioning & Discounts",
@@ -115,14 +104,14 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const filterCtx = useContext(FilterContext) || {};
 
     // Multi-Select Preset Rules State
-    const [selectedPresetIds, setSelectedPresetIds] = useState(["low_osa_ads"]);
+    const [selectedPresetIds, setSelectedPresetIds] = useState(["low_osa"]);
     const [showPresetDropdown, setShowPresetDropdown] = useState(false);
 
     // Custom Alert Name & User Override Tracking
-    const [alertName, setAlertName] = useState("Low OSA + Active Ads Alert");
+    const [alertName, setAlertName] = useState("Low OSA Alert");
     const [isCustomAlertName, setIsCustomAlertName] = useState(false);
 
-    const [category, setCategory] = useState("Performance Marketing & Ad Efficiency");
+    const [category, setCategory] = useState("Inventory & On-Shelf Availability");
     const [triggerOperator, setTriggerOperator] = useState("lt");
     const [thresholdValue, setThresholdValue] = useState("85");
     const [comparisonPeriod, setComparisonPeriod] = useState("vs 7-Day Average");
@@ -191,8 +180,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
             }
         } else if (open && !editingAlert) {
             setIsCustomAlertName(false);
-            setAlertName("Low OSA + Active Ads Alert");
-            setSelectedPresetIds(["low_osa_ads"]);
+            setAlertName("Low OSA Alert");
+            setSelectedPresetIds(["low_osa"]);
             setSelectedPlatforms([]);
             setSelectedBrands([]);
         }
@@ -1042,7 +1031,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                 <input
                                     type="text"
                                     className="form-input-focus"
-                                    placeholder="e.g., Low OSA + Active Ads Alert"
+                                    placeholder="e.g., Low OSA Alert"
                                     value={alertName}
                                     onChange={(e) => {
                                         setAlertName(e.target.value);

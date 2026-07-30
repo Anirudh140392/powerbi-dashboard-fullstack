@@ -1119,7 +1119,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     const [tab, setTab] = useState("brand");
 
     const { selectedChannel, selectedMsl } = useContext(FilterContext);
-    const [city, setCity] = useState("All India");
+    const [city, setCity] = useState("Select All");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
     const [filters, setFilters] = useState({
         categories: [],
@@ -1132,7 +1132,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
     const [trendData, setTrendData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [availableCities, setAvailableCities] = useState(["All India"]);
+    const [availableCities, setAvailableCities] = useState(["Select All"]);
 
     // Derive active filters and city (controlled vs uncontrolled pattern)
     const activeFilters = useMemo(() => {
@@ -1149,7 +1149,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
 
     const activeCity = useMemo(() => {
         if (drawerFilters) {
-            return drawerFilters.City === 'All' ? 'All India' : drawerFilters.City;
+            return (drawerFilters.City === 'All' || drawerFilters.City === 'All India') ? 'Select All' : drawerFilters.City;
         }
         return city;
     }, [drawerFilters, city]);
@@ -1176,7 +1176,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
         if (setDrawerFilters) {
             setDrawerFilters(prev => ({
                 ...prev,
-                City: newCity === 'All India' ? 'All' : newCity
+                City: (newCity === 'All India' || newCity === 'Select All' || newCity === 'All') ? 'All' : newCity
             }));
         } else {
             setCity(newCity);
@@ -1194,7 +1194,9 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                     }
                 });
                 if (response.data && response.data.locations) {
-                    setAvailableCities(response.data.locations);
+                    const rawLocs = response.data.locations || [];
+                    const cleanLocs = rawLocs.filter(c => c !== 'Select All' && c !== 'All' && c !== 'All India');
+                    setAvailableCities(['Select All', ...cleanLocs]);
                 }
             } catch (error) {
                 console.error('[AvailabilityCompetitionKpiShowcase] Error fetching cities:', error);
