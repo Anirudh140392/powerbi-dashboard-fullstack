@@ -147,24 +147,25 @@ const getCurrencySymbol = (dbName) => {
 };
 
 /**
- * Helper to check if enough time has passed since last_email_sent according to alert_frequency
+ * Helper to check if enough time has passed since last_email_sent or last_whatsapp_msg_sent according to alert_frequency
  * - Real-time: Always send (no frequency delay)
- * - Hourly: Requires >= 1 hour (3600 sec) elapsed since last_email_sent
- * - Daily: Requires >= 24 hours (86400 sec) elapsed since last_email_sent
- * - Weekly: Requires >= 7 days (604800 sec) elapsed since last_email_sent
+ * - Minutes: Requires >= N minutes elapsed since last dispatch
+ * - Hourly: Requires >= 1 hour (3600 sec) elapsed since last dispatch
+ * - Daily: Requires >= 24 hours (86400 sec) elapsed since last dispatch
+ * - Weekly: Requires >= 7 days (604800 sec) elapsed since last dispatch
  */
-const shouldSendBasedOnFrequency = (lastEmailSent, alertFrequency) => {
-    // If no email has ever been sent, dispatch immediately when condition triggers
-    if (!lastEmailSent || String(lastEmailSent).includes('\\N') || String(lastEmailSent).trim() === '' || String(lastEmailSent).startsWith('1970')) {
-        return { allowed: true, reason: 'First email dispatch' };
+const shouldSendBasedOnFrequency = (lastSentDateStr, alertFrequency) => {
+    // If no message has ever been sent, dispatch immediately when condition triggers
+    if (!lastSentDateStr || String(lastSentDateStr).includes('\\N') || String(lastSentDateStr).trim() === '' || String(lastSentDateStr).startsWith('1970')) {
+        return { allowed: true, reason: 'First dispatch' };
     }
 
-    // Parse lastEmailSent into Date object
-    const normalizedStr = String(lastEmailSent).replace(' ', 'T');
+    // Parse lastSentDateStr into Date object
+    const normalizedStr = String(lastSentDateStr).replace(' ', 'T');
     const lastSentDate = new Date(normalizedStr);
     
     if (isNaN(lastSentDate.getTime())) {
-        return { allowed: true, reason: 'Invalid last email date, allowing dispatch' };
+        return { allowed: true, reason: 'Invalid last dispatch date, allowing dispatch' };
     }
 
     const now = new Date();
@@ -178,6 +179,22 @@ const shouldSendBasedOnFrequency = (lastEmailSent, alertFrequency) => {
         return { allowed: true, reason: 'Real-time frequency' };
     }
 
+    // Custom minute parsing (e.g. "30 minutes", "15 mins")
+    const matchMins = freqLower.match(/(\d+)\s*(min|minute)/);
+    if (matchMins) {
+        const requiredMins = parseInt(matchMins[1], 10);
+        const requiredMs = requiredMins * 60 * 1000;
+        if (diffMs >= requiredMs) {
+            return { allowed: true, reason: `${requiredMins}-minute frequency met (${diffMins} mins passed)` };
+        } else {
+            const minsRemaining = Math.ceil((requiredMs - diffMs) / (60 * 1000));
+            return {
+                allowed: false,
+                reason: `Frequency is ${requiredMins} minutes. Only ${diffMins} mins passed since last dispatch (${lastSentDateStr} IST). Waiting ${minsRemaining} more mins.`
+            };
+        }
+    }
+
     if (freqLower.includes('hourly') || freqLower.includes('hour')) {
         const oneHourMs = 60 * 60 * 1000;
         if (diffMs >= oneHourMs) {
@@ -186,7 +203,7 @@ const shouldSendBasedOnFrequency = (lastEmailSent, alertFrequency) => {
             const minsRemaining = Math.ceil((oneHourMs - diffMs) / (60 * 1000));
             return { 
                 allowed: false, 
-                reason: `Frequency is Hourly. Only ${diffMins} mins passed since last email (${lastEmailSent} IST). Waiting ${minsRemaining} more mins.` 
+                reason: `Frequency is Hourly. Only ${diffMins} mins passed since last dispatch (${lastSentDateStr} IST). Waiting ${minsRemaining} more mins.` 
             };
         }
     }
@@ -199,7 +216,7 @@ const shouldSendBasedOnFrequency = (lastEmailSent, alertFrequency) => {
             const hoursRemaining = ((oneDayMs - diffMs) / (60 * 60 * 1000)).toFixed(1);
             return { 
                 allowed: false, 
-                reason: `Frequency is Daily. Only ${diffHours} hrs passed since last email (${lastEmailSent} IST). Waiting ${hoursRemaining} more hours.` 
+                reason: `Frequency is Daily. Only ${diffHours} hrs passed since last dispatch (${lastSentDateStr} IST). Waiting ${hoursRemaining} more hours.` 
             };
         }
     }
@@ -212,7 +229,7 @@ const shouldSendBasedOnFrequency = (lastEmailSent, alertFrequency) => {
             const daysRemaining = ((oneWeekMs - diffMs) / (24 * 60 * 60 * 1000)).toFixed(1);
             return { 
                 allowed: false, 
-                reason: `Frequency is Weekly. Only ${diffHours} hrs passed since last email (${lastEmailSent} IST). Waiting ${daysRemaining} more days.` 
+                reason: `Frequency is Weekly. Only ${diffHours} hrs passed since last dispatch (${lastSentDateStr} IST). Waiting ${daysRemaining} more days.` 
             };
         }
     }
@@ -596,16 +613,16 @@ export const runEmailAlertsJob = async () => {
 };
 
 /**
- * Start the background interval task running every 2 minutes
+ * Start the background interval task running every 30 minutes
  */
 export const initAlertCron = () => {
-    const INTERVAL_MS = 2 * 60 * 1000;
+    const INTERVAL_MS = 30 * 60 * 1000;
 
     if (cronIntervalId) {
         clearInterval(cronIntervalId);
     }
 
-    console.log(`[AlertCron] Initializing alert scheduler (runs every 2 minutes)`);
+    console.log(`[AlertCron] Initializing alert scheduler (runs every 30 minutes)`);
     
     cronIntervalId = setInterval(() => {
         runEmailAlertsJob().catch(err => {
