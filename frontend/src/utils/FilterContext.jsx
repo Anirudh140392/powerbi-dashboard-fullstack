@@ -289,6 +289,7 @@ export const FilterProvider = ({ children }) => {
     }, [fetchChannels]);
 
     const prevChannelRef = useRef(selectedChannel);
+    const activePlatformReq = useRef(0);
 
     // ====== FETCH PLATFORMS FROM DB (based on channel) ======
     const fetchPlatformsFromDb = useCallback(async () => {
@@ -436,9 +437,14 @@ export const FilterProvider = ({ children }) => {
                     }
                 }
             } else if (window.location.hash.includes('/content-analysis') || window.location.hash.includes('/content-score')) {
+                const reqId = ++activePlatformReq.current;
                 const res = await axiosInstance.get("/content-analysis/platforms", {
                     params: { channel: selectedChannel === "All" ? undefined : selectedChannel }
                 });
+                if (reqId !== activePlatformReq.current) {
+                    console.log("[FilterContext] Ignoring stale platforms response for", selectedChannel);
+                    return;
+                }
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched dynamic platforms from Content Analysis:", res.data);
                     setPlatforms(res.data);
@@ -458,9 +464,14 @@ export const FilterProvider = ({ children }) => {
                 // Refresh channels for other pages to clear any restricted lists (like from Market Share)
                 fetchChannels();
                 
+                const reqId = ++activePlatformReq.current;
                 const res = await axiosInstance.get("/watchtower/platforms", {
                     params: { channel: selectedChannel === "All" ? undefined : selectedChannel }
                 });
+                if (reqId !== activePlatformReq.current) {
+                    console.log("[FilterContext] Ignoring stale platforms response for", selectedChannel);
+                    return;
+                }
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched dynamic platforms from Watchtower:", res.data);
                     setPlatforms(res.data);

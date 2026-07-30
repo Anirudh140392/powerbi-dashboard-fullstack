@@ -1,8 +1,15 @@
-import { queryClickHouse } from './src/config/clickhouse.js';
-async function test() {
-  try {
-    const result = await queryClickHouse("DESCRIBE mars.rb_product_verify");
-    console.log("mars.rb_product_verify columns:", result.map(r => r.name).join(', '));
-  } catch (e) { console.error(e); }
+import db from './src/config/clickhouse.js';
+import dotenv from 'dotenv';
+dotenv.config();
+
+async function run() {
+    try {
+        const query1 = `SELECT DISTINCT lower(Platform) as p FROM rb_pdp_olap WHERE lower(channel) = 'quickcomm'`;
+        const res1 = await db.query({ query: query1, format: 'JSONEachRow' });
+        const data = await res1.json();
+        console.log("PDP QComm Platforms:", data);
+    } catch (e) {
+        console.error("Error:", e.message);
+    }
 }
-test().catch(console.error);
+run();
