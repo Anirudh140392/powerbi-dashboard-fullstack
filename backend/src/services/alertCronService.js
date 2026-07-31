@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer';
 import { queryAdminDB } from '../config/adminClickhouse.js';
 import { decrypt } from '../utils/encryption.js';
 import { generateAlertEmailHtml } from '../utils/alertEmailTemplate.js';
-import { generateWhatsappAlertText } from '../utils/whatsappTemplate.js';
+import { buildAlertTemplateComponents, buildAlertFullText } from '../utils/whatsappTemplate.js';
 import { sendWhatsappMessage } from './whatsappService.js';
 
 let cronIntervalId = null;
@@ -49,6 +49,32 @@ const evalCondition = (val, op, thresh) => {
         return Math.abs(val - thresh) < 0.01;
     }
     return val < thresh;
+};
+
+/**
+ * Format string operators into mathematical symbols (e.g. "gt" -> ">", "lt" -> "<")
+ */
+const formatOperatorSymbol = (op) => {
+    if (!op) return '<';
+    const lowerOp = String(op).toLowerCase();
+    if (lowerOp.includes('gte') || lowerOp.includes('>=')) return '>=';
+    if (lowerOp.includes('greater') || lowerOp.includes('gt') || lowerOp.includes('>')) return '>';
+    if (lowerOp.includes('lte') || lowerOp.includes('<=')) return '<=';
+    if (lowerOp.includes('equal') || lowerOp.includes('eq') || lowerOp.includes('=')) return '=';
+    return '<';
+};
+
+/**
+ * Extract user-selected platform name for display (e.g. "Blinkit", "Amazon")
+ */
+const getPlatformLabel = (platforms) => {
+    if (Array.isArray(platforms) && platforms.length > 0) {
+        const filtered = platforms.filter(p => p && p !== 'All Platforms');
+        if (filtered.length > 0) {
+            return filtered.join(', ');
+        }
+    }
+    return '';
 };
 
 /**
@@ -121,24 +147,25 @@ const getCurrencySymbol = (dbName) => {
 };
 
 /**
- * Helper to check if enough time has passed since last_email_sent according to alert_frequency
+ * Helper to check if enough time has passed since last_email_sent or last_whatsapp_msg_sent according to alert_frequency
  * - Real-time: Always send (no frequency delay)
- * - Hourly: Requires >= 1 hour (3600 sec) elapsed since last_email_sent
- * - Daily: Requires >= 24 hours (86400 sec) elapsed since last_email_sent
- * - Weekly: Requires >= 7 days (604800 sec) elapsed since last_email_sent
+ * - Minutes: Requires >= N minutes elapsed since last dispatch
+ * - Hourly: Requires >= 1 hour (3600 sec) elapsed since last dispatch
+ * - Daily: Requires >= 24 hours (86400 sec) elapsed since last dispatch
+ * - Weekly: Requires >= 7 days (604800 sec) elapsed since last dispatch
  */
-const shouldSendBasedOnFrequency = (lastEmailSent, alertFrequency) => {
-    // If no email has ever been sent, dispatch immediately when condition triggers
-    if (!lastEmailSent || String(lastEmailSent).includes('\\N') || String(lastEmailSent).trim() === '' || String(lastEmailSent).startsWith('1970')) {
-        return { allowed: true, reason: 'First email dispatch' };
+const shouldSendBasedOnFrequency = (lastSentDateStr, alertFrequency) => {
+    // If no message has ever been sent, dispatch immediately when condition triggers
+    if (!lastSentDateStr || String(lastSentDateStr).includes('\\N') || String(lastSentDateStr).trim() === '' || String(lastSentDateStr).startsWith('1970')) {
+        return { allowed: true, reason: 'First dispatch' };
     }
 
-    // Parse lastEmailSent into Date object
-    const normalizedStr = String(lastEmailSent).replace(' ', 'T');
+    // Parse lastSentDateStr into Date object
+    const normalizedStr = String(lastSentDateStr).replace(' ', 'T');
     const lastSentDate = new Date(normalizedStr);
     
     if (isNaN(lastSentDate.getTime())) {
-        return { allowed: true, reason: 'Invalid last email date, allowing dispatch' };
+        return { allowed: true, reason: 'Invalid last dispatch date, allowing dispatch' };
     }
 
     const now = new Date();
@@ -152,6 +179,22 @@ const shouldSendBasedOnFrequency = (lastEmailSent, alertFrequency) => {
         return { allowed: true, reason: 'Real-time frequency' };
     }
 
+    // Custom minute parsing (e.g. "30 minutes", "15 mins")
+    const matchMins = freqLower.match(/(\d+)\s*(min|minute)/);
+    if (matchMins) {
+        const requiredMins = parseInt(matchMins[1], 10);
+        const requiredMs = requiredMins * 60 * 1000;
+        if (diffMs >= requiredMs) {
+            return { allowed: true, reason: `${requiredMins}-minute frequency met (${diffMins} mins passed)` };
+        } else {
+            const minsRemaining = Math.ceil((requiredMs - diffMs) / (60 * 1000));
+            return {
+                allowed: false,
+                reason: `Frequency is ${requiredMins} minutes. Only ${diffMins} mins passed since last dispatch (${lastSentDateStr} IST). Waiting ${minsRemaining} more mins.`
+            };
+        }
+    }
+
     if (freqLower.includes('hourly') || freqLower.includes('hour')) {
         const oneHourMs = 60 * 60 * 1000;
         if (diffMs >= oneHourMs) {
@@ -160,7 +203,7 @@ const shouldSendBasedOnFrequency = (lastEmailSent, alertFrequency) => {
             const minsRemaining = Math.ceil((oneHourMs - diffMs) / (60 * 1000));
             return { 
                 allowed: false, 
-                reason: `Frequency is Hourly. Only ${diffMins} mins passed since last email (${lastEmailSent} IST). Waiting ${minsRemaining} more mins.` 
+                reason: `Frequency is Hourly. Only ${diffMins} mins passed since last dispatch (${lastSentDateStr} IST). Waiting ${minsRemaining} more mins.` 
             };
         }
     }
@@ -173,7 +216,7 @@ const shouldSendBasedOnFrequency = (lastEmailSent, alertFrequency) => {
             const hoursRemaining = ((oneDayMs - diffMs) / (60 * 60 * 1000)).toFixed(1);
             return { 
                 allowed: false, 
-                reason: `Frequency is Daily. Only ${diffHours} hrs passed since last email (${lastEmailSent} IST). Waiting ${hoursRemaining} more hours.` 
+                reason: `Frequency is Daily. Only ${diffHours} hrs passed since last dispatch (${lastSentDateStr} IST). Waiting ${hoursRemaining} more hours.` 
             };
         }
     }
@@ -186,7 +229,7 @@ const shouldSendBasedOnFrequency = (lastEmailSent, alertFrequency) => {
             const daysRemaining = ((oneWeekMs - diffMs) / (24 * 60 * 60 * 1000)).toFixed(1);
             return { 
                 allowed: false, 
-                reason: `Frequency is Weekly. Only ${diffHours} hrs passed since last email (${lastEmailSent} IST). Waiting ${daysRemaining} more days.` 
+                reason: `Frequency is Weekly. Only ${diffHours} hrs passed since last dispatch (${lastSentDateStr} IST). Waiting ${daysRemaining} more days.` 
             };
         }
     }
@@ -296,10 +339,14 @@ export const runEmailAlertsJob = async () => {
                     const osa = deno > 0 ? (neno / deno) * 100 : 100;
                     
                     isTriggered = evalCondition(osa, alert.conditional_operator, threshold);
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+                    const opSym = formatOperatorSymbol(alert.conditional_operator);
+
                     metricDetails = {
                         ruleType: 'Low OSA Alert',
                         calculatedOSA: `${osa.toFixed(2)}%`,
-                        conditionText: `Category OSA (${osa.toFixed(2)}%) ${alert.conditional_operator || '<'} ${threshold}%`,
+                        conditionText: `${platPrefix}OSA (${osa.toFixed(2)}%) ${opSym} ${threshold}%`,
                     };
                 }
                 // Rule 2: Low OSA + Active Ads Alert (low_osa_ads)
@@ -333,11 +380,15 @@ export const runEmailAlertsJob = async () => {
                     const isOsaMet = evalCondition(osa, alert.conditional_operator, threshold);
                     isTriggered = isOsaMet && adSpend > 0;
 
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+                    const opSym = formatOperatorSymbol(alert.conditional_operator);
+
                     metricDetails = {
                         ruleType: 'Low OSA + Active Ads Alert',
                         calculatedOSA: `${osa.toFixed(2)}%`,
                         adSpend: `${currency}${adSpend.toFixed(2)}`,
-                        conditionText: `OSA (${osa.toFixed(2)}%) ${alert.conditional_operator || '<'} ${threshold}% AND Ad Spend (${currency}${adSpend.toFixed(2)}) > 0`,
+                        conditionText: `${platPrefix}OSA (${osa.toFixed(2)}%) ${opSym} ${threshold}% AND Ad Spend (${currency}${adSpend.toFixed(2)}) > 0`,
                     };
                 }
                 // Rule 3: Sharp Promo/Discount Change Alert (promo_discount_change)
@@ -369,12 +420,15 @@ export const runEmailAlertsJob = async () => {
                     const shiftPct = baseDisc > 0 ? Math.abs(((currDisc - baseDisc) / baseDisc) * 100) : Math.abs(currDisc - baseDisc);
                     isTriggered = shiftPct >= threshold;
 
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+
                     metricDetails = {
                         ruleType: 'Sharp Promo/Discount Change Alert',
                         currentDiscount: `${currDisc.toFixed(2)}%`,
                         baselineDiscount: `${baseDisc.toFixed(2)}%`,
                         discountShift: `${shiftPct.toFixed(2)}%`,
-                        conditionText: `Discount Shift (${shiftPct.toFixed(2)}%) >= ${threshold}%`,
+                        conditionText: `${platPrefix}Discount Shift (${shiftPct.toFixed(2)}%) >= ${threshold}% [Curr: ${currDisc.toFixed(2)}%, Base: ${baseDisc.toFixed(2)}%]`,
                     };
                 }
                 // Rule 4: Category Health Alert (category_health)
@@ -415,14 +469,19 @@ export const runEmailAlertsJob = async () => {
                     // Health check: Triggered if OSA < threshold OR discount > threshold
                     isTriggered = osa < threshold || discount > threshold;
 
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+
+                    const formattedAdSpend = `${currency}${Math.round(adSpend).toLocaleString('en-IN')}`;
+
                     metricDetails = {
                         ruleType: 'Category Health Alert',
                         calculatedOSA: `${osa.toFixed(2)}%`,
                         averagePrice: `${currency}${price.toFixed(2)}`,
                         averageASP: `${currency}${asp.toFixed(2)}`,
                         averageDiscount: `${discount.toFixed(2)}%`,
-                        adSpend: `${currency}${adSpend.toFixed(2)}`,
-                        conditionText: `Multi-metric health deterioration evaluated against threshold ${threshold}%`,
+                        adSpend: formattedAdSpend,
+                        conditionText: `${platPrefix}Category Health • OSA: ${osa.toFixed(2)}%, Discount: ${discount.toFixed(2)}%, Ad Spend: ${formattedAdSpend}`,
                     };
                 }
                 // Fallback default (OSA Check)
@@ -441,10 +500,14 @@ export const runEmailAlertsJob = async () => {
                     const osa = deno > 0 ? (neno / deno) * 100 : 100;
                     
                     isTriggered = evalCondition(osa, alert.conditional_operator, threshold);
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+                    const opSym = formatOperatorSymbol(alert.conditional_operator);
+
                     metricDetails = {
                         ruleType: alert.alert_name || 'Custom Alert',
                         calculatedOSA: `${osa.toFixed(2)}%`,
-                        conditionText: `OSA (${osa.toFixed(2)}%) ${alert.conditional_operator || '<'} ${threshold}%`,
+                        conditionText: `${platPrefix}OSA (${osa.toFixed(2)}%) ${opSym} ${threshold}%`,
                     };
                 }
 
@@ -501,14 +564,27 @@ export const runEmailAlertsJob = async () => {
                         if (whatsappFreqCheck.allowed) {
                             console.log(`[AlertCron] WhatsApp frequency check passed (${whatsappFreqCheck.reason})! Dispatching WhatsApp alert to ${targetWhatsappNo}...`);
 
-                            const nameFromEmail = sendEmail ? sendEmail.split('@')[0] : '';
-                            const recipientName = nameFromEmail ? (nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1)) : 'there';
-                            const whatsappMsgText = generateWhatsappAlertText(recipientName);
+                            const recipientName = 'there';
+                            const brandName = dbName ? (dbName.charAt(0).toUpperCase() + dbName.slice(1)) : 'Prestige';
+                            const alertSummaryText = metricDetails.conditionText || `🔴 ${alert.alert_name} triggered for ${brandName}`;
+
+                            const components = buildAlertTemplateComponents({
+                                recipientName,
+                                clientName: brandName,
+                                lines: alertSummaryText,
+                                dashboardPathParam: '',
+                            });
+                            const fullText = buildAlertFullText({
+                                recipientName,
+                                clientName: brandName,
+                                lines: alertSummaryText,
+                            });
 
                             try {
                                 await sendWhatsappMessage({
                                     to: targetWhatsappNo,
-                                    text: whatsappMsgText
+                                    components,
+                                    text: fullText,
                                 });
 
                                 // Update last_whatsapp_msg_sent timestamp in ClickHouse

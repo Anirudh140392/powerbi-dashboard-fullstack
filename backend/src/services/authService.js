@@ -180,25 +180,30 @@ export async function loginUser(email, password, deviceInfo = {}) {
         if (matchedRow) {
             const currentAccess = (matchedRow.access || '').toLowerCase().trim();
 
-            if (currentAccess === 'allow') {
-                // ✅ Approved — allow login
+            if (currentAccess === 'allow' || currentAccess === 'pending') {
+                // ✅ Approved or Auto-Approved pending request — allow login
                 const isValidTok = (t) => t && typeof t === 'string' && !t.includes('{') && !t.includes('%') && t.length > 5;
                 resolvedDeviceToken = isValidTok(clientDeviceToken) ? clientDeviceToken : (isValidTok(matchedRow.device_token) ? matchedRow.device_token : generateDeviceToken());
-                console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} via approved device/user for client db_id=${user.db_id_str}`);
+                console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} (Auto-approved) for client db_id=${user.db_id_str}`);
             } else if (currentAccess === 'deny') {
                 throw new Error('Access Denied: Your access request has been rejected by an administrator.');
             } else {
-                // Pending request already exists for this device
-                const err = new Error('Access Pending: Your request is still awaiting administrator review.');
-                err.deviceToken = clientDeviceToken;
-                err.dbId = user.db_id_str;
-                throw err;
+                // // ORIGINAL CODE (COMMENTED OUT AS REQUESTED):
+                // // Pending request already exists for this device
+                // const err = new Error('Access Pending: Your request is still awaiting administrator review.');
+                // err.deviceToken = clientDeviceToken;
+                // err.dbId = user.db_id_str;
+                // throw err;
+
+                const isValidTok = (t) => t && typeof t === 'string' && !t.includes('{') && !t.includes('%') && t.length > 5;
+                resolvedDeviceToken = isValidTok(clientDeviceToken) ? clientDeviceToken : (isValidTok(matchedRow.device_token) ? matchedRow.device_token : generateDeviceToken());
             }
         } else {
             // Step D: No existing record for this specific device or email for this client.
-            // Require admin approval for new user/device. Re-use existing token if available to avoid token churn.
+            // AUTO-APPROVE new access requests automatically
             const newToken = clientDeviceToken || generateDeviceToken();
-            console.log(`[DEBUG_AUTH] New device/user detected for ${user.user_email} (db_id: ${user.db_id_str}), creating pending access request with token ${newToken}`);
+            resolvedDeviceToken = newToken;
+            console.log(`[DEBUG_AUTH] New device/user detected for ${user.user_email} (db_id: ${user.db_id_str}), AUTO-APPROVING access request with token ${newToken}`);
             try {
                 const rowId = Date.now().toString();
                 await insertAdminDB('tb_user', [{
@@ -213,7 +218,7 @@ export async function loginUser(email, password, deviceInfo = {}) {
                     created_on: user.created_on,
                     status: 'active',
                     ip: fingerprintId || clientIp || '0.0.0.0',
-                    access: 'pending',
+                    access: 'allow', // AUTO-APPROVED (was 'pending')
                     db_status: user.db_status || 'active',
                     tab_permissions: user.tab_permissions || '',
                     device_token: newToken,
@@ -222,14 +227,16 @@ export async function loginUser(email, password, deviceInfo = {}) {
                     operating_system: os || '',
                     platform: platform || '',
                 }]);
-                console.log(`[DEBUG_AUTH] Created new pending request in tb_user for ${user.user_email} (db_id: ${user.db_id_str}) with token ${newToken}`);
+                console.log(`[DEBUG_AUTH] Created and auto-approved new request in tb_user for ${user.user_email} (db_id: ${user.db_id_str}) with token ${newToken}`);
             } catch (ipError) {
-                console.error(`[DEBUG_AUTH] Failed to insert pending row:`, ipError.message);
+                console.error(`[DEBUG_AUTH] Failed to insert row:`, ipError.message);
             }
-            const err = new Error('Access Pending: Your request is still awaiting administrator review.');
-            err.deviceToken = newToken;
-            err.dbId = user.db_id_str;
-            throw err;
+
+            // // ORIGINAL CODE (COMMENTED OUT AS REQUESTED):
+            // const err = new Error('Access Pending: Your request is still awaiting administrator review.');
+            // err.deviceToken = newToken;
+            // err.dbId = user.db_id_str;
+            // throw err;
         }
     } else {
         console.log(`[DEBUG_AUTH] ENFORCEMENT: Admin bypass for ${user.user_email}`);

@@ -131,6 +131,10 @@ app.use("/api/auth/verify", (req, res, next) => {
 // Auth routes (PUBLIC - no JWT required)
 app.use("/api/auth", authRoutes);
 
+// WhatsApp Webhook route (PUBLIC - verified via hub.verify_token & HMAC SHA-256)
+import whatsappWebhookRoutes from "./routes/whatsappWebhookRoutes.js";
+app.use("/api/whatsapp/webhook", whatsappWebhookRoutes);
+
 
 // MySQL connection disabled - using ClickHouse only
 // connectDB()
