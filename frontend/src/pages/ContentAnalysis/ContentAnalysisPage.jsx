@@ -11,6 +11,16 @@ const ContentDashboard = React.lazy(() =>
 
 export default function ContentAnalysisPage() {
   const { platform } = useContext(FilterContext);
+
+  // Get logged in user's DB name
+  const storedUser = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("user") || sessionStorage.getItem("kiryana_user") || "{}");
+    } catch {
+      return {};
+    }
+  })();
+  const userDbName = storedUser?.dbName || storedUser?.company_name || "";
   
   // Resolve sidebar platform to a single string, since Content Analysis should only have one selected
   let sidebarPlatform = typeof platform === "string" ? platform : (Array.isArray(platform) ? platform[0] : "All");
@@ -31,7 +41,7 @@ export default function ContentAnalysisPage() {
             </div>
           }
         >
-          <ContentDashboard sidebarPlatform={sidebarPlatform} />
+          <ContentDashboard sidebarPlatform={sidebarPlatform} company={userDbName} />
         </React.Suspense>
       </div>
     </CommonContainer>

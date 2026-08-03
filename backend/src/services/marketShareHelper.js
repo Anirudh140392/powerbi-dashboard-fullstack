@@ -1809,7 +1809,7 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
         let startRaw = dayjs().subtract(30, 'day');
         let endRaw = dayjs();
 
-        if (period === 'Custom' && startDate && endDate) {
+        if (startDate && endDate && (period === 'Custom' || !period || period === 'undefined' || !['1M', '3M', '6M', '1Y'].includes(period))) {
             startRaw = dayjs(startDate);
             endRaw = dayjs(endDate);
         } else {
@@ -1818,7 +1818,15 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
                 case '3M': startRaw = dayjs().subtract(3, 'months'); break;
                 case '6M': startRaw = dayjs().subtract(6, 'months'); break;
                 case '1Y': startRaw = dayjs().subtract(1, 'year'); break;
-                default: startRaw = dayjs().subtract(30, 'days'); break;
+                default:
+                    if (startDate && endDate) {
+                        startRaw = dayjs(startDate);
+                        endRaw = dayjs(endDate);
+                    } else {
+                        startRaw = dayjs().subtract(30, 'days');
+                        endRaw = dayjs();
+                    }
+                    break;
             }
         }
 
@@ -2145,7 +2153,7 @@ export const getMarketShareCompetition = async (period, startDate, endDate, plat
         let startRaw = dayjs().subtract(30, 'day');
         let endRaw = dayjs();
 
-        if (period === 'Custom' && startDate && endDate) {
+        if (startDate && endDate && (period === 'Custom' || !period || period === 'undefined' || !['1M', '3M', '6M', '1Y'].includes(period))) {
             startRaw = dayjs(startDate);
             endRaw = dayjs(endDate);
         } else {
@@ -2154,7 +2162,15 @@ export const getMarketShareCompetition = async (period, startDate, endDate, plat
                 case '3M': startRaw = dayjs().subtract(3, 'months'); break;
                 case '6M': startRaw = dayjs().subtract(6, 'months'); break;
                 case '1Y': startRaw = dayjs().subtract(1, 'year'); break;
-                default: startRaw = dayjs().subtract(30, 'days'); break;
+                default:
+                    if (startDate && endDate) {
+                        startRaw = dayjs(startDate);
+                        endRaw = dayjs(endDate);
+                    } else {
+                        startRaw = dayjs().subtract(30, 'days');
+                        endRaw = dayjs();
+                    }
+                    break;
             }
         }
 
@@ -2821,7 +2837,7 @@ export const getMarketShareCompetitionTrends = async (mode, targets, period, sta
 
         let startRaw = dayjs().subtract(30, 'day');
         let endRaw = dayjs();
-        if (period === 'Custom' && startDate && endDate) {
+        if (startDate && endDate && (period === 'Custom' || !period || period === 'undefined' || !['1M', '3M', '6M', '1Y'].includes(period))) {
             startRaw = dayjs(startDate);
             endRaw = dayjs(endDate);
         } else {
@@ -2830,7 +2846,15 @@ export const getMarketShareCompetitionTrends = async (mode, targets, period, sta
                 case '3M': startRaw = dayjs().subtract(3, 'months'); break;
                 case '6M': startRaw = dayjs().subtract(6, 'months'); break;
                 case '1Y': startRaw = dayjs().subtract(1, 'year'); break;
-                default: startRaw = dayjs().subtract(30, 'days'); break;
+                default:
+                    if (startDate && endDate) {
+                        startRaw = dayjs(startDate);
+                        endRaw = dayjs(endDate);
+                    } else {
+                        startRaw = dayjs().subtract(30, 'days');
+                        endRaw = dayjs();
+                    }
+                    break;
             }
         }
         const startStr = startRaw.format('YYYY-MM-DD');

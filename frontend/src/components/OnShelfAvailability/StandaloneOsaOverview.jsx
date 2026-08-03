@@ -54,6 +54,9 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
           if (!params.has('platform')) params.append('platform', 'All');
           if (!params.has('brand')) params.append('brand', 'All');
           if (!params.has('location')) params.append('location', 'All');
+          if (params.has('startDate') && params.has('endDate') && !params.has('period')) {
+            params.append('period', 'Custom');
+          }
           return params;
         };
 
@@ -106,6 +109,14 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
   const isLoading = parentLoading || dataLoading;
 
   const kpis = useMemo(() => {
+    const osaTrendRaw = osaTrendsData?.timeSeries?.map(p => ({
+      value: (p.Osa !== null && p.Osa !== undefined) ? p.Osa : null,
+      label: p.date
+    })) || [];
+    const osaTrend = (osaTrendRaw.length === 1 && osaTrendRaw[0].value !== null)
+      ? [osaTrendRaw[0], { ...osaTrendRaw[0], label: `${osaTrendRaw[0].label} ` }]
+      : osaTrendRaw;
+
     // 1. Stock Availability
     const osaCardData = overviewData ? {
       value: (overviewData.stockAvailability !== null && overviewData.stockAvailability !== undefined && overviewData.stockAvailability !== 0)
@@ -114,10 +125,7 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
       delta: (overviewData.stockAvailability && overviewData.prevStockAvailability)
         ? Number(overviewData.stockAvailability) - Number(overviewData.prevStockAvailability)
         : 0,
-      trend: osaTrendsData?.timeSeries?.map(p => ({
-        value: (p.Osa !== null && p.Osa !== undefined) ? p.Osa : null,
-        label: p.date
-      })) || []
+      trend: osaTrend
     } : null;
 
     // 2. Metro City Stock Availability
@@ -125,10 +133,7 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
       value: (metroData.isMetroCity === false || !metroData.stockAvailability) ? "N/A" : `${Number(metroData.stockAvailability).toFixed(2)}%`,
       delta: (metroData.isMetroCity === false || !metroData.stockAvailability || !metroData.prevStockAvailability) ? 0 : Number(metroData.stockAvailability) - Number(metroData.prevStockAvailability),
       isNotMetro: metroData.isMetroCity === false || !metroData.stockAvailability,
-      trend: osaTrendsData?.timeSeries?.map(p => ({
-        value: (p.Osa !== null && p.Osa !== undefined) ? p.Osa : null,
-        label: p.date
-      })) || []
+      trend: osaTrend
     } : null;
 
     // 3. Market Share %
@@ -139,14 +144,19 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
     const platData = marketShareData?.[platformKey];
     const hasMsVal = platData?.mwMarketShare?.raw !== null && platData?.mwMarketShare?.raw !== undefined;
 
+    const msTrendRaw = msTrendsData?.timeSeries?.map(p => ({
+      value: (p.MWMarketShare !== null && p.MWMarketShare !== undefined) ? p.MWMarketShare : null,
+      label: p.date
+    })) || [];
+    const msTrend = (msTrendRaw.length === 1 && msTrendRaw[0].value !== null)
+      ? [msTrendRaw[0], { ...msTrendRaw[0], label: `${msTrendRaw[0].label} ` }]
+      : msTrendRaw;
+
     const msCardData = {
       value: hasMsVal ? `${Number(platData.mwMarketShare.raw).toFixed(2)}%` : "N/A",
       delta: hasMsVal && platData.mwMarketShare.delta ? (platData.mwMarketShare.delta.dir === 'up' ? 1 : -1) : 0,
       deltaLabel: hasMsVal && platData.mwMarketShare.delta ? platData.mwMarketShare.delta.value : "",
-      trend: msTrendsData?.timeSeries?.map(p => ({
-        value: (p.MWMarketShare !== null && p.MWMarketShare !== undefined) ? p.MWMarketShare : null,
-        label: p.date
-      })) || []
+      trend: msTrend
     };
 
     const cards_config = [

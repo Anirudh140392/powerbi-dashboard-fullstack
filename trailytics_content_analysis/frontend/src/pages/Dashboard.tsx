@@ -1013,9 +1013,9 @@ const SkuDrillDownTable = ({
             const wasRowExpanded = lastExpandedCell?.ri === ri;
             const topMetrics = mapToTopMetrics(row);
 
-            // Deterministic avatar image using product ID as seed
-            const DANONE_LOGO = "https://logolook.net/wp-content/uploads/2024/09/Danone-Logo.png";
-            const imgUrl = DANONE_LOGO || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(row.productId)}&backgroundColor=ffffff`;
+            // Deterministic avatar image using product ID as seed or user logo
+            const storedUserLogo = (() => { try { const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}'); return u?.dbLogoUrl || u?.logo_url; } catch { return null; } })();
+            const imgUrl = storedUserLogo || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(row.productId)}&backgroundColor=ffffff`;
 
             return (
               <div key={ri} className={`flex flex-col bg-white transition-all duration-300 last:rounded-b-[14px] ${isRowExpanded ? 'bg-slate-50/50 shadow-inner' : 'hover:bg-slate-50/50'}`}>
@@ -1247,7 +1247,16 @@ const SkuDrillDownTable = ({
 
 
 
-export default function Dashboard({ sidebarPlatform }: { sidebarPlatform?: string }) {
+const getUserDbName = (): string => {
+  try {
+    const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+    return storedUser?.dbName || storedUser?.company_name || 'danone';
+  } catch {
+    return 'danone';
+  }
+};
+
+export default function Dashboard({ sidebarPlatform, company: propCompany }: { sidebarPlatform?: string; company?: string }) {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -1257,8 +1266,19 @@ export default function Dashboard({ sidebarPlatform }: { sidebarPlatform?: strin
   const [imageRating, setImageRating] = useState(50);
 
   // --- API State ---
-  const [company, setCompany] = useState('danone');        // database name
+  const [company, setCompany] = useState<string>(() => propCompany || getUserDbName());
   const [platform, setPlatform] = useState(sidebarPlatform || '');           // platform filter
+
+  useEffect(() => {
+    if (propCompany) {
+      setCompany(propCompany);
+    } else {
+      const userDb = getUserDbName();
+      if (userDb && userDb !== company) {
+        setCompany(userDb);
+      }
+    }
+  }, [propCompany]);
 
   useEffect(() => {
     if (sidebarPlatform) {

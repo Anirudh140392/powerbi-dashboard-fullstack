@@ -99,7 +99,7 @@ export const MarketShareTrends = async (req, res) => {
 
         const result = await getMarketShareTrends(
             period, timeStep, dimension, dimensionValue, startDate, endDate,
-            platform, category, location, brand, compareStartDate, compareEndDate, subCategory
+            platform, category, location, brand, subCategory, compareStartDate, compareEndDate
         );
 
         res.json({
