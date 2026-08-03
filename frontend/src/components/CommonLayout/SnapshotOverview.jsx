@@ -899,12 +899,14 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                                     }
                                     if (typeof value !== 'number') return [value, ''];
                                     let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
+                                    let isPercentage = kpi.title?.includes('%') || kpi.subtitle?.includes('%') || kpi.title?.toLowerCase().includes('share') || kpi.title?.toLowerCase().includes('availability');
                                     let prefix = isCurrency ? '₹ ' : '';
-                                    let formatted = value.toFixed(1);
+                                    let suffix = isPercentage ? '%' : '';
+                                    let formatted = (value > 0 && value < 10) ? value.toFixed(2) : value.toFixed(1);
                                     if (Math.abs(value) >= 10000000) formatted = `${(value / 10000000).toFixed(2)} Cr`;
                                     else if (Math.abs(value) >= 100000) formatted = `${(value / 100000).toFixed(2)} L`;
                                     else if (Math.abs(value) >= 1000) formatted = `${(value / 1000).toFixed(2)} K`;
-                                    return [`${prefix}${formatted}`, ''];
+                                    return [`${prefix}${formatted}${suffix}`, ''];
                                 }}
                             />
                             <Area

@@ -440,11 +440,12 @@ const TrendView = ({ mode, filters, city, platform, channel, period, globalFilte
         setTrendLoading(true);
         setTrendError(null);
         try {
+            const cleanCity = (!city || city === 'Select All' || city === 'select all' || city === 'All India' || city === 'All') ? 'All' : city;
             const params = {
                 platform: platform || 'All',
                 channel: channel || 'All',
-                location: city === 'All India' ? 'All' : city,
-                category: filters.categories.length > 0 ? filters.categories.join('|') + '|' : 'All',
+                location: cleanCity,
+                category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                 period: period || '1M',
                 startDate: globalFilters?.startDate,
                 endDate: globalFilters?.endDate,
@@ -454,10 +455,10 @@ const TrendView = ({ mode, filters, city, platform, channel, period, globalFilte
 
             let endpoint = '';
             if (isBrandMode) {
-                params.brands = visibleIds.join('|') + '|';
+                params.brands = visibleIds.join(',');
                 endpoint = '/availability-analysis/competition-brand-trends';
             } else {
-                params.skus = visibleIds.join('|') + '|';
+                params.skus = visibleIds.join(',');
                 endpoint = '/availability-analysis/competition-sku-trends';
             }
 
@@ -1208,14 +1209,15 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
+            const cleanCity = (!activeCity || activeCity === 'Select All' || activeCity === 'select all' || activeCity === 'All India' || activeCity === 'All') ? 'All' : activeCity;
             try {
                 const params = {
                     platform: platform || 'All',
                     channel: selectedChannel || 'All',
-                    location: activeCity === 'All India' ? 'All' : activeCity,
-                    category: activeFilters.categories.length > 0 ? activeFilters.categories.join('|') + '|' : 'All',
-                    brand: activeFilters.brands.length > 0 ? activeFilters.brands.join('|') + '|' : 'All',
-                    sku: activeFilters.skus.length > 0 ? activeFilters.skus.join('|') + '|' : 'All',
+                    location: cleanCity,
+                    category: activeFilters.categories.length > 0 ? activeFilters.categories.join(',') : 'All',
+                    brand: activeFilters.brands.length > 0 ? activeFilters.brands.join(',') : 'All',
+                    sku: activeFilters.skus.length > 0 ? activeFilters.skus.join(',') : 'All',
                     period: period || '1M',
                     startDate: globalFilters?.startDate,
                     endDate: globalFilters?.endDate,

@@ -151,40 +151,43 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
         conditions.push(platformCond);
     }
 
-    if (brand && brand !== 'All') {
-        const bArr = Array.isArray(brand) ? brand : [brand];
-        conditions.push(`lower(replace(${prefix}Brand, ' ', '_')) IN (${bArr.map(b => `'${escapeStr(b.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+    if (brand && brand !== 'All' && brand !== 'all') {
+        const rawItems = Array.isArray(brand) ? brand : String(brand).split(/[,|]/);
+        const bArr = rawItems.map(b => b.trim()).filter(b => b && b !== 'All' && b !== 'all');
+        if (bArr.length > 0) {
+            conditions.push(`lower(replace(${prefix}Brand, ' ', '_')) IN (${bArr.map(b => `'${escapeStr(b.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+        }
     }
 
     // City/Location filter
     const lArr = [];
-    const isAllIndia = (val) => val === 'All' || val === 'all' || val === 'All India' || val === 'all india' || val === 'all_india';
+    const isAllIndia = (val) => {
+        if (!val) return true;
+        const normalized = String(val).trim().toLowerCase();
+        return (
+            normalized === 'all' ||
+            normalized === 'select all' ||
+            normalized === 'select_all' ||
+            normalized === 'all india' ||
+            normalized === 'all_india' ||
+            normalized === ''
+        );
+    };
 
-    if (location && !isAllIndia(location)) {
-        if (Array.isArray(location)) {
-            const filtered = location.filter(v => v && !isAllIndia(v));
-            lArr.push(...filtered);
-        } else {
-            lArr.push(location);
-        }
-    }
-    if (cities && !isAllIndia(cities)) {
-        if (Array.isArray(cities)) {
-            const filtered = cities.filter(v => v && !isAllIndia(v));
-            lArr.push(...filtered);
-        } else {
-            lArr.push(cities);
-        }
-    }
-    // Backward compatibility for 'city' key
-    if (filters.city && !isAllIndia(filters.city)) {
-        if (Array.isArray(filters.city)) {
-            const filtered = filters.city.filter(v => v && !isAllIndia(v));
-            lArr.push(...filtered);
-        } else {
-            lArr.push(filters.city);
-        }
-    }
+    const parseLocation = (val) => {
+        if (!val || isAllIndia(val)) return;
+        const items = Array.isArray(val) ? val : String(val).split(/[,|]/);
+        items.forEach(v => {
+            const trimmed = v.trim();
+            if (trimmed && !isAllIndia(trimmed)) {
+                lArr.push(trimmed);
+            }
+        });
+    };
+
+    if (location) parseLocation(location);
+    if (cities) parseLocation(cities);
+    if (filters.city) parseLocation(filters.city);
 
     if (lArr.length > 0) {
         const uniqueLArr = [...new Set(lArr)];
@@ -208,43 +211,25 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
 
     // Category/Format filter
     const cArr = [];
-    if (categories && categories !== 'All') {
-        if (Array.isArray(categories)) {
-            const filtered = categories.filter(v => v !== 'All' && v !== 'all');
-            cArr.push(...filtered);
-        } else {
-            cArr.push(categories);
-        }
-    }
-    if (formats && formats !== 'All') {
-        if (Array.isArray(formats)) {
-            const filtered = formats.filter(v => v !== 'All' && v !== 'all');
-            cArr.push(...filtered);
-        } else {
-            cArr.push(formats);
-        }
-    }
-    // Backward compatibility for 'category' and 'format' keys
-    if (filters.category && filters.category !== 'All') {
-        if (Array.isArray(filters.category)) {
-            const filtered = filters.category.filter(v => v !== 'All' && v !== 'all');
-            cArr.push(...filtered);
-        } else {
-            cArr.push(filters.category);
-        }
-    }
-    if (filters.format && filters.format !== 'All') {
-        if (Array.isArray(filters.format)) {
-            const filtered = filters.format.filter(v => v !== 'All' && v !== 'all');
-            cArr.push(...filtered);
-        } else {
-            cArr.push(filters.format);
-        }
-    }
+    const parseCategory = (val) => {
+        if (!val) return;
+        const items = Array.isArray(val) ? val : String(val).split(/[,|]/);
+        items.forEach(v => {
+            const trimmed = v.trim();
+            if (trimmed && trimmed !== 'All' && trimmed !== 'all') {
+                cArr.push(trimmed);
+            }
+        });
+    };
+
+    if (categories) parseCategory(categories);
+    if (formats) parseCategory(formats);
+    if (filters.category) parseCategory(filters.category);
+    if (filters.format) parseCategory(filters.format);
 
     if (cArr.length > 0) {
         const uniqueCArr = [...new Set(cArr)];
-        conditions.push(`lower(trim(BOTH '\t\\n ' FROM ${prefix}${actualCatCol})) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+        conditions.push(`lower(trim(BOTH '\t\n ' FROM ${prefix}${actualCatCol})) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
     }
 
     // Product Category filter
@@ -273,22 +258,19 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
 
     // SKU filter (Web_Pid based)
     const sArr = [];
-    if (sku && sku !== 'All') {
-        if (Array.isArray(sku)) {
-            const filtered = sku.filter(v => v !== 'All' && v !== 'all');
-            sArr.push(...filtered);
-        } else {
-            sArr.push(sku);
-        }
-    }
-    if (skus && skus !== 'All') {
-        if (Array.isArray(skus)) {
-            const filtered = skus.filter(v => v !== 'All' && v !== 'all');
-            sArr.push(...filtered);
-        } else {
-            sArr.push(skus);
-        }
-    }
+    const parseSku = (val) => {
+        if (!val) return;
+        const items = Array.isArray(val) ? val : String(val).split(/[,|]/);
+        items.forEach(v => {
+            const trimmed = v.trim();
+            if (trimmed && trimmed !== 'All' && trimmed !== 'all') {
+                sArr.push(trimmed);
+            }
+        });
+    };
+
+    if (sku) parseSku(sku);
+    if (skus) parseSku(skus);
 
     if (sArr.length > 0) {
         const uniqueSArr = [...new Set(sArr)];
