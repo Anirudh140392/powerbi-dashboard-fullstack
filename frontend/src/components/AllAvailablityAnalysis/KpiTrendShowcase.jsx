@@ -1719,7 +1719,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
       setLoading(true);
       try {
         const isCategoryFilterActive = filters.categories.length > 0;
-        const isCityFilterActive = city && city !== 'All India' && city !== 'All';
+        const isCityFilterActive = city && city !== 'All India' && city !== 'All' && city !== 'Select All' && city !== 'select all';
         const isBrandFilterActive = filters.brands.length > 0;
 
         // Prevent conflicting WHERE conditions (e.g. Category="Dental Floss" AND Category="Bodywash")
@@ -1776,7 +1776,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
           // For availability/other: call the watchtower competition endpoint
           const params = {
             platform: platform || 'All',
-            location: city === 'All India' ? 'All' : city,
+            location: isCityFilterActive ? city : 'All',
             category: isCategoryFilterActive ? filters.categories.join(',') : 'All',
             brand: isBrandFilterActive ? filters.brands.join(',') : 'All',
             sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
