@@ -15,6 +15,31 @@ export const normalizeFilterArray = (value) => {
 };
 
 /**
+ * Normalizes platform filter to include variations (e.g. instamart -> instamart, swiggy instamart, swiggy)
+ */
+export const normalizePlatformArrayForMs = (platformArr) => {
+    if (!platformArr || platformArr.length === 0) return [];
+    const result = new Set();
+    platformArr.forEach(p => {
+        const lower = p.toLowerCase().trim();
+        if (lower === 'instamart' || lower === 'swiggy instamart' || lower === 'swiggy_instamart' || lower === 'swiggy') {
+            result.add('instamart');
+            result.add('swiggy instamart');
+            result.add('swiggy_instamart');
+            result.add('swiggy');
+        } else if (lower === 'bigbasket' || lower === 'bb') {
+            result.add('bigbasket');
+            result.add('bb');
+            result.add('big basket');
+        } else {
+            result.add(lower);
+        }
+    });
+    return Array.from(result);
+};
+
+
+/**
  * Helper to build sub-category join and filter conditions for Mamaearth
  */
 export const makeSubCategoryJoin = (subCategoryFilter) => {
@@ -114,7 +139,8 @@ const buildKwBaseCond = (platformVal, categoryArr, locationArr = null) => {
  */
 const buildPlatformChannelCondForMs = (platformFilter, channelFilter, columnName = 'platform') => {
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
-    const platformArr = normalizeFilterArray(platformFilter);
+    const rawPlatformArr = normalizeFilterArray(platformFilter);
+    const platformArr = normalizePlatformArrayForMs(rawPlatformArr);
     const conditions = [];
 
     // 1. Platform Filter
@@ -1799,7 +1825,8 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
  */
 export const getMarketShareTrends = async (period, timeStep, dimension, dimensionValue, startDate, endDate, platformFilter, categoryFilter, locationFilter, brandFilter, subCategoryFilter = null) => {
     try {
-        const platformArr = normalizeFilterArray(platformFilter);
+        const rawPlatformArr = normalizeFilterArray(platformFilter);
+        const platformArr = normalizePlatformArrayForMs(rawPlatformArr);
         const categoryArr = normalizeFilterArray(categoryFilter);
         const locationArr = normalizeFilterArray(locationFilter);
         const brandArr = normalizeFilterArray(brandFilter);
@@ -2055,22 +2082,25 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
         // Populate cat data
         catData.forEach(r => {
             const row = getRow(r.d);
-            row.CategorySize = parseFloat((parseFloat(r.category_size) / 10000000).toFixed(2)); // in Cr
-            row._rawCategorySize = parseFloat(r.category_size) || 0;
+            const rawCatSize = parseFloat(r.category_size) || 0;
+            row.CategorySize = parseFloat((rawCatSize / 10000000).toFixed(4)); // in Cr
+            row._rawCategorySize = rawCatSize;
         });
 
         // Populate MW data
         mwData.forEach(r => {
             const row = getRow(r.d);
-            const mwSales = parseFloat(r.mw_sales || 0);
-            row.MWSales = parseFloat((mwSales / 10000000).toFixed(2)); // in Cr
+            const rawMwSales = parseFloat(r.mw_sales || 0);
+            row.MWSales = parseFloat((rawMwSales / 10000000).toFixed(4)); // in Cr
+            row._rawMwSales = rawMwSales;
         });
 
         // Populate ML data
         Object.entries(topMlByDate).forEach(([dateStr, r]) => {
             const row = getRow(dateStr);
-            const mlSales = parseFloat(r.ml_sales || 0);
-            row.MLSales = parseFloat((mlSales / 10000000).toFixed(2)); // in Cr
+            const rawMlSales = parseFloat(r.ml_sales || 0);
+            row.MLSales = parseFloat((rawMlSales / 10000000).toFixed(4)); // in Cr
+            row._rawMlSales = rawMlSales;
         });
 
         // Populate SOV data
@@ -2090,15 +2120,15 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
             }
         });
 
-        // Calculate Market Shares after populating sales and category size
+        // Calculate Market Shares after populating sales and category size using unrounded raw values
         timeSeriesMap.forEach(row => {
             const catSize = row._rawCategorySize || 0;
             if (catSize > 0) {
-                const mwSales = row.MWSales !== null ? (row.MWSales * 10000000) : 0;
-                row.MWMarketShare = parseFloat(((mwSales / catSize) * 100).toFixed(2));
+                const mwSales = row._rawMwSales || 0;
+                row.MWMarketShare = parseFloat(((mwSales / catSize) * 100).toFixed(4));
 
-                const mlSales = row.MLSales !== null ? (row.MLSales * 10000000) : 0;
-                row.MLMarketShare = parseFloat(((mlSales / catSize) * 100).toFixed(2));
+                const mlSales = row._rawMlSales || 0;
+                row.MLMarketShare = parseFloat(((mlSales / catSize) * 100).toFixed(4));
             } else {
                 row.MWMarketShare = null;
                 row.MLMarketShare = null;

@@ -145,7 +145,7 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
     const hasMsVal = platData?.mwMarketShare?.raw !== null && platData?.mwMarketShare?.raw !== undefined;
 
     const msTrendRaw = msTrendsData?.timeSeries?.map(p => ({
-      value: (p.MWMarketShare !== null && p.MWMarketShare !== undefined) ? p.MWMarketShare : null,
+      value: (p.MWMarketShare !== null && p.MWMarketShare !== undefined) ? p.MWMarketShare : 0,
       label: p.date
     })) || [];
     const msTrend = (msTrendRaw.length === 1 && msTrendRaw[0].value !== null)
