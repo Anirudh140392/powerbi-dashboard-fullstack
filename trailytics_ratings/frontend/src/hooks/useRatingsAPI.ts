@@ -710,18 +710,18 @@ export interface AsinIssuesResponse {
     discrepancyFlag?: boolean;
 }
 
-export function useAsinIssues(webPid: string | null) {
+export function useAsinIssues(webPid: string | null, apiFilters: Record<string, string | number | undefined> = {}) {
     const [data, setData] = useState<AsinIssuesResponse | null>(null);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (!webPid) { setData(null); return; }
         setLoading(true);
-        fetchAPI<AsinIssuesResponse>('/asin-issues', { web_pid: webPid })
+        fetchAPI<AsinIssuesResponse>('/asin-issues', { web_pid: webPid, ...apiFilters })
             .then(result => { setData(result); })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [webPid]);
+    }, [webPid, JSON.stringify(apiFilters)]);
 
     return { data, loading };
 }
@@ -840,11 +840,7 @@ export function useReviewsByIssue(
     webPid: string | null, 
     subcategory: string | null, 
     sort: string = 'rating_asc',
-    filters?: {
-        date_from?: string | null;
-        date_to?: string | null;
-        is_competitor?: string | null;
-    }
+    filters?: Record<string, string | number | undefined>
 ) {
     const [data, setData] = useState<IssueReview[]>([]);
     const [total, setTotal] = useState(0);
@@ -853,9 +849,13 @@ export function useReviewsByIssue(
     useEffect(() => {
         if (!webPid || !subcategory) { setData([]); return; }
         const params: Record<string, string> = { web_pid: webPid, subcategory, sort };
-        if (filters?.date_from) params.date_from = filters.date_from;
-        if (filters?.date_to) params.date_to = filters.date_to;
-        if (filters?.is_competitor) params.is_competitor = filters.is_competitor;
+        if (filters) {
+            Object.entries(filters).forEach(([k, v]) => {
+                if (v !== undefined && v !== null) {
+                    params[k] = String(v);
+                }
+            });
+        }
 
         setLoading(true);
         fetchAPI<{ reviews: IssueReview[]; total: number }>('/reviews-by-issue', params)
@@ -874,7 +874,9 @@ export interface StakeholderIssueSku {
     web_pid: string;
     product_name: string;
     pdp_rating: number | null;
+    issue_rating: number | null;
     negCount: number;
+    posCount: number;
     totalCount: number;
 }
 
@@ -882,6 +884,7 @@ export interface StakeholderIssue {
     subcategory: string;
     label: string;
     negativeCount: number;
+    positiveCount: number;
     totalCount: number;
     skuCount: number;
     skus: StakeholderIssueSku[];
@@ -911,6 +914,7 @@ export function useStakeholderDetail(
         sentiment_category?: string | null;
         is_competitor?: string | null;
         web_pid?: string | null;
+        period_months?: number | null;
     }
 ) {
     const [data, setData] = useState<StakeholderIssue[]>([]);
@@ -936,6 +940,7 @@ export function useStakeholderDetail(
         if (filters?.sentiment_category) params.sentiment_category = filters.sentiment_category;
         if (filters?.is_competitor) params.is_competitor = filters.is_competitor;
         if (filters?.web_pid) params.web_pid = filters.web_pid;
+        if (filters?.period_months) params.period_months = String(filters.period_months);
 
         setLoading(true);
         fetchAPI<StakeholderDetailResponse>('/stakeholder-detail', params)

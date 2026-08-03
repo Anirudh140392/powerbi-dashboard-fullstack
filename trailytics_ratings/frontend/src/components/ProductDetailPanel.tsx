@@ -23,10 +23,11 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Review } from '../types';
 
-interface CharacteristicDetailPanelProps {
-    characteristic: string | null;
+interface ProductDetailPanelProps {
+    productName: string | null;
     reviews: Review[];
     onClose: () => void;
+    productHealthInfo?: ProductHealthItem;
     trendPeriodMonths?: number;
     dateFrom?: string;
     dateTo?: string;
@@ -56,13 +57,12 @@ interface SubcategoryData {
     topProductNegRate: number;
 }
 
-const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
-    characteristic,
+import type { ProductHealthItem } from '../hooks/useRatingsAPI';
+const ProductDetailPanel: React.FC<ProductDetailPanelProps> = ({
+    productName,
     reviews,
     onClose,
-    trendPeriodMonths = 6,
-    dateFrom,
-    dateTo
+    productHealthInfo
 }) => {
     const [showReviewTimeline, setShowReviewTimeline] = useState(false);
     const [productSortBy, setProductSortBy] = useState<'mentions' | 'negRate' | 'rating'>('mentions');
@@ -75,49 +75,52 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
     React.useEffect(() => {
         setSkuPage(1);
         setReviewPage(1);
-    }, [characteristic]);
+    }, [productName]);
 
     // Filter reviews containing this sentiment category OR subcategory
     const relevantReviews = useMemo(() => {
-        if (!characteristic) return [];
+        if (!productName) return [];
 
-        // 1) Filter by characteristic (Exact match to backend logic)
+        // 1) Filter by productName (looser match to account for slight variations)
         let filtered = reviews.filter(r => {
-            const sub = (r.subcategory || '').trim();
-            const cat = (r.sentimentCategory || '').trim();
-            const derivedChar = (sub !== '' ? sub : (cat !== '' ? cat : 'General')).replace(/_/g, ' ').toLowerCase();
-            return derivedChar === characteristic.toLowerCase();
-        });
-
-        // 2) Force filter to ONLY the "Recent Period" (Now %)
-        // If there's a custom date range (dateFrom & dateTo), recent period is the second half.
-        // Otherwise, recent period is the last `trendPeriodMonths`.
-        let recentStart: Date;
-        let recentEnd: Date;
-
-        if (dateFrom && dateTo) {
-            const dFrom = new Date(dateFrom);
-            const dTo = new Date(dateTo);
-            const msDiff = dTo.getTime() - dFrom.getTime();
-            recentStart = new Date(dFrom.getTime() + (msDiff / 2));
-            recentEnd = dTo;
-        } else {
-            recentEnd = new Date(); // now
-            recentStart = new Date(recentEnd);
-            recentStart.setMonth(recentStart.getMonth() - trendPeriodMonths);
-        }
-
-        filtered = filtered.filter(r => {
-            if (!r.date) return false;
-            const rd = new Date(r.date);
-            return rd >= recentStart && rd <= recentEnd;
+            if (!r.product) return false;
+            const current = r.product.toLowerCase().trim();
+            const target = productName.toLowerCase().trim();
+            
+            // Try exact match first
+            if (current === target) return true;
+            
+            // If the target is quite long, see if it's contained (or contains)
+            if (current.includes(target) || target.includes(current)) return true;
+            
+            // Check if they share at least the first 80 characters (handle truncation)
+            if (current.substring(0, 80) === target.substring(0, 80)) return true;
+            
+            return false;
         });
 
         return filtered;
-    }, [characteristic, reviews, trendPeriodMonths, dateFrom, dateTo]);
+    }, [productName, reviews]);
 
     // Sentiment breakdown
     const sentimentBreakdown = useMemo(() => {
+        if (productHealthInfo) {
+            const total = productHealthInfo.totalMentions;
+            const positive = Math.round(total * productHealthInfo.positiveRate);
+            const negative = Math.round(total * productHealthInfo.negativeRate);
+            const neutral = total - positive - negative;
+            return {
+                positive,
+                negative,
+                neutral,
+                total,
+                positiveRate: (productHealthInfo.positiveRate * 100).toFixed(1),
+                negativeRate: (productHealthInfo.negativeRate * 100).toFixed(1),
+                neutralRate: ((1 - productHealthInfo.positiveRate - productHealthInfo.negativeRate) * 100).toFixed(1),
+                healthScore: productHealthInfo.healthScore
+            };
+        }
+
         const positive = relevantReviews.filter(r => r.sentiment?.toUpperCase() === 'POSITIVE').length;
         const negative = relevantReviews.filter(r => r.sentiment?.toUpperCase() === 'NEGATIVE').length;
         const neutral = relevantReviews.filter(r => r.sentiment?.toUpperCase() === 'NEUTRAL').length;
@@ -133,10 +136,14 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
             neutralRate: total > 0 ? (neutral / total * 100).toFixed(1) : '0',
             healthScore: total > 0 ? Math.round(((positive - negative) / total) * 50) + 50 : 50
         };
-    }, [relevantReviews]);
+    }, [relevantReviews, productHealthInfo]);
 
     // Trend direction
     const trendDirection = useMemo(() => {
+        if (productHealthInfo && productHealthInfo.trend) {
+            return productHealthInfo.trend;
+        }
+
         const now = new Date();
         const sixMonthsAgo = new Date(now);
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
@@ -157,7 +164,7 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
         if (recentNeg > olderNeg + 0.1) return 'declining';
         if (recentNeg < olderNeg - 0.1) return 'improving';
         return 'stable';
-    }, [relevantReviews]);
+    }, [relevantReviews, productHealthInfo]);
 
     // =========================================================================
     // PRODUCT SKU BREAKDOWN — Primary analysis
@@ -336,11 +343,11 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
             : <ChevronDown size={12} className="text-indigo-500" />;
     };
 
-    if (!characteristic) return null;
+    if (!productName) return null;
 
     return (
         <AnimatePresence>
-            {characteristic && (
+            {productName && (
                 <>
                     {/* Backdrop */}
                     <motion.div
@@ -363,8 +370,8 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                         <div className="sticky top-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800 p-6 z-10">
                             <div className="flex items-start justify-between gap-6">
                                 <div className="min-w-0 flex-1">
-                                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white capitalize truncate" title={characteristic}>
-                                        {characteristic}
+                                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white capitalize truncate" title={productName}>
+                                        {productName}
                                     </h2>
                                     <p className="text-sm text-slate-500 mt-1 font-medium">
                                         Product-level analysis • {sentimentBreakdown.total.toLocaleString()} mentions
@@ -801,7 +808,7 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                                 })()}
 
                                                 {relevantReviews.filter(r => r.text && r.text.length > 0).length === 0 && (
-                                                    <p className="text-sm text-slate-400 text-center py-8">No reviews with text available for this characteristic</p>
+                                                    <p className="text-sm text-slate-400 text-center py-8">No reviews with text available for this productName</p>
                                                 )}
                                             </div>
                                         </motion.div>
@@ -816,4 +823,4 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
     );
 };
 
-export default CharacteristicDetailPanel;
+export default ProductDetailPanel;

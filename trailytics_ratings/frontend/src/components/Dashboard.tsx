@@ -11,6 +11,7 @@ import ExecutiveInsights from './ExecutiveInsights';
 import CharacteristicDetailPanel from './CharacteristicDetailPanel';
 import CompetitorBenchmarkPanel from './CompetitorBenchmarkPanel';
 import GlobalFilterBar from './GlobalFilterBar';
+import ProductDetailPanel from './ProductDetailPanel';
 
 // Hooks — ALL data from API
 import { useGlobalFilters } from '../hooks/useGlobalFilters';
@@ -114,6 +115,7 @@ const Dashboard: React.FC = () => {
     const [selectedCharacteristic, setSelectedCharacteristic] = useState<string | null>(null);
     const [isCompetitorPanelOpen, setIsCompetitorPanelOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+    const [selectedProductInsight, setSelectedProductInsight] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<TabKey>(() => {
         // Allow deep-linking from the /settings inventory cards and from
         // alert emails. /?tab=master pins the tab; /?web_pid=B0XYZ also
@@ -452,6 +454,7 @@ const Dashboard: React.FC = () => {
                                     reviews={filteredPrestigeReviews}
                                     competitorReviews={filteredCompetitorReviews}
                                     onCharacteristicClick={setSelectedCharacteristic}
+                                    onProductClick={setSelectedProductInsight}
                                     onRequestHeavyData={enableOverviewHeavyData}
                                     serverTrends={serverTrends}
                                     serverTrendsLoading={serverTrendsLoading}
@@ -610,6 +613,17 @@ const Dashboard: React.FC = () => {
                 characteristic={selectedCharacteristic}
                 reviews={useMemo(() => ownReviewRows.map(toReview), [ownReviewRows])}
                 onClose={() => setSelectedCharacteristic(null)}
+                trendPeriodMonths={trendPeriodMonths}
+                dateFrom={apiFilters.date_from as string | undefined}
+                dateTo={apiFilters.date_to as string | undefined}
+            />
+
+            {/* Product Detail Panel */}
+            <ProductDetailPanel
+                productName={selectedProductInsight}
+                reviews={useMemo(() => ownReviewRows.map(toReview), [ownReviewRows])}
+                onClose={() => setSelectedProductInsight(null)}
+                productHealthInfo={serverProductHealth?.find(p => p.product === selectedProductInsight)}
             />
 
             {/* Competitor Benchmark Panel */}
