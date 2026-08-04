@@ -923,7 +923,7 @@ export const inviteUser = async ({ email, dbId, role = 'user', frontendUrl = '' 
     }]);
 
     const baseUrl = frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173';
-    const inviteLink = `${baseUrl.replace(/\/$/, '')}/#/accept-invite?token=${token}`;
+    const inviteLink = `${baseUrl.replace(/\/$/, '')}/accept-invite?token=${token}`;
 
     const { sendUserInviteEmail } = await import('./emailService.js');
     await sendUserInviteEmail(cleanEmail, inviteLink, dbName);

@@ -7,7 +7,9 @@ import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle, ShieldCheck, Mail, Databa
 
 const AcceptInvitePage = () => {
     const [searchParams] = useSearchParams();
-    const token = searchParams.get("token");
+    const hashQuery = window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '';
+    const hashParams = new URLSearchParams(hashQuery);
+    const token = searchParams.get("token") || hashParams.get("token");
     const navigate = useNavigate();
     const { loginWithToken } = useAuth();
 
