@@ -1436,6 +1436,27 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                 if (validCategories.length > 0) {
                     additionalCategoryFilter = ` AND ${groupColumn} IN (${validCategories.map(c => `'${escapeStr(c)}'`).join(',')})`;
                 }
+            } else if (groupColumn === 'Location') {
+                try {
+                    const tier1DbCities = await getMetroCities();
+                    const fallbackTier1 = [
+                        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+                        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru',
+                        'bangalore', 'noida', 'ahmedabad'
+                    ];
+                    const allTier1Set = new Set([
+                        ...tier1DbCities.map(c => c.toLowerCase().trim()),
+                        ...fallbackTier1.map(c => c.toLowerCase().trim())
+                    ]);
+                    const tier1List = Array.from(allTier1Set);
+                    if (tier1List.length > 0) {
+                        additionalCategoryFilter = ` AND lower(${groupColumn}) IN (${tier1List.map(c => `'${escapeStr(c)}'`).join(',')})`;
+                    }
+                } catch (e) {
+                    console.warn('[getStandaloneOsaPlatformKpiMatrix] Tier 1 city lookup failed, fallback to static list:', e.message);
+                    const tier1List = ['kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru', 'bangalore', 'noida', 'ahmedabad'];
+                    additionalCategoryFilter = ` AND lower(${groupColumn}) IN (${tier1List.map(c => `'${escapeStr(c)}'`).join(',')})`;
+                }
             }
 
             const distinctQuery = `
@@ -1525,7 +1546,11 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                     if (standardVal === 'Chocolates (Non Gifting)') standardVal = 'Chocolates';
                     else if (standardVal === 'Chocolates (Gifting)') standardVal = 'Chocolate Gift Pack';
                 }
-                acc[standardVal] = curr;
+                if (standardVal) {
+                    acc[standardVal] = curr;
+                    acc[standardVal.toLowerCase()] = curr;
+                    acc[standardVal.toUpperCase()] = curr;
+                }
                 return acc;
             }, {});
             const msMap = mapMsByCol(msRes);
@@ -1553,14 +1578,17 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                 kpiRows.osa.trend[colValue] = (currOsa !== null && prevOsa !== null) ? Math.round(currOsa - prevOsa) : null;
 
                 // Market Share KPI
-                const currMwSales = parseFloat(msMap[colValue]?.curr_mw_sales || 0);
-                const currCatSales = parseFloat(msMap[colValue]?.curr_cat_sales || 0);
-                const prevMwSales = parseFloat(prevMsMap[colValue]?.prev_mw_sales || 0);
-                const prevCatSales = parseFloat(prevMsMap[colValue]?.prev_cat_sales || 0);
+                const msObj = msMap[colValue] || msMap[colValue.toLowerCase()] || msMap[colValue.toUpperCase()];
+                const prevMsObj = prevMsMap[colValue] || prevMsMap[colValue.toLowerCase()] || prevMsMap[colValue.toUpperCase()];
 
-                const hasMsData = msMap[colValue] !== undefined && currCatSales > 0;
+                const currMwSales = parseFloat(msObj?.curr_mw_sales || 0);
+                const currCatSales = parseFloat(msObj?.curr_cat_sales || 0);
+                const prevMwSales = parseFloat(prevMsObj?.prev_mw_sales || 0);
+                const prevCatSales = parseFloat(prevMsObj?.prev_cat_sales || 0);
+
+                const hasMsData = msObj !== undefined && currCatSales > 0;
                 const currMs = hasMsData ? (currMwSales / currCatSales) * 100 : null;
-                const hasPrevMsData = prevMsMap[colValue] !== undefined && prevCatSales > 0;
+                const hasPrevMsData = prevMsObj !== undefined && prevCatSales > 0;
                 const prevMs = hasPrevMsData ? (prevMwSales / prevCatSales) * 100 : null;
 
                 kpiRows.marketShare[colValue] = currMs !== null ? parseFloat(currMs.toFixed(2)) : null;
