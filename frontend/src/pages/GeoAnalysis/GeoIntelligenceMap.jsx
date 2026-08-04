@@ -50,9 +50,9 @@ export default function GeoIntelligenceMap() {
 
     const mapContainer = useRef(null);
     const map = useRef(null);
-    const [filters, setFilters] = useState({ platform: 'Blinkit' });
+    const [filters, setFilters] = useState({});
     const [metric, setMetric] = useState("OSA %");
-    const [platform, setPlatform] = useState(globalPlatform || "Blinkit");
+    const [platform, setPlatform] = useState(globalPlatform || "");
     const [timePeriod, setTimePeriod] = useState("MTD");
     const [markers, setMarkers] = useState([]);
     const [apiData, setApiData] = useState([]);
@@ -212,7 +212,7 @@ export default function GeoIntelligenceMap() {
                 }
             } catch (error) {
                 console.error('[MapIntellect] Failed to fetch platforms:', error);
-                setPlatforms(['Blinkit', 'Zepto', 'Instamart']);
+                setPlatforms([]);
             }
         };
         fetchPlatforms();

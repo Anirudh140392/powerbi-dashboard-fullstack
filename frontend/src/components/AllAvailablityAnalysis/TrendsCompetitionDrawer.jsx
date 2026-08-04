@@ -702,7 +702,7 @@ export default function TrendsCompetitionDrawer({
 
   // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState(initialPlatform || "Blinkit");
+  const [selectedPlatform, setSelectedPlatform] = useState(initialPlatform || "");
   const [showPlatformPills, setShowPlatformPills] = useState(true);
   const [showAllPills, setShowAllPills] = useState(false);
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
