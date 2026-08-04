@@ -1109,7 +1109,13 @@ const Sidebar = ({
               const tabPerms = user?.tabPermissions;
               if (tabPerms && Object.keys(tabPerms).length > 0) {
                 // If this tab label has an explicit permission set, respect it
-                if (tabPerms[item.label] !== undefined && tabPerms[item.label] === false) return false;
+                if (tabPerms[item.label] !== undefined) {
+                  if (tabPerms[item.label] === false) return false;
+                } else {
+                  // Fallback for Content Score / Content Analysis label alias mismatch
+                  if (item.label === "Content Score" && tabPerms["Content Analysis"] === false) return false;
+                  if (item.label === "Content Analysis" && tabPerms["Content Score"] === false) return false;
+                }
               }
               return true;
             }).map((item) => {

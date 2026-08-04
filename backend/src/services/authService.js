@@ -465,10 +465,12 @@ export async function verifySession(token, deviceToken = null) {
     try {
         const permRows = await queryAdminDB(
             `SELECT 
-                ifNull(argMaxIf(db_status, last_login, db_status != ''), 'active') as db_status,
-                ifNull(argMaxIf(tab_permissions, last_login, tab_permissions != ''), '') as tab_permissions
+                db_status,
+                tab_permissions
              FROM tb_user 
-             WHERE user_email = {email:String}`,
+             WHERE lower(user_email) = lower({email:String}) AND status != 'deleted'
+             ORDER BY last_login DESC, created_on DESC
+             LIMIT 1`,
             { email: decoded.email }
         );
         if (permRows.length > 0) {

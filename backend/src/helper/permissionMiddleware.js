@@ -28,10 +28,11 @@ async function getFreshTabPermissions(email) {
     try {
         const rows = await queryAdminDB(
             `SELECT
-                ifNull(argMaxIf(tab_permissions, last_login, tab_permissions != ''), '') as tab_permissions
+                tab_permissions
              FROM tb_user
-             WHERE user_email = '${email.replace(/'/g, "\\'")}'
-             GROUP BY user_email`
+             WHERE lower(user_email) = lower('${email.replace(/'/g, "\\'")}') AND status != 'deleted'
+             ORDER BY last_login DESC, created_on DESC
+             LIMIT 1`
         );
         if (rows.length === 0) {
             return null; // Not found in DB, fallback to JWT permissions
