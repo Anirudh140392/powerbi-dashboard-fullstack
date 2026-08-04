@@ -2,6 +2,7 @@
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
+import axios from 'axios';
 import { queryAdminDB } from '../config/adminClickhouse.js';
 import { toFlatPermissions } from './adminService.js';
 import { updateDeviceTokenMap } from './deviceService.js';
@@ -27,18 +28,44 @@ function getMsSigningKey(header, callback) {
 }
 
 /**
- * Verify Google OAuth ID Token
- * @param {string} idToken
+ * Verify Google OAuth Token (handles both JWT ID Tokens and Access Tokens)
+ * @param {string} token
  * @returns {Promise<object>} verified payload with email, name, sub, picture
  */
-export async function verifyGoogleToken(idToken) {
-    if (!idToken) throw new Error('Google ID token is required');
+export async function verifyGoogleToken(token) {
+    if (!token) throw new Error('Google token is required');
 
-    const expectedAudience = process.env.GOOGLE_CLIENT_ID;
+    // Handle Google OAuth Access Tokens (e.g. ya29...) vs ID Tokens (JWT with 3 dot-separated parts)
+    if (token.startsWith('ya29.') || token.split('.').length !== 3) {
+        try {
+            const userInfoRes = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const payload = userInfoRes.data;
+            if (!payload || !payload.email) {
+                throw new Error('Invalid Google access token response');
+            }
+            if (payload.email_verified === false) {
+                throw new Error('Google email is not verified');
+            }
+            return {
+                email: payload.email.toLowerCase().trim(),
+                name: payload.name || payload.given_name || payload.email.split('@')[0],
+                sub: payload.sub,
+                picture: payload.picture || '',
+                provider: 'google',
+            };
+        } catch (err) {
+            console.error('[SSO] Google access token verification failed:', err.response?.data || err.message);
+            throw new Error('Failed to verify Google access token');
+        }
+    }
 
-    // Verify token using google-auth-library
+    const expectedAudience = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_DEV_CLIENT_ID;
+
+    // Verify token using google-auth-library for JWT ID tokens
     const ticket = await googleClient.verifyIdToken({
-        idToken,
+        idToken: token,
         audience: expectedAudience ? [expectedAudience] : undefined,
     });
 
