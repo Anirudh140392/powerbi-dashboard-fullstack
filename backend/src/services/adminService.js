@@ -839,3 +839,101 @@ export const getAdminPlatforms = async (dbName) => {
     }
 };
 
+// In-memory token storage for pending user invitations (48h TTL)
+export const inviteTokensMap = new Map();
+
+/**
+ * Invite a new user, map them to a tenant database, generate invite token, and send invite email
+ */
+export const inviteUser = async ({ email, dbId, role = 'user', frontendUrl = '' }) => {
+    if (!email || !dbId) {
+        throw new Error('Email and Database ID are required');
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check if active user already exists
+    const existing = await queryAdminDB(
+        `SELECT status FROM tb_user WHERE lower(user_email) = {email:String} AND status = 'active' LIMIT 1`,
+        { email: cleanEmail }
+    );
+
+    if (existing && existing.length > 0) {
+        throw new Error(`A user with email "${cleanEmail}" is already active.`);
+    }
+
+    // Get DB name for email template
+    const dbs = await queryAdminDB(
+        `SELECT db_name, toString(db_id) as db_id FROM tb_database WHERE status = 'active'`
+    );
+    const targetDb = dbs.find(d => d.db_id === String(dbId)) || dbs[0];
+    const dbName = targetDb ? targetDb.db_name : 'Trailytics';
+
+    // Generate secure 32-byte token
+    const cryptoMod = await import('crypto');
+    const token = cryptoMod.default.randomBytes(32).toString('hex');
+    const expiresAt = Date.now() + (48 * 60 * 60 * 1000); // 48 hours
+
+    inviteTokensMap.set(token, {
+        email: cleanEmail,
+        dbId: String(dbId),
+        dbName,
+        role: role.toLowerCase(),
+        expiresAt,
+    });
+
+    const id = Date.now().toString();
+    const hashRes = await queryAdminDB(`SELECT toString(cityHash64('${cleanEmail}')) as hash`);
+    const user_id = hashRes[0]?.hash || id;
+    const currentTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0];
+
+    // Fetch tab_permissions from existing user in same database if available
+    let defaultTabPermissions = '';
+    try {
+        const permQuery = `
+            SELECT tab_permissions
+            FROM tb_user
+            WHERE toString(db_id) = '${dbId}'
+              AND tab_permissions != ''
+              AND status != 'deleted'
+            ORDER BY last_login DESC
+            LIMIT 1
+        `;
+        const permRows = await queryAdminDB(permQuery);
+        if (permRows && permRows.length > 0 && permRows[0].tab_permissions) {
+            defaultTabPermissions = permRows[0].tab_permissions;
+        }
+    } catch (e) { /* ignore */ }
+
+    await insertAdminDB('tb_user', [{
+        id,
+        user_id,
+        user_email: cleanEmail,
+        user_name: cleanEmail.split('@')[0],
+        user_role: role.toLowerCase(),
+        password_hash: '',
+        db_id: String(dbId),
+        last_login: currentTimestamp,
+        created_on: currentTimestamp,
+        status: 'invited',
+        ip: '',
+        access: 'allow',
+        db_status: 'active',
+        tab_permissions: defaultTabPermissions
+    }]);
+
+    const baseUrl = frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const inviteLink = `${baseUrl.replace(/\/$/, '')}/#/accept-invite?token=${token}`;
+
+    const { sendUserInviteEmail } = await import('./emailService.js');
+    await sendUserInviteEmail(cleanEmail, inviteLink, dbName);
+
+    return {
+        success: true,
+        message: `Invitation sent successfully to ${cleanEmail}`,
+        inviteLink,
+        token
+    };
+};
+
+

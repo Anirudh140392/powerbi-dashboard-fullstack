@@ -31,7 +31,11 @@ function handleUnauthorized() {
     localStorage.removeItem("isLoggedIn");
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem("user");
-    window.location.hash = "#/login";
+    if (window.location.hash) {
+        window.location.hash = "#/login";
+    } else {
+        window.location.href = "/login";
+    }
 }
 async function authFetch(endpoint, options = {}) {
     const { skipContentType, skipAuth, ...fetchOptions } = options;

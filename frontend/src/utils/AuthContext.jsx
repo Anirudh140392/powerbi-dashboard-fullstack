@@ -181,12 +181,55 @@ export const AuthProvider = ({ children }) => {
         verifySession();
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    const loginWithToken = (token, userData) => {
+        if (userData?.role) {
+            userData.role = userData.role.toLowerCase();
+        }
+        sessionStorage.setItem("isLoggedIn", "true");
+        sessionStorage.setItem("token", token);
+        sessionStorage.setItem("user", JSON.stringify(userData));
+
+        setIsLoggedIn(true);
+        setUser(userData);
+        setIsVerifying(false);
+    };
+
+    const loginWithSso = async (provider, payloadData) => {
+        try {
+            let visitorId = '';
+            try {
+                const fp = await fpPromise.load();
+                const result = await fp.get();
+                visitorId = result.visitorId;
+            } catch (e) { /* ignore */ }
+
+            const { browser, browserVersion, os, platform } = getBrowserMetadata();
+            const endpoint = provider === 'google' ? `${API_BASE}/auth/google-login` : `${API_BASE}/auth/microsoft-login`;
+            const reqBody = provider === 'google'
+                ? { credential: payloadData, visitorId, browser, browserVersion, os, platform }
+                : { idToken: payloadData, visitorId, browser, browserVersion, os, platform };
+
+            const response = await axios.post(endpoint, reqBody, { withCredentials: true });
+
+            if (response.data.success) {
+                const { token, user: userData } = response.data;
+                loginWithToken(token, userData);
+                return { success: true };
+            }
+            return { success: false, error: response.data.error || `${provider} login failed` };
+        } catch (error) {
+            const errorMsg = error.response?.data?.error || `${provider} authentication failed`;
+            return { success: false, error: errorMsg };
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ isLoggedIn, user, login, logout, isVerifying }}>
+        <AuthContext.Provider value={{ isLoggedIn, user, login, logout, isVerifying, loginWithToken, loginWithSso }}>
             {children}
         </AuthContext.Provider>
     );
 };
+
 
 export const useAuth = () => {
     const context = useContext(AuthContext);

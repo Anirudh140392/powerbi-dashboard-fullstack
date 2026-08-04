@@ -162,3 +162,101 @@ export const ratingssSsoToken = (req, res) => {
         return res.status(500).json({ success: false, error: 'Failed to generate SSO token' });
     }
 };
+
+/**
+ * GET /api/auth/verify-invite-token
+ * Query: ?token=XYZ
+ */
+export const verifyInvite = async (req, res) => {
+    try {
+        const { token } = req.query;
+        const { verifyInviteToken } = await import('../services/authService.js');
+        const info = await verifyInviteToken(token);
+        return res.status(200).json({ success: true, ...info });
+    } catch (error) {
+        return res.status(400).json({ success: false, error: error.message || 'Invalid token' });
+    }
+};
+
+/**
+ * POST /api/auth/complete-invitation
+ * Body: { token, password, visitorId, browser, browserVersion, os, platform }
+ */
+export const completeInvite = async (req, res) => {
+    try {
+        const { token, password, visitorId, browser, browserVersion, os, platform } = req.body || {};
+        const { completeInvitation } = await import('../services/authService.js');
+
+        let clientIp = req.ip || req.socket?.remoteAddress || '';
+        if (req.headers && req.headers['x-forwarded-for']) {
+            clientIp = req.headers['x-forwarded-for'].split(',')[0].trim();
+        }
+
+        const result = await completeInvitation(token, password, {
+            visitorId, browser, browserVersion, os, platform, ip: clientIp
+        });
+
+        return res.status(200).json({ success: true, token: result.token, user: result.user });
+    } catch (error) {
+        return res.status(400).json({ success: false, error: error.message || 'Failed to set password' });
+    }
+};
+
+/**
+ * POST /api/auth/google-login
+ * Body: { credential, visitorId, browser, browserVersion, os, platform }
+ */
+export const googleLogin = async (req, res) => {
+    try {
+        const { credential, visitorId, browser, browserVersion, os, platform } = req.body || {};
+        if (!credential) {
+            return res.status(400).json({ success: false, error: 'Google credential token is required' });
+        }
+
+        let clientIp = req.ip || req.socket?.remoteAddress || '';
+        if (req.headers && req.headers['x-forwarded-for']) {
+            clientIp = req.headers['x-forwarded-for'].split(',')[0].trim();
+        }
+
+        const { verifyGoogleToken, authenticateSsoUser } = await import('../services/ssoService.js');
+        const ssoPayload = await verifyGoogleToken(credential);
+        const result = await authenticateSsoUser(ssoPayload, {
+            visitorId, browser, browserVersion, os, platform, ip: clientIp
+        });
+
+        return res.status(200).json({ success: true, token: result.token, user: result.user });
+    } catch (error) {
+        console.error('[Auth] Google login failed:', error.message);
+        return res.status(401).json({ success: false, error: error.message || 'Google authentication failed' });
+    }
+};
+
+/**
+ * POST /api/auth/microsoft-login
+ * Body: { idToken, visitorId, browser, browserVersion, os, platform }
+ */
+export const microsoftLogin = async (req, res) => {
+    try {
+        const { idToken, visitorId, browser, browserVersion, os, platform } = req.body || {};
+        if (!idToken) {
+            return res.status(400).json({ success: false, error: 'Microsoft ID token is required' });
+        }
+
+        let clientIp = req.ip || req.socket?.remoteAddress || '';
+        if (req.headers && req.headers['x-forwarded-for']) {
+            clientIp = req.headers['x-forwarded-for'].split(',')[0].trim();
+        }
+
+        const { verifyMicrosoftToken, authenticateSsoUser } = await import('../services/ssoService.js');
+        const ssoPayload = await verifyMicrosoftToken(idToken);
+        const result = await authenticateSsoUser(ssoPayload, {
+            visitorId, browser, browserVersion, os, platform, ip: clientIp
+        });
+
+        return res.status(200).json({ success: true, token: result.token, user: result.user });
+    } catch (error) {
+        console.error('[Auth] Microsoft login failed:', error.message);
+        return res.status(401).json({ success: false, error: error.message || 'Microsoft authentication failed' });
+    }
+};
+
