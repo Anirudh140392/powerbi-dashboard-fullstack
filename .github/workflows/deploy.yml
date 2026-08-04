@@ -44,6 +44,18 @@ jobs:
             GOOGLE_PROD_URL="${{ secrets.GOOGLE_PROD_CALLBACK_URL }}"
             [ -z "$GOOGLE_PROD_URL" ] && GOOGLE_PROD_URL="https://trailytics.in/api/auth/callback/google"
             echo "TARGET_GOOGLE_CALLBACK_URL=${GOOGLE_PROD_URL}" >> $GITHUB_ENV
+
+            MICROSOFT_PROD_ID="${{ secrets.MICROSOFT_PROD_CLIENT_ID }}"
+            [ -z "$MICROSOFT_PROD_ID" ] && MICROSOFT_PROD_ID="${{ secrets.MICROSOFT_CLIENT_ID }}"
+            echo "TARGET_MICROSOFT_CLIENT_ID=${MICROSOFT_PROD_ID}" >> $GITHUB_ENV
+
+            MICROSOFT_PROD_SECRET="${{ secrets.MICROSOFT_PROD_CLIENT_SECRET }}"
+            [ -z "$MICROSOFT_PROD_SECRET" ] && MICROSOFT_PROD_SECRET="${{ secrets.MICROSOFT_CLIENT_SECRET }}"
+            echo "TARGET_MICROSOFT_CLIENT_SECRET=${MICROSOFT_PROD_SECRET}" >> $GITHUB_ENV
+
+            MICROSOFT_PROD_URL="${{ secrets.MICROSOFT_PROD_CALLBACK_URL }}"
+            [ -z "$MICROSOFT_PROD_URL" ] && MICROSOFT_PROD_URL="https://trailytics.in/api/auth/callback/microsoft"
+            echo "TARGET_MICROSOFT_CALLBACK_URL=${MICROSOFT_PROD_URL}" >> $GITHUB_ENV
           elif [ "${{ github.ref_name }}" = "enhancement_01122025_dev_kenil" ]; then
             echo "DEPLOY_ENV=development" >> $GITHUB_ENV
             echo "TARGET_HOST=${{ secrets.EC2_DEV_HOST }}" >> $GITHUB_ENV
@@ -72,6 +84,18 @@ jobs:
             GOOGLE_DEV_URL="${{ secrets.GOOGLE_DEV_CALLBACK_URL }}"
             [ -z "$GOOGLE_DEV_URL" ] && GOOGLE_DEV_URL="https://dev.trailytics.in/api/auth/callback/google"
             echo "TARGET_GOOGLE_CALLBACK_URL=${GOOGLE_DEV_URL}" >> $GITHUB_ENV
+
+            MICROSOFT_DEV_ID="${{ secrets.MICROSOFT_DEV_CLIENT_ID }}"
+            [ -z "$MICROSOFT_DEV_ID" ] && MICROSOFT_DEV_ID="${{ secrets.MICROSOFT_CLIENT_ID }}"
+            echo "TARGET_MICROSOFT_CLIENT_ID=${MICROSOFT_DEV_ID}" >> $GITHUB_ENV
+
+            MICROSOFT_DEV_SECRET="${{ secrets.MICROSOFT_DEV_CLIENT_SECRET }}"
+            [ -z "$MICROSOFT_DEV_SECRET" ] && MICROSOFT_DEV_SECRET="${{ secrets.MICROSOFT_CLIENT_SECRET }}"
+            echo "TARGET_MICROSOFT_CLIENT_SECRET=${MICROSOFT_DEV_SECRET}" >> $GITHUB_ENV
+
+            MICROSOFT_DEV_URL="${{ secrets.MICROSOFT_DEV_CALLBACK_URL }}"
+            [ -z "$MICROSOFT_DEV_URL" ] && MICROSOFT_DEV_URL="https://dev.trailytics.in/api/auth/callback/microsoft"
+            echo "TARGET_MICROSOFT_CALLBACK_URL=${MICROSOFT_DEV_URL}" >> $GITHUB_ENV
           fi
           echo "🎯 Deploying to ${{ github.ref_name }} environment"
 
@@ -116,6 +140,9 @@ jobs:
           GOOGLE_CLIENT_ID=${{ env.TARGET_GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET=${{ env.TARGET_GOOGLE_CLIENT_SECRET }}
           GOOGLE_CALLBACK_URL=${{ env.TARGET_GOOGLE_CALLBACK_URL }}
+          MICROSOFT_CLIENT_ID=${{ env.TARGET_MICROSOFT_CLIENT_ID }}
+          MICROSOFT_CLIENT_SECRET=${{ env.TARGET_MICROSOFT_CLIENT_SECRET }}
+          MICROSOFT_CALLBACK_URL=${{ env.TARGET_MICROSOFT_CALLBACK_URL }}
           EOF
             echo "✅ Main backend .env file created for ${{ env.DEPLOY_ENV }} environment"
           ENDSSH

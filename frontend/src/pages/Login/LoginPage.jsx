@@ -66,7 +66,7 @@ const LoginPageContent = () => {
         try {
             const msalConfig = {
                 auth: {
-                    clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || 'sample-client-id',
+                    clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || '08166a0d-c911-4acb-9d0a-b9a7e85a7515',
                     authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common'}`,
                     redirectUri: window.location.origin,
                 }
