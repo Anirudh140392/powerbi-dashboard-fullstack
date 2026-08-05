@@ -68,7 +68,7 @@ const LoginPageContent = () => {
                 auth: {
                     clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || '153c3bd5-c6f7-41a5-b11c-3334d71b5db4',
                     authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MICROSOFT_TENANT_ID || 'b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a'}`,
-                    redirectUri: `${window.location.origin}/api/auth/callback/microsoft`,
+                    redirectUri: window.location.origin,
                 }
             };
             const msalInstance = new PublicClientApplication(msalConfig);
