@@ -65,14 +65,6 @@ const LoginPageContent = () => {
         setError("");
         setLoading(true);
         try {
-            // Clear any lingering/stuck MSAL interaction state from previous popup attempts
-            Object.keys(sessionStorage).forEach(key => {
-                if (key.includes('msal.')) sessionStorage.removeItem(key);
-            });
-            Object.keys(localStorage).forEach(key => {
-                if (key.includes('msal.')) localStorage.removeItem(key);
-            });
-
             const msalConfig = {
                 auth: {
                     clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || '153c3bd5-c6f7-41a5-b11c-3334d71b5db4',
@@ -86,7 +78,6 @@ const LoginPageContent = () => {
             };
             const msalInstance = new PublicClientApplication(msalConfig);
             await msalInstance.initialize();
-            await msalInstance.handleRedirectPromise().catch(() => {});
 
             const loginResponse = await msalInstance.loginPopup({
                 scopes: ["User.Read", "openid", "profile", "email"]
@@ -95,7 +86,9 @@ const LoginPageContent = () => {
                 const res = await loginWithSso('microsoft', loginResponse.idToken);
                 if (res.success) {
                     const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
-                    const redirectPath = getFirstAllowedRoute(loggedInUser);
+                    const userRole = (loggedInUser?.role || '').toLowerCase();
+                    const isAdmin = userRole.includes('admin') || userRole.includes('super');
+                    const redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(loggedInUser);
                     navigate(redirectPath, { replace: true });
                 } else {
                     setError(res.error || "Microsoft login failed.");
@@ -103,11 +96,16 @@ const LoginPageContent = () => {
             }
         } catch (err) {
             console.error("Microsoft SSO Error:", err);
-            if (err.name === 'BrowserAuthError' && (err.errorCode === 'user_cancelled' || err.errorCode === 'popup_window_error')) {
-                setLoading(false);
-                return;
+            if (err.errorCode === 'interaction_in_progress') {
+                Object.keys(sessionStorage).forEach(key => {
+                    if (key.startsWith('msal.')) sessionStorage.removeItem(key);
+                });
+                setError("Please try again.");
+            } else if (err.name === 'BrowserAuthError' && (err.errorCode === 'user_cancelled' || err.errorCode === 'popup_window_error')) {
+                // User closed popup - not an error
+            } else {
+                setError(err.message || "Microsoft authentication canceled or failed.");
             }
-            setError(err.message || "Microsoft authentication canceled or failed.");
         } finally {
             setLoading(false);
         }
@@ -116,8 +114,10 @@ const LoginPageContent = () => {
 
     // Auto-redirect if already logged in AND effectively on the login page
     useEffect(() => {
-        if (!isVerifying && isLoggedIn) {
-            const redirectPath = getFirstAllowedRoute(user);
+        if (!isVerifying && isLoggedIn && user) {
+            const userRole = (user?.role || '').toLowerCase();
+            const isAdmin = userRole.includes('admin') || userRole.includes('super');
+            const redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(user);
             navigate(redirectPath, { replace: true });
         }
     }, [isLoggedIn, isVerifying, navigate, user]);
@@ -313,7 +313,9 @@ const LoginPageContent = () => {
                                     const res = await loginWithSso('google', credential);
                                     if (res.success) {
                                         const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
-                                        const redirectPath = getFirstAllowedRoute(loggedInUser);
+                                        const userRole = (loggedInUser?.role || '').toLowerCase();
+                                        const isAdmin = userRole.includes('admin') || userRole.includes('super');
+                                        const redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(loggedInUser);
                                         navigate(redirectPath, { replace: true });
                                     } else {
                                         setError(res.error || "Google authentication failed.");
