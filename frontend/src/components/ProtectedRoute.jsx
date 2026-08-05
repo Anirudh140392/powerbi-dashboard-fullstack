@@ -40,12 +40,6 @@ const ROUTE_PRIORITY = [
  * Check if a specific route path is allowed for the current user
  */
 function isRouteAllowed(path, user) {
-    const userRole = (user?.role || user?.user_role || '').toLowerCase();
-    const isTrailyticsAdmin = (user?.email || '').toLowerCase().endsWith('@trailytics.com');
-    if (userRole.includes('admin') || userRole.includes('super') || isTrailyticsAdmin) {
-        return true;
-    }
-
     // Admin routes and routes without a tab mapping are always allowed
     const tabLabel = ROUTE_TO_TAB_LABEL[path];
     if (!tabLabel) return true;
@@ -72,14 +66,6 @@ function isRouteAllowed(path, user) {
  * Find the first allowed route for this user
  */
 export function getFirstAllowedRoute(user) {
-    if (!user) return "/watch-tower";
-    const userRole = (user?.role || user?.user_role || '').toLowerCase();
-    const isTrailyticsAdmin = (user?.email || '').toLowerCase().endsWith('@trailytics.com');
-
-    if (userRole.includes('admin') || userRole.includes('super') || isTrailyticsAdmin) {
-        return "/admin";
-    }
-
     for (const route of ROUTE_PRIORITY) {
         if (isRouteAllowed(route, user)) {
             return route;
@@ -137,11 +123,10 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    const userRole = (user?.role || user?.user_role || '').toLowerCase();
-    const isAdmin = userRole.includes('admin') || userRole.includes('super') || (user?.email || '').toLowerCase().endsWith('@trailytics.com');
-
     if (adminOnly) {
-        if (!isAdmin) {
+        const userRole = user?.role?.toLowerCase() || '';
+        const hasAdminAccess = userRole.includes('admin') || userRole.includes('super');
+        if (!hasAdminAccess) {
             // Redirect non-admin users to home/watch-tower
             return <Navigate to="/watch-tower" replace />;
         }
@@ -149,6 +134,9 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 
     // --- Tab Permission & DB Status Enforcement ---
     // Skip permission checks for admin users and admin-only routes
+    const userRole = user?.role?.toLowerCase() || '';
+    const isAdmin = userRole.includes('admin') || userRole.includes('super');
+
     if (!isAdmin && !adminOnly) {
         const currentPath = location.pathname;
 
