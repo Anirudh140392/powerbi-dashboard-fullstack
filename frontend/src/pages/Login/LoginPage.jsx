@@ -61,45 +61,23 @@ const LoginPageContent = () => {
     const { login, isLoggedIn, user, isVerifying, loginWithSso } = useAuth();
     const navigate = useNavigate();
 
-    // Create a stable MSAL instance (shared between mount-time redirect handling and click handler)
-    const [msalInstance, setMsalInstance] = useState(null);
-
-    // On mount: initialize MSAL and handle any popup redirect (this is critical for the popup window)
-    useEffect(() => {
-        const initMsal = async () => {
-            try {
-                const config = {
-                    auth: {
-                        clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || '153c3bd5-c6f7-41a5-b11c-3334d71b5db4',
-                        authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MICROSOFT_TENANT_ID || 'b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a'}`,
-                        redirectUri: window.location.origin,
-                    },
-                    cache: {
-                        cacheLocation: "sessionStorage",
-                        storeAuthStateInCookie: false,
-                    }
-                };
-                const instance = new PublicClientApplication(config);
-                await instance.initialize();
-                // This is critical: in the popup window, this call processes the auth response and closes the popup
-                await instance.handleRedirectPromise().catch(() => {});
-                setMsalInstance(instance);
-            } catch (e) {
-                console.error("MSAL init error:", e);
-            }
-        };
-        initMsal();
-    }, []);
-
     const handleMicrosoftLogin = async () => {
         setError("");
         setLoading(true);
         try {
-            if (!msalInstance) {
-                setError("Microsoft authentication is still initializing. Please try again.");
-                setLoading(false);
-                return;
-            }
+            const msalConfig = {
+                auth: {
+                    clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || '153c3bd5-c6f7-41a5-b11c-3334d71b5db4',
+                    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MICROSOFT_TENANT_ID || 'b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a'}`,
+                    redirectUri: window.location.origin,
+                },
+                cache: {
+                    cacheLocation: "sessionStorage",
+                    storeAuthStateInCookie: false,
+                }
+            };
+            const msalInstance = new PublicClientApplication(msalConfig);
+            await msalInstance.initialize();
 
             const loginResponse = await msalInstance.loginPopup({
                 scopes: ["User.Read", "openid", "profile", "email"]
@@ -119,7 +97,6 @@ const LoginPageContent = () => {
         } catch (err) {
             console.error("Microsoft SSO Error:", err);
             if (err.errorCode === 'interaction_in_progress') {
-                // Clear stuck state and retry
                 Object.keys(sessionStorage).forEach(key => {
                     if (key.startsWith('msal.')) sessionStorage.removeItem(key);
                 });
