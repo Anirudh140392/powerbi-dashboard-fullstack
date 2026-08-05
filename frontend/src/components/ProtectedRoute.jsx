@@ -65,13 +65,13 @@ function isRouteAllowed(path, user) {
 /**
  * Find the first allowed route for this user
  */
-function getFirstAllowedRoute(user) {
+export function getFirstAllowedRoute(user) {
     for (const route of ROUTE_PRIORITY) {
         if (isRouteAllowed(route, user)) {
             return route;
         }
     }
-    return null; // No routes allowed
+    return "/watch-tower";
 }
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {

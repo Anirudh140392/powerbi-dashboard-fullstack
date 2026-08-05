@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../utils/AuthContext";
+import { getFirstAllowedRoute } from "../../components/ProtectedRoute";
 import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
 import { PublicClientApplication } from "@azure/msal-browser";
 import {
@@ -94,9 +95,7 @@ const LoginPageContent = () => {
                 const res = await loginWithSso('microsoft', loginResponse.idToken);
                 if (res.success) {
                     const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
-                    const userRole = (loggedInUser?.role || '').toLowerCase();
-                    const hasAdminAccess = userRole.includes('admin') || userRole.includes('super');
-                    const redirectPath = hasAdminAccess ? "/admin" : "/watch-tower";
+                    const redirectPath = getFirstAllowedRoute(loggedInUser);
                     navigate(redirectPath, { replace: true });
                 } else {
                     setError(res.error || "Microsoft login failed.");
@@ -118,9 +117,7 @@ const LoginPageContent = () => {
     // Auto-redirect if already logged in AND effectively on the login page
     useEffect(() => {
         if (!isVerifying && isLoggedIn) {
-            const userRole = user?.role?.toLowerCase() || '';
-            const hasAdminAccess = userRole.includes('admin') || userRole.includes('super');
-            const redirectPath = hasAdminAccess ? "/admin" : "/watch-tower";
+            const redirectPath = getFirstAllowedRoute(user);
             navigate(redirectPath, { replace: true });
         }
     }, [isLoggedIn, isVerifying, navigate, user]);
@@ -316,9 +313,7 @@ const LoginPageContent = () => {
                                     const res = await loginWithSso('google', credential);
                                     if (res.success) {
                                         const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
-                                        const userRole = (loggedInUser?.role || '').toLowerCase();
-                                        const hasAdminAccess = userRole.includes('admin') || userRole.includes('super');
-                                        const redirectPath = hasAdminAccess ? "/admin" : "/watch-tower";
+                                        const redirectPath = getFirstAllowedRoute(loggedInUser);
                                         navigate(redirectPath, { replace: true });
                                     } else {
                                         setError(res.error || "Google authentication failed.");
