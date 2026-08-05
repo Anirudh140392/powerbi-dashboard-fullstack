@@ -64,15 +64,29 @@ const LoginPageContent = () => {
         setError("");
         setLoading(true);
         try {
+            // Clear any lingering/stuck MSAL interaction state from previous popup attempts
+            Object.keys(sessionStorage).forEach(key => {
+                if (key.includes('msal.')) sessionStorage.removeItem(key);
+            });
+            Object.keys(localStorage).forEach(key => {
+                if (key.includes('msal.')) localStorage.removeItem(key);
+            });
+
             const msalConfig = {
                 auth: {
                     clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || '153c3bd5-c6f7-41a5-b11c-3334d71b5db4',
                     authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MICROSOFT_TENANT_ID || 'b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a'}`,
                     redirectUri: window.location.origin,
+                },
+                cache: {
+                    cacheLocation: "sessionStorage",
+                    storeAuthStateInCookie: false,
                 }
             };
             const msalInstance = new PublicClientApplication(msalConfig);
             await msalInstance.initialize();
+            await msalInstance.handleRedirectPromise().catch(() => {});
+
             const loginResponse = await msalInstance.loginPopup({
                 scopes: ["User.Read", "openid", "profile", "email"]
             });
@@ -84,6 +98,10 @@ const LoginPageContent = () => {
             }
         } catch (err) {
             console.error("Microsoft SSO Error:", err);
+            if (err.name === 'BrowserAuthError' && (err.errorCode === 'user_cancelled' || err.errorCode === 'popup_window_error')) {
+                setLoading(false);
+                return;
+            }
             setError(err.message || "Microsoft authentication canceled or failed.");
         } finally {
             setLoading(false);
