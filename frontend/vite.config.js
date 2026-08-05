@@ -71,7 +71,7 @@ export default defineConfig({
       },
       // ── Main backend API proxy (catch-all for other /api/*) ──
       '/api': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         timeout: 10 * 60 * 1000,       // 10 minutes for large report downloads
         proxyTimeout: 10 * 60 * 1000,   // 10 minutes proxy timeout
@@ -84,9 +84,34 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/ratings-api/, ''),
       },
       '/socket.io': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         ws: true,
+      },
+    },
+  },
+  build: {
+    sourcemap: false,
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('echarts') || id.includes('recharts') || id.includes('chart.js') || id.includes('d3-')) {
+              return 'vendor-charts';
+            }
+            if (id.includes('@mui') || id.includes('@emotion')) {
+              return 'vendor-mui';
+            }
+            if (id.includes('lucide-react') || id.includes('react-icons')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('reactflow') || id.includes('maplibre-gl')) {
+              return 'vendor-visuals';
+            }
+            return 'vendor';
+          }
+        },
       },
     },
   },

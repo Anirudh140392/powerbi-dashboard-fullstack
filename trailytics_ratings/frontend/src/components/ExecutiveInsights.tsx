@@ -1,5 +1,5 @@
 import { getActiveBrandName } from '../utils/tenant';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, lazy } from 'react';
 import {
     AlertTriangle,
     TrendingUp,
@@ -39,7 +39,7 @@ import IssueSlider from './IssueSlider';
 import StakeholderSlider from './StakeholderSlider';
 import CategoryCardsStrip from './CategoryCardsStrip';
 import SkuListModal from './SkuListModal';
-import CompetitorRadarChart from './CompetitorRadarChart';
+const CompetitorRadarChart = lazy(() => import('./CompetitorRadarChart'));
 import WordSphere3D from './WordSphere3D';
 import InfoTooltip from './ui/InfoTooltip';
 import { RatingSummaryInline, RatingSummaryCompare } from './ui/RatingSummary';

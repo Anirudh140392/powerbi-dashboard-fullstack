@@ -12399,8 +12399,8 @@ const getPerformanceBreakdownData = async (filters) => {
             SELECT
                 ${groupByCol} AS tag,
                 SUM(${pmSrc.f.impressions}) AS group_impressions,
-                SUM(if(lower(${pmSrc.f.platform}) NOT IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo'), ${pmSrc.f.clicks}, 0)) AS group_clicks_ecom,
-                SUM(if(lower(${pmSrc.f.platform}) IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo'), ${pmSrc.f.clicks}, 0)) AS group_atc,
+                SUM(if(lower(${pmSrc.f.platform}) IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo', 'swiggy', 'bbnow', 'quickcomm', 'qcommerce', 'q-commerce') OR lower(${pmSrc.f.platform}) LIKE '%quick%' OR lower(${pmSrc.f.platform}) LIKE '%instamart%', 0, ${pmSrc.f.clicks})) AS group_clicks_ecom,
+                SUM(if(lower(${pmSrc.f.platform}) IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo', 'swiggy', 'bbnow', 'quickcomm', 'qcommerce', 'q-commerce') OR lower(${pmSrc.f.platform}) LIKE '%quick%' OR lower(${pmSrc.f.platform}) LIKE '%instamart%', ${pmSrc.f.clicks}, 0)) AS group_atc,
                 (group_clicks_ecom + group_atc) AS group_clicks_total,
                 if (group_impressions > 0, (group_clicks_total / group_impressions) * 100, 0) AS ctr,
                 SUM(${pmSrc.f.spend}) AS group_spends,
@@ -12511,8 +12511,8 @@ const getPerformanceBreakdownData = async (filters) => {
                     SELECT 
                         ${groupByCol} AS tag, 
                         SUM(${pmSrc.f.impressions}) AS group_impressions,
-                        SUM(if(lower(${pmSrc.f.platform}) NOT IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo'), ${pmSrc.f.clicks}, 0)) AS group_clicks_ecom,
-                        SUM(if(lower(${pmSrc.f.platform}) IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo'), ${pmSrc.f.clicks}, 0)) AS group_atc,
+                        SUM(if(lower(${pmSrc.f.platform}) IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo', 'swiggy', 'bbnow', 'quickcomm', 'qcommerce', 'q-commerce') OR lower(${pmSrc.f.platform}) LIKE '%quick%' OR lower(${pmSrc.f.platform}) LIKE '%instamart%', 0, ${pmSrc.f.clicks})) AS group_clicks_ecom,
+                        SUM(if(lower(${pmSrc.f.platform}) IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo', 'swiggy', 'bbnow', 'quickcomm', 'qcommerce', 'q-commerce') OR lower(${pmSrc.f.platform}) LIKE '%quick%' OR lower(${pmSrc.f.platform}) LIKE '%instamart%', ${pmSrc.f.clicks}, 0)) AS group_atc,
                         SUM(${pmSrc.f.spend}) AS group_spends, 
                         SUM(${pmSrc.f.orders}) AS group_orders, 
                         SUM(${pmSrc.f.adSales}) AS group_sales

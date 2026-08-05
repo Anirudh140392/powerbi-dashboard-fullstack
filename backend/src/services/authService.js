@@ -465,10 +465,12 @@ export async function verifySession(token, deviceToken = null) {
     try {
         const permRows = await queryAdminDB(
             `SELECT 
-                ifNull(argMaxIf(db_status, last_login, db_status != ''), 'active') as db_status,
-                ifNull(argMaxIf(tab_permissions, last_login, tab_permissions != ''), '') as tab_permissions
+                db_status,
+                tab_permissions
              FROM tb_user 
-             WHERE user_email = {email:String}`,
+             WHERE lower(user_email) = lower({email:String}) AND status != 'deleted'
+             ORDER BY last_login DESC, created_on DESC
+             LIMIT 1`,
             { email: decoded.email }
         );
         if (permRows.length > 0) {
@@ -497,3 +499,78 @@ export async function verifySession(token, deviceToken = null) {
         companyId,      // ratings postgres company_id — passed to ratings tab via sessionStorage
     };
 }
+
+/**
+ * Verify invitation token
+ */
+export async function verifyInviteToken(token) {
+    const { inviteTokensMap } = await import('./adminService.js');
+    if (!token || !inviteTokensMap.has(token)) {
+        throw new Error('Invalid or expired invitation token. Please request a new invitation from your admin.');
+    }
+    const info = inviteTokensMap.get(token);
+    if (Date.now() > info.expiresAt) {
+        inviteTokensMap.delete(token);
+        throw new Error('This invitation link has expired (48h limit). Please request a new invitation.');
+    }
+    return {
+        valid: true,
+        email: info.email,
+        dbName: info.dbName,
+        dbId: info.dbId,
+        role: info.role,
+    };
+}
+
+/**
+ * Complete invitation: create password, set status = 'active', and log user in
+ */
+export async function completeInvitation(token, password, deviceInfo = {}) {
+    const inviteInfo = await verifyInviteToken(token);
+    if (!password || password.length < 6) {
+        throw new Error('Password must be at least 6 characters long.');
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const { email, dbId, role } = inviteInfo;
+
+    const hashRes = await queryAdminDB(`SELECT toString(cityHash64('${email}')) as hash`);
+    const user_id = hashRes[0]?.hash || Date.now().toString();
+    const id = Date.now().toString();
+    const currentTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0];
+
+    let defaultTabPermissions = '';
+    try {
+        const permQuery = `SELECT tab_permissions FROM tb_user WHERE lower(user_email) = {email:String} AND tab_permissions != '' LIMIT 1`;
+        const rows = await queryAdminDB(permQuery, { email });
+        if (rows && rows.length > 0 && rows[0].tab_permissions) {
+            defaultTabPermissions = rows[0].tab_permissions;
+        }
+    } catch (e) { /* ignore */ }
+
+    await insertAdminDB('tb_user', [{
+        id,
+        user_id,
+        user_email: email,
+        user_name: email.split('@')[0],
+        user_role: role || 'user',
+        password_hash: hashedPassword,
+        db_id: dbId,
+        last_login: currentTimestamp,
+        created_on: currentTimestamp,
+        status: 'active',
+        ip: deviceInfo.ip || '',
+        access: 'allow',
+        db_status: 'active',
+        tab_permissions: defaultTabPermissions
+    }]);
+
+    // Clear token after single use
+    const { inviteTokensMap } = await import('./adminService.js');
+    inviteTokensMap.delete(token);
+
+    // Authenticate and return JWT token session
+    const { authenticateSsoUser } = await import('./ssoService.js');
+    return await authenticateSsoUser({ email, name: email.split('@')[0], provider: 'local' }, deviceInfo);
+}
+
