@@ -527,6 +527,68 @@ export function AggregatedViewTable() {
         fetchData();
     }, [fetchData]);
 
+    const isQuickcommPlatform = (platformName, channelName) => {
+        const p = String(platformName || '').toLowerCase();
+        const c = String(channelName || '').toLowerCase();
+        if (c === 'quickcomm' || c === 'qcommerce' || c === 'quick commerce' || c.includes('quick')) return true;
+        if (c === 'ecommerce' || c === 'ecom' || c.includes('ecom')) return false;
+        if (!p || p === 'all') return false;
+        return (
+            p.includes('zepto') ||
+            p.includes('blinkit') ||
+            p.includes('instamart') ||
+            p.includes('swiggy') ||
+            p.includes('dunzo') ||
+            p.includes('bbnow') ||
+            p.includes('quick')
+        );
+    };
+
+    const isEcommercePlatform = (platformName, channelName) => {
+        const p = String(platformName || '').toLowerCase();
+        const c = String(channelName || '').toLowerCase();
+        if (c === 'ecommerce' || c === 'ecom' || c.includes('ecom')) return true;
+        if (c === 'quickcomm' || c === 'qcommerce' || c === 'quick commerce' || c.includes('quick')) return false;
+        if (!p || p === 'all') return false;
+        return (
+            p.includes('amazon') ||
+            p.includes('flipkart') ||
+            p.includes('myntra') ||
+            p.includes('nykaa') ||
+            p.includes('jiomart') ||
+            p.includes('ecom')
+        );
+    };
+
+    const isQuick = isQuickcommPlatform(localPlatformFilter, selectedChannel);
+    const isEcom = isEcommercePlatform(localPlatformFilter, selectedChannel);
+
+    let showClicks = true;
+    let showAtc = true;
+
+    if (isQuick) {
+        showClicks = false;
+        showAtc = true;
+    } else if (isEcom) {
+        showClicks = true;
+        showAtc = false;
+    } else if (totals) {
+        if (totals.clicks > 0 && (totals.atc === 0 || !totals.atc)) {
+            showClicks = true;
+            showAtc = false;
+        } else if (totals.atc > 0 && (totals.clicks === 0 || !totals.clicks)) {
+            showClicks = false;
+            showAtc = true;
+        }
+    }
+
+    const tableHeaders = ["Impressions"];
+    if (showClicks) tableHeaders.push("Clicks");
+    if (showAtc) tableHeaders.push("ATC");
+    tableHeaders.push("CTR", "% Spends", "Spends", "CPC", "Orders", "AOV", "CVR", "Ad Sales");
+
+    const totalCols = tableHeaders.length + 1;
+
     const formatNumber = (num) => { if (num === null || num === undefined) return "—"; if (num >= 10000000) return `${(num / 10000000).toFixed(2)} Cr`; if (num >= 100000) return `${(num / 100000).toFixed(2)} Lac`; if (num >= 1000) return `${(num / 1000).toFixed(1)} K`; return num.toLocaleString("en-IN"); };
     const formatCurrency = (num) => (num === null || num === undefined ? "—" : `₹${formatNumber(num)}`);
     const getPeriodData = (tag, periodKey) => { if (!periodComparison || !periodComparison[periodKey]) return null; return periodComparison[periodKey].find((d) => d.tag === tag) || null; };
@@ -589,14 +651,23 @@ export function AggregatedViewTable() {
                         </div>
                         <button onClick={() => {
                             // CSV Download
-                            const headers = [currentDimension.label, "Impressions", "Clicks", "ATC", "CTR", "% Spends", "Spends", "CPC", "Orders", "AOV", "CVR", "Ad Sales"];
+                            const headers = [currentDimension.label, ...tableHeaders];
                             const csvRows = [headers.join(",")];
                             data.forEach(row => {
-                                csvRows.push([
-                                    `"${row.tag || ''}"`, row.impressions, row.clicks, row.atc, `${(row.ctr || 0).toFixed(2)}%`,
-                                    `${(row.spend_percent_share || 0).toFixed(1)}%`, row.spends, (row.cpc || 0).toFixed(2),
-                                    row.orders, (row.aov || 0).toFixed(2), `${(row.cvr || 0).toFixed(2)}%`, row.sales
-                                ].join(","));
+                                const rowVals = [`"${row.tag || ''}"`, row.impressions];
+                                if (showClicks) rowVals.push(row.clicks);
+                                if (showAtc) rowVals.push(row.atc);
+                                rowVals.push(
+                                    `${(row.ctr || 0).toFixed(2)}%`,
+                                    `${(row.spend_percent_share || 0).toFixed(1)}%`,
+                                    row.spends,
+                                    (row.cpc || 0).toFixed(2),
+                                    row.orders,
+                                    (row.aov || 0).toFixed(2),
+                                    `${(row.cvr || 0).toFixed(2)}%`,
+                                    row.sales
+                                );
+                                csvRows.push(rowVals.join(","));
                             });
                             const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
                             const url = URL.createObjectURL(blob);
@@ -610,11 +681,24 @@ export function AggregatedViewTable() {
             {/* Table */}
             <div className="w-full overflow-x-auto">
                 <table className="w-full table-fixed" style={{ minWidth: '900px' }}>
-                    <colgroup><col className="w-[16%]" /><col className="w-[8%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[9%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[9%]" /><col className="w-[7%]" /><col className="w-[9%]" /></colgroup>
+                    <colgroup>
+                        <col className="w-[16%]" />
+                        <col className="w-[8%]" />
+                        {showClicks && <col className="w-[7%]" />}
+                        {showAtc && <col className="w-[7%]" />}
+                        <col className="w-[7%]" />
+                        <col className="w-[7%]" />
+                        <col className="w-[9%]" />
+                        <col className="w-[7%]" />
+                        <col className="w-[7%]" />
+                        <col className="w-[9%]" />
+                        <col className="w-[7%]" />
+                        <col className="w-[9%]" />
+                    </colgroup>
                     <thead>
                         <tr className={darkMode ? "bg-slate-800/50" : "bg-slate-50/50"}>
                             <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{currentDimension.label}</th>
-                            {["Impressions", "Clicks", "ATC", "CTR", "% Spends", "Spends", "CPC", "Orders", "AOV", "CVR", "Ad Sales"].map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
+                            {tableHeaders.map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
@@ -622,8 +706,8 @@ export function AggregatedViewTable() {
                             <tr className={darkMode ? "bg-gradient-to-r from-violet-500/10 to-purple-500/10" : "bg-gradient-to-r from-violet-50/50 to-purple-50/50"}>
                                 <td className={`px-4 py-3 font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}><div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-violet-500" />Total</div></td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.impressions)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.clicks)}</td>
-                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.atc)}</td>
+                                {showClicks && <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.clicks)}</td>}
+                                {showAtc && <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.atc)}</td>}
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatPercent(totals.ctr)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>100.00%</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.spends)}</td>
@@ -635,58 +719,78 @@ export function AggregatedViewTable() {
                             </tr>
                         )}
                         {loading ? (
-                            [...Array(5)].map((_, i) => (<tr key={i}><td colSpan={10} className="px-4 py-3"><div className={`h-8 rounded-lg animate-pulse ${darkMode ? "bg-slate-700" : "bg-slate-100"}`} /></td></tr>))
+                            [...Array(5)].map((_, i) => (<tr key={i}><td colSpan={totalCols} className="px-4 py-3"><div className={`h-8 rounded-lg animate-pulse ${darkMode ? "bg-slate-700" : "bg-slate-100"}`} /></td></tr>))
                         ) : apiError ? (
-                            <tr><td colSpan={10}><ErrorRetryOverlay onRetry={fetchData} message={apiError} /></td></tr>
+                            <tr><td colSpan={totalCols}><ErrorRetryOverlay onRetry={fetchData} message={apiError} /></td></tr>
                         ) : data.length === 0 ? (
-                            <tr><td colSpan={10} className="px-4 py-12 text-center"><LayoutGrid className={`w-12 h-12 mx-auto mb-3 ${darkMode ? "text-slate-600" : "text-slate-300"}`} /><p className={`text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}>No data available</p></td></tr>
+                            <tr><td colSpan={totalCols} className="px-4 py-12 text-center"><LayoutGrid className={`w-12 h-12 mx-auto mb-3 ${darkMode ? "text-slate-600" : "text-slate-300"}`} /><p className={`text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}>No data available</p></td></tr>
                         ) : (
-                            paginatedData.map((row, idx) => (
-                                <React.Fragment key={row.tag || idx}>
-                                    <motion.tr initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.03 }} className={`transition-colors cursor-pointer ${darkMode ? "hover:bg-slate-700/30" : "hover:bg-slate-50"}`} onClick={() => comparePeriods && toggleRowExpand(row.tag)}>
-                                        <td className={`px-4 py-3 ${darkMode ? "text-white" : "text-slate-900"}`}>
-                                            <div className="flex items-center gap-2">
-                                                {comparePeriods && (<motion.div animate={{ rotate: expandedRows.has(row.tag) ? 90 : 0 }} className="flex-shrink-0"><ChevronRight className="w-4 h-4 text-slate-400" /></motion.div>)}
-                                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${idx === 0 ? "bg-emerald-500" : idx === 1 ? "bg-blue-500" : idx === 2 ? "bg-violet-500" : "bg-slate-400"}`} />
-                                                <span className="font-medium text-sm truncate" title={row.tag}>{row.tag}</span>
-                                            </div>
-                                        </td>
-                                        {[formatNumber(row.impressions), formatNumber(row.clicks), formatNumber(row.atc), formatPercent(row.ctr), `${row.spend_percent_share.toFixed(1)}%`, formatCurrency(row.spends), formatCurrency(row.cpc), formatNumber(row.orders), formatCurrency(row.aov), formatPercent(row.cvr), formatCurrency(row.sales)].map((val, ci) => (
-                                            <td key={ci} className={`px-2 py-3 text-right text-sm ${ci === 4 ? (darkMode ? "text-slate-400" : "text-slate-500") : (darkMode ? "text-slate-200" : "text-slate-700")}`}>{val}</td>
-                                        ))}
-                                    </motion.tr>
-                                    <AnimatePresence>
-                                        {comparePeriods && expandedRows.has(row.tag) && selectedPeriods.length > 0 && selectedPeriods.map((period) => {
-                                            const pd = getPeriodData(row.tag, period.key);
-                                            return (
-                                                <motion.tr key={`${row.tag}-${period.key}`} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className={darkMode ? "bg-slate-900/50" : "bg-slate-50/50"}>
-                                                    <td className={`px-4 py-2 ${darkMode ? "text-slate-400" : "text-slate-600"}`}>
-                                                        <div className="flex items-center gap-2 pl-6">
-                                                            <Calendar className="w-3 h-3" /><span className="text-sm">{period.label}</span>
-                                                            {period.type === "preset" && (() => { const r = getPresetDateRange(period.key); return r ? (<div className="relative group"><Info className={`w-3 h-3 cursor-help ${darkMode ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`} /><div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none ${darkMode ? "bg-slate-700 text-white" : "bg-slate-900 text-white"}`}>{formatDateRangeShort(r)}</div></div>) : null; })()}
-                                                        </div>
-                                                    </td>
-                                                    {[
-                                                        pd ? formatNumber(pd.impressions) : "—", 
-                                                        pd ? formatNumber(pd.clicks) : "—", 
-                                                        pd ? formatNumber(pd.atc) : "—", 
-                                                        pd?.ctr ? formatPercent(pd.ctr) : (pd?.impressions > 0 ? formatPercent((pd.clicks / pd.impressions) * 100) : "—"), 
-                                                        pd?.spend_percent_share !== undefined ? `${pd.spend_percent_share.toFixed(1)}%` : "—", 
-                                                        pd ? formatCurrency(pd.spends) : "—", 
-                                                        pd?.cpc ? formatCurrency(pd.cpc) : (pd?.clicks > 0 ? formatCurrency(pd.spends / pd.clicks) : "—"), 
-                                                        pd ? formatNumber(pd.orders) : "—", 
-                                                        pd?.aov ? formatCurrency(pd.aov) : (pd?.orders > 0 ? formatCurrency(pd.sales / pd.orders) : "—"), 
-                                                        pd?.cvr ? formatPercent(pd.cvr) : (pd?.clicks > 0 ? formatPercent((pd.orders / pd.clicks) * 100) : "—")
-                                                    ].map((v, i) => (
-                                                        <td key={i} className={`px-2 py-2 text-right text-sm ${darkMode ? "text-slate-400" : "text-slate-600"}`}>{v}</td>
-                                                    ))}
-                                                    <td className={`px-2 py-2 text-right text-sm ${darkMode ? "text-emerald-400" : "text-emerald-600"}`}>{pd ? formatCurrency(pd.sales) : "—"}</td>
-                                                </motion.tr>
-                                            );
-                                        })}
-                                    </AnimatePresence>
-                                </React.Fragment>
-                            ))
+                            paginatedData.map((row, idx) => {
+                                const rowValues = [formatNumber(row.impressions)];
+                                if (showClicks) rowValues.push(formatNumber(row.clicks));
+                                if (showAtc) rowValues.push(formatNumber(row.atc));
+                                rowValues.push(
+                                    formatPercent(row.ctr),
+                                    `${(row.spend_percent_share || 0).toFixed(1)}%`,
+                                    formatCurrency(row.spends),
+                                    formatCurrency(row.cpc),
+                                    formatNumber(row.orders),
+                                    formatCurrency(row.aov),
+                                    formatPercent(row.cvr),
+                                    formatCurrency(row.sales)
+                                );
+                                const spendShareIdx = (showClicks && showAtc) ? 4 : 3;
+
+                                return (
+                                    <React.Fragment key={row.tag || idx}>
+                                        <motion.tr initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.03 }} className={`transition-colors cursor-pointer ${darkMode ? "hover:bg-slate-700/30" : "hover:bg-slate-50"}`} onClick={() => comparePeriods && toggleRowExpand(row.tag)}>
+                                            <td className={`px-4 py-3 ${darkMode ? "text-white" : "text-slate-900"}`}>
+                                                <div className="flex items-center gap-2">
+                                                    {comparePeriods && (<motion.div animate={{ rotate: expandedRows.has(row.tag) ? 90 : 0 }} className="flex-shrink-0"><ChevronRight className="w-4 h-4 text-slate-400" /></motion.div>)}
+                                                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${idx === 0 ? "bg-emerald-500" : idx === 1 ? "bg-blue-500" : idx === 2 ? "bg-violet-500" : "bg-slate-400"}`} />
+                                                    <span className="font-medium text-sm truncate" title={row.tag}>{row.tag}</span>
+                                                </div>
+                                            </td>
+                                            {rowValues.map((val, ci) => (
+                                                <td key={ci} className={`px-2 py-3 text-right text-sm ${ci === spendShareIdx ? (darkMode ? "text-slate-400" : "text-slate-500") : (darkMode ? "text-slate-200" : "text-slate-700")}`}>{val}</td>
+                                            ))}
+                                        </motion.tr>
+                                        <AnimatePresence>
+                                            {comparePeriods && expandedRows.has(row.tag) && selectedPeriods.length > 0 && selectedPeriods.map((period) => {
+                                                const pd = getPeriodData(row.tag, period.key);
+                                                const pdTotalClicks = (pd?.clicks || 0) + (pd?.atc || 0);
+                                                const periodValues = [pd ? formatNumber(pd.impressions) : "—"];
+                                                if (showClicks) periodValues.push(pd ? formatNumber(pd.clicks) : "—");
+                                                if (showAtc) periodValues.push(pd ? formatNumber(pd.atc) : "—");
+                                                periodValues.push(
+                                                    pd?.ctr ? formatPercent(pd.ctr) : (pd?.impressions > 0 ? formatPercent((pdTotalClicks / pd.impressions) * 100) : "—"),
+                                                    pd?.spend_percent_share !== undefined ? `${pd.spend_percent_share.toFixed(1)}%` : "—",
+                                                    pd ? formatCurrency(pd.spends) : "—",
+                                                    pd?.cpc ? formatCurrency(pd.cpc) : (pd && pdTotalClicks > 0 ? formatCurrency(pd.spends / pdTotalClicks) : "—"),
+                                                    pd ? formatNumber(pd.orders) : "—",
+                                                    pd?.aov ? formatCurrency(pd.aov) : (pd?.orders > 0 ? formatCurrency(pd.sales / pd.orders) : "—"),
+                                                    pd?.cvr ? formatPercent(pd.cvr) : (pd && pdTotalClicks > 0 ? formatPercent((pd.orders / pdTotalClicks) * 100) : "—"),
+                                                    pd ? formatCurrency(pd.sales) : "—"
+                                                );
+
+                                                return (
+                                                    <motion.tr key={`${row.tag}-${period.key}`} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className={darkMode ? "bg-slate-900/50" : "bg-slate-50/50"}>
+                                                        <td className={`px-4 py-2 ${darkMode ? "text-slate-400" : "text-slate-600"}`}>
+                                                            <div className="flex items-center gap-2 pl-6">
+                                                                <Calendar className="w-3 h-3" /><span className="text-sm">{period.label}</span>
+                                                                {period.type === "preset" && (() => { const r = getPresetDateRange(period.key); return r ? (<div className="relative group"><Info className={`w-3 h-3 cursor-help ${darkMode ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`} /><div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none ${darkMode ? "bg-slate-700 text-white" : "bg-slate-900 text-white"}`}>{formatDateRangeShort(r)}</div></div>) : null; })()}
+                                                            </div>
+                                                        </td>
+                                                        {periodValues.map((v, i) => (
+                                                            <td key={i} className={`px-2 py-2 text-right text-sm ${i === periodValues.length - 1 ? (darkMode ? "text-emerald-400" : "text-emerald-600") : (darkMode ? "text-slate-400" : "text-slate-600")}`}>{v}</td>
+                                                        ))}
+                                                    </motion.tr>
+                                                );
+                                            })}
+                                        </AnimatePresence>
+                                    </React.Fragment>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>
