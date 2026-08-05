@@ -66,8 +66,8 @@ const LoginPageContent = () => {
         try {
             const msalConfig = {
                 auth: {
-                    clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || '08166a0d-c911-4acb-9d0a-b9a7e85a7515',
-                    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common'}`,
+                    clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || '153c3bd5-c6f7-41a5-b11c-3334d71b5db4',
+                    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MICROSOFT_TENANT_ID || 'b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a'}`,
                     redirectUri: window.location.origin,
                 }
             };
