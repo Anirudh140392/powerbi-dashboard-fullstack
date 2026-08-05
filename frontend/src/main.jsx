@@ -16,39 +16,17 @@ if ('serviceWorker' in navigator) {
 
 /**
  * MSAL Popup Interception
- * When Microsoft redirects the popup back to our origin, the popup loads this app.
- * We must detect we're inside a popup, let MSAL process the auth response,
- * and close the popup — WITHOUT rendering the full React app.
+ * When Microsoft redirects the popup back to our origin, this page loads in the popup.
+ * We detect we're inside a popup (window.opener exists) and DO NOT render the React app.
+ * The parent window's loginPopup() monitors this popup's URL, extracts the auth code
+ * from the hash fragment, and closes the popup automatically.
  */
-async function handleMsalPopup() {
-  // Detect if we're inside a popup opened by MSAL (window.opener is the parent login page)
-  if (window.opener && window.opener !== window) {
-    try {
-      const { PublicClientApplication } = await import("@azure/msal-browser");
-      const msalConfig = {
-        auth: {
-          clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || '153c3bd5-c6f7-41a5-b11c-3334d71b5db4',
-          authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MICROSOFT_TENANT_ID || 'b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a'}`,
-          redirectUri: window.location.origin,
-        },
-        cache: {
-          cacheLocation: "sessionStorage",
-          storeAuthStateInCookie: false,
-        }
-      };
-      const msalInstance = new PublicClientApplication(msalConfig);
-      await msalInstance.initialize();
-      // This processes the auth hash, sends the token to the parent window, and closes the popup
-      await msalInstance.handleRedirectPromise();
-    } catch (e) {
-      // If MSAL handling fails, close the popup anyway
-      console.error("MSAL popup handling error:", e);
-    }
-    // Don't render the React app in the popup — return early
-    return;
-  }
-
-  // Normal app render (not a popup)
+if (window.opener && window.opener !== window) {
+  // We're inside the MSAL popup — render nothing.
+  // The parent window will read the #code=... hash and close this popup.
+  console.log("[MSAL Popup] Detected popup window, waiting for parent to process auth response...");
+} else {
+  // Normal app render (main browser window)
   createRoot(document.getElementById("root")).render(
     <>
       <AppThemeProvider>
@@ -58,5 +36,3 @@ async function handleMsalPopup() {
     </>
   );
 }
-
-handleMsalPopup();
