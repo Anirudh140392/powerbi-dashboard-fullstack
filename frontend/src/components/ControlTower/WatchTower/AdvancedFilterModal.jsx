@@ -67,6 +67,8 @@ const mockPlatforms = [
 const kpiOptions = [
     { key: 'offtakes', label: 'Offtakes' },
     { key: 'spend', label: 'Spend' },
+    { key: 'tacos', label: 'TACoS' },
+    { key: 'roas_x', label: 'ROAS' },
     { key: 'categorySize', label: 'Category size' },
     { key: 'inorgSales', label: 'Inorg Sales' },
     { key: 'conversion', label: 'Conversion' },
