@@ -1,380 +1,274 @@
 // src/utils/alertEmailTemplate.js
-// Generates styled dark-theme HTML email showing ONLY the triggered alert condition
+// Generates the dynamic sales_enablement-style HTML email for alert dispatches.
+// All values are injected from live ClickHouse queries via alertDataService.
 
-export const generateAlertEmailHtml = ({
-    alert,
-    dbName,
-    istNow,
-    currency,
-    metricDetails
-}) => {
-    const alertType = (alert.alert_type || 'low_osa').toLowerCase();
+/**
+ * Format IST timestamp for display (e.g. "05 Aug 2026 • 16:49 IST")
+ */
+const formatISTDisplay = (istDateTimeStr) => {
+    if (!istDateTimeStr) return '';
+    try {
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        // istDateTimeStr format: "YYYY-MM-DD HH:mm:ss"
+        const parts = istDateTimeStr.split(' ');
+        const dateParts = parts[0].split('-');
+        const timeParts = parts[1] ? parts[1].split(':') : ['00','00'];
+        const day = parseInt(dateParts[2], 10);
+        const month = months[parseInt(dateParts[1], 10) - 1];
+        const year = dateParts[0];
+        return `${String(day).padStart(2,'0')} ${month} ${year} • ${timeParts[0]}:${timeParts[1]} IST`;
+    } catch {
+        return istDateTimeStr;
+    }
+};
 
-    const isRule1Active = alertType === 'low_osa' || (!alertType.includes('ads') && !alertType.includes('promo') && !alertType.includes('discount') && !alertType.includes('health'));
-    const isRule2Active = alertType === 'low_osa_ads' || alertType.includes('ads');
-    const isRule3Active = alertType === 'promo_discount_change' || alertType.includes('promo') || alertType.includes('discount');
-    const isRule4Active = alertType === 'category_health' || alertType.includes('health');
+/**
+ * Get severity color and label
+ */
+const getSeverityStyle = (severity) => {
+    const s = String(severity || 'Warning').toLowerCase();
+    if (s.includes('critical')) {
+        return { bg: '#fff1f2', border: '#fecaca', color: '#dc2626', label: 'Critical', dotColor: '#dc2626' };
+    }
+    if (s.includes('high')) {
+        return { bg: '#fff7ed', border: '#fed7aa', color: '#ea580c', label: 'High', dotColor: '#ea580c' };
+    }
+    if (s.includes('medium')) {
+        return { bg: '#fffbeb', border: '#fde68a', color: '#d97706', label: 'Medium', dotColor: '#d97706' };
+    }
+    return { bg: '#f0fdf4', border: '#bbf7d0', color: '#16a34a', label: 'Low', dotColor: '#16a34a' };
+};
 
-    const platformsStr = Array.isArray(alert.platforms) && alert.platforms.length > 0 ? alert.platforms.join(', ') : 'All Platforms';
-    const brandsStr = Array.isArray(alert.brands) && alert.brands.length > 0 ? alert.brands.join(', ') : 'All Brands';
-    const operatorStr = alert.conditional_operator || '<';
-    const thresholdStr = alert.threshold_value !== undefined ? alert.threshold_value : '85';
-    const severityStr = alert.severity_level || 'Warning';
+/**
+ * Generate delta indicator HTML (up arrow green / down arrow red)
+ */
+const deltaHtml = (delta, sup = false) => {
+    if (delta === 0) return '';
+    const isUp = delta > 0;
+    const cls = isUp ? 'up' : 'down';
+    const arrow = isUp ? '↑' : '↓';
+    const absVal = Math.abs(delta).toFixed(1);
+    if (sup) {
+        return `<sup class="${cls}">${arrow}${absVal}%</sup>`;
+    }
+    const color = isUp ? '#16a34a' : '#dc2626';
+    return `<span style="color:${color};font-weight:700;">▼ ${absVal}%</span>`;
+};
 
-    let triggeredManifestHtml = '';
-
-    if (isRule1Active) {
-        triggeredManifestHtml = `
-          <div class="stop active-rule">
-            <div class="num">01</div>
-            <div class="stop-body">
-              <h3>Low OSA Alert <span class="active-badge">ACTIVE TRIGGER</span></h3>
-              <p><strong>Formula:</strong> OSA = (Available SKUs / Total Listed SKUs) * 100</p>
-              <p><strong>Condition:</strong> Category OSA &lt; Threshold (e.g. 85%)</p>
-              <div class="rule-details-box">
-                <div class="detail-item"><strong>Calculated OSA:</strong> <span class="highlight">${metricDetails.calculatedOSA || 'N/A'}</span></div>
-                <div class="detail-item"><strong>Threshold:</strong> ${operatorStr} ${thresholdStr}%</div>
-                <div class="detail-item"><strong>Platforms:</strong> ${platformsStr}</div>
-                <div class="detail-item"><strong>Brands:</strong> ${brandsStr}</div>
-              </div>
-            </div>
-            <div class="tag new">TRIGGERED</div>
-          </div>
-        `;
-    } else if (isRule2Active) {
-        triggeredManifestHtml = `
-          <div class="stop active-rule">
-            <div class="num">02</div>
-            <div class="stop-body">
-              <h3>Low OSA + Active Ads Alert <span class="active-badge">ACTIVE TRIGGER</span></h3>
-              <p><strong>Formula:</strong> OSA &lt; Threshold AND Ad Spend &gt; 0</p>
-              <p><strong>Condition:</strong> OSA below threshold with active ad spend</p>
-              <div class="rule-details-box">
-                <div class="detail-item"><strong>Calculated OSA:</strong> <span class="highlight">${metricDetails.calculatedOSA || 'N/A'}</span></div>
-                <div class="detail-item"><strong>Ad Spend:</strong> <span class="highlight">${metricDetails.adSpend || 'N/A'}</span></div>
-                <div class="detail-item"><strong>Threshold:</strong> ${operatorStr} ${thresholdStr}%</div>
-                <div class="detail-item"><strong>Platforms:</strong> ${platformsStr}</div>
-                <div class="detail-item"><strong>Brands:</strong> ${brandsStr}</div>
-              </div>
-            </div>
-            <div class="tag new">TRIGGERED</div>
-          </div>
-        `;
-    } else if (isRule3Active) {
-        triggeredManifestHtml = `
-          <div class="stop active-rule">
-            <div class="num">03</div>
-            <div class="stop-body">
-              <h3>Sharp Promo/Discount Change Alert <span class="active-badge">ACTIVE TRIGGER</span></h3>
-              <p><strong>Formula:</strong> Discount Shift% = ((Current - Baseline) / Baseline) * 100</p>
-              <p><strong>Condition:</strong> Increase or decrease in discount &gt; 20%</p>
-              <div class="rule-details-box">
-                <div class="detail-item"><strong>Current Discount:</strong> <span class="highlight">${metricDetails.currentDiscount || 'N/A'}</span></div>
-                <div class="detail-item"><strong>Baseline Discount:</strong> ${metricDetails.baselineDiscount || 'N/A'}</div>
-                <div class="detail-item"><strong>Discount Shift:</strong> <span class="highlight">${metricDetails.discountShift || 'N/A'}</span></div>
-                <div class="detail-item"><strong>Threshold:</strong> &gt; ${thresholdStr}%</div>
-                <div class="detail-item"><strong>Platforms:</strong> ${platformsStr}</div>
-                <div class="detail-item"><strong>Brands:</strong> ${brandsStr}</div>
-              </div>
-            </div>
-            <div class="tag new">TRIGGERED</div>
-          </div>
-        `;
-    } else if (isRule4Active) {
-        triggeredManifestHtml = `
-          <div class="stop active-rule">
-            <div class="num">04</div>
-            <div class="stop-body">
-              <h3>Category Health Alert <span class="active-badge">ACTIVE TRIGGER</span></h3>
-              <p><strong>Formula:</strong> Multi-metric comparison vs baseline / previous period</p>
-              <p><strong>Condition:</strong> One or more metrics deteriorate beyond thresholds</p>
-              <div class="rule-details-box">
-                <div class="detail-item"><strong>Calculated OSA:</strong> <span class="highlight">${metricDetails.calculatedOSA || 'N/A'}</span></div>
-                <div class="detail-item"><strong>Average Price:</strong> ${metricDetails.averagePrice || 'N/A'}</div>
-                <div class="detail-item"><strong>ASP:</strong> ${metricDetails.averageASP || 'N/A'}</div>
-                <div class="detail-item"><strong>Discount:</strong> ${metricDetails.averageDiscount || 'N/A'}</div>
-                <div class="detail-item"><strong>Ad Spend:</strong> ${metricDetails.adSpend || 'N/A'}</div>
-                <div class="detail-item"><strong>Threshold:</strong> ${thresholdStr}%</div>
-                <div class="detail-item"><strong>Platforms:</strong> ${platformsStr}</div>
-                <div class="detail-item"><strong>Brands:</strong> ${brandsStr}</div>
-              </div>
-            </div>
-            <div class="tag new">TRIGGERED</div>
-          </div>
-        `;
+/**
+ * Generate a single platform section with brand table + impacted SKU table.
+ *
+ * @param {string} platformName
+ * @param {Array<{brand, currentOsa, previousOsa, delta}>} brandData
+ * @param {Array<{skuName, brand, currentOsa, previousOsa, delta}>} skuData
+ * @returns {string} HTML block
+ */
+const buildPlatformSection = (platformName, brandData, skuData) => {
+    // Brand Performance table rows
+    let brandRows = '';
+    if (brandData && brandData.length > 0) {
+        for (const b of brandData) {
+            brandRows += `
+        <tr>
+          <td>${escapeHtml(b.brand)}</td>
+          <td>${b.currentOsa.toFixed(1)}% ${deltaHtml(b.delta, true)}</td>
+          <td>${b.previousOsa.toFixed(1)}%</td>
+        </tr>`;
+        }
+    } else {
+        brandRows = '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:18px;">No brand data available</td></tr>';
     }
 
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Trailytics Alert Dispatch</title>
-<style>
-  :root {
-    --bg: #12151A;
-    --panel: #1B2028;
-    --panel-2: #20262F;
-    --line: #2B323C;
-    --ink: #E9ECEF;
-    --muted: #8B93A1;
-    --lime: #C6FF3D;
-    --amber: #FFB648;
-    --coral: #FF6B4A;
-  }
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0; padding: 0;
-    background: #12151A;
-    color: #E9ECEF;
-    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 30px 20px 60px;
-  }
+    // Impacted SKU table rows
+    let skuRows = '';
+    if (skuData && skuData.length > 0) {
+        for (const s of skuData) {
+            skuRows += `
+        <tr>
+          <td>${escapeHtml(s.skuName)}</td>
+          <td>${escapeHtml(s.brand)}</td>
+          <td>${s.currentOsa.toFixed(1)}% ${deltaHtml(s.delta, true)}</td>
+        </tr>`;
+        }
+    } else {
+        skuRows = '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:18px;">No impacted SKUs found</td></tr>';
+    }
 
-  /* Header */
-  .console-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 20px;
-    background: #1B2028;
-    border: 1px solid #2B323C;
-    border-radius: 10px;
-    margin-bottom: 24px;
-  }
-  .console-header .brand {
-    display: flex; align-items: center; gap: 10px;
-    font-family: 'JetBrains Mono', monospace, sans-serif;
-    font-size: 12px;
-    letter-spacing: 0.12em;
-    color: #8B93A1;
-    text-transform: uppercase;
-  }
-  .dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #C6FF3D;
-    box-shadow: 0 0 8px #C6FF3D;
-    display: inline-block;
-  }
-  .console-header .ts {
-    font-family: 'JetBrains Mono', monospace, sans-serif;
-    font-size: 12px;
-    color: #C6FF3D;
-  }
+    return `
+<div class="platform">
+  <div class="platform-title">${escapeHtml(platformName)}</div>
 
-  h1.title {
-    font-size: 32px;
-    font-weight: 700;
-    line-height: 1.1;
-    margin: 0 0 8px;
-    letter-spacing: -0.01em;
-    color: #ffffff;
-  }
-  .title .hi { color: #C6FF3D; }
-  .title .alert-name { color: #FF6B4A; }
-  p.subtitle {
-    color: #8B93A1;
-    font-size: 14px;
-    margin: 0 0 28px;
-  }
-
-  section { margin-bottom: 36px; }
-  .section-label {
-    font-family: 'JetBrains Mono', monospace, sans-serif;
-    font-size: 11px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #C6FF3D;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  /* Priority Manifest */
-  .manifest {
-    border: 1px solid #2B323C;
-    border-radius: 12px;
-    overflow: hidden;
-    background: #1B2028;
-  }
-  .stop {
-    display: flex;
-    gap: 16px;
-    align-items: flex-start;
-    padding: 18px 20px;
-    position: relative;
-  }
-  .stop.active-rule {
-    background: #20262F;
-    border-left: 4px solid #C6FF3D;
-  }
-  .stop .num {
-    font-family: 'JetBrains Mono', monospace, sans-serif;
-    font-size: 20px;
-    font-weight: 700;
-    color: #C6FF3D;
-    min-width: 32px;
-  }
-  .stop-body { flex: 1; }
-  .stop-body h3 {
-    margin: 0 0 6px;
-    font-size: 16px;
-    font-weight: 700;
-    color: #ffffff;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .stop-body p {
-    margin: 0 0 4px;
-    color: #8B93A1;
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  .active-badge {
-    font-size: 10px;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 4px;
-    background: rgba(255, 107, 74, 0.2);
-    color: #FF6B4A;
-    border: 1px solid rgba(255, 107, 74, 0.4);
-    letter-spacing: 0.05em;
-  }
-
-  .rule-details-box {
-    margin-top: 12px;
-    padding: 12px 14px;
-    background: #12151A;
-    border: 1px solid #2B323C;
-    border-radius: 8px;
-    font-size: 12.5px;
-    color: #E9ECEF;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px 16px;
-  }
-  .rule-details-box .detail-item strong {
-    color: #8B93A1;
-    display: inline-block;
-    min-width: 110px;
-  }
-  .rule-details-box .detail-item span.highlight {
-    color: #C6FF3D;
-    font-weight: 700;
-  }
-
-  .tag {
-    font-family: 'JetBrains Mono', monospace, sans-serif;
-    font-size: 10.5px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    padding: 5px 10px;
-    border-radius: 999px;
-    white-space: nowrap;
-    border: 1px solid transparent;
-  }
-  .tag.new { color: #FF6B4A; border-color: rgba(255,107,74,0.35); background: rgba(255,107,74,0.08); }
-
-  /* Summary Card */
-  .summary-card {
-    background: #1B2028;
-    border: 1px solid #2B323C;
-    border-radius: 12px;
-    padding: 20px;
-  }
-  .summary-card table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  .summary-card td {
-    padding: 10px;
-    font-size: 13px;
-    border-bottom: 1px solid #2B323C;
-  }
-  .summary-card tr:last-child td { border-bottom: none; }
-  .summary-card td.label {
-    color: #8B93A1;
-    font-weight: 600;
-    width: 200px;
-  }
-  .summary-card td.val {
-    color: #ffffff;
-    font-weight: 500;
-  }
-
-  footer {
-    text-align: center;
-    color: #8B93A1;
-    font-family: 'JetBrains Mono', monospace, sans-serif;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-top: 40px;
-  }
-</style>
-</head>
-<body>
-<div class="wrap">
-
-  <!-- Header -->
-  <div class="console-header">
-    <div class="brand"><span class="dot"></span> Trailytics Intelligent Alerts — Dispatch</div>
-    <div class="ts">${istNow} IST</div>
+  <div class="table-card">
+    <div class="section-title brand">Brand Performance</div>
+    <table class="tbl">
+      <colgroup><col style="width:42%"><col style="width:29%"><col style="width:29%"></colgroup>
+      <thead>
+        <tr><th>Brand Name</th><th>Current OSA</th><th>Previous OSA</th></tr>
+      </thead>
+      <tbody>
+        ${brandRows}
+      </tbody>
+    </table>
   </div>
 
-  <h1 class="title">Intelligent Alert <span class="hi">Triggered</span>: <span class="alert-name">${alert.alert_name}</span></h1>
-  <p class="subtitle">Notification dispatch for dashboard <strong>${dbName}</strong> [Severity: <strong>${severityStr}</strong>].</p>
-
-  <!-- Priority Manifest Segment - Triggered Condition Only -->
-  <section>
-    <div class="section-label">Triggered Condition</div>
-    <div class="manifest">
-      ${triggeredManifestHtml}
-    </div>
-  </section>
-
-  <!-- Summary Overview Section -->
-  <section>
-    <div class="section-label">Execution Summary</div>
-    <div class="summary-card">
-      <table>
-        <tr>
-          <td class="label">Rule Name</td>
-          <td class="val" style="color: #C6FF3D; font-weight: 700;">${alert.alert_name}</td>
-        </tr>
-        <tr>
-          <td class="label">Target Dashboard</td>
-          <td class="val">${dbName}</td>
-        </tr>
-        <tr>
-          <td class="label">Severity Level</td>
-          <td class="val" style="color: #FF6B4A; font-weight: 700;">${severityStr}</td>
-        </tr>
-        <tr>
-          <td class="label">Platforms Checked</td>
-          <td class="val">${platformsStr}</td>
-        </tr>
-        <tr>
-          <td class="label">Brands Checked</td>
-          <td class="val">${brandsStr}</td>
-        </tr>
-        <tr>
-          <td class="label">Trigger Condition</td>
-          <td class="val">${metricDetails.conditionText || 'Condition met'}</td>
-        </tr>
-      </table>
-    </div>
-  </section>
-
-  <footer>Trailytics Intelligent Alert Console · Automated Dispatch</footer>
+  <div class="table-card">
+    <div class="section-title sku">Impacted SKUs</div>
+    <table class="tbl">
+      <colgroup><col style="width:42%"><col style="width:29%"><col style="width:29%"></colgroup>
+      <thead>
+        <tr><th>SKU Name</th><th>Brand Name</th><th>Current OSA</th></tr>
+      </thead>
+      <tbody>
+        ${skuRows}
+      </tbody>
+    </table>
+  </div>
 </div>
-</body>
-</html>`;
+`;
+};
+
+/**
+ * Escape HTML entities to prevent XSS in dynamic content
+ */
+const escapeHtml = (str) => {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+};
+
+/**
+ * Generate the full dynamic alert email HTML based on the sales_enablement template.
+ *
+ * @param {Object} data
+ * @param {string} data.logoUrl - Company logo URL from tb_database
+ * @param {string} data.companyName - Company/DB display name
+ * @param {string} data.istNow - IST timestamp string "YYYY-MM-DD HH:mm:ss"
+ * @param {string} data.alertName - Alert rule name
+ * @param {string} data.severityLevel - "Critical", "High", "Medium", "Low"
+ * @param {number} data.thresholdValue - Threshold percentage
+ * @param {string} data.conditionalOperator - Operator symbol (e.g. ">", "<")
+ * @param {{currentOsa: number, previousOsa: number, delta: number}} data.aggregateOsa
+ * @param {Array<{platform: string, brands: Array, skus: Array}>} data.platformData
+ *   Each platform entry contains:
+ *     - platform: string (e.g. "Amazon")
+ *     - brands: Array<{brand, currentOsa, previousOsa, delta}>
+ *     - skus: Array<{skuName, brand, currentOsa, previousOsa, delta}>
+ * @returns {string} Complete HTML email string
+ */
+export const generateAlertEmailHtml = (data) => {
+    const {
+        logoUrl = '',
+        companyName = 'Trailytics',
+        istNow = '',
+        alertName = 'Low OSA Alert',
+        severityLevel = 'Warning',
+        thresholdValue = 85,
+        conditionalOperator = '>',
+        aggregateOsa = { currentOsa: 0, previousOsa: 0, delta: 0 },
+        platformData = [],
+    } = data;
+
+    const severity = getSeverityStyle(severityLevel);
+    const displayTime = formatISTDisplay(istNow);
+
+    // Header delta display
+    const headerDelta = aggregateOsa.delta;
+    const headerDeltaColor = headerDelta >= 0 ? '#16a34a' : '#dc2626';
+    const headerDeltaArrow = headerDelta >= 0 ? '▲' : '▼';
+    const headerDeltaText = `${headerDeltaArrow} ${Math.abs(headerDelta).toFixed(1)}%`;
+
+    // Build platform sections
+    let platformSectionsHtml = '';
+    for (const pd of platformData) {
+        platformSectionsHtml += buildPlatformSection(pd.platform, pd.brands, pd.skus);
+    }
+
+    // If no platform data, show a fallback
+    if (!platformSectionsHtml) {
+        platformSectionsHtml = `
+<div class="platform">
+  <div class="platform-title">All Platforms</div>
+  <div class="table-card">
+    <div style="padding:18px;text-align:center;color:#94a3b8;">No platform-specific data available for this alert.</div>
+  </div>
+</div>`;
+    }
+
+    // Logo HTML: show company logo if available, otherwise show text
+    const logoHtml = logoUrl
+        ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName)} Logo" width="180" style="display:block;max-width:180px;height:auto;border:0;outline:none;text-decoration:none;">`
+        : `<div style="font-size:28px;font-weight:800;color:#1e5eff;">${escapeHtml(companyName)}</div>`;
+
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHtml(companyName)} - Alert Dispatch</title>
+<style>
+body{margin:0;padding:18px;background:#f4f7fb;font-family:Arial,sans-serif;color:#111827}
+.container{max-width:640px;margin:auto}
+.header{background:linear-gradient(#f8fbff,#eef6ff);border:1px solid #d7e6ff;border-radius:18px;padding:22px}
+.header small{display:block;color:#4b74c9;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.header h1{margin:8px 0 4px;color:#1e5eff;font-size:40px}
+.header p{margin:0;color:#667085}
+.card{margin-top:14px;background:#fff;border:1px solid #e5edf8;border-radius:16px;padding:18px}
+.top{display:flex;justify-content:space-between;align-items:center}
+.status{color:#dc2626;font-size:12px;font-weight:700}
+.info{display:flex;gap:18px;background:linear-gradient(180deg,#f8fbff,#edf5ff);border:1px solid #cfe0ff;border-radius:18px;padding:18px;margin:18px 0;box-shadow:0 8px 24px rgba(59,130,246,.08)}
+.metric{flex:1;background:#fff;border:1px solid #dde8fb;border-radius:14px;padding:18px;position:relative;box-shadow:0 2px 8px rgba(15,23,42,.04)}
+.metric:not(:last-child):after{content:"";position:absolute;right:-9px;top:18%;height:64%;width:1px;background:linear-gradient(to bottom,transparent,#b8d5ff,transparent)}
+.metric-title{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:700;letter-spacing:1px}
+.metric-value{font-size:40px;font-weight:800;margin-top:6px;line-height:1}
+.metric-sub{margin-top:8px;font-size:12px;color:#64748b}
+.severity-badge{display:inline-block;padding:8px 16px;border-radius:999px;background:${severity.bg};border:1px solid ${severity.border};color:${severity.color};font-weight:700}
+.lbl{font-size:10px;text-transform:uppercase;color:#64748b;font-weight:700}
+.val{font-size:18px;font-weight:700;margin-top:4px}
+.platform{margin-top:18px;border:1px solid #dbe7f6;border-radius:14px;background:#fbfdff;overflow:hidden}
+.platform-title{background:#dbeafe;color:#1d4ed8;padding:12px 16px;font-size:18px;font-weight:700;border-bottom:1px solid #c7ddfe}
+.table-card{margin:14px;border:1px solid #e5eaf3;border-radius:10px;overflow:hidden;background:#fff}
+.section-title{padding:11px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.brand{background:#eef4ff;color:#475569;border-bottom:1px solid #d9e6ff}
+.sku{background:#f8fafc;color:#64748b;border-bottom:1px solid #e8eef7}
+.tbl{width:100%;border-collapse:collapse;table-layout:fixed}
+.tbl th{text-align:left;padding:12px 14px;color:#475569;font-size:11px;text-transform:uppercase;border-bottom:2px solid #d7e6ff;background:#f8fbff}.tbl th:not(:last-child),.tbl td:not(:last-child){border-right:1px solid #e3ebf8}
+.tbl td{text-align:left;padding:11px 14px;border-bottom:1px solid #f3f4f6}
+.tbl tr:last-child td{border-bottom:none}
+.up{color:#16a34a;font-size:10px;vertical-align:super}
+.down{color:#dc2626;font-size:10px;vertical-align:super}
+.summary{margin-top:18px;border:1px solid #d7e6ff;border-radius:12px;padding:14px}
+.summary .t{font-size:11px;color:#1e5eff;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.footer{text-align:center;font-size:11px;color:#64748b;margin-top:12px}
+</style></head><body>
+<div class="container">
+<div class="header"><small>INTELLIGENT ALERTS</small><div style="margin:10px 0 8px 0;">
+${logoHtml}
+</div>
+<p style="margin-top:6px;">Intelligent Alert Dispatch</p><p style="margin-top:8px">${displayTime}</p></div>
+<div class="card">
+<div class="top"><h2 style="margin:0">${escapeHtml(alertName)}</h2><div class="status">● TRIGGERED</div></div>
+<div class="info">
+<div class="metric">
+<div class="metric-title">Current OSA</div>
+<div class="metric-value">${aggregateOsa.currentOsa.toFixed(2)}%</div>
+<div class="metric-sub"><span style="color:${headerDeltaColor};font-weight:700;">${headerDeltaText}</span> vs previous</div>
+</div>
+<div class="metric">
+<div class="metric-title">Alert Threshold</div>
+<div class="metric-value">${escapeHtml(conditionalOperator)}${thresholdValue}%</div>
+<div class="metric-sub">Trigger Condition Active</div>
+</div>
+<div class="metric">
+<div class="metric-title">Severity</div>
+<div style="margin-top:10px;"><span class="severity-badge">● ${severity.label}</span></div>
+<div class="metric-sub">${severity.label === 'Critical' ? 'Immediate attention required' : severity.label === 'High' ? 'Requires attention soon' : 'Monitor and review'}</div>
+</div>
+</div>
+
+${platformSectionsHtml}
+
+<div class="summary"><div class="t">Delivery Summary</div>Alert dispatched successfully for <b>${escapeHtml(companyName)}</b> with <b>${severity.label}</b> severity.</div>
+</div>
+<div class="footer">Automated alert generated by Trailytics</div>
+</div></body></html>`;
 };

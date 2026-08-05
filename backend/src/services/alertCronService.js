@@ -1,11 +1,12 @@
 // src/services/alertCronService.js
-// Background task to send email alerts every 2 minutes
+// Background task to send email alerts every 1 minute
 import nodemailer from 'nodemailer';
 import { queryAdminDB } from '../config/adminClickhouse.js';
 import { decrypt } from '../utils/encryption.js';
 import { generateAlertEmailHtml } from '../utils/alertEmailTemplate.js';
 import { buildAlertTemplateComponents, buildAlertFullText } from '../utils/whatsappTemplate.js';
 import { sendWhatsappMessage } from './whatsappService.js';
+import { getCompanyLogo, computeDateRanges, getBrandOsaByPlatform, getImpactedSkus, getAggregateOsa } from './alertDataService.js';
 
 let cronIntervalId = null;
 
@@ -257,15 +258,17 @@ export const runEmailAlertsJob = async () => {
     }
 
     try {
-        // 1. Fetch database mappings (db_id -> db_name)
+        // 1. Fetch database mappings (db_id -> db_name + logo_url)
         const dbList = await queryAdminDB(`
-            SELECT toString(db_id) as db_id, db_name 
+            SELECT toString(db_id) as db_id, db_name, logo_url 
             FROM tb_database
         `);
 
         const dbMap = new Map();
+        const logoMap = new Map();
         for (const row of dbList) {
             dbMap.set(row.db_id, row.db_name);
+            logoMap.set(row.db_id, row.logo_url || '');
         }
 
         // 2. Fetch all configured alerts with last_email_sent and alert_frequency
@@ -514,6 +517,58 @@ export const runEmailAlertsJob = async () => {
                 if (isTriggered) {
                     console.log(`[AlertCron] 🚨 Rule TRIGGERED for "${alert.alert_name}" on ${dbName} [Condition: ${metricDetails.conditionText}]`);
 
+                    // ── Fetch enriched data for the dynamic sales_enablement template ──
+                    const logoUrl = logoMap.get(alert.db_id) || '';
+                    const companyDisplayName = dbName ? (dbName.charAt(0).toUpperCase() + dbName.slice(1)) : 'Company';
+                    const dateRanges = computeDateRanges(alert.benchmark_period);
+                    const alertOpSym = formatOperatorSymbol(alert.conditional_operator);
+
+                    // Determine which platforms to iterate over
+                    const alertPlatforms = (Array.isArray(alert.platforms) && alert.platforms.length > 0)
+                        ? alert.platforms.filter(p => p && p !== 'All Platforms')
+                        : [];
+
+                    // Fetch aggregate OSA for header metrics
+                    let aggregateOsa = { currentOsa: 0, previousOsa: 0, delta: 0 };
+                    try {
+                        aggregateOsa = await getAggregateOsa(
+                            dbName, alert.platforms, alert.brands,
+                            dateRanges.currentStart, dateRanges.currentEnd,
+                            dateRanges.prevStart, dateRanges.prevEnd
+                        );
+                    } catch (aggErr) {
+                        console.warn(`[AlertCron] Could not fetch aggregate OSA for "${alert.alert_name}":`, aggErr.message);
+                    }
+
+                    // Fetch per-platform brand OSA + impacted SKUs
+                    const platformData = [];
+                    for (const plat of (alertPlatforms.length > 0 ? alertPlatforms : [''])) {
+                        let brands = [];
+                        let skus = [];
+                        try {
+                            if (plat) {
+                                brands = await getBrandOsaByPlatform(
+                                    dbName, plat, alert.brands,
+                                    dateRanges.currentStart, dateRanges.currentEnd,
+                                    dateRanges.prevStart, dateRanges.prevEnd
+                                );
+                                skus = await getImpactedSkus(
+                                    dbName, plat, alert.brands,
+                                    dateRanges.currentStart, dateRanges.currentEnd,
+                                    dateRanges.prevStart, dateRanges.prevEnd,
+                                    5
+                                );
+                            }
+                        } catch (pdErr) {
+                            console.warn(`[AlertCron] Could not fetch platform data for ${plat} on ${dbName}:`, pdErr.message);
+                        }
+                        platformData.push({
+                            platform: plat || 'All Platforms',
+                            brands,
+                            skus,
+                        });
+                    }
+
                     // 1. Email Alert Dispatch
                     if (sendEmail && sendEmail.includes('@')) {
                         const emailFreqCheck = shouldSendBasedOnFrequency(alert.last_email_sent, alert.alert_frequency);
@@ -521,11 +576,15 @@ export const runEmailAlertsJob = async () => {
                             console.log(`[AlertCron] Email frequency check passed (${emailFreqCheck.reason})! Sending HTML alert email to ${sendEmail}...`);
 
                             const emailHtml = generateAlertEmailHtml({
-                                alert,
-                                dbName,
+                                logoUrl,
+                                companyName: companyDisplayName,
                                 istNow,
-                                currency,
-                                metricDetails
+                                alertName: alert.alert_name || 'Low OSA Alert',
+                                severityLevel: alert.severity_level || 'Warning',
+                                thresholdValue: threshold,
+                                conditionalOperator: alertOpSym,
+                                aggregateOsa,
+                                platformData,
                             });
 
                             const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
@@ -533,7 +592,7 @@ export const runEmailAlertsJob = async () => {
                                 from: `"Trailytics Alerts" <${fromEmail}>`,
                                 to: sendEmail,
                                 subject: `🚨 ALERT TRIGGERED: ${alert.alert_name}`,
-                                text: `Hi,\n\nAn intelligent alert rule has been triggered for your dashboard.\n\nAlert: ${alert.alert_name}\nDatabase: ${dbName}\nSeverity: ${alert.severity_level || 'Warning'}\nPlatforms: ${alert.platforms.join(', ') || 'All'}\nBrands: ${alert.brands.join(', ') || 'All'}\nCondition: ${metricDetails.conditionText}\n\nBest regards,\nTrailytics Team`,
+                                text: `Hi,\n\nAn intelligent alert rule has been triggered for your dashboard.\n\nAlert: ${alert.alert_name}\nDatabase: ${dbName}\nSeverity: ${alert.severity_level || 'Warning'}\nPlatforms: ${alert.platforms.join(', ') || 'All'}\nBrands: ${alert.brands.join(', ') || 'All'}\nCondition: ${metricDetails.conditionText}\nCurrent OSA: ${aggregateOsa.currentOsa}%\nPrevious OSA: ${aggregateOsa.previousOsa}%\n\nBest regards,\nTrailytics Team`,
                                 html: emailHtml,
                             };
 
@@ -565,19 +624,31 @@ export const runEmailAlertsJob = async () => {
                             console.log(`[AlertCron] WhatsApp frequency check passed (${whatsappFreqCheck.reason})! Dispatching WhatsApp alert to ${targetWhatsappNo}...`);
 
                             const recipientName = 'there';
-                            const brandName = dbName ? (dbName.charAt(0).toUpperCase() + dbName.slice(1)) : 'Prestige';
-                            const alertSummaryText = metricDetails.conditionText || `🔴 ${alert.alert_name} triggered for ${brandName}`;
+
+                            // Build richer WhatsApp summary with impacted SKU info
+                            let alertSummaryLines = `🔴 ${alert.alert_name} triggered for ${companyDisplayName}`;
+                            alertSummaryLines += `\nCurrent OSA: ${aggregateOsa.currentOsa}% | Previous: ${aggregateOsa.previousOsa}% | Delta: ${aggregateOsa.delta}%`;
+                            if (platformData.length > 0) {
+                                for (const pd of platformData) {
+                                    if (pd.skus && pd.skus.length > 0) {
+                                        alertSummaryLines += `\n📦 ${pd.platform} - Top impacted SKUs:`;
+                                        for (const sku of pd.skus.slice(0, 3)) {
+                                            alertSummaryLines += `\n  • ${sku.skuName} (OSA: ${sku.currentOsa}%)`;
+                                        }
+                                    }
+                                }
+                            }
 
                             const components = buildAlertTemplateComponents({
                                 recipientName,
-                                clientName: brandName,
-                                lines: alertSummaryText,
+                                clientName: companyDisplayName,
+                                lines: alertSummaryLines,
                                 dashboardPathParam: '',
                             });
                             const fullText = buildAlertFullText({
                                 recipientName,
-                                clientName: brandName,
-                                lines: alertSummaryText,
+                                clientName: companyDisplayName,
+                                lines: alertSummaryLines,
                             });
 
                             try {
@@ -613,16 +684,16 @@ export const runEmailAlertsJob = async () => {
 };
 
 /**
- * Start the background interval task running every 30 minutes
+ * Start the background interval task running every 1 minute
  */
 export const initAlertCron = () => {
-    const INTERVAL_MS = 30 * 60 * 1000;
+    const INTERVAL_MS = 1 * 60 * 1000;
 
     if (cronIntervalId) {
         clearInterval(cronIntervalId);
     }
 
-    console.log(`[AlertCron] Initializing alert scheduler (runs every 30 minutes)`);
+    console.log(`[AlertCron] Initializing alert scheduler (runs every 1 minute)`);
     
     cronIntervalId = setInterval(() => {
         runEmailAlertsJob().catch(err => {
