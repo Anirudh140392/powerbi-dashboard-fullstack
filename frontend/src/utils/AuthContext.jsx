@@ -214,7 +214,7 @@ export const AuthProvider = ({ children }) => {
             if (response.data.success) {
                 const { token, user: userData } = response.data;
                 loginWithToken(token, userData);
-                return { success: true };
+                return { success: true, user: userData };
             }
             return { success: false, error: response.data.error || `${provider} login failed` };
         } catch (error) {

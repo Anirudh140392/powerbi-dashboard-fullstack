@@ -96,7 +96,7 @@ export async function verifyMicrosoftToken(idToken) {
     if (!idToken) throw new Error('Microsoft ID token is required');
 
     return new Promise((resolve, reject) => {
-        const expectedAudience = process.env.MICROSOFT_CLIENT_ID;
+        const expectedAudience = process.env.MICROSOFT_CLIENT_ID || process.env.MICROSOFT_DEV_CLIENT_ID;
 
         jwt.verify(
             idToken,

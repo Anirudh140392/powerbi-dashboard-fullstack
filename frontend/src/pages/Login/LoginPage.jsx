@@ -92,7 +92,13 @@ const LoginPageContent = () => {
             });
             if (loginResponse && loginResponse.idToken) {
                 const res = await loginWithSso('microsoft', loginResponse.idToken);
-                if (!res.success) {
+                if (res.success) {
+                    const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
+                    const userRole = (loggedInUser?.role || '').toLowerCase();
+                    const hasAdminAccess = userRole.includes('admin') || userRole.includes('super');
+                    const redirectPath = hasAdminAccess ? "/admin" : "/watch-tower";
+                    navigate(redirectPath, { replace: true });
+                } else {
                     setError(res.error || "Microsoft login failed.");
                 }
             }
@@ -111,7 +117,7 @@ const LoginPageContent = () => {
 
     // Auto-redirect if already logged in AND effectively on the login page
     useEffect(() => {
-        if (!isVerifying && isLoggedIn && window.location.href.includes('/login')) {
+        if (!isVerifying && isLoggedIn) {
             const userRole = user?.role?.toLowerCase() || '';
             const hasAdminAccess = userRole.includes('admin') || userRole.includes('super');
             const redirectPath = hasAdminAccess ? "/admin" : "/watch-tower";
@@ -308,7 +314,13 @@ const LoginPageContent = () => {
                                     setLoading(true);
                                     setError("");
                                     const res = await loginWithSso('google', credential);
-                                    if (!res.success) {
+                                    if (res.success) {
+                                        const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
+                                        const userRole = (loggedInUser?.role || '').toLowerCase();
+                                        const hasAdminAccess = userRole.includes('admin') || userRole.includes('super');
+                                        const redirectPath = hasAdminAccess ? "/admin" : "/watch-tower";
+                                        navigate(redirectPath, { replace: true });
+                                    } else {
                                         setError(res.error || "Google authentication failed.");
                                     }
                                     setLoading(false);
