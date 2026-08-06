@@ -17,24 +17,39 @@ if ('serviceWorker' in navigator) {
 
 /**
  * MSAL Popup Interception
- * When Microsoft redirects the popup back to our origin, MSAL in the popup window
- * processes the token hash via handleRedirectPromise() and notifies the opener.
+ * When Microsoft redirects the popup back to our origin with #code=... or #error=...,
+ * MSAL needs to process this hash in the popup window and communicate the result
+ * back to the main window via postMessage, then close itself.
  */
-if (window.opener && window.opener !== window) {
-  // Inside MSAL popup window — handle redirect promise to process the #code= hash,
-  // notify window.opener, and close the popup.
+const urlHash = window.location.hash;
+const isPopupWindow = window.opener && window.opener !== window;
+const isMsalResponse = urlHash && (urlHash.includes('code=') || urlHash.includes('error=') || urlHash.includes('state='));
+
+if (isPopupWindow && isMsalResponse) {
+  // This is the MSAL popup window with an auth response in the hash.
+  // Initialize MSAL so it can process the hash and notify the opener window.
+  console.log("[MSAL Popup] Detected auth response hash, initializing MSAL to process...");
   getMsalInstance().then((msal) => {
-    return msal.handleRedirectPromise();
-  }).then(() => {
-    if (window.opener) {
-      window.close();
-    }
+    console.log("[MSAL Popup] Calling handleRedirectPromise to process hash...");
+    return msal.handleRedirectPromise(urlHash);
+  }).then((response) => {
+    console.log("[MSAL Popup] handleRedirectPromise resolved:", response ? "got token" : "no token (handled internally)");
+    // Popup should close automatically, but force close just in case
+    setTimeout(() => {
+      try { window.close(); } catch(e) {}
+    }, 500);
   }).catch((err) => {
-    console.error("[MSAL Popup] Error handling popup redirect:", err);
-    if (window.opener) {
-      window.close();
-    }
+    console.error("[MSAL Popup] Error processing auth response:", err);
+    setTimeout(() => {
+      try { window.close(); } catch(e) {}
+    }, 500);
   });
+} else if (isPopupWindow) {
+  // Popup window but no MSAL hash — just close it
+  console.log("[MSAL Popup] Popup window without auth hash, closing...");
+  setTimeout(() => {
+    try { window.close(); } catch(e) {}
+  }, 1000);
 } else {
   // Normal app render (main browser window)
   createRoot(document.getElementById("root")).render(

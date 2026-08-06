@@ -82,7 +82,9 @@ const LoginPageContent = () => {
         setError("");
         setLoading(true);
         try {
+            console.log("[MS Login] Step 1: Getting MSAL instance...");
             const msalInstance = await getMsalInstance();
+            console.log("[MS Login] Step 2: MSAL instance ready, calling loginPopup...");
 
             let loginResponse;
             try {
@@ -91,6 +93,7 @@ const LoginPageContent = () => {
                     prompt: "select_account"
                 });
             } catch (popupErr) {
+                console.error("[MS Login] loginPopup error:", popupErr.errorCode, popupErr.message);
                 if (popupErr.errorCode === 'interaction_in_progress') {
                     console.warn("[MSAL] interaction_in_progress detected, clearing cache and retrying...");
                     clearMsalStorage();
@@ -103,6 +106,13 @@ const LoginPageContent = () => {
                 }
             }
 
+            console.log("[MS Login] Step 3: loginPopup returned:", {
+                hasIdToken: !!loginResponse?.idToken,
+                hasAccessToken: !!loginResponse?.accessToken,
+                account: loginResponse?.account?.username,
+                tokenType: loginResponse?.tokenType,
+            });
+
             if (loginResponse && (loginResponse.idToken || loginResponse.accessToken)) {
                 const payloadData = {
                     idToken: loginResponse.idToken,
@@ -110,17 +120,22 @@ const LoginPageContent = () => {
                     email: loginResponse.account?.username,
                     name: loginResponse.account?.name
                 };
+                console.log("[MS Login] Step 4: Calling backend loginWithSso with email:", payloadData.email);
                 const res = await loginWithSso('microsoft', payloadData);
+                console.log("[MS Login] Step 5: Backend response:", { success: res.success, error: res.error, hasUser: !!res.user });
                 if (res.success) {
                     const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
                     const userRole = (loggedInUser?.role || '').toLowerCase();
                     const isAdmin = userRole.includes('admin') || userRole.includes('super');
                     const redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(loggedInUser);
+                    console.log("[MS Login] Step 6: Navigating to:", redirectPath, "| role:", userRole, "| dbId:", loggedInUser?.dbId);
                     navigate(redirectPath, { replace: true });
                 } else {
+                    console.error("[MS Login] Backend returned failure:", res.error);
                     setError(res.error || "Microsoft login failed.");
                 }
             } else {
+                console.error("[MS Login] loginPopup returned no token. Response:", loginResponse);
                 setError("Microsoft login did not return a valid token.");
             }
         } catch (err) {
