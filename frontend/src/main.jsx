@@ -21,10 +21,10 @@ if ('serviceWorker' in navigator) {
  * processes the token hash via handleRedirectPromise() and notifies the opener.
  */
 if (window.opener && window.opener !== window) {
-  getMsalInstance().then((msal) => {
-    return msal.handleRedirectPromise();
-  }).catch((err) => {
-    console.error("[MSAL Popup] Error in popup redirect handling:", err);
+  // Inside MSAL popup window — initializing MSAL automatically processes the popup response
+  // and closes the window. Do NOT call handleRedirectPromise() as it is only for redirect flows.
+  getMsalInstance().catch((err) => {
+    console.error("[MSAL Popup] Error initializing MSAL in popup window:", err);
   });
 } else {
   // Normal app render (main browser window)
