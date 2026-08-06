@@ -33,7 +33,7 @@ const QCOM_PLATFORM_NAMES = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow']
 const isEcomPlatform = (name) => ECOM_PLATFORM_NAMES.some(p => (name || '').toLowerCase().includes(p));
 const isQcomPlatform = (name) => QCOM_PLATFORM_NAMES.some(p => (name || '').toLowerCase().includes(p));
 // KPIs that are ecom-only at SKU level (not shown for qcom platforms)
-const SKU_ECOM_ONLY_KPIS = ['spend', 'conversion', 'cpc'];
+const SKU_ECOM_ONLY_KPIS = ['spend', 'conversion', 'cpc', 'roas_x'];
 const BrandLogo = ({ name, src, className, imgClassName }) => {
     const [error, setError] = useState(false);
 
@@ -82,6 +82,7 @@ const kpiLabels = {
     quantitySold: 'Quantity Sold',
     spend: 'Spend',
     tacos: 'TACoS',
+    roas_x: 'ROAS',
     availability: 'Availability',
     marketShare: 'Market share',
     conversion: 'Conversion',
@@ -134,6 +135,8 @@ const mapApiEntityToFrontend = (apiEntity) => {
                 const isPositive = col.change?.positive !== false
                 data[key] = {
                     value: col.value || '0',
+                    rawVal: col.rawVal ?? col.rawValue ?? null,
+                    meta: col.meta || null,
                     delta: {
                         value: changeText.replace(/^[+-]/, ''),
                         dir: isPositive ? 'up' : 'down'
@@ -144,6 +147,30 @@ const mapApiEntityToFrontend = (apiEntity) => {
     }
     return data
 }
+
+const getFullDisplayValue = (kpiKey, cell) => {
+    if (!cell || cell?.value === 'N/A' || cell?.value === undefined) return 'N/A';
+    if (kpiKey === 'quantitySold' || kpiKey === 'offtakes') {
+        if (cell.rawVal !== undefined && cell.rawVal !== null && !isNaN(cell.rawVal)) {
+            return Math.round(Number(cell.rawVal)).toLocaleString('en-IN');
+        }
+        const cleanStr = String(cell.value).replace(/,/g, '').trim();
+        const numMatch = cleanStr.match(/-?[\d.]+/);
+        if (numMatch) {
+            let val = parseFloat(numMatch[0]);
+            if (!isNaN(val)) {
+                const lower = cleanStr.toLowerCase();
+                if (lower.includes('cr')) val *= 10000000;
+                else if (lower.includes('lac') || lower.includes('lak') || lower.includes('lakh')) val *= 100000;
+                else if (lower.includes('m')) val *= 1000000;
+                else if (lower.includes('k')) val *= 1000;
+
+                return Math.round(val).toLocaleString('en-IN');
+            }
+        }
+    }
+    return cell?.value || '0';
+};
 
 // Dimension → API endpoint mapping
 const DIMENSION_API_MAP = {
@@ -184,6 +211,7 @@ const PlatformOverviewNew = ({
         { key: 'quantitySold', label: 'Quantity Sold' },
         { key: 'spend', label: 'Spend' },
         { key: 'tacos', label: 'TACoS' },
+        { key: 'roas_x', label: 'ROAS' },
         { key: 'inorgSales', label: 'Inorg Sales' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
@@ -268,7 +296,7 @@ const PlatformOverviewNew = ({
     }, [dimension, activePlatformFilter, skuPlatformFilter]);
 
     const defaultKpiKeys = useMemo(() => {
-        let base = ['offtakes', 'quantitySold', 'spend', 'tacos', 'availability', 'conversion', 'aov'];
+        let base = ['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'conversion', 'aov'];
         if (dimension === 'platform') {
             base.push('marketShare', 'categorySize');
             if (isEcom) base.push('cpc');
@@ -297,7 +325,7 @@ const PlatformOverviewNew = ({
         return base;
     }, [dimension, activePlatformFilter, skuPlatformFilter]);
 
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'quantitySold', 'spend', 'tacos', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
+    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const navigate = useNavigate()
     const [currentPage, setCurrentPage] = useState(1)
@@ -1095,11 +1123,12 @@ const PlatformOverviewNew = ({
                                                 const isNA = !cell || cell?.value === 'N/A' || cell?.value === undefined
                                                 const textColor = isNA ? 'text-slate-400' : getStatusText(cell?.delta)
                                                 const isUp = cell?.delta?.dir === 'up'
+                                                const hoverVal = getFullDisplayValue(kpi.key, cell)
 
                                                 return (
                                                     <motion.button
                                                         key={kpi.key}
-                                                        onClick={() => { if (!isNA) handleCopy(`${e.name} ${kpi.label}`, cell?.value) }}
+                                                        onClick={() => { if (!isNA) handleCopy(`${e.name} ${kpi.label}`, hoverVal) }}
                                                         className={cn(
                                                             'flex-1 px-3 rounded-xl text-center transition-all duration-200 relative overflow-hidden',
                                                             'bg-gradient-to-br from-white to-slate-50',
@@ -1109,7 +1138,7 @@ const PlatformOverviewNew = ({
                                                             !isNA && 'hover:shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:-translate-y-1 active:scale-[0.98]',
                                                             cardSize.minW, cardSize.py
                                                         )}
-                                                        title={isNA ? `${kpi.label}: N/A (Data Not Available)` : `${kpi.label}: ${cell?.value} (${cell?.delta?.dir === 'up' ? '▲' : '▼'} ${cell?.delta?.value})`}
+                                                        title={isNA ? `${kpi.label}: N/A (Data Not Available)` : `${kpi.label}: ${hoverVal} (${cell?.delta?.dir === 'up' ? '▲' : '▼'} ${cell?.delta?.value})`}
                                                         whileHover={isNA ? {} : { scale: 1.02 }}
                                                         whileTap={isNA ? {} : { scale: 0.98 }}
                                                     >

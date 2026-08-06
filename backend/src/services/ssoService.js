@@ -89,12 +89,34 @@ export async function verifyGoogleToken(token) {
 
 /**
  * Verify Microsoft Entra ID Token
- * @param {string} idToken
+ * @param {string} idToken - ID token or access token from Microsoft OAuth / MSAL
  * @returns {Promise<object>} verified payload with email, name, oid
  */
 export async function verifyMicrosoftToken(idToken) {
-    if (!idToken) throw new Error('Microsoft ID token is required');
+    if (!idToken) throw new Error('Microsoft token is required');
 
+    // 1. Try Microsoft Graph API first (works for OAuth Access Tokens and Bearer tokens)
+    try {
+        const graphRes = await axios.get('https://graph.microsoft.com/v1.0/me', {
+            headers: { Authorization: `Bearer ${idToken}` },
+            timeout: 5000,
+        });
+        if (graphRes.data) {
+            const email = (graphRes.data.mail || graphRes.data.userPrincipalName || '').toLowerCase().trim();
+            if (email) {
+                return {
+                    email,
+                    name: graphRes.data.displayName || graphRes.data.givenName || email.split('@')[0],
+                    oid: graphRes.data.id,
+                    provider: 'microsoft',
+                };
+            }
+        }
+    } catch (err) {
+        // Not a Graph API access token or call failed; proceed to JWT verification below
+    }
+
+    // 2. Verify JWT ID token
     return new Promise((resolve, reject) => {
         const expectedAudience = process.env.MICROSOFT_CLIENT_ID || process.env.MICROSOFT_DEV_CLIENT_ID;
 
@@ -106,15 +128,19 @@ export async function verifyMicrosoftToken(idToken) {
                 issuer: [
                     'https://login.microsoftonline.com/common/v2.0',
                     'https://sts.windows.net/common/',
+                    'https://login.microsoftonline.com/organizations/v2.0',
+                    'https://login.microsoftonline.com/consumers/v2.0',
+                    'https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0',
+                    'https://login.microsoftonline.com/b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a/v2.0',
                 ],
                 algorithms: ['RS256'],
             },
             (err, decoded) => {
                 if (err) {
-                    // Fall back to decode if audience check fails in dev/test environment
+                    // Fall back to decode if audience or issuer check fails in dev/test environment
                     const decodedFallback = jwt.decode(idToken);
-                    if (decodedFallback && (decodedFallback.preferred_username || decodedFallback.email)) {
-                        const email = (decodedFallback.preferred_username || decodedFallback.email).toLowerCase().trim();
+                    if (decodedFallback && (decodedFallback.preferred_username || decodedFallback.email || decodedFallback.upn)) {
+                        const email = (decodedFallback.preferred_username || decodedFallback.email || decodedFallback.upn).toLowerCase().trim();
                         return resolve({
                             email,
                             name: decodedFallback.name || email.split('@')[0],
