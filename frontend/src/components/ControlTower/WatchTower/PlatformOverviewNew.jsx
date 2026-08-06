@@ -190,9 +190,12 @@ const PlatformOverviewNew = ({
 }) => {
     const {
         platform: globalPlatform,
+        setPlatform,
         selectedBrand,
+        setSelectedBrand,
         brands: globalBrands,
         selectedCategory,
+        setSelectedCategory,
         categories: globalCategories,
         selectedLocation,
         selectedChannel,
@@ -203,7 +206,8 @@ const PlatformOverviewNew = ({
         compareEnd,
         datesFetched,
         platformsFetched,
-        selectedMsl
+        selectedMsl,
+        setSelectedMsl
     } = useContext(FilterContext);
 
     const kpis = [
@@ -660,9 +664,32 @@ const PlatformOverviewNew = ({
 
     // Handle filter apply from modal
     const handleApplyFilters = (filters) => {
-        setAdvancedFilters(filters)
-        setGlanceKpis(filters.kpis)
-    }
+        setAdvancedFilters(filters);
+        setGlanceKpis(filters.kpis);
+
+        // Synchronize back to global FilterContext so top blue filter button stays in 2-way sync
+        if (filters.categories && filters.categories.length > 0) {
+            setSelectedCategory(filters.categories.length === 1 ? filters.categories[0] : filters.categories);
+        } else if (filters.categories && filters.categories.length === 0) {
+            setSelectedCategory('All');
+        }
+
+        if (filters.brands && filters.brands.length > 0) {
+            setSelectedBrand(filters.brands.length === 1 ? filters.brands[0] : filters.brands);
+        } else if (filters.brands && filters.brands.length === 0) {
+            setSelectedBrand('All');
+        }
+
+        if (filters.platforms && filters.platforms.length > 0) {
+            setPlatform(filters.platforms.length === 1 ? filters.platforms[0] : filters.platforms);
+        } else if (filters.platforms && filters.platforms.length === 0) {
+            setPlatform('All');
+        }
+
+        if (filters.msl !== undefined && setSelectedMsl) {
+            setSelectedMsl(filters.msl);
+        }
+    };
     // Count active dimension filters
     const activeDimensionFilters = [
         advancedFilters.brands?.length > 0,
@@ -1090,16 +1117,29 @@ const PlatformOverviewNew = ({
                                                     >
                                                         <LineChart size={13} className="text-slate-400" />
                                                     </button>
-                                                    <button
-                                                        onClick={(evt) => {
-                                                            evt.stopPropagation();
-                                                            onViewRca(e.name || e.label);
-                                                        }}
-                                                        className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-                                                        title={`View ${e.name} RCA`}
-                                                    >
-                                                        <MapPin size={13} className="text-slate-400" />
-                                                    </button>
+                                                    {(() => {
+                                                        const entityNameLower = (e.name || e.label || '').toLowerCase().trim();
+                                                        const isEcomEntity = isEcomPlatform(entityNameLower) || (selectedChannel && (selectedChannel.toLowerCase().includes('ecom') || selectedChannel.toLowerCase().includes('e-commerce')));
+                                                        const isAmazonEntity = entityNameLower.includes('amazon') || (globalPlatform && globalPlatform.toLowerCase().includes('amazon'));
+
+                                                        // For e-commerce, ONLY show RCA button for Amazon; hide for all other e-commerce platforms
+                                                        if (isEcomEntity && !isAmazonEntity) {
+                                                            return null;
+                                                        }
+
+                                                        return (
+                                                            <button
+                                                                onClick={(evt) => {
+                                                                    evt.stopPropagation();
+                                                                    onViewRca(e.name || e.label);
+                                                                }}
+                                                                className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
+                                                                title={`View ${e.name} RCA`}
+                                                            >
+                                                                <MapPin size={13} className="text-slate-400" />
+                                                            </button>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
 
