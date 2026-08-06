@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../utils/AuthContext";
 import { getFirstAllowedRoute } from "../../components/ProtectedRoute";
 import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
-import { PublicClientApplication } from "@azure/msal-browser";
+import { getMsalInstance } from "../../utils/msalConfig";
 import {
     Box,
     Typography,
@@ -65,19 +65,7 @@ const LoginPageContent = () => {
         setError("");
         setLoading(true);
         try {
-            const msalConfig = {
-                auth: {
-                    clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || '153c3bd5-c6f7-41a5-b11c-3334d71b5db4',
-                    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common'}`,
-                    redirectUri: window.location.origin,
-                },
-                cache: {
-                    cacheLocation: "sessionStorage",
-                    storeAuthStateInCookie: false,
-                }
-            };
-            const msalInstance = new PublicClientApplication(msalConfig);
-            await msalInstance.initialize();
+            const msalInstance = await getMsalInstance();
 
             const loginResponse = await msalInstance.loginPopup({
                 scopes: ["User.Read", "openid", "profile", "email"]
