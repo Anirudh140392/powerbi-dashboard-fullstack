@@ -104,8 +104,13 @@ const LoginPageContent = () => {
             }
 
             if (loginResponse && (loginResponse.idToken || loginResponse.accessToken)) {
-                const tokenToPass = loginResponse.idToken || loginResponse.accessToken;
-                const res = await loginWithSso('microsoft', tokenToPass);
+                const payloadData = {
+                    idToken: loginResponse.idToken,
+                    accessToken: loginResponse.accessToken,
+                    email: loginResponse.account?.username,
+                    name: loginResponse.account?.name
+                };
+                const res = await loginWithSso('microsoft', payloadData);
                 if (res.success) {
                     const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
                     const userRole = (loggedInUser?.role || '').toLowerCase();
