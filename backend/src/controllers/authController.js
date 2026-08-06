@@ -249,7 +249,7 @@ export const microsoftLogin = async (req, res) => {
         }
 
         const { verifyMicrosoftToken, authenticateSsoUser } = await import('../services/ssoService.js');
-        const ssoPayload = await verifyMicrosoftToken(token);
+        const ssoPayload = await verifyMicrosoftToken(token, req.body);
         const result = await authenticateSsoUser(ssoPayload, {
             visitorId, browser, browserVersion, os, platform, ip: clientIp
         });

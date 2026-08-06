@@ -51,6 +51,23 @@ const GoogleSsoButton = ({ onSuccess, onError }) => {
     );
 };
 
+const clearMsalStorage = () => {
+    try {
+        Object.keys(sessionStorage).forEach(key => {
+            if (key.includes('msal')) sessionStorage.removeItem(key);
+        });
+        document.cookie.split(";").forEach(cookie => {
+            const eqPos = cookie.indexOf("=");
+            const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+            if (name.includes("msal")) {
+                document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+            }
+        });
+    } catch (e) {
+        console.warn("Could not clear MSAL storage", e);
+    }
+};
+
 const LoginPageContent = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -67,12 +84,33 @@ const LoginPageContent = () => {
         try {
             const msalInstance = await getMsalInstance();
 
-            const loginResponse = await msalInstance.loginPopup({
-                scopes: ["User.Read", "openid", "profile", "email"]
-            });
+            let loginResponse;
+            try {
+                loginResponse = await msalInstance.loginPopup({
+                    scopes: ["User.Read", "openid", "profile", "email"],
+                    prompt: "select_account"
+                });
+            } catch (popupErr) {
+                if (popupErr.errorCode === 'interaction_in_progress') {
+                    console.warn("[MSAL] interaction_in_progress detected, clearing cache and retrying...");
+                    clearMsalStorage();
+                    loginResponse = await msalInstance.loginPopup({
+                        scopes: ["User.Read", "openid", "profile", "email"],
+                        prompt: "select_account"
+                    });
+                } else {
+                    throw popupErr;
+                }
+            }
+
             if (loginResponse && (loginResponse.idToken || loginResponse.accessToken)) {
-                const tokenToPass = loginResponse.idToken || loginResponse.accessToken;
-                const res = await loginWithSso('microsoft', tokenToPass);
+                const payloadData = {
+                    idToken: loginResponse.idToken,
+                    accessToken: loginResponse.accessToken,
+                    email: loginResponse.account?.username,
+                    name: loginResponse.account?.name
+                };
+                const res = await loginWithSso('microsoft', payloadData);
                 if (res.success) {
                     const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
                     const userRole = (loggedInUser?.role || '').toLowerCase();
@@ -87,12 +125,7 @@ const LoginPageContent = () => {
             }
         } catch (err) {
             console.error("Microsoft SSO Error:", err);
-            if (err.errorCode === 'interaction_in_progress') {
-                Object.keys(sessionStorage).forEach(key => {
-                    if (key.startsWith('msal.')) sessionStorage.removeItem(key);
-                });
-                setError("Please try again.");
-            } else if (err.name === 'BrowserAuthError' && (err.errorCode === 'user_cancelled' || err.errorCode === 'popup_window_error')) {
+            if (err.name === 'BrowserAuthError' && (err.errorCode === 'user_cancelled' || err.errorCode === 'popup_window_error')) {
                 // User closed popup - not an error
             } else {
                 setError(err.message || "Microsoft authentication canceled or failed.");

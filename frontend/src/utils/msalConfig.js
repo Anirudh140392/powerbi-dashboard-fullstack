@@ -4,7 +4,7 @@ export const msalConfig = {
     auth: {
         clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || '153c3bd5-c6f7-41a5-b11c-3334d71b5db4',
         authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common'}`,
-        redirectUri: window.location.origin,
+        redirectUri: import.meta.env.VITE_MICROSOFT_REDIRECT_URI || (typeof window !== 'undefined' ? window.location.origin : 'https://dev.trailytics.in'),
     },
     cache: {
         cacheLocation: "sessionStorage",

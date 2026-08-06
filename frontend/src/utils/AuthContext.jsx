@@ -207,7 +207,9 @@ export const AuthProvider = ({ children }) => {
             const endpoint = provider === 'google' ? `${API_BASE}/auth/google-login` : `${API_BASE}/auth/microsoft-login`;
             const reqBody = provider === 'google'
                 ? { credential: payloadData, visitorId, browser, browserVersion, os, platform }
-                : { idToken: payloadData, credential: payloadData, accessToken: payloadData, visitorId, browser, browserVersion, os, platform };
+                : typeof payloadData === 'object'
+                    ? { ...payloadData, visitorId, browser, browserVersion, os, platform }
+                    : { idToken: payloadData, credential: payloadData, accessToken: payloadData, visitorId, browser, browserVersion, os, platform };
 
             const response = await axios.post(endpoint, reqBody, { withCredentials: true });
 
