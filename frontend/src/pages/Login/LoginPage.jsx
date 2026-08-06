@@ -68,7 +68,7 @@ const LoginPageContent = () => {
             const msalConfig = {
                 auth: {
                     clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || '153c3bd5-c6f7-41a5-b11c-3334d71b5db4',
-                    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MICROSOFT_TENANT_ID || 'b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a'}`,
+                    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common'}`,
                     redirectUri: window.location.origin,
                 },
                 cache: {
@@ -82,8 +82,9 @@ const LoginPageContent = () => {
             const loginResponse = await msalInstance.loginPopup({
                 scopes: ["User.Read", "openid", "profile", "email"]
             });
-            if (loginResponse && loginResponse.idToken) {
-                const res = await loginWithSso('microsoft', loginResponse.idToken);
+            if (loginResponse && (loginResponse.idToken || loginResponse.accessToken)) {
+                const tokenToPass = loginResponse.idToken || loginResponse.accessToken;
+                const res = await loginWithSso('microsoft', tokenToPass);
                 if (res.success) {
                     const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
                     const userRole = (loggedInUser?.role || '').toLowerCase();
@@ -93,6 +94,8 @@ const LoginPageContent = () => {
                 } else {
                     setError(res.error || "Microsoft login failed.");
                 }
+            } else {
+                setError("Microsoft login did not return a valid token.");
             }
         } catch (err) {
             console.error("Microsoft SSO Error:", err);

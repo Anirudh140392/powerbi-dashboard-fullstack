@@ -237,9 +237,10 @@ export const googleLogin = async (req, res) => {
  */
 export const microsoftLogin = async (req, res) => {
     try {
-        const { idToken, visitorId, browser, browserVersion, os, platform } = req.body || {};
-        if (!idToken) {
-            return res.status(400).json({ success: false, error: 'Microsoft ID token is required' });
+        const { idToken, credential, accessToken, visitorId, browser, browserVersion, os, platform } = req.body || {};
+        const token = idToken || credential || accessToken;
+        if (!token) {
+            return res.status(400).json({ success: false, error: 'Microsoft token is required' });
         }
 
         let clientIp = req.ip || req.socket?.remoteAddress || '';
@@ -248,7 +249,7 @@ export const microsoftLogin = async (req, res) => {
         }
 
         const { verifyMicrosoftToken, authenticateSsoUser } = await import('../services/ssoService.js');
-        const ssoPayload = await verifyMicrosoftToken(idToken);
+        const ssoPayload = await verifyMicrosoftToken(token);
         const result = await authenticateSsoUser(ssoPayload, {
             visitorId, browser, browserVersion, os, platform, ip: clientIp
         });
