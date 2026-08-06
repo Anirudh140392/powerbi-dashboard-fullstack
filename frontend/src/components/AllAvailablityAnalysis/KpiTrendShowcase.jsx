@@ -623,7 +623,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
   const getListForTab = () => {
     if (activeTab === "category") return getCategoryOptions();
     if (activeTab === "brand") return getBrandOptions();
-    if (activeTab === "msl") return ["MSL Only (1)", "Non-MSL (0)"];
+    if (activeTab === "msl") return ["Top SKUs", "All SKUs"];
     return getSkuOptions();
   };
 
@@ -1476,8 +1476,8 @@ const getLocalMslFromGlobal = (globalMsl) => {
   if (!globalMsl || globalMsl === 'All' || globalMsl === 'all') return [];
   const normalized = Array.isArray(globalMsl) ? globalMsl : globalMsl.split(',');
   const local = [];
-  if (normalized.includes('1')) local.push("MSL Only (1)");
-  if (normalized.includes('0')) local.push("Non-MSL (0)");
+  if (normalized.includes('1')) local.push("Top SKUs");
+  if (normalized.includes('0') || normalized.includes('All')) local.push("All SKUs");
   return local;
 };
 
@@ -1487,8 +1487,8 @@ const getApiMslFromLocal = (localMsl, globalMsl) => {
     return Array.isArray(globalMsl) ? globalMsl.join(',') : globalMsl;
   }
   const apiValues = [];
-  if (localMsl.includes("MSL Only (1)")) apiValues.push('1');
-  if (localMsl.includes("Non-MSL (0)")) apiValues.push('0');
+  if (localMsl.includes("Top SKUs")) apiValues.push('1');
+  if (localMsl.includes("All SKUs")) apiValues.push('All');
   return apiValues.join(',');
 };
 
