@@ -190,23 +190,60 @@ export default function OsaDetailTableLight({
 
     const filterOptions = useMemo(() => {
         if (!apiData?.osaDetail) return [];
+
         const mk = arr => arr.map(p => ({ id: p, label: p }));
+
+        const getMatchingRowsExcluding = (targetKey) => {
+            let res = apiData.osaDetail;
+
+            if (targetKey !== 'msl' && tempMslFilter === '1') {
+                res = res.filter(r => r.isTopSku || r.msl === '1' || r.topSku === true || r.top_sku === 1);
+            }
+
+            Object.entries(advancedFilters).forEach(([key, values]) => {
+                if (key === targetKey || !values?.length) return;
+                if (key === 'platform') {
+                    res = res.filter(r => values.includes(r.platform));
+                } else if (key === 'brand') {
+                    res = res.filter(r => values.includes(r.brand));
+                } else if (key === 'productName') {
+                    res = res.filter(r => values.includes(r.name || r.productName));
+                } else if (key === 'format') {
+                    res = res.filter(r => values.includes(r.format));
+                } else if (key === 'city') {
+                    res = res.filter(r => r.cities?.some(c => values.includes(c.name || c)));
+                } else if (key === 'resellerName') {
+                    res = res.filter(r => r.resellerName && values.includes(r.resellerName));
+                }
+            });
+            return res;
+        };
+
+        const platformRows = getMatchingRowsExcluding('platform');
+        const brandRows = getMatchingRowsExcluding('brand');
+        const productNameRows = getMatchingRowsExcluding('productName');
+        const formatRows = getMatchingRowsExcluding('format');
+        const cityRows = getMatchingRowsExcluding('city');
+
         const opts = [
             { id: "msl", label: "MSL", options: [
                 { id: "0", label: "All SKUs" },
                 { id: "1", label: "Top SKUs" }
             ] },
-            { id: "platform", label: "Platform", options: mk([...new Set(apiData.osaDetail.map(r => r.platform).filter(Boolean))]) },
-            { id: "brand", label: "Brand", options: mk([...new Set(apiData.osaDetail.map(r => r.brand).filter(Boolean))]) },
-            { id: "productName", label: "Product Name", options: mk([...new Set(apiData.osaDetail.map(r => r.name).filter(Boolean))]) },
-            { id: "format", label: "Category", options: mk([...new Set(apiData.osaDetail.map(r => r.format).filter(Boolean))]) },
-            { id: "city", label: "City", options: mk([...new Set(apiData.osaDetail.flatMap(r => r.cities?.map(c => c.name) || []).filter(Boolean))]) },
+            { id: "platform", label: "Platform", options: mk([...new Set(platformRows.map(r => r.platform).filter(Boolean))].sort()) },
+            { id: "brand", label: "Brand", options: mk([...new Set(brandRows.map(r => r.brand).filter(Boolean))].sort()) },
+            { id: "productName", label: "Product Name", options: mk([...new Set(productNameRows.map(r => r.name || r.productName).filter(Boolean))].sort()) },
+            { id: "format", label: "Category", options: mk([...new Set(formatRows.map(r => r.format).filter(Boolean))].sort()) },
+            { id: "city", label: "City", options: mk([...new Set(cityRows.flatMap(r => r.cities?.map(c => c.name || c) || []).filter(Boolean))].sort()) },
         ];
         if (isDrlClient && resellerOptions.length > 0) {
-            opts.push({ id: "resellerName", label: "Reseller", options: mk(resellerOptions) });
+            const resellerRows = getMatchingRowsExcluding('resellerName');
+            const availableResellerSet = new Set(resellerRows.map(r => r.resellerName).filter(Boolean));
+            const filteredResellers = resellerOptions.filter(r => availableResellerSet.size === 0 || availableResellerSet.has(r));
+            opts.push({ id: "resellerName", label: "Reseller", options: mk(filteredResellers.length > 0 ? filteredResellers : resellerOptions) });
         }
         return opts;
-    }, [apiData, isDrlClient, resellerOptions]);
+    }, [apiData, isDrlClient, resellerOptions, advancedFilters, tempMslFilter]);
 
     const baseRows = useMemo(() => {
         if (!apiData?.osaDetail?.length) return [];
