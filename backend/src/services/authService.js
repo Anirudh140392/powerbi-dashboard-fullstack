@@ -37,15 +37,19 @@ export async function loginUser(email, password, deviceInfo = {}) {
         ip: clientIp
     } = deviceInfo;
 
-    // 1. Find user by email (get latest active row)
+    const trimmedEmail = (email || '').trim();
+
+    // 1. Find user by email (get latest active row, case-insensitive match)
     const users = await queryAdminDB(
         `SELECT *, toString(db_id) as db_id_str, toString(id) as id_str, toString(user_id) as user_id_str 
          FROM tb_user 
-         WHERE user_email = {email:String} AND status = 'active'
+         WHERE lower(user_email) = lower({email:String}) AND status = 'active'
          ORDER BY last_login DESC
          LIMIT 1`,
-        { email }
+        { email: trimmedEmail }
     );
+
+
 
     if (!users || users.length === 0) {
         throw new Error('Invalid email or password');
