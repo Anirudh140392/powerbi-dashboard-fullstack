@@ -1,6 +1,6 @@
 // src/routes/auth.js
 import express from 'express';
-import { login, verify, ratingssSsoToken, verifyInvite, completeInvite, googleLogin, microsoftLogin } from '../controllers/authController.js';
+import { login, verify, ratingssSsoToken, verifyInvite, completeInvite, googleLogin, microsoftLogin, microsoftCallback } from '../controllers/authController.js';
 import { authMiddleware } from '../helper/authMiddleware.js';
 
 const router = express.Router();
@@ -77,5 +77,12 @@ router.post('/google-login', googleLogin);
  * POST /api/auth/microsoft-login
  */
 router.post('/microsoft-login', microsoftLogin);
+
+/**
+ * GET /api/auth/callback/microsoft
+ * Server-side OAuth callback for Microsoft Web platform flow.
+ * Microsoft redirects popup here with ?code=...&state=...
+ */
+router.get('/callback/microsoft', microsoftCallback);
 
 export default router;
