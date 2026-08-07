@@ -270,6 +270,9 @@ export const microsoftLogin = async (req, res) => {
  */
 export const microsoftCallback = async (req, res) => {
     try {
+        // Set COOP header to unsafe-none so browser doesn't block window.opener postMessage
+        res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
+
         const { code, state, error: msError, error_description } = req.query;
 
         if (msError) {
@@ -286,16 +289,20 @@ export const microsoftCallback = async (req, res) => {
         const clientSecret = process.env.MICROSOFT_CLIENT_SECRET || process.env.MICROSOFT_DEV_CLIENT_SECRET;
         const tenantId = process.env.MICROSOFT_TENANT_ID || process.env.MICROSOFT_DEV_TENANT_ID || 'common';
 
+        const forwardedHost = req.headers['x-forwarded-host'];
+        const referer = req.headers.referer || req.headers.referrer || '';
+        const rawHost = forwardedHost || req.headers.host || '';
+
         let callbackUrl = process.env.MICROSOFT_CALLBACK_URL || process.env.MICROSOFT_DEV_CALLBACK_URL;
-        const rawHost = req.headers['x-forwarded-host'] || req.headers.host || '';
-        const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-        if (rawHost.includes('localhost') || rawHost.includes('127.0.0.1')) {
-            const hostParts = rawHost.split(':');
-            const port = hostParts[1] || '';
-            // If request was proxied from Vite (port 5000), frontend origin is port 9500
-            const clientHost = (port === '5000') ? 'localhost:9500' : rawHost;
-            callbackUrl = `${proto}://${clientHost}/api/auth/callback/microsoft`;
+        if (referer.includes('dev.trailytics.in') || rawHost.includes('dev.trailytics.in')) {
+            callbackUrl = 'https://dev.trailytics.in/api/auth/callback/microsoft';
+        } else if (referer.includes('trailytics.in') || rawHost.includes('trailytics.in')) {
+            callbackUrl = 'https://trailytics.in/api/auth/callback/microsoft';
+        } else if (rawHost.includes('localhost') || rawHost.includes('127.0.0.1') || referer.includes('localhost')) {
+            callbackUrl = 'http://localhost:9500/api/auth/callback/microsoft';
         }
+
+        console.log('[Auth] Microsoft callback using callbackUrl:', callbackUrl, '| client_id:', clientId ? 'OK' : 'MISSING');
 
         if (!clientId || !clientSecret || !callbackUrl) {
             console.error('[Auth] Missing Microsoft OAuth config (CLIENT_ID, CLIENT_SECRET, or CALLBACK_URL)');
@@ -341,8 +348,10 @@ export const microsoftCallback = async (req, res) => {
         return res.send(buildCallbackHtml(true, result.token, result.user, null));
 
     } catch (error) {
-        console.error('[Auth] Microsoft callback failed:', error.message);
-        return res.send(buildCallbackHtml(false, null, null, error.message || 'Microsoft authentication failed'));
+        const msData = error.response?.data;
+        console.error('[Auth] Microsoft callback failed:', msData || error.message);
+        const detailMsg = msData?.error_description || msData?.error || error.message || 'Microsoft authentication failed';
+        return res.send(buildCallbackHtml(false, null, null, detailMsg));
     }
 };
 

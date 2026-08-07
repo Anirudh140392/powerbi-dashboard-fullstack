@@ -64,6 +64,31 @@ const LoginPageContent = () => {
     const { login, isLoggedIn, user, isVerifying, loginWithToken } = useAuth();
     const navigate = useNavigate();
 
+    const location = useLocation();
+
+    // Handle fallback redirect with ?ms_auth= (used if COOP blocks window.opener postMessage)
+    useEffect(() => {
+        const queryParams = new URLSearchParams(location.search);
+        const msAuthRaw = queryParams.get('ms_auth');
+        if (msAuthRaw) {
+            try {
+                const parsed = JSON.parse(decodeURIComponent(msAuthRaw));
+                if (parsed.success && parsed.token && parsed.user) {
+                    console.log("[MS Login] URL fallback received, logging in:", parsed.user.email);
+                    loginWithToken(parsed.token, parsed.user);
+                    const userRole = (parsed.user?.role || '').toLowerCase();
+                    const isAdmin = userRole.includes('admin') || userRole.includes('super');
+                    const redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(parsed.user);
+                    navigate(redirectPath, { replace: true });
+                } else if (parsed.error) {
+                    setError(parsed.error);
+                }
+            } catch (e) {
+                console.error("Failed to parse ms_auth query param", e);
+            }
+        }
+    }, [location.search, loginWithToken, navigate]);
+
     // Listen for postMessage from Microsoft OAuth callback popup
     const handleMsMessage = useCallback((event) => {
         if (event.data?.type !== 'MICROSOFT_SSO_CALLBACK') return;
