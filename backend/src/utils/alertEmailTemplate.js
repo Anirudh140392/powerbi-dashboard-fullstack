@@ -40,19 +40,22 @@ const getSeverityStyle = (severity) => {
 };
 
 /**
- * Generate delta indicator HTML (up arrow green / down arrow red)
+ * Generate delta indicator HTML
+ * pill = true  → colored pill badge (for table cells)
+ * pill = false → inline colored text (for header metrics)
  */
-const deltaHtml = (delta, sup = false) => {
+const deltaHtml = (delta, pill = false) => {
     if (delta === 0) return '';
     const isUp = delta > 0;
-    const cls = isUp ? 'up' : 'down';
-    const arrow = isUp ? '↑' : '↓';
+    const arrow = isUp ? '▲' : '▼';
     const absVal = Math.abs(delta).toFixed(1);
-    if (sup) {
-        return `<sup class="${cls}">${arrow}${absVal}%</sup>`;
+    if (pill) {
+        const bg = isUp ? '#dcfce7' : '#fee2e2';
+        const color = isUp ? '#16a34a' : '#dc2626';
+        return `<span style="display:inline-block;padding:2px 8px;border-radius:12px;background:${bg};color:${color};font-weight:700;font-size:8px;white-space:nowrap;margin-left:4px;">${arrow} ${absVal}%</span>`;
     }
     const color = isUp ? '#16a34a' : '#dc2626';
-    return `<span style="color:${color};font-weight:700;">▼ ${absVal}%</span>`;
+    return `<span style="color:${color};font-weight:700;">${arrow} ${absVal}%</span>`;
 };
 
 /**
@@ -70,8 +73,8 @@ const buildPlatformSection = (platformName, brandData, skuData) => {
         for (const b of brandData) {
             brandRows += `
         <tr>
-          <td>${escapeHtml(b.brand)}</td>
-          <td>${b.currentOsa.toFixed(1)}% ${deltaHtml(b.delta, true)}</td>
+          <td style="border-right:1px solid #e3ebf8;">${escapeHtml(b.brand)}</td>
+          <td style="border-right:1px solid #e3ebf8; white-space:nowrap;">${b.currentOsa.toFixed(1)}% ${deltaHtml(b.delta, true)}</td>
           <td>${b.previousOsa.toFixed(1)}%</td>
         </tr>`;
         }
@@ -83,15 +86,17 @@ const buildPlatformSection = (platformName, brandData, skuData) => {
     let skuRows = '';
     if (skuData && skuData.length > 0) {
         for (const s of skuData) {
+            const salesLossFormatted = s.salesLoss ? `₹${Math.round(s.salesLoss).toLocaleString('en-IN')}` : '—';
             skuRows += `
         <tr>
-          <td>${escapeHtml(s.skuName)}</td>
-          <td>${escapeHtml(s.brand)}</td>
-          <td>${s.currentOsa.toFixed(1)}% ${deltaHtml(s.delta, true)}</td>
+          <td style="border-right:1px solid #e3ebf8;">${escapeHtml(s.skuName)}</td>
+          <td style="border-right:1px solid #e3ebf8;">${escapeHtml(s.brand)}</td>
+          <td style="border-right:1px solid #e3ebf8; white-space:nowrap;">${s.currentOsa.toFixed(1)}% ${deltaHtml(s.delta, true)}</td>
+          <td style="color:#dc2626;font-weight:700;">${salesLossFormatted}</td>
         </tr>`;
         }
     } else {
-        skuRows = '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:18px;">No impacted SKUs found</td></tr>';
+        skuRows = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:18px;">No impacted SKUs found</td></tr>';
     }
 
     return `
@@ -100,10 +105,10 @@ const buildPlatformSection = (platformName, brandData, skuData) => {
 
   <div class="table-card">
     <div class="section-title brand">Brand Performance</div>
-    <table class="tbl">
-      <colgroup><col style="width:42%"><col style="width:29%"><col style="width:29%"></colgroup>
+    <table class="tbl" cellpadding="0" cellspacing="0" border="0">
+      <colgroup><col style="width:34%"><col style="width:33%"><col style="width:33%"></colgroup>
       <thead>
-        <tr><th>Brand Name</th><th>Current OSA</th><th>Previous OSA</th></tr>
+        <tr><th style="border-right:1px solid #e3ebf8;">Brand Name</th><th style="border-right:1px solid #e3ebf8;">Current OSA</th><th>Previous OSA</th></tr>
       </thead>
       <tbody>
         ${brandRows}
@@ -113,10 +118,10 @@ const buildPlatformSection = (platformName, brandData, skuData) => {
 
   <div class="table-card">
     <div class="section-title sku">Impacted SKUs</div>
-    <table class="tbl">
-      <colgroup><col style="width:42%"><col style="width:29%"><col style="width:29%"></colgroup>
+    <table class="tbl" cellpadding="0" cellspacing="0" border="0">
+      <colgroup><col style="width:28%"><col style="width:22%"><col style="width:28%"><col style="width:22%"></colgroup>
       <thead>
-        <tr><th>SKU Name</th><th>Brand Name</th><th>Current OSA</th></tr>
+        <tr><th style="border-right:1px solid #e3ebf8;">SKU Name</th><th style="border-right:1px solid #e3ebf8;">Brand Name</th><th style="border-right:1px solid #e3ebf8;">Current OSA</th><th>Sales Loss</th></tr>
       </thead>
       <tbody>
         ${skuRows}
@@ -177,8 +182,7 @@ export const generateAlertEmailHtml = (data) => {
     // Header delta display
     const headerDelta = aggregateOsa.delta;
     const headerDeltaColor = headerDelta >= 0 ? '#16a34a' : '#dc2626';
-    const headerDeltaArrow = headerDelta >= 0 ? '▲' : '▼';
-    const headerDeltaText = `${headerDeltaArrow} ${Math.abs(headerDelta).toFixed(1)}%`;
+    const headerDeltaText = deltaHtml(headerDelta, false); // Contains the up/down arrow and color span
 
     // Build platform sections
     let platformSectionsHtml = '';
@@ -199,70 +203,159 @@ export const generateAlertEmailHtml = (data) => {
 
     // Logo HTML: show company logo if available, otherwise show text
     const logoHtml = logoUrl
-        ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName)} Logo" width="180" style="display:block;max-width:180px;height:auto;border:0;outline:none;text-decoration:none;">`
-        : `<div style="font-size:28px;font-weight:800;color:#1e5eff;">${escapeHtml(companyName)}</div>`;
+        ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName)} Logo" width="110" style="display:block;max-width:110px;height:auto;border:0;outline:none;text-decoration:none;">`
+        : `<div style="font-size:18px;font-weight:800;color:#1e5eff;">${escapeHtml(companyName)}</div>`;
 
     return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>${escapeHtml(companyName)} - Alert Dispatch</title>
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+<o:AllowPNG/>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
 <style>
-body{margin:0;padding:18px;background:#f4f7fb;font-family:Arial,sans-serif;color:#111827}
+/* ==== CLIENT RESETS (Outlook / OWA / mobile) ==== */
+html,body{margin:0 !important;padding:0 !important;width:100% !important;height:100% !important;}
+body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}
+table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;}
+table{border-collapse:collapse !important;}
+img{-ms-interpolation-mode:bicubic;border:0;outline:none;text-decoration:none;}
+.ExternalClass{width:100%;}
+.ExternalClass,.ExternalClass p,.ExternalClass span,.ExternalClass font,.ExternalClass td,.ExternalClass div{line-height:100%;}
+
+body{margin:0;padding:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#111827;font-size:12px;}
+.email-bg{background:#f4f7fb;}
 .container{max-width:640px;margin:auto}
-.header{background:linear-gradient(#f8fbff,#eef6ff);border:1px solid #d7e6ff;border-radius:18px;padding:22px}
-.header small{display:block;color:#4b74c9;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
-.header h1{margin:8px 0 4px;color:#1e5eff;font-size:40px}
-.header p{margin:0;color:#667085}
-.card{margin-top:14px;background:#fff;border:1px solid #e5edf8;border-radius:16px;padding:18px}
-.top{display:flex;justify-content:space-between;align-items:center}
-.status{color:#dc2626;font-size:12px;font-weight:700}
-.info{display:flex;gap:18px;background:linear-gradient(180deg,#f8fbff,#edf5ff);border:1px solid #cfe0ff;border-radius:18px;padding:18px;margin:18px 0;box-shadow:0 8px 24px rgba(59,130,246,.08)}
-.metric{flex:1;background:#fff;border:1px solid #dde8fb;border-radius:14px;padding:18px;position:relative;box-shadow:0 2px 8px rgba(15,23,42,.04)}
-.metric:not(:last-child):after{content:"";position:absolute;right:-9px;top:18%;height:64%;width:1px;background:linear-gradient(to bottom,transparent,#b8d5ff,transparent)}
-.metric-title{font-size:11px;text-transform:uppercase;color:#64748b;font-weight:700;letter-spacing:1px}
-.metric-value{font-size:40px;font-weight:800;margin-top:6px;line-height:1}
-.metric-sub{margin-top:8px;font-size:12px;color:#64748b}
-.severity-badge{display:inline-block;padding:8px 16px;border-radius:999px;background:${severity.bg};border:1px solid ${severity.border};color:${severity.color};font-weight:700}
-.lbl{font-size:10px;text-transform:uppercase;color:#64748b;font-weight:700}
-.val{font-size:18px;font-weight:700;margin-top:4px}
-.platform{margin-top:18px;border:1px solid #dbe7f6;border-radius:14px;background:#fbfdff;overflow:hidden}
-.platform-title{background:#dbeafe;color:#1d4ed8;padding:12px 16px;font-size:18px;font-weight:700;border-bottom:1px solid #c7ddfe}
-.table-card{margin:14px;border:1px solid #e5eaf3;border-radius:10px;overflow:hidden;background:#fff}
-.section-title{padding:11px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.header{background:linear-gradient(#f8fbff,#eef6ff);border:1px solid #d7e6ff;border-radius:14px;padding:10px}
+.header small{display:block;color:#4b74c9;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
+.header h1{margin:4px 0 2px;color:#1e5eff;font-size:18px}
+.header p{margin:0;color:#667085;font-size:11px;}
+.card{margin-top:10px;background:#fff;border:1px solid #e5edf8;border-radius:14px;padding:10px}
+.top-table{width:100%;}
+.top-table h2{margin:0;font-size:13px;word-break:break-word;overflow-wrap:break-word;}
+.status{color:#dc2626;font-size:9px;font-weight:700;white-space:nowrap;text-align:right;}
+.info{background:linear-gradient(180deg,#f8fbff,#edf5ff);border:1px solid #cfe0ff;border-radius:14px;padding:8px;margin:8px 0;box-shadow:0 8px 24px rgba(59,130,246,.08)}
+.info-table{width:100%;table-layout:fixed;height:100%;}
+.metric-cell{height:1px;}
+.metric{background:#fff;border:1px solid #dde8fb;border-radius:10px;padding:8px;box-shadow:0 2px 8px rgba(15,23,42,.04);box-sizing:border-box;height:100%;}
+.metric-title{font-size:8px;text-transform:uppercase;color:#64748b;font-weight:700;letter-spacing:.3px}
+.metric-value{font-size:15px;font-weight:800;margin-top:3px;line-height:1.15;word-break:break-word;overflow-wrap:break-word;}
+.metric-sub{margin-top:4px;font-size:8px;color:#64748b;word-break:break-word;overflow-wrap:break-word;}
+.severity-badge{display:inline-block;padding:3px 9px;border-radius:999px;background:${severity.bg};border:1px solid ${severity.border};color:${severity.color};font-weight:700;font-size:9px;word-break:break-word;overflow-wrap:break-word;}
+.lbl{font-size:8px;text-transform:uppercase;color:#64748b;font-weight:700}
+.val{font-size:11px;font-weight:700;margin-top:2px}
+.platform{margin-top:10px;border:1px solid #dbe7f6;border-radius:12px;background:#fbfdff;overflow:hidden}
+.platform-title{background:#dbeafe;color:#1d4ed8;padding:6px 10px;font-size:10px;font-weight:700;border-bottom:1px solid #c7ddfe;word-break:break-word;overflow-wrap:break-word;}
+.table-card{margin:6px;border:1px solid #e5eaf3;border-radius:8px;overflow:hidden;background:#fff}
+.section-title{padding:5px 8px;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
 .brand{background:#eef4ff;color:#475569;border-bottom:1px solid #d9e6ff}
 .sku{background:#f8fafc;color:#64748b;border-bottom:1px solid #e8eef7}
 .tbl{width:100%;border-collapse:collapse;table-layout:fixed}
-.tbl th{text-align:left;padding:12px 14px;color:#475569;font-size:11px;text-transform:uppercase;border-bottom:2px solid #d7e6ff;background:#f8fbff}.tbl th:not(:last-child),.tbl td:not(:last-child){border-right:1px solid #e3ebf8}
-.tbl td{text-align:left;padding:11px 14px;border-bottom:1px solid #f3f4f6}
+.tbl th{text-align:left;padding:5px 6px;color:#475569;font-size:7px;text-transform:uppercase;border-bottom:2px solid #d7e6ff;background:#f8fbff;word-break:break-word;overflow-wrap:break-word;}
+.tbl td{text-align:left;padding:5px 6px;font-size:9px;border-bottom:1px solid #f3f4f6;word-break:break-word;overflow-wrap:break-word;}
 .tbl tr:last-child td{border-bottom:none}
-.up{color:#16a34a;font-size:10px;vertical-align:super}
-.down{color:#dc2626;font-size:10px;vertical-align:super}
-.summary{margin-top:18px;border:1px solid #d7e6ff;border-radius:12px;padding:14px}
-.summary .t{font-size:11px;color:#1e5eff;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
-.footer{text-align:center;font-size:11px;color:#64748b;margin-top:12px}
-</style></head><body>
-<div class="container">
-<div class="header"><small>INTELLIGENT ALERTS</small><div style="margin:10px 0 8px 0;">
+.up{color:#16a34a;font-size:7px;vertical-align:super}
+.down{color:#dc2626;font-size:7px;vertical-align:super}
+.summary{margin-top:10px;border:1px solid #d7e6ff;border-radius:10px;padding:6px;font-size:10px;}
+.summary .t{font-size:8px;color:#1e5eff;font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
+.footer{text-align:center;font-size:8px;color:#64748b;margin-top:8px}
+
+/* ==== MOBILE (phones + narrow laptop panes) ==== */
+@media only screen and (max-width:600px){
+  .email-wrapper{width:100% !important;}
+  .container{width:100% !important;}
+  .header,.card{padding:8px !important;}
+  .header img{width:100px !important;}
+  .top-table h2{font-size:11px !important;}
+  .status{font-size:8px !important;}
+  .metric{padding:7px !important;}
+  .metric-value{font-size:13px !important;}
+  .metric-title{font-size:7px !important;}
+  .metric-sub{font-size:7px !important;}
+  .platform-title{font-size:9px !important;padding:6px 8px !important;}
+  .table-card{margin:5px !important;}
+  .tbl th,.tbl td{padding:4px 4px !important;font-size:7px !important;}
+  .section-title{font-size:7px !important;padding:5px 8px !important;}
+  .summary,.header{border-radius:10px !important;}
+}
+@media only screen and (max-width:380px){
+  .metric-value{font-size:12px !important;}
+  .header img{width:110px !important;}
+}
+</style>
+</head>
+<body class="email-bg" style="margin:0;padding:0;">
+<center class="email-bg" style="width:100%;background:#f4f7fb;">
+<!--[if mso]>
+<table role="presentation" width="676" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td>
+<![endif]-->
+<div style="padding:18px;">
+<div class="container email-wrapper" style="max-width:640px;margin:0 auto;">
+
+<div class="header">
+<small>INTELLIGENT ALERTS</small>
+<div style="margin:4px 0 4px 0;">
 ${logoHtml}
 </div>
-<p style="margin-top:6px;">Intelligent Alert Dispatch</p><p style="margin-top:8px">${displayTime}</p></div>
+<p style="margin-top:3px;">Intelligent Alert Dispatch</p>
+<p style="margin-top:4px">${displayTime}</p>
+</div>
+
 <div class="card">
-<div class="top"><h2 style="margin:0">${escapeHtml(alertName)}</h2><div class="status">● TRIGGERED</div></div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="top-table">
+<tr>
+<td style="vertical-align:middle;"><h2>${escapeHtml(alertName)}</h2></td>
+<td style="vertical-align:middle;" class="status">● TRIGGERED</td>
+</tr>
+</table>
+
 <div class="info">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="info-table">
+<colgroup>
+<col style="width:33.3%;">
+<col style="width:2px;">
+<col style="width:33.3%;">
+<col style="width:2px;">
+<col style="width:33.3%;">
+</colgroup>
+<tr>
+<td class="metric-cell" style="vertical-align:top;padding:0 6px 0 0;">
 <div class="metric">
 <div class="metric-title">Current OSA</div>
 <div class="metric-value">${aggregateOsa.currentOsa.toFixed(2)}%</div>
-<div class="metric-sub"><span style="color:${headerDeltaColor};font-weight:700;">${headerDeltaText}</span> vs previous</div>
+<div class="metric-sub">${headerDeltaText} vs previous</div>
 </div>
+</td>
+<td class="metric-divider-cell" style="background:#b8d5ff;font-size:0;line-height:0;">&nbsp;</td>
+<td class="metric-cell" style="vertical-align:top;padding:0 3px;">
 <div class="metric">
 <div class="metric-title">Alert Threshold</div>
 <div class="metric-value">${escapeHtml(conditionalOperator)}${thresholdValue}%</div>
 <div class="metric-sub">Trigger Condition Active</div>
 </div>
+</td>
+<td class="metric-divider-cell" style="background:#b8d5ff;font-size:0;line-height:0;">&nbsp;</td>
+<td class="metric-cell" style="vertical-align:top;padding:0 0 0 6px;">
 <div class="metric">
 <div class="metric-title">Severity</div>
-<div style="margin-top:10px;"><span class="severity-badge">● ${severity.label}</span></div>
+<div style="margin-top:6px;"><span class="severity-badge">● ${severity.label}</span></div>
 <div class="metric-sub">${severity.label === 'Critical' ? 'Immediate attention required' : severity.label === 'High' ? 'Requires attention soon' : 'Monitor and review'}</div>
 </div>
+</td>
+</tr>
+</table>
 </div>
 
 ${platformSectionsHtml}
@@ -270,5 +363,11 @@ ${platformSectionsHtml}
 <div class="summary"><div class="t">Delivery Summary</div>Alert dispatched successfully for <b>${escapeHtml(companyName)}</b> with <b>${severity.label}</b> severity.</div>
 </div>
 <div class="footer">Automated alert generated by Trailytics</div>
-</div></body></html>`;
+</div>
+</div>
+<!--[if mso]>
+</td></tr></table>
+<![endif]-->
+</center>
+</body></html>`;
 };

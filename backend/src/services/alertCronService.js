@@ -4,9 +4,11 @@ import nodemailer from 'nodemailer';
 import { queryAdminDB } from '../config/adminClickhouse.js';
 import { decrypt } from '../utils/encryption.js';
 import { generateAlertEmailHtml } from '../utils/alertEmailTemplate.js';
+import { generatePerfSummaryEmailHtml } from '../utils/perfSummaryEmailTemplate.js';
+import { fetchAllPlatformKPIs } from './perfSummaryDataService.js';
 import { buildAlertTemplateComponents, buildAlertFullText } from '../utils/whatsappTemplate.js';
 import { sendWhatsappMessage } from './whatsappService.js';
-import { getCompanyLogo, computeDateRanges, getBrandOsaByPlatform, getImpactedSkus, getAggregateOsa } from './alertDataService.js';
+import { getCompanyLogo, getLatestDataDate, computeDateRanges, getBrandOsaByPlatform, getImpactedSkus, getAggregateOsa } from './alertDataService.js';
 
 let cronIntervalId = null;
 
@@ -271,7 +273,7 @@ export const runEmailAlertsJob = async () => {
             logoMap.set(row.db_id, row.logo_url || '');
         }
 
-        // 2. Fetch all configured alerts with last_email_sent and alert_frequency
+        // 2. Fetch all configured alerts with last_email_sent, alert_frequency, and scheduled_day
         const alerts = await queryAdminDB(`
             SELECT 
                 toString(id) as id,
@@ -287,6 +289,7 @@ export const runEmailAlertsJob = async () => {
                 benchmark_period,
                 alert_frequency,
                 severity_level,
+                scheduled_day,
                 toString(last_email_sent) as last_email_sent,
                 toString(last_whatsapp_msg_sent) as last_whatsapp_msg_sent
             FROM tb_alert
@@ -317,10 +320,158 @@ export const runEmailAlertsJob = async () => {
             }
 
             const currency = getCurrencySymbol(dbName);
+            const alertType = (alert.alert_type || 'low_osa').toLowerCase();
+
+            // ── PERFORMANCE SUMMARY HANDLER ──────────────────────────────────
+            // When alert_type is 'performance_summary', this is a scheduled
+            // weekly digest (not condition-triggered). It fires on the
+            // scheduled_day and sends the qcomm_summary email with 7 KPIs.
+            if (alertType === 'performance_summary' || alertType.includes('performance_summary')) {
+                try {
+                    // 1. Check if today is the scheduled day
+                    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    const now = new Date();
+                    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+                    const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + istOffsetMs);
+                    const todayDayName = dayNames[istNow.getDay()];
+                    const scheduledDay = (alert.scheduled_day || '').trim();
+
+                    if (scheduledDay && scheduledDay.toLowerCase() !== todayDayName.toLowerCase()) {
+                        console.log(`[AlertCron] Performance Summary "${alert.alert_name}" scheduled for ${scheduledDay}, today is ${todayDayName}. Skipping.`);
+                        continue;
+                    }
+
+                    // 2. Enforce strict ONCE-PER-DAY logic for scheduled summaries
+                    if (!sendEmail || !sendEmail.includes('@')) {
+                        console.log(`[AlertCron] Performance Summary "${alert.alert_name}" has no email. Skipping.`);
+                        continue;
+                    }
+                    
+                    const fmtDate = (d) => {
+                        const y = d.getFullYear();
+                        const m = String(d.getMonth() + 1).padStart(2, '0');
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        return `${y}-${m}-${dd}`;
+                    };
+                    const todayStr = fmtDate(istNow);
+                    
+                    let alreadySentToday = false;
+                    if (alert.last_email_sent && !String(alert.last_email_sent).includes('\\N')) {
+                        const normalizedStr = String(alert.last_email_sent).replace(' ', 'T');
+                        const lastSentDate = new Date(normalizedStr);
+                        if (!isNaN(lastSentDate.getTime())) {
+                            if (fmtDate(lastSentDate) === todayStr) {
+                                alreadySentToday = true;
+                            }
+                        }
+                    }
+
+                    if (alreadySentToday) {
+                        console.log(`[AlertCron] Performance Summary "${alert.alert_name}" already sent today (${todayStr}). Skipping.`);
+                        continue;
+                    }
+
+                    // 3. Compute dates
+                    //    Current (T-1) = today - 1, Previous (LWD) = T-1 - 7
+                    //    Market Share (T-3) = today - 3, MS Previous = T-3 - 7
+                    const currentDateObj = new Date(istNow);
+                    currentDateObj.setDate(currentDateObj.getDate() - 1);
+                    const currentDate = fmtDate(currentDateObj);
+
+                    const previousDateObj = new Date(currentDateObj);
+                    previousDateObj.setDate(previousDateObj.getDate() - 7);
+                    const previousDate = fmtDate(previousDateObj);
+
+                    const msCurrentDateObj = new Date(istNow);
+                    msCurrentDateObj.setDate(msCurrentDateObj.getDate() - 3);
+                    const msCurrentDate = fmtDate(msCurrentDateObj);
+
+                    const msPreviousDateObj = new Date(msCurrentDateObj);
+                    msPreviousDateObj.setDate(msPreviousDateObj.getDate() - 7);
+                    const msPreviousDate = fmtDate(msPreviousDateObj);
+
+                    console.log(`[AlertCron] 📊 Performance Summary "${alert.alert_name}" on ${dbName} | Current: ${currentDate} | LWD: ${previousDate} | MS: ${msCurrentDate}`);
+
+                    // 4. Determine platforms to iterate
+                    const alertPlatforms = (Array.isArray(alert.platforms) && alert.platforms.length > 0)
+                        ? alert.platforms.filter(p => p && p !== 'All Platforms')
+                        : [];
+
+                    if (alertPlatforms.length === 0) {
+                        console.warn(`[AlertCron] Performance Summary "${alert.alert_name}" has no specific platforms. Skipping.`);
+                        continue;
+                    }
+
+                    // 5. Fetch KPIs per platform
+                    const platformCards = [];
+                    for (const plat of alertPlatforms) {
+                        try {
+                            const kpis = await fetchAllPlatformKPIs(
+                                dbName, plat, alert.brands,
+                                currentDate, previousDate,
+                                msCurrentDate, msPreviousDate
+                            );
+                            platformCards.push({ platform: plat, kpis });
+                        } catch (kpiErr) {
+                            console.error(`[AlertCron] Failed to fetch KPIs for ${plat} on ${dbName}:`, kpiErr.message);
+                        }
+                    }
+
+                    if (platformCards.length === 0) {
+                        console.warn(`[AlertCron] No KPI data returned for any platform in "${alert.alert_name}". Skipping email.`);
+                        continue;
+                    }
+
+                    // 6. Generate HTML
+                    const logoUrl = logoMap.get(alert.db_id) || '';
+                    const companyDisplayName = dbName ? (dbName.charAt(0).toUpperCase() + dbName.slice(1)) : 'Company';
+
+                    const emailHtml = generatePerfSummaryEmailHtml({
+                        logoUrl,
+                        companyName: companyDisplayName,
+                        currentDate,
+                        previousDate,
+                        msCurrentDate,
+                        severityLevel: alert.severity_level || 'Medium',
+                        currency,
+                        platformCards,
+                    });
+
+                    // 7. Send email
+                    const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
+                    const mailOptions = {
+                        from: `"Trailytics Alerts" <${fromEmail}>`,
+                        to: sendEmail,
+                        subject: `📊 Performance Summary: ${alert.alert_name} — ${companyDisplayName}`,
+                        text: `Hi,\n\nYour weekly Performance Summary for ${companyDisplayName} is ready.\n\nPlatforms: ${alertPlatforms.join(', ')}\nData as of: ${currentDate} (T-1)\n\nBest regards,\nTrailytics Team`,
+                        html: emailHtml,
+                    };
+
+                    try {
+                        const info = await transporter.sendMail(mailOptions);
+                        console.log(`[AlertCron] 📧 Performance Summary email sent to ${sendEmail}. Message ID: ${info.messageId}`);
+
+                        const istDateTimeStr = getISTDateTimeString();
+                        const updateQuery = `
+                            ALTER TABLE admin_master.tb_alert
+                            UPDATE last_email_sent = parseDateTimeBestEffort('${istDateTimeStr}')
+                            WHERE id = toUUID('${alert.id}')
+                        `;
+                        await queryAdminDB(updateQuery);
+                        console.log(`[AlertCron] Saved last_email_sent for Performance Summary "${alert.alert_name}": ${istDateTimeStr} IST`);
+                    } catch (sendErr) {
+                        console.error(`[AlertCron] Failed to send Performance Summary email to ${sendEmail}:`, sendErr.message);
+                    }
+                } catch (perfErr) {
+                    console.error(`[AlertCron] Performance Summary error for "${alert.alert_name}" on ${dbName}:`, perfErr.message);
+                }
+                continue; // Skip the regular alert flow for performance_summary
+            }
+
+            // ── REGULAR ALERT HANDLING (condition-based) ─────────────────────
             const pdpFilterClause = buildPdpFilterClause(alert.platforms, alert.brands);
             const pmFilterClause = buildPmFilterClause(alert.platforms, alert.brands);
             const threshold = parseFloat(alert.threshold_value) || 85;
-            const alertType = (alert.alert_type || 'low_osa').toLowerCase();
 
             let isTriggered = false;
             let metricDetails = {};
@@ -520,7 +671,9 @@ export const runEmailAlertsJob = async () => {
                     // ── Fetch enriched data for the dynamic sales_enablement template ──
                     const logoUrl = logoMap.get(alert.db_id) || '';
                     const companyDisplayName = dbName ? (dbName.charAt(0).toUpperCase() + dbName.slice(1)) : 'Company';
-                    const dateRanges = computeDateRanges(alert.benchmark_period);
+                    const latestDateStr = await getLatestDataDate(dbName);
+                    const dateRanges = computeDateRanges(alert.benchmark_period, latestDateStr);
+                    console.log(`[AlertCron] Date ranges for "${alert.alert_name}": latestDate=${latestDateStr}, benchmark="${alert.benchmark_period}", current=${dateRanges.currentStart} to ${dateRanges.currentEnd}, prev=${dateRanges.prevStart} to ${dateRanges.prevEnd}`);
                     const alertOpSym = formatOperatorSymbol(alert.conditional_operator);
 
                     // Determine which platforms to iterate over
@@ -550,14 +703,17 @@ export const runEmailAlertsJob = async () => {
                                 brands = await getBrandOsaByPlatform(
                                     dbName, plat, alert.brands,
                                     dateRanges.currentStart, dateRanges.currentEnd,
-                                    dateRanges.prevStart, dateRanges.prevEnd
+                                    dateRanges.prevStart, dateRanges.prevEnd,
+                                    alert.threshold_value
                                 );
                                 skus = await getImpactedSkus(
                                     dbName, plat, alert.brands,
                                     dateRanges.currentStart, dateRanges.currentEnd,
                                     dateRanges.prevStart, dateRanges.prevEnd,
-                                    5
+                                    3,
+                                    alert.threshold_value
                                 );
+                                console.log(`[AlertCron] ${plat}: ${brands.length} brands, ${skus.length} impacted SKUs returned (threshold=${alert.threshold_value})`);
                             }
                         } catch (pdErr) {
                             console.warn(`[AlertCron] Could not fetch platform data for ${plat} on ${dbName}:`, pdErr.message);
