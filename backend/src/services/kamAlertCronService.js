@@ -199,7 +199,7 @@ export const runKamAlertsJob = async () => {
     const minutes = istNow.getMinutes();
 
     // Trigger only exactly at 16:30. Since it runs every 1 minute, this should fire once per day.
-    if (hours !== 17 || minutes !== 5) {
+    if (hours !== 16 || minutes !== 30) {
         return;
     }
 
