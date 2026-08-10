@@ -234,8 +234,12 @@ const LatestOverivewCatCity = ({
             try {
                 const params = new URLSearchParams();
                 
-                // Use advanced filters if set, otherwise fall back to global sidebar platform
-                const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : (globalPlatform && globalPlatform !== 'All' ? globalPlatform : null)); 
+                // Use advanced filters if set. For dimension !== 'platform', fall back to global sidebar platform
+                const pl = toParam(
+                    advancedFilters.platforms?.length > 0 
+                        ? advancedFilters.platforms 
+                        : (dimension !== 'platform' && globalPlatform && globalPlatform !== 'All' ? globalPlatform : null)
+                ); 
                 if (pl) params.append('platform', pl);
                 
                 const br = toParam(advancedFilters.brands?.length > 0 ? advancedFilters.brands : selectedBrand); 
@@ -425,6 +429,24 @@ const LatestOverivewCatCity = ({
         // Apply SKU filter locally only when the dimension itself is 'sku'
         if (dimension === 'sku' && advancedFilters.skus?.length > 0) {
             list = list.filter(e => advancedFilters.skus.includes(e.key));
+        }
+
+        // Sort platform overview list in order: Blinkit (a), Instamart (b), Zepto (c), etc.
+        if (dimension === 'platform') {
+            const getPlatformOrderIndex = (key) => {
+                const k = (key || '').toLowerCase();
+                if (k.includes('blinkit')) return 1;
+                if (k.includes('instamart') || k.includes('swiggy')) return 2;
+                if (k.includes('zepto')) return 3;
+                if (k.includes('flipkart')) return 4;
+                if (k.includes('amazon')) return 5;
+                if (k.includes('myntra')) return 6;
+                if (k.includes('nykaa')) return 7;
+                if (k.includes('jiomart')) return 8;
+                if (k.includes('bbnow')) return 9;
+                return 100;
+            };
+            list.sort((a, b) => getPlatformOrderIndex(a.key || a.name) - getPlatformOrderIndex(b.key || b.name));
         }
 
         // Format to match the component's expected display formatting

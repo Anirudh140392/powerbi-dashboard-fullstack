@@ -559,7 +559,7 @@ const PlatformOverviewNew = ({
             reqPlatform = localPlatformFilter || 'All';
         } else {
             reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
-                : (globalPlatform === 'All' ? 'All' : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
+                : 'All';
         }
         const reqBrand = advancedFilters.brands?.length > 0 ? advancedFilters.brands.join(',')
             : (selectedBrand && selectedBrand !== 'All' ? (Array.isArray(selectedBrand) ? selectedBrand.join(',') : selectedBrand) : '');
@@ -794,29 +794,31 @@ const PlatformOverviewNew = ({
             );
         } catch (_) { /* ignore */ }
 
-        // When dimension is 'platform' and a specific platform is selected,
-        // only show the selected platform rows (remove the 'All' row)
-        if (dimension === 'platform' && globalPlatform && globalPlatform !== 'All') {
-            const selectedPlatforms = Array.isArray(globalPlatform)
-                ? globalPlatform.map(p => p.toLowerCase())
-                : globalPlatform.split(',').map(p => p.trim().toLowerCase())
-
-            result = result.filter(e => {
-                const entityKey = e.key.toLowerCase()
-                const entityName = e.name.toLowerCase()
-                // Exclude the 'All' row when a specific platform is selected
-                if (ALL_ROW_IDENTIFIERS.includes(entityKey) || ALL_ROW_IDENTIFIERS.includes(entityName)) return false
-                // Keep rows matching selected platforms
-                return selectedPlatforms.some(p => entityKey.includes(p) || entityName.includes(p) || p.includes(entityKey))
-            })
-        } else if (dimension === 'platform' && hasRestrictedPlatforms) {
-            // Even if globalPlatform is 'All', hide the 'All' aggregate row
-            // when the user does not have access to all platforms
+        // When dimension is 'platform', show all platform rows (remove the 'All' aggregate row when filtered)
+        if (dimension === 'platform' && ((globalPlatform && globalPlatform !== 'All') || hasRestrictedPlatforms)) {
             result = result.filter(e => {
                 const entityKey = e.key.toLowerCase()
                 const entityName = e.name.toLowerCase()
                 return !ALL_ROW_IDENTIFIERS.includes(entityKey) && !ALL_ROW_IDENTIFIERS.includes(entityName)
             })
+        }
+
+        // Sort platform overview list in order: Blinkit, Instamart, Zepto, Flipkart, Amazon
+        if (dimension === 'platform') {
+            const getPlatformOrderIndex = (key) => {
+                const k = (key || '').toLowerCase();
+                if (k.includes('blinkit')) return 1;
+                if (k.includes('instamart') || k.includes('swiggy')) return 2;
+                if (k.includes('zepto')) return 3;
+                if (k.includes('flipkart')) return 4;
+                if (k.includes('amazon')) return 5;
+                if (k.includes('myntra')) return 6;
+                if (k.includes('nykaa')) return 7;
+                if (k.includes('jiomart')) return 8;
+                if (k.includes('bbnow')) return 9;
+                return 100;
+            };
+            result.sort((a, b) => getPlatformOrderIndex(a.key || a.name) - getPlatformOrderIndex(b.key || b.name));
         }
 
         // Sort by market share descending if dimension is brand
