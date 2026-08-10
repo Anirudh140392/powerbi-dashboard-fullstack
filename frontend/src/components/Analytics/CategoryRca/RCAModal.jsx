@@ -150,6 +150,20 @@ const SelectBox = ({ label, value, onChange, options = [], width = '100%', wideP
     </Box>
 );
 
+const findMatchingOption = (req, options, fallback) => {
+    if (!req || !options || !options.length) return fallback;
+    if (options.includes(req)) return req;
+    const reqLower = String(req).toLowerCase().trim();
+    const caseMatch = options.find(o => String(o).toLowerCase().trim() === reqLower);
+    if (caseMatch) return caseMatch;
+    const subMatch = options.find(o => {
+        const oLower = String(o).toLowerCase().trim();
+        return oLower.includes(reqLower) || reqLower.includes(oLower);
+    });
+    if (subMatch) return subMatch;
+    return fallback;
+};
+
 export default function RCAModal({ open, onClose, title, initialData = {} }) {
     const [showFilters, setShowFilters] = useState(false);
 
@@ -210,9 +224,9 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                 setBrandOptions(brands);
 
                 // Apply initialData or defaults once options are available
-                setPlatform(initialData.platform && plats.includes(initialData.platform) ? initialData.platform : (plats[0] || ''));
-                setCategory(initialData.category && cats.includes(initialData.category) ? initialData.category : (cats[0] || ''));
-                setBrand(initialData.brand && brands.includes(initialData.brand) ? initialData.brand : 'All Brands');
+                setPlatform(findMatchingOption(initialData.platform, plats, plats[0] || ''));
+                setCategory(findMatchingOption(initialData.category, cats, cats[0] || 'All'));
+                setBrand(findMatchingOption(initialData.brand, brands, 'All Brands'));
                 setSku('All SKUs');
             } catch (err) {
                 console.error('[RCAModal] Failed to load filter options:', err);
@@ -228,16 +242,19 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
 
     // Update platform when initialData changes (e.g., when opening RCA for a different entity)
     useEffect(() => {
-        if (initialData.platform && platformOptions.includes(initialData.platform)) {
-            setPlatform(initialData.platform);
+        if (initialData.platform && platformOptions.length > 0) {
+            const matched = findMatchingOption(initialData.platform, platformOptions, null);
+            if (matched) setPlatform(matched);
         }
-        if (initialData.category && categoryOptions.includes(initialData.category)) {
-            setCategory(initialData.category);
+        if (initialData.category && categoryOptions.length > 0) {
+            const matched = findMatchingOption(initialData.category, categoryOptions, null);
+            if (matched) setCategory(matched);
         }
-        if (initialData.brand && brandOptions.includes(initialData.brand)) {
-            setBrand(initialData.brand);
+        if (initialData.brand && brandOptions.length > 0) {
+            const matched = findMatchingOption(initialData.brand, brandOptions, null);
+            if (matched) setBrand(matched);
         }
-    }, [initialData, open]);
+    }, [initialData, open, platformOptions, categoryOptions, brandOptions]);
 
     // Fetch SKUs when filter dependencies change
     useEffect(() => {
@@ -266,7 +283,7 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
 
     const context = {
         platform,
-        channel: platformChannels.find(p => p.platform === platform)?.channel || "",
+        channel: platformChannels.find(p => (p.platform || '').toLowerCase().trim() === (platform || '').toLowerCase().trim())?.channel || "",
         category,
         brand,
         sku,

@@ -357,7 +357,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
                   tick={{ fill: theme.palette.text.secondary, fontSize: 11 }}
                   tickLine={false}
                   axisLine={{ stroke: theme.palette.divider }}
-                  domain={['auto', 'auto']}
+                  domain={[0, 'auto']}
                   tickFormatter={(value) => `₹ ${value} Cr`}
                   dx={-5}
                 />
@@ -367,7 +367,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
                   tick={{ fill: theme.palette.text.secondary, fontSize: 11 }}
                   tickLine={false}
                   axisLine={{ stroke: theme.palette.divider }}
-                  domain={['auto', 'auto']}
+                  domain={[0, 'auto']}
                   tickFormatter={(value) => `${value}%`}
                   dx={5}
                 />

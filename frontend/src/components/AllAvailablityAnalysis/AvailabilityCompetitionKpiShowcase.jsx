@@ -34,21 +34,17 @@ const getLocalMslFromGlobal = (selectedMsl) => {
     }
     const arrayVal = Array.isArray(selectedMsl) ? selectedMsl : String(selectedMsl).split(',');
     return arrayVal
-        .map(v => v === '1' ? 'MSL Only (1)' : (v === '0' ? 'Non-MSL (0)' : v))
-        .filter(v => v === 'MSL Only (1)' || v === 'Non-MSL (0)');
+        .map(v => v === '1' ? 'Top SKUs' : (v === '0' ? 'All SKUs' : v))
+        .filter(v => v === 'Top SKUs' || v === 'All SKUs');
 };
 
 const getApiMslFromLocal = (localMsl, globalMsl) => {
     if (localMsl && localMsl.length > 0) {
         return localMsl
-            .map(v => v.includes('(1)') ? '1' : (v.includes('(0)') ? '0' : v))
+            .map(v => (v === 'Top SKUs' || v.includes('1')) ? '1' : (v === 'All SKUs' ? 'All' : v))
             .join(',');
     }
-    if (globalMsl && globalMsl !== 'All' && globalMsl !== 'all') {
-        const arrayVal = Array.isArray(globalMsl) ? globalMsl : String(globalMsl).split(',');
-        return arrayVal.join(',');
-    }
-    return undefined;
+    return globalMsl && globalMsl !== 'All' ? globalMsl : undefined;
 };
 
 const formatKpiValue = (value, unit = "%") => {
@@ -954,7 +950,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
         if (activeTab === "category") return filterOptions.categories;
         if (activeTab === "brand") return filterOptions.brands;
         if (activeTab === "sku") return filterOptions.skus;
-        if (activeTab === "msl") return ["MSL Only (1)", "Non-MSL (0)"];
+        if (activeTab === "msl") return ["Top SKUs", "All SKUs"];
         return [];
     };
 

@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../utils/AuthContext";
 import { getFirstAllowedRoute } from "../../components/ProtectedRoute";
 import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
-import { getMsalInstance } from "../../utils/msalConfig";
 import {
     Box,
     Typography,
@@ -50,23 +49,10 @@ const GoogleSsoButton = ({ onSuccess, onError }) => {
         </button>
     );
 };
-
-const clearMsalStorage = () => {
-    try {
-        Object.keys(sessionStorage).forEach(key => {
-            if (key.includes('msal')) sessionStorage.removeItem(key);
-        });
-        document.cookie.split(";").forEach(cookie => {
-            const eqPos = cookie.indexOf("=");
-            const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-            if (name.includes("msal")) {
-                document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
-            }
-        });
-    } catch (e) {
-        console.warn("Could not clear MSAL storage", e);
-    }
-};
+// Microsoft OAuth config
+const MS_CLIENT_ID = import.meta.env.VITE_MICROSOFT_CLIENT_ID || '153c3bd5-c6f7-41a5-b11c-3334d71b5db4';
+const MS_TENANT_ID = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common';
+const MS_CALLBACK_URL = `${window.location.origin}/api/auth/callback/microsoft`;
 
 const LoginPageContent = () => {
     const [email, setEmail] = useState("");
@@ -75,64 +61,98 @@ const LoginPageContent = () => {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
-    const { login, isLoggedIn, user, isVerifying, loginWithSso } = useAuth();
+    const { login, isLoggedIn, user, isVerifying, loginWithToken } = useAuth();
     const navigate = useNavigate();
 
-    const handleMicrosoftLogin = async () => {
+    const location = useLocation();
+
+    // Handle fallback redirect with ?ms_auth= (used if COOP blocks window.opener postMessage)
+    useEffect(() => {
+        const queryParams = new URLSearchParams(location.search);
+        const msAuthRaw = queryParams.get('ms_auth');
+        if (msAuthRaw) {
+            try {
+                const parsed = JSON.parse(decodeURIComponent(msAuthRaw));
+                if (parsed.success && parsed.token && parsed.user) {
+                    console.log("[MS Login] URL fallback received, logging in:", parsed.user.email);
+                    loginWithToken(parsed.token, parsed.user);
+                    const userRole = (parsed.user?.role || '').toLowerCase();
+                    const isAdmin = userRole.includes('admin') || userRole.includes('super');
+                    const redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(parsed.user);
+                    navigate(redirectPath, { replace: true });
+                } else if (parsed.error) {
+                    setError(parsed.error);
+                }
+            } catch (e) {
+                console.error("Failed to parse ms_auth query param", e);
+            }
+        }
+    }, [location.search, loginWithToken, navigate]);
+
+    // Listen for postMessage from Microsoft OAuth callback popup
+    const handleMsMessage = useCallback((event) => {
+        if (event.data?.type !== 'MICROSOFT_SSO_CALLBACK') return;
+        const { success, token, user: userData, error: errMsg } = event.data.payload || {};
+
+        if (success && token && userData) {
+            console.log("[MS Login] Callback received, logging in:", userData.email);
+            loginWithToken(token, userData);
+            const userRole = (userData?.role || '').toLowerCase();
+            const isAdmin = userRole.includes('admin') || userRole.includes('super');
+            const redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(userData);
+            navigate(redirectPath, { replace: true });
+        } else {
+            console.error("[MS Login] Callback error:", errMsg);
+            setError(errMsg || "Microsoft login failed.");
+        }
+        setLoading(false);
+    }, [loginWithToken, navigate]);
+
+    useEffect(() => {
+        window.addEventListener('message', handleMsMessage);
+        return () => window.removeEventListener('message', handleMsMessage);
+    }, [handleMsMessage]);
+
+    const handleMicrosoftLogin = () => {
         setError("");
         setLoading(true);
-        try {
-            const msalInstance = await getMsalInstance();
 
-            let loginResponse;
-            try {
-                loginResponse = await msalInstance.loginPopup({
-                    scopes: ["User.Read", "openid", "profile", "email"],
-                    prompt: "select_account"
-                });
-            } catch (popupErr) {
-                if (popupErr.errorCode === 'interaction_in_progress') {
-                    console.warn("[MSAL] interaction_in_progress detected, clearing cache and retrying...");
-                    clearMsalStorage();
-                    loginResponse = await msalInstance.loginPopup({
-                        scopes: ["User.Read", "openid", "profile", "email"],
-                        prompt: "select_account"
-                    });
-                } else {
-                    throw popupErr;
-                }
-            }
+        // Build Microsoft OAuth authorize URL (Web mode — returns ?code= to backend callback)
+        const state = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+        const params = new URLSearchParams({
+            client_id: MS_CLIENT_ID,
+            response_type: 'code',
+            redirect_uri: MS_CALLBACK_URL,
+            response_mode: 'query',
+            scope: 'openid profile email User.Read',
+            state: state,
+            prompt: 'select_account',
+        });
+        const authUrl = `https://login.microsoftonline.com/${MS_TENANT_ID}/oauth2/v2.0/authorize?${params.toString()}`;
 
-            if (loginResponse && (loginResponse.idToken || loginResponse.accessToken)) {
-                const payloadData = {
-                    idToken: loginResponse.idToken,
-                    accessToken: loginResponse.accessToken,
-                    email: loginResponse.account?.username,
-                    name: loginResponse.account?.name
-                };
-                const res = await loginWithSso('microsoft', payloadData);
-                if (res.success) {
-                    const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
-                    const userRole = (loggedInUser?.role || '').toLowerCase();
-                    const isAdmin = userRole.includes('admin') || userRole.includes('super');
-                    const redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(loggedInUser);
-                    navigate(redirectPath, { replace: true });
-                } else {
-                    setError(res.error || "Microsoft login failed.");
-                }
-            } else {
-                setError("Microsoft login did not return a valid token.");
-            }
-        } catch (err) {
-            console.error("Microsoft SSO Error:", err);
-            if (err.name === 'BrowserAuthError' && (err.errorCode === 'user_cancelled' || err.errorCode === 'popup_window_error')) {
-                // User closed popup - not an error
-            } else {
-                setError(err.message || "Microsoft authentication canceled or failed.");
-            }
-        } finally {
+        // Open popup
+        const width = 500, height = 700;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        const popup = window.open(
+            authUrl,
+            'Microsoft Login',
+            `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
+        );
+
+        if (!popup) {
+            setError("Popup was blocked. Please allow popups for this site.");
             setLoading(false);
+            return;
         }
+
+        // Monitor if popup was closed without completing login
+        const popupTimer = setInterval(() => {
+            if (popup.closed) {
+                clearInterval(popupTimer);
+                setLoading(false);
+            }
+        }, 500);
     };
 
 
