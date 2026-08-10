@@ -546,3 +546,38 @@ export const getAdminPlatforms = async (req, res) => {
     }
 };
 
+/**
+ * POST /api/admin/invite-user
+ * Body: { email, dbId, role }
+ */
+export const inviteUser = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const { email, dbId, role } = req.body || {};
+        if (!email || !dbId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Email and Database ID are required'
+            });
+        }
+
+        const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
+        const result = await adminService.inviteUser({ email, dbId, role, frontendUrl: origin });
+
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error('[AdminController] inviteUser failed:', error.message);
+        return res.status(400).json({
+            success: false,
+            error: error.message || 'Failed to send invitation'
+        });
+    }
+};
+
+

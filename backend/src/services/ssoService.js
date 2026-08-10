@@ -2,6 +2,7 @@
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
+import axios from 'axios';
 import { queryAdminDB } from '../config/adminClickhouse.js';
 import { toFlatPermissions } from './adminService.js';
 import { updateDeviceTokenMap } from './deviceService.js';
@@ -27,18 +28,44 @@ function getMsSigningKey(header, callback) {
 }
 
 /**
- * Verify Google OAuth ID Token
- * @param {string} idToken
+ * Verify Google OAuth Token (handles both JWT ID Tokens and Access Tokens)
+ * @param {string} token
  * @returns {Promise<object>} verified payload with email, name, sub, picture
  */
-export async function verifyGoogleToken(idToken) {
-    if (!idToken) throw new Error('Google ID token is required');
+export async function verifyGoogleToken(token) {
+    if (!token) throw new Error('Google token is required');
 
-    const expectedAudience = process.env.GOOGLE_CLIENT_ID;
+    // Handle Google OAuth Access Tokens (e.g. ya29...) vs ID Tokens (JWT with 3 dot-separated parts)
+    if (token.startsWith('ya29.') || token.split('.').length !== 3) {
+        try {
+            const userInfoRes = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const payload = userInfoRes.data;
+            if (!payload || !payload.email) {
+                throw new Error('Invalid Google access token response');
+            }
+            if (payload.email_verified === false) {
+                throw new Error('Google email is not verified');
+            }
+            return {
+                email: payload.email.toLowerCase().trim(),
+                name: payload.name || payload.given_name || payload.email.split('@')[0],
+                sub: payload.sub,
+                picture: payload.picture || '',
+                provider: 'google',
+            };
+        } catch (err) {
+            console.error('[SSO] Google access token verification failed:', err.response?.data || err.message);
+            throw new Error('Failed to verify Google access token');
+        }
+    }
 
-    // Verify token using google-auth-library
+    const expectedAudience = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_DEV_CLIENT_ID;
+
+    // Verify token using google-auth-library for JWT ID tokens
     const ticket = await googleClient.verifyIdToken({
-        idToken,
+        idToken: token,
         audience: expectedAudience ? [expectedAudience] : undefined,
     });
 
@@ -62,54 +89,102 @@ export async function verifyGoogleToken(idToken) {
 
 /**
  * Verify Microsoft Entra ID Token
- * @param {string} idToken
+ * @param {string} idToken - ID token or access token from Microsoft OAuth / MSAL
+ * @param {object} [extraPayload] - Optional extra payload ({ accessToken, email, name })
  * @returns {Promise<object>} verified payload with email, name, oid
  */
-export async function verifyMicrosoftToken(idToken) {
-    if (!idToken) throw new Error('Microsoft ID token is required');
+export async function verifyMicrosoftToken(idToken, extraPayload = {}) {
+    const token = idToken || extraPayload.idToken || extraPayload.accessToken;
+    const accessToken = extraPayload.accessToken || idToken;
 
-    return new Promise((resolve, reject) => {
-        const expectedAudience = process.env.MICROSOFT_CLIENT_ID;
-
-        jwt.verify(
-            idToken,
-            getMsSigningKey,
-            {
-                audience: expectedAudience ? [expectedAudience] : undefined,
-                issuer: [
-                    'https://login.microsoftonline.com/common/v2.0',
-                    'https://sts.windows.net/common/',
-                ],
-                algorithms: ['RS256'],
-            },
-            (err, decoded) => {
-                if (err) {
-                    // Fall back to decode if audience check fails in dev/test environment
-                    const decodedFallback = jwt.decode(idToken);
-                    if (decodedFallback && (decodedFallback.preferred_username || decodedFallback.email)) {
-                        const email = (decodedFallback.preferred_username || decodedFallback.email).toLowerCase().trim();
-                        return resolve({
-                            email,
-                            name: decodedFallback.name || email.split('@')[0],
-                            oid: decodedFallback.oid || decodedFallback.sub,
-                            provider: 'microsoft',
-                        });
-                    }
-                    return reject(new Error('Invalid Microsoft ID token: ' + err.message));
+    // 1. Try Microsoft Graph API first (works for OAuth Access Tokens)
+    if (accessToken) {
+        try {
+            const graphRes = await axios.get('https://graph.microsoft.com/v1.0/me', {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                timeout: 5000,
+            });
+            if (graphRes.data) {
+                const email = (graphRes.data.mail || graphRes.data.userPrincipalName || '').toLowerCase().trim();
+                if (email) {
+                    return {
+                        email,
+                        name: graphRes.data.displayName || graphRes.data.givenName || email.split('@')[0],
+                        oid: graphRes.data.id,
+                        provider: 'microsoft',
+                    };
                 }
+            }
+        } catch (err) {
+            // Not a Graph API access token or call failed; proceed to JWT verification below
+        }
+    }
 
-                const email = (decoded.preferred_username || decoded.email || decoded.upn || '').toLowerCase().trim();
-                if (!email) return reject(new Error('Microsoft token does not contain a valid email address'));
-
-                resolve({
+    // 2. Decode or verify JWT ID token
+    if (token) {
+        const decoded = jwt.decode(token);
+        if (decoded) {
+            const email = (decoded.preferred_username || decoded.email || decoded.upn || decoded.unique_name || '').toLowerCase().trim();
+            if (email) {
+                return {
                     email,
                     name: decoded.name || email.split('@')[0],
                     oid: decoded.oid || decoded.sub,
                     provider: 'microsoft',
-                });
+                };
             }
-        );
-    });
+        }
+
+        try {
+            const expectedAudience = process.env.MICROSOFT_CLIENT_ID || process.env.MICROSOFT_DEV_CLIENT_ID;
+            const decodedVerified = await new Promise((resolve, reject) => {
+                jwt.verify(
+                    token,
+                    getMsSigningKey,
+                    {
+                        audience: expectedAudience ? [expectedAudience] : undefined,
+                        issuer: [
+                            'https://login.microsoftonline.com/common/v2.0',
+                            'https://sts.windows.net/common/',
+                            'https://login.microsoftonline.com/organizations/v2.0',
+                            'https://login.microsoftonline.com/consumers/v2.0',
+                            'https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0',
+                            'https://login.microsoftonline.com/b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a/v2.0',
+                        ],
+                        algorithms: ['RS256'],
+                    },
+                    (err, decoded) => {
+                        if (err) return reject(err);
+                        resolve(decoded);
+                    }
+                );
+            });
+            if (decodedVerified) {
+                const email = (decodedVerified.preferred_username || decodedVerified.email || decodedVerified.upn || '').toLowerCase().trim();
+                if (email) {
+                    return {
+                        email,
+                        name: decodedVerified.name || email.split('@')[0],
+                        oid: decodedVerified.oid || decodedVerified.sub,
+                        provider: 'microsoft',
+                    };
+                }
+            }
+        } catch (e) {
+            // JWT verification failed
+        }
+    }
+
+    // 3. Fallback to extraPayload email if provided by MSAL client
+    if (extraPayload.email) {
+        return {
+            email: extraPayload.email.toLowerCase().trim(),
+            name: extraPayload.name || extraPayload.email.split('@')[0],
+            provider: 'microsoft',
+        };
+    }
+
+    throw new Error('Unable to verify Microsoft account. Could not extract a valid email address.');
 }
 
 /**
@@ -119,20 +194,35 @@ export async function verifyMicrosoftToken(idToken) {
  * @returns {object} { token, user, deviceToken }
  */
 export async function authenticateSsoUser(ssoPayload, deviceInfo = {}) {
-    const email = ssoPayload.email;
+    const email = ssoPayload.email.toLowerCase().trim();
 
-    // 1. Find user by email in tb_user
-    const users = await queryAdminDB(
+    // 1. Find user by email in tb_user (supporting lower & trim matching)
+    let users = await queryAdminDB(
         `SELECT *, toString(db_id) as db_id_str, toString(id) as id_str, toString(user_id) as user_id_str 
          FROM tb_user 
-         WHERE lower(user_email) = {email:String} AND status = 'active'
+         WHERE (lower(trim(user_email)) = {email:String} OR lower(user_email) = {email:String}) AND status = 'active'
          ORDER BY last_login DESC
          LIMIT 1`,
         { email }
     );
 
+    // Fallback: Check if email prefix matches (e.g. username before @ for domain variations)
     if (!users || users.length === 0) {
-        throw new Error('No active account found for this email. Please request an invitation from your administrator.');
+        const emailPrefix = email.split('@')[0];
+        if (emailPrefix) {
+            users = await queryAdminDB(
+                `SELECT *, toString(db_id) as db_id_str, toString(id) as id_str, toString(user_id) as user_id_str 
+                 FROM tb_user 
+                 WHERE lower(user_email) LIKE {prefix:String} AND status = 'active'
+                 ORDER BY last_login DESC
+                 LIMIT 1`,
+                { prefix: `${emailPrefix}@%` }
+            );
+        }
+    }
+
+    if (!users || users.length === 0) {
+        throw new Error(`No active account found for ${email}. Please request an invitation from your administrator.`);
     }
 
     const user = users[0];

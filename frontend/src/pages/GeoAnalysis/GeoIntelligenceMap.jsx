@@ -288,14 +288,19 @@ export default function GeoIntelligenceMap() {
                 const res = await axiosInstance.get('/map-intellect/data', { params: Object.fromEntries(new URLSearchParams(params)) });
                 if (res.data && res.data.cities) {
                     let citiesData = res.data.cities;
-                    // If platform is Amazon, only keep Nation-level data as per user instructions
-                    // Relaxed for Market Share to ensure it displays correctly
-                    if (platform.toLowerCase().includes('amazon') && metric !== 'Market Share') {
-                        citiesData = citiesData.filter(city => {
-                            const name = (city.name || '').toLowerCase();
-                            return name === 'india' || name === 'nation' || name === 'national';
-                        });
+                    
+                    const isNationLevel = (n) => {
+                        const name = (n || '').toLowerCase().trim();
+                        return name === 'india' || name === 'nation' || name === 'national' || name === 'all india' || name === 'pan india' || name === 'overall';
+                    };
+
+                    // If data is present at nation level, show it on nation.
+                    // Otherwise if specific locations are present, show data at those locations.
+                    const hasNationData = citiesData.some(city => isNationLevel(city.name));
+                    if (hasNationData) {
+                        citiesData = citiesData.filter(city => isNationLevel(city.name));
                     }
+
                     setApiData(citiesData);
                 } else {
                     setApiData([]);
@@ -320,8 +325,8 @@ export default function GeoIntelligenceMap() {
     const nationData = useMemo(() => {
         if (!apiData || apiData.length === 0) return null;
         return apiData.find(city => {
-            const name = (city.name || '').toLowerCase();
-            return name === 'india' || name === 'nation' || name === 'national';
+            const name = (city.name || '').toLowerCase().trim();
+            return name === 'india' || name === 'nation' || name === 'national' || name === 'all india' || name === 'pan india' || name === 'overall';
         });
     }, [apiData]);
 
@@ -332,6 +337,9 @@ export default function GeoIntelligenceMap() {
             "nation": { lat: 22.0, lng: 79.5, type: "National" },
             "national": { lat: 22.0, lng: 79.5, type: "National" },
             "india": { lat: 22.0, lng: 79.5, type: "National" },
+            "all india": { lat: 22.0, lng: 79.5, type: "National" },
+            "pan india": { lat: 22.0, lng: 79.5, type: "National" },
+            "overall": { lat: 22.0, lng: 79.5, type: "National" },
             "banglore": { lat: 12.97, lng: 77.59, type: "City" } // Safeguard for Banglore typo
         };
         CITIES.forEach(c => { coordsLookup[c.name.toLowerCase()] = { lat: c.coords[1], lng: c.coords[0], type: "City" }; });

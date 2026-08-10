@@ -13,7 +13,8 @@ import {
     Inbox,
     RefreshCw,
     Image as ImageIcon,
-    Sparkles
+    Sparkles,
+    UserPlus
 } from "lucide-react";
 import { useAuth } from "../../utils/AuthContext";
 import AdminDashboard from "./tabs/AdminDashboard";
@@ -25,6 +26,7 @@ import NewRequests from "./tabs/NewRequests";
 import Updates from "./tabs/Updates";
 import CompanyLogo from "./tabs/CompanyLogo";
 import CustomInsights from "./tabs/CustomInsights";
+import InviteUser from "./tabs/InviteUser";
 
 const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState(() => {
@@ -52,6 +54,7 @@ const AdminPanel = () => {
     const { logout, user } = useAuth();
 
     const menuItems = [
+        { id: "invite-user", label: "Invite User", icon: UserPlus },
         { id: "users", label: "Live Users", icon: Users },
         { id: "all-users", label: "All Users", icon: Users },
         { id: "roles", label: "Permissions", icon: ShieldAlert },
@@ -63,6 +66,7 @@ const AdminPanel = () => {
 
     const renderContent = () => {
         switch (activeTab) {
+            case "invite-user": return <InviteUser />;
             case "all-users": return <AllUsersTable />;
             case "users": return <UsersTable />;
             case "new-requests": return <NewRequests />;
@@ -73,6 +77,7 @@ const AdminPanel = () => {
             default: return null;
         }
     };
+
 
     return (
         <div className="flex min-h-screen bg-slate-50/50 font-sans text-slate-900">

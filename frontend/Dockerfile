@@ -40,6 +40,7 @@ COPY trailytics_content_analysis/frontend/vite.config.ts ./trailytics_content_an
 COPY trailytics_content_analysis/frontend/tsconfig*.json ./trailytics_content_analysis/frontend/
 
 # ── Build the main frontend (which compiles ratings & content analysis TSX inline) ──
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN cd frontend && npm run build
 
 # Stage 2: Production — serve with Nginx

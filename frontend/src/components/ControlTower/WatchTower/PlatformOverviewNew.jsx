@@ -27,13 +27,30 @@ import { copyToClipboard } from '../../../utils/clipboard'
 /* --- HELPER COMPONENTS & UTILS --- */
 const isEcomChannel = (chan) => chan && chan.toLowerCase().includes('ecom');
 
-// Platform classification helpers for SKU-level KPI visibility
-const ECOM_PLATFORM_NAMES = ['amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart'];
-const QCOM_PLATFORM_NAMES = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow'];
-const isEcomPlatform = (name) => ECOM_PLATFORM_NAMES.some(p => (name || '').toLowerCase().includes(p));
-const isQcomPlatform = (name) => QCOM_PLATFORM_NAMES.some(p => (name || '').toLowerCase().includes(p));
+// Platform classification helpers for KPI visibility
+const QCOM_PLATFORM_NAMES = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow', 'minutes', 'quickcomm', 'quick commerce'];
+const isQcomPlatform = (name) => {
+    if (!name) return false;
+    const n = name.toLowerCase();
+    return QCOM_PLATFORM_NAMES.some(p => n.includes(p));
+};
+
+const isEcomPlatform = (name) => {
+    if (!name) return false;
+    if (isQcomPlatform(name)) return false; // Prevent 'flipkart minutes' from matching ecom
+    const n = name.toLowerCase();
+    return ['amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart', 'ecom'].some(p => n.includes(p));
+};
+
+const isBuyBoxPlatform = (name) => {
+    if (!name || name === 'All') return false;
+    if (isQcomPlatform(name)) return false;
+    const n = name.toLowerCase().trim();
+    return n.includes('amazon') || n.includes('flipkart');
+};
+
 // KPIs that are ecom-only at SKU level (not shown for qcom platforms)
-const SKU_ECOM_ONLY_KPIS = ['spend', 'conversion', 'cpc'];
+const SKU_ECOM_ONLY_KPIS = ['spend', 'conversion', 'cpc', 'roas_x'];
 const BrandLogo = ({ name, src, className, imgClassName }) => {
     const [error, setError] = useState(false);
 
@@ -82,6 +99,7 @@ const kpiLabels = {
     quantitySold: 'Quantity Sold',
     spend: 'Spend',
     tacos: 'TACoS',
+    roas_x: 'ROAS',
     availability: 'Availability',
     marketShare: 'Market share',
     conversion: 'Conversion',
@@ -134,6 +152,8 @@ const mapApiEntityToFrontend = (apiEntity) => {
                 const isPositive = col.change?.positive !== false
                 data[key] = {
                     value: col.value || '0',
+                    rawVal: col.rawVal ?? col.rawValue ?? null,
+                    meta: col.meta || null,
                     delta: {
                         value: changeText.replace(/^[+-]/, ''),
                         dir: isPositive ? 'up' : 'down'
@@ -144,6 +164,30 @@ const mapApiEntityToFrontend = (apiEntity) => {
     }
     return data
 }
+
+const getFullDisplayValue = (kpiKey, cell) => {
+    if (!cell || cell?.value === 'N/A' || cell?.value === undefined) return 'N/A';
+    if (kpiKey === 'quantitySold' || kpiKey === 'offtakes') {
+        if (cell.rawVal !== undefined && cell.rawVal !== null && !isNaN(cell.rawVal)) {
+            return Math.round(Number(cell.rawVal)).toLocaleString('en-IN');
+        }
+        const cleanStr = String(cell.value).replace(/,/g, '').trim();
+        const numMatch = cleanStr.match(/-?[\d.]+/);
+        if (numMatch) {
+            let val = parseFloat(numMatch[0]);
+            if (!isNaN(val)) {
+                const lower = cleanStr.toLowerCase();
+                if (lower.includes('cr')) val *= 10000000;
+                else if (lower.includes('lac') || lower.includes('lak') || lower.includes('lakh')) val *= 100000;
+                else if (lower.includes('m')) val *= 1000000;
+                else if (lower.includes('k')) val *= 1000;
+
+                return Math.round(val).toLocaleString('en-IN');
+            }
+        }
+    }
+    return cell?.value || '0';
+};
 
 // Dimension → API endpoint mapping
 const DIMENSION_API_MAP = {
@@ -163,9 +207,12 @@ const PlatformOverviewNew = ({
 }) => {
     const {
         platform: globalPlatform,
+        setPlatform,
         selectedBrand,
+        setSelectedBrand,
         brands: globalBrands,
         selectedCategory,
+        setSelectedCategory,
         categories: globalCategories,
         selectedLocation,
         selectedChannel,
@@ -176,7 +223,8 @@ const PlatformOverviewNew = ({
         compareEnd,
         datesFetched,
         platformsFetched,
-        selectedMsl
+        selectedMsl,
+        setSelectedMsl
     } = useContext(FilterContext);
 
     const kpis = [
@@ -184,6 +232,7 @@ const PlatformOverviewNew = ({
         { key: 'quantitySold', label: 'Quantity Sold' },
         { key: 'spend', label: 'Spend' },
         { key: 'tacos', label: 'TACoS' },
+        { key: 'roas_x', label: 'ROAS' },
         { key: 'inorgSales', label: 'Inorg Sales' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
@@ -241,8 +290,14 @@ const PlatformOverviewNew = ({
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
         let baseKpis = kpis;
+        const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
+        const allowBuyBox = isBuyBoxPlatform(activePlat);
+
+        if (dimension === 'platform' || !allowBuyBox) {
+            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct');
+        }
         if (dimension === 'platform') {
-            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime');
+            baseKpis = baseKpis.filter(k => k.key !== 'deliveryTime');
         }
 
         if (isEcom) {
@@ -265,10 +320,13 @@ const PlatformOverviewNew = ({
         }
         if (dimension === 'brand') return baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
         return baseKpis;
-    }, [dimension, activePlatformFilter, skuPlatformFilter]);
+    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom]);
 
     const defaultKpiKeys = useMemo(() => {
-        let base = ['offtakes', 'quantitySold', 'spend', 'tacos', 'availability', 'conversion', 'aov'];
+        let base = ['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'conversion', 'aov'];
+        const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
+        const allowBuyBox = isBuyBoxPlatform(activePlat);
+
         if (dimension === 'platform') {
             base.push('marketShare', 'categorySize');
             if (isEcom) base.push('cpc');
@@ -276,28 +334,34 @@ const PlatformOverviewNew = ({
             else base.push('cpc', 'cpm');
         } else {
             if (isEcom) {
-                base.push('buyBoxPct', 'deliveryTime', 'cpc');
+                if (allowBuyBox) base.push('buyBoxPct');
+                base.push('deliveryTime', 'cpc');
             } else if (isQuick) {
                 base.push('marketShare', 'categorySize', 'cpm');
             } else {
+                if (allowBuyBox) base.push('buyBoxPct');
                 base.push('marketShare', 'categorySize', 'cpc', 'cpm');
             }
         }
 
         if (dimension === 'sku') {
             let skuBase = base.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'cpm');
+            if (!allowBuyBox) skuBase = skuBase.filter(k => k !== 'buyBoxPct');
             if (isSkuQcom) {
                 skuBase = skuBase.filter(k => !SKU_ECOM_ONLY_KPIS.includes(k));
             }
             return skuBase;
         }
         if (dimension === 'brand') {
-            return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
+            let brandBase = base.filter(k => k !== 'categorySize' && k !== 'marketShare');
+            if (!allowBuyBox) brandBase = brandBase.filter(k => k !== 'buyBoxPct');
+            return brandBase;
         }
+        if (!allowBuyBox) base = base.filter(k => k !== 'buyBoxPct');
         return base;
-    }, [dimension, activePlatformFilter, skuPlatformFilter]);
+    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom]);
 
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'quantitySold', 'spend', 'tacos', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
+    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const navigate = useNavigate()
     const [currentPage, setCurrentPage] = useState(1)
@@ -348,12 +412,16 @@ const PlatformOverviewNew = ({
 
     // Re-sync glanceKpis when dimension changes or channel/platform changes
     useEffect(() => {
+        const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
+        const allowBuyBox = isBuyBoxPlatform(activePlat);
+
         if (dimension === 'sku') {
             setGlanceKpis(prev => {
                 let next = prev.filter(k => {
                     if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
                     // CPM never shown at SKU level
                     if (k === 'cpm') return false;
+                    if (!allowBuyBox && k === 'buyBoxPct') return false;
                     // Spend/Conversion/CPC are ecom-only at SKU level
                     if (isSkuQcom && SKU_ECOM_ONLY_KPIS.includes(k)) return false;
                     return true;
@@ -373,14 +441,23 @@ const PlatformOverviewNew = ({
                 if (!next.includes('conversion')) next.push('conversion');
                 if (isEcom) {
                     next = next.filter(k => k !== 'cpm');
-                    if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    if (allowBuyBox) {
+                        if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    } else {
+                        next = next.filter(k => k !== 'buyBoxPct');
+                    }
                     if (!next.includes('deliveryTime')) next.push('deliveryTime');
                     if (!next.includes('cpc')) next.push('cpc');
                 } else if (isQuick) {
                     next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpc');
                     if (!next.includes('cpm')) next.push('cpm');
                 } else {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime');
+                    next = next.filter(k => k !== 'deliveryTime');
+                    if (allowBuyBox) {
+                        if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    } else {
+                        next = next.filter(k => k !== 'buyBoxPct');
+                    }
                     if (!next.includes('cpc')) next.push('cpc');
                     if (!next.includes('cpm')) next.push('cpm');
                 }
@@ -413,7 +490,11 @@ const PlatformOverviewNew = ({
                     next = next.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpm');
                     if (!next.includes('spend')) next.push('spend');
                     if (!next.includes('conversion')) next.push('conversion');
-                    if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    if (allowBuyBox) {
+                        if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    } else {
+                        next = next.filter(k => k !== 'buyBoxPct');
+                    }
                     if (!next.includes('deliveryTime')) next.push('deliveryTime');
                     if (!next.includes('cpc')) next.push('cpc');
                 } else if (isQuick) {
@@ -424,7 +505,12 @@ const PlatformOverviewNew = ({
                     if (!next.includes('marketShare')) next.push('marketShare');
                     if (!next.includes('cpm')) next.push('cpm');
                 } else {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime');
+                    next = next.filter(k => k !== 'deliveryTime');
+                    if (allowBuyBox) {
+                        if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    } else {
+                        next = next.filter(k => k !== 'buyBoxPct');
+                    }
                     if (!next.includes('categorySize')) next.push('categorySize');
                     if (!next.includes('spend')) next.push('spend');
                     if (!next.includes('conversion')) next.push('conversion');
@@ -632,9 +718,32 @@ const PlatformOverviewNew = ({
 
     // Handle filter apply from modal
     const handleApplyFilters = (filters) => {
-        setAdvancedFilters(filters)
-        setGlanceKpis(filters.kpis)
-    }
+        setAdvancedFilters(filters);
+        setGlanceKpis(filters.kpis);
+
+        // Synchronize back to global FilterContext so top blue filter button stays in 2-way sync
+        if (filters.categories && filters.categories.length > 0) {
+            setSelectedCategory(filters.categories.length === 1 ? filters.categories[0] : filters.categories);
+        } else if (filters.categories && filters.categories.length === 0) {
+            setSelectedCategory('All');
+        }
+
+        if (filters.brands && filters.brands.length > 0) {
+            setSelectedBrand(filters.brands.length === 1 ? filters.brands[0] : filters.brands);
+        } else if (filters.brands && filters.brands.length === 0) {
+            setSelectedBrand('All');
+        }
+
+        if (filters.platforms && filters.platforms.length > 0) {
+            setPlatform(filters.platforms.length === 1 ? filters.platforms[0] : filters.platforms);
+        } else if (filters.platforms && filters.platforms.length === 0) {
+            setPlatform('All');
+        }
+
+        if (filters.msl !== undefined && setSelectedMsl) {
+            setSelectedMsl(filters.msl);
+        }
+    };
     // Count active dimension filters
     const activeDimensionFilters = [
         advancedFilters.brands?.length > 0,
@@ -1062,16 +1171,29 @@ const PlatformOverviewNew = ({
                                                     >
                                                         <LineChart size={13} className="text-slate-400" />
                                                     </button>
-                                                    <button
-                                                        onClick={(evt) => {
-                                                            evt.stopPropagation();
-                                                            onViewRca(e.name || e.label);
-                                                        }}
-                                                        className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-                                                        title={`View ${e.name} RCA`}
-                                                    >
-                                                        <MapPin size={13} className="text-slate-400" />
-                                                    </button>
+                                                    {(() => {
+                                                        const entityNameLower = (e.name || e.label || '').toLowerCase().trim();
+                                                        const isEcomEntity = isEcomPlatform(entityNameLower) || (selectedChannel && (selectedChannel.toLowerCase().includes('ecom') || selectedChannel.toLowerCase().includes('e-commerce')));
+                                                        const isAmazonEntity = entityNameLower.includes('amazon') || (globalPlatform && globalPlatform.toLowerCase().includes('amazon'));
+
+                                                        // For e-commerce, ONLY show RCA button for Amazon; hide for all other e-commerce platforms
+                                                        if (isEcomEntity && !isAmazonEntity) {
+                                                            return null;
+                                                        }
+
+                                                        return (
+                                                            <button
+                                                                onClick={(evt) => {
+                                                                    evt.stopPropagation();
+                                                                    onViewRca(e.name || e.label);
+                                                                }}
+                                                                className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
+                                                                title={`View ${e.name} RCA`}
+                                                            >
+                                                                <MapPin size={13} className="text-slate-400" />
+                                                            </button>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
 
@@ -1082,8 +1204,8 @@ const PlatformOverviewNew = ({
 
                                                 if (dimension === 'platform') {
                                                     const platformName = e.name.toLowerCase();
-                                                    const isEcomRow = platformName.includes('amazon') || platformName.includes('flipkart') || platformName.includes('myntra') || platformName.includes('nykaa') || platformName.includes('jiomart');
-                                                    const isQuickRow = platformName.includes('blinkit') || platformName.includes('zepto') || platformName.includes('swiggy') || platformName.includes('instamart') || platformName.includes('bbnow');
+                                                    const isEcomRow = isEcomPlatform(platformName);
+                                                    const isQuickRow = isQcomPlatform(platformName);
 
                                                     if (isEcomRow && kpi.key === 'cpm') {
                                                         cell = null;
@@ -1095,11 +1217,12 @@ const PlatformOverviewNew = ({
                                                 const isNA = !cell || cell?.value === 'N/A' || cell?.value === undefined
                                                 const textColor = isNA ? 'text-slate-400' : getStatusText(cell?.delta)
                                                 const isUp = cell?.delta?.dir === 'up'
+                                                const hoverVal = getFullDisplayValue(kpi.key, cell)
 
                                                 return (
                                                     <motion.button
                                                         key={kpi.key}
-                                                        onClick={() => { if (!isNA) handleCopy(`${e.name} ${kpi.label}`, cell?.value) }}
+                                                        onClick={() => { if (!isNA) handleCopy(`${e.name} ${kpi.label}`, hoverVal) }}
                                                         className={cn(
                                                             'flex-1 px-3 rounded-xl text-center transition-all duration-200 relative overflow-hidden',
                                                             'bg-gradient-to-br from-white to-slate-50',
@@ -1109,7 +1232,7 @@ const PlatformOverviewNew = ({
                                                             !isNA && 'hover:shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:-translate-y-1 active:scale-[0.98]',
                                                             cardSize.minW, cardSize.py
                                                         )}
-                                                        title={isNA ? `${kpi.label}: N/A (Data Not Available)` : `${kpi.label}: ${cell?.value} (${cell?.delta?.dir === 'up' ? '▲' : '▼'} ${cell?.delta?.value})`}
+                                                        title={isNA ? `${kpi.label}: N/A (Data Not Available)` : `${kpi.label}: ${hoverVal} (${cell?.delta?.dir === 'up' ? '▲' : '▼'} ${cell?.delta?.value})`}
                                                         whileHover={isNA ? {} : { scale: 1.02 }}
                                                         whileTap={isNA ? {} : { scale: 0.98 }}
                                                     >

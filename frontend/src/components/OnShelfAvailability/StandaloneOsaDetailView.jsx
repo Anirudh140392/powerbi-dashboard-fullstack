@@ -84,29 +84,42 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
     const filterOptions = useMemo(() => {
         if (!apiData?.osaDetail) return [];
 
-        const platforms = Array.from(new Set(apiData.osaDetail.map(r => r.platform).filter(Boolean)))
-            .map(p => ({ id: p, label: p }));
+        const mk = arr => arr.map(p => ({ id: p, label: p }));
 
-        const products = Array.from(new Set(apiData.osaDetail.map(r => r.name).filter(Boolean)))
-            .map(p => ({ id: p, label: p }));
+        const getMatchingRowsExcluding = (targetKey) => {
+            let res = apiData.osaDetail;
 
-        const formats = Array.from(new Set(apiData.osaDetail.map(r => r.format).filter(Boolean)))
-            .map(p => ({ id: p, label: p }));
+            Object.entries(advancedFilters).forEach(([key, values]) => {
+                if (key === targetKey || !values?.length) return;
+                if (key === 'platform') {
+                    res = res.filter(r => values.includes(r.platform));
+                } else if (key === 'brand') {
+                    res = res.filter(r => values.includes(r.brand));
+                } else if (key === 'productName') {
+                    res = res.filter(r => values.includes(r.name || r.productName));
+                } else if (key === 'format') {
+                    res = res.filter(r => values.includes(r.format));
+                } else if (key === 'city') {
+                    res = res.filter(r => r.cities?.some(c => values.includes(c.name || c)));
+                }
+            });
+            return res;
+        };
 
-        const brands = Array.from(new Set(apiData.osaDetail.map(r => r.brand).filter(Boolean)))
-            .map(p => ({ id: p, label: p }));
-
-        const cities = Array.from(new Set(apiData.osaDetail.flatMap(r => r.cities?.map(c => c.name) || []).filter(Boolean)))
-            .map(p => ({ id: p, label: p }));
+        const platformRows = getMatchingRowsExcluding('platform');
+        const brandRows = getMatchingRowsExcluding('brand');
+        const productNameRows = getMatchingRowsExcluding('productName');
+        const formatRows = getMatchingRowsExcluding('format');
+        const cityRows = getMatchingRowsExcluding('city');
 
         return [
-            { id: "platform", label: "Platform", options: platforms },
-            { id: "brand", label: "Brand", options: brands },
-            { id: "productName", label: "Product Name", options: products },
-            { id: "format", label: "Category", options: formats },
-            { id: "city", label: "City", options: cities },
+            { id: "platform", label: "Platform", options: mk([...new Set(platformRows.map(r => r.platform).filter(Boolean))].sort()) },
+            { id: "brand", label: "Brand", options: mk([...new Set(brandRows.map(r => r.brand).filter(Boolean))].sort()) },
+            { id: "productName", label: "Product Name", options: mk([...new Set(productNameRows.map(r => r.name || r.productName).filter(Boolean))].sort()) },
+            { id: "format", label: "Category", options: mk([...new Set(formatRows.map(r => r.format).filter(Boolean))].sort()) },
+            { id: "city", label: "City", options: mk([...new Set(cityRows.flatMap(r => r.cities?.map(c => c.name || c) || []).filter(Boolean))].sort()) },
         ];
-    }, [apiData]);
+    }, [apiData, advancedFilters]);
 
     const baseRows = useMemo(() => {
         if (!apiData?.osaDetail || apiData.osaDetail.length === 0) return [];

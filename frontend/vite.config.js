@@ -90,4 +90,29 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    sourcemap: false,
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('echarts') || id.includes('recharts') || id.includes('chart.js') || id.includes('d3-')) {
+              return 'vendor-charts';
+            }
+            if (id.includes('@mui') || id.includes('@emotion')) {
+              return 'vendor-mui';
+            }
+            if (id.includes('lucide-react') || id.includes('react-icons')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('reactflow') || id.includes('maplibre-gl')) {
+              return 'vendor-visuals';
+            }
+            return 'vendor';
+          }
+        },
+      },
+    },
+  },
 });

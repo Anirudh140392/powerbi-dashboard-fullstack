@@ -731,8 +731,8 @@ const generateKpiColumns = ({
     };
 
     return [
-        { title: "Offtakes", value: fmtCurr(offtake), change: { text: fmtChg(offtakeChange), positive: offtakeChange >= 0 }, meta: { units: `${formatUnits(offtakeUnits)} units`, change: fmtChg(offtakeChange) } },
-        { title: "Quantity Sold", value: fmtUnits(offtakeUnits), change: { text: fmtChg(quantitySoldChange), positive: quantitySoldChange >= 0 }, meta: { units: "units", change: fmtChg(quantitySoldChange) } },
+        { title: "Offtakes", value: fmtCurr(offtake), change: { text: fmtChg(offtakeChange), positive: offtakeChange >= 0 }, meta: { units: `${formatUnits(offtakeUnits)} units`, change: fmtChg(offtakeChange) }, rawVal: offtake },
+        { title: "Quantity Sold", value: fmtUnits(offtakeUnits), change: { text: fmtChg(quantitySoldChange), positive: quantitySoldChange >= 0 }, meta: { units: "units", change: fmtChg(quantitySoldChange) }, rawVal: offtakeUnits },
         { title: "Category Size", value: fmtCurr(categorySize), change: { text: fmtChg(categorySizeChange), positive: categorySizeChange >= 0 }, meta: { units: "market", change: fmtChg(categorySizeChange) } },
         { title: "Spend", value: fmtCurr(spend), change: { text: fmtChg(spendChange), positive: spendChange >= 0 }, meta: { units: "spend", change: fmtChg(spendChange) } },
         { title: "TACoS", value: fmtPct(computedTacos), change: { text: fmtChg(tacosChange, true), positive: tacosChange <= 0 }, meta: { units: "Spend / Sales", change: fmtChg(tacosChange, true) } },
@@ -8077,7 +8077,9 @@ const getKpiTrends = async (filters) => {
     const buckets = generateTimeBuckets(startDate, endDate, timeStep);
 
     const timeSeries = buckets.map((bucket, bucketIndex) => {
-        const rowRaw = kpiResults.find(r => String(r.date_group) === String(bucket.groupKey)) || {};
+        const pdpRow = kpiResults.find(r => String(r.date_group) === String(bucket.groupKey));
+        const hasPdpBucketData = !!pdpRow;
+        const rowRaw = pdpRow || {};
         const row = scaleMarsMetrics(rowRaw, brand || category || skuName || dimensionValue);
 
         // Extract values
@@ -8114,15 +8116,19 @@ const getKpiTrends = async (filters) => {
         // 1. Share of Search
         const sosNum = sosNumerator.find(s => String(s.date_group) === String(bucket.groupKey));
         const sosDen = sosDenominator.find(s => String(s.date_group) === String(bucket.groupKey));
+        const hasSosBucketData = !!(sosNum || sosDen);
         const numCount = parseInt(sosNum?.count || 0, 10);
         const denCount = parseInt(sosDen?.count || 0, 10);
         const shareOfSearch = denCount > 0 ? (numCount / denCount) * 100 : 0;
 
         // Get PM metrics for this period if available
+        const hasPmBucketData = pmDataMap.has(String(bucket.groupKey));
         const pmData = pmDataMap.get(String(bucket.groupKey)) || {
             adSales: 0, spend: 0, orders: 0, clicks: 0, impressions: 0,
             cpcSpend: 0, cpcClicks: 0, cpmSpend: 0, cpmImpressions: 0
         };
+
+        const effectivePmBucketData = usePdpForPmKpis ? hasPdpBucketData : hasPmBucketData;
 
         // When SKU is selected, use PDP data (rb_pdp_olap) for PM KPIs;
         // otherwise use PM data (rb_pm_olap) for Platform/Category/Brand/Location level
@@ -8161,50 +8167,52 @@ const getKpiTrends = async (filters) => {
         // 9. CPC (Cost Per Click)
         const cpc = effectiveCpcClicks > 0 ? effectiveCpcSpend / effectiveCpcClicks : 0;
 
+        const hasMsBucketData = msTimeSeriesMap.has(String(bucket.groupKey));
         const marketShare = hasTier23 ? 0 : (msTimeSeriesMap.get(String(bucket.groupKey)) || 0);
         const categoryShare = marketShare;
 
         // Build data point with all KPIs
         // Use null for KPIs whose individual data source has no data over the ENTIRE duration
-        const valIfData = (hasData, val) => hasData ? val : null;
+        // OR when no row exists for this specific bucket date (prevents line from dropping to 0)
+        const valIfData = (hasData, hasBucketData, val) => (hasData && hasBucketData && val !== null && val !== undefined) ? val : null;
 
         const dataPoint = {
             date: bucket.label,
             // Core 5 KPIs (Performance Matrix)
-            ShareOfSearch: valIfData(hasSosFinalData, parseFloat(shareOfSearch.toFixed(2))),
-            InorganicSales: valIfData(hasPmAdSalesData, parseFloat(inorganicSales.toFixed(2))),
-            Conversion: valIfData(hasPmOrdersData && hasPmClicksData, parseFloat(conversion.toFixed(2))),
-            Roas: valIfData(hasPmAdSalesData && hasPmSpendData, parseFloat(roas.toFixed(2))),
-            BmiSalesRatio: valIfData(hasPmSpendData && hasOfftakesData, parseFloat(bmiSalesRatio.toFixed(2))),
+            ShareOfSearch: valIfData(hasSosFinalData, hasSosBucketData, parseFloat(shareOfSearch.toFixed(2))),
+            InorganicSales: valIfData(hasPmAdSalesData, effectivePmBucketData, parseFloat(inorganicSales.toFixed(2))),
+            Conversion: valIfData(hasPmOrdersData && hasPmClicksData, effectivePmBucketData, parseFloat(conversion.toFixed(2))),
+            Roas: valIfData(hasPmAdSalesData && hasPmSpendData, effectivePmBucketData, parseFloat(roas.toFixed(2))),
+            BmiSalesRatio: valIfData(hasPmSpendData && hasOfftakesData, effectivePmBucketData && hasPdpBucketData, parseFloat(bmiSalesRatio.toFixed(2))),
             // Extended KPIs (Platform/Month/Category/Brand pages)
-            Offtakes: valIfData(hasOfftakesData, parseFloat(offtakes.toFixed(0))),
-            Spend: valIfData(hasPmSpendData, parseFloat(spend.toFixed(0))),
-            Availability: valIfData(hasAvailabilityData, availability !== null ? parseFloat(availability.toFixed(2)) : null),
-            Osa: valIfData(hasAvailabilityData, availability !== null ? parseFloat(availability.toFixed(2)) : null),
-            Listing: valIfData(hasAssortmentData, masterCount > 0 ? parseFloat(((assortment / masterCount) * 100).toFixed(2)) : (availability !== null ? parseFloat(availability.toFixed(2)) : null)),
-            Assortment: valIfData(hasAssortmentData, assortment),
-            CPM: valIfData(hasPmSpendData && hasPmImpressionsData, parseFloat(cpm.toFixed(2))),
-            CPC: valIfData(hasPmSpendData && hasPmClicksData, parseFloat(cpc.toFixed(2))),
+            Offtakes: valIfData(hasOfftakesData, hasPdpBucketData, parseFloat(offtakes.toFixed(0))),
+            Spend: valIfData(hasPmSpendData, effectivePmBucketData, parseFloat(spend.toFixed(0))),
+            Availability: valIfData(hasAvailabilityData, hasPdpBucketData, availability !== null ? parseFloat(availability.toFixed(2)) : null),
+            Osa: valIfData(hasAvailabilityData, hasPdpBucketData, availability !== null ? parseFloat(availability.toFixed(2)) : null),
+            Listing: valIfData(hasAssortmentData, hasPdpBucketData, masterCount > 0 ? parseFloat(((assortment / masterCount) * 100).toFixed(2)) : (availability !== null ? parseFloat(availability.toFixed(2)) : null)),
+            Assortment: valIfData(hasAssortmentData, hasPdpBucketData, assortment),
+            CPM: valIfData(hasPmSpendData && hasPmImpressionsData, effectivePmBucketData, parseFloat(cpm.toFixed(2))),
+            CPC: valIfData(hasPmSpendData && hasPmClicksData, effectivePmBucketData, parseFloat(cpc.toFixed(2))),
             // Pricing KPIs
-            'Promo-My': valIfData(hasDiscountData, parseFloat(discount.toFixed(2))),
-            PricePerUnit: valIfData(hasPricingData, parseFloat(pricePerUnit.toFixed(2))),
-            ASP: valIfData(hasPricingData, parseFloat(asp.toFixed(2))),
-            RPI: valIfData(hasPricingData, parseFloat(rpi.toFixed(2))),
+            'Promo-My': valIfData(hasDiscountData, hasPdpBucketData, parseFloat(discount.toFixed(2))),
+            PricePerUnit: valIfData(hasPricingData, hasPdpBucketData, parseFloat(pricePerUnit.toFixed(2))),
+            ASP: valIfData(hasPricingData, hasPdpBucketData, parseFloat(asp.toFixed(2))),
+            RPI: valIfData(hasPricingData, hasPdpBucketData, parseFloat(rpi.toFixed(2))),
             // Mapped aliases for frontend compatibility (DRAWER SYNC)
-            offtake: valIfData(hasOfftakesData, parseFloat(offtakes.toFixed(0))),       // MyTrendsDrawer
-            Offtake: valIfData(hasOfftakesData, parseFloat(offtakes.toFixed(0))),       // TrendsCompetitionDrawer
-            osa: valIfData(hasAvailabilityData, availability !== null ? parseFloat(availability.toFixed(2)) : null),       // MyTrendsDrawer
-            discount: valIfData(hasDiscountData, parseFloat(discount.toFixed(2))),      // MyTrendsDrawer
-            Sos: valIfData(hasSosFinalData, parseFloat(shareOfSearch.toFixed(2))),      // MyTrendsDrawer
-            SOS: valIfData(hasSosFinalData, parseFloat(shareOfSearch.toFixed(2))),      // TrendsCompetitionDrawer
-            ROAS: valIfData(hasPmAdSalesData && hasPmSpendData, parseFloat(roas.toFixed(2))),
-            InorgSales: valIfData(hasPmAdSalesData, parseFloat(inorganicSales.toFixed(2))),
-            MarketShare: valIfData(hasMsData, parseFloat(marketShare.toFixed(2))),
-            marketShare: valIfData(hasMsData, parseFloat(marketShare.toFixed(2))),
-            CategoryShare: valIfData(hasMsData, parseFloat(categoryShare.toFixed(2))),
-            categoryShare: valIfData(hasMsData, parseFloat(categoryShare.toFixed(2))),
-            PromoMyBrand: valIfData(hasDiscountData, parseFloat(discount.toFixed(2))),
-            Discount: valIfData(hasDiscountData, parseFloat(discount.toFixed(2))),
+            offtake: valIfData(hasOfftakesData, hasPdpBucketData, parseFloat(offtakes.toFixed(0))),       // MyTrendsDrawer
+            Offtake: valIfData(hasOfftakesData, hasPdpBucketData, parseFloat(offtakes.toFixed(0))),       // TrendsCompetitionDrawer
+            osa: valIfData(hasAvailabilityData, hasPdpBucketData, availability !== null ? parseFloat(availability.toFixed(2)) : null),       // MyTrendsDrawer
+            discount: valIfData(hasDiscountData, hasPdpBucketData, parseFloat(discount.toFixed(2))),      // MyTrendsDrawer
+            Sos: valIfData(hasSosFinalData, hasSosBucketData, parseFloat(shareOfSearch.toFixed(2))),      // MyTrendsDrawer
+            SOS: valIfData(hasSosFinalData, hasSosBucketData, parseFloat(shareOfSearch.toFixed(2))),      // TrendsCompetitionDrawer
+            ROAS: valIfData(hasPmAdSalesData && hasPmSpendData, effectivePmBucketData, parseFloat(roas.toFixed(2))),
+            InorgSales: valIfData(hasPmAdSalesData, effectivePmBucketData, parseFloat(inorganicSales.toFixed(2))),
+            MarketShare: valIfData(hasMsData, hasMsBucketData, parseFloat(marketShare.toFixed(2))),
+            marketShare: valIfData(hasMsData, hasMsBucketData, parseFloat(marketShare.toFixed(2))),
+            CategoryShare: valIfData(hasMsData, hasMsBucketData, parseFloat(categoryShare.toFixed(2))),
+            categoryShare: valIfData(hasMsData, hasMsBucketData, parseFloat(categoryShare.toFixed(2))),
+            PromoMyBrand: valIfData(hasDiscountData, hasPdpBucketData, parseFloat(discount.toFixed(2))),
+            Discount: valIfData(hasDiscountData, hasPdpBucketData, parseFloat(discount.toFixed(2))),
             PromoCompete: 0,  // Placeholder
             DspSales: 0       // Placeholder
         };
@@ -9415,7 +9423,7 @@ const getLatestAvailableMonth = async (filters = {}) => {
  */
 const getCompetitionBrandTrends = async (filters = {}) => {
     try {
-        let { brands = 'All', skus = 'All', location = 'All', category = 'All', period = '1M', platform = 'All', msl = 'All' } = filters;
+        let { brands = 'All', skus = 'All', location = 'All', category = 'All', period = '1M', platform = 'All', msl = 'All', timeStep = 'Daily' } = filters;
         const channel = extractChannel(filters);
 
         // Handle "All India" -> "All" conversion
@@ -9467,20 +9475,32 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             default: startDate = endDate.subtract(1, 'month'); // Default 1M
         }
 
-        // Generate full date range to ensure trend lines show all available data points
-        const dateRange = [];
-        let currDate = startDate.clone();
-        while (currDate.isBefore(endDate) || currDate.isSame(endDate, 'day')) {
-            dateRange.push(currDate.format('YYYY-MM-DD'));
-            currDate = currDate.add(1, 'day');
-        }
+        const buckets = generateTimeBuckets(startDate, endDate, timeStep);
 
-        console.log(`[getCompetitionBrandTrends] Valid brands(comp_flag = 0): ${validBrandNames.length} `);
+        console.log(`[getCompetitionBrandTrends] TimeStep: ${timeStep}, Buckets count: ${buckets.length}, Valid brands(comp_flag = 0): ${validBrandNames.length} `);
 
         const src = await getWatchtowerSource(filters);
-        // First, get total impressions from dynamic source and Market Share from rb_brand_ms
+        // Determine grouping expressions based on timeStep
+        let groupExprPdp;
+        let groupExprMs;
+        let groupExprKw;
+        let groupExprPm;
+
+        if (timeStep === 'Monthly') {
+            groupExprPdp = `formatDateTime(toDate(${src.f.date}), '%Y-%m-01')`;
+            groupExprMs = `formatDateTime(toDate(created_on), '%Y-%m-01')`;
+            groupExprKw = `formatDateTime(toDate(DATE), '%Y-%m-01')`;
+        } else if (timeStep === 'Weekly') {
+            groupExprPdp = `toYearWeek(toDate(${src.f.date}), 1)`;
+            groupExprMs = `toYearWeek(toDate(created_on), 1)`;
+            groupExprKw = `toYearWeek(toDate(DATE), 1)`;
+        } else { // Daily
+            groupExprPdp = `formatDateTime(toDate(${src.f.date}), '%Y-%m-%d')`;
+            groupExprMs = `formatDateTime(toDate(created_on), '%Y-%m-%d')`;
+            groupExprKw = `formatDateTime(toDate(DATE), '%Y-%m-%d')`;
+        }
+
         const baseConds = [`toDate(${src.f.date}) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-        // baseConds.push(`toString(${src.f.compFlag}) = '1'`);  // REMOVED: Allow both base and competitor brands for SOS denominator and direct querying
 
         const platArr = normalizeFilterArray(platform);
         const locArr = normalizeFilterArray(location);
@@ -9492,7 +9512,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         }
 
         if (locArr && locArr.length > 0) {
-            baseConds.push(`${src.f.location} IN(${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            baseConds.push(`lower(${src.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
         }
 
         if (catArrNorm && catArrNorm.length > 0) {
@@ -9561,60 +9581,68 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
         // Parallel queries: total impressions, total sales (MS denominator), our brands sales (MS numerator), category totals
         const [totalsData, msTotalsData, msOurBrandsData, catTotalsData, kwTotalsData] = await Promise.all([
-            // Query 1: Total impressions per day from dynamic source (for SOS calculation)
+            // Query 1: Total impressions per group from dynamic source (for SOS calculation)
             queryClickHouse(`
         SELECT
-        toDate(${src.f.date}) as date_key,
+        ${groupExprPdp} as date_group,
             SUM(${src.f.impressions}) as total_impressions
                 FROM ${src.table}
                 WHERE ${baseConds.join(' AND ')}
-                GROUP BY date_key
-                ORDER BY date_key ASC
+                GROUP BY date_group
+                ORDER BY date_group ASC
             `),
-            // Query 2: Total platform sales per day from rb_ms_olap (Market Share denominator)
+            // Query 2: Total platform sales per group from rb_ms_olap (Market Share denominator)
             queryClickHouse(`
         SELECT
-        toDate(created_on) as date_key,
+        ${groupExprMs} as date_group,
             SUM(toFloat64OrZero(toString(sales))) as total_sales
                 FROM rb_ms_olap
                 WHERE ${msBaseConds.join(' AND ')}
-                GROUP BY date_key
-                ORDER BY date_key ASC
+                GROUP BY date_group
+                ORDER BY date_group ASC
             `),
-            // Query 3: Our brands (comp_flag=0) sales per day from rb_ms_olap (Market Share numerator)
+            // Query 3: Our brands (comp_flag=0) sales per group from rb_ms_olap (Market Share numerator)
             queryClickHouse(`
         SELECT
-        toDate(created_on) as date_key,
+        ${groupExprMs} as date_group,
             SUM(toFloat64OrZero(toString(sales))) as our_sales
                 FROM rb_ms_olap
                 WHERE ${msBaseConds.join(' AND ')} AND ${validBrandsFilter}
-                GROUP BY date_key
-                ORDER BY date_key ASC
+                GROUP BY date_group
+                ORDER BY date_group ASC
             `),
-            // Query 4: Total category sales per day from rb_ms_olap (Category Share denominator)
+            // Query 4: Total category sales per group from rb_ms_olap (Category Share denominator)
             queryClickHouse(`
         SELECT
-        toDate(created_on) as date_key,
+        ${groupExprMs} as date_group,
             SUM(toFloat64OrZero(toString(sales))) as total_cat_sales
                 FROM rb_ms_olap
                 WHERE ${catBaseConds.join(' AND ')}
-                GROUP BY date_key
-                ORDER BY date_key ASC
+                GROUP BY date_group
+                ORDER BY date_group ASC
             `),
-            // Query 5: Total keyword searches per day for SOS Denominator
+            // Query 5: Total keyword searches per group for SOS Denominator
             queryClickHouse(`
         SELECT
-        toDate(DATE) as date_key,
+        ${groupExprKw} as date_group,
             COUNT(*) as total_kw
                 FROM rb_kw_olap
                 WHERE ${kwBaseConds.join(' AND ')}
-                GROUP BY date_key
-                ORDER BY date_key ASC
+                GROUP BY date_group
+                ORDER BY date_group ASC
             `)
         ]);
 
         // ===================== KPI AVAILABILITY DETECTION =====================
         const pmSrc = await getPmSource();
+        if (timeStep === 'Monthly') {
+            groupExprPm = `formatDateTime(toDate(${pmSrc.f.date}), '%Y-%m-01')`;
+        } else if (timeStep === 'Weekly') {
+            groupExprPm = `toYearWeek(toDate(${pmSrc.f.date}), 1)`;
+        } else {
+            groupExprPm = `formatDateTime(toDate(${pmSrc.f.date}), '%Y-%m-%d')`;
+        }
+
         const globalPmConds = [`${pmSrc.f.date} BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         const pmPlatArr = normalizeFilterArray(platform);
         if (pmPlatArr && pmPlatArr.length > 0) {
@@ -9633,14 +9661,14 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             pm: hasPmData
         };
 
-        // Build lookup maps for totals by date
+        // Build lookup maps for totals by date_group
         const totalsMap = new Map(totalsData.map(r => [
-            String(r.date_key),
+            String(r.date_group),
             { total_impressions: parseFloat(r.total_impressions || 0) }
         ]));
 
         const msTotalsMap = new Map(msTotalsData.map(r => [
-            String(r.date_key),
+            String(r.date_group),
             { total_sales: parseFloat(r.total_sales || 0) }
         ]));
 
@@ -9648,16 +9676,16 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         // Note: msOurBrandsData is not mapped here as we query per-brand sales inside the loop
 
         const catTotalsMap = new Map(catTotalsData.map(r => [
-            String(r.date_key),
+            String(r.date_group),
             { total_category_sales: parseFloat(r.total_cat_sales || 0) }
         ]));
 
         const kwTotalsMap = new Map(kwTotalsData.map(r => [
-            String(r.date_key),
+            String(r.date_group),
             { total_kw: parseFloat(r.total_kw || 0) }
         ]));
 
-        console.log(`[getCompetitionBrandTrends] Got totals: ${totalsData.length} days impressions, ${msTotalsData.length} days platform sales, ${catTotalsData.length} days category sales`);
+        console.log(`[getCompetitionBrandTrends] Got totals for timeStep ${timeStep}: ${totalsData.length} buckets impressions, ${msTotalsData.length} buckets platform sales`);
 
         const brandTrends = {};
 
@@ -9716,21 +9744,14 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                 if (platformCond) pmConds.push(platformCond);
             }
 
-            if (isSkuMode) {
-                // pmSrc.table doesn't typically have product-level granularity in some schemas
-                // but we attempt to filter by brand to at least provide brand-level context if needed.
-                // For now, if we match the target name to the brand column.
-                pmConds.push(`lower(${pmSrc.f.brand}) = '${targetEscaped}'`);
-            } else {
-                pmConds.push(`lower(${pmSrc.f.brand}) = '${targetEscaped}'`);
-            }
+            pmConds.push(`lower(${pmSrc.f.brand}) = '${targetEscaped}'`);
 
             // Parallel queries: main metrics from dynamic source, sales, and PM metrics
             const [rawData, targetSalesData, targetKwData, targetPmData] = await Promise.all([
                 // Query main metrics (OSA, SOS numerator, Price, Discount components)
                 queryClickHouse(`
         SELECT
-        toDate(${src.f.date}) as date_key,
+        ${groupExprPdp} as date_group,
             SUM(${src.f.sales}) as Offtakes,
             SUM(${src.f.spend}) as Spend,
             SUM(${src.f.adSales}) as Ad_sales,
@@ -9743,71 +9764,61 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             SUM(if(${src.f.mrp} > 0, ${src.f.mrp} * ${src.f.quantitySold}, 0)) as mrp_sales_valid
                     FROM ${src.table}
                     WHERE ${conds.join(' AND ')}
-                    GROUP BY date_key
-                    ORDER BY date_key ASC
+                    GROUP BY date_group
+                    ORDER BY date_group ASC
             `),
-                // Query 2: this brand's sales per day from rb_ms_olap (Market Share numerator)
+                // Query 2: this brand's sales per group from rb_ms_olap (Market Share numerator)
                 queryClickHouse(`
         SELECT
-        toDate(created_on) as date_key,
+        ${groupExprMs} as date_group,
             SUM(toFloat64OrZero(toString(sales))) as target_sales
                 FROM rb_ms_olap
                 WHERE ${targetMsConds.join(' AND ')}
-                GROUP BY date_key
-                ORDER BY date_key ASC
+                GROUP BY date_group
+                ORDER BY date_group ASC
             `),
                 // Query 3: SOS numerator for this brand
                 queryClickHouse(`
         SELECT
-        toDate(DATE) as date_key,
+        ${groupExprKw} as date_group,
             SUM(toInt32(overall)) as count
                 FROM rb_kw_olap
                 WHERE ${targetKwConds.join(' AND ')}
-                GROUP BY date_key
-                ORDER BY date_key ASC
+                GROUP BY date_group
+                ORDER BY date_group ASC
             `),
                 // Query 4: Ad Sales from rb_pm_olap
                 queryClickHouse(`
         SELECT
-        toDate(${pmSrc.f.date}) as date_key,
+        ${groupExprPm} as date_group,
                     SUM(${pmSrc.f.adSales}) as pm_ad_sales
                 FROM ${pmSrc.table}
                 WHERE ${pmConds.join(' AND ')}
-                GROUP BY date_key
+                GROUP BY date_group
             `)
             ]);
 
-            // Build lookup map for this target's sales per day
+            // Build lookup map for this target's sales per group
             const targetSalesMap = new Map(targetSalesData.map(r => [
-                String(r.date_key),
+                String(r.date_group),
                 parseFloat(r.target_sales || 0)
             ]));
 
             const targetKwMap = new Map(targetKwData.map(r => [
-                String(r.date_key),
+                String(r.date_group),
                 parseFloat(r.count || 0)
             ]));
 
             const targetPmMap = new Map(targetPmData.map(r => [
-                String(r.date_key),
+                String(r.date_group),
                 parseFloat(r.pm_ad_sales || 0)
             ]));
 
-            if (targetName === 'Amul' || targetName === 'Ferrero') {
-                console.log(`[DEBUG SOS ${targetName}] targetKwMap keys:`, Array.from(targetKwMap.keys()).slice(0, 5));
-                console.log(`[DEBUG SOS ${targetName}] kwTotalsMap keys:`, Array.from(kwTotalsMap.keys()).slice(0, 5));
-                if (rawData.length > 0) {
-                    console.log(`[DEBUG SOS ${targetName}] rawData key type:`, String(rawData[0].date_key));
-                }
-            }
+            const rawDataMap = new Map(rawData.map(r => [String(r.date_group), r]));
 
-            console.log(`[getCompetitionBrandTrends] Target "${targetName}": ${rawData.length} data points, ${targetSalesData.length} market share points`);
-
-            // Process the raw data to get trend points
-            const rawDataMap = new Map(rawData.map(r => [dayjs(r.date_key).format('YYYY-MM-DD'), r]));
-
-            brandTrends[targetName] = dateRange.map(dateKeyStr => {
-                const row = rawDataMap.get(dateKeyStr) || {};
+            brandTrends[targetName] = buckets.map(b => {
+                const groupKeyStr = String(b.groupKey);
+                const row = rawDataMap.get(groupKeyStr) || {};
                 const nenoOsa = parseFloat(row.neno_osa_sum || 0);
                 const denoOsa = parseFloat(row.deno_osa_sum || 0);
                 const avgPrice = row.avg_price ? parseFloat(row.avg_price) : null;
@@ -9819,13 +9830,13 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                 const avgDiscount = row.avg_discount ? parseFloat(row.avg_discount) : null;
                 let discount = avgDiscount !== null ? Math.max(0, Math.min(100, avgDiscount)) : null;
 
-                // Get totals for this date (use String() for consistent key format)
-                const msTotals = msTotalsMap.get(dateKeyStr) || { total_sales: 0 };
-                const catTotals = catTotalsMap.get(dateKeyStr) || { total_category_sales: 0 };
-                const kwTotals = kwTotalsMap.get(dateKeyStr) || { total_kw: 0 };
+                // Get totals for this group (use String() for consistent key format)
+                const msTotals = msTotalsMap.get(groupKeyStr) || { total_sales: 0 };
+                const catTotals = catTotalsMap.get(groupKeyStr) || { total_category_sales: 0 };
+                const kwTotals = kwTotalsMap.get(groupKeyStr) || { total_kw: 0 };
 
-                const targetSales = targetSalesMap.get(dateKeyStr) || 0;
-                const targetKw = targetKwMap.get(dateKeyStr) || 0;
+                const targetSales = targetSalesMap.get(groupKeyStr) || 0;
+                const targetKw = targetKwMap.get(groupKeyStr) || 0;
 
                 const sos = kwTotals.total_kw > 0 ? (targetKw / kwTotals.total_kw) * 100 : null;
                 const marketShare = msTotals.total_sales > 0 ? (targetSales / msTotals.total_sales) * 100 : null;
@@ -9833,29 +9844,34 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
                 // 2. Inorganic Sales (Ad Sales from PM / Total Sales * 100)
                 const totalSales = row.Offtakes || 0;
-                const pmAdSales = targetPmMap.get(dateKeyStr) || 0;
+                const pmAdSales = targetPmMap.get(groupKeyStr) || 0;
                 const inorganicSales = totalSales > 0 ? (pmAdSales / totalSales) * 100 : null;
 
+                const hasPdpBucketData = rawDataMap.has(groupKeyStr);
+                const hasPmBucketData = targetPmMap.has(groupKeyStr);
+                const hasKwBucketData = kwTotalsMap.has(groupKeyStr);
+                const hasMsBucketData = msTotalsMap.has(groupKeyStr);
+
                 return {
-                    date: dayjs(dateKeyStr).format("DD MMM'YY"),
+                    date: b.label,
                     // Capitalized for TrendsCompetitionDrawer compatibility
-                    OSA: (kpiAvailability.pdp && osa !== null) ? parseFloat(osa.toFixed(2)) : null,
-                    osa: (kpiAvailability.pdp && osa !== null) ? parseFloat(osa.toFixed(2)) : null,
-                    SOS: (kpiAvailability.kw && sos !== null) ? parseFloat(sos.toFixed(2)) : null,
-                    sos: (kpiAvailability.kw && sos !== null) ? parseFloat(sos.toFixed(2)) : null,
-                    Price: (kpiAvailability.pdp && avgPrice !== null) ? parseFloat(avgPrice.toFixed(0)) : null,
-                    price: (kpiAvailability.pdp && avgPrice !== null) ? parseFloat(avgPrice.toFixed(0)) : null,
-                    'Promo-My': (kpiAvailability.pdp && discount !== null) ? parseFloat(discount.toFixed(2)) : null,
-                    'promo-my': (kpiAvailability.pdp && discount !== null) ? parseFloat(discount.toFixed(2)) : null,
-                    'PromoMy': (kpiAvailability.pdp && discount !== null) ? parseFloat(discount.toFixed(2)) : null,
-                    CategoryShare: (kpiAvailability.ms && categoryShare !== null) ? parseFloat(categoryShare.toFixed(2)) : null,
-                    categoryShare: (kpiAvailability.ms && categoryShare !== null) ? parseFloat(categoryShare.toFixed(2)) : null,
-                    MarketShare: (kpiAvailability.ms && marketShare !== null) ? parseFloat(marketShare.toFixed(2)) : null,
-                    marketShare: (kpiAvailability.ms && marketShare !== null) ? parseFloat(marketShare.toFixed(2)) : null,
-                    Offtakes: kpiAvailability.pdp ? parseFloat(row.Offtakes || 0) : null,
-                    offtakes: kpiAvailability.pdp ? parseFloat(row.Offtakes || 0) : null,
-                    InorganicSales: (kpiAvailability.pm && inorganicSales !== null) ? parseFloat(inorganicSales.toFixed(2)) : null,
-                    inorganicSales: (kpiAvailability.pm && inorganicSales !== null) ? parseFloat(inorganicSales.toFixed(2)) : null
+                    OSA: (kpiAvailability.pdp && hasPdpBucketData && osa !== null) ? parseFloat(osa.toFixed(2)) : null,
+                    osa: (kpiAvailability.pdp && hasPdpBucketData && osa !== null) ? parseFloat(osa.toFixed(2)) : null,
+                    SOS: (kpiAvailability.kw && hasKwBucketData && sos !== null) ? parseFloat(sos.toFixed(2)) : null,
+                    sos: (kpiAvailability.kw && hasKwBucketData && sos !== null) ? parseFloat(sos.toFixed(2)) : null,
+                    Price: (kpiAvailability.pdp && hasPdpBucketData && avgPrice !== null) ? parseFloat(avgPrice.toFixed(0)) : null,
+                    price: (kpiAvailability.pdp && hasPdpBucketData && avgPrice !== null) ? parseFloat(avgPrice.toFixed(0)) : null,
+                    'Promo-My': (kpiAvailability.pdp && hasPdpBucketData && discount !== null) ? parseFloat(discount.toFixed(2)) : null,
+                    'promo-my': (kpiAvailability.pdp && hasPdpBucketData && discount !== null) ? parseFloat(discount.toFixed(2)) : null,
+                    'PromoMy': (kpiAvailability.pdp && hasPdpBucketData && discount !== null) ? parseFloat(discount.toFixed(2)) : null,
+                    CategoryShare: (kpiAvailability.ms && hasMsBucketData && categoryShare !== null) ? parseFloat(categoryShare.toFixed(2)) : null,
+                    categoryShare: (kpiAvailability.ms && hasMsBucketData && categoryShare !== null) ? parseFloat(categoryShare.toFixed(2)) : null,
+                    MarketShare: (kpiAvailability.ms && hasMsBucketData && marketShare !== null) ? parseFloat(marketShare.toFixed(2)) : null,
+                    marketShare: (kpiAvailability.ms && hasMsBucketData && marketShare !== null) ? parseFloat(marketShare.toFixed(2)) : null,
+                    Offtakes: (kpiAvailability.pdp && hasPdpBucketData && row.Offtakes !== undefined) ? parseFloat(row.Offtakes) : null,
+                    offtakes: (kpiAvailability.pdp && hasPdpBucketData && row.Offtakes !== undefined) ? parseFloat(row.Offtakes) : null,
+                    InorganicSales: (kpiAvailability.pm && hasPmBucketData && inorganicSales !== null) ? parseFloat(inorganicSales.toFixed(2)) : null,
+                    inorganicSales: (kpiAvailability.pm && hasPmBucketData && inorganicSales !== null) ? parseFloat(inorganicSales.toFixed(2)) : null
                 };
             });
         }
@@ -12399,8 +12415,8 @@ const getPerformanceBreakdownData = async (filters) => {
             SELECT
                 ${groupByCol} AS tag,
                 SUM(${pmSrc.f.impressions}) AS group_impressions,
-                SUM(if(lower(${pmSrc.f.platform}) NOT IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo'), ${pmSrc.f.clicks}, 0)) AS group_clicks_ecom,
-                SUM(if(lower(${pmSrc.f.platform}) IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo'), ${pmSrc.f.clicks}, 0)) AS group_atc,
+                SUM(if(lower(${pmSrc.f.platform}) IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo', 'swiggy', 'bbnow', 'quickcomm', 'qcommerce', 'q-commerce') OR lower(${pmSrc.f.platform}) LIKE '%quick%' OR lower(${pmSrc.f.platform}) LIKE '%instamart%', 0, ${pmSrc.f.clicks})) AS group_clicks_ecom,
+                SUM(if(lower(${pmSrc.f.platform}) IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo', 'swiggy', 'bbnow', 'quickcomm', 'qcommerce', 'q-commerce') OR lower(${pmSrc.f.platform}) LIKE '%quick%' OR lower(${pmSrc.f.platform}) LIKE '%instamart%', ${pmSrc.f.clicks}, 0)) AS group_atc,
                 (group_clicks_ecom + group_atc) AS group_clicks_total,
                 if (group_impressions > 0, (group_clicks_total / group_impressions) * 100, 0) AS ctr,
                 SUM(${pmSrc.f.spend}) AS group_spends,
@@ -12511,8 +12527,8 @@ const getPerformanceBreakdownData = async (filters) => {
                     SELECT 
                         ${groupByCol} AS tag, 
                         SUM(${pmSrc.f.impressions}) AS group_impressions,
-                        SUM(if(lower(${pmSrc.f.platform}) NOT IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo'), ${pmSrc.f.clicks}, 0)) AS group_clicks_ecom,
-                        SUM(if(lower(${pmSrc.f.platform}) IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo'), ${pmSrc.f.clicks}, 0)) AS group_atc,
+                        SUM(if(lower(${pmSrc.f.platform}) IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo', 'swiggy', 'bbnow', 'quickcomm', 'qcommerce', 'q-commerce') OR lower(${pmSrc.f.platform}) LIKE '%quick%' OR lower(${pmSrc.f.platform}) LIKE '%instamart%', 0, ${pmSrc.f.clicks})) AS group_clicks_ecom,
+                        SUM(if(lower(${pmSrc.f.platform}) IN ('zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo', 'swiggy', 'bbnow', 'quickcomm', 'qcommerce', 'q-commerce') OR lower(${pmSrc.f.platform}) LIKE '%quick%' OR lower(${pmSrc.f.platform}) LIKE '%instamart%', ${pmSrc.f.clicks}, 0)) AS group_atc,
                         SUM(${pmSrc.f.spend}) AS group_spends, 
                         SUM(${pmSrc.f.orders}) AS group_orders, 
                         SUM(${pmSrc.f.adSales}) AS group_sales

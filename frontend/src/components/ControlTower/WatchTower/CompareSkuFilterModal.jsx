@@ -22,6 +22,7 @@ import { cn } from '../../../lib/utils'
 const defaultKpiOptions = [
     { key: 'offtakes', label: 'Offtakes' },
     { key: 'spend', label: 'Spend' },
+    { key: 'roas_x', label: 'ROAS' },
     { key: 'categorySize', label: 'Category size' },
     { key: 'inorgSales', label: 'Inorg Sales' },
     { key: 'conversion', label: 'Conversion' },

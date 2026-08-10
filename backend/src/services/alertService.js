@@ -50,6 +50,7 @@ export const createAlert = async (data) => {
         benchmarkPeriod = '',
         alertFrequency = '',
         severityLevel = '',
+        scheduledDay = '',
     } = data;
 
     if (!dbId) {
@@ -82,6 +83,7 @@ export const createAlert = async (data) => {
         benchmark_period: benchmarkPeriod,
         alert_frequency: alertFrequency,
         severity_level: severityLevel,
+        scheduled_day: scheduledDay,
         created_on: istNow,
         edited_on: istNow,
     };
@@ -106,6 +108,7 @@ export const createAlert = async (data) => {
             benchmark_period,
             alert_frequency,
             severity_level,
+            scheduled_day,
             created_on,
             edited_on
         FROM tb_alert
@@ -154,6 +157,7 @@ export const getAlertsByDbId = async (dbId) => {
             benchmark_period,
             alert_frequency,
             severity_level,
+            scheduled_day,
             created_on,
             edited_on
         FROM tb_alert
@@ -209,6 +213,7 @@ export const updateAlertById = async (alertId, dbId, data) => {
         benchmarkPeriod = '',
         alertFrequency = '',
         severityLevel = '',
+        scheduledDay = '',
     } = data;
 
     const encryptedEmail = encrypt(sendEmail);
@@ -235,6 +240,7 @@ export const updateAlertById = async (alertId, dbId, data) => {
             benchmark_period = '${benchmarkPeriod.replace(/'/g, "\\'")}',
             alert_frequency = '${alertFrequency.replace(/'/g, "\\'")}',
             severity_level = '${severityLevel.replace(/'/g, "\\'")}',
+            scheduled_day = '${scheduledDay.replace(/'/g, "\\'")}',
             edited_on = parseDateTimeBestEffort('${istNow}')
         WHERE id = toUUID('${alertId}')
     `;
@@ -258,6 +264,7 @@ export const updateAlertById = async (alertId, dbId, data) => {
             benchmark_period,
             alert_frequency,
             severity_level,
+            scheduled_day,
             created_on,
             edited_on
         FROM tb_alert

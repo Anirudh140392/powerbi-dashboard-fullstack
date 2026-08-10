@@ -301,7 +301,7 @@ export const FilterProvider = ({ children }) => {
         setPlatformsFetched(false);
         try {
             // If we are on the Market Share page, fetch all top filters from rb_ms_olap
-            const isMarketShare = window.location.hash.includes('/market-share');
+            const isMarketShare = (currentPath + window.location.hash).includes('/market-share');
 
             if (isMarketShare) {
                 console.log("[FilterContext] Fetching Market Share top filters from rb_ms_olap for channel:", selectedChannel);
@@ -375,7 +375,7 @@ export const FilterProvider = ({ children }) => {
                         return valid.length === 1 ? valid[0] : valid;
                     });
                 }
-            } else if (window.location.hash.includes('/visibility-analysis') || window.location.hash.includes('/visibility-anlysis')) {
+            } else if ((currentPath + window.location.hash).includes('/visibility-analysis') || (currentPath + window.location.hash).includes('/visibility-anlysis')) {
                 console.log("[FilterContext] Fetching Visibility Analysis dynamic filters for channel:", selectedChannel);
                 
                 // Fetch platforms specifically for Visibility Analysis
@@ -443,7 +443,7 @@ export const FilterProvider = ({ children }) => {
                         });
                     }
                 }
-            } else if (window.location.hash.includes('/content-analysis') || window.location.hash.includes('/content-score')) {
+            } else if ((currentPath + window.location.hash).includes('/content-analysis') || (currentPath + window.location.hash).includes('/content-score')) {
                 const reqId = ++activePlatformReq.current;
                 const res = await axiosInstance.get("/content-analysis/platforms", {
                     params: { channel: selectedChannel === "All" ? undefined : selectedChannel }
@@ -514,7 +514,7 @@ export const FilterProvider = ({ children }) => {
         const fetchPlatformMetadata = async () => {
             if (!isAuthenticated) return;
             // Skip watchtower metadata fetch on Market Share page — it provides its own metadata
-            const isMarketShare = window.location.hash.includes('/market-share');
+            const isMarketShare = (currentPath + window.location.hash).includes('/market-share');
             if (isMarketShare) return;
             try {
                 const res = await axiosInstance.get("/watchtower/platform-metadata");
@@ -539,7 +539,7 @@ export const FilterProvider = ({ children }) => {
         const fetchCategories = async () => {
             if (!isAuthenticated) return;
             // Skip generic category fetch if on Market Share page
-            if (window.location.hash.includes('/market-share')) return;
+            if ((currentPath + window.location.hash).includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/watchtower/categories", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
@@ -569,7 +569,7 @@ export const FilterProvider = ({ children }) => {
         const fetchVisibilityCategories = async () => {
             if (!isAuthenticated) return;
             // Skip generic category fetch if on Market Share page
-            if (window.location.hash.includes('/market-share')) return;
+            if ((currentPath + window.location.hash).includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/visibility-analysis/categories", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
@@ -635,7 +635,7 @@ export const FilterProvider = ({ children }) => {
         const fetchLocations = async () => {
             if (!isAuthenticated) return;
             // Skip generic location fetch if on Market Share page
-            if (window.location.hash.includes('/market-share')) return;
+            if ((currentPath + window.location.hash).includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/watchtower/locations", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
@@ -673,7 +673,7 @@ export const FilterProvider = ({ children }) => {
         const fetchBrands = async () => {
             if (!isAuthenticated) return;
             // Skip generic brand fetch if on Market Share page
-            if (window.location.hash.includes('/market-share')) return;
+            if ((currentPath + window.location.hash).includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/watchtower/brands", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
