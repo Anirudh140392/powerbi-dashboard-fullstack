@@ -417,20 +417,27 @@ export const FilterProvider = ({ children }) => {
                     if (newChannels.length > 0) {
                         console.log("[FilterContext] Refreshed channels for Visibility Analysis:", newChannels);
                         setChannels(newChannels);
+                        // Only update selectedChannel if it's genuinely invalid in the new list.
+                        // Use channel-family equivalence to avoid re-fetch loops
+                        // (e.g. quickcomm vs Quick Commerce are the same family — no need to change).
                         setSelectedChannel(prev => {
                             if (prev === "All") return "All";
                             const lowerPrev = prev.toLowerCase();
-                            // Handle mapping from Ecom/QuickComm to ecommerce/quickcomm
-                            if (['ecom', 'ecommerce', 'e-commerce'].includes(lowerPrev)) {
-                                const found = newChannels.find(c => ['ecommerce', 'ecom'].includes(c.toLowerCase()));
-                                if (found) return found;
-                            }
-                            if (lowerPrev === 'quickcomm' || lowerPrev === 'quick commerce' || lowerPrev.includes('quick')) {
-                                const found = newChannels.find(c => ['quickcomm', 'quick commerce', 'quick_commerce'].includes(c.toLowerCase()));
-                                if (found) return found;
-                            }
-                            const exactMatch = newChannels.find(c => c.toLowerCase() === lowerPrev);
-                            if (exactMatch) return exactMatch;
+
+                            // Helper: check if a channel belongs to a known family
+                            const isQcommFamily = (ch) => ['quickcomm', 'quick commerce', 'quick_commerce', 'qcomm'].includes(ch) || ch.includes('quick');
+                            const isEcommFamily = (ch) => ['ecommerce', 'ecom', 'e-commerce'].includes(ch);
+                            const isModernTradeFamily = (ch) => ['modern trades', 'moderntrade', 'modern_trade'].includes(ch);
+
+                            // 1. Exact match — no change needed
+                            if (newChannels.some(c => c.toLowerCase() === lowerPrev)) return prev;
+
+                            // 2. Same channel family — keep prev to avoid triggering a re-fetch
+                            if (isEcommFamily(lowerPrev) && newChannels.some(c => isEcommFamily(c.toLowerCase()))) return prev;
+                            if (isQcommFamily(lowerPrev) && newChannels.some(c => isQcommFamily(c.toLowerCase()))) return prev;
+                            if (isModernTradeFamily(lowerPrev) && newChannels.some(c => isModernTradeFamily(c.toLowerCase()))) return prev;
+
+                            // 3. No match at all — pick first valid channel
                             const validChannels = newChannels.filter(c => c !== 'All');
                             return validChannels.length > 0 ? validChannels[0] : 'All';
                         });

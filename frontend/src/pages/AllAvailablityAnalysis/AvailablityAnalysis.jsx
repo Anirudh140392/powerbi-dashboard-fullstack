@@ -40,7 +40,7 @@ export default function AvailablityAnalysis() {
 
   // Initialize filters from context
   const [filters, setFilters] = useState({
-    platform: platform || "Blinkit",
+    platform: platform || "",
     brand: selectedBrand || "All",
     location: selectedLocation || "All",
     category: selectedCategory || "All",
@@ -153,7 +153,7 @@ export default function AvailablityAnalysis() {
   const [trendParams, setTrendParams] = useState({
     months: 6,
     timeStep: "Monthly",
-    platform: platform || "Blinkit",
+    platform: platform || "",
   });
 
   const [trendData, setTrendData] = useState({
