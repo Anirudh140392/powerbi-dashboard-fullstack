@@ -50,7 +50,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
   const data = hasRemoteData ? trendData.timeSeries : controller.generateData(months, timeStep);
   const metrics = hasRemoteData ? (trendData.metrics || {}) : controller.getMetrics(data);
 
-  const platform = trendParams.platform || "Blinkit";
+  const platform = trendParams.platform || "";
 
   const handleMetricToggle = (key) => {
     setSelectedMetrics({

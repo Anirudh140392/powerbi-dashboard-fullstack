@@ -68,18 +68,25 @@ const processKeywordType = (val) => {
  * Shared helper to build platform condition based on channel
  * Mimics watchTowerService logic for rb_kw_olap which lacks a channel structure
  */
-function buildChannelCondition(channel, columnName = 'platform_name', platform = null) {
+const channelPlatformCache = new Map();
+
+/**
+ * Shared helper to build platform condition based on channel
+ * Queries rca_sku_dim asynchronously to convert channel to literal platform names,
+ * avoiding subqueries that ClickHouse does not support inside aggregate expressions.
+ */
+async function buildChannelCondition(channel, columnName = 'platform_name', platform = null) {
     if (platform && String(platform).toLowerCase() !== 'all') return "1=1";
-    if (!channel || channel === 'All') return "1=1";
+    if (!channel || channel === 'All' || channel === 'all') return "1=1";
 
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
     const channels = Array.isArray(channel) ? channel : (typeof channel === 'string' && channel.includes(',') ? channel.split(',') : [channel]);
 
-    if (channels.length === 0 || channels.every(c => c.toLowerCase() === 'all')) return "1=1";
+    if (channels.length === 0 || channels.every(c => String(c).toLowerCase() === 'all')) return "1=1";
 
     const mappedChannels = [];
     channels.forEach(c => {
-        const lower = String(c).toLowerCase();
+        const lower = String(c).toLowerCase().trim();
         if (['ecommerce', 'e-commerce', 'ecom'].includes(lower)) {
             mappedChannels.push("'ecommerce'", "'ecom'");
         } else if (lower.includes('quick') || lower === 'qcomm') {
@@ -92,7 +99,36 @@ function buildChannelCondition(channel, columnName = 'platform_name', platform =
     });
 
     if (mappedChannels.length > 0) {
-        return `lower(${columnName}) IN (SELECT DISTINCT lower(platform) FROM rca_sku_dim WHERE lower(channel) IN (${mappedChannels.join(', ')}))`;
+        try {
+            const dbName = getCurrentDbName();
+            const cacheKey = `${dbName}_${mappedChannels.sort().join('_')}`;
+            let platformNames = channelPlatformCache.get(cacheKey);
+
+            if (!platformNames) {
+                const query = `SELECT DISTINCT lower(platform) AS pf FROM rca_sku_dim WHERE lower(channel) IN (${mappedChannels.join(', ')}) AND platform IS NOT NULL AND platform != ''`;
+                const rows = await queryClickHouse(query);
+                if (rows && rows.length > 0) {
+                    platformNames = rows.map(r => String(r.pf).toLowerCase().trim()).filter(Boolean);
+                    channelPlatformCache.set(cacheKey, platformNames);
+                }
+            }
+
+            if (platformNames && platformNames.length > 0) {
+                const pfList = platformNames.map(pf => `'${escapeStr(pf)}'`).join(', ');
+                return `lower(${columnName}) IN (${pfList})`;
+            }
+        } catch (err) {
+            console.warn('[buildChannelCondition] Error querying rca_sku_dim:', err.message);
+        }
+
+        // Fallback static mapping if rca_sku_dim is empty or query fails
+        const isQcomm = mappedChannels.some(m => m.includes('quick'));
+        const isEcomm = mappedChannels.some(m => m.includes('ecom'));
+        if (isQcomm) {
+            return `lower(${columnName}) IN ('blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'bigbasket', 'bbnow')`;
+        } else if (isEcomm) {
+            return `lower(${columnName}) IN ('amazon', 'flipkart', 'nykaa', 'myntra')`;
+        }
     }
 
     return "1=1";
@@ -105,7 +141,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
         const platformCondition = buildCHCondition(platform, 'platform_name');
         // Skip channel condition when a specific platform is selected (platform takes precedence)
         const isSpecificPlatformForChannel = platform && String(platform).toLowerCase() !== 'all';
-        const channelCondition = isSpecificPlatformForChannel ? '1=1' : buildChannelCondition(channel, 'platform_name');
+        const channelCondition = isSpecificPlatformForChannel ? '1=1' : await buildChannelCondition(channel, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
         const brandSOSCondition = buildCHCondition(brand, 'brand', { isBrand: true });
         const keywordCondition = buildCHCondition(keyword, 'keyword');
@@ -181,7 +217,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
         const platformCondition = buildCHCondition(platform, 'platform_name');
         // Skip channel condition when a specific platform is selected (platform takes precedence)
         const isSpecificPlatformForChannel = platform && String(platform).toLowerCase() !== 'all';
-        const channelCondition = isSpecificPlatformForChannel ? '1=1' : buildChannelCondition(channel, 'platform_name');
+        const channelCondition = isSpecificPlatformForChannel ? '1=1' : await buildChannelCondition(channel, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
         const brandSOSCondition = buildCHCondition(brand, 'brand', { isBrand: true });
         const keywordCondition = buildCHCondition(keyword, 'keyword');
@@ -417,8 +453,7 @@ async function getVisibilityOverviewData(filters = {}) {
         };
     } catch (error) {
         console.error('[VisibilityService] Error getting visibility overview:', error);
-        // Return mock data as fallback
-        return getVisibilityOverviewMockData();
+        return { cards: [] };
     }
 }
 
@@ -708,7 +743,7 @@ class VisibilityService {
             let baseWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'`;
 
             if (filters.channel && filters.channel !== 'All' && filters.channel !== 'all') {
-                const channelCond = buildChannelCondition(filters.channel, 'platform_name', filters.platform);
+                const channelCond = await buildChannelCondition(filters.channel, 'platform_name', filters.platform);
                 if (channelCond !== '1=1') baseWhere += ` AND ${channelCond}`;
             }
 
@@ -812,7 +847,7 @@ class VisibilityService {
             // Apply same filters to previous period
             let prevBaseWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
             if (filters.channel && filters.channel !== 'All' && filters.channel !== 'all') {
-                const channelCond = buildChannelCondition(filters.channel, 'platform_name', filters.platform);
+                const channelCond = await buildChannelCondition(filters.channel, 'platform_name', filters.platform);
                 if (channelCond !== '1=1') prevBaseWhere += ` AND ${channelCond}`;
             }
             if (filters.platform && filters.platform !== 'All') {
@@ -841,7 +876,7 @@ class VisibilityService {
             }
 
             // Query builder helper for current/prev/sparkline
-            const getMatrixQueries = (dimColumn, dimAlias, filtersToExclude = []) => {
+            const getMatrixQueries = async (dimColumn, dimAlias, filtersToExclude = []) => {
                 // Build filtered where clauses for this specific matrix
                 let currentWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'`;
                 let prevWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
@@ -871,7 +906,7 @@ class VisibilityService {
                 };
 
                 if (filters.channel && filters.channel !== 'All' && filters.channel !== 'all') {
-                    const channelCond = buildChannelCondition(filters.channel, 'platform_name', filters.platform);
+                    const channelCond = await buildChannelCondition(filters.channel, 'platform_name', filters.platform);
                     if (channelCond !== '1=1') {
                         currentWhere += ` AND ${channelCond}`;
                         prevWhere += ` AND ${channelCond}`;
@@ -902,7 +937,7 @@ class VisibilityService {
                     const cityListMatch = baseWhere.match(/location_name IN \(([^)]+)\)/);
                     if (cityListMatch) {
                         currentWhere += ` AND location_name IN (${cityListMatch[1]})`;
-                        prevWhere += ` AND location_name IN (${cityListMatch[1]})`;
+                        currentWhere += ` AND location_name IN (${cityListMatch[1]})`;
                     }
                 }
 
@@ -947,9 +982,9 @@ class VisibilityService {
             };
 
             // Execute all queries in parallel for efficiency
-            const platQueries = getMatrixQueries('platform_name', 'platform', ['platform_name', 'platform']);
-            const formQueries = getMatrixQueries('keyword_category', 'format');
-            const cityQueries = getMatrixQueries('location_name', 'city');
+            const platQueries = await getMatrixQueries('platform_name', 'platform', ['platform_name', 'platform']);
+            const formQueries = await getMatrixQueries('keyword_category', 'format');
+            const cityQueries = await getMatrixQueries('location_name', 'city');
 
             const [platRes, platPrev, platSpark, formRes, formPrev, formSpark, cityRes, cityPrev, citySpark] = await Promise.all([
                 queryClickHouse(platQueries.current), queryClickHouse(platQueries.previous), queryClickHouse(platQueries.sparkline),
@@ -971,6 +1006,10 @@ class VisibilityService {
 
                 // Identify unique dimension names (Blinkit, Swiggy, etc.)
                 const dimensionNames = current.map(r => r.platform || r.format || r.city);
+
+                if (!dimensionNames || dimensionNames.length === 0) {
+                    return { columns: ["kpi"], rows: [] };
+                }
 
                 // Define the KPIs (which will now be our rows)
                 const kpiConfig = [
@@ -1016,8 +1055,11 @@ class VisibilityService {
 
         } catch (error) {
             console.error('[VisibilityService] Error in getPlatformKpiMatrix:', error);
-            // Fallback to mock data on error
-            return getPlatformKpiMatrixMockData();
+            return {
+                platformData: { columns: ["kpi"], rows: [] },
+                formatData: { columns: ["kpi"], rows: [] },
+                cityData: { columns: ["kpi"], rows: [] }
+            };
         }
     }
 
@@ -1039,7 +1081,7 @@ class VisibilityService {
                 whereConditions.push(platCond);
             }
             if (filters.channel && filters.channel !== 'All') {
-                const channelCond = buildChannelCondition(filters.channel, 'platform_name', filters.platform);
+                const channelCond = await buildChannelCondition(filters.channel, 'platform_name', filters.platform);
                 whereConditions.push(channelCond);
             }
             if (filters.keyword && filters.keyword !== 'All') {
@@ -1326,7 +1368,7 @@ class VisibilityService {
                 const brand = filters.brand || 'All';
 
                 let platformCondition = buildCHCondition(platform, 'platform_name');
-                const channelCondition = buildChannelCondition(filters.channel, 'platform_name', platform);
+                const channelCondition = await buildChannelCondition(filters.channel, 'platform_name', platform);
                 platformCondition = `${platformCondition} AND ${channelCondition}`;
                 const locationCondition = buildCHCondition(location, 'location_name');
                 const brandCondition = filters.brand || 'All';
@@ -1721,7 +1763,7 @@ class VisibilityService {
                 const location = filters.location || 'All';
 
                 const platformCondition = buildCHCondition(platform, 'platform_name');
-                const channelCondition = buildChannelCondition(filters.channel, 'platform_name', platform);
+                const channelCondition = await buildChannelCondition(filters.channel, 'platform_name', platform);
                 const locationCondition = buildCHCondition(location, 'location_name');
                 const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
                 const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
@@ -1892,7 +1934,7 @@ class VisibilityService {
             // PLATFORMS: from rb_kw_olap.platform_name
             if (filterType === 'platforms') {
                 let platformWhere = "WHERE platform_name IS NOT NULL AND platform_name != ''";
-                const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+                const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
                 platformWhere += ` AND ${channelCondition}`;
                 platformWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
                 platformWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
@@ -1961,7 +2003,7 @@ class VisibilityService {
             // FORMATS (Category): from rb_kw_olap.keyword_category
             if (filterType === 'formats' || filterType === 'categories') {
                 let formatWhere = "WHERE keyword_category IS NOT NULL AND keyword_category != ''";
-                const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+                const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
                 formatWhere += ` AND ${channelCondition}`;
                 formatWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
                 formatWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
@@ -1983,7 +2025,7 @@ class VisibilityService {
             // BRANDS: from rb_kw_olap.brand
             if (filterType === 'brands') {
                 let brandWhere = "WHERE brand IS NOT NULL AND brand != ''";
-                const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+                const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
                 brandWhere += ` AND ${channelCondition}`;
                 brandWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
                 brandWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
@@ -2007,7 +2049,7 @@ class VisibilityService {
             // SKUs: from rb_kw_olap.keyword_search_product
             if (filterType === 'skus') {
                 let skuWhere = "WHERE keyword_search_product IS NOT NULL AND keyword_search_product != ''";
-                const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+                const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
                 skuWhere += ` AND ${channelCondition}`;
                 skuWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
                 skuWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
@@ -2030,7 +2072,7 @@ class VisibilityService {
             // CITIES: from rb_kw_olap.location_name
             if (filterType === 'cities') {
                 let cityWhere = "WHERE location_name IS NOT NULL AND location_name != ''";
-                const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+                const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
                 cityWhere += ` AND ${channelCondition}`;
                 cityWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
                 cityWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
@@ -2063,7 +2105,7 @@ class VisibilityService {
             // KEYWORD TYPES: from rb_kw_olap.keyword_type
             if (filterType === 'keywordTypes') {
                 let typeWhere = "WHERE keyword_type IS NOT NULL AND keyword_type != ''";
-                const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+                const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
                 typeWhere += ` AND ${channelCondition}`;
                 typeWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
                 typeWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
@@ -2085,7 +2127,7 @@ class VisibilityService {
 
             if (filterType === 'productName' || filterType === 'keywords') {
                 let keywordWhere = "WHERE keyword IS NOT NULL AND keyword != ''";
-                const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+                const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
                 keywordWhere += ` AND ${channelCondition}`;
                 keywordWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
                 keywordWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
@@ -2108,7 +2150,7 @@ class VisibilityService {
             // KEYWORD TYPES: from rb_kw_olap.keyword_type
             if (filterType === 'keywordTypes' || filterType === 'keywordType') {
                 let typeWhere = "WHERE keyword_type IS NOT NULL AND keyword_type != ''";
-                const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+                const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
                 typeWhere += ` AND ${channelCondition}`;
                 typeWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
                 typeWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
@@ -2267,7 +2309,7 @@ class VisibilityService {
             const categoryValue = filters.category || filters.format || null;
 
             const platformCondition = buildCHCondition(platform, 'platform_name');
-            const channelCondition = buildChannelCondition(filters.channel, 'platform_name', platform);
+            const channelCondition = await buildChannelCondition(filters.channel, 'platform_name', platform);
             const locationCondition = buildCHCondition(location, 'location_name');
             const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
             const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
@@ -2503,7 +2545,7 @@ class VisibilityService {
             const brandFilter = filters.brand || null;
 
             const platformCondition = buildCHCondition(filters.platform, 'platform_name');
-            const channelCondition = buildChannelCondition(filters.channel, 'platform_name', platform);
+            const channelCondition = await buildChannelCondition(filters.channel, 'platform_name', platform);
             const locationCondition = buildCHCondition(filters.location, 'location_name');
             const formatCondition = buildCHCondition(filters.category || filters.format, 'keyword_category', { isCategory: true });
             const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
@@ -2698,7 +2740,7 @@ class VisibilityService {
             else if (dimension === 'keyword') dimColumn = 'keyword';
 
             const platformCondition = buildCHCondition(filters.platform, 'platform_name');
-            const channelCondition = buildChannelCondition(filters.channel, 'platform_name', filters.platform);
+            const channelCondition = await buildChannelCondition(filters.channel, 'platform_name', filters.platform);
             const locationCondition = buildCHCondition(filters.location, 'location_name');
             const formatCondition = buildCHCondition(filters.category || filters.format, 'keyword_category', { isCategory: true });
             const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
@@ -3109,7 +3151,7 @@ class VisibilityService {
         }
 
         const platformCondition = buildCHCondition(platform, 'platform_name');
-        const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+        const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
         const categoryValue = category;
         const categoryFilter = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
 
@@ -3247,7 +3289,7 @@ class VisibilityService {
         }
 
         const platformCondition = buildCHCondition(platform, 'platform_name', { isPlatform: true });
-        const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+        const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
 
         let rankCondition = '';
         if (rank && rank !== 'All') {
@@ -3361,7 +3403,7 @@ class VisibilityService {
 
             // Build filter conditions — same helpers as calculateAllSOS
             const platformCond = buildCHCondition(platform, 'platform_name');
-            const channelCond = buildChannelCondition(channel, 'platform_name', platform);
+            const channelCond = await buildChannelCondition(channel, 'platform_name', platform);
             const locationCond = buildCHCondition(location, 'location_name');
             const keywordCond = buildCHCondition(keyword, 'keyword');
             const keywordTypeCond = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
@@ -3713,7 +3755,7 @@ class VisibilityService {
 
             // Conditions
             const platformCondition = buildCHCondition(platform, 'platform_name');
-            const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+            const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
             const brandCondition = buildCHCondition(brand, 'brand');
             const locationCondition = buildCHCondition(location, 'location_name');
             const globalKeywordTypeCondition = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
@@ -4218,7 +4260,7 @@ class VisibilityService {
             const dateTo = endDate ? dayjs(endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
 
             const platformCondition = buildCHCondition(platform, 'platform_name', { isPlatform: true });
-            const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+            const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
 
             let rankCondition = '1=1';
             if (rank && rank !== 'All') {
@@ -4359,7 +4401,7 @@ class VisibilityService {
 
             // Standard conditions to match getSearchTermsPerformance
             const platformCondition = buildCHCondition(platform, 'platform_name');
-            const channelCondition = buildChannelCondition(channel, 'platform_name', platform);
+            const channelCondition = await buildChannelCondition(channel, 'platform_name', platform);
             const locationCondition = buildCHCondition(location, 'location_name');
             const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
             const globalKeywordTypeCondition = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
@@ -4660,7 +4702,7 @@ class VisibilityService {
 
                 // Build filter clause for rb_kw_olap
                 const kwPlatformCond = buildCHCondition(targetPlatform, 'platform_name');
-                const kwChannelCond = buildChannelCondition(filters.channel, 'platform_name', targetPlatform);
+                const kwChannelCond = await buildChannelCondition(filters.channel, 'platform_name', targetPlatform);
                 const kwCategoryCond = buildCHCondition(filters.category, 'keyword_category', { isCategory: true });
                 const kwLocationCond = buildCHCondition(filters.location, 'location_name');
 
@@ -4871,7 +4913,7 @@ class VisibilityService {
                 const pdpFilterClauseForSOS = pdpFilterConditions.join(' AND ');
 
                 // Build kw_olap specific filter
-                const kwChannelCond = buildChannelCondition(filters.channel, 'platform_name', targetPlatform);
+                const kwChannelCond = await buildChannelCondition(filters.channel, 'platform_name', targetPlatform);
                 const kwPlatformCond = buildCHCondition(targetPlatform, 'platform_name');
                 const kwCategoryCond = buildCHCondition(filters.category, 'keyword_category', { isCategory: true });
                 const kwLocationCond = buildCHCondition(filters.location, 'location_name');

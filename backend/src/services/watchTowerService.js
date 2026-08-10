@@ -5319,13 +5319,13 @@ const getPlatformOverview = async (filters) => {
 
         // Enforce comp_flag = 0 (Our Brands) for Offtakes summary
         const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
-        if (brandArr && brandArr.length > 0) {
-            conds.push(`${compFlagCol} = 0`);
+        if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            conds.push(`toString(${compFlagCol}) = '0'`);
             const brandCol = src.isAgg ? 'brand' : 'Brand';
-            conds.push(`(${brandArr.map(b => `${brandCol} LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+            conds.push(`(${brandArr.map(b => `lower(${brandCol}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ')})`);
         } else {
             // Default to our brands if "All" is selected
-            conds.push(`${compFlagCol} = 0`);
+            conds.push(`toString(${compFlagCol}) = '0'`);
         }
 
         const locCol = src.isAgg ? 'location' : 'Location';
@@ -6323,8 +6323,8 @@ const getMonthOverview = async (filters) => {
         const conds = [`${dateCol} BETWEEN '${fetchStartDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         const platformCond = buildPlatformChannelCond(moPlatform, channel, src.f.platform, false, src.f.channel);
         if (platformCond) conds.push(platformCond);
-        if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `${src.f.brand} LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+        if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            conds.push(`(${brandArr.map(b => `lower(${src.f.brand}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ')})`);
         }
         if (locationArr && locationArr.length > 0) {
             const locCond = buildLocationQueryCond(locationArr, moPlatform, src.f.location, src.f.platform);
@@ -7597,7 +7597,7 @@ const getBrandsOverview = async (filters) => {
             columns: generateKpiColumns({
                 offtake, availability, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, categorySize: hasMsCheck ? currBrandCatSize : null, adSov, organicSov, buyBoxPct, deliveryTime,
                 prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevHasMsCheck ? prevBrandCatSize : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
-                offtakeUnits: offtake !== null ? offtake / 100 : null, inorgUnits: orders, prevOfftakeUnits: prevOfftake !== null ? prevOfftake / 100 : null, prevInorgUnits: prevOrders
+                offtakeUnits: offtakeUnits, inorgUnits: orders, prevOfftakeUnits: prevOfftakeUnits, prevInorgUnits: prevOrders
             })
         };
     });
@@ -11638,8 +11638,8 @@ const getSkuOverview = async (filters) => {
         }
 
         const brandCol = src.isAgg ? 'brand' : 'Brand';
-        if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `${brandCol} LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+        if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            conds.push(`(${brandArr.map(b => `lower(${brandCol}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ')})`);
         }
 
         const platformCol = src.isAgg ? 'platform' : 'Platform';
@@ -12083,8 +12083,8 @@ const getCityOverview = async (filters) => {
         const conds = [`${dateCol} BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
 
         const brandCol = src.isAgg ? 'brand' : 'Brand';
-        if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `${brandCol} LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+        if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            conds.push(`(${brandArr.map(b => `lower(${brandCol}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ')})`);
         }
 
         const platformCol = src.isAgg ? 'platform' : 'Platform';
