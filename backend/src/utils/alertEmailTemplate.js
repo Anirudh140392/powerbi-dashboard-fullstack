@@ -2,14 +2,10 @@
 // Generates the dynamic sales_enablement-style HTML email for alert dispatches.
 // All values are injected from live ClickHouse queries via alertDataService.
 
-/**
- * Format IST timestamp for display (e.g. "05 Aug 2026 • 16:49 IST")
- */
 const formatISTDisplay = (istDateTimeStr) => {
     if (!istDateTimeStr) return '';
     try {
         const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        // istDateTimeStr format: "YYYY-MM-DD HH:mm:ss"
         const parts = istDateTimeStr.split(' ');
         const dateParts = parts[0].split('-');
         const timeParts = parts[1] ? parts[1].split(':') : ['00','00'];
@@ -22,119 +18,33 @@ const formatISTDisplay = (istDateTimeStr) => {
     }
 };
 
-/**
- * Get severity color and label
- */
 const getSeverityStyle = (severity) => {
     const s = String(severity || 'Warning').toLowerCase();
     if (s.includes('critical')) {
-        return { bg: '#fff1f2', border: '#fecaca', color: '#dc2626', label: 'Critical', dotColor: '#dc2626' };
+        return { bg: '#fff1f2', border: '#fecaca', color: '#dc2626', label: 'Critical', desc: 'Immediate attention required' };
     }
     if (s.includes('high')) {
-        return { bg: '#fff7ed', border: '#fed7aa', color: '#ea580c', label: 'High', dotColor: '#ea580c' };
+        return { bg: '#fff7ed', border: '#fed7aa', color: '#ea580c', label: 'High', desc: 'Requires attention soon' };
     }
     if (s.includes('medium')) {
-        return { bg: '#fffbeb', border: '#fde68a', color: '#d97706', label: 'Medium', dotColor: '#d97706' };
+        return { bg: '#fffbeb', border: '#fde68a', color: '#d97706', label: 'Medium', desc: 'Monitor and review' };
     }
-    return { bg: '#f0fdf4', border: '#bbf7d0', color: '#16a34a', label: 'Low', dotColor: '#16a34a' };
+    return { bg: '#f0fdf4', border: '#bbf7d0', color: '#16a34a', label: 'Low', desc: 'No immediate action needed' };
 };
 
-/**
- * Generate delta indicator HTML
- * pill = true  → colored pill badge (for table cells)
- * pill = false → inline colored text (for header metrics)
- */
-const deltaHtml = (delta, pill = false) => {
+const deltaHtml = (delta, forTable = false) => {
     if (delta === 0) return '';
     const isUp = delta > 0;
     const arrow = isUp ? '▲' : '▼';
     const absVal = Math.abs(delta).toFixed(1);
-    if (pill) {
-        const bg = isUp ? '#dcfce7' : '#fee2e2';
-        const color = isUp ? '#16a34a' : '#dc2626';
-        return `<span style="display:inline-block;padding:2px 8px;border-radius:12px;background:${bg};color:${color};font-weight:700;font-size:8px;white-space:nowrap;margin-left:4px;">${arrow} ${absVal}%</span>`;
-    }
     const color = isUp ? '#16a34a' : '#dc2626';
+    
+    if (forTable) {
+        return `<sup style="color:${color};font-size:7px;line-height:0;vertical-align:super;">${arrow} ${absVal}%</sup>`;
+    }
     return `<span style="color:${color};font-weight:700;">${arrow} ${absVal}%</span>`;
 };
 
-/**
- * Generate a single platform section with brand table + impacted SKU table.
- *
- * @param {string} platformName
- * @param {Array<{brand, currentOsa, previousOsa, delta}>} brandData
- * @param {Array<{skuName, brand, currentOsa, previousOsa, delta}>} skuData
- * @returns {string} HTML block
- */
-const buildPlatformSection = (platformName, brandData, skuData) => {
-    // Brand Performance table rows
-    let brandRows = '';
-    if (brandData && brandData.length > 0) {
-        for (const b of brandData) {
-            brandRows += `
-        <tr>
-          <td style="border-right:1px solid #e3ebf8;">${escapeHtml(b.brand)}</td>
-          <td style="border-right:1px solid #e3ebf8; white-space:nowrap;">${b.currentOsa.toFixed(1)}% ${deltaHtml(b.delta, true)}</td>
-          <td>${b.previousOsa.toFixed(1)}%</td>
-        </tr>`;
-        }
-    } else {
-        brandRows = '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:18px;">No brand data available</td></tr>';
-    }
-
-    // Impacted SKU table rows
-    let skuRows = '';
-    if (skuData && skuData.length > 0) {
-        for (const s of skuData) {
-            const salesLossFormatted = s.salesLoss ? `₹${Math.round(s.salesLoss).toLocaleString('en-IN')}` : '—';
-            skuRows += `
-        <tr>
-          <td style="border-right:1px solid #e3ebf8;">${escapeHtml(s.skuName)}</td>
-          <td style="border-right:1px solid #e3ebf8;">${escapeHtml(s.brand)}</td>
-          <td style="border-right:1px solid #e3ebf8; white-space:nowrap;">${s.currentOsa.toFixed(1)}% ${deltaHtml(s.delta, true)}</td>
-          <td style="color:#dc2626;font-weight:700;">${salesLossFormatted}</td>
-        </tr>`;
-        }
-    } else {
-        skuRows = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:18px;">No impacted SKUs found</td></tr>';
-    }
-
-    return `
-<div class="platform">
-  <div class="platform-title">${escapeHtml(platformName)}</div>
-
-  <div class="table-card">
-    <div class="section-title brand">Brand Performance</div>
-    <table class="tbl" cellpadding="0" cellspacing="0" border="0">
-      <colgroup><col style="width:34%"><col style="width:33%"><col style="width:33%"></colgroup>
-      <thead>
-        <tr><th style="border-right:1px solid #e3ebf8;">Brand Name</th><th style="border-right:1px solid #e3ebf8;">Current OSA</th><th>Previous OSA</th></tr>
-      </thead>
-      <tbody>
-        ${brandRows}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="table-card">
-    <div class="section-title sku">Impacted SKUs</div>
-    <table class="tbl" cellpadding="0" cellspacing="0" border="0">
-      <colgroup><col style="width:28%"><col style="width:22%"><col style="width:28%"><col style="width:22%"></colgroup>
-      <thead>
-        <tr><th style="border-right:1px solid #e3ebf8;">SKU Name</th><th style="border-right:1px solid #e3ebf8;">Brand Name</th><th style="border-right:1px solid #e3ebf8;">Current OSA</th><th>Sales Loss</th></tr>
-      </thead>
-      <tbody>
-        ${skuRows}
-      </tbody>
-    </table>
-  </div>
-</div>
-`;
-};
-
-/**
- * Escape HTML entities to prevent XSS in dynamic content
- */
 const escapeHtml = (str) => {
     if (!str) return '';
     return String(str)
@@ -144,25 +54,97 @@ const escapeHtml = (str) => {
         .replace(/"/g, '&quot;');
 };
 
-/**
- * Generate the full dynamic alert email HTML based on the sales_enablement template.
- *
- * @param {Object} data
- * @param {string} data.logoUrl - Company logo URL from tb_database
- * @param {string} data.companyName - Company/DB display name
- * @param {string} data.istNow - IST timestamp string "YYYY-MM-DD HH:mm:ss"
- * @param {string} data.alertName - Alert rule name
- * @param {string} data.severityLevel - "Critical", "High", "Medium", "Low"
- * @param {number} data.thresholdValue - Threshold percentage
- * @param {string} data.conditionalOperator - Operator symbol (e.g. ">", "<")
- * @param {{currentOsa: number, previousOsa: number, delta: number}} data.aggregateOsa
- * @param {Array<{platform: string, brands: Array, skus: Array}>} data.platformData
- *   Each platform entry contains:
- *     - platform: string (e.g. "Amazon")
- *     - brands: Array<{brand, currentOsa, previousOsa, delta}>
- *     - skus: Array<{skuName, brand, currentOsa, previousOsa, delta}>
- * @returns {string} Complete HTML email string
- */
+const buildPlatformSection = (platformName, skuData) => {
+    if (!skuData || skuData.length === 0) return '';
+
+    let skuRows = '';
+    for (const s of skuData) {
+        const salesLossFormatted = s.salesLoss ? `₹${Math.round(s.salesLoss).toLocaleString('en-IN')}` : '—';
+        skuRows += `<tr>
+<td style="padding:5px 6px;border-right:1px solid #e3ebf8;border-bottom:1px solid #f3f4f6;font-family:Arial,sans-serif;color:#111827;font-size:9px;line-height:12px;word-break:break-word;word-wrap:break-word;overflow-wrap:break-word;">
+    ${escapeHtml(s.skuName)}
+</td>
+<td style="padding:5px 6px;border-right:1px solid #e3ebf8;border-bottom:1px solid #f3f4f6;font-family:Arial,sans-serif;color:#111827;font-size:9px;line-height:12px;word-break:break-word;word-wrap:break-word;overflow-wrap:break-word;">
+    ${escapeHtml(s.brand)}
+</td>
+<td style="padding:5px 6px;border-right:1px solid #e3ebf8;border-bottom:1px solid #f3f4f6;font-family:Arial,sans-serif;color:#111827;font-size:9px;line-height:12px;word-break:break-word;word-wrap:break-word;overflow-wrap:break-word;">
+    ${s.currentOsa.toFixed(1)}% ${deltaHtml(s.delta, true)}
+</td>
+<td style="padding:5px 6px;border-bottom:1px solid #f3f4f6;font-family:Arial,sans-serif;color:#dc2626;font-size:9px;line-height:12px;font-weight:700;word-break:break-word;word-wrap:break-word;overflow-wrap:break-word;">
+    ${salesLossFormatted}
+</td>
+</tr>`;
+    }
+
+    return `
+<!-- PLATFORM -->
+<table bgcolor="#fbfdff" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#fbfdff;border:1px solid #dbe7f6;">
+<tr>
+<td>
+<!-- PLATFORM TITLE -->
+<table bgcolor="#dbeafe" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#dbeafe;border-bottom:1px solid #c7ddfe;">
+<tr>
+<td class="platform-title" style="padding:6px 10px;font-family:Arial,sans-serif;color:#1d4ed8;font-size:10px;line-height:13px;font-weight:700;word-break:break-word;word-wrap:break-word;overflow-wrap:break-word;">
+    ${escapeHtml(platformName)}
+</td>
+</tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:6px;line-height:6px;font-size:6px;">&nbsp;</td></tr>
+</table>
+
+<!-- IMPACTED SKUS -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td class="table-card" style="padding:0 6px;">
+<table bgcolor="#ffffff" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#ffffff;border:1px solid #e5eaf3;">
+<tr>
+<td>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td bgcolor="#f8fafc" class="section-title" style="padding:5px 8px;background-color:#f8fafc;border-bottom:1px solid #e8eef7;font-family:Arial,sans-serif;color:#64748b;font-size:8px;line-height:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;">
+    Impacted SKUs
+</td>
+</tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="tbl" style="width:100%;table-layout:fixed;">
+<colgroup>
+<col style="width:34%;">
+<col style="width:22%;">
+<col style="width:22%;">
+<col style="width:22%;">
+</colgroup>
+<tr>
+<td bgcolor="#f8fbff" width="34%" style="width:34%;padding:5px 6px;background-color:#f8fbff;border-right:1px solid #e3ebf8;border-bottom:2px solid #d7e6ff;font-family:Arial,sans-serif;color:#475569;font-size:7px;line-height:9px;font-weight:700;text-transform:uppercase;word-break:break-word;word-wrap:break-word;overflow-wrap:break-word;">
+    SKU Name
+</td>
+<td bgcolor="#f8fbff" width="22%" style="width:22%;padding:5px 6px;background-color:#f8fbff;border-right:1px solid #e3ebf8;border-bottom:2px solid #d7e6ff;font-family:Arial,sans-serif;color:#475569;font-size:7px;line-height:9px;font-weight:700;text-transform:uppercase;word-break:break-word;word-wrap:break-word;overflow-wrap:break-word;">
+    Brand Name
+</td>
+<td bgcolor="#f8fbff" width="22%" style="width:22%;padding:5px 6px;background-color:#f8fbff;border-right:1px solid #e3ebf8;border-bottom:2px solid #d7e6ff;font-family:Arial,sans-serif;color:#475569;font-size:7px;line-height:9px;font-weight:700;text-transform:uppercase;word-break:break-word;word-wrap:break-word;overflow-wrap:break-word;">
+    Current OSA
+</td>
+<td bgcolor="#f8fbff" width="22%" style="width:22%;padding:5px 6px;background-color:#f8fbff;border-bottom:2px solid #d7e6ff;font-family:Arial,sans-serif;color:#475569;font-size:7px;line-height:9px;font-weight:700;text-transform:uppercase;word-break:break-word;word-wrap:break-word;overflow-wrap:break-word;">
+    Sales Loss
+</td>
+</tr>
+${skuRows}
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:6px;line-height:6px;font-size:6px;">&nbsp;</td></tr>
+</table>
+</td>
+</tr>
+</table>
+`;
+};
+
 export const generateAlertEmailHtml = (data) => {
     const {
         logoUrl = '',
@@ -178,36 +160,34 @@ export const generateAlertEmailHtml = (data) => {
 
     const severity = getSeverityStyle(severityLevel);
     const displayTime = formatISTDisplay(istNow);
+    const headerDeltaText = deltaHtml(aggregateOsa.delta, false);
 
-    // Header delta display
-    const headerDelta = aggregateOsa.delta;
-    const headerDeltaColor = headerDelta >= 0 ? '#16a34a' : '#dc2626';
-    const headerDeltaText = deltaHtml(headerDelta, false); // Contains the up/down arrow and color span
-
-    // Build platform sections
     let platformSectionsHtml = '';
     for (const pd of platformData) {
-        platformSectionsHtml += buildPlatformSection(pd.platform, pd.brands, pd.skus);
+        platformSectionsHtml += buildPlatformSection(pd.platform, pd.skus);
     }
 
-    // If no platform data, show a fallback
     if (!platformSectionsHtml) {
         platformSectionsHtml = `
-<div class="platform">
-  <div class="platform-title">All Platforms</div>
-  <div class="table-card">
-    <div style="padding:18px;text-align:center;color:#94a3b8;">No platform-specific data available for this alert.</div>
-  </div>
-</div>`;
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#fbfdff;border:1px solid #dbe7f6;">
+<tr><td>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#dbeafe;border-bottom:1px solid #c7ddfe;">
+<tr><td class="platform-title" style="padding:6px 10px;font-family:Arial,sans-serif;color:#1d4ed8;font-size:10px;line-height:13px;font-weight:700;">All Platforms</td></tr>
+</table>
+<div style="padding:18px;text-align:center;color:#94a3b8;font-family:Arial,sans-serif;font-size:11px;">No platform-specific data available for this alert.</div>
+</td></tr>
+</table>`;
     }
 
-    // Logo HTML: show company logo if available, otherwise show text
     const logoHtml = logoUrl
-        ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName)} Logo" width="110" style="display:block;max-width:110px;height:auto;border:0;outline:none;text-decoration:none;">`
-        : `<div style="font-size:18px;font-weight:800;color:#1e5eff;">${escapeHtml(companyName)}</div>`;
+        ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName)} Logo" width="110" class="logo" style="width:110px;max-width:110px;height:auto;display:block;border:0;outline:none;text-decoration:none;">`
+        : `<div style="font-family:Arial,sans-serif;font-size:18px;font-weight:800;color:#1e5eff;">${escapeHtml(companyName)}</div>`;
 
-    return `<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+    return `
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:v="urn:schemas-microsoft-com:vml"
+      xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -215,6 +195,7 @@ export const generateAlertEmailHtml = (data) => {
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
 <title>${escapeHtml(companyName)} - Alert Dispatch</title>
+
 <!--[if mso]>
 <noscript>
 <xml>
@@ -225,149 +206,453 @@ export const generateAlertEmailHtml = (data) => {
 </xml>
 </noscript>
 <![endif]-->
+
 <style>
-/* ==== CLIENT RESETS (Outlook / OWA / mobile) ==== */
-html,body{margin:0 !important;padding:0 !important;width:100% !important;height:100% !important;}
-body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}
-table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;}
-table{border-collapse:collapse !important;}
-img{-ms-interpolation-mode:bicubic;border:0;outline:none;text-decoration:none;}
-.ExternalClass{width:100%;}
-.ExternalClass,.ExternalClass p,.ExternalClass span,.ExternalClass font,.ExternalClass td,.ExternalClass div{line-height:100%;}
-
-body{margin:0;padding:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#111827;font-size:12px;}
-.email-bg{background:#f4f7fb;}
-.container{max-width:640px;margin:auto}
-.header{background:linear-gradient(#f8fbff,#eef6ff);border:1px solid #d7e6ff;border-radius:14px;padding:10px}
-.header small{display:block;color:#4b74c9;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
-.header h1{margin:4px 0 2px;color:#1e5eff;font-size:18px}
-.header p{margin:0;color:#667085;font-size:11px;}
-.card{margin-top:10px;background:#fff;border:1px solid #e5edf8;border-radius:14px;padding:10px}
-.top-table{width:100%;}
-.top-table h2{margin:0;font-size:13px;word-break:break-word;overflow-wrap:break-word;}
-.status{color:#dc2626;font-size:9px;font-weight:700;white-space:nowrap;text-align:right;}
-.info{background:linear-gradient(180deg,#f8fbff,#edf5ff);border:1px solid #cfe0ff;border-radius:14px;padding:8px;margin:8px 0;box-shadow:0 8px 24px rgba(59,130,246,.08)}
-.info-table{width:100%;table-layout:fixed;height:100%;}
-.metric-cell{height:1px;}
-.metric{background:#fff;border:1px solid #dde8fb;border-radius:10px;padding:8px;box-shadow:0 2px 8px rgba(15,23,42,.04);box-sizing:border-box;height:100%;}
-.metric-title{font-size:8px;text-transform:uppercase;color:#64748b;font-weight:700;letter-spacing:.3px}
-.metric-value{font-size:15px;font-weight:800;margin-top:3px;line-height:1.15;word-break:break-word;overflow-wrap:break-word;}
-.metric-sub{margin-top:4px;font-size:8px;color:#64748b;word-break:break-word;overflow-wrap:break-word;}
-.severity-badge{display:inline-block;padding:3px 9px;border-radius:999px;background:${severity.bg};border:1px solid ${severity.border};color:${severity.color};font-weight:700;font-size:9px;word-break:break-word;overflow-wrap:break-word;}
-.lbl{font-size:8px;text-transform:uppercase;color:#64748b;font-weight:700}
-.val{font-size:11px;font-weight:700;margin-top:2px}
-.platform{margin-top:10px;border:1px solid #dbe7f6;border-radius:12px;background:#fbfdff;overflow:hidden}
-.platform-title{background:#dbeafe;color:#1d4ed8;padding:6px 10px;font-size:10px;font-weight:700;border-bottom:1px solid #c7ddfe;word-break:break-word;overflow-wrap:break-word;}
-.table-card{margin:6px;border:1px solid #e5eaf3;border-radius:8px;overflow:hidden;background:#fff}
-.section-title{padding:5px 8px;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
-.brand{background:#eef4ff;color:#475569;border-bottom:1px solid #d9e6ff}
-.sku{background:#f8fafc;color:#64748b;border-bottom:1px solid #e8eef7}
-.tbl{width:100%;border-collapse:collapse;table-layout:fixed}
-.tbl th{text-align:left;padding:5px 6px;color:#475569;font-size:7px;text-transform:uppercase;border-bottom:2px solid #d7e6ff;background:#f8fbff;word-break:break-word;overflow-wrap:break-word;}
-.tbl td{text-align:left;padding:5px 6px;font-size:9px;border-bottom:1px solid #f3f4f6;word-break:break-word;overflow-wrap:break-word;}
-.tbl tr:last-child td{border-bottom:none}
-.up{color:#16a34a;font-size:7px;vertical-align:super}
-.down{color:#dc2626;font-size:7px;vertical-align:super}
-.summary{margin-top:10px;border:1px solid #d7e6ff;border-radius:10px;padding:6px;font-size:10px;}
-.summary .t{font-size:8px;color:#1e5eff;font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
-.footer{text-align:center;font-size:8px;color:#64748b;margin-top:8px}
-
-/* ==== MOBILE (phones + narrow laptop panes) ==== */
-@media only screen and (max-width:600px){
-  .email-wrapper{width:100% !important;}
-  .container{width:100% !important;}
-  .header,.card{padding:8px !important;}
-  .header img{width:100px !important;}
-  .top-table h2{font-size:11px !important;}
-  .status{font-size:8px !important;}
-  .metric{padding:7px !important;}
-  .metric-value{font-size:13px !important;}
-  .metric-title{font-size:7px !important;}
-  .metric-sub{font-size:7px !important;}
-  .platform-title{font-size:9px !important;padding:6px 8px !important;}
-  .table-card{margin:5px !important;}
-  .tbl th,.tbl td{padding:4px 4px !important;font-size:7px !important;}
-  .section-title{font-size:7px !important;padding:5px 8px !important;}
-  .summary,.header{border-radius:10px !important;}
+html, body {
+    margin:0 !important;
+    padding:0 !important;
+    width:100% !important;
+    height:100% !important;
 }
-@media only screen and (max-width:380px){
-  .metric-value{font-size:12px !important;}
-  .header img{width:110px !important;}
+body, table, td, a {
+    -webkit-text-size-adjust:100%;
+    -ms-text-size-adjust:100%;
+}
+table, td {
+    mso-table-lspace:0pt;
+    mso-table-rspace:0pt;
+}
+table {
+    border-collapse:collapse;
+}
+img {
+    -ms-interpolation-mode:bicubic;
+    border:0;
+    outline:none;
+    text-decoration:none;
+    display:block;
+}
+.ExternalClass { width:100%; }
+.ExternalClass, .ExternalClass p, .ExternalClass span,
+.ExternalClass font, .ExternalClass td, .ExternalClass div {
+    line-height:100%;
+}
+
+@media only screen and (max-width:600px) {
+    .email-shell {
+        width:100% !important;
+    }
+    .outer-pad {
+        padding:10px !important;
+    }
+    .mobile-pad {
+        padding:8px !important;
+    }
+    .logo {
+        width:100px !important;
+        max-width:100px !important;
+    }
+    .alert-title {
+        font-size:11px !important;
+    }
+    .metric-box {
+        padding:7px !important;
+    }
+    .metric-value {
+        font-size:13px !important;
+    }
+    .platform-title {
+        font-size:9px !important;
+        padding:6px 8px !important;
+    }
+    .table-card {
+        padding:5px !important;
+    }
+    .tbl th,
+    .tbl td {
+        padding:4px !important;
+        font-size:7px !important;
+    }
+    .section-title {
+        font-size:7px !important;
+        padding:5px 8px !important;
+    }
+}
+@media only screen and (max-width:380px) {
+    .metric-value {
+        font-size:12px !important;
+    }
+    .logo {
+        width:100px !important;
+        max-width:100px !important;
+    }
 }
 </style>
 </head>
-<body class="email-bg" style="margin:0;padding:0;">
-<center class="email-bg" style="width:100%;background:#f4f7fb;">
+
+<body bgcolor="#f4f7fb" style="margin:0;padding:0;background-color:#f4f7fb;">
+
+<center bgcolor="#f4f7fb" style="width:100%;background-color:#f4f7fb;">
+
 <!--[if mso]>
-<table role="presentation" width="676" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td>
+<table role="presentation" width="676" align="center" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="padding:0;">
 <![endif]-->
-<div style="padding:18px;">
-<div class="container email-wrapper" style="max-width:640px;margin:0 auto;">
 
-<div class="header">
-<small>INTELLIGENT ALERTS</small>
-<div style="margin:4px 0 4px 0;">
-${logoHtml}
-</div>
-<p style="margin-top:3px;">Intelligent Alert Dispatch</p>
-<p style="margin-top:4px">${displayTime}</p>
-</div>
-
-<div class="card">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="top-table">
+<table role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       align="center"
+       class="email-shell"
+       style="width:100%;max-width:676px;">
 <tr>
-<td style="vertical-align:middle;"><h2>${escapeHtml(alertName)}</h2></td>
-<td style="vertical-align:middle;" class="status">● TRIGGERED</td>
+<td class="outer-pad" style="padding:18px;">
+
+<!--[if !mso]><!-->
+<div style="max-width:640px;margin:0 auto;">
+<!--<![endif]-->
+
+<!--[if mso]>
+<table role="presentation" width="640" align="center" cellpadding="0" cellspacing="0" border="0">
+<tr><td>
+<![endif]-->
+
+<!-- HEADER -->
+<table bgcolor="#f8fbff" role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       style="width:100%;background-color:#f8fbff;border:1px solid #d7e6ff;">
+<tr>
+<td bgcolor="#f8fbff" class="mobile-pad"
+    style="padding:10px;background-color:#f8fbff;">
+
+<div style="font-family:Arial,sans-serif;color:#4b74c9;font-size:9px;
+            line-height:12px;font-weight:700;letter-spacing:1.5px;
+            text-transform:uppercase;">
+    INTELLIGENT ALERTS
+</div>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="padding:4px 0;">
+    ${logoHtml}
+</td>
 </tr>
 </table>
 
-<div class="info">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="info-table">
-<colgroup>
-<col style="width:33.3%;">
-<col style="width:2px;">
-<col style="width:33.3%;">
-<col style="width:2px;">
-<col style="width:33.3%;">
-</colgroup>
-<tr>
-<td class="metric-cell" style="vertical-align:top;padding:0 6px 0 0;">
-<div class="metric">
-<div class="metric-title">Current OSA</div>
-<div class="metric-value">${aggregateOsa.currentOsa.toFixed(2)}%</div>
-<div class="metric-sub">${headerDeltaText} vs previous</div>
+<div style="font-family:Arial,sans-serif;color:#667085;font-size:11px;line-height:15px;">
+    Intelligent Alert Dispatch
 </div>
-</td>
-<td class="metric-divider-cell" style="background:#b8d5ff;font-size:0;line-height:0;">&nbsp;</td>
-<td class="metric-cell" style="vertical-align:top;padding:0 3px;">
-<div class="metric">
-<div class="metric-title">Alert Threshold</div>
-<div class="metric-value">${escapeHtml(conditionalOperator)}${thresholdValue}%</div>
-<div class="metric-sub">Trigger Condition Active</div>
+
+<div style="padding-top:4px;font-family:Arial,sans-serif;color:#667085;
+            font-size:11px;line-height:15px;">
+    ${displayTime}
 </div>
-</td>
-<td class="metric-divider-cell" style="background:#b8d5ff;font-size:0;line-height:0;">&nbsp;</td>
-<td class="metric-cell" style="vertical-align:top;padding:0 0 0 6px;">
-<div class="metric">
-<div class="metric-title">Severity</div>
-<div style="margin-top:6px;"><span class="severity-badge">● ${severity.label}</span></div>
-<div class="metric-sub">${severity.label === 'Critical' ? 'Immediate attention required' : severity.label === 'High' ? 'Requires attention soon' : 'Monitor and review'}</div>
-</div>
+
 </td>
 </tr>
 </table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:10px;line-height:10px;font-size:10px;">&nbsp;</td></tr>
+</table>
+
+<!-- MAIN CARD -->
+<table bgcolor="#ffffff" role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       style="width:100%;background-color:#ffffff;border:1px solid #e5edf8;">
+<tr>
+<td class="mobile-pad" style="padding:10px;">
+
+<!-- ALERT TITLE -->
+<table role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0">
+<tr>
+<td valign="middle"
+    style="font-family:Arial,sans-serif;color:#111827;font-size:13px;
+           line-height:17px;font-weight:700;word-break:break-word;
+           word-wrap:break-word;overflow-wrap:break-word;">
+    ${escapeHtml(alertName)}
+</td>
+
+<td valign="middle"
+    align="right"
+    style="font-family:Arial,sans-serif;color:${severity.color};font-size:9px;
+           line-height:12px;font-weight:700;white-space:nowrap;">
+    TRIGGERED
+</td>
+</tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:8px;line-height:8px;font-size:8px;">&nbsp;</td></tr>
+</table>
+
+<!-- INFO / METRICS -->
+<table bgcolor="#f8fbff" role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       style="width:100%;background-color:#f8fbff;border:1px solid #cfe0ff;">
+<tr>
+<td class="mobile-pad" style="padding:8px;">
+
+<table role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0">
+<tr>
+
+<!-- METRIC 1 -->
+<td class="metric-cell"
+    width="33.33%"
+    valign="top"
+    style="width:33.33%;padding:0 6px 0 0;">
+
+<table bgcolor="#ffffff" role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       style="background-color:#ffffff;border:1px solid #dde8fb;">
+<tr>
+<td class="metric-box"
+    style="padding:8px;">
+
+<div style="font-family:Arial,sans-serif;font-size:8px;line-height:10px;
+            text-transform:uppercase;color:#64748b;font-weight:700;
+            letter-spacing:.3px;">
+    Current OSA
 </div>
+
+<div class="metric-value"
+     style="font-family:Arial,sans-serif;font-size:15px;line-height:18px;
+            font-weight:800;color:#111827;padding-top:3px;
+            word-break:break-word;word-wrap:break-word;overflow-wrap:break-word;">
+    ${aggregateOsa.currentOsa.toFixed(1)}%
+</div>
+
+<div style="font-family:Arial,sans-serif;font-size:8px;line-height:11px;
+            color:#64748b;padding-top:4px;word-break:break-word;
+            word-wrap:break-word;overflow-wrap:break-word;">
+    ${headerDeltaText}
+    vs previous
+</div>
+
+</td>
+</tr>
+</table>
+
+</td>
+
+<!-- DIVIDER -->
+<td bgcolor="#b8d5ff" class="metric-divider"
+    width="2"
+    style="width:2px;background-color:#b8d5ff;font-size:0;line-height:0;">
+    &nbsp;
+</td>
+
+<!-- METRIC 2 -->
+<td class="metric-cell"
+    width="33.33%"
+    valign="top"
+    style="width:33.33%;padding:0 3px;">
+
+<table bgcolor="#ffffff" role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       style="background-color:#ffffff;border:1px solid #dde8fb;">
+<tr>
+<td class="metric-box"
+    style="padding:8px;">
+
+<div style="font-family:Arial,sans-serif;font-size:8px;line-height:10px;
+            text-transform:uppercase;color:#64748b;font-weight:700;
+            letter-spacing:.3px;">
+    Alert Threshold
+</div>
+
+<div class="metric-value"
+     style="font-family:Arial,sans-serif;font-size:15px;line-height:18px;
+            font-weight:800;color:#111827;padding-top:3px;
+            word-break:break-word;word-wrap:break-word;overflow-wrap:break-word;">
+    ${escapeHtml(conditionalOperator)} ${thresholdValue}%
+</div>
+
+<div style="font-family:Arial,sans-serif;font-size:8px;line-height:11px;
+            color:#64748b;padding-top:4px;word-break:break-word;
+            word-wrap:break-word;overflow-wrap:break-word;">
+    Trigger Condition Active
+</div>
+
+</td>
+</tr>
+</table>
+
+</td>
+
+<!-- DIVIDER -->
+<td bgcolor="#b8d5ff" class="metric-divider"
+    width="2"
+    style="width:2px;background-color:#b8d5ff;font-size:0;line-height:0;">
+    &nbsp;
+</td>
+
+<!-- METRIC 3 -->
+<td class="metric-cell"
+    width="33.33%"
+    valign="top"
+    style="width:33.33%;padding:0 0 0 6px;">
+
+<table bgcolor="#ffffff" role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       style="background-color:#ffffff;border:1px solid #dde8fb;">
+<tr>
+<td class="metric-box"
+    style="padding:8px;">
+
+<div style="font-family:Arial,sans-serif;font-size:8px;line-height:10px;
+            text-transform:uppercase;color:#64748b;font-weight:700;
+            letter-spacing:.3px;">
+    Severity
+</div>
+
+<!-- Severity badge: table-based instead of inline-block span so
+     the padding renders correctly in the Word/Outlook engine -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:6px;line-height:6px;font-size:6px;">&nbsp;</td></tr>
+</table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td bgcolor="${severity.bg}" style="padding:3px 9px;background-color:${severity.bg};border:1px solid ${severity.border};
+           font-family:Arial,sans-serif;color:${severity.color};font-size:9px;
+           line-height:11px;font-weight:700;white-space:nowrap;">
+    ${severity.label}
+</td>
+</tr>
+</table>
+
+<div style="font-family:Arial,sans-serif;font-size:8px;line-height:11px;
+            color:#64748b;padding-top:4px;word-break:break-word;
+            word-wrap:break-word;overflow-wrap:break-word;">
+    ${severity.desc}
+</div>
+
+</td>
+</tr>
+</table>
+
+</td>
+</tr>
+</table>
+
+</td>
+</tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:10px;line-height:10px;font-size:10px;">&nbsp;</td></tr>
+</table>
+
 
 ${platformSectionsHtml}
 
-<div class="summary"><div class="t">Delivery Summary</div>Alert dispatched successfully for <b>${escapeHtml(companyName)}</b> with <b>${severity.label}</b> severity.</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:10px;line-height:10px;font-size:10px;">&nbsp;</td></tr>
+</table>
+
+<!-- DELIVERY SUMMARY -->
+<table bgcolor="#ffffff" role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0"
+       style="width:100%;background-color:#ffffff;border:1px solid #d7e6ff;">
+<tr>
+<td style="padding:6px;font-family:Arial,sans-serif;color:#111827;
+           font-size:10px;line-height:14px;word-break:break-word;
+           word-wrap:break-word;overflow-wrap:break-word;">
+
+<div style="font-family:Arial,sans-serif;color:#1e5eff;font-size:8px;
+            line-height:10px;font-weight:700;text-transform:uppercase;
+            letter-spacing:.3px;padding-bottom:3px;">
+    Delivery Summary
 </div>
-<div class="footer">Automated alert generated by Trailytics</div>
-</div>
-</div>
+
+Alert dispatched successfully for
+<b>${escapeHtml(companyName)}</b>
+with
+<b>${severity.label}</b>
+severity.
+
+</td>
+</tr>
+</table>
+
+</td>
+</tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="height:8px;line-height:8px;font-size:8px;">&nbsp;</td></tr>
+</table>
+
+<!-- FOOTER -->
+<table role="presentation"
+       width="100%"
+       cellpadding="0"
+       cellspacing="0"
+       border="0">
+<tr>
+<td align="center"
+    style="font-family:Arial,sans-serif;color:#64748b;font-size:8px;
+           line-height:11px;">
+    Automated alert generated by Trailytics
+</td>
+</tr>
+</table>
+
 <!--[if mso]>
-</td></tr></table>
+</td>
+</tr>
+</table>
 <![endif]-->
+
+<!--[if !mso]><!-->
+</div>
+<!--<![endif]-->
+
+</td>
+</tr>
+</table>
+
+<!--[if mso]>
+</td>
+</tr>
+</table>
+<![endif]-->
+
 </center>
-</body></html>`;
+</body>
+</html>
+`;
 };

@@ -729,43 +729,60 @@ export const runEmailAlertsJob = async () => {
                     if (sendEmail && sendEmail.includes('@')) {
                         const emailFreqCheck = shouldSendBasedOnFrequency(alert.last_email_sent, alert.alert_frequency);
                         if (emailFreqCheck.allowed) {
-                            console.log(`[AlertCron] Email frequency check passed (${emailFreqCheck.reason})! Sending HTML alert email to ${sendEmail}...`);
+                            console.log(`[AlertCron] Email frequency check passed (${emailFreqCheck.reason})! Checking impacted SKUs before sending email to ${sendEmail}...`);
 
-                            const emailHtml = generateAlertEmailHtml({
-                                logoUrl,
-                                companyName: companyDisplayName,
-                                istNow,
-                                alertName: alert.alert_name || 'Low OSA Alert',
-                                severityLevel: alert.severity_level || 'Warning',
-                                thresholdValue: threshold,
-                                conditionalOperator: alertOpSym,
-                                aggregateOsa,
-                                platformData,
-                            });
+                            const totalImpactedSkus = platformData.reduce((sum, pd) => sum + (pd.skus ? pd.skus.length : 0), 0);
 
-                            const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
-                            const mailOptions = {
-                                from: `"Trailytics Alerts" <${fromEmail}>`,
-                                to: sendEmail,
-                                subject: `🚨 ALERT TRIGGERED: ${alert.alert_name}`,
-                                text: `Hi,\n\nAn intelligent alert rule has been triggered for your dashboard.\n\nAlert: ${alert.alert_name}\nDatabase: ${dbName}\nSeverity: ${alert.severity_level || 'Warning'}\nPlatforms: ${alert.platforms.join(', ') || 'All'}\nBrands: ${alert.brands.join(', ') || 'All'}\nCondition: ${metricDetails.conditionText}\nCurrent OSA: ${aggregateOsa.currentOsa}%\nPrevious OSA: ${aggregateOsa.previousOsa}%\n\nBest regards,\nTrailytics Team`,
-                                html: emailHtml,
-                            };
+                            if (totalImpactedSkus > 0) {
+                                const emailHtml = generateAlertEmailHtml({
+                                    logoUrl,
+                                    companyName: companyDisplayName,
+                                    istNow,
+                                    alertName: alert.alert_name || 'Low OSA Alert',
+                                    severityLevel: alert.severity_level || 'Warning',
+                                    thresholdValue: threshold,
+                                    conditionalOperator: alertOpSym,
+                                    aggregateOsa,
+                                    platformData,
+                                });
 
-                            try {
-                                const info = await transporter.sendMail(mailOptions);
-                                console.log(`[AlertCron] HTML email sent successfully to ${sendEmail}. Message ID: ${info.messageId}`);
+                                const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
+                                const mailOptions = {
+                                    from: `"Trailytics Alerts" <${fromEmail}>`,
+                                    to: sendEmail,
+                                    subject: `🚨 ALERT TRIGGERED: ${alert.alert_name}`,
+                                    text: `Hi,\n\nAn intelligent alert rule has been triggered for your dashboard.\n\nAlert: ${alert.alert_name}\nDatabase: ${dbName}\nSeverity: ${alert.severity_level || 'Warning'}\nPlatforms: ${alert.platforms.join(', ') || 'All'}\nBrands: ${alert.brands.join(', ') || 'All'}\nCondition: ${metricDetails.conditionText}\nCurrent OSA: ${aggregateOsa.currentOsa}%\nPrevious OSA: ${aggregateOsa.previousOsa}%\n\nBest regards,\nTrailytics Team`,
+                                    html: emailHtml,
+                                };
 
-                                // Update last_email_sent timestamp in ClickHouse
-                                const updateQuery = `
-                                    ALTER TABLE admin_master.tb_alert 
-                                    UPDATE last_email_sent = parseDateTimeBestEffort('${istNow}') 
-                                    WHERE id = toUUID('${alert.id}')
-                                `;
-                                await queryAdminDB(updateQuery);
-                                console.log(`[AlertCron] Saved current IST date & time to last_email_sent for alert "${alert.alert_name}" (${alert.id}): ${istNow} IST`);
-                            } catch (sendErr) {
-                                console.error(`[AlertCron] Failed to send email to ${sendEmail}:`, sendErr.message);
+                                try {
+                                    const info = await transporter.sendMail(mailOptions);
+                                    console.log(`[AlertCron] HTML email sent successfully to ${sendEmail}. Message ID: ${info.messageId}`);
+
+                                    // Update last_email_sent timestamp in ClickHouse
+                                    const updateQuery = `
+                                        ALTER TABLE admin_master.tb_alert 
+                                        UPDATE last_email_sent = parseDateTimeBestEffort('${istNow}') 
+                                        WHERE id = toUUID('${alert.id}')
+                                    `;
+                                    await queryAdminDB(updateQuery);
+                                    console.log(`[AlertCron] Saved current IST date & time to last_email_sent for alert "${alert.alert_name}" (${alert.id}): ${istNow} IST`);
+                                } catch (sendErr) {
+                                    console.error(`[AlertCron] Failed to send email to ${sendEmail}:`, sendErr.message);
+                                }
+                            } else {
+                                console.log(`[AlertCron] No impacted SKUs found. Skipping email sending, but updating last_email_sent.`);
+                                try {
+                                    const updateQuery = `
+                                        ALTER TABLE admin_master.tb_alert 
+                                        UPDATE last_email_sent = parseDateTimeBestEffort('${istNow}') 
+                                        WHERE id = toUUID('${alert.id}')
+                                    `;
+                                    await queryAdminDB(updateQuery);
+                                    console.log(`[AlertCron] Saved current IST date & time to last_email_sent for alert "${alert.alert_name}" (${alert.id}): ${istNow} IST`);
+                                } catch (updateErr) {
+                                    console.error(`[AlertCron] Failed to update last_email_sent for alert ${alert.id}:`, updateErr.message);
+                                }
                             }
                         } else {
                             console.log(`[AlertCron] Email skipped for "${alert.alert_name}": ${emailFreqCheck.reason}`);
