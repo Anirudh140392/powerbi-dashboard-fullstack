@@ -35,6 +35,7 @@ jobs:
 
             GOOGLE_PROD_ID="${{ secrets.GOOGLE_PROD_CLIENT_ID }}"
             [ -z "$GOOGLE_PROD_ID" ] && GOOGLE_PROD_ID="${{ secrets.GOOGLE_CLIENT_ID }}"
+            [ -z "$GOOGLE_PROD_ID" ] && GOOGLE_PROD_ID="176719245227-smbn58so6ajfol9smtq0r9ksi4vedi4r.apps.googleusercontent.com"
             echo "TARGET_GOOGLE_CLIENT_ID=${GOOGLE_PROD_ID}" >> $GITHUB_ENV
 
             GOOGLE_PROD_SECRET="${{ secrets.GOOGLE_PROD_CLIENT_SECRET }}"
@@ -47,10 +48,12 @@ jobs:
 
             MICROSOFT_PROD_ID="${{ secrets.MICROSOFT_PROD_CLIENT_ID }}"
             [ -z "$MICROSOFT_PROD_ID" ] && MICROSOFT_PROD_ID="${{ secrets.MICROSOFT_CLIENT_ID }}"
+            [ -z "$MICROSOFT_PROD_ID" ] && MICROSOFT_PROD_ID="b0ffebe4-3580-4b11-910b-8c213bb5888e"
             echo "TARGET_MICROSOFT_CLIENT_ID=${MICROSOFT_PROD_ID}" >> $GITHUB_ENV
 
             MICROSOFT_PROD_TENANT="${{ secrets.MICROSOFT_PROD_TENANT_ID }}"
             [ -z "$MICROSOFT_PROD_TENANT" ] && MICROSOFT_PROD_TENANT="${{ secrets.MICROSOFT_TENANT_ID }}"
+            [ -z "$MICROSOFT_PROD_TENANT" ] && MICROSOFT_PROD_TENANT="b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a"
             echo "TARGET_MICROSOFT_TENANT_ID=${MICROSOFT_PROD_TENANT}" >> $GITHUB_ENV
 
             MICROSOFT_PROD_SECRET="${{ secrets.MICROSOFT_PROD_CLIENT_SECRET }}"
@@ -79,6 +82,7 @@ jobs:
 
             GOOGLE_DEV_ID="${{ secrets.GOOGLE_DEV_CLIENT_ID }}"
             [ -z "$GOOGLE_DEV_ID" ] && GOOGLE_DEV_ID="${{ secrets.GOOGLE_CLIENT_ID }}"
+            [ -z "$GOOGLE_DEV_ID" ] && GOOGLE_DEV_ID="176719245227-cse1isbmn2qp4hu1se9voboitm8t9oht.apps.googleusercontent.com"
             echo "TARGET_GOOGLE_CLIENT_ID=${GOOGLE_DEV_ID}" >> $GITHUB_ENV
 
             GOOGLE_DEV_SECRET="${{ secrets.GOOGLE_DEV_CLIENT_SECRET }}"
@@ -91,10 +95,12 @@ jobs:
 
             MICROSOFT_DEV_ID="${{ secrets.MICROSOFT_DEV_CLIENT_ID }}"
             [ -z "$MICROSOFT_DEV_ID" ] && MICROSOFT_DEV_ID="${{ secrets.MICROSOFT_CLIENT_ID }}"
+            [ -z "$MICROSOFT_DEV_ID" ] && MICROSOFT_DEV_ID="153c3bd5-c6f7-41a5-b11c-3334d71b5db4"
             echo "TARGET_MICROSOFT_CLIENT_ID=${MICROSOFT_DEV_ID}" >> $GITHUB_ENV
 
             MICROSOFT_DEV_TENANT="${{ secrets.MICROSOFT_DEV_TENANT_ID }}"
             [ -z "$MICROSOFT_DEV_TENANT" ] && MICROSOFT_DEV_TENANT="${{ secrets.MICROSOFT_TENANT_ID }}"
+            [ -z "$MICROSOFT_DEV_TENANT" ] && MICROSOFT_DEV_TENANT="b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a"
             echo "TARGET_MICROSOFT_TENANT_ID=${MICROSOFT_DEV_TENANT}" >> $GITHUB_ENV
 
             MICROSOFT_DEV_SECRET="${{ secrets.MICROSOFT_DEV_CLIENT_SECRET }}"
@@ -200,6 +206,9 @@ jobs:
             mkdir -p frontend
             cat > frontend/.env << 'EOF'
           VITE_API_URL=${{ env.TARGET_VITE_API_URL }}
+          VITE_GOOGLE_CLIENT_ID=${{ env.TARGET_GOOGLE_CLIENT_ID }}
+          VITE_MICROSOFT_CLIENT_ID=${{ env.TARGET_MICROSOFT_CLIENT_ID }}
+          VITE_MICROSOFT_TENANT_ID=${{ env.TARGET_MICROSOFT_TENANT_ID }}
           EOF
             echo "✅ Frontend .env files created for ${{ env.DEPLOY_ENV }} environment"
           ENDSSH
