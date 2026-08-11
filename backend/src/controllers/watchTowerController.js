@@ -600,13 +600,15 @@ export const getMaxDatesAll = async (req, res) => {
 
 export const getWatchTowerCascadedFilters = async (req, res) => {
     try {
-        const { channel, platform, category, brand, location } = req.query;
+        const { channel, platform, category, brand, location, startDate, endDate } = req.query;
         const data = await watchTowerService.getWatchTowerCascadedFilters({
             channel: channel || 'All',
             platform: platform || 'All',
             category: category || 'All',
             brand: brand || 'All',
-            location: location || 'All'
+            location: location || 'All',
+            startDate: startDate || null,
+            endDate: endDate || null
         });
         res.json(data);
     } catch (error) {
