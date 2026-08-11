@@ -371,7 +371,8 @@ export default function MarketShareAnalysis() {
       return 'Daily';
     }
     // Also check channel as a fallback
-    if (selectedChannel && selectedChannel.toLowerCase().includes('quickcomm')) {
+    const chanStr = (Array.isArray(selectedChannel) ? selectedChannel.join(',') : String(selectedChannel || '')).toLowerCase();
+    if (chanStr.includes('quickcomm')) {
       return 'Daily';
     }
     return 'Monthly';

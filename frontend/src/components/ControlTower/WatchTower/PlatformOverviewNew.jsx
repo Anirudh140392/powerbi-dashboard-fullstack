@@ -16,7 +16,10 @@ import {
     Scale,
     PieChart,
     ChevronDown,
-    ExternalLink
+    ExternalLink,
+    ArrowUp,
+    ArrowDown,
+    ArrowUpDown
 } from 'lucide-react'
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { useNavigate } from 'react-router-dom'
@@ -25,27 +28,37 @@ import FlipkartLogo from '@/lib/Flipkart logo.png'
 import { copyToClipboard } from '../../../utils/clipboard'
 
 /* --- HELPER COMPONENTS & UTILS --- */
-const isEcomChannel = (chan) => chan && chan.toLowerCase().includes('ecom');
+const safeLower = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val.toLowerCase();
+    if (Array.isArray(val)) return val.map(v => String(v || '')).join(',').toLowerCase();
+    return String(val).toLowerCase();
+};
+
+const isEcomChannel = (chan) => {
+    const s = safeLower(chan);
+    return s.includes('ecom') || s.includes('e-commerce');
+};
 
 // Platform classification helpers for KPI visibility
 const QCOM_PLATFORM_NAMES = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow', 'minutes', 'quickcomm', 'quick commerce'];
 const isQcomPlatform = (name) => {
     if (!name) return false;
-    const n = name.toLowerCase();
+    const n = safeLower(name);
     return QCOM_PLATFORM_NAMES.some(p => n.includes(p));
 };
 
 const isEcomPlatform = (name) => {
     if (!name) return false;
     if (isQcomPlatform(name)) return false; // Prevent 'flipkart minutes' from matching ecom
-    const n = name.toLowerCase();
+    const n = safeLower(name);
     return ['amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart', 'ecom'].some(p => n.includes(p));
 };
 
 const isBuyBoxPlatform = (name) => {
     if (!name || name === 'All') return false;
     if (isQcomPlatform(name)) return false;
-    const n = name.toLowerCase().trim();
+    const n = safeLower(name).trim();
     return n.includes('amazon') || n.includes('flipkart');
 };
 
@@ -189,6 +202,26 @@ const getFullDisplayValue = (kpiKey, cell) => {
     return cell?.value || '0';
 };
 
+const parseKpiValue = (cell) => {
+    if (!cell || cell?.value === 'N/A' || cell?.value === undefined || cell?.value === null) {
+        return null;
+    }
+    if (cell.rawVal !== undefined && cell.rawVal !== null && !isNaN(cell.rawVal)) {
+        return Number(cell.rawVal);
+    }
+    const cleanStr = String(cell.value).replace(/,/g, '').trim();
+    const numMatch = cleanStr.match(/-?[\d.]+/);
+    if (!numMatch) return null;
+    let val = parseFloat(numMatch[0]);
+    if (isNaN(val)) return null;
+    const lower = cleanStr.toLowerCase();
+    if (lower.includes('cr')) val *= 10000000;
+    else if (lower.includes('lac') || lower.includes('lak') || lower.includes('lakh')) val *= 100000;
+    else if (lower.includes('m')) val *= 1000000;
+    else if (lower.includes('k')) val *= 1000;
+    return val;
+};
+
 // Dimension → API endpoint mapping
 const DIMENSION_API_MAP = {
     platform: '/watchtower/platform-overview',
@@ -252,6 +285,25 @@ const PlatformOverviewNew = ({
     const [localPlatformFilter, setLocalPlatformFilter] = useState('All')
     const [skuPlatformFilter, setSkuPlatformFilter] = useState('All')
     const [toastMessage, setToastMessage] = useState('');
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'desc' });
+
+    const handleSort = (kpiKey) => {
+        setSortConfig(prev => {
+            if (prev.key === kpiKey) {
+                if (prev.direction === 'desc') {
+                    return { key: kpiKey, direction: 'asc' };
+                } else if (prev.direction === 'asc') {
+                    return { key: null, direction: 'desc' };
+                }
+            }
+            return { key: kpiKey, direction: 'desc' };
+        });
+        setCurrentPage(1);
+    };
+
+    useEffect(() => {
+        setSortConfig({ key: null, direction: 'desc' });
+    }, [dimension]);
 
     const handleCopy = async (title, value) => {
         try {
@@ -819,18 +871,43 @@ const PlatformOverviewNew = ({
             })
         }
 
-        // Sort by market share descending if dimension is brand
-        if (dimension === 'brand') {
+        // Apply sorting based on sortConfig or default brand sort
+        if (sortConfig.key) {
+            const allRows = result.filter(e => {
+                const k = e.key.toLowerCase();
+                const n = e.name.toLowerCase();
+                return ALL_ROW_IDENTIFIERS.includes(k) || ALL_ROW_IDENTIFIERS.includes(n);
+            });
+            const otherRows = result.filter(e => {
+                const k = e.key.toLowerCase();
+                const n = e.name.toLowerCase();
+                return !ALL_ROW_IDENTIFIERS.includes(k) && !ALL_ROW_IDENTIFIERS.includes(n);
+            });
+
+            otherRows.sort((a, b) => {
+                const cellA = a.data?.[sortConfig.key];
+                const cellB = b.data?.[sortConfig.key];
+                const valA = parseKpiValue(cellA);
+                const valB = parseKpiValue(cellB);
+
+                if (valA === null && valB === null) return 0;
+                if (valA === null) return 1;
+                if (valB === null) return -1;
+
+                return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+            });
+
+            result = [...allRows, ...otherRows];
+        } else if (dimension === 'brand') {
             result.sort((a, b) => {
-                const parsePct = (s) => parseFloat(String(s || '0').replace(/[^\d.]/g, '')) || 0;
-                const valA = parsePct(a.data?.marketShare?.value);
-                const valB = parsePct(b.data?.marketShare?.value);
+                const valA = parseKpiValue(a.data?.marketShare) ?? 0;
+                const valB = parseKpiValue(b.data?.marketShare) ?? 0;
                 return valB - valA;
             });
         }
 
         return result
-    }, [apiData, dimension, globalPlatform, localPlatformFilter, skuPlatformFilter])
+    }, [apiData, dimension, globalPlatform, localPlatformFilter, skuPlatformFilter, sortConfig])
 
 
     // Pagination logic
@@ -1096,13 +1173,39 @@ const PlatformOverviewNew = ({
                                             </motion.button>
                                         )}
                                     </div>
-                                    {selectedKpis.map(kpi => (
-                                        <div key={kpi.key} className={cn('flex-1 text-center py-2 px-2 rounded-lg bg-white border border-slate-100/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]', cardSize.minW)}>
-                                            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em]">
-                                                {kpiLabels[kpi.key] || kpi.label}
-                                            </div>
-                                        </div>
-                                    ))}
+                                    {selectedKpis.map(kpi => {
+                                        const isSorted = sortConfig.key === kpi.key;
+                                        const isAsc = isSorted && sortConfig.direction === 'asc';
+                                        const isDesc = isSorted && sortConfig.direction === 'desc';
+
+                                        return (
+                                            <button
+                                                key={kpi.key}
+                                                onClick={() => handleSort(kpi.key)}
+                                                className={cn(
+                                                    'flex-1 text-center py-2 px-2 rounded-lg transition-all duration-200 cursor-pointer select-none group flex items-center justify-center gap-1.5 border',
+                                                    cardSize.minW,
+                                                    isSorted
+                                                        ? 'bg-blue-50/90 border-blue-300 shadow-sm text-blue-700 font-extrabold'
+                                                        : 'bg-white border-slate-100/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:bg-slate-50 hover:border-slate-300 text-slate-500'
+                                                )}
+                                                title={`Sort by ${kpiLabels[kpi.key] || kpi.label} (${isSorted ? (isDesc ? 'Descending → Click for Ascending' : 'Ascending → Click to Reset') : 'Click to sort Descending'})`}
+                                            >
+                                                <span className={cn("text-[10px] font-bold uppercase tracking-[0.12em]", isSorted ? "text-blue-700" : "text-slate-500 group-hover:text-slate-800")}>
+                                                    {kpiLabels[kpi.key] || kpi.label}
+                                                </span>
+                                                {isSorted ? (
+                                                    isAsc ? (
+                                                        <ArrowUp size={12} className="text-blue-600 flex-shrink-0 stroke-[2.5]" />
+                                                    ) : (
+                                                        <ArrowDown size={12} className="text-blue-600 flex-shrink-0 stroke-[2.5]" />
+                                                    )
+                                                ) : (
+                                                    <ArrowUpDown size={11} className="text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0 opacity-60 group-hover:opacity-100" />
+                                                )}
+                                            </button>
+                                        )
+                                    })}
                                 </div>
 
                                 {/* Entity Rows */}
@@ -1172,9 +1275,11 @@ const PlatformOverviewNew = ({
                                                         <LineChart size={13} className="text-slate-400" />
                                                     </button>
                                                     {(() => {
-                                                        const entityNameLower = (e.name || e.label || '').toLowerCase().trim();
-                                                        const isEcomEntity = isEcomPlatform(entityNameLower) || (selectedChannel && (selectedChannel.toLowerCase().includes('ecom') || selectedChannel.toLowerCase().includes('e-commerce')));
-                                                        const isAmazonEntity = entityNameLower.includes('amazon') || (globalPlatform && globalPlatform.toLowerCase().includes('amazon'));
+                                                        const entityNameLower = safeLower(e.name || e.label).trim();
+                                                        const chanStr = safeLower(selectedChannel);
+                                                        const platStr = safeLower(globalPlatform);
+                                                        const isEcomEntity = isEcomPlatform(entityNameLower) || chanStr.includes('ecom') || chanStr.includes('e-commerce');
+                                                        const isAmazonEntity = entityNameLower.includes('amazon') || platStr.includes('amazon');
 
                                                         // For e-commerce, ONLY show RCA button for Amazon; hide for all other e-commerce platforms
                                                         if (isEcomEntity && !isAmazonEntity) {
