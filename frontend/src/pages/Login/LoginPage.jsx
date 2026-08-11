@@ -61,7 +61,7 @@ const LoginPageContent = () => {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
-    const { login, isLoggedIn, user, isVerifying, loginWithToken } = useAuth();
+    const { login, isLoggedIn, user, isVerifying, loginWithToken, loginWithSso } = useAuth();
     const navigate = useNavigate();
 
     const location = useLocation();
