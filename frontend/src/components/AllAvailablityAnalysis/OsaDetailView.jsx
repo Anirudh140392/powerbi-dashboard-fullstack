@@ -72,6 +72,8 @@ export default function OsaDetailTableLight({
     const [expandedMonths, setExpandedMonths] = useState(new Set()); // which months are drilled-down
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [advancedFilters, setAdvancedFilters] = useState({});
+    const [tempFilters, setTempFilters] = useState({}); // Temporary filters for the modal
+    const [appliedMslFilter, setAppliedMslFilter] = useState(mslFilter || '0'); // Actual MSL filter
     const [tempMslFilter, setTempMslFilter] = useState(mslFilter || '0');
     const [searchSkuTerm, setSearchSkuTerm] = useState("");
     const [resellerOptions, setResellerOptions] = useState([]);
@@ -87,10 +89,10 @@ export default function OsaDetailTableLight({
     }, []);
 
     const filtersDepKey = JSON.stringify([
-        advancedFilters.platform,
-        advancedFilters.brand,
-        advancedFilters.format,
-        advancedFilters.city
+        tempFilters.platform,
+        tempFilters.brand,
+        tempFilters.format,
+        tempFilters.city
     ]);
 
     useEffect(() => {
@@ -104,17 +106,17 @@ export default function OsaDetailTableLight({
                 const queryParams = new URLSearchParams();
                 queryParams.append('filterType', 'resellerNames');
                 
-                if (advancedFilters.platform?.length) {
-                    advancedFilters.platform.forEach(p => queryParams.append('platform', p));
+                if (tempFilters.platform?.length) {
+                    tempFilters.platform.forEach(p => queryParams.append('platform', p));
                 }
-                if (advancedFilters.brand?.length) {
-                    advancedFilters.brand.forEach(b => queryParams.append('brand', b));
+                if (tempFilters.brand?.length) {
+                    tempFilters.brand.forEach(b => queryParams.append('brand', b));
                 }
-                if (advancedFilters.format?.length) {
-                    advancedFilters.format.forEach(c => queryParams.append('category', c));
+                if (tempFilters.format?.length) {
+                    tempFilters.format.forEach(c => queryParams.append('category', c));
                 }
-                if (advancedFilters.city?.length) {
-                    advancedFilters.city.forEach(ct => queryParams.append('city', ct));
+                if (tempFilters.city?.length) {
+                    tempFilters.city.forEach(ct => queryParams.append('city', ct));
                 }
 
                 const res = await fetch(`/api/availability-analysis/filter-options?${queryParams.toString()}`, { headers });
@@ -137,15 +139,28 @@ export default function OsaDetailTableLight({
                 ...prev,
                 resellerName: resellerFilter
             }));
+            setTempFilters(prev => ({
+                ...prev,
+                resellerName: resellerFilter
+            }));
         }
     }, [resellerFilter]);
 
     useEffect(() => {
-        setTempMslFilter(mslFilter || '0');
-    }, [mslFilter]);
+        setAppliedMslFilter(mslFilter || '0');
+        if (!showFilterPanel) {
+            setTempMslFilter(mslFilter || '0');
+        }
+    }, [mslFilter, showFilterPanel]);
 
     const toggleRow = (sku) => setExpandedRows(p => { const n = new Set(p); n.has(sku) ? n.delete(sku) : n.add(sku); return n; });
     const toggleMonth = (mk) => setExpandedMonths(p => { const n = new Set(p); n.has(mk) ? n.delete(mk) : n.add(mk); return n; });
+
+    const openFilterPanel = () => {
+        setTempFilters(advancedFilters);
+        setTempMslFilter(appliedMslFilter);
+        setShowFilterPanel(true);
+    };
 
     const handleSectionChange = (id, vals) => {
         if (id === 'msl') {
@@ -153,16 +168,19 @@ export default function OsaDetailTableLight({
             setTempMslFilter(selectedMsl);
             return;
         }
-        setAdvancedFilters(p => ({ ...p, [id]: vals }));
+        setTempFilters(p => ({ ...p, [id]: vals }));
     };
+    
     const handleApplyFilters = () => {
+        setAdvancedFilters(tempFilters);
+        setAppliedMslFilter(tempMslFilter);
         setPage(1);
         setShowFilterPanel(false);
         if (onMslChange) {
             onMslChange(tempMslFilter);
         }
         if (onResellerChange) {
-            onResellerChange(advancedFilters.resellerName || []);
+            onResellerChange(tempFilters.resellerName || []);
         }
     };
 
@@ -200,7 +218,7 @@ export default function OsaDetailTableLight({
                 res = res.filter(r => r.isTopSku || r.msl === '1' || r.topSku === true || r.top_sku === 1);
             }
 
-            Object.entries(advancedFilters).forEach(([key, values]) => {
+            Object.entries(tempFilters).forEach(([key, values]) => {
                 if (key === targetKey || !values?.length) return;
                 if (key === 'platform') {
                     res = res.filter(r => values.includes(r.platform));
@@ -243,7 +261,7 @@ export default function OsaDetailTableLight({
             opts.push({ id: "resellerName", label: "Reseller", options: mk(filteredResellers.length > 0 ? filteredResellers : resellerOptions) });
         }
         return opts;
-    }, [apiData, isDrlClient, resellerOptions, advancedFilters, tempMslFilter]);
+    }, [apiData, isDrlClient, resellerOptions, tempFilters, tempMslFilter]);
 
     const baseRows = useMemo(() => {
         if (!apiData?.osaDetail?.length) return [];
@@ -341,7 +359,7 @@ export default function OsaDetailTableLight({
                                     }}
                                     className="h-8 w-60 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
                                 />
-                                <button onClick={() => setShowFilterPanel(true)} className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 h-8 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+                                <button onClick={openFilterPanel} className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 h-8 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">
                                     <SlidersHorizontal className="h-3.5 w-3.5" /><span>Filters</span>
                                 </button>
                                 <div className="flex items-center gap-2 ml-2">
@@ -519,7 +537,7 @@ export default function OsaDetailTableLight({
                                     <button onClick={() => setShowFilterPanel(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
                                 </div>
                                 <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-4 pb-4">
-                                    <KpiFilterPanel sectionConfig={filterOptions} sectionValues={{ ...advancedFilters, msl: tempMslFilter ? [tempMslFilter] : ['0'] }} onSectionChange={handleSectionChange} />
+                                    <KpiFilterPanel sectionConfig={filterOptions} sectionValues={{ ...tempFilters, msl: tempMslFilter ? [tempMslFilter] : ['0'] }} onSectionChange={handleSectionChange} />
                                 </div>
                                 <div className="flex justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
                                     <button onClick={() => setShowFilterPanel(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>

@@ -68,15 +68,22 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
 
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [advancedFilters, setAdvancedFilters] = useState({});
+    const [tempFilters, setTempFilters] = useState({});
+
+    const openFilterPanel = () => {
+        setTempFilters(advancedFilters);
+        setShowFilterPanel(true);
+    };
 
     const handleSectionChange = (sectionId, values) => {
-        setAdvancedFilters(prev => ({
+        setTempFilters(prev => ({
             ...prev,
             [sectionId]: values
         }));
     };
 
     const handleApplyFilters = () => {
+        setAdvancedFilters(tempFilters);
         setPage(1);
         setShowFilterPanel(false);
     };
@@ -89,7 +96,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
         const getMatchingRowsExcluding = (targetKey) => {
             let res = apiData.osaDetail;
 
-            Object.entries(advancedFilters).forEach(([key, values]) => {
+            Object.entries(tempFilters).forEach(([key, values]) => {
                 if (key === targetKey || !values?.length) return;
                 if (key === 'platform') {
                     res = res.filter(r => values.includes(r.platform));
@@ -119,7 +126,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
             { id: "format", label: "Category", options: mk([...new Set(formatRows.map(r => r.format).filter(Boolean))].sort()) },
             { id: "city", label: "City", options: mk([...new Set(cityRows.flatMap(r => r.cities?.map(c => c.name || c) || []).filter(Boolean))].sort()) },
         ];
-    }, [apiData, advancedFilters]);
+    }, [apiData, tempFilters]);
 
     const baseRows = useMemo(() => {
         if (!apiData?.osaDetail || apiData.osaDetail.length === 0) return [];
@@ -252,7 +259,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                             <div className="flex flex-wrap items-center gap-3">
                                 {/* Filter Button */}
                                 <button
-                                    onClick={() => setShowFilterPanel(true)}
+                                    onClick={openFilterPanel}
                                     className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:shadow transition-all"
                                 >
                                     <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -532,7 +539,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                 <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-4 pb-4">
                                     <KpiFilterPanel
                                         sectionConfig={filterOptions}
-                                        sectionValues={advancedFilters}
+                                        sectionValues={tempFilters}
                                         onSectionChange={handleSectionChange}
                                     />
                                 </div>
