@@ -23,8 +23,8 @@ import { createAlert, updateAlert } from "../../api/insightsService";
 // Defined Alert Rule Presets
 const ALERT_PRESETS = [
     {
-        id: "low_osa",
-        name: "Low OSA Alert",
+        id: "low_osa_percent",
+        name: "Low OSA Alert (OSA % Effected)",
         category: "Inventory & On-Shelf Availability",
         metrics: ["OSA %", "Category"],
         formula: "OSA = (Available SKUs / Total Listed SKUs) * 100",
@@ -32,6 +32,39 @@ const ALERT_PRESETS = [
         operator: "lt",
         defaultThreshold: "85",
         severity: "High",
+    },
+    {
+        id: "low_osa_bottom_city",
+        name: "Low OSA Alert (Bottom % City Level)",
+        category: "Inventory & On-Shelf Availability",
+        metrics: ["Bottom %", "City"],
+        formula: "Bottom N% cities by OSA score",
+        condition: "City falls in bottom threshold %",
+        operator: "lt",
+        defaultThreshold: "20",
+        severity: "High",
+    },
+    {
+        id: "low_osa_bottom_product",
+        name: "Low OSA Alert (Bottom % Product Level)",
+        category: "Inventory & On-Shelf Availability",
+        metrics: ["Bottom %", "Product"],
+        formula: "Bottom N% products by OSA score",
+        condition: "Product falls in bottom threshold %",
+        operator: "lt",
+        defaultThreshold: "20",
+        severity: "High",
+    },
+    {
+        id: "keyword_delta_sos",
+        name: "Keyword Delta SOS Exceeds Threshold",
+        category: "Share of Search",
+        metrics: ["Delta", "Keyword"],
+        formula: "Delta SOS > N",
+        condition: "Keyword Delta SOS exceeds threshold",
+        operator: "gt",
+        defaultThreshold: "10",
+        severity: "Medium",
     },
     {
         id: "promo_discount_change",
@@ -116,7 +149,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const filterCtx = useContext(FilterContext) || {};
 
     // Multi-Select Preset Rules State
-    const [selectedPresetIds, setSelectedPresetIds] = useState(["low_osa"]);
+    const [selectedPresetIds, setSelectedPresetIds] = useState(["low_osa_percent"]);
     const [showPresetDropdown, setShowPresetDropdown] = useState(false);
 
     // Custom Alert Name & User Override Tracking
@@ -210,7 +243,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         } else if (open && !editingAlert) {
             setIsCustomAlertName(false);
             setAlertName("Low OSA Alert");
-            setSelectedPresetIds(["low_osa"]);
+            setSelectedPresetIds(["low_osa_percent"]);
             setSelectedPlatforms([]);
             setSelectedBrands([]);
             setScheduledDay("Monday");
