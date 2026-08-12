@@ -826,7 +826,8 @@ const VisiblityAnalysisData = ({
   }, []);
 
   // BSR visibility logic
-  const isEcommerceChannel = ['ecommerce', 'e-commerce', 'ecom'].includes(selectedChannel?.toLowerCase());
+  const chanStr = (Array.isArray(selectedChannel) ? selectedChannel.join(',') : String(selectedChannel || '')).toLowerCase();
+  const isEcommerceChannel = ['ecommerce', 'e-commerce', 'ecom'].some(c => chanStr.includes(c));
 
   const isAmazonSelected = useMemo(() => {
     if (!globalPlatform) return false;

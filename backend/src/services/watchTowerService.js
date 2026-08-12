@@ -2403,6 +2403,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     return data.hasPmData ? data.adSales : null;
                 };
 
+                const calculateSpend = (data) => {
+                    return data.hasPmData ? data.spend : null;
+                };
+
                 const calculateOrganicSales = (data) => {
                     const adSales = data.hasPmData ? data.adSales : 0;
                     return (data.salesComp0 || 0) - adSales;
@@ -2432,6 +2436,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // Calculate trend data for all KPIs from bulk results
                 const inorgTrendData = last7Months.map(m => calculateInorganicSales(getDataForRange(m.start, m.end)));
+                const spendTrendData = last7Months.map(m => calculateSpend(getDataForRange(m.start, m.end)));
                 const convTrendData = last7Months.map(m => calculateConversionLocal(getDataForRange(m.start, m.end)));
                 const roasTrendData = last7Months.map(m => calculateRoas(getDataForRange(m.start, m.end)));
                 const bmiTrendData = last7Months.map(m => calculateBmi(getDataForRange(m.start, m.end)));
@@ -2441,6 +2446,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const currentInorg = calculateInorganicSales(currentData);
                 const momInorg = calculateInorganicSales(momData);
                 const inorgChange = (momInorg !== null && currentInorg !== null) ? (momInorg > 0 ? ((currentInorg - momInorg) / momInorg) * 100 : (currentInorg > 0 ? 100 : 0)) : null;
+
+                const currentSpend = calculateSpend(currentData);
+                const momSpend = calculateSpend(momData);
+                const spendChange = (momSpend !== null && currentSpend !== null) ? (momSpend > 0 ? ((currentSpend - momSpend) / momSpend) * 100 : (currentSpend > 0 ? 100 : 0)) : null;
 
                 const currentConv = calculateConversionLocal(currentData);
                 const momConv = calculateConversionLocal(momData);
@@ -2647,13 +2656,28 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     trendData: inorgTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
                 });
 
+                // 2b. Spend
+                performanceMetricsKpis.push({
+                    id: "spend",
+                    label: "SPEND",
+                    value: currentSpend !== null ? formatCurrency(currentSpend) : "N/A",
+                    prevValue: momSpend !== null ? formatCurrency(momSpend) : "N/A",
+                    unit: "",
+                    tag: spendChange !== null ? `${spendChange >= 0 ? '+' : ''}${spendChange.toFixed(2)}%` : "N/A",
+                    tagTone: spendChange !== null ? (spendChange >= 0 ? "positive" : "warning") : "neutral",
+                    footer: "sum(Ad Spend)",
+                    trendTitle: "Spend Trend",
+                    trendSubtitle: "Last 7 periods",
+                    trendData: spendTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
+                });
+
                 // 3. Conversion
                 performanceMetricsKpis.push({
                     id: "conversion",
                     label: "CONVERSION",
-                    value: currentConv !== null ? currentConv.toFixed(2) : "N/A",
-                    prevValue: momConv !== null ? momConv.toFixed(2) : "N/A",
-                    unit: "",
+                    value: currentConv !== null ? `${currentConv.toFixed(2)}%` : "N/A",
+                    prevValue: momConv !== null ? `${momConv.toFixed(2)}%` : "N/A",
+                    unit: "%",
                     tag: convChange !== null ? `${convChange >= 0 ? '+' : ''}${convChange.toFixed(2)}%` : "N/A",
                     tagTone: convChange !== null ? (convChange >= 0 ? "positive" : "warning") : "neutral",
                     footer: "Orders / Clicks",

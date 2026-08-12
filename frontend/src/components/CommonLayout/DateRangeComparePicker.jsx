@@ -227,6 +227,7 @@ export default function DateRangeComparePicker({
         { label: "Last 14 Days", fn: () => setQuickRange(addDays(today, -13), today, "Last 14 Days") },
         { label: "Last 30 Days", fn: () => setQuickRange(addDays(today, -29), today, "Last 30 Days") },
         { label: "This Month", fn: () => setQuickRange(startOfMonth(today), endOfMonth(today), "This Month") },
+        { label: "Last Month", fn: () => setQuickRange(startOfMonth(addMonths(today, -1)), endOfMonth(addMonths(today, -1)), "Last Month") },
         { label: "Month to Date", fn: () => setQuickRange(startOfMonth(today), today, "Month to Date") },
         { label: "Quarter to Date", fn: () => setQuickRange(startOfQuarter(today), today, "Quarter to Date") },
         { label: "Year to Date", fn: () => setQuickRange(startOfYear(today), today, "Year to Date") },
@@ -253,6 +254,7 @@ export default function DateRangeComparePicker({
                     case "Last 14 Days": return [addDays(today, -13), today];
                     case "Last 30 Days": return [addDays(today, -29), today];
                     case "This Month": return [startOfMonth(today), endOfMonth(today)];
+                    case "Last Month": return [startOfMonth(addMonths(today, -1)), endOfMonth(addMonths(today, -1))];
                     case "Month to Date": return [startOfMonth(today), today];
                     case "Quarter to Date": return [startOfQuarter(today), today];
                     case "Year to Date": return [startOfYear(today), today];

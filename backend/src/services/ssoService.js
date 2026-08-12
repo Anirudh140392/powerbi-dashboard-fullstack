@@ -8,7 +8,7 @@ import { toFlatPermissions } from './adminService.js';
 import { updateDeviceTokenMap } from './deviceService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'trailytics_jwt_secret_2026';
-const JWT_EXPIRY = '7d';
+// Tokens are permanent (no expiration)
 
 const googleClient = new OAuth2Client();
 
@@ -312,7 +312,6 @@ export async function authenticateSsoUser(ssoPayload, deviceInfo = {}) {
             dbLogoUrl: userPayload.dbLogoUrl,
         },
         JWT_SECRET,
-        { expiresIn: JWT_EXPIRY }
     );
 
     return {

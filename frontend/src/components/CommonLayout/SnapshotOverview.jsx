@@ -950,7 +950,7 @@ const SnapshotOverview = ({
         const normalize = (str) => str?.toLowerCase().replace(/\s+/g, '_');
 
         // IDs to move to bottom (Actionable Intelligence)
-        const bottomIds = ['inorganic_sales', 'conversion', 'roas'];
+        const bottomIds = ['inorganic_sales', 'spend', 'conversion', 'roas'];
 
         // Identify specific KPIs from performanceData first (for values) or kpis (for structure)
         const ordersItem = kpis.find(k => normalize(k.title) === 'orders' || k.id === 'orders') ||
@@ -1058,15 +1058,28 @@ const SnapshotOverview = ({
         roasItem.infoTooltip = roasItem.infoTooltip || "The revenue generated for every unit of advertising spend.";
         const roasPerf = performanceData.find(p => p.id === 'roas_new') || {};
 
+        // 4. Spend
+        let spendItem = kpis.find(k => normalize(k.title) === 'spend');
+        if (!spendItem) spendItem = { title: 'Spend', id: 'spend' };
+        spendItem.infoTooltip = spendItem.infoTooltip || "Total advertising expenditure incurred across platforms.\n\nData Refresh: Sales and spend data is typically updated daily and available by 2:00 PM.";
+        const spendPerf = performanceData.find(p => p.id === 'spend') || {};
+
         // Helper to check for zero/empty
         const isZero = (v) => !v || v === '0' || v === '0.0' || v === 0;
 
         const buildBottomItem = (baseItem, perfItem, defaultId, defaultTitle, icon, gradient, idx) => {
             // Always use API data — no hardcoded fallback values
-            const val = baseItem?.value ?? perfItem?.value ?? '0';
+            let val = baseItem?.value ?? perfItem?.value ?? '0';
             const rawDelta = baseItem?.delta ?? (perfItem?.tag != null ? parseFloat(perfItem.tag) : 0);
             const delta = isNaN(rawDelta) ? 0 : rawDelta;
             const footer = baseItem?.subtitle || baseItem?.footer || perfItem?.footer || "Performance Metric";
+
+            if ((defaultId === 'conversion' || baseItem?.id === 'conversion' || defaultTitle === 'Conversion') && val && val !== '0' && val !== 'N/A') {
+                const strVal = String(val).trim();
+                if (!strVal.endsWith('%')) {
+                    val = `${strVal}%`;
+                }
+            }
 
             return {
                 id: baseItem?.id || defaultId,
@@ -1090,14 +1103,19 @@ const SnapshotOverview = ({
             inorganicItem, inorganicPerf, 'inorganic', 'Inorganic Sales', TrendingUp, ['#22c55e', '#4ade80'], 0
         ));
 
+        // Spend
+        bottomItems.push(buildBottomItem(
+            spendItem, spendPerf, 'spend', 'Spend', Wallet, ['#8b5cf6', '#a78bfa'], 1
+        ));
+
         // Conversion
         bottomItems.push(buildBottomItem(
-            conversionItem, conversionPerf, 'conversion', 'Conversion', Target, ['#06b6d4', '#22d3ee'], 1
+            conversionItem, conversionPerf, 'conversion', 'Conversion', Target, ['#06b6d4', '#22d3ee'], 2
         ));
 
         // ROAS
         bottomItems.push(buildBottomItem(
-            roasItem, roasPerf, 'roas', 'ROAS', DollarSign, ['#eab308', '#facc15'], 2
+            roasItem, roasPerf, 'roas', 'ROAS', DollarSign, ['#eab308', '#facc15'], 3
         ));
 
         // 4. Orders (Always last in this specific list)
@@ -1217,9 +1235,9 @@ const SnapshotOverview = ({
                                     </Box>
                                     <h3 className="text-[0.85rem] font-bold text-slate-800 tracking-tight">Performance Intelligence</h3>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                                     {performanceLoading ? (
-                                        [1, 2, 3, 4].map((i) => <ActionableMetricCard key={i} loading={true} />)
+                                        [1, 2, 3, 4, 5].map((i) => <ActionableMetricCard key={i} loading={true} />)
                                     ) : (
                                         bottomKpis.map((kpi, idx) => (
                                             <motion.div
