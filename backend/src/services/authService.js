@@ -6,7 +6,7 @@ import { toFlatPermissions } from './adminService.js';
 import { generateDeviceToken, getDeviceTokenForClient } from './deviceService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'trailytics_jwt_secret_2026';
-const JWT_EXPIRY = '7d';
+// Tokens are permanent (no expiration)
 
 /**
  * Authenticate user by email and password, with Trusted Device verification.
@@ -342,7 +342,7 @@ export async function loginUser(email, password, deviceInfo = {}) {
         companyId,
     };
 
-    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+    const token = jwt.sign(tokenPayload, JWT_SECRET);
 
     return {
         token,
