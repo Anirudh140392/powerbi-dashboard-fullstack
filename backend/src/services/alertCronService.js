@@ -104,12 +104,18 @@ const buildPdpFilterClause = (platforms, brands) => {
 /**
  * Build SQL filter clause for rb_kw_olap
  */
-const buildKwFilterClause = (platforms) => {
+const buildKwFilterClause = (platforms, brands) => {
     const conds = [];
     if (Array.isArray(platforms) && platforms.length > 0) {
         const filteredPlats = platforms.filter(p => p && p !== 'All Platforms');
         if (filteredPlats.length > 0) {
             conds.push(`lower(platform_name) IN (${filteredPlats.map(p => `'${p.trim().toLowerCase()}'`).join(',')})`);
+        }
+    }
+    if (Array.isArray(brands) && brands.length > 0) {
+        const filteredBrands = brands.filter(b => b && b !== 'All Brands');
+        if (filteredBrands.length > 0) {
+            conds.push(`lower(brand) IN (${filteredBrands.map(b => `'${b.trim().toLowerCase()}'`).join(',')})`);
         }
     }
     return conds.length > 0 ? ' AND ' + conds.join(' AND ') : '';
@@ -486,7 +492,7 @@ export const runEmailAlertsJob = async () => {
             // ── REGULAR ALERT HANDLING (condition-based) ─────────────────────
             const pdpFilterClause = buildPdpFilterClause(alert.platforms, alert.brands);
             const pmFilterClause = buildPmFilterClause(alert.platforms, alert.brands);
-            const kwFilterClause = buildKwFilterClause(alert.platforms);
+            const kwFilterClause = buildKwFilterClause(alert.platforms, alert.brands);
             const threshold = parseFloat(alert.threshold_value) || 85;
 
             let isTriggered = false;
@@ -530,7 +536,7 @@ export const runEmailAlertsJob = async () => {
                             latest_date AS (
                                 SELECT MAX(DATE) AS max_date
                                 FROM \`${dbName}\`.rb_pdp_olap
-                                WHERE DATE IS NOT NULL ${pdpFilterClause}
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                             ),
                             week_boundaries AS (
                                 SELECT
@@ -546,7 +552,7 @@ export const runEmailAlertsJob = async () => {
                                     sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno,
                                     sum(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS sales
                                 FROM \`${dbName}\`.rb_pdp_olap
-                                WHERE DATE IS NOT NULL ${pdpFilterClause}
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                                 GROUP BY Platform, City, week_start
                             ),
                             weekly_osa AS (
@@ -601,7 +607,7 @@ export const runEmailAlertsJob = async () => {
                             latest_date AS (
                                 SELECT MAX(DATE) AS max_date
                                 FROM \`${dbName}\`.rb_pdp_olap
-                                WHERE DATE IS NOT NULL ${pdpFilterClause}
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                             ),
                             week_boundaries AS (
                                 SELECT max_date, subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS current_week_start
@@ -613,7 +619,7 @@ export const runEmailAlertsJob = async () => {
                                     sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
                                     sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
                                 FROM \`${dbName}\`.rb_pdp_olap
-                                WHERE DATE IS NOT NULL ${pdpFilterClause}
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                                 GROUP BY week_start
                             ),
                             weekly_osa AS (
@@ -672,7 +678,7 @@ export const runEmailAlertsJob = async () => {
                             latest_date AS (
                                 SELECT MAX(DATE) AS max_date
                                 FROM \`${dbName}\`.rb_pdp_olap
-                                WHERE DATE IS NOT NULL ${pdpFilterClause}
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                             ),
                             week_boundaries AS (
                                 SELECT
@@ -687,7 +693,7 @@ export const runEmailAlertsJob = async () => {
                                     sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
                                     sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
                                 FROM \`${dbName}\`.rb_pdp_olap
-                                WHERE DATE IS NOT NULL ${pdpFilterClause}
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                                 GROUP BY Platform, Web_Pid, week_start
                             ),
                             weekly_osa AS (
@@ -734,7 +740,7 @@ export const runEmailAlertsJob = async () => {
                             latest_date AS (
                                 SELECT MAX(DATE) AS max_date
                                 FROM \`${dbName}\`.rb_pdp_olap
-                                WHERE DATE IS NOT NULL ${pdpFilterClause}
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                             ),
                             week_boundaries AS (
                                 SELECT max_date, subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS current_week_start
@@ -746,7 +752,7 @@ export const runEmailAlertsJob = async () => {
                                     sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
                                     sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
                                 FROM \`${dbName}\`.rb_pdp_olap
-                                WHERE DATE IS NOT NULL ${pdpFilterClause}
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                                 GROUP BY week_start
                             ),
                             weekly_osa AS (
@@ -807,7 +813,7 @@ export const runEmailAlertsJob = async () => {
                     isDynamicAlert = true;
                     const kwQuery = `
                         WITH
-                            ${threshold} AS delta_threshold,
+                            -${threshold} AS delta_threshold,
                             latest_date AS (
                                 SELECT MAX(DATE) AS max_date
                                 FROM \`${dbName}\`.rb_kw_olap
@@ -819,38 +825,37 @@ export const runEmailAlertsJob = async () => {
                             ),
                             current_week AS (
                                 SELECT
-                                    lower(platform_name) AS Platform,
-                                    keyword AS KEYWORD,
-                                    keyword_type AS BCG,
-                                    ROUND(sumIf(ifNull(overall, 0), flag = 1) * 100.0 / nullIf(sum(ifNull(overall, 0)), 0), 2) AS SOS
+                                    lower(platform_name) AS platform,
+                                    lower(keyword) AS keyword,
+                                    lower(keyword_type) AS bcg,
+                                    ROUND(sumIf(overall, flag = 1) * 100.0 / nullIf(sumIf(overall, 1 = 1), 0), 2) AS sos
                                 FROM \`${dbName}\`.rb_kw_olap
                                 CROSS JOIN week_boundaries b
                                 WHERE DATE >= b.current_week_start AND DATE < b.current_week_start + INTERVAL 7 DAY ${kwFilterClause}
-                                GROUP BY lower(platform_name), KEYWORD, BCG
+                                GROUP BY platform, keyword, bcg
                             ),
                             l4w AS (
                                 SELECT
-                                    lower(platform_name) AS Platform,
-                                    keyword AS KEYWORD,
-                                    keyword_type AS BCG,
-                                    ROUND(sumIf(ifNull(overall, 0), flag = 1) * 100.0 / nullIf(sum(ifNull(overall, 0)), 0), 2) AS l4w_sos
+                                    lower(platform_name) AS platform,
+                                    lower(keyword) AS keyword,
+                                    lower(keyword_type) AS bcg,
+                                    ROUND(sumIf(overall, flag = 1) * 100.0 / nullIf(sumIf(overall, 1 = 1), 0), 2) AS l4w_sos
                                 FROM \`${dbName}\`.rb_kw_olap
                                 CROSS JOIN week_boundaries b
                                 WHERE DATE >= b.current_week_start - INTERVAL 28 DAY AND DATE < b.current_week_start ${kwFilterClause}
-                                GROUP BY lower(platform_name), KEYWORD, BCG
+                                GROUP BY platform, keyword, bcg
                             ),
                             keyword_metrics AS (
                                 SELECT
-                                    c.Platform, c.KEYWORD, c.BCG, c.SOS, l.l4w_sos AS \`L4W SOS\`, ROUND(l.l4w_sos - c.SOS, 2) AS DELTA
+                                    c.platform, c.keyword, c.bcg, c.sos, l.l4w_sos AS \`l4w sos\`, ROUND(l.l4w_sos - c.sos, 2) AS delta
                                 FROM current_week c
-                                INNER JOIN l4w l ON c.Platform = l.Platform AND c.KEYWORD = l.KEYWORD AND c.BCG = l.BCG
+                                INNER JOIN l4w l ON c.platform = l.platform AND c.keyword = l.keyword AND c.bcg = l.bcg
                             )
-                        SELECT
-                            Platform, KEYWORD, SOS, \`L4W SOS\`, DELTA, BCG
+                        SELECT platform, keyword, sos, \`l4w sos\`, delta, bcg
                         FROM keyword_metrics
-                        WHERE DELTA > delta_threshold
-                        ORDER BY Platform, BCG, DELTA DESC
-                        LIMIT 5 BY Platform, BCG
+                        WHERE delta < delta_threshold
+                        ORDER BY platform, bcg, delta ASC
+                        LIMIT 10 BY platform, bcg
                     `;
                     
                     const aggKwQuery = `
@@ -866,15 +871,15 @@ export const runEmailAlertsJob = async () => {
                             ),
                             keyword_sos AS (
                                 SELECT
-                                    keyword,
-                                    keyword_type,
-                                    sumIf(ifNull(overall, 0), flag = 1) * 100.0 / nullIf(sum(ifNull(overall, 0)), 0) AS SOS
+                                    lower(keyword) AS keyword,
+                                    lower(keyword_type) AS keyword_type,
+                                    ROUND(sumIf(overall, flag = 1) * 100.0 / nullIf(sumIf(overall, 1 = 1), 0), 2) AS sos
                                 FROM \`${dbName}\`.rb_kw_olap
                                 CROSS JOIN week_boundaries b
                                 WHERE DATE >= b.current_week_start AND DATE < b.current_week_start + INTERVAL 7 DAY ${kwFilterClause}
                                 GROUP BY keyword, keyword_type
                             )
-                        SELECT ROUND(avg(SOS), 2) AS agg_sos FROM keyword_sos;
+                        SELECT ROUND(avg(sos), 2) AS agg_sos FROM keyword_sos;
                     `;
 
                     const [kwStats, aggKwStats] = await Promise.all([
@@ -891,15 +896,15 @@ export const runEmailAlertsJob = async () => {
                     metricDetails = {
                         ruleType: 'Keyword Delta SOS',
                         calculatedOSA: isTriggered ? overallCwSos.toFixed(2) + '%' : '0%',
-                        aggDelta: isTriggered ? parseFloat(kwStats[0].DELTA).toFixed(2) : 0,
+                        aggDelta: isTriggered ? parseFloat(kwStats[0].delta).toFixed(2) : 0,
                         conditionText: `${platPrefix}Keyword SOS Delta > ${threshold} (Segmented by BCG)`,
                     };
 
                     if (isTriggered) {
                         const platformsMap = new Map();
                         kwStats.forEach(k => {
-                            let platLabelLocal = k.Platform || 'Unknown';
-                            let bcgLabel = k.BCG || 'Uncategorized';
+                            let platLabelLocal = k.platform || 'Unknown';
+                            let bcgLabel = k.bcg || 'Uncategorized';
                             
                             if (!platformsMap.has(platLabelLocal)) {
                                 platformsMap.set(platLabelLocal, new Map());
@@ -910,10 +915,10 @@ export const runEmailAlertsJob = async () => {
                             }
                             
                             bcgMap.get(bcgLabel).push([
-                                k.KEYWORD || 'Unknown',
-                                parseFloat(k.SOS).toFixed(2) + '%',
-                                parseFloat(k['L4W SOS']).toFixed(2) + '%',
-                                parseFloat(k.DELTA).toFixed(2) + '%'
+                                k.keyword || 'Unknown',
+                                parseFloat(k.sos).toFixed(2) + '%',
+                                parseFloat(k['l4w sos']).toFixed(2) + '%',
+                                parseFloat(k.delta).toFixed(2) + '%'
                             ]);
                         });
 
