@@ -2702,6 +2702,13 @@ export default function TrendsCompetitionDrawer({
             label="Date"
             value={range}
           />
+          {isDrl && showResellerFilter && (
+            <SelectedFilterChip
+              label="Reseller"
+              value={drawerFilters.ResellerName}
+              color={drawerFilters.ResellerName !== 'All' ? "#0ea5e9" : "#64748B"}
+            />
+          )}
           {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
             <SelectedFilterChip
               label="MSL"
