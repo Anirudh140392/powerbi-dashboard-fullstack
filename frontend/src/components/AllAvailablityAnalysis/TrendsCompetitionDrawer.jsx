@@ -2369,12 +2369,6 @@ export default function TrendsCompetitionDrawer({
   const formatTooltipValue = (val, seriesName) => {
     if (val === undefined || val === null) return 'N/A';
 
-    const isPromoOrDiscount = seriesName?.toLowerCase().includes('promo') || seriesName?.toLowerCase().includes('discount');
-    const isPercentageOrRate = seriesName?.includes('%') || seriesName?.toLowerCase().includes('rate') || seriesName?.toLowerCase().includes('share') || seriesName?.toLowerCase().includes('osa') || seriesName?.toLowerCase().includes('availability');
-    const allowZero = isPromoOrDiscount || isPercentageOrRate;
-
-    if ((val === 0 || val === "0") && !allowZero) return 'N/A';
-
     let formatted = val;
     if (typeof val === 'number') {
       const absVal = Math.abs(val);
@@ -2385,14 +2379,17 @@ export default function TrendsCompetitionDrawer({
       } else if (absVal >= 1000) {
         formatted = `${(val / 1000).toFixed(2).replace(/\.00$/, '')} K`;
       } else {
-        formatted = val.toFixed(2).replace(/\.00$/, '');
+        formatted = val === 0 ? '0' : val.toFixed(2).replace(/\.00$/, '');
       }
+    } else if (val === 0 || val === '0') {
+      formatted = '0';
     }
     
-    if (seriesName?.includes('%') || seriesName?.toLowerCase().includes('rate') || seriesName?.toLowerCase().includes('promo') || seriesName?.toLowerCase().includes('discount') || seriesName?.toLowerCase().includes('share') || seriesName?.toLowerCase().includes('osa') || seriesName?.toLowerCase().includes('availability')) {
+    const sName = (seriesName || '').toLowerCase();
+    if (sName.includes('%') || sName.includes('rate') || sName.includes('promo') || sName.includes('discount') || sName.includes('share') || sName.includes('osa') || sName.includes('availability') || sName.includes('sos') || sName.includes('conversion')) {
       return `${formatted}%`;
     }
-    if (seriesName?.includes('₹') || seriesName?.includes('AED') || seriesName?.toLowerCase().includes('price') || seriesName?.toLowerCase().includes('sales')) {
+    if (sName.includes('₹') || sName.includes('aed') || sName.includes('price') || sName.includes('sales') || sName.includes('offtake') || sName.includes('spend') || sName.includes('cpc') || sName.includes('cpm')) {
       return `${currencySymbol} ${formatted}`;
     }
     return formatted;
@@ -2427,7 +2424,7 @@ export default function TrendsCompetitionDrawer({
     if (!arr || !arr.length) return [];
     const result = [...arr];
     let i = result.length - 1;
-    while (i >= 0 && (result[i] === 0 || result[i] === null || result[i] === undefined || result[i] === '0')) {
+    while (i >= 0 && (result[i] === null || result[i] === undefined)) {
       result[i] = null;
       i--;
     }
@@ -2702,6 +2699,13 @@ export default function TrendsCompetitionDrawer({
             label="Date"
             value={range}
           />
+          {isDrl && showResellerFilter && (
+            <SelectedFilterChip
+              label="Reseller"
+              value={drawerFilters.ResellerName}
+              color={drawerFilters.ResellerName !== 'All' ? "#0ea5e9" : "#64748B"}
+            />
+          )}
           {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
             <SelectedFilterChip
               label="MSL"

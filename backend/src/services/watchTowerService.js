@@ -7664,7 +7664,7 @@ const getBrandsOverview = async (filters) => {
 const getKpiTrends = async (filters) => {
     console.log('[getKpiTrends] Computing KPI trends data with filters:', filters);
 
-    const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, skuName, skuCode, dimension, dimensionValue } = filters;
+    const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, skuName, skuCode, dimension, dimensionValue, resellerName } = filters;
     const channel = extractChannel(filters);
 
     // 1. Determine Date Range
@@ -7847,6 +7847,15 @@ const getKpiTrends = async (filters) => {
 
     const pmKpiConds = buildPmConds();
 
+    // Reseller_Name condition for DRL: only filter Offtake (total_sales), leave other KPIs unfiltered
+    const dbNameForTrends = getCurrentDbName();
+    const resellerArrTrends = ((dbNameForTrends === 'drl' || dbNameForTrends === 'prestige') && resellerName && resellerName !== 'All' && resellerName !== 'all')
+        ? normalizeFilterArray(resellerName)
+        : null;
+    const resellerCondSql = (resellerArrTrends && resellerArrTrends.length > 0)
+        ? `Reseller_Name IN (${resellerArrTrends.map(r => `'${escapeStr(r)}'`).join(', ')})`
+        : null;
+
     const channelColSql = src.f.channel ? `lower(${src.f.channel})` : `(CASE WHEN lower(${src.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${src.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
     const pmChannelColSql = pmSrc.f.channel ? `lower(${pmSrc.f.channel})` : `(CASE WHEN lower(${pmSrc.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${pmSrc.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
 
@@ -7856,7 +7865,7 @@ const getKpiTrends = async (filters) => {
             SELECT 
                 ${groupExpression.replace('DATE', src.f.date)} as date_group,
                 MAX(toDate(${src.f.date})) as ref_date,
-                SUM(${src.f.sales}) as total_sales,
+                ${resellerCondSql ? `SUM(CASE WHEN ${resellerCondSql} THEN ${src.f.sales} ELSE 0 END)` : `SUM(${src.f.sales})`} as total_sales,
                 SUM(${src.f.adSales}) as total_Ad_sales,
                 SUM(${src.f.spend}) as total_ad_spend,
                 SUM(${src.f.orders}) as total_ad_orders,
