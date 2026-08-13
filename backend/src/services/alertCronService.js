@@ -17,18 +17,20 @@ let cronIntervalId = null;
  * Initialize nodemailer transport with Outlook credentials from .env
  */
 const getTransporter = () => {
-    const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
-    const password = process.env.Alert_email_password || process.env.ALERT_EMAIL_PASSWORD || 'Marketing@!22';
+    const fromEmail = process.env.SMTP_USER || process.env.ALERT_EMAIL || process.env.Alert_email;
+    const password = process.env.SMTP_PASS || process.env.ALERT_EMAIL_PASSWORD || process.env.Alert_email_password;
+    const host = process.env.SMTP_HOST || 'smtp.office365.com';
+    const port = parseInt(process.env.SMTP_PORT || '587', 10);
 
     if (!fromEmail || !password) {
-        console.warn('[AlertCron] Outlook email credentials are not set in .env');
+        console.warn('[AlertCron] SMTP credentials are not set in .env');
         return null;
     }
 
     return nodemailer.createTransport({
-        host: 'smtp-mail.outlook.com',
-        port: 587,
-        secure: false, // TLS upgrades
+        host: host,
+        port: port,
+        secure: port === 465,
         auth: {
             user: fromEmail,
             pass: password,

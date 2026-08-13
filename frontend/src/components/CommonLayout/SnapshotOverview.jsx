@@ -1098,28 +1098,17 @@ const SnapshotOverview = ({
 
         const bottomItems = [];
 
-        // Inorganic Sales
+        // 1. Spend
         bottomItems.push(buildBottomItem(
-            inorganicItem, inorganicPerf, 'inorganic', 'Inorganic Sales', TrendingUp, ['#22c55e', '#4ade80'], 0
+            spendItem, spendPerf, 'spend', 'Spend', Wallet, ['#8b5cf6', '#a78bfa'], 0
         ));
 
-        // Spend
+        // 2. Inorganic Sales
         bottomItems.push(buildBottomItem(
-            spendItem, spendPerf, 'spend', 'Spend', Wallet, ['#8b5cf6', '#a78bfa'], 1
+            inorganicItem, inorganicPerf, 'inorganic', 'Inorganic Sales', TrendingUp, ['#22c55e', '#4ade80'], 1
         ));
 
-        // Conversion
-        bottomItems.push(buildBottomItem(
-            conversionItem, conversionPerf, 'conversion', 'Conversion', Target, ['#06b6d4', '#22d3ee'], 2
-        ));
-
-        // ROAS
-        bottomItems.push(buildBottomItem(
-            roasItem, roasPerf, 'roas', 'ROAS', DollarSign, ['#eab308', '#facc15'], 3
-        ));
-
-        // 4. Orders (Always last in this specific list)
-        // Check performanceData for orders KPI as well
+        // 3. Orders
         const ordersPerf = performanceData.find(p => p.id === 'orders') || {};
         const ordersVal = (ordersItem && ordersItem.value != null) ? (ordersItem.value || ordersItem.label)
             : (ordersPerf.value != null ? ordersPerf.value : '0');
@@ -1139,8 +1128,17 @@ const SnapshotOverview = ({
             infoTooltip: ordersItem?.infoTooltip || "The total number of completed purchase transactions within a given period.\n\nData Refresh: Sales data is typically updated daily and available by 2:00 PM.",
             trendSeries: makeSeries(45, 30, 0.14, seed)
         };
-
         bottomItems.push(finalOrders);
+
+        // 4. Conversion
+        bottomItems.push(buildBottomItem(
+            conversionItem, conversionPerf, 'conversion', 'Conversion', Target, ['#06b6d4', '#22d3ee'], 3
+        ));
+
+        // 5. ROAS
+        bottomItems.push(buildBottomItem(
+            roasItem, roasPerf, 'roas', 'ROAS', DollarSign, ['#eab308', '#facc15'], 4
+        ));
 
         return { topKpis: topRowItems, bottomKpis: bottomItems };
     }, [kpis, performanceData, variant, seed]);
