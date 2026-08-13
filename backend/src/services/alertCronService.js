@@ -5,6 +5,7 @@ import { queryAdminDB } from '../config/adminClickhouse.js';
 import { decrypt } from '../utils/encryption.js';
 import { generateAlertEmailHtml } from '../utils/alertEmailTemplate.js';
 import { generatePerfSummaryEmailHtml } from '../utils/perfSummaryEmailTemplate.js';
+import { generateDynamicAlertEmailHtml } from '../utils/dynamicAlertEmailTemplate.js';
 import { fetchAllPlatformKPIs } from './perfSummaryDataService.js';
 import { buildAlertTemplateComponents, buildAlertFullText } from '../utils/whatsappTemplate.js';
 import { sendWhatsappMessage } from './whatsappService.js';
@@ -97,6 +98,26 @@ const buildPdpFilterClause = (platforms, brands) => {
         const filteredBrands = brands.filter(b => b && b !== 'All Brands');
         if (filteredBrands.length > 0) {
             conds.push(`lower(Brand) IN (${filteredBrands.map(b => `'${b.trim().toLowerCase()}'`).join(',')})`);
+        }
+    }
+    return conds.length > 0 ? ' AND ' + conds.join(' AND ') : '';
+};
+
+/**
+ * Build SQL filter clause for rb_kw_olap
+ */
+const buildKwFilterClause = (platforms, brands) => {
+    const conds = [];
+    if (Array.isArray(platforms) && platforms.length > 0) {
+        const filteredPlats = platforms.filter(p => p && p !== 'All Platforms');
+        if (filteredPlats.length > 0) {
+            conds.push(`lower(platform_name) IN (${filteredPlats.map(p => `'${p.trim().toLowerCase()}'`).join(',')})`);
+        }
+    }
+    if (Array.isArray(brands) && brands.length > 0) {
+        const filteredBrands = brands.filter(b => b && b !== 'All Brands');
+        if (filteredBrands.length > 0) {
+            conds.push(`lower(brand) IN (${filteredBrands.map(b => `'${b.trim().toLowerCase()}'`).join(',')})`);
         }
     }
     return conds.length > 0 ? ' AND ' + conds.join(' AND ') : '';
@@ -473,14 +494,17 @@ export const runEmailAlertsJob = async () => {
             // ── REGULAR ALERT HANDLING (condition-based) ─────────────────────
             const pdpFilterClause = buildPdpFilterClause(alert.platforms, alert.brands);
             const pmFilterClause = buildPmFilterClause(alert.platforms, alert.brands);
+            const kwFilterClause = buildKwFilterClause(alert.platforms, alert.brands);
             const threshold = parseFloat(alert.threshold_value) || 85;
 
             let isTriggered = false;
             let metricDetails = {};
+            let isDynamicAlert = false;
+            let dynamicEmailData = null;
 
             try {
-                // Rule 1: Low OSA Alert (low_osa)
-                if (alertType === 'low_osa') {
+                // Rule 1: Low OSA Alert (low_osa, low_osa_percent)
+                if (alertType === 'low_osa' || alertType === 'low_osa_percent') {
                     const pdpQuery = `
                         SELECT 
                             sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno,
@@ -504,6 +528,536 @@ export const runEmailAlertsJob = async () => {
                         calculatedOSA: `${osa.toFixed(2)}%`,
                         conditionText: `${platPrefix}OSA (${osa.toFixed(2)}%) ${opSym} ${threshold}%`,
                     };
+                }
+                // Rule 1b: Low OSA Alert (Bottom % City Level)
+                else if (alertType === 'low_osa_bottom_city') {
+                    isDynamicAlert = true;
+                    const pct = (threshold / 100).toFixed(2);
+                    const pdpQuery = `
+                        WITH
+                            latest_date AS (
+                                SELECT MAX(DATE) AS max_date
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                            ),
+                            week_boundaries AS (
+                                SELECT
+                                    max_date,
+                                    subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS current_week_start
+                                FROM latest_date
+                            ),
+                            weekly_city_stats AS (
+                                SELECT
+                                    Platform, Location AS City,
+                                    subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
+                                    sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
+                                    sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno,
+                                    sum(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS sales
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                                GROUP BY Platform, City, week_start
+                            ),
+                            weekly_osa AS (
+                                SELECT
+                                    Platform, City, week_start, sales,
+                                    if(deno > 0, neno / deno * 100, 100) AS osa
+                                FROM weekly_city_stats
+                            ),
+                            current_week AS (
+                                SELECT w.Platform, w.City, w.osa
+                                FROM weekly_osa w
+                                CROSS JOIN week_boundaries b
+                                WHERE w.week_start = b.current_week_start
+                            ),
+                            l4w_city AS (
+                                SELECT w.Platform, w.City, avg(w.osa) AS l4w_avg, sum(w.sales) AS l4w_sales
+                                FROM weekly_osa w
+                                CROSS JOIN week_boundaries b
+                                WHERE w.week_start >= b.current_week_start - INTERVAL 28 DAY
+                                  AND w.week_start < b.current_week_start
+                                GROUP BY w.Platform, w.City
+                            ),
+                            city_metrics AS (
+                                SELECT
+                                    c.Platform, c.City, c.osa, l.l4w_avg, l.l4w_sales, c.osa - l.l4w_avg AS delta
+                                FROM current_week c
+                                LEFT JOIN l4w_city l ON c.Platform = l.Platform AND c.City = l.City
+                            ),
+                            city_sales_weightage AS (
+                                SELECT
+                                    *,
+                                    if(sum(l4w_sales) OVER (PARTITION BY Platform) > 0,
+                                       l4w_sales / sum(l4w_sales) OVER (PARTITION BY Platform) * 100,
+                                       0) AS city_sales_weightage
+                                FROM city_metrics
+                            ),
+                            bottom_threshold AS (
+                                SELECT Platform, quantile(${pct})(osa) AS threshold
+                                FROM city_sales_weightage
+                                GROUP BY Platform
+                            )
+                        SELECT
+                            m.Platform, m.City, m.osa, m.l4w_avg, m.delta, m.city_sales_weightage
+                        FROM city_sales_weightage m
+                        INNER JOIN bottom_threshold t ON m.Platform = t.Platform
+                        WHERE m.osa <= t.threshold AND m.osa > 0
+                        ORDER BY m.Platform, m.osa ASC
+                        LIMIT 10 BY m.Platform
+                    `;
+                    const aggQuery = `
+                        WITH
+                            latest_date AS (
+                                SELECT MAX(DATE) AS max_date
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                            ),
+                            week_boundaries AS (
+                                SELECT max_date, subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS current_week_start
+                                FROM latest_date
+                            ),
+                            weekly_stats AS (
+                                SELECT
+                                    subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
+                                    sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
+                                    sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                                GROUP BY week_start
+                            ),
+                            weekly_osa AS (
+                                SELECT week_start, if(deno > 0, neno / deno * 100, 100) AS osa
+                                FROM weekly_stats
+                            )
+                        SELECT
+                            (SELECT osa FROM weekly_osa CROSS JOIN week_boundaries WHERE week_start = current_week_start) AS cw_osa,
+                            (SELECT avg(osa) FROM weekly_osa CROSS JOIN week_boundaries WHERE week_start >= current_week_start - INTERVAL 28 DAY AND week_start < current_week_start) AS l4w_osa
+                    `;
+                    const [pdpStats, aggStats] = await Promise.all([
+                        queryAdminDB(pdpQuery),
+                        queryAdminDB(aggQuery)
+                    ]);
+                    const bottomCities = pdpStats;
+                    isTriggered = bottomCities.length > 0;
+                    
+                    const cwOsa = parseFloat(aggStats[0]?.cw_osa) || 0;
+                    const l4wOsa = parseFloat(aggStats[0]?.l4w_osa) || 0;
+                    const aggDelta = cwOsa - l4wOsa;
+                    
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+
+                    metricDetails = {
+                        ruleType: 'Low OSA Alert (Bottom % City Level)',
+                        calculatedOSA: cwOsa.toFixed(2) + '%',
+                        aggDelta: aggDelta.toFixed(2),
+                        conditionText: `${platPrefix}Bottom ${threshold}% cities by OSA (Platform-wise)`,
+                    };
+
+                    if (isTriggered) {
+                        const platforms = [...new Set(bottomCities.map(c => c.Platform))];
+                        dynamicEmailData = platforms.map(plat => {
+                            const platCities = bottomCities.filter(c => c.Platform === plat).slice(0, 10);
+                            return {
+                                platformName: plat,
+                                headers: ['City Name', 'CW OSA %', 'L4W Avg %', 'Delta', 'Sales Weightage'],
+                                rows: platCities.map(c => [
+                                    c.City || 'Unknown', 
+                                    parseFloat(c.osa).toFixed(2) + '%', 
+                                    parseFloat(c.l4w_avg || 0).toFixed(2) + '%', 
+                                    parseFloat(c.delta || 0).toFixed(2) + '%', 
+                                    parseFloat(c.city_sales_weightage || 0).toFixed(2) + '%'
+                                ])
+                            };
+                        });
+                    }
+                }
+                // Rule 1c: Low OSA Alert (Bottom % Product Level)
+                else if (alertType === 'low_osa_bottom_product') {
+                    isDynamicAlert = true;
+                    const pct = (threshold / 100).toFixed(2);
+                    const pdpQuery = `
+                        WITH
+                            latest_date AS (
+                                SELECT MAX(DATE) AS max_date
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                            ),
+                            week_boundaries AS (
+                                SELECT
+                                    max_date,
+                                    subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS current_week_start
+                                FROM latest_date
+                            ),
+                            weekly_product_stats AS (
+                                SELECT
+                                    Platform, Web_Pid, any(Product) AS Product, any(msl) AS msl,
+                                    subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
+                                    sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
+                                    sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                                GROUP BY Platform, Web_Pid, week_start
+                            ),
+                            weekly_osa AS (
+                                SELECT
+                                    Platform, Web_Pid, Product, msl, week_start,
+                                    if(deno > 0, neno / deno * 100, 100) AS osa
+                                FROM weekly_product_stats
+                            ),
+                            current_week AS (
+                                SELECT w.Platform, w.Web_Pid, w.Product, w.msl, w.osa
+                                FROM weekly_osa w
+                                CROSS JOIN week_boundaries b
+                                WHERE w.week_start = b.current_week_start
+                            ),
+                            l4w AS (
+                                SELECT w.Platform, w.Web_Pid, avg(w.osa) AS l4w_avg
+                                FROM weekly_osa w
+                                CROSS JOIN week_boundaries b
+                                WHERE w.week_start >= b.current_week_start - INTERVAL 28 DAY
+                                  AND w.week_start < b.current_week_start
+                                GROUP BY w.Platform, w.Web_Pid
+                            ),
+                            product_metrics AS (
+                                SELECT
+                                    c.Platform, c.Web_Pid, c.Product, c.msl, c.osa, l.l4w_avg, c.osa - l.l4w_avg AS delta
+                                FROM current_week c
+                                LEFT JOIN l4w l ON c.Platform = l.Platform AND c.Web_Pid = l.Web_Pid
+                            ),
+                            bottom_threshold AS (
+                                SELECT Platform, quantile(${pct})(osa) AS threshold
+                                FROM product_metrics
+                                GROUP BY Platform
+                            )
+                        SELECT
+                            m.Platform, m.Web_Pid, m.Product, m.msl, m.osa, m.l4w_avg, m.delta
+                        FROM product_metrics m
+                        INNER JOIN bottom_threshold t ON m.Platform = t.Platform
+                        WHERE m.osa <= t.threshold AND m.osa > 0
+                        ORDER BY m.Platform, m.osa ASC
+                        LIMIT 10 BY m.Platform
+                    `;
+                    const aggQuery = `
+                        WITH
+                            latest_date AS (
+                                SELECT MAX(DATE) AS max_date
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                            ),
+                            week_boundaries AS (
+                                SELECT max_date, subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS current_week_start
+                                FROM latest_date
+                            ),
+                            weekly_stats AS (
+                                SELECT
+                                    subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
+                                    sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
+                                    sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                                GROUP BY week_start
+                            ),
+                            weekly_osa AS (
+                                SELECT week_start, if(deno > 0, neno / deno * 100, 100) AS osa
+                                FROM weekly_stats
+                            )
+                        SELECT
+                            (SELECT osa FROM weekly_osa CROSS JOIN week_boundaries WHERE week_start = current_week_start) AS cw_osa,
+                            (SELECT avg(osa) FROM weekly_osa CROSS JOIN week_boundaries WHERE week_start >= current_week_start - INTERVAL 28 DAY AND week_start < current_week_start) AS l4w_osa
+                    `;
+                    const [pdpStats, aggStats] = await Promise.all([
+                        queryAdminDB(pdpQuery),
+                        queryAdminDB(aggQuery)
+                    ]);
+                    const bottomProducts = pdpStats;
+                    isTriggered = bottomProducts.length > 0;
+                    
+                    const cwOsa = parseFloat(aggStats[0]?.cw_osa) || 0;
+                    const l4wOsa = parseFloat(aggStats[0]?.l4w_osa) || 0;
+                    const aggDelta = cwOsa - l4wOsa;
+                    
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+
+                    metricDetails = {
+                        ruleType: 'Low OSA Alert (Bottom % Product Level)',
+                        calculatedOSA: cwOsa.toFixed(2) + '%',
+                        aggDelta: aggDelta.toFixed(2),
+                        conditionText: `${platPrefix}Bottom ${threshold}% products by OSA (Platform-wise)`,
+                    };
+
+                    if (isTriggered) {
+                        const platforms = [...new Set(bottomProducts.map(p => p.Platform))];
+                        dynamicEmailData = platforms.map(plat => {
+                            const platProducts = bottomProducts.filter(p => p.Platform === plat).slice(0, 10);
+                            return {
+                                platformName: plat,
+                                headers: ['Product Name', 'CW OSA %', 'L4W Avg %', 'Delta', 'MSL Status'],
+                                rows: platProducts.map(p => {
+                                    let mslStatus = 'non-pareto';
+                                    if (p.msl == 1 || p.msl == '1') {
+                                        mslStatus = 'pareto';
+                                    }
+                                    return [
+                                        p.Product || 'Unknown', 
+                                        parseFloat(p.osa).toFixed(2) + '%', 
+                                        parseFloat(p.l4w_avg || 0).toFixed(2) + '%', 
+                                        parseFloat(p.delta || 0).toFixed(2) + '%', 
+                                        mslStatus
+                                    ];
+                                })
+                            };
+                        });
+                    }
+                }
+                // Rule 1d: Keyword Delta SOS Alert
+                else if (alertType === 'keyword_delta_sos') {
+                    isDynamicAlert = true;
+                    const kwQuery = `
+                        WITH
+                            -- Dynamic Delta threshold
+                            ${threshold} AS delta_threshold,
+
+                            latest_date AS (
+                                SELECT
+                                    MAX(DATE) AS max_date
+                                FROM \`${dbName}\`.rb_kw_olap
+                                WHERE DATE IS NOT NULL ${kwFilterClause}
+                            ),
+
+                            week_boundaries AS (
+                                SELECT
+                                    max_date,
+
+                                    -- Latest completed Sunday-Saturday week
+                                    subtractDays(
+                                        max_date,
+                                        toDayOfWeek(max_date) % 7 + 7
+                                    ) AS current_week_start
+
+                                FROM latest_date
+                            ),
+
+                            -- Latest completed Sunday-Saturday week
+                            current_week AS (
+                                SELECT
+                                    lower(platform_name) AS platform,
+                                    keyword AS keyword,
+                                    keyword_type AS bcg,
+
+                                    ROUND(
+                                        sumIf(
+                                            ifNull(overall, 0),
+                                            flag = 1
+                                        ) * 100.0
+                                        /
+                                        nullIf(
+                                            sum(ifNull(overall, 0)),
+                                            0
+                                        ),
+                                        2
+                                    ) AS sos
+
+                                FROM \`${dbName}\`.rb_kw_olap
+
+                                CROSS JOIN week_boundaries b
+
+                                WHERE
+                                    DATE >= b.current_week_start
+                                    AND DATE < b.current_week_start + INTERVAL 7 DAY
+                                    ${kwFilterClause}
+
+                                GROUP BY
+                                    lower(platform_name),
+                                    keyword,
+                                    keyword_type
+                            ),
+
+                            -- Previous 4 completed Sunday-Saturday weeks
+                            l4w AS (
+                                SELECT
+                                    lower(platform_name) AS platform,
+                                    keyword AS keyword,
+                                    keyword_type AS bcg,
+
+                                    ROUND(
+                                        sumIf(
+                                            ifNull(overall, 0),
+                                            flag = 1
+                                        ) * 100.0
+                                        /
+                                        nullIf(
+                                            sum(ifNull(overall, 0)),
+                                            0
+                                        ),
+                                        2
+                                    ) AS l4w_sos
+
+                                FROM \`${dbName}\`.rb_kw_olap
+
+                                CROSS JOIN week_boundaries b
+
+                                WHERE
+                                    DATE >= b.current_week_start - INTERVAL 28 DAY
+                                    AND DATE < b.current_week_start
+                                    ${kwFilterClause}
+
+                                GROUP BY
+                                    lower(platform_name),
+                                    keyword,
+                                    keyword_type
+                            ),
+
+                            keyword_metrics AS (
+                                SELECT
+                                    c.platform,
+                                    c.keyword,
+                                    c.bcg,
+                                    c.sos,
+                                    l.l4w_sos AS \`l4w sos\`,
+
+                                    -- L4W SOS - Current Week SOS
+                                    ROUND(
+                                        l.l4w_sos - c.sos,
+                                        2
+                                    ) AS delta
+
+                                FROM current_week c
+
+                                INNER JOIN l4w l
+                                    ON c.platform = l.platform
+                                    AND c.keyword = l.keyword
+                                    AND c.bcg = l.bcg
+                            )
+
+                        SELECT
+                            platform,
+                            keyword,
+                            sos,
+                            \`l4w sos\`,
+                            delta,
+                            bcg
+
+                        FROM keyword_metrics
+
+                        WHERE
+                            delta > delta_threshold
+
+                        ORDER BY
+                            platform,
+                            bcg,
+                            delta DESC
+                        LIMIT 10 BY platform, bcg
+                    `;
+                    
+                    const aggKwQuery = `
+                        WITH
+                            latest_date AS (
+                                SELECT MAX(DATE) AS max_date
+                                FROM \`${dbName}\`.rb_kw_olap
+                                WHERE DATE IS NOT NULL ${kwFilterClause}
+                            ),
+                            week_boundaries AS (
+                                SELECT max_date, subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS current_week_start
+                                FROM latest_date
+                            ),
+                            keyword_sos AS (
+                                SELECT
+                                    keyword AS keyword,
+                                    keyword_type AS keyword_type,
+                                    ROUND(
+                                        sumIf(
+                                            ifNull(overall, 0),
+                                            flag = 1
+                                        ) * 100.0
+                                        /
+                                        nullIf(
+                                            sum(ifNull(overall, 0)),
+                                            0
+                                        ),
+                                        2
+                                    ) AS sos
+                                FROM \`${dbName}\`.rb_kw_olap
+                                CROSS JOIN week_boundaries b
+                                WHERE DATE >= b.current_week_start AND DATE < b.current_week_start + INTERVAL 7 DAY ${kwFilterClause}
+                                GROUP BY keyword, keyword_type
+                            )
+                        SELECT ROUND(avg(sos), 2) AS agg_sos FROM keyword_sos;
+                    `;
+
+                    const [kwStats, aggKwStats] = await Promise.all([
+                        queryAdminDB(kwQuery),
+                        queryAdminDB(aggKwQuery)
+                    ]);
+                    isTriggered = kwStats.length > 0;
+                    
+                    const platLabel = getPlatformLabel(alert.platforms);
+                    const platPrefix = platLabel ? `${platLabel} ` : '';
+
+                    const overallCwSos = parseFloat(aggKwStats[0]?.agg_sos) || 0;
+
+                    metricDetails = {
+                        ruleType: 'Keyword Delta SOS',
+                        calculatedOSA: isTriggered ? overallCwSos.toFixed(2) + '%' : '0%',
+                        aggDelta: isTriggered ? (-parseFloat(kwStats[0].delta)).toFixed(2) : 0,
+                        conditionText: `${platPrefix}Keyword SOS Delta > ${threshold} (Segmented by BCG)`,
+                    };
+
+                    if (isTriggered) {
+                        try {
+                            const platformsMap = new Map();
+                            const selectedPlats = (Array.isArray(alert.platforms) && alert.platforms.length > 0) 
+                                ? alert.platforms.filter(p => p && p !== 'All Platforms') 
+                                : [];
+
+                            kwStats.forEach(k => {
+                                let platLabelLocal = (k.platform || 'Unknown').toLowerCase();
+                                let bcgLabel = k.bcg || 'Uncategorized';
+                                
+                                if (!platformsMap.has(platLabelLocal)) {
+                                    platformsMap.set(platLabelLocal, new Map());
+                                }
+                                const bcgMap = platformsMap.get(platLabelLocal);
+                                if (!bcgMap.has(bcgLabel)) {
+                                    bcgMap.set(bcgLabel, []);
+                                }
+                                
+                                bcgMap.get(bcgLabel).push([
+                                    k.keyword || 'Unknown',
+                                    parseFloat(k.sos).toFixed(2) + '%',
+                                    parseFloat(k['l4w sos']).toFixed(2) + '%',
+                                    (-parseFloat(k.delta)).toFixed(2) + '%'
+                                ]);
+                            });
+
+                            dynamicEmailData = [];
+                            for (const [platformNameLower, bcgMap] of platformsMap.entries()) {
+                                const originalPlat = selectedPlats.find(p => p.toLowerCase() === platformNameLower) || 
+                                                     (platformNameLower.charAt(0).toUpperCase() + platformNameLower.slice(1));
+
+                                const tables = [];
+                                for (const [bcg, rows] of bcgMap.entries()) {
+                                    if (rows && rows.length > 0) {
+                                        tables.push({
+                                            tableName: bcg,
+                                            headers: ['Keyword', 'CW SOS %', 'L4W Avg %', 'Delta'],
+                                            rows: rows
+                                        });
+                                    }
+                                }
+                                
+                                if (tables.length > 0) {
+                                    dynamicEmailData.push({
+                                        platformName: originalPlat,
+                                        tables
+                                    });
+                                }
+                            }
+                            console.log(`[AlertCron DEBUG] Successfully mapped dynamicEmailData. Length: ${dynamicEmailData.length}`);
+                        } catch (mappingErr) {
+                            console.error(`[AlertCron ERROR] Failed mapping dynamicEmailData for Keyword Delta SOS:`, mappingErr);
+                        }
+                    }
                 }
                 // Rule 2: Low OSA + Active Ads Alert (low_osa_ads)
                 // (OSA from rb_pdp_olap, Ad Spend from rb_pm_olap, ignoring Campaign=Active)
@@ -735,24 +1289,44 @@ export const runEmailAlertsJob = async () => {
 
                             const totalImpactedSkus = platformData.reduce((sum, pd) => sum + (pd.skus ? pd.skus.length : 0), 0);
 
-                            if (totalImpactedSkus > 0) {
-                                const emailHtml = generateAlertEmailHtml({
-                                    logoUrl,
-                                    companyName: companyDisplayName,
-                                    istNow,
-                                    alertName: alert.alert_name || 'Low OSA Alert',
-                                    severityLevel: alert.severity_level || 'Warning',
-                                    thresholdValue: threshold,
-                                    conditionalOperator: alertOpSym,
-                                    aggregateOsa,
-                                    platformData,
-                                });
+                            if (totalImpactedSkus > 0 || isDynamicAlert) {
+                                let emailHtml = '';
+                                if (isDynamicAlert) {
+                                    if (!isTriggered) {
+                                        console.log(`[AlertCron] Dynamic alert "${alert.alert_name}" not triggered (no data crossed threshold). Skipping email and not updating last_email_sent.`);
+                                        continue;
+                                    }
+                                    emailHtml = generateDynamicAlertEmailHtml({
+                                        logoUrl,
+                                        companyName: companyDisplayName,
+                                        istNow,
+                                        alertName: alert.alert_name || metricDetails.ruleType,
+                                        severityLevel: alert.severity_level || 'Warning',
+                                        currentMetricValue: metricDetails.calculatedOSA,
+                                        metricDelta: metricDetails.aggDelta !== undefined ? metricDetails.aggDelta : aggregateOsa.delta,
+                                        operator: formatOperatorSymbol(alert.conditional_operator) || '<=',
+                                        threshold: threshold,
+                                        platformData: Array.isArray(dynamicEmailData) ? dynamicEmailData : (dynamicEmailData ? [dynamicEmailData] : []),
+                                    });
+                                } else {
+                                    emailHtml = generateAlertEmailHtml({
+                                        logoUrl,
+                                        companyName: companyDisplayName,
+                                        istNow,
+                                        alertName: alert.alert_name || 'Low OSA Alert',
+                                        severityLevel: alert.severity_level || 'Warning',
+                                        thresholdValue: threshold,
+                                        conditionalOperator: alertOpSym,
+                                        aggregateOsa,
+                                        platformData,
+                                    });
+                                }
 
                                 const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
                                 const mailOptions = {
                                     from: `"Trailytics Alerts" <${fromEmail}>`,
                                     to: sendEmail,
-                                    subject: `🚨 ALERT TRIGGERED: ${alert.alert_name}`,
+                                    subject: `🚨 ALERT TRIGGERED: ${alert.alert_name} [${new Date().toLocaleTimeString()}]`,
                                     text: `Hi,\n\nAn intelligent alert rule has been triggered for your dashboard.\n\nAlert: ${alert.alert_name}\nDatabase: ${dbName}\nSeverity: ${alert.severity_level || 'Warning'}\nPlatforms: ${alert.platforms.join(', ') || 'All'}\nBrands: ${alert.brands.join(', ') || 'All'}\nCondition: ${metricDetails.conditionText}\nCurrent OSA: ${aggregateOsa.currentOsa}%\nPrevious OSA: ${aggregateOsa.previousOsa}%\n\nBest regards,\nTrailytics Team`,
                                     html: emailHtml,
                                 };
@@ -773,18 +1347,7 @@ export const runEmailAlertsJob = async () => {
                                     console.error(`[AlertCron] Failed to send email to ${sendEmail}:`, sendErr.message);
                                 }
                             } else {
-                                console.log(`[AlertCron] No impacted SKUs found. Skipping email sending, but updating last_email_sent.`);
-                                try {
-                                    const updateQuery = `
-                                        ALTER TABLE admin_master.tb_alert 
-                                        UPDATE last_email_sent = parseDateTimeBestEffort('${istNow}') 
-                                        WHERE id = toUUID('${alert.id}')
-                                    `;
-                                    await queryAdminDB(updateQuery);
-                                    console.log(`[AlertCron] Saved current IST date & time to last_email_sent for alert "${alert.alert_name}" (${alert.id}): ${istNow} IST`);
-                                } catch (updateErr) {
-                                    console.error(`[AlertCron] Failed to update last_email_sent for alert ${alert.id}:`, updateErr.message);
-                                }
+                                console.log(`[AlertCron] No impacted SKUs found. Skipping email sending and not updating last_email_sent.`);
                             }
                         } else {
                             console.log(`[AlertCron] Email skipped for "${alert.alert_name}": ${emailFreqCheck.reason}`);
@@ -802,7 +1365,12 @@ export const runEmailAlertsJob = async () => {
 
                             // Build richer WhatsApp summary with impacted SKU info
                             let alertSummaryLines = `🔴 ${alert.alert_name} triggered for ${companyDisplayName}`;
-                            alertSummaryLines += `\nCurrent OSA: ${aggregateOsa.currentOsa}% | Previous: ${aggregateOsa.previousOsa}% | Delta: ${aggregateOsa.delta}%`;
+                            if (alert.alert_type === 'keyword_delta_sos') {
+                                alertSummaryLines += `\nCurrent SOS: ${metricDetails.calculatedOSA} | Delta: ${metricDetails.aggDelta}%`;
+                            } else {
+                                alertSummaryLines += `\nCurrent OSA: ${aggregateOsa.currentOsa}% | Previous: ${aggregateOsa.previousOsa}% | Delta: ${aggregateOsa.delta}%`;
+                            }
+                            
                             if (platformData.length > 0) {
                                 for (const pd of platformData) {
                                     if (pd.skus && pd.skus.length > 0) {
