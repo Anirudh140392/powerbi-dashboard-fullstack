@@ -285,9 +285,9 @@ export const microsoftCallback = async (req, res) => {
         }
 
         // Determine the correct redirect_uri (must match what was sent in the authorize request)
-        const clientId = process.env.MICROSOFT_CLIENT_ID || process.env.MICROSOFT_DEV_CLIENT_ID;
-        const clientSecret = process.env.MICROSOFT_CLIENT_SECRET || process.env.MICROSOFT_DEV_CLIENT_SECRET;
-        const tenantId = process.env.MICROSOFT_TENANT_ID || process.env.MICROSOFT_DEV_TENANT_ID || 'common';
+        const clientId = process.env.MICROSOFT_CLIENT_ID || process.env.MICROSOFT_PROD_CLIENT_ID || process.env.MICROSOFT_DEV_CLIENT_ID;
+        const clientSecret = process.env.MICROSOFT_CLIENT_SECRET || process.env.MICROSOFT_PROD_CLIENT_SECRET || process.env.MICROSOFT_DEV_CLIENT_SECRET;
+        const tenantId = process.env.MICROSOFT_TENANT_ID || process.env.MICROSOFT_PROD_TENANT_ID || process.env.MICROSOFT_DEV_TENANT_ID || 'common';
 
         const forwardedHost = req.headers['x-forwarded-host'];
         const referer = req.headers.referer || req.headers.referrer || '';

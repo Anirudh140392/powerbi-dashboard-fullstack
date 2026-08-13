@@ -21,7 +21,7 @@ import {
     Truck,
 } from "lucide-react";
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-cse1isbmn2qp4hu1se9voboitm8t9oht.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-smbn58so6ajfol9smtq0r9ksi4vedi4r.apps.googleusercontent.com";
 
 const GoogleSsoButton = ({ onSuccess, onError }) => {
     const loginWithGoogle = useGoogleLogin({
@@ -50,7 +50,10 @@ const GoogleSsoButton = ({ onSuccess, onError }) => {
     );
 };
 // Microsoft OAuth config
-const MS_CLIENT_ID = import.meta.env.VITE_MICROSOFT_CLIENT_ID || '153c3bd5-c6f7-41a5-b11c-3334d71b5db4';
+const getMsClientId = () => {
+    return import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID || import.meta.env.VITE_MICROSOFT_CLIENT_ID || "b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a";
+};
+const MS_CLIENT_ID = getMsClientId();
 const MS_TENANT_ID = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common';
 const MS_CALLBACK_URL = `${window.location.origin}/api/auth/callback/microsoft`;
 

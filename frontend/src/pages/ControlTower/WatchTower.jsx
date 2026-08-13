@@ -1018,7 +1018,7 @@ export default function WatchTower() {
         dynamicKey="platform_overview_tower"
         brandOptions={contextBrands}
         initialPlatform={filters.platform}
-        showResellerFilter={false}
+        showResellerFilter={true}
       />
 
       <RCAModal
