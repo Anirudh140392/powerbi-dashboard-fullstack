@@ -509,7 +509,6 @@ export default function MarketShareAnalysis() {
         loading={loading}
         title="Market Share Overview"
         icon={LayoutGrid}
-        chip="All Platforms"
         headerRight={
           <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
             vs Comparison Period

@@ -5928,6 +5928,9 @@ const getPlatformOverview = async (filters) => {
     let prevEcomSpend = 0, prevEcomClicks = 0;
     let prevQuickSpend = 0, prevQuickImpressions = 0;
 
+    const currentDbName = getCurrentDbName();
+    const isPidilite = currentDbName && currentDbName.toLowerCase() === 'pidilite';
+
     platformDefinitions.forEach(p => {
         const key = p.label.toLowerCase();
         const isEcomRow = key.includes('amazon') || key.includes('flipkart') || key.includes('myntra') || key.includes('nykaa') || key.includes('jiomart');
@@ -5935,7 +5938,7 @@ const getPlatformOverview = async (filters) => {
         const metrics = bulkPlatformMap.get(p.label);
 
         if (metrics) {
-            if (isEcomRow) {
+            if (isEcomRow || isPidilite) {
                 ecomSpend += metrics.curr.spend || 0;
                 ecomClicks += metrics.curr.clicks || 0;
                 prevEcomSpend += metrics.prev.spend || 0;
@@ -6194,7 +6197,7 @@ const getPlatformOverview = async (filters) => {
         const roas = hasPm ? (totalSpend > 0 ? totalAdSales / totalSpend : null) : null;
         const conversion = hasPm ? (metrics.curr.conversion ?? null) : null;
         const cpm = (hasPm && isQuick) ? (totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : null) : null;
-        const cpc = (hasPm && isEcom) ? (totalClicks > 0 ? totalSpend / totalClicks : null) : null;
+        const cpc = (hasPm && (isEcom || isPidilite)) ? (totalClicks > 0 ? totalSpend / totalClicks : null) : null;
         const inorgSales = hasPm ? totalAdSales : null;
 
         const promoMyBrand = hasPdp ? (metrics.curr.myAvgDiscount ?? null) : null;
@@ -6225,7 +6228,7 @@ const getPlatformOverview = async (filters) => {
         const prevRoas = prevHasPm ? (prevSpend > 0 ? prevAdSales / prevSpend : null) : null;
         const prevConversion = prevHasPm ? (metrics.prev.conversion ?? null) : null;
         const prevCpm = (prevHasPm && isQuick) ? (prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : null) : null;
-        const prevCpc = (prevHasPm && isEcom) ? (prevClicks > 0 ? prevSpend / prevClicks : null) : null;
+        const prevCpc = (prevHasPm && (isEcom || isPidilite)) ? (prevClicks > 0 ? prevSpend / prevClicks : null) : null;
         const prevAsp = prevHasPdp ? (metrics.prev.asp ?? null) : null;
         const prevAov = (prevHasPm && prevOrders > 0) ? prevAdSales / prevOrders : null;
         const prevInorgSales = prevHasPm ? prevAdSales : null;
