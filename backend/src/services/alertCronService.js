@@ -813,48 +813,138 @@ export const runEmailAlertsJob = async () => {
                     isDynamicAlert = true;
                     const kwQuery = `
                         WITH
-                            -${threshold} AS delta_threshold,
+                            -- Dynamic Delta threshold
+                            ${threshold} AS delta_threshold,
+
                             latest_date AS (
-                                SELECT MAX(DATE) AS max_date
+                                SELECT
+                                    MAX(DATE) AS max_date
                                 FROM \`${dbName}\`.rb_kw_olap
                                 WHERE DATE IS NOT NULL ${kwFilterClause}
                             ),
+
                             week_boundaries AS (
-                                SELECT max_date, subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS current_week_start
+                                SELECT
+                                    max_date,
+
+                                    -- Latest completed Sunday-Saturday week
+                                    subtractDays(
+                                        max_date,
+                                        toDayOfWeek(max_date) % 7 + 7
+                                    ) AS current_week_start
+
                                 FROM latest_date
                             ),
+
+                            -- Latest completed Sunday-Saturday week
                             current_week AS (
                                 SELECT
                                     lower(platform_name) AS platform,
-                                    lower(keyword) AS keyword,
-                                    lower(keyword_type) AS bcg,
-                                    ROUND(sumIf(overall, flag = 1) * 100.0 / nullIf(sumIf(overall, 1 = 1), 0), 2) AS sos
+                                    keyword AS keyword,
+                                    keyword_type AS bcg,
+
+                                    ROUND(
+                                        sumIf(
+                                            ifNull(overall, 0),
+                                            flag = 1
+                                        ) * 100.0
+                                        /
+                                        nullIf(
+                                            sum(ifNull(overall, 0)),
+                                            0
+                                        ),
+                                        2
+                                    ) AS sos
+
                                 FROM \`${dbName}\`.rb_kw_olap
+
                                 CROSS JOIN week_boundaries b
-                                WHERE DATE >= b.current_week_start AND DATE < b.current_week_start + INTERVAL 7 DAY ${kwFilterClause}
-                                GROUP BY platform, keyword, bcg
+
+                                WHERE
+                                    DATE >= b.current_week_start
+                                    AND DATE < b.current_week_start + INTERVAL 7 DAY
+                                    ${kwFilterClause}
+
+                                GROUP BY
+                                    lower(platform_name),
+                                    keyword,
+                                    keyword_type
                             ),
+
+                            -- Previous 4 completed Sunday-Saturday weeks
                             l4w AS (
                                 SELECT
                                     lower(platform_name) AS platform,
-                                    lower(keyword) AS keyword,
-                                    lower(keyword_type) AS bcg,
-                                    ROUND(sumIf(overall, flag = 1) * 100.0 / nullIf(sumIf(overall, 1 = 1), 0), 2) AS l4w_sos
+                                    keyword AS keyword,
+                                    keyword_type AS bcg,
+
+                                    ROUND(
+                                        sumIf(
+                                            ifNull(overall, 0),
+                                            flag = 1
+                                        ) * 100.0
+                                        /
+                                        nullIf(
+                                            sum(ifNull(overall, 0)),
+                                            0
+                                        ),
+                                        2
+                                    ) AS l4w_sos
+
                                 FROM \`${dbName}\`.rb_kw_olap
+
                                 CROSS JOIN week_boundaries b
-                                WHERE DATE >= b.current_week_start - INTERVAL 28 DAY AND DATE < b.current_week_start ${kwFilterClause}
-                                GROUP BY platform, keyword, bcg
+
+                                WHERE
+                                    DATE >= b.current_week_start - INTERVAL 28 DAY
+                                    AND DATE < b.current_week_start
+                                    ${kwFilterClause}
+
+                                GROUP BY
+                                    lower(platform_name),
+                                    keyword,
+                                    keyword_type
                             ),
+
                             keyword_metrics AS (
                                 SELECT
-                                    c.platform, c.keyword, c.bcg, c.sos, l.l4w_sos AS \`l4w sos\`, ROUND(l.l4w_sos - c.sos, 2) AS delta
+                                    c.platform,
+                                    c.keyword,
+                                    c.bcg,
+                                    c.sos,
+                                    l.l4w_sos AS \`l4w sos\`,
+
+                                    -- L4W SOS - Current Week SOS
+                                    ROUND(
+                                        l.l4w_sos - c.sos,
+                                        2
+                                    ) AS delta
+
                                 FROM current_week c
-                                INNER JOIN l4w l ON c.platform = l.platform AND c.keyword = l.keyword AND c.bcg = l.bcg
+
+                                INNER JOIN l4w l
+                                    ON c.platform = l.platform
+                                    AND c.keyword = l.keyword
+                                    AND c.bcg = l.bcg
                             )
-                        SELECT platform, keyword, sos, \`l4w sos\`, delta, bcg
+
+                        SELECT
+                            platform,
+                            keyword,
+                            sos,
+                            \`l4w sos\`,
+                            delta,
+                            bcg
+
                         FROM keyword_metrics
-                        WHERE delta < delta_threshold
-                        ORDER BY platform, bcg, delta ASC
+
+                        WHERE
+                            delta > delta_threshold
+
+                        ORDER BY
+                            platform,
+                            bcg,
+                            delta DESC
                         LIMIT 10 BY platform, bcg
                     `;
                     
@@ -871,9 +961,20 @@ export const runEmailAlertsJob = async () => {
                             ),
                             keyword_sos AS (
                                 SELECT
-                                    lower(keyword) AS keyword,
-                                    lower(keyword_type) AS keyword_type,
-                                    ROUND(sumIf(overall, flag = 1) * 100.0 / nullIf(sumIf(overall, 1 = 1), 0), 2) AS sos
+                                    keyword AS keyword,
+                                    keyword_type AS keyword_type,
+                                    ROUND(
+                                        sumIf(
+                                            ifNull(overall, 0),
+                                            flag = 1
+                                        ) * 100.0
+                                        /
+                                        nullIf(
+                                            sum(ifNull(overall, 0)),
+                                            0
+                                        ),
+                                        2
+                                    ) AS sos
                                 FROM \`${dbName}\`.rb_kw_olap
                                 CROSS JOIN week_boundaries b
                                 WHERE DATE >= b.current_week_start AND DATE < b.current_week_start + INTERVAL 7 DAY ${kwFilterClause}
@@ -896,46 +997,63 @@ export const runEmailAlertsJob = async () => {
                     metricDetails = {
                         ruleType: 'Keyword Delta SOS',
                         calculatedOSA: isTriggered ? overallCwSos.toFixed(2) + '%' : '0%',
-                        aggDelta: isTriggered ? parseFloat(kwStats[0].delta).toFixed(2) : 0,
+                        aggDelta: isTriggered ? (-parseFloat(kwStats[0].delta)).toFixed(2) : 0,
                         conditionText: `${platPrefix}Keyword SOS Delta > ${threshold} (Segmented by BCG)`,
                     };
 
                     if (isTriggered) {
-                        const platformsMap = new Map();
-                        kwStats.forEach(k => {
-                            let platLabelLocal = k.platform || 'Unknown';
-                            let bcgLabel = k.bcg || 'Uncategorized';
-                            
-                            if (!platformsMap.has(platLabelLocal)) {
-                                platformsMap.set(platLabelLocal, new Map());
-                            }
-                            const bcgMap = platformsMap.get(platLabelLocal);
-                            if (!bcgMap.has(bcgLabel)) {
-                                bcgMap.set(bcgLabel, []);
-                            }
-                            
-                            bcgMap.get(bcgLabel).push([
-                                k.keyword || 'Unknown',
-                                parseFloat(k.sos).toFixed(2) + '%',
-                                parseFloat(k['l4w sos']).toFixed(2) + '%',
-                                parseFloat(k.delta).toFixed(2) + '%'
-                            ]);
-                        });
+                        try {
+                            const platformsMap = new Map();
+                            const selectedPlats = (Array.isArray(alert.platforms) && alert.platforms.length > 0) 
+                                ? alert.platforms.filter(p => p && p !== 'All Platforms') 
+                                : [];
 
-                        dynamicEmailData = [];
-                        for (const [platformName, bcgMap] of platformsMap.entries()) {
-                            const tables = [];
-                            for (const [bcg, rows] of bcgMap.entries()) {
-                                tables.push({
-                                    tableName: bcg,
-                                    headers: ['Keyword', 'CW SOS %', 'L4W Avg %', 'Delta'],
-                                    rows: rows
-                                });
-                            }
-                            dynamicEmailData.push({
-                                platformName,
-                                tables
+                            kwStats.forEach(k => {
+                                let platLabelLocal = (k.platform || 'Unknown').toLowerCase();
+                                let bcgLabel = k.bcg || 'Uncategorized';
+                                
+                                if (!platformsMap.has(platLabelLocal)) {
+                                    platformsMap.set(platLabelLocal, new Map());
+                                }
+                                const bcgMap = platformsMap.get(platLabelLocal);
+                                if (!bcgMap.has(bcgLabel)) {
+                                    bcgMap.set(bcgLabel, []);
+                                }
+                                
+                                bcgMap.get(bcgLabel).push([
+                                    k.keyword || 'Unknown',
+                                    parseFloat(k.sos).toFixed(2) + '%',
+                                    parseFloat(k['l4w sos']).toFixed(2) + '%',
+                                    (-parseFloat(k.delta)).toFixed(2) + '%'
+                                ]);
                             });
+
+                            dynamicEmailData = [];
+                            for (const [platformNameLower, bcgMap] of platformsMap.entries()) {
+                                const originalPlat = selectedPlats.find(p => p.toLowerCase() === platformNameLower) || 
+                                                     (platformNameLower.charAt(0).toUpperCase() + platformNameLower.slice(1));
+
+                                const tables = [];
+                                for (const [bcg, rows] of bcgMap.entries()) {
+                                    if (rows && rows.length > 0) {
+                                        tables.push({
+                                            tableName: bcg,
+                                            headers: ['Keyword', 'CW SOS %', 'L4W Avg %', 'Delta'],
+                                            rows: rows
+                                        });
+                                    }
+                                }
+                                
+                                if (tables.length > 0) {
+                                    dynamicEmailData.push({
+                                        platformName: originalPlat,
+                                        tables
+                                    });
+                                }
+                            }
+                            console.log(`[AlertCron DEBUG] Successfully mapped dynamicEmailData. Length: ${dynamicEmailData.length}`);
+                        } catch (mappingErr) {
+                            console.error(`[AlertCron ERROR] Failed mapping dynamicEmailData for Keyword Delta SOS:`, mappingErr);
                         }
                     }
                 }

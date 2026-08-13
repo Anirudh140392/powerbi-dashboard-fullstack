@@ -23,17 +23,6 @@ import { createAlert, updateAlert } from "../../api/insightsService";
 // Defined Alert Rule Presets
 const ALERT_PRESETS = [
     {
-        id: "low_osa_percent",
-        name: "Low OSA Alert (OSA % Effected)",
-        category: "Inventory & On-Shelf Availability",
-        metrics: ["OSA %", "Category"],
-        formula: "OSA = (Available SKUs / Total Listed SKUs) * 100",
-        condition: "Category OSA < Threshold (e.g. 85%)",
-        operator: "lt",
-        defaultThreshold: "85",
-        severity: "High",
-    },
-    {
         id: "low_osa_bottom_city",
         name: "Low OSA Alert (Bottom % City Level)",
         category: "Inventory & On-Shelf Availability",
@@ -64,39 +53,6 @@ const ALERT_PRESETS = [
         condition: "Keyword Delta SOS exceeds threshold",
         operator: "gt",
         defaultThreshold: "10",
-        severity: "Medium",
-    },
-    {
-        id: "promo_discount_change",
-        name: "Sharp Promo/Discount Change Alert",
-        category: "Pricing Positioning & Discounts",
-        metrics: ["Current Discount", "Baseline Discount"],
-        formula: "Discount Shift% = ((Current - Baseline) / Baseline) * 100",
-        condition: "Increase or decrease in discount > 20%",
-        operator: "changes",
-        defaultThreshold: "20",
-        severity: "High",
-    },
-    {
-        id: "category_health",
-        name: "Category Health Alert",
-        category: "Category Health & Multi-Metric",
-        metrics: ["OSA", "Price", "ASP", "Discount", "Ad Spend"],
-        formula: "Multi-metric comparison vs baseline / previous period",
-        condition: "One or more metrics deteriorate beyond thresholds",
-        operator: "drops",
-        defaultThreshold: "15",
-        severity: "Critical",
-    },
-    {
-        id: "performance_summary",
-        name: "Performance Summary",
-        category: "Automated Performance Digest & Weekly Report",
-        metrics: ["Overall Brand Performance", "Platform Offtake", "OSA & Share Digest"],
-        formula: "Weekly aggregated performance & cross-platform metrics digest",
-        condition: "Automated scheduled dispatch of weekly performance summary report",
-        operator: "eq",
-        defaultThreshold: "0",
         severity: "Medium",
     },
 ];
@@ -149,17 +105,17 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const filterCtx = useContext(FilterContext) || {};
 
     // Multi-Select Preset Rules State
-    const [selectedPresetIds, setSelectedPresetIds] = useState(["low_osa_percent"]);
+    const [selectedPresetIds, setSelectedPresetIds] = useState(["low_osa_bottom_city"]);
     const [showPresetDropdown, setShowPresetDropdown] = useState(false);
 
     // Custom Alert Name & User Override Tracking
-    const [alertName, setAlertName] = useState("Low OSA Alert");
+    const [alertName, setAlertName] = useState("Low OSA Alert (Bottom % City Level)");
     const [isCustomAlertName, setIsCustomAlertName] = useState(false);
 
     const [category, setCategory] = useState("Inventory & On-Shelf Availability");
     const [triggerOperator, setTriggerOperator] = useState("lt");
-    const [thresholdValue, setThresholdValue] = useState("85");
-    const [comparisonPeriod, setComparisonPeriod] = useState("vs 7-Day Average");
+    const [thresholdValue, setThresholdValue] = useState("20");
+    const [comparisonPeriod, setComparisonPeriod] = useState("vs L4W Avg");
 
     // Multi-Select Scope Selection State (Platforms & Brands)
     const [selectedPlatforms, setSelectedPlatforms] = useState([]);
@@ -178,7 +134,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const [editingRuleId, setEditingRuleId] = useState(null);
 
     // Frequency & Severity Custom Dropdowns State
-    const [frequency, setFrequency] = useState("Hourly");
+    const [frequency, setFrequency] = useState("Weekly Summary");
     const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false);
 
     const [severity, setSeverity] = useState("Critical");
@@ -203,6 +159,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
 
     const selectedPresets = ALERT_PRESETS.filter(p => selectedPresetIds.includes(p.id));
     const isPerformanceSummarySelected = selectedPresetIds.includes("performance_summary");
+    const isWeeklyForced = selectedPresetIds.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id));
 
     // Sync values when editing an existing alert
     useEffect(() => {
@@ -221,9 +178,13 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                 setSelectedBrands(editingAlert.brands);
             }
             setTriggerOperator(editingAlert.conditional_operator || editingAlert.operator || "lt");
-            setThresholdValue(editingAlert.threshold_value !== undefined ? String(editingAlert.threshold_value) : String(editingAlert.threshold || "85"));
-            setComparisonPeriod(editingAlert.benchmark_period || "vs 7-Day Average");
-            setFrequency(editingAlert.alert_frequency || editingAlert.frequency || "Hourly");
+            setThresholdValue(editingAlert.threshold_value !== undefined ? String(editingAlert.threshold_value) : String(editingAlert.threshold || "20"));
+            setComparisonPeriod(editingAlert.benchmark_period || "vs L4W Avg");
+            if (["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].some(id => editingAlert.alert_type?.includes(id))) {
+                setFrequency("Weekly Summary");
+            } else {
+                setFrequency(editingAlert.alert_frequency || editingAlert.frequency || "Hourly");
+            }
             setSeverity(editingAlert.severity_level || editingAlert.severity || "Critical");
             if (editingAlert.alert_type) {
                 setSelectedPresetIds(editingAlert.alert_type.split(','));
@@ -242,8 +203,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
             }
         } else if (open && !editingAlert) {
             setIsCustomAlertName(false);
-            setAlertName("Low OSA Alert");
-            setSelectedPresetIds(["low_osa_percent"]);
+            setAlertName("Low OSA Alert (Bottom % City Level)");
+            setSelectedPresetIds(["low_osa_bottom_city"]);
             setSelectedPlatforms([]);
             setSelectedBrands([]);
             setScheduledDay("Monday");
@@ -296,6 +257,11 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         }
 
         setSelectedPresetIds(updated);
+
+        // When a weekly-forced alert is selected, set frequency
+        if (updated.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id))) {
+            setFrequency("Weekly Summary");
+        }
 
         // When Performance Summary is selected, disable WhatsApp
         if (presetId === "performance_summary") {
@@ -622,7 +588,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                 </span>
                             </div>
 
-                            <div style={{ display: "grid", gridTemplateColumns: isPerformanceSummarySelected ? "1fr" : "1fr 1fr", gap: "16px" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
                                 {/* MULTI-SELECT PLATFORM */}
                                 <div>
                                     <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
@@ -762,7 +728,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                 </div>
 
                                 {/* MULTI-SELECT BRAND (Hidden for Performance Summary) */}
-                                {!isPerformanceSummarySelected && (
+                                {false && !isPerformanceSummarySelected && (
                                     <div>
                                         <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
                                             SELECT BRAND(S)
@@ -1496,10 +1462,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                 }}
                                             >
                                                 <option value="gt">Greater than (&gt;)</option>
-                                                <option value="lt">Less than (&lt;)</option>
-                                                <option value="eq">Equal to (=)</option>
-                                                <option value="changes">Changes by (%)</option>
-                                                <option value="drops">Drops by (%)</option>
+                                                <option value="lt">Lesser than (&lt;)</option>
                                             </select>
                                             <ChevronDown size={14} style={{ position: "absolute", right: 8, bottom: 12, color: "#0047FF", pointerEvents: "none" }} />
                                         </div>
@@ -1555,11 +1518,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                     boxSizing: "border-box",
                                                 }}
                                             >
-                                                <option value="vs 7-Day Average">vs 7-Day Average</option>
-                                                <option value="vs Previous Day">vs Previous Day</option>
-                                                <option value="vs 30-Day Average">vs 30-Day Average</option>
-                                                <option value="vs Same Day Last Week">vs Same Day Last Week</option>
-                                                <option value="vs Benchmark">vs Benchmark</option>
+                                                <option value="vs L4W Avg">vs L4W Avg</option>
                                             </select>
                                             <ChevronDown size={14} style={{ position: "absolute", right: 8, bottom: 12, color: "#64748b", pointerEvents: "none" }} />
                                         </div>
@@ -1630,7 +1589,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                         gap: "2px",
                                                     }}
                                                 >
-                                                    {["Hourly", "Daily Digest", "Weekly Summary"].map((freqOption) => (
+                                                    {["Weekly Summary"].map((freqOption) => (
                                                         <div
                                                             key={freqOption}
                                                             onClick={() => {
