@@ -2403,6 +2403,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     return data.hasPmData ? data.adSales : null;
                 };
 
+                const calculateSpend = (data) => {
+                    return data.hasPmData ? data.spend : null;
+                };
+
                 const calculateOrganicSales = (data) => {
                     const adSales = data.hasPmData ? data.adSales : 0;
                     return (data.salesComp0 || 0) - adSales;
@@ -2432,6 +2436,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // Calculate trend data for all KPIs from bulk results
                 const inorgTrendData = last7Months.map(m => calculateInorganicSales(getDataForRange(m.start, m.end)));
+                const spendTrendData = last7Months.map(m => calculateSpend(getDataForRange(m.start, m.end)));
                 const convTrendData = last7Months.map(m => calculateConversionLocal(getDataForRange(m.start, m.end)));
                 const roasTrendData = last7Months.map(m => calculateRoas(getDataForRange(m.start, m.end)));
                 const bmiTrendData = last7Months.map(m => calculateBmi(getDataForRange(m.start, m.end)));
@@ -2441,6 +2446,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const currentInorg = calculateInorganicSales(currentData);
                 const momInorg = calculateInorganicSales(momData);
                 const inorgChange = (momInorg !== null && currentInorg !== null) ? (momInorg > 0 ? ((currentInorg - momInorg) / momInorg) * 100 : (currentInorg > 0 ? 100 : 0)) : null;
+
+                const currentSpend = calculateSpend(currentData);
+                const momSpend = calculateSpend(momData);
+                const spendChange = (momSpend !== null && currentSpend !== null) ? (momSpend > 0 ? ((currentSpend - momSpend) / momSpend) * 100 : (currentSpend > 0 ? 100 : 0)) : null;
 
                 const currentConv = calculateConversionLocal(currentData);
                 const momConv = calculateConversionLocal(momData);
@@ -2647,13 +2656,28 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     trendData: inorgTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
                 });
 
+                // 2b. Spend
+                performanceMetricsKpis.push({
+                    id: "spend",
+                    label: "SPEND",
+                    value: currentSpend !== null ? formatCurrency(currentSpend) : "N/A",
+                    prevValue: momSpend !== null ? formatCurrency(momSpend) : "N/A",
+                    unit: "",
+                    tag: spendChange !== null ? `${spendChange >= 0 ? '+' : ''}${spendChange.toFixed(2)}%` : "N/A",
+                    tagTone: spendChange !== null ? (spendChange >= 0 ? "positive" : "warning") : "neutral",
+                    footer: "sum(Ad Spend)",
+                    trendTitle: "Spend Trend",
+                    trendSubtitle: "Last 7 periods",
+                    trendData: spendTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
+                });
+
                 // 3. Conversion
                 performanceMetricsKpis.push({
                     id: "conversion",
                     label: "CONVERSION",
-                    value: currentConv !== null ? currentConv.toFixed(2) : "N/A",
-                    prevValue: momConv !== null ? momConv.toFixed(2) : "N/A",
-                    unit: "",
+                    value: currentConv !== null ? `${currentConv.toFixed(2)}%` : "N/A",
+                    prevValue: momConv !== null ? `${momConv.toFixed(2)}%` : "N/A",
+                    unit: "%",
                     tag: convChange !== null ? `${convChange >= 0 ? '+' : ''}${convChange.toFixed(2)}%` : "N/A",
                     tagTone: convChange !== null ? (convChange >= 0 ? "positive" : "warning") : "neutral",
                     footer: "Orders / Clicks",
@@ -7640,7 +7664,7 @@ const getBrandsOverview = async (filters) => {
 const getKpiTrends = async (filters) => {
     console.log('[getKpiTrends] Computing KPI trends data with filters:', filters);
 
-    const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, skuName, skuCode, dimension, dimensionValue } = filters;
+    const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, skuName, skuCode, dimension, dimensionValue, resellerName } = filters;
     const channel = extractChannel(filters);
 
     // 1. Determine Date Range
@@ -7823,6 +7847,15 @@ const getKpiTrends = async (filters) => {
 
     const pmKpiConds = buildPmConds();
 
+    // Reseller_Name condition for DRL: only filter Offtake (total_sales), leave other KPIs unfiltered
+    const dbNameForTrends = getCurrentDbName();
+    const resellerArrTrends = ((dbNameForTrends === 'drl' || dbNameForTrends === 'prestige') && resellerName && resellerName !== 'All' && resellerName !== 'all')
+        ? normalizeFilterArray(resellerName)
+        : null;
+    const resellerCondSql = (resellerArrTrends && resellerArrTrends.length > 0)
+        ? `Reseller_Name IN (${resellerArrTrends.map(r => `'${escapeStr(r)}'`).join(', ')})`
+        : null;
+
     const channelColSql = src.f.channel ? `lower(${src.f.channel})` : `(CASE WHEN lower(${src.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${src.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
     const pmChannelColSql = pmSrc.f.channel ? `lower(${pmSrc.f.channel})` : `(CASE WHEN lower(${pmSrc.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${pmSrc.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
 
@@ -7832,7 +7865,7 @@ const getKpiTrends = async (filters) => {
             SELECT 
                 ${groupExpression.replace('DATE', src.f.date)} as date_group,
                 MAX(toDate(${src.f.date})) as ref_date,
-                SUM(${src.f.sales}) as total_sales,
+                ${resellerCondSql ? `SUM(CASE WHEN ${resellerCondSql} THEN ${src.f.sales} ELSE 0 END)` : `SUM(${src.f.sales})`} as total_sales,
                 SUM(${src.f.adSales}) as total_Ad_sales,
                 SUM(${src.f.spend}) as total_ad_spend,
                 SUM(${src.f.orders}) as total_ad_orders,

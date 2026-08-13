@@ -1516,8 +1516,9 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
     else keys = KPI_KEYS;
     
     // Hide 'Listing' KPI button if channel is NOT 'QuickComm' and platform does not fall into QuickComm
-    const isQuickComm = selectedChannel?.toLowerCase() === 'quickcomm' || 
-                        ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'].includes(platform?.toLowerCase());
+    const chanStr = (Array.isArray(selectedChannel) ? selectedChannel.join(',') : String(selectedChannel || '')).toLowerCase();
+    const isQuickComm = chanStr.includes('quickcomm') || 
+                        ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'].includes(String(platform || '').toLowerCase());
     
     if (!isQuickComm) {
       keys = keys.filter(k => k.key !== 'Listing');

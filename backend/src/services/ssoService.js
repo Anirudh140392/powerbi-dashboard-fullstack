@@ -8,7 +8,7 @@ import { toFlatPermissions } from './adminService.js';
 import { updateDeviceTokenMap } from './deviceService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'trailytics_jwt_secret_2026';
-const JWT_EXPIRY = '7d';
+// Tokens are permanent (no expiration)
 
 const googleClient = new OAuth2Client();
 
@@ -61,12 +61,16 @@ export async function verifyGoogleToken(token) {
         }
     }
 
-    const expectedAudience = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_DEV_CLIENT_ID;
+    const expectedAudiences = [
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_PROD_CLIENT_ID,
+        process.env.GOOGLE_DEV_CLIENT_ID
+    ].filter(Boolean);
 
     // Verify token using google-auth-library for JWT ID tokens
     const ticket = await googleClient.verifyIdToken({
         idToken: token,
-        audience: expectedAudience ? [expectedAudience] : undefined,
+        audience: expectedAudiences.length > 0 ? expectedAudiences : undefined,
     });
 
     const payload = ticket.getPayload();
@@ -136,13 +140,17 @@ export async function verifyMicrosoftToken(idToken, extraPayload = {}) {
         }
 
         try {
-            const expectedAudience = process.env.MICROSOFT_CLIENT_ID || process.env.MICROSOFT_DEV_CLIENT_ID;
+            const expectedAudiences = [
+                process.env.MICROSOFT_CLIENT_ID,
+                process.env.MICROSOFT_PROD_CLIENT_ID,
+                process.env.MICROSOFT_DEV_CLIENT_ID
+            ].filter(Boolean);
             const decodedVerified = await new Promise((resolve, reject) => {
                 jwt.verify(
                     token,
                     getMsSigningKey,
                     {
-                        audience: expectedAudience ? [expectedAudience] : undefined,
+                        audience: expectedAudiences.length > 0 ? expectedAudiences : undefined,
                         issuer: [
                             'https://login.microsoftonline.com/common/v2.0',
                             'https://sts.windows.net/common/',
@@ -312,7 +320,6 @@ export async function authenticateSsoUser(ssoPayload, deviceInfo = {}) {
             dbLogoUrl: userPayload.dbLogoUrl,
         },
         JWT_SECRET,
-        { expiresIn: JWT_EXPIRY }
     );
 
     return {

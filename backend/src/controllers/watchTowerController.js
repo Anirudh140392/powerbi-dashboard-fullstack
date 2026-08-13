@@ -320,7 +320,8 @@ export const getKpiTrends = async (req, res) => {
             endDate: req.query.endDate,
             skuName: req.query.skuName,
             skuCode: req.query.skuCode,
-            msl: req.query.msl
+            msl: req.query.msl,
+            resellerName: req.query.resellerName
         };
         console.log('[getKpiTrends] API call received with filters:', filters);
         const data = await watchTowerService.getKpiTrends(filters);
