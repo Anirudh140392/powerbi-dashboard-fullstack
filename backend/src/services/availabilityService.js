@@ -290,6 +290,28 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
         }
     }
 
+    // SAP Code filter (for DRL client or any table with sap_code column)
+    const sapArr = [];
+    const parseSap = (val) => {
+        if (!val) return;
+        const items = Array.isArray(val) ? val : String(val).split(/[,|]/);
+        items.forEach(v => {
+            const trimmed = v.trim();
+            if (trimmed && trimmed !== 'All' && trimmed !== 'all') {
+                sapArr.push(trimmed);
+            }
+        });
+    };
+    if (filters.sapCode) parseSap(filters.sapCode);
+    if (filters.sapCodes) parseSap(filters.sapCodes);
+    if (filters.sap_code) parseSap(filters.sap_code);
+
+    if (sapArr.length > 0 && columnExists(pdpColsMap, 'sap_code')) {
+        const actualSapCol = resolveColumn(pdpColsMap, 'sap_code', 'sap_code');
+        const uniqueSapArr = [...new Set(sapArr)];
+        conditions.push(`toString(${prefix}${actualSapCol}) IN (${uniqueSapArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
+    }
+
     // Date/Month range
     if (dates && Array.isArray(dates) && dates.length > 0) {
         conditions.push(`${prefix}DATE IN (${dates.map(d => `'${d}'`).join(',')})`);
@@ -701,7 +723,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
             const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
             const doiLookbackDate = currentEndDate.subtract(29, 'day').format('YYYY-MM-DD');
-            
+
             let prevStartDate, prevEndDate;
             if (filters.compareStartDate && filters.compareEndDate) {
                 prevStartDate = dayjs(filters.compareStartDate);
@@ -1440,7 +1462,7 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                 try {
                     const tier1DbCities = await getMetroCities();
                     const fallbackTier1 = [
-                        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow', 
+                        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
                         'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru',
                         'bangalore', 'noida', 'ahmedabad'
                     ];
@@ -1800,6 +1822,9 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
             const pdpColsMap = await getTableColumns('rb_pdp_olap');
             const catCol = resolveColumn(pdpColsMap, 'Category', 'Category');
             const pcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
+            const hasSapCode = columnExists(pdpColsMap, 'sap_code');
+            const sapCol = hasSapCode ? resolveColumn(pdpColsMap, 'sap_code', 'sap_code') : null;
+            const selectSap = hasSapCode ? `, any(${sapCol}) as sap_code` : '';
 
             const query = `
                 SELECT 
@@ -1810,7 +1835,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     Platform as platform,
                     ${catCol} as category_name,
                     ${pcCol} as product_category_name,
-                    DATE,
+                    DATE
+                    ${selectSap},
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sum_neno,
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sum_deno
                 FROM rb_pdp_olap
@@ -1885,9 +1911,12 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                         platform: row.platform,
                         category_name: row.category_name,
                         product_category_name: row.product_category_name,
+                        sap_code: hasSapCode ? (row.sap_code || null) : undefined,
                         days: {}, // Overall SKU daily aggregations: { date: { neno, deno } }
                         cities: {} // Nested city data: { city: { date: osa } }
                     };
+                } else if (hasSapCode && !skuMap[skuId].sap_code && row.sap_code) {
+                    skuMap[skuId].sap_code = row.sap_code;
                 }
 
                 // Overall SKU aggregation
@@ -1973,7 +2002,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     return null;
                 }
 
-                return {
+                const rowObj = {
                     name: item.name,
                     sku: item.sku,
                     brand: item.brand,
@@ -1987,6 +2016,12 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     status: status,
                     cities: sortedCities
                 };
+
+                if (hasSapCode && item.sap_code != null) {
+                    rowObj.sap_code = String(item.sap_code);
+                }
+
+                return rowObj;
             }).filter(Boolean).sort((a, b) => b.avgSelected - a.avgSelected || a.name.localeCompare(b.name));
 
             const escapeStr = (str) => String(str).replace(/'/g, "''");
@@ -2542,7 +2577,7 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                         `Reseller_Name IS NOT NULL AND Reseller_Name != ''`,
                         `Comp_flag = 0`
                     ];
-                    
+
                     const platformCond = await buildPlatformChannelCond(platform, channel);
                     if (platformCond) {
                         resellerConditions.push(platformCond);

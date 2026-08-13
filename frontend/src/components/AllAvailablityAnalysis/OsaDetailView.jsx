@@ -80,7 +80,7 @@ export default function OsaDetailTableLight({
         try {
             const u = JSON.parse(sessionStorage.getItem('user'));
             const db = u?.dbName?.toLowerCase();
-            return db === 'drl' || db === 'prestige';
+            return db === 'drl';
         } catch {
             return false;
         }
@@ -225,6 +225,21 @@ export default function OsaDetailTableLight({
         const formatRows = getMatchingRowsExcluding('format');
         const cityRows = getMatchingRowsExcluding('city');
 
+        // Build product name options with SAP code included in label for searchability
+        const productOptions = [...new Set(productNameRows.map(r => {
+            const name = r.name || r.productName;
+            const sapCode = r.sap_code;
+            return JSON.stringify({ name, sapCode });
+        }))]
+            .map(json => JSON.parse(json))
+            .filter(p => p.name)
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+            .map(p => ({
+                id: p.name,
+                // Include SAP code in the label so it's searchable in the filter panel
+                label: p.sapCode ? `${p.name} (SAP: ${p.sapCode})` : p.name
+            }));
+
         const opts = [
             { id: "msl", label: "MSL", options: [
                 { id: "0", label: "All SKUs" },
@@ -232,7 +247,7 @@ export default function OsaDetailTableLight({
             ] },
             { id: "platform", label: "Platform", options: mk([...new Set(platformRows.map(r => r.platform).filter(Boolean))].sort()) },
             { id: "brand", label: "Brand", options: mk([...new Set(brandRows.map(r => r.brand).filter(Boolean))].sort()) },
-            { id: "productName", label: "Product Name", options: mk([...new Set(productNameRows.map(r => r.name || r.productName).filter(Boolean))].sort()) },
+            { id: "productName", label: "Product Name", options: productOptions },
             { id: "format", label: "Category", options: mk([...new Set(formatRows.map(r => r.format).filter(Boolean))].sort()) },
             { id: "city", label: "City", options: mk([...new Set(cityRows.flatMap(r => r.cities?.map(c => c.name || c) || []).filter(Boolean))].sort()) },
         ];
@@ -253,7 +268,8 @@ export default function OsaDetailTableLight({
             imageUrl: row.imageUrl,
             page_url: row.page_url || null,
             values: row.values || [], avg7: row.avg7 || 0, avg31: row.avg31 || 0,
-            avgSelected: row.avgSelected || row.avg31 || 0, status: row.status || "Healthy", cities: row.cities || []
+            avgSelected: row.avgSelected || row.avg31 || 0, status: row.status || "Healthy", cities: row.cities || [],
+            sap_code: row.sap_code || null
         }));
     }, [apiData]);
 
@@ -264,7 +280,8 @@ export default function OsaDetailTableLight({
             const q = searchSkuTerm.toLowerCase().trim();
             res = res.filter(r => 
                 r.name.toLowerCase().includes(q) || 
-                r.sku.toLowerCase().includes(q)
+                r.sku.toLowerCase().includes(q) ||
+                (r.sap_code && String(r.sap_code).toLowerCase().includes(q))
             );
         }
 
@@ -333,7 +350,7 @@ export default function OsaDetailTableLight({
                             <div className="flex items-center gap-2">
                                 <input
                                     type="text"
-                                    placeholder="Search product / SKU..."
+                                    placeholder="Search SAP Code, Product, SKU..."
                                     value={searchSkuTerm}
                                     onChange={(e) => {
                                         setSearchSkuTerm(e.target.value);
@@ -446,6 +463,11 @@ export default function OsaDetailTableLight({
                                                                             </a>
                                                                         )}
                                                                     </div>
+                                                                    {r.sap_code && (
+                                                                        <div className="text-[9px] text-slate-500 font-normal mt-0.5">
+                                                                            SAP: {r.sap_code}
+                                                                        </div>
+                                                                    )}
                                                                     <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight mt-1">{r.platform}</div>
                                                                 </div>
                                                             </div>
