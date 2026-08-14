@@ -29,7 +29,7 @@ import MarketShareShareTable from "./MarketShareShareTable";
 const marketShareKpis = [
   {
     id: "ms-mars-wrigley",
-    title: "Boat Estimated Sales (Cr)",
+    title: "Boat Estimated Sales",
     value: "₹ 6.90 Cr",
     subtitle: "Our brand estimated sales performance",
     delta: 38.1,
@@ -53,7 +53,7 @@ const marketShareKpis = [
   },
   {
     id: "ms-category-size",
-    title: "Category Size (Cr)",
+    title: "Category Size",
     value: "₹ 220.22 Cr",
     subtitle: "Total category size across all platforms",
     delta: 73.8,
@@ -345,7 +345,7 @@ export default function MarketShareAnalysis() {
   const [kpis, setKpis] = useState(() =>
     marketShareKpis.map(k =>
       k.id === 'ms-mars-wrigley'
-        ? { ...k, title: `${dbDisplayName} Estimated Sales (Cr)`, subtitle: `${dbDisplayName} brand estimated sales performance` }
+        ? { ...k, title: `${dbDisplayName} Estimated Sales`, subtitle: `${dbDisplayName} brand estimated sales performance` }
         : k
     )
   );
@@ -371,7 +371,8 @@ export default function MarketShareAnalysis() {
       return 'Daily';
     }
     // Also check channel as a fallback
-    if (selectedChannel && selectedChannel.toLowerCase().includes('quickcomm')) {
+    const chanStr = (Array.isArray(selectedChannel) ? selectedChannel.join(',') : String(selectedChannel || '')).toLowerCase();
+    if (chanStr.includes('quickcomm')) {
       return 'Daily';
     }
     return 'Monthly';
@@ -508,7 +509,6 @@ export default function MarketShareAnalysis() {
         loading={loading}
         title="Market Share Overview"
         icon={LayoutGrid}
-        chip="All Platforms"
         headerRight={
           <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
             vs Comparison Period

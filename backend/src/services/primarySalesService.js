@@ -1,6 +1,6 @@
 // src/services/primarySalesService.js
 // Service for PRIMARY SUMMARY segment on Business Overview page
-// Data source: drl_primary_sales_olap table in the user's DB
+// Data source: rb_primary_olap table in the user's DB
 // Metric: SUM(amount_inr)
 
 import { queryClickHouse } from '../config/clickhouse.js';
@@ -119,7 +119,7 @@ export const getPrimaryMOM = async (filters = {}, metricType = 'MRP') => {
             toStartOfMonth(toDate(billing_date)) AS month_start,
             formatDateTime(toDate(billing_date), '%b-%y') AS month_label,
             COALESCE(SUM(toFloat64OrZero(toString(${metricColumn}))), 0) AS value
-        FROM drl.drl_primary_sales_olap
+        FROM rb_primary_olap
         WHERE billing_date IS NOT NULL
           AND ${filterClause}
         GROUP BY month_start, month_label
@@ -165,7 +165,7 @@ export const getPrimaryQuarterly = async (filters = {}, metricType = 'MRP') => {
                 ELSE toYear(toDate(billing_date)) - 1
             END AS fy_start_year,
             COALESCE(SUM(toFloat64OrZero(toString(${metricColumn}))), 0) AS value
-        FROM drl.drl_primary_sales_olap
+        FROM rb_primary_olap
         WHERE billing_date IS NOT NULL
           AND ${filterClause}
         GROUP BY fy_quarter, fy_start_year
@@ -214,7 +214,7 @@ export const getPrimaryPivotTable = async (filters = {}, xAxis = 'customer_name'
             formatDateTime(toStartOfMonth(toDate(billing_date)), '%b-%y') AS month_label,
             toStartOfMonth(toDate(billing_date)) AS month_start,
             COALESCE(SUM(toFloat64OrZero(toString(${metricColumn}))), 0) AS value
-        FROM drl.drl_primary_sales_olap
+        FROM rb_primary_olap
         WHERE billing_date IS NOT NULL
           AND ${columnName} IS NOT NULL
           AND toString(${columnName}) != ''
@@ -285,14 +285,14 @@ export const getPrimaryFilterOptions = async (filters = {}) => {
     const platformClause = buildFilterClauseExcluding(filters, 'platform');
 
     const [brands, retailers, products, divisions, zones, locations, channels, platforms] = await Promise.all([
-        queryClickHouse(`SELECT DISTINCT toString(brand) AS val FROM drl.drl_primary_sales_olap WHERE brand IS NOT NULL AND toString(brand) != '' AND ${brandClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(customer_name) AS val FROM drl.drl_primary_sales_olap WHERE customer_name IS NOT NULL AND toString(customer_name) != '' AND ${retailerClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(product_description) AS val FROM drl.drl_primary_sales_olap WHERE product_description IS NOT NULL AND toString(product_description) != '' AND ${productClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(division) AS val FROM drl.drl_primary_sales_olap WHERE division IS NOT NULL AND toString(division) != '' AND ${divisionClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(zone) AS val FROM drl.drl_primary_sales_olap WHERE zone IS NOT NULL AND toString(zone) != '' AND ${zoneClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(location) AS val FROM drl.drl_primary_sales_olap WHERE location IS NOT NULL AND toString(location) != '' AND ${locationClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(channel) AS val FROM drl.drl_primary_sales_olap WHERE channel IS NOT NULL AND toString(channel) != '' AND ${channelClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(platform) AS val FROM drl.drl_primary_sales_olap WHERE platform IS NOT NULL AND toString(platform) != '' AND ${platformClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(brand) AS val FROM rb_primary_olap WHERE brand IS NOT NULL AND toString(brand) != '' AND ${brandClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(customer_name) AS val FROM rb_primary_olap WHERE customer_name IS NOT NULL AND toString(customer_name) != '' AND ${retailerClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(product_description) AS val FROM rb_primary_olap WHERE product_description IS NOT NULL AND toString(product_description) != '' AND ${productClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(division) AS val FROM rb_primary_olap WHERE division IS NOT NULL AND toString(division) != '' AND ${divisionClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(zone) AS val FROM rb_primary_olap WHERE zone IS NOT NULL AND toString(zone) != '' AND ${zoneClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(location) AS val FROM rb_primary_olap WHERE location IS NOT NULL AND toString(location) != '' AND ${locationClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(channel) AS val FROM rb_primary_olap WHERE channel IS NOT NULL AND toString(channel) != '' AND ${channelClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(platform) AS val FROM rb_primary_olap WHERE platform IS NOT NULL AND toString(platform) != '' AND ${platformClause} ORDER BY val`),
     ]);
 
     return {

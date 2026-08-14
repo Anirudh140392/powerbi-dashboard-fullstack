@@ -42,21 +42,21 @@ const cardSize = {
 const kpiDefs = [
     { key: 'categorySize', label: 'Category Size' },
     { key: 'mwMarketShare', label: 'Market Share%' },
-    { key: 'mwSales', label: 'Estimated Sales (Cr)' },
+    { key: 'mwSales', label: 'Estimated Sales' },
     { key: 'mlMarketShare', label: 'ML Market Share%' },
 ];
 
 const baseKpiLabels = {
     categorySize: 'Category Size',
     mwMarketShare: 'Market Share%',
-    mwSales: 'Estimated Sales (Cr)',
+    mwSales: 'Estimated Sales',
     mlMarketShare: 'ML Market Share%',
 };
 
 /* --- Platform entities (COLUMN headers — horizontal, top) --- */
 /* Fallback while loading; overridden dynamically from backend response */
 const defaultPlatformEntities = [
-    { key: 'odd_overall', name: 'ODD Overall' },
+    { key: 'odd_overall', name: 'Overall' },
     { key: 'blinkit', name: 'Blinkit' },
     { key: 'instamart', name: 'Instamart' },
     { key: 'zepto', name: 'Zepto' },
@@ -71,7 +71,7 @@ const MarketCatOverview = ({
     const kpiLabels = useMemo(() => ({
         ...baseKpiLabels,
         mwMarketShare: `Market Share%`,
-        mwSales: `Estimated Sales (Cr)`,
+        mwSales: `Estimated Sales`,
     }), []);
 
     const {
@@ -191,7 +191,7 @@ const MarketCatOverview = ({
         if (backendData._availablePlatforms) {
             return backendData._availablePlatforms.map(key => ({
                 key,
-                name: key === 'odd_overall' ? 'ODD Overall' : key.charAt(0).toUpperCase() + key.slice(1)
+                name: key === 'odd_overall' ? 'Overall' : key.charAt(0).toUpperCase() + key.slice(1)
             }));
         }
 
@@ -201,7 +201,7 @@ const MarketCatOverview = ({
         const sorted = ['odd_overall', ...keys.filter(k => k !== 'odd_overall')];
         return sorted.map(key => ({
             key,
-            name: key === 'odd_overall' ? 'ODD Overall' : key.charAt(0).toUpperCase() + key.slice(1)
+            name: key === 'odd_overall' ? 'Overall' : key.charAt(0).toUpperCase() + key.slice(1)
         }));
     }, [backendData]);
 

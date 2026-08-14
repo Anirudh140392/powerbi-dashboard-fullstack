@@ -126,7 +126,8 @@ export const getDimensionOverview = async (req, res) => {
             channel: req.query.channel,
             dimension: req.query.dimension,
             sku: req.query.sku,
-            msl: req.query.msl
+            msl: req.query.msl,
+            grammage: req.query.grammage
         };
 
         console.log("[PricingAnalysisController] getDimensionOverview called with filters:", filters);

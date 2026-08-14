@@ -21,7 +21,7 @@ export default (app) => {
      * /api/primary-sales/mom:
      *   get:
      *     summary: Get Primary MOM (Month-over-Month) chart data
-     *     description: Returns SUM(amount_inr) grouped by month from drl_primary_sales_olap
+     *     description: Returns SUM(amount_inr) grouped by month from rb_primary_olap
      *     parameters:
      *       - in: query
      *         name: location

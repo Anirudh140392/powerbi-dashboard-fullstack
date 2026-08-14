@@ -217,6 +217,7 @@ export default function PerformanceMatric({
         selectedLevel={selectedTrendLevel}
         dynamicKey="performance_dashboard_tower"
         brandOptions={defaultBrands.map(b => b.label)}
+        /* showResellerFilter={true} */
         showResellerFilter={false}
       />
     </div>
