@@ -397,16 +397,16 @@ export async function verifySession(token, deviceToken = null) {
         if (clientDeviceToken) {
             const tokenRows = await queryAdminDB(
                 `SELECT access FROM tb_user
-                 WHERE user_email = {email:String}
-                   AND db_id = {dbId:String}
+                 WHERE lower(user_email) = lower({email:String})
+                   AND (toString(db_id) = {dbId:String} OR {dbId:String} = '')
                    AND device_token = {dtoken:String}
                  ORDER BY last_login DESC
                  LIMIT 1`,
-                { email: decoded.email, dbId: decoded.dbId, dtoken: clientDeviceToken }
+                { email: decoded.email, dbId: String(decoded.dbId || ''), dtoken: clientDeviceToken }
             );
             if (tokenRows.length > 0) {
                 const status = (tokenRows[0].access || '').toLowerCase().trim();
-                if (status === 'allow') {
+                if (status === 'allow' || status === 'pending') {
                     accessVerified = true;
                 } else if (status === 'deny') {
                     throw new Error('Access Denied: Your device has been blocked by an administrator.');
@@ -420,18 +420,18 @@ export async function verifySession(token, deviceToken = null) {
         if (!accessVerified) {
             const accessRecords = await queryAdminDB(
                 `SELECT access FROM tb_user 
-                 WHERE user_email = {email:String}
-                   AND db_id = {dbId:String}
+                 WHERE lower(user_email) = lower({email:String})
+                   AND (toString(db_id) = {dbId:String} OR {dbId:String} = '')
                  ORDER BY
-                   CASE access WHEN 'allow' THEN 0 WHEN 'deny' THEN 1 ELSE 2 END,
+                   CASE access WHEN 'allow' THEN 0 WHEN 'pending' THEN 1 WHEN 'deny' THEN 2 ELSE 3 END,
                    last_login DESC
                  LIMIT 1`,
-                { email: decoded.email, dbId: decoded.dbId }
+                { email: decoded.email, dbId: String(decoded.dbId || '') }
             );
 
             const currentAccess = accessRecords.length > 0 ? (accessRecords[0].access || '').toLowerCase().trim() : null;
 
-            if (currentAccess !== 'allow') {
+            if (currentAccess !== 'allow' && currentAccess !== 'pending') {
                 throw new Error('Access not allowed. Please contact admin.');
             }
         }
