@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect, useRef } from "react";
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -23,47 +24,36 @@ import { createAlert, updateAlert } from "../../api/insightsService";
 // Defined Alert Rule Presets
 const ALERT_PRESETS = [
     {
-        id: "low_osa",
-        name: "Low OSA Alert",
+        id: "low_osa_bottom_city",
+        name: "Low OSA Alert (Bottom % City Level)",
         category: "Inventory & On-Shelf Availability",
-        metrics: ["OSA %", "Category"],
-        formula: "OSA = (Available SKUs / Total Listed SKUs) * 100",
-        condition: "Category OSA < Threshold (e.g. 85%)",
+        metrics: ["Bottom %", "City"],
+        formula: "Bottom N% cities by OSA score",
+        condition: "City falls in bottom threshold %",
         operator: "lt",
-        defaultThreshold: "85",
-        severity: "High",
-    },
-    {
-        id: "promo_discount_change",
-        name: "Sharp Promo/Discount Change Alert",
-        category: "Pricing Positioning & Discounts",
-        metrics: ["Current Discount", "Baseline Discount"],
-        formula: "Discount Shift% = ((Current - Baseline) / Baseline) * 100",
-        condition: "Increase or decrease in discount > 20%",
-        operator: "changes",
         defaultThreshold: "20",
         severity: "High",
     },
     {
-        id: "category_health",
-        name: "Category Health Alert",
-        category: "Category Health & Multi-Metric",
-        metrics: ["OSA", "Price", "ASP", "Discount", "Ad Spend"],
-        formula: "Multi-metric comparison vs baseline / previous period",
-        condition: "One or more metrics deteriorate beyond thresholds",
-        operator: "drops",
-        defaultThreshold: "15",
-        severity: "Critical",
+        id: "low_osa_bottom_product",
+        name: "Low OSA Alert (Bottom % Product Level)",
+        category: "Inventory & On-Shelf Availability",
+        metrics: ["Bottom %", "Product"],
+        formula: "Bottom N% products by OSA score",
+        condition: "Product falls in bottom threshold %",
+        operator: "lt",
+        defaultThreshold: "20",
+        severity: "High",
     },
     {
-        id: "performance_summary",
-        name: "Performance Summary",
-        category: "Automated Performance Digest & Weekly Report",
-        metrics: ["Overall Brand Performance", "Platform Offtake", "OSA & Share Digest"],
-        formula: "Weekly aggregated performance & cross-platform metrics digest",
-        condition: "Automated scheduled dispatch of weekly performance summary report",
-        operator: "eq",
-        defaultThreshold: "0",
+        id: "keyword_delta_sos",
+        name: "Keyword Delta SOS Exceeds Threshold",
+        category: "Share of Search",
+        metrics: ["Delta", "Keyword"],
+        formula: "Delta SOS > N",
+        condition: "Keyword Delta SOS exceeds threshold",
+        operator: "gt",
+        defaultThreshold: "10",
         severity: "Medium",
     },
 ];
@@ -85,6 +75,7 @@ const formatPlatformName = (name) => {
 };
 
 // Helper function to resolve platform logo image URLs
+// eslint-disable-next-line no-unused-vars
 const getPlatformLogo = (platName, platformMetadata = []) => {
     if (!platName || platName === "All Platforms" || platName === "All") return null;
     const lower = String(platName).toLowerCase().trim();
@@ -116,23 +107,24 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const filterCtx = useContext(FilterContext) || {};
 
     // Multi-Select Preset Rules State
-    const [selectedPresetIds, setSelectedPresetIds] = useState(["low_osa"]);
+    const [selectedPresetIds, setSelectedPresetIds] = useState(["low_osa_bottom_city"]);
     const [showPresetDropdown, setShowPresetDropdown] = useState(false);
 
     // Custom Alert Name & User Override Tracking
-    const [alertName, setAlertName] = useState("Low OSA Alert");
+    const [alertName, setAlertName] = useState("Low OSA Alert (Bottom % City Level)");
     const [isCustomAlertName, setIsCustomAlertName] = useState(false);
 
-    const [category, setCategory] = useState("Inventory & On-Shelf Availability");
+    const [, setCategory] = useState("Inventory & On-Shelf Availability");
     const [triggerOperator, setTriggerOperator] = useState("lt");
-    const [thresholdValue, setThresholdValue] = useState("85");
-    const [comparisonPeriod, setComparisonPeriod] = useState("vs 7-Day Average");
+    const [thresholdValue, setThresholdValue] = useState("20");
+    const [comparisonPeriod, setComparisonPeriod] = useState("vs L4W Avg");
 
     // Multi-Select Scope Selection State (Platforms & Brands)
     const [selectedPlatforms, setSelectedPlatforms] = useState([]);
     const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
 
     const [selectedBrands, setSelectedBrands] = useState([]);
+    // eslint-disable-next-line no-unused-vars
     const [showBrandDropdown, setShowBrandDropdown] = useState(false);
 
     // Dynamic Lists (from Global FilterContext + Backend API)
@@ -142,10 +134,10 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     // Custom Rule Formula & Condition Overrides (Edit Mode State)
     const [customFormulas, setCustomFormulas] = useState({});
     const [customConditions, setCustomConditions] = useState({});
-    const [editingRuleId, setEditingRuleId] = useState(null);
+    const [editingRuleId] = useState(null);
 
     // Frequency & Severity Custom Dropdowns State
-    const [frequency, setFrequency] = useState("Hourly");
+    const [frequency, setFrequency] = useState("Weekly Summary");
     const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false);
 
     const [severity, setSeverity] = useState("Critical");
@@ -170,6 +162,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
 
     const selectedPresets = ALERT_PRESETS.filter(p => selectedPresetIds.includes(p.id));
     const isPerformanceSummarySelected = selectedPresetIds.includes("performance_summary");
+    // eslint-disable-next-line no-unused-vars
+    const isWeeklyForced = selectedPresetIds.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id));
 
     // Sync values when editing an existing alert
     useEffect(() => {
@@ -188,9 +182,13 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                 setSelectedBrands(editingAlert.brands);
             }
             setTriggerOperator(editingAlert.conditional_operator || editingAlert.operator || "lt");
-            setThresholdValue(editingAlert.threshold_value !== undefined ? String(editingAlert.threshold_value) : String(editingAlert.threshold || "85"));
-            setComparisonPeriod(editingAlert.benchmark_period || "vs 7-Day Average");
-            setFrequency(editingAlert.alert_frequency || editingAlert.frequency || "Hourly");
+            setThresholdValue(editingAlert.threshold_value !== undefined ? String(editingAlert.threshold_value) : String(editingAlert.threshold || "20"));
+            setComparisonPeriod(editingAlert.benchmark_period || "vs L4W Avg");
+            if (["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].some(id => editingAlert.alert_type?.includes(id))) {
+                setFrequency("Weekly Summary");
+            } else {
+                setFrequency(editingAlert.alert_frequency || editingAlert.frequency || "Hourly");
+            }
             setSeverity(editingAlert.severity_level || editingAlert.severity || "Critical");
             if (editingAlert.alert_type) {
                 setSelectedPresetIds(editingAlert.alert_type.split(','));
@@ -209,8 +207,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
             }
         } else if (open && !editingAlert) {
             setIsCustomAlertName(false);
-            setAlertName("Low OSA Alert");
-            setSelectedPresetIds(["low_osa"]);
+            setAlertName("Low OSA Alert (Bottom % City Level)");
+            setSelectedPresetIds(["low_osa_bottom_city"]);
             setSelectedPlatforms([]);
             setSelectedBrands([]);
             setScheduledDay("Monday");
@@ -229,6 +227,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     };
 
     // Toggle Multi-Select Brands
+    // eslint-disable-next-line no-unused-vars
     const handleToggleBrand = (brand) => {
         if (brand === "All Brands") {
             if (selectedBrands.includes("All Brands") || selectedBrands.length === availableBrands.length) {
@@ -263,6 +262,11 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         }
 
         setSelectedPresetIds(updated);
+
+        // When a weekly-forced alert is selected, set frequency
+        if (updated.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id))) {
+            setFrequency("Weekly Summary");
+        }
 
         // When Performance Summary is selected, disable WhatsApp
         if (presetId === "performance_summary") {
@@ -589,7 +593,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                 </span>
                             </div>
 
-                            <div style={{ display: "grid", gridTemplateColumns: isPerformanceSummarySelected ? "1fr" : "1fr 1fr", gap: "16px" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
                                 {/* MULTI-SELECT PLATFORM */}
                                 <div>
                                     <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
@@ -728,168 +732,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                     </div>
                                 </div>
 
-                                {/* MULTI-SELECT BRAND (Hidden for Performance Summary) */}
-                                {!isPerformanceSummarySelected && (
-                                    <div>
-                                        <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
-                                            SELECT BRAND(S)
-                                        </label>
-
-                                        <div style={{ position: "relative" }} ref={brandDropdownRef}>
-                                            <div
-                                                onClick={() => setShowBrandDropdown((prev) => !prev)}
-                                                className="form-input-focus"
-                                                style={{
-                                                    width: "100%",
-                                                    minHeight: "42px",
-                                                    padding: "6px 12px",
-                                                    borderRadius: "10px",
-                                                    border: showBrandDropdown ? "1.5px solid #10b981" : "1px solid #cbd5e1",
-                                                    boxShadow: showBrandDropdown ? "0 0 0 3px rgba(16, 185, 129, 0.12)" : "none",
-                                                    background: "#ffffff",
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "space-between",
-                                                    cursor: "pointer",
-                                                    boxSizing: "border-box",
-                                                    gap: "8px",
-                                                    transition: "all 0.15s ease",
-                                                }}
-                                            >
-                                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center", flex: 1 }}>
-                                                    {selectedBrands.length === 0 ? (
-                                                        <span style={{ fontSize: "13px", color: "#94a3b8" }}>Select brand(s)...</span>
-                                                    ) : selectedBrands.includes("All Brands") ? (
-                                                        <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#10b981", background: "#f0fdf4", padding: "2px 8px", borderRadius: "12px", border: "1px solid #a7f3d0" }}>
-                                                            All Brands
-                                                        </span>
-                                                    ) : (
-                                                        selectedBrands.map((b) => (
-                                                            <span
-                                                                key={b}
-                                                                style={{
-                                                                    display: "inline-flex",
-                                                                    alignItems: "center",
-                                                                    gap: "5px",
-                                                                    padding: "2px 8px",
-                                                                    borderRadius: "16px",
-                                                                    background: "#f0fdf4",
-                                                                    border: "1px solid #a7f3d0",
-                                                                    color: "#10b981",
-                                                                    fontSize: "12px",
-                                                                    fontWeight: 700,
-                                                                }}
-                                                            >
-                                                                {b}
-                                                                <span
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleToggleBrand(b);
-                                                                    }}
-                                                                    style={{
-                                                                        display: "inline-flex",
-                                                                        alignItems: "center",
-                                                                        justifyContent: "center",
-                                                                        width: "14px",
-                                                                        height: "14px",
-                                                                        borderRadius: "50%",
-                                                                        background: "#d1fae5",
-                                                                        color: "#059669",
-                                                                        cursor: "pointer",
-                                                                        fontSize: "9px",
-                                                                        fontWeight: 800,
-                                                                    }}
-                                                                >
-                                                                    ✕
-                                                                </span>
-                                                            </span>
-                                                        ))
-                                                    )}
-                                                </div>
-
-                                                <ChevronDown size={16} style={{ color: "#64748b", transform: showBrandDropdown ? "rotate(180deg)" : "none", transition: "transform 0.15s ease", flexShrink: 0 }} />
-                                            </div>
-
-                                            {/* Dropdown Options for Brands */}
-                                            {showBrandDropdown && (
-                                                <div
-                                                    style={{
-                                                        position: "absolute",
-                                                        top: "100%",
-                                                        left: 0,
-                                                        right: 0,
-                                                        marginTop: "6px",
-                                                        background: "#ffffff",
-                                                        border: "1px solid #e2e8f0",
-                                                        borderRadius: "12px",
-                                                        boxShadow: "0 12px 28px -4px rgba(15, 23, 42, 0.18)",
-                                                        padding: "6px",
-                                                        zIndex: 30,
-                                                        maxHeight: "220px",
-                                                        overflowY: "auto",
-                                                        display: "flex",
-                                                        flexDirection: "column",
-                                                        gap: "2px",
-                                                    }}
-                                                >
-                                                    {/* All Brands Toggle */}
-                                                    <div
-                                                        onClick={() => handleToggleBrand("All Brands")}
-                                                        style={{
-                                                            padding: "8px 12px",
-                                                            borderRadius: "8px",
-                                                            background: selectedBrands.includes("All Brands") ? "#f0fdf4" : "transparent",
-                                                            color: selectedBrands.includes("All Brands") ? "#10b981" : "#1e293b",
-                                                            fontSize: "12.5px",
-                                                            fontWeight: 700,
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            justifyContent: "space-between",
-                                                            cursor: "pointer",
-                                                        }}
-                                                    >
-                                                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                                            <div style={{ width: 18, height: 18, borderRadius: 4, border: selectedBrands.includes("All Brands") ? "none" : "1.5px solid #cbd5e1", background: selectedBrands.includes("All Brands") ? "#10b981" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                                {selectedBrands.includes("All Brands") && <Check size={13} color="#fff" strokeWidth={3} />}
-                                                            </div>
-                                                            <span>All Brands</span>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Individual Brands */}
-                                                    {availableBrands.map((b) => {
-                                                        const isSelected = selectedBrands.includes(b);
-                                                        return (
-                                                            <div
-                                                                key={`b_${b}`}
-                                                                onClick={() => handleToggleBrand(b)}
-                                                                style={{
-                                                                    padding: "8px 12px",
-                                                                    borderRadius: "8px",
-                                                                    background: isSelected ? "#f0fdf4" : "transparent",
-                                                                    color: isSelected ? "#10b981" : "#1e293b",
-                                                                    fontSize: "12.5px",
-                                                                    fontWeight: isSelected ? 700 : 500,
-                                                                    display: "flex",
-                                                                    alignItems: "center",
-                                                                    justifyContent: "space-between",
-                                                                    cursor: "pointer",
-                                                                }}
-                                                            >
-                                                                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                                                    <div style={{ width: 18, height: 18, borderRadius: 4, border: isSelected ? "none" : "1.5px solid #cbd5e1", background: isSelected ? "#10b981" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                                        {isSelected && <Check size={13} color="#fff" strokeWidth={3} />}
-                                                                    </div>
-                                                                    <span>{b}</span>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
+                                {/* MULTI-SELECT BRAND SECTION REMOVED */}
                             </div>
                         </div>
 
@@ -1463,10 +1306,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                 }}
                                             >
                                                 <option value="gt">Greater than (&gt;)</option>
-                                                <option value="lt">Less than (&lt;)</option>
-                                                <option value="eq">Equal to (=)</option>
-                                                <option value="changes">Changes by (%)</option>
-                                                <option value="drops">Drops by (%)</option>
+                                                <option value="lt">Lesser than (&lt;)</option>
                                             </select>
                                             <ChevronDown size={14} style={{ position: "absolute", right: 8, bottom: 12, color: "#0047FF", pointerEvents: "none" }} />
                                         </div>
@@ -1522,11 +1362,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                     boxSizing: "border-box",
                                                 }}
                                             >
-                                                <option value="vs 7-Day Average">vs 7-Day Average</option>
-                                                <option value="vs Previous Day">vs Previous Day</option>
-                                                <option value="vs 30-Day Average">vs 30-Day Average</option>
-                                                <option value="vs Same Day Last Week">vs Same Day Last Week</option>
-                                                <option value="vs Benchmark">vs Benchmark</option>
+                                                <option value="vs L4W Avg">vs L4W Avg</option>
                                             </select>
                                             <ChevronDown size={14} style={{ position: "absolute", right: 8, bottom: 12, color: "#64748b", pointerEvents: "none" }} />
                                         </div>
@@ -1597,7 +1433,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                         gap: "2px",
                                                     }}
                                                 >
-                                                    {["Hourly", "Daily Digest", "Weekly Summary"].map((freqOption) => (
+                                                    {["Weekly Summary"].map((freqOption) => (
                                                         <div
                                                             key={freqOption}
                                                             onClick={() => {

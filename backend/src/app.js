@@ -194,7 +194,9 @@ initSocket(server);
 
 // Start the background email alert cron scheduler
 import { initAlertCron } from './services/alertCronService.js';
+import { initKamAlertCron } from './services/kamAlertCronService.js';
 initAlertCron();
+initKamAlertCron();
 
 // Extend server timeout to 10 minutes (600,000ms) for large report downloads
 server.timeout = 10 * 60 * 1000;
