@@ -672,8 +672,8 @@ const getPmConversionBulk = async (start, end, platformFilter, locationFilter, c
  * Shared KPI column generator with change calculations
  */
 const generateKpiColumns = ({
-    offtake, availability, sos, marketShare, spend, roas, inorgSales, conversion, cpm, cpc, asp, aov = 0, promoMyBrand = 0, promoCompete = 0, categorySize, adSov = 0, organicSov = 0, buyBoxPct = 0, deliveryTime = null, tacos = null, wtOsa = null,
-    prevOfftake = 0, prevAvailability = 0, prevSos = 0, prevMarketShare = 0, prevSpend = 0, prevRoas = 0, prevInorgSales = 0, prevConversion = 0, prevCpm = 0, prevCpc = 0, prevAsp = 0, prevAov = 0, prevPromoMyBrand = 0, prevPromoCompete = 0, prevCategorySize = 0, prevAdSov = 0, prevOrganicSov = 0, prevBuyBoxPct = 0, prevDeliveryTime = null, prevTacos = null, prevWtOsa = null,
+    offtake, availability, sos, marketShare, spend, roas, inorgSales, conversion, cpm, cpc, asp, aov = 0, promoMyBrand = 0, promoCompete = 0, categorySize, adSov = 0, organicSov = 0, buyBoxPct = 0, deliveryTime = null, tacos = null, wtOsa = null, wtDiscount = null, listingPercent = null,
+    prevOfftake = 0, prevAvailability = 0, prevSos = 0, prevMarketShare = 0, prevSpend = 0, prevRoas = 0, prevInorgSales = 0, prevConversion = 0, prevCpm = 0, prevCpc = 0, prevAsp = 0, prevAov = 0, prevPromoMyBrand = 0, prevPromoCompete = 0, prevCategorySize = 0, prevAdSov = 0, prevOrganicSov = 0, prevBuyBoxPct = 0, prevDeliveryTime = null, prevTacos = null, prevWtOsa = null, prevWtDiscount = null, prevListingPercent = null,
     offtakeUnits = 0, inorgUnits = 0, prevOfftakeUnits = 0, prevInorgUnits = 0
 }) => {
     const isNA = (val) => val === null || val === undefined || val === 0 || val === "0";
@@ -706,6 +706,7 @@ const generateKpiColumns = ({
     const marketShareChange = safeChange(marketShare, prevMarketShare, calcPPChange);
     const promoMyBrandChange = safeChange(promoMyBrand, prevPromoMyBrand, calcPPChange);
     const promoCompeteChange = safeChange(promoCompete, prevPromoCompete, calcPPChange);
+    const wtDiscountChange = safeChange(wtDiscount, prevWtDiscount, calcPPChange);
     const cpmChange = safeChange(cpm, prevCpm, calcChange);
     const cpcChange = safeChange(cpc, prevCpc, calcChange);
     const aspChange = safeChange(asp, prevAsp, calcChange);
@@ -716,6 +717,7 @@ const generateKpiColumns = ({
     const deliveryTimeChange = safeChange(deliveryTime, prevDeliveryTime, calcChange);
     const aovChange = safeChange(aov, prevAov, calcChange);
     const wtOsaChange = safeChange(wtOsa, prevWtOsa, calcPPChange);
+    const listingPercentChange = safeChange(listingPercent, prevListingPercent, calcPPChange);
 
     const fmtCurr = (v) => isNA(v) ? "N/A" : formatCurrency(v);
     const fmtPct = (v) => isNA(v) ? "N/A" : `${(parseFloat(v) || 0).toFixed(2)}%`;
@@ -742,6 +744,7 @@ const generateKpiColumns = ({
         { title: "Conversion", value: fmtPct(conversion), change: { text: fmtChg(conversionChange, true), positive: conversionChange >= 0 }, meta: { units: "Orders / Clicks", change: fmtChg(conversionChange, true) } },
         { title: "Availability", value: fmtPct(availability), change: { text: fmtChg(availabilityChange, true), positive: availabilityChange >= 0 }, meta: { units: "stores", change: fmtChg(availabilityChange, true) } },
         { title: "Wt OSA", value: fmtPct(wtOsa), change: { text: fmtChg(wtOsaChange, true), positive: wtOsaChange >= 0 }, meta: { units: "OSA × Listing %", change: fmtChg(wtOsaChange, true) } },
+        { title: "Listing %", value: fmtPct(listingPercent), change: { text: fmtChg(listingPercentChange, true), positive: listingPercentChange >= 0 }, meta: { units: "Calculated", change: fmtChg(listingPercentChange, true) } },
         { title: "Share of Search", value: fmtPct(sos), change: { text: fmtChg(sosChange, true), positive: sosChange >= 0 }, meta: { units: "index", change: fmtChg(sosChange, true) } },
         { title: "Ad SOV", value: fmtPct(adSov), change: { text: fmtChg(adSovChange, true), positive: adSovChange >= 0 }, meta: { units: "sponsored", change: fmtChg(adSovChange, true) } },
         { title: "Organic SOV", value: fmtPct(organicSov), change: { text: fmtChg(organicSovChange, true), positive: organicSovChange >= 0 }, meta: { units: "organic", change: fmtChg(organicSovChange, true) } },
@@ -750,6 +753,7 @@ const generateKpiColumns = ({
         { title: "Delivery Time", value: fmtDays(deliveryTime), change: { text: fmtChg(deliveryTimeChange), positive: deliveryTimeChange <= 0 }, meta: { units: "Calculated", change: fmtChg(deliveryTimeChange) } },
         { title: "Promo-My", value: fmtPct(promoMyBrand), change: { text: fmtChg(promoMyBrandChange, true), positive: promoMyBrandChange >= 0 }, meta: { units: "Depth", change: fmtChg(promoMyBrandChange, true) } },
         { title: "Promo Compete", value: fmtPct(promoCompete), change: { text: fmtChg(promoCompeteChange, true), positive: promoCompeteChange >= 0 }, meta: { units: "Depth", change: fmtChg(promoCompeteChange, true) } },
+        { title: "Wt Discount", value: fmtPct(wtDiscount), change: { text: fmtChg(wtDiscountChange, true), positive: wtDiscountChange >= 0 }, meta: { units: "Weighted by Sales", change: fmtChg(wtDiscountChange, true) } },
         { title: "CPM", value: fmtRs(cpm), change: { text: fmtChg(cpmChange), positive: cpmChange >= 0 }, meta: { units: "impressions", change: fmtChg(cpmChange) } },
         { title: "CPC", value: fmtRs(cpc), change: { text: fmtChg(cpcChange), positive: cpcChange >= 0 }, meta: { units: "clicks", change: fmtChg(cpcChange) } },
         { title: "ASP", value: fmtRs(asp), change: { text: fmtChg(aspChange), positive: aspChange >= 0 }, meta: { units: "Weighted", change: fmtChg(aspChange) } },
@@ -5525,7 +5529,8 @@ const getPlatformOverview = async (filters) => {
                         AVG(if(${src.f.compFlagMapping} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlagMapping} = 1, ${src.f.discount}, NULL)) as comp_avg_discount,
                         AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as asp,
-                        AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent
+                        AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
                     FROM ${src.table}
                     WHERE ${currOfftakeConds}
                     GROUP BY Platform
@@ -5541,7 +5546,8 @@ const getPlatformOverview = async (filters) => {
                         AVG(if(${src.f.compFlagMapping} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlagMapping} = 1, ${src.f.discount}, NULL)) as comp_avg_discount,
                         AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as asp,
-                        AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent
+                        AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
                     FROM ${src.table}
                     WHERE ${prevOfftakeConds}
                     GROUP BY Platform
@@ -5824,7 +5830,8 @@ const getPlatformOverview = async (filters) => {
                 myAvgDiscount: parseFloat(c?.my_avg_discount || 0),
                 compAvgDiscount: parseFloat(c?.comp_avg_discount || 0),
                 asp: parseFloat(c?.asp || 0),
-                avgListingPercent: parseFloat(c?.avg_listing_percent || 0)
+                avgListingPercent: parseFloat(c?.avg_listing_percent || 0),
+                myWtDiscount: parseFloat(c?.my_wt_discount || 0)
             },
             prev: {
                 sales: parseFloat(pv?.sales || 0),
@@ -5846,7 +5853,8 @@ const getPlatformOverview = async (filters) => {
                 myAvgDiscount: parseFloat(pv?.my_avg_discount || 0),
                 compAvgDiscount: parseFloat(pv?.comp_avg_discount || 0),
                 asp: parseFloat(pv?.asp || 0),
-                avgListingPercent: parseFloat(pv?.avg_listing_percent || 0)
+                avgListingPercent: parseFloat(pv?.avg_listing_percent || 0),
+                myWtDiscount: parseFloat(pv?.my_wt_discount || 0)
             }
         });
     });
@@ -5872,7 +5880,8 @@ const getPlatformOverview = async (filters) => {
                         AVG(if(${src.f.compFlag} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlag} = 1, ${src.f.discount}, NULL)) as comp_avg_discount,
                         AVG(if(${src.f.compFlag} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
-                        AVG(if(${src.f.compFlag} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_pct
+                        AVG(if(${src.f.compFlag} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_pct,
+                        SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
                     FROM ${src.table}
                     WHERE ${allConds}
                 `),
@@ -5885,7 +5894,8 @@ const getPlatformOverview = async (filters) => {
                         AVG(if(${src.f.compFlag} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlag} = 1, ${src.f.discount}, NULL)) as comp_avg_discount,
                         AVG(if(${src.f.compFlag} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
-                        AVG(if(${src.f.compFlag} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_pct
+                        AVG(if(${src.f.compFlag} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_pct,
+                        SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
                     FROM ${src.table}
                     WHERE ${prevAllConds}
                 `),
@@ -5971,6 +5981,7 @@ const getPlatformOverview = async (filters) => {
 
     const allPromoMyBrand = allMetricsResult.length > 0 ? parseFloat(allMetrics.my_avg_discount || 0) : null;
     const allPromoCompete = allMetricsResult.length > 0 ? parseFloat(allMetrics.comp_avg_discount || 0) : null;
+    const allWtDiscount = allMetricsResult.length > 0 ? parseFloat(allMetrics.my_wt_discount || 0) : null;
 
     // Previous period for "All" row
     const prevAllMetrics = prevAllMetricsResult[0] || {};
@@ -5989,6 +6000,7 @@ const getPlatformOverview = async (filters) => {
 
     const prevAllPromoMyBrand = prevAllMetricsResult.length > 0 ? parseFloat(prevAllMetrics.my_avg_discount || 0) : null;
     const prevAllPromoCompete = prevAllMetricsResult.length > 0 ? parseFloat(prevAllMetrics.comp_avg_discount || 0) : null;
+    const prevAllWtDiscount = prevAllMetricsResult.length > 0 ? parseFloat(prevAllMetrics.my_wt_discount || 0) : null;
     const prevAllAsp = prevAllMetricsResult.length > 0 ? parseFloat(prevAllMetrics.avg_asp || 0) : null;
 
     const prevAllAvailability = (prevAllDeno !== null && prevAllDeno > 0) ? (prevAllNeno / prevAllDeno) * 100 : null;
@@ -6102,8 +6114,8 @@ const getPlatformOverview = async (filters) => {
             type: 'Overall',
             logo: "https://cdn-icons-png.flaticon.com/512/711/711284.png",
             columns: generateKpiColumns({
-                offtake: allOfftake, availability: allAvailability, wtOsa: allWtOsa, sos: allSos, marketShare: allMarketShare, spend: allSpend, roas: allRoas, inorgSales: allInorgSales, conversion: allConversion, cpm: allCpm, cpc: allCpc, asp: allAsp, aov: (allOrders > 0 ? allAdSales / allOrders : 0), promoMyBrand: allPromoMyBrand, promoCompete: allPromoCompete, categorySize: sumCatSize, adSov: allAdSov, organicSov: allOrganicSov, tacos: allTacos,
-                prevOfftake: prevAllOfftake, prevAvailability: prevAllAvailability, prevWtOsa: prevAllWtOsa, prevSos: prevAllSos, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllInorgSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc, prevAsp: prevAllAsp, prevAov: (prevAllOrders > 0 ? prevAllAdSales / prevAllOrders : 0), prevPromoMyBrand: prevAllPromoMyBrand, prevPromoCompete: prevAllPromoCompete, prevCategorySize: prevSumCatSize, prevAdSov: prevAllAdSov, prevOrganicSov: prevAllOrganicSov, prevTacos: prevAllTacos,
+                offtake: allOfftake, availability: allAvailability, wtOsa: allWtOsa, listingPercent: allListingPct, sos: allSos, marketShare: allMarketShare, spend: allSpend, roas: allRoas, inorgSales: allInorgSales, conversion: allConversion, cpm: allCpm, cpc: allCpc, asp: allAsp, aov: (allOrders > 0 ? allAdSales / allOrders : 0), promoMyBrand: allPromoMyBrand, promoCompete: allPromoCompete, wtDiscount: allWtDiscount, categorySize: sumCatSize, adSov: allAdSov, organicSov: allOrganicSov, tacos: allTacos,
+                prevOfftake: prevAllOfftake, prevAvailability: prevAllAvailability, prevWtOsa: prevAllWtOsa, prevListingPercent: prevAllListingPct, prevSos: prevAllSos, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllInorgSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc, prevAsp: prevAllAsp, prevAov: (prevAllOrders > 0 ? prevAllAdSales / prevAllOrders : 0), prevPromoMyBrand: prevAllPromoMyBrand, prevPromoCompete: prevAllPromoCompete, prevWtDiscount: prevAllWtDiscount, prevCategorySize: prevSumCatSize, prevAdSov: prevAllAdSov, prevOrganicSov: prevAllOrganicSov, prevTacos: prevAllTacos,
                 offtakeUnits: allOfftakeUnits, inorgUnits: allInorgUnits, prevOfftakeUnits: prevAllOfftakeUnits, prevInorgUnits: prevAllInorgUnits
             })
         });
@@ -6216,6 +6228,8 @@ const getPlatformOverview = async (filters) => {
 
         const promoMyBrand = hasPdp ? (metrics.curr.myAvgDiscount ?? null) : null;
         const promoCompete = hasPdp ? (metrics.curr.compAvgDiscount ?? null) : null;
+        const wtDiscount = hasPdp ? (metrics.curr.myWtDiscount ?? null) : null;
+        const listingPercent = hasPdp ? (metrics.curr.avgListingPercent ?? null) : null;
         const asp = hasPdp ? (metrics.curr.asp ?? null) : null;
 
         // Previous period
@@ -6239,7 +6253,8 @@ const getPlatformOverview = async (filters) => {
         const prevOrganicSov = prevHasSosCheck ? (metrics.prev.organicSov ?? null) : null;
 
         const prevAvailability = prevHasPdp ? (metrics.prev.deno > 0 ? (metrics.prev.neno / metrics.prev.deno) * 100 : null) : null;
-        const prevWtOsa = (prevAvailability !== null && metrics.prev.avgListingPercent !== null && metrics.prev.avgListingPercent !== undefined) ? (prevAvailability * metrics.prev.avgListingPercent) / 100 : null;
+        const prevListingPercent = prevHasPdp ? (metrics.prev.avgListingPercent ?? null) : null;
+        const prevWtOsa = (prevAvailability !== null && prevListingPercent !== null && prevListingPercent !== undefined) ? (prevAvailability * prevListingPercent) / 100 : null;
         const prevRoas = prevHasPm ? (prevSpend > 0 ? prevAdSales / prevSpend : null) : null;
         const prevConversion = prevHasPm ? (metrics.prev.conversion ?? null) : null;
         const prevCpm = (prevHasPm && isQuick) ? (prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : null) : null;
@@ -6250,6 +6265,7 @@ const getPlatformOverview = async (filters) => {
 
         const prevPromoMyBrand = prevHasPdp ? (metrics.prev.myAvgDiscount ?? null) : null;
         const prevPromoCompete = prevHasPdp ? (metrics.prev.compAvgDiscount ?? null) : null;
+        const prevWtDiscount = prevHasPdp ? (metrics.prev.myWtDiscount ?? null) : null;
 
         // Fuzzy match category size from the maps
         const fuzzyGet = (map, label) => {
@@ -6279,8 +6295,8 @@ const getPlatformOverview = async (filters) => {
             type: p.type,
             logo: p.logo,
             columns: generateKpiColumns({
-                offtake, availability, wtOsa, sos, marketShare, spend: totalSpend, roas, inorgSales, conversion, cpm, cpc, asp, aov: (totalOrders > 0 ? totalAdSales / totalOrders : 0), promoMyBrand, promoCompete, categorySize: currCatSizeAbsolute, adSov, organicSov, tacos,
-                prevOfftake, prevAvailability, prevWtOsa, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevCatSizeAbsolute, prevAdSov, prevOrganicSov, prevTacos,
+                offtake, availability, wtOsa, listingPercent, sos, marketShare, spend: totalSpend, roas, inorgSales, conversion, cpm, cpc, asp, aov: (totalOrders > 0 ? totalAdSales / totalOrders : 0), promoMyBrand, promoCompete, wtDiscount, categorySize: currCatSizeAbsolute, adSov, organicSov, tacos,
+                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevCatSizeAbsolute, prevAdSov, prevOrganicSov, prevTacos,
                 offtakeUnits, inorgUnits, prevOfftakeUnits, prevInorgUnits
             })
         });
@@ -6475,7 +6491,8 @@ const getMonthOverview = async (filters) => {
                         SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
                         AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
                         AVG(if(${src.f.compFlag} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
-                        AVG(if(${src.f.compFlag} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent
+                        AVG(if(${src.f.compFlag} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+                        SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
                     FROM ${src.table}
                     WHERE ${moConds}
                     GROUP BY formatDateTime(toDate(${src.f.date}), '%Y-%m-01')
@@ -6598,6 +6615,7 @@ const getMonthOverview = async (filters) => {
         const availability = hasPdp ? (deno > 0 ? (neno / deno) * 100 : null) : null;
         const listingPercent = hasPdp ? parseFloat(data.avg_listing_percent || 0) : null;
         const wtOsa = (availability !== null && listingPercent !== null) ? (availability * listingPercent) / 100 : null;
+        const wtDiscount = hasPdp ? parseFloat(data.my_wt_discount || 0) : null;
         const roas = hasPm ? (spend > 0 ? adSales / spend : null) : null;
         const conversion = hasPm ? calculateConversion(orders, impressions, clicks) : null;
         const cpcSpend = hasPm ? parseFloat(pmData.cpc_spend || 0) : 0;
@@ -6641,6 +6659,7 @@ const getMonthOverview = async (filters) => {
         const prevAvailability = prevHasPdp ? (prevDeno > 0 ? (prevNeno / prevDeno) * 100 : null) : null;
         const prevListingPercent = prevHasPdp ? parseFloat(prevData.avg_listing_percent || 0) : null;
         const prevWtOsa = (prevAvailability !== null && prevListingPercent !== null) ? (prevAvailability * prevListingPercent) / 100 : null;
+        const prevWtDiscount = prevHasPdp ? parseFloat(prevData.my_wt_discount || 0) : null;
         const prevRoas = prevHasPm ? (prevSpend > 0 ? prevAdSales / prevSpend : null) : null;
         const prevConversion = prevHasPm ? (prevClicks > 0 ? (prevOrders / prevClicks) * 100 : null) : null;
         const prevCpcSpend = prevHasPm ? parseFloat(prevPmData.cpc_spend || 0) : 0;
@@ -6696,8 +6715,8 @@ const getMonthOverview = async (filters) => {
             type: bucket.label,
             logo: "https://cdn-icons-png.flaticon.com/512/2693/2693507.png",
             columns: generateKpiColumns({
-                offtake, availability, wtOsa, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, categorySize: hasMsCheck ? (catSizeMonthMap.get(monthKey) ?? null) : null, adSov, organicSov, buyBoxPct, deliveryTime,
-                prevOfftake, prevAvailability, prevWtOsa, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevHasMsCheck ? (catSizeMonthMap.get(prevMonthKey) ?? null) : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
+                offtake, availability, wtOsa, listingPercent, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? (catSizeMonthMap.get(monthKey) ?? null) : null, adSov, organicSov, buyBoxPct, deliveryTime,
+                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? (catSizeMonthMap.get(prevMonthKey) ?? null) : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
                 offtakeUnits, inorgUnits, prevOfftakeUnits, prevInorgUnits
             })
         };
@@ -6929,7 +6948,8 @@ const getCategoryOverview = async (filters) => {
             SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
             AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
             AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
-            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'}, ${src.f.listingPercent}, NULL)) as avg_listing_percent
+            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'}, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
         FROM ${src.table} WHERE ${buildCatConds(startDate, endDate)} GROUP BY Category`),
         queryClickHouse(`SELECT ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} as Category,
             SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
@@ -6943,7 +6963,8 @@ const getCategoryOverview = async (filters) => {
             SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
             AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
             AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
-            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'}, ${src.f.listingPercent}, NULL)) as avg_listing_percent
+            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'}, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
         FROM ${src.table} WHERE ${buildCatConds(momStart, momEnd)} GROUP BY Category`),
         // Marketing Metrics from PM table
         queryClickHouse(`SELECT ${pmSrc.f.category} as Category,
@@ -7148,12 +7169,14 @@ const getCategoryOverview = async (filters) => {
         const promoCompete = hasPdp ? (parseFloat(curr.comp_mrp_val || 0) > 0
             ? ((parseFloat(curr.comp_mrp_val) - parseFloat(curr.comp_actual_sales)) / parseFloat(curr.comp_mrp_val)) * 100
             : null) : null;
+        const wtDiscount = hasPdp ? parseFloat(curr.my_wt_discount || 0) : null;
         const prevPromoMyBrand = prevHasPdp ? (parseFloat(prev.my_mrp_val || 0) > 0
             ? ((parseFloat(prev.my_mrp_val) - parseFloat(prev.my_actual_sales)) / parseFloat(prev.my_mrp_val)) * 100
             : null) : null;
         const prevPromoCompete = prevHasPdp ? (parseFloat(prev.comp_mrp_val || 0) > 0
             ? ((parseFloat(prev.comp_mrp_val) - parseFloat(prev.comp_actual_sales)) / parseFloat(prev.comp_mrp_val)) * 100
             : null) : null;
+        const prevWtDiscount = prevHasPdp ? parseFloat(prev.my_wt_discount || 0) : null;
 
         // Ad SOV (spons_flag=1)
         const adSovDataObj = currAdSovMap.get(catKey) || { num: 0, den: 0 };
@@ -7176,8 +7199,8 @@ const getCategoryOverview = async (filters) => {
             type: catName,
             logo: "https://cdn-icons-png.flaticon.com/512/2693/2693507.png",
             columns: generateKpiColumns({
-                offtake, availability, wtOsa, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, categorySize: currCatSizeAbsolute, adSov, organicSov, buyBoxPct, deliveryTime,
-                prevOfftake, prevAvailability, prevWtOsa, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevCatSizeAbsolute, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
+                offtake, availability, wtOsa, listingPercent, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: currCatSizeAbsolute, adSov, organicSov, buyBoxPct, deliveryTime,
+                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevCatSizeAbsolute, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
                 offtakeUnits, inorgUnits: orders, prevOfftakeUnits, prevInorgUnits: prevOrders
             })
 
@@ -7383,7 +7406,8 @@ const getBrandsOverview = async (filters) => {
             SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
             AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
             AVG(if(${src.f.compFlag} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
-            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'}, ${src.f.listingPercent}, NULL)) as avg_listing_percent
+            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'}, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
         FROM ${src.table} WHERE ${buildBrandConds(startDate, endDate)} AND ${src.f.compFlag} = 0 GROUP BY Brand`),
         queryClickHouse(`SELECT ${src.f.brand} as Brand,
             SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
@@ -7397,7 +7421,8 @@ const getBrandsOverview = async (filters) => {
             SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
             AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
             AVG(if(${src.f.compFlag} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
-            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'}, ${src.f.listingPercent}, NULL)) as avg_listing_percent
+            AVG(if(${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'}, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
         FROM ${src.table} WHERE ${buildBrandConds(momStart, momEnd)} AND ${src.f.compFlag} = 0 GROUP BY Brand`),
         // Marketing Metrics from PM table
         queryClickHouse(`SELECT ${pmSrc.f.brand} as Brand,
@@ -7597,6 +7622,7 @@ const getBrandsOverview = async (filters) => {
         const promoCompete = hasPdp ? (parseFloat(curr.comp_mrp_val || 0) > 0
             ? ((parseFloat(curr.comp_mrp_val) - parseFloat(curr.comp_actual_sales)) / parseFloat(curr.comp_mrp_val)) * 100
             : null) : null;
+        const wtDiscount = hasPdp ? parseFloat(curr.my_wt_discount || 0) : null;
 
         const sosNum = currSosMap.get(brandKey) || 0;
         const sos = hasSosCheck ? (currTotalOverall > 0 ? (sosNum / currTotalOverall) * 100 : null) : null;
@@ -7630,6 +7656,7 @@ const getBrandsOverview = async (filters) => {
         const prevPromoCompete = prevHasPdp ? (parseFloat(prev.comp_mrp_val || 0) > 0
             ? ((parseFloat(prev.comp_mrp_val) - parseFloat(prev.comp_actual_sales)) / parseFloat(prev.comp_mrp_val)) * 100
             : null) : null;
+        const prevWtDiscount = prevHasPdp ? parseFloat(prev.my_wt_discount || 0) : null;
 
         const prevSosNum = prevSosMap.get(brandKey) || 0;
         const prevSos = prevHasSosCheck ? (prevTotalOverall > 0 ? (prevSosNum / prevTotalOverall) * 100 : null) : null;
@@ -7654,8 +7681,8 @@ const getBrandsOverview = async (filters) => {
             type: "Brand",
             logo: brandImageMap.get(brandKey) || null,
             columns: generateKpiColumns({
-                offtake, availability, wtOsa, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, categorySize: hasMsCheck ? currBrandCatSize : null, adSov, organicSov, buyBoxPct, deliveryTime,
-                prevOfftake, prevAvailability, prevWtOsa, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevHasMsCheck ? prevBrandCatSize : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
+                offtake, availability, wtOsa, listingPercent, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? currBrandCatSize : null, adSov, organicSov, buyBoxPct, deliveryTime,
+                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? prevBrandCatSize : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
                 offtakeUnits: offtakeUnits, inorgUnits: orders, prevOfftakeUnits: prevOfftakeUnits, prevInorgUnits: prevOrders
             })
         };
@@ -11838,6 +11865,7 @@ const getSkuOverview = async (filters) => {
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
                 AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount,
                 any(${src.isAgg ? 'sku_code' : 'Web_Pid'}) as web_pid
             FROM ${src.table}
             WHERE ${currSkuConds} AND ${src.isAgg ? 'brand' : 'Product'} IS NOT NULL AND ${src.isAgg ? 'brand' : 'Product'} != ''
@@ -11863,7 +11891,8 @@ const getSkuOverview = async (filters) => {
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} * 1.0 ELSE 0 END) as total_buy_box_neno,
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
-                AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent
+                AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
             FROM ${src.table}
             WHERE ${prevSkuConds} AND ${src.isAgg ? 'brand' : 'Product'} IS NOT NULL AND ${src.isAgg ? 'brand' : 'Product'} != ''
             GROUP BY Product
@@ -12053,6 +12082,7 @@ const getSkuOverview = async (filters) => {
         const promoCompete = hasPdp ? (parseFloat(data.comp_mrp_val || 0) > 0
             ? ((parseFloat(data.comp_mrp_val) - parseFloat(data.comp_actual_sales)) / parseFloat(data.comp_mrp_val)) * 100
             : null) : null;
+        const wtDiscount = hasPdp ? parseFloat(data.my_wt_discount || 0) : null;
 
         // Previous Metrics
         const prevOfftake = prevHasPdp ? parseFloat(prevData.total_sales || 0) : null;
@@ -12084,6 +12114,7 @@ const getSkuOverview = async (filters) => {
         const prevPromoCompete = prevHasPdp ? (parseFloat(prevData.comp_mrp_val || 0) > 0
             ? ((parseFloat(prevData.comp_mrp_val) - parseFloat(prevData.comp_actual_sales)) / parseFloat(prevData.comp_mrp_val)) * 100
             : null) : null;
+        const prevWtDiscount = prevHasPdp ? parseFloat(prevData.my_wt_discount || 0) : null;
         const marketShare = (hasMsCheck && !hasTier23) ? (currMarketSize > 0 ? (offtake / currMarketSize) * 100 : null) : null;
         const prevMarketShare = (prevHasMsCheck && !hasTier23) ? (prevMarketSize > 0 ? (prevOfftake / prevMarketSize) * 100 : null) : null;
 
@@ -12115,8 +12146,8 @@ const getSkuOverview = async (filters) => {
             page_url: (dataRaw.web_pid && skuUrlMap[String(dataRaw.web_pid).toLowerCase()]) || null,
             offtakeShare: parseFloat(offtakeShare.toFixed(2)),
             columns: generateKpiColumns({
-                offtake, availability, wtOsa, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, categorySize: hasMsCheck ? currSkuCategorySize : null, adSov, organicSov, buyBoxPct, deliveryTime,
-                prevOfftake, prevAvailability, prevWtOsa, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevHasMsCheck ? prevSkuCategorySize : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
+                offtake, availability, wtOsa, listingPercent, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? currSkuCategorySize : null, adSov, organicSov, buyBoxPct, deliveryTime,
+                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? prevSkuCategorySize : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
                 offtakeUnits, inorgUnits: orders, prevOfftakeUnits, prevInorgUnits: prevOrders
             })
         };

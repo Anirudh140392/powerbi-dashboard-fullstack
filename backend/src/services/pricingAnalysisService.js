@@ -554,9 +554,7 @@ async function getPricingKpis(filters = {}) {
             const src = await getPricingSource();
             const f = src.f;
 
-            let whereConditions = [
-                `${f.wSellingPrice} > 0`
-            ];
+            let whereConditions = [];
 
             const platforms = parseMultiSelectFilter(platform);
             if (platforms) whereConditions.push(buildInClause(`p.${f.platform}`, platforms));
@@ -583,7 +581,7 @@ async function getPricingKpis(filters = {}) {
                 whereConditions.push(mslCond);
             }
 
-            const whereClause = whereConditions.join(' AND ');
+            const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
 
             const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
 
@@ -593,9 +591,8 @@ async function getPricingKpis(filters = {}) {
                 (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_curr,
                 
                 SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
-                         AND ${f.wMrp} > 0 
                          AND ${brandCondition}
-                    THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * ${f.wSales} 
+                    THEN ((${f.wMrp} - ${f.wSellingPrice}) / NULLIF(${f.wMrp}, 0)) * ${f.wSales} 
                     ELSE 0 END) / 
                 NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${brandCondition} THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_curr,
                 
@@ -614,6 +611,7 @@ async function getPricingKpis(filters = {}) {
                 
                 AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
                          AND ${brandCondition}
+                         AND ${f.wSellingPrice} > 0
                     THEN ${f.wSellingPrice} 
                     ELSE NULL END) AS asp_curr,
  
@@ -621,9 +619,8 @@ async function getPricingKpis(filters = {}) {
                 (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev,
                 
                 SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                         AND ${f.wMrp} > 0 
                          AND ${brandCondition}
-                    THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * ${f.wSales} 
+                    THEN ((${f.wMrp} - ${f.wSellingPrice}) / NULLIF(${f.wMrp}, 0)) * ${f.wSales} 
                     ELSE 0 END) / 
                 NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${brandCondition} THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_prev,
                 
@@ -642,6 +639,7 @@ async function getPricingKpis(filters = {}) {
                 
                 AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                          AND ${brandCondition}
+                         AND ${f.wSellingPrice} > 0
                     THEN ${f.wSellingPrice} 
                     ELSE NULL END) AS asp_prev
 
@@ -655,11 +653,11 @@ async function getPricingKpis(filters = {}) {
                 p.${f.date} AS date,
                 (SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_curr,
                 
-                SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * ${f.wSales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${brandCondition} THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_curr,
+                SUM(CASE WHEN ${brandCondition} THEN ((${f.wMrp} - ${f.wSellingPrice}) / NULLIF(${f.wMrp}, 0)) * ${f.wSales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${brandCondition} THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_curr,
                 
                 AVG(CASE WHEN ${f.wPpu} > 0 AND ${brandCondition} THEN ${f.wPpu} ELSE NULL END) AS price_per_unit_curr,
                 
-                AVG(CASE WHEN ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END) AS asp_curr
+                AVG(CASE WHEN ${brandCondition} AND ${f.wSellingPrice} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp_curr
             FROM ${src.table} p
             WHERE p.${f.date} BETWEEN '${startDate}' AND '${endDate}'
               AND ${whereClause}

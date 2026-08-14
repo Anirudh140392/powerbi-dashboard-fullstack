@@ -115,6 +115,8 @@ const kpiLabels = {
     roas_x: 'ROAS',
     availability: 'Availability',
     wtOsa: 'Wt OSA',
+    wtDiscount: 'Wt Discount',
+    listingPercent: 'Listing %',
     marketShare: 'Market share',
     conversion: 'Conversion',
     shareOfVolume: 'SHARE OF SEARCH',
@@ -139,6 +141,12 @@ const BACKEND_TITLE_TO_KEY = {
     'Conversion': 'conversion',
     'Availability': 'availability',
     'Wt OSA': 'wtOsa',
+    'Wt Discount': 'wtDiscount',
+    'Weighted Discount': 'wtDiscount',
+    'Listing %': 'listingPercent',
+    'Listing Percentage': 'listingPercent',
+    'listing_percentage': 'listingPercent',
+    'Listing': 'listingPercent',
     'SOS': 'shareOfVolume',
     'Share of Search': 'shareOfVolume',
     'Ad SOV': 'ad_sov',
@@ -272,6 +280,8 @@ const PlatformOverviewNew = ({
         { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
         { key: 'wtOsa', label: 'Wt OSA' },
+        { key: 'wtDiscount', label: 'Wt Discount' },
+        { key: 'listingPercent', label: 'Listing %' },
         { key: 'shareOfVolume', label: 'Share of Search' },
         { key: 'ad_sov', label: 'Ad SOV' },
         { key: 'organic_sov', label: 'Organic SOV' },
@@ -400,7 +410,7 @@ const PlatformOverviewNew = ({
     }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite]);
 
     const defaultKpiKeys = useMemo(() => {
-        let base = ['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'wtOsa', 'conversion', 'aov'];
+        let base = ['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'conversion', 'aov'];
         const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
         const allowBuyBox = isBuyBoxPlatform(activePlat);
 
@@ -1478,7 +1488,7 @@ const PlatformOverviewNew = ({
                     <AdvancedFilterModal
                         isOpen={isFilterModalOpen}
                         onClose={() => setIsFilterModalOpen(false)}
-                        filters={advancedFilters}
+                        filters={{ ...advancedFilters, kpis: glanceKpis }}
                         onApply={handleApplyFilters}
                         currentDimension={dimension}
                         brands={brandOptions}
