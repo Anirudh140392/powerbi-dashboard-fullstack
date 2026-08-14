@@ -210,6 +210,8 @@ export default function OsaDetailTableLight({
                     res = res.filter(r => values.includes(r.name || r.productName));
                 } else if (key === 'format') {
                     res = res.filter(r => values.includes(r.format));
+                } else if (key === 'grammage') {
+                    res = res.filter(r => values.includes(r.grammage || r.weight));
                 } else if (key === 'city') {
                     res = res.filter(r => r.cities?.some(c => values.includes(c.name || c)));
                 } else if (key === 'resellerName') {
@@ -223,6 +225,7 @@ export default function OsaDetailTableLight({
         const brandRows = getMatchingRowsExcluding('brand');
         const productNameRows = getMatchingRowsExcluding('productName');
         const formatRows = getMatchingRowsExcluding('format');
+        const grammageRows = getMatchingRowsExcluding('grammage');
         const cityRows = getMatchingRowsExcluding('city');
 
         // Build product name options with SAP code included in label for searchability
@@ -240,6 +243,9 @@ export default function OsaDetailTableLight({
                 label: p.sapCode ? `${p.name} (SAP: ${p.sapCode})` : p.name
             }));
 
+        // Only show Grammage filter if at least one row has a non-null/non-empty grammage value
+        const hasGrammageData = apiData.osaDetail.some(r => r.grammage || r.weight);
+
         const opts = [
             { id: "msl", label: "MSL", options: [
                 { id: "0", label: "All SKUs" },
@@ -249,6 +255,7 @@ export default function OsaDetailTableLight({
             { id: "brand", label: "Brand", options: mk([...new Set(brandRows.map(r => r.brand).filter(Boolean))].sort()) },
             { id: "productName", label: "Product Name", options: productOptions },
             { id: "format", label: "Category", options: mk([...new Set(formatRows.map(r => r.format).filter(Boolean))].sort()) },
+            ...(hasGrammageData ? [{ id: "grammage", label: "Grammage", options: mk([...new Set(grammageRows.map(r => r.grammage || r.weight).filter(Boolean))].sort()) }] : []),
             { id: "city", label: "City", options: mk([...new Set(cityRows.flatMap(r => r.cities?.map(c => c.name || c) || []).filter(Boolean))].sort()) },
         ];
         if (isDrlClient && resellerOptions.length > 0) {
@@ -265,6 +272,7 @@ export default function OsaDetailTableLight({
         return apiData.osaDetail.map(row => ({
             name: row.name || row.productName || "Unknown Product",
             sku: row.sku || "N/A", brand: row.brand, platform: row.platform, format: row.format,
+            grammage: row.grammage || row.weight || "",
             imageUrl: row.imageUrl,
             page_url: row.page_url || null,
             values: row.values || [], avg7: row.avg7 || 0, avg31: row.avg31 || 0,
@@ -291,6 +299,7 @@ export default function OsaDetailTableLight({
             else if (key === 'brand') res = res.filter(r => values.includes(r.brand));
             else if (key === 'productName') res = res.filter(r => values.includes(r.name));
             else if (key === 'format') res = res.filter(r => values.includes(r.format));
+            else if (key === 'grammage') res = res.filter(r => values.includes(r.grammage || r.weight));
             else if (key === 'city') {
                 res = res.filter(r => r.cities?.some(c => values.includes(c.name)));
                 res = res.map(r => ({ ...r, cities: r.cities.filter(c => values.includes(c.name)) }));

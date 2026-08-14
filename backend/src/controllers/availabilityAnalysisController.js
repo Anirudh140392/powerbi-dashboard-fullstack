@@ -243,6 +243,8 @@ export const getOsaPercentageDetail = async (req, res) => {
             compareEndDate: req.query.compareEndDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
             msl: req.query.msl,
+            grammage: parseFilter(req.query.grammage),
+            weight: parseFilter(req.query.weight),
             resellerName: parseFilter(req.query.resellerName),
             resellerNames: parseFilter(req.query.resellerNames)
         };

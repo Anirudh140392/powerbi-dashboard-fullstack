@@ -256,6 +256,30 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
         conditions.push(`lower(trim(BOTH '\t\n ' FROM ${prefix}${actualPcCol})) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
     }
 
+    // Grammage / Weight filter
+    const gArr = [];
+    const parseGrammage = (val) => {
+        if (!val) return;
+        const items = Array.isArray(val) ? val : String(val).split(/[,|]/);
+        items.forEach(v => {
+            const trimmed = v.trim();
+            if (trimmed && trimmed !== 'All' && trimmed !== 'all') {
+                gArr.push(trimmed);
+            }
+        });
+    };
+
+    if (filters.grammage) parseGrammage(filters.grammage);
+    if (filters.grammages) parseGrammage(filters.grammages);
+    if (filters.weight) parseGrammage(filters.weight);
+    if (filters.weights) parseGrammage(filters.weights);
+
+    if (gArr.length > 0) {
+        const actualWeightCol = resolveColumn(pdpColsMap, 'weight', resolveColumn(pdpColsMap, 'grammage', 'Weight'));
+        const uniqueGArr = [...new Set(gArr)];
+        conditions.push(`trim(BOTH '\t\n ' FROM toString(${prefix}${actualWeightCol})) IN (${uniqueGArr.map(g => `'${escapeStr(g)}'`).join(',')})`);
+    }
+
     // SKU filter (Web_Pid based)
     const sArr = [];
     const parseSku = (val) => {
@@ -599,6 +623,9 @@ const getAbsoluteOsaOverview = async (filters) => {
             const detailFilters = { ...filters, startDate: overallStartDate.format('YYYY-MM-DD'), endDate: overallEndDate.format('YYYY-MM-DD') };
             const detailWhere = await buildAvailabilityWhereClause(detailFilters);
 
+            const pdpColsMap = await getTableColumns('rb_pdp_olap');
+            const actualWeightCol = resolveColumn(pdpColsMap, 'weight', resolveColumn(pdpColsMap, 'grammage', 'Weight'));
+
             const detailQuery = `
                 SELECT 
                     Web_Pid as sku,
@@ -606,12 +633,13 @@ const getAbsoluteOsaOverview = async (filters) => {
                     Platform as platform,
                     Brand as brand,
                     Category as format,
+                    toString(${actualWeightCol}) as grammage,
                     DATE as date,
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNeno,
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDeno
                 FROM rb_pdp_olap
                 WHERE ${detailWhere} AND Web_Pid IS NOT NULL AND Web_Pid != ''
-                GROUP BY Web_Pid, Product, Platform, Brand, Category, DATE
+                GROUP BY Web_Pid, Product, Platform, Brand, Category, ${actualWeightCol}, DATE
                 ORDER BY Web_Pid, DATE
             `;
 
@@ -630,6 +658,7 @@ const getAbsoluteOsaOverview = async (filters) => {
                         platform: row.platform,
                         brand: row.brand,
                         format: row.format,
+                        grammage: row.grammage || '',
                         dateMap: {},
                         values: new Array(31).fill(null),
                     };
@@ -686,6 +715,8 @@ const getAbsoluteOsaOverview = async (filters) => {
                     platform: item.platform,
                     brand: item.brand,
                     format: item.format,
+                    grammage: item.grammage,
+                    weight: item.grammage,
                     values: item.values,
                     avg7,
                     avg31,
@@ -1822,6 +1853,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
             const pdpColsMap = await getTableColumns('rb_pdp_olap');
             const catCol = resolveColumn(pdpColsMap, 'Category', 'Category');
             const pcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
+            const weightCol = resolveColumn(pdpColsMap, 'weight', resolveColumn(pdpColsMap, 'grammage', 'Weight'));
             const hasSapCode = columnExists(pdpColsMap, 'sap_code');
             const sapCol = hasSapCode ? resolveColumn(pdpColsMap, 'sap_code', 'sap_code') : null;
             const selectSap = hasSapCode ? `, any(${sapCol}) as sap_code` : '';
@@ -1835,6 +1867,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     Platform as platform,
                     ${catCol} as category_name,
                     ${pcCol} as product_category_name,
+                    toString(${weightCol}) as grammage,
                     DATE
                     ${selectSap},
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sum_neno,
@@ -1844,7 +1877,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                   AND Product != '0'
                   AND Product != ''
                   AND length(trim(Product)) > 0
-                GROUP BY Product, Web_Pid, Brand, Location, Platform, ${catCol}, ${pcCol}, DATE
+                GROUP BY Product, Web_Pid, Brand, Location, Platform, ${catCol}, ${pcCol}, ${weightCol}, DATE
                 ORDER BY Product, Web_Pid, Brand, Location, DATE
             `;
 
@@ -1911,6 +1944,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                         platform: row.platform,
                         category_name: row.category_name,
                         product_category_name: row.product_category_name,
+                        grammage: row.grammage || '',
                         sap_code: hasSapCode ? (row.sap_code || null) : undefined,
                         days: {}, // Overall SKU daily aggregations: { date: { neno, deno } }
                         cities: {} // Nested city data: { city: { date: osa } }
@@ -2009,6 +2043,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     platform: item.platform,
                     format: item.category_name,
                     productCategory: item.product_category_name,
+                    grammage: item.grammage,
+                    weight: item.grammage,
                     values: skuValues,
                     avg7: avg7,
                     avg31: skuAvg31,
@@ -2455,6 +2491,29 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             return { options: results.map(r => r.value).filter(Boolean) };
         } catch (error) {
             console.error('[getAvailabilityFilterOptions] Product Categories Error:', error);
+            return { options: [] };
+        }
+    }
+
+    if (filterType === 'grammage' || filterType === 'grammages' || filterType === 'weight' || filterType === 'weights') {
+        try {
+            const pdpColsMap = await getTableColumns('rb_pdp_olap');
+            const actualWeightCol = resolveColumn(pdpColsMap, 'weight', resolveColumn(pdpColsMap, 'grammage', 'Weight'));
+            const platformCond = await buildPlatformChannelCond(platform, channel);
+            const whereClause = platformCond 
+                ? `WHERE ${actualWeightCol} IS NOT NULL AND toString(${actualWeightCol}) != '' AND toString(${actualWeightCol}) != '0' AND ${platformCond}` 
+                : `WHERE ${actualWeightCol} IS NOT NULL AND toString(${actualWeightCol}) != '' AND toString(${actualWeightCol}) != '0'`;
+
+            const query = `
+                SELECT DISTINCT toString(${actualWeightCol}) as value 
+                FROM rb_pdp_olap
+                ${whereClause}
+                ORDER BY value
+            `;
+            const results = await queryClickHouse(query);
+            return { options: results.map(r => r.value).filter(Boolean) };
+        } catch (error) {
+            console.error('[getAvailabilityFilterOptions] Grammage Error:', error);
             return { options: [] };
         }
     }

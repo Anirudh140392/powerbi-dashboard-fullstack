@@ -17,7 +17,7 @@ import isoWeek from 'dayjs/plugin/isoWeek.js';
 import weekOfYear from 'dayjs/plugin/weekOfYear.js';
 import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 import { getTableColumns, resolveColumn, columnExists } from '../utils/schemaHelper.js';
-import { buildDynamicSkuUrl } from './pricingAnalysisService.js';
+import { buildDynamicSkuUrl, getPricingSource, normalizeLocations, normalizeChannels, parseMultiSelectFilter, buildInClause } from './pricingAnalysisService.js';
 
 dayjs.extend(isoWeek);
 dayjs.extend(weekOfYear);
@@ -5928,6 +5928,9 @@ const getPlatformOverview = async (filters) => {
     let prevEcomSpend = 0, prevEcomClicks = 0;
     let prevQuickSpend = 0, prevQuickImpressions = 0;
 
+    const currentDbName = getCurrentDbName();
+    const isPidilite = currentDbName && currentDbName.toLowerCase() === 'pidilite';
+
     platformDefinitions.forEach(p => {
         const key = p.label.toLowerCase();
         const isEcomRow = key.includes('amazon') || key.includes('flipkart') || key.includes('myntra') || key.includes('nykaa') || key.includes('jiomart');
@@ -5935,7 +5938,7 @@ const getPlatformOverview = async (filters) => {
         const metrics = bulkPlatformMap.get(p.label);
 
         if (metrics) {
-            if (isEcomRow) {
+            if (isEcomRow || isPidilite) {
                 ecomSpend += metrics.curr.spend || 0;
                 ecomClicks += metrics.curr.clicks || 0;
                 prevEcomSpend += metrics.prev.spend || 0;
@@ -6194,7 +6197,7 @@ const getPlatformOverview = async (filters) => {
         const roas = hasPm ? (totalSpend > 0 ? totalAdSales / totalSpend : null) : null;
         const conversion = hasPm ? (metrics.curr.conversion ?? null) : null;
         const cpm = (hasPm && isQuick) ? (totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : null) : null;
-        const cpc = (hasPm && isEcom) ? (totalClicks > 0 ? totalSpend / totalClicks : null) : null;
+        const cpc = (hasPm && (isEcom || isPidilite)) ? (totalClicks > 0 ? totalSpend / totalClicks : null) : null;
         const inorgSales = hasPm ? totalAdSales : null;
 
         const promoMyBrand = hasPdp ? (metrics.curr.myAvgDiscount ?? null) : null;
@@ -6225,7 +6228,7 @@ const getPlatformOverview = async (filters) => {
         const prevRoas = prevHasPm ? (prevSpend > 0 ? prevAdSales / prevSpend : null) : null;
         const prevConversion = prevHasPm ? (metrics.prev.conversion ?? null) : null;
         const prevCpm = (prevHasPm && isQuick) ? (prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : null) : null;
-        const prevCpc = (prevHasPm && isEcom) ? (prevClicks > 0 ? prevSpend / prevClicks : null) : null;
+        const prevCpc = (prevHasPm && (isEcom || isPidilite)) ? (prevClicks > 0 ? prevSpend / prevClicks : null) : null;
         const prevAsp = prevHasPdp ? (metrics.prev.asp ?? null) : null;
         const prevAov = (prevHasPm && prevOrders > 0) ? prevAdSales / prevOrders : null;
         const prevInorgSales = prevHasPm ? prevAdSales : null;
@@ -12682,7 +12685,7 @@ const getProductCategories = async (filters = {}) => {
 
 const getWatchTowerCascadedFilters = async (filters) => {
     try {
-        const { platform, category, brand, location } = filters;
+        const { platform, category, brand, location, startDate, endDate } = filters;
         const channel = extractChannel(filters);
 
         const cols = await getTableColumns('rca_sku_dim');
@@ -12759,12 +12762,55 @@ const getWatchTowerCascadedFilters = async (filters) => {
             }
         };
 
-        const [channelsList, platformsList, categoriesList, brandsList, locationsList] = await Promise.all([
+        const runGrammageQuery = async () => {
+            try {
+                const src = await getPricingSource();
+                const f = src.f;
+                if (!src.hasWeight) return [];
+                
+                let whereConditions = [`p.${f.weight} IS NOT NULL`, `p.${f.weight} != ''`];
+                
+                const platforms = parseMultiSelectFilter(platform);
+                if (platforms) whereConditions.push(buildInClause(`p.${f.platform}`, platforms));
+
+                const locations = normalizeLocations(parseMultiSelectFilter(location));
+                if (locations) whereConditions.push(buildInClause(`p.${f.location}`, locations));
+
+                const brands = parseMultiSelectFilter(brand);
+                if (brands) whereConditions.push(buildInClause(`p.${f.brand}`, brands));
+
+                const categories = parseMultiSelectFilter(category);
+                if (categories) {
+                    const escaped = categories.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+                    whereConditions.push(`lower(${src.p_prodCatSql}) IN (${escaped})`);
+                }
+
+                const channels = normalizeChannels(parseMultiSelectFilter(channel));
+                if (channels) whereConditions.push(buildInClause(`p.${f.channel}`, channels));
+
+                whereConditions.push(`p.${f.compFlag} = '0'`);
+                
+                if (startDate && endDate) {
+                    whereConditions.push(`p.${f.date} BETWEEN '${startDate}' AND '${endDate}'`);
+                }
+
+                const whereClause = whereConditions.join(' AND ');
+                const query = `SELECT DISTINCT p.${f.weight} AS val FROM ${src.table} p WHERE ${whereClause} ORDER BY val`;
+                const results = await queryClickHouse(query);
+                return results.map(r => r.val).filter(Boolean);
+            } catch (err) {
+                console.error(`[getWatchTowerCascadedFilters] Error for grammage:`, err);
+                return [];
+            }
+        };
+
+        const [channelsList, platformsList, categoriesList, brandsList, locationsList, grammagesList] = await Promise.all([
             runQuery('channel', channelCol),
             runQuery('platform', platformCol),
             runQuery('category', categoryCol),
             runQuery('brand', brandCol),
-            runQuery('location', locationCol)
+            runQuery('location', locationCol),
+            runGrammageQuery()
         ]);
 
         return {
@@ -12772,7 +12818,8 @@ const getWatchTowerCascadedFilters = async (filters) => {
             platforms: platformsList,
             categories: categoriesList,
             brands: brandsList,
-            locations: locationsList
+            locations: locationsList,
+            grammages: grammagesList
         };
     } catch (error) {
         console.error("Error in getWatchTowerCascadedFilters:", error);
@@ -12781,7 +12828,8 @@ const getWatchTowerCascadedFilters = async (filters) => {
             platforms: [],
             categories: [],
             brands: [],
-            locations: []
+            locations: [],
+            grammages: []
         };
     }
 };

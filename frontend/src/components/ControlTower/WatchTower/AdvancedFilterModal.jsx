@@ -366,6 +366,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         categories: [],
         platforms: [],
         skus: [],
+        grammages: [],
         dateFrom: '',
         dateTo: '',
         msl: '0',
@@ -381,13 +382,14 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         filterLogic: 'OR',
     })
 
-    const { maxDate, selectedChannel, selectedLocation, platform: globalPlatform, selectedBrand, selectedCategory, selectedMsl } = useContext(FilterContext)
+    const { maxDate, selectedChannel, selectedLocation, platform: globalPlatform, selectedBrand, selectedCategory, selectedMsl, timeStart, timeEnd } = useContext(FilterContext)
     const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate])
 
     const [dynamicBrands, setDynamicBrands] = useState([])
     const [dynamicCategories, setDynamicCategories] = useState([])
     const [dynamicPlatforms, setDynamicPlatforms] = useState([])
     const [dynamicSkus, setDynamicSkus] = useState([])
+    const [dynamicGrammages, setDynamicGrammages] = useState([])
     const [loadingFilters, setLoadingFilters] = useState(false)
 
     // Synchronize initial options from props when props change
@@ -460,12 +462,17 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                     ? localFilters.categories
                     : (selectedCategory && selectedCategory !== 'All' ? [selectedCategory] : []);
 
+                const startDate = localFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : undefined);
+                const endDate = localFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined);
+
                 const params = {
                     channel: cleanParam(selectedChannel),
                     location: cleanParam(selectedLocation),
                     platform: cleanParam(activePlatforms),
                     brand: cleanParam(activeBrands),
                     category: cleanParam(activeCategories),
+                    startDate,
+                    endDate
                 }
 
                 const [cascadedRes, productsRes] = await Promise.allSettled([
@@ -483,7 +490,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
 
                 if (cascadedRes.status === 'fulfilled' && cascadedRes.value.data) {
                     const data = cascadedRes.value.data
-                    
+
                     if (data.brands && Array.isArray(data.brands)) {
                         const mappedBrands = data.brands.map(b => {
                             const parentOpt = brands?.find(opt => opt.name?.toLowerCase() === b.toLowerCase())
@@ -537,6 +544,8 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         localFilters.brands,
         localFilters.categories,
         localFilters.platforms,
+        localFilters.dateFrom,
+        localFilters.dateTo,
         selectedChannel,
         selectedLocation,
         globalPlatform,
@@ -546,6 +555,68 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         categories,
         platforms,
         skus
+    ])
+
+    // Fetch grammage dropdown values from dimension-overview API on every brand/category/platform/date change
+    useEffect(() => {
+        if (!isOpen || currentDimension !== 'sku') return;
+
+        let active = true;
+
+        const fetchGrammages = async () => {
+            try {
+                // Only platform and category drive the grammage dropdown options
+                const activePlatforms = localFilters.platforms?.length > 0
+                    ? localFilters.platforms
+                    : (globalPlatform && globalPlatform !== 'All' ? [globalPlatform] : []);
+
+                const activeCategories = localFilters.categories?.length > 0
+                    ? localFilters.categories
+                    : (selectedCategory && selectedCategory !== 'All' ? [selectedCategory] : []);
+
+                const startDate = localFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : undefined);
+                const endDate = localFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined);
+
+                const params = new URLSearchParams();
+                params.append('dimension', 'sku');
+                if (activePlatforms.length > 0) params.append('platform', activePlatforms.join(','));
+                if (activeCategories.length > 0) params.append('category', activeCategories.join(','));
+                if (selectedChannel && selectedChannel !== 'All') params.append('channel', selectedChannel);
+                if (selectedLocation && selectedLocation !== 'All') params.append('location', selectedLocation);
+                if (startDate) params.append('startDate', startDate);
+                if (endDate) params.append('endDate', endDate);
+
+                const response = await axiosInstance.get(`/pricing-analysis/dimension-overview?${params.toString()}`);
+
+                if (!active) return;
+
+                if (response.data?.success && Array.isArray(response.data.data)) {
+                    const weights = [...new Set(
+                        response.data.data
+                            .map(row => row.weight)
+                            .filter(w => w !== null && w !== undefined && w !== '')
+                    )].sort();
+                    setDynamicGrammages(weights.map(w => ({ id: w, name: w })));
+                }
+            } catch (err) {
+                console.error('[AdvancedFilterModal] Error fetching grammages from dimension-overview:', err);
+            }
+        };
+
+        fetchGrammages();
+
+        return () => { active = false; };
+    }, [
+        isOpen,
+        currentDimension,
+        localFilters.categories,
+        localFilters.platforms,
+        localFilters.dateFrom,
+        localFilters.dateTo,
+        selectedChannel,
+        selectedLocation,
+        globalPlatform,
+        selectedCategory,
     ])
 
     // Sync with parent filters + FilterContext when modal opens
@@ -607,6 +678,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             categories: [],
             platforms: [],
             skus: [],
+            grammages: [],
             dateFrom: '',
             dateTo: '',
             msl: '0',
@@ -630,6 +702,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             brands: localFilters.brands.map(b => typeof b === 'string' ? b.toLowerCase() : b),
             categories: localFilters.categories.map(c => typeof c === 'string' ? c.toLowerCase() : c),
             skus: localFilters.skus.map(s => typeof s === 'string' ? s.toLowerCase() : s),
+            grammages: localFilters.grammages,
         };
         onApply(lowerFilters)
         onClose()
@@ -753,6 +826,16 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 selected={localFilters.skus}
                                                 onChange={(val) => updateFilter('skus', val)}
                                                 placeholder="All Skus"
+                                            />
+                                        )}
+                                        {(currentDimension === 'sku' && dynamicGrammages.length > 0) && (
+                                            <MultiSelectDropdown
+                                                label="Grammage"
+                                                icon={Filter}
+                                                options={dynamicGrammages}
+                                                selected={localFilters.grammages || []}
+                                                onChange={(val) => updateFilter('grammages', val)}
+                                                placeholder="All Grammages"
                                             />
                                         )}
                                         <SingleSelectDropdown

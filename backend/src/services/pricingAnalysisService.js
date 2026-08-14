@@ -1077,6 +1077,18 @@ const getDimensionOverview = async (filters = {}) => {
                 whereConditions.push(mslCond);
             }
 
+            const whereClauseNoGrammage = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
+
+            // ✅ Grammage filter ONLY applies to SKU dimension
+            const grammages = isSku ? parseMultiSelectFilter(filters.grammage) : null;
+            if (grammages) {
+                const pdpCols = await getTableColumns(src.table);
+                if (columnExists(pdpCols, 'weight')) {
+                    const weightCol = resolveColumn(pdpCols, 'weight');
+                    whereConditions.push(buildInClause(`p.${weightCol}`, grammages));
+                }
+            }
+
             const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
             const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
 
@@ -1118,6 +1130,17 @@ const getDimensionOverview = async (filters = {}) => {
                 }
             }
 
+            let weightColExpr = `'' AS weight`;
+            try {
+                const pdpCols = await getTableColumns(src.table);
+                if (columnExists(pdpCols, 'weight')) {
+                    const weightCol = resolveColumn(pdpCols, 'weight');
+                    weightColExpr = `any(p.${weightCol}) AS weight`;
+                }
+            } catch (err) {
+                console.error('[getDimensionOverview] error resolving weight column', err);
+            }
+
             const query = `
                 SELECT
                     ${groupByExpr} AS dimension,
@@ -1125,6 +1148,7 @@ const getDimensionOverview = async (filters = {}) => {
                     ${pageUrlExpr},
                     ${platformNameExpr},
                     ${webPidExpr},
+                    ${weightColExpr},
                     -- Current metrics (Subject Brands)
                     (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS Discount,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
@@ -1200,6 +1224,7 @@ const getDimensionOverview = async (filters = {}) => {
                     id: String(i + 1),
                     key: r.dimension,
                     name: r.dimension,
+                    weight: r.weight || null,
                     image_url: r.image_url || null,
                     page_url: (() => {
                         let raw = r.page_url || null;
@@ -1764,5 +1789,10 @@ export {
     getPricingCompetition,
     getPricingCompetitionTrends,
     getPricingPlatforms,
-    getPricingChannels
+    getPricingChannels,
+    getPricingSource,
+    normalizeLocations,
+    normalizeChannels,
+    parseMultiSelectFilter,
+    buildInClause
 };
