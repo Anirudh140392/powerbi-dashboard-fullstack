@@ -53,7 +53,7 @@ const marketShareKpis = [
   },
   {
     id: "ms-category-size",
-    title: "Category Size (Cr)",
+    title: "Category Size",
     value: "₹ 220.22 Cr",
     subtitle: "Total category size across all platforms",
     delta: 73.8,
