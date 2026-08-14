@@ -7,7 +7,12 @@ import {
     getPrimaryPivotTableHandler,
     getPrimaryFiltersHandler,
     getPrimaryAllHandler,
+    getPrimaryLatestDateHandler,
+    getPrimaryTopProductsHandler,
+    getPrimaryRetailerDailyTrendHandler,
 } from '../controllers/primarySalesController.js';
+
+import { getPrimaryTopProducts } from '../services/primarySalesService.js';
 
 export default (app) => {
     // Middleware/logger for primary sales endpoints
@@ -165,5 +170,54 @@ export default (app) => {
      *         name: zone
      *         schema: { type: string }
      */
+    app.get('/api/primary-sales/latest-date', getPrimaryLatestDateHandler);
+    app.get('/api/primary-sales/top-products', getPrimaryTopProductsHandler);
+    app.get('/api/primary-sales/retailer-daily-trend', getPrimaryRetailerDailyTrendHandler);
+    
+    // Debug endpoint to test top products with minimal params
+    app.get('/api/primary-sales/debug-products', async (req, res) => {
+        try {
+            console.log('[DEBUG] Testing top products for retailer...');
+            const retailerName = req.query.retailerName || 'counfreedise retail services l';
+            
+            // Test with NO filters first
+            console.log('[DEBUG] Test 1: No filters');
+            const result1 = await getPrimaryTopProducts(
+                {}, // No filters
+                retailerName,
+                'Retailer Name',
+                'MRP',
+                'product',
+                retailerName,
+                '', '', ''
+            );
+            console.log('[DEBUG] Result 1 (no filters):', result1.length, 'products');
+            
+            // Test with FY filter
+            console.log('[DEBUG] Test 2: With FY2024-25');
+            const result2 = await getPrimaryTopProducts(
+                { fy: 'FY2024-25' },
+                retailerName,
+                'Retailer Name',
+                'MRP',
+                'product',
+                retailerName,
+                '', '', ''
+            );
+            console.log('[DEBUG] Result 2 (with FY):', result2.length, 'products');
+            
+            res.json({
+                success: true,
+                tests: {
+                    noFilters: { count: result1.length, sample: result1[0] },
+                    withFY: { count: result2.length, sample: result2[0] }
+                }
+            });
+        } catch (error) {
+            console.error('[DEBUG] Error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+    
     app.get('/api/primary-sales/all', getPrimaryAllHandler);
 };

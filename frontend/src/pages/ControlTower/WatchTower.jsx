@@ -76,7 +76,7 @@ import PlatformOverviewNew from "@/components/ControlTower/WatchTower/PlatformOv
 import { AggregatedViewTable, PerformanceBreakdownProvider } from "@/components/ControlTower/WatchTower/PerformanceBreakdown";
 import { useHelp } from "../../utils/HelpContext";
 import { useAuth } from "../../utils/AuthContext";
-import PrimarySummary from "../../components/ControlTower/WatchTower/PrimarySummary";
+
 
 export default function WatchTower() {
   const { toggleHelp, openHelpWithMenu } = useHelp();
@@ -998,7 +998,7 @@ export default function WatchTower() {
             </PerformanceBreakdownProvider>
           </Box>
 
-          {isDrl && <PrimarySummary />}
+
         </FilterContext.Provider>
       </CommonContainer>
 

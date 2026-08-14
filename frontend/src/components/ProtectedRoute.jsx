@@ -23,6 +23,8 @@ const ROUTE_TO_TAB_LABEL = {
     "/scheduled-reports": "Scheduled Reports",
     "/download-report": "Download Report",
     "/review-rating": "Review Rating",
+    "/primary-overview": "Primary Summary",
+    "/secondary-overview": "Secondary Summary",
 };
 
 // Ordered list of routes to try when finding the first allowed page
@@ -31,6 +33,7 @@ const ROUTE_PRIORITY = [
     "/visibility-anlysis", "/market-share", "/pricing-analysis",
     "/performance-marketing", "/content-score", "/inventory",
     "/scheduled-reports", "/download-report", "/review-rating",
+    "/primary-overview", "/secondary-overview",
 ];
 
 /**

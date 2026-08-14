@@ -37,6 +37,8 @@ import PriorityAction from "./pages/SupplyChain/PriorityAction";
 import PDSScore from "./pages/PDSScore/PDSScore";
 import ReviewRatingPage from "./pages/ReviewRating/ReviewRatingPage";
 import ContentAnalysisPage from "./pages/ContentAnalysis/ContentAnalysisPage";
+import PrimarySummaryPage from "./pages/PrimarySummary/PrimarySummaryPage";
+import SecondarySummaryPage from "./pages/SecondarySummary/SecondarySummaryPage";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -61,39 +63,9 @@ function AppContent() {
               </ProtectedRoute>
             } />
 
-            <Route path="/insights" element={
+            <Route path="/market-share" element={
               <ProtectedRoute>
-                <Insights />
-              </ProtectedRoute>
-            } />
-
-            <Route path="/category-rca" element={
-              <ProtectedRoute>
-                <CategoryRca />
-              </ProtectedRoute>
-            } />
-
-            <Route path="/volume-cohort" element={
-              <ProtectedRoute>
-                <VolumeCohort />
-              </ProtectedRoute>
-            } />
-
-            <Route path="/price-per-pack" element={
-              <ProtectedRoute>
-                <PricePerPack />
-              </ProtectedRoute>
-            } />
-
-            <Route path="/price-analysis" element={
-              <ProtectedRoute>
-                <PriceAnalysis />
-              </ProtectedRoute>
-            } />
-
-            <Route path="/performance-marketing" element={
-              <ProtectedRoute>
-                <MainPerformanceMarketings />
+                <MarketShares />
               </ProtectedRoute>
             } />
 
@@ -115,45 +87,57 @@ function AppContent() {
               </ProtectedRoute>
             } />
 
-            <Route path="/content-score" element={
-              <ProtectedRoute>
-                <ContentScoreDashboards />
-              </ProtectedRoute>
-            } />
-
-            <Route path="/content-analysis" element={
-              <ProtectedRoute>
-                <ContentAnalysisPage />
-              </ProtectedRoute>
-            } />
-
             <Route path="/pricing-analysis" element={
               <ProtectedRoute>
                 <PricingAnalysis />
               </ProtectedRoute>
             } />
 
-            <Route path="/market-share" element={
+            <Route path="/performance-marketing" element={
               <ProtectedRoute>
-                <MarketShares />
-              </ProtectedRoute>
-            } />
-
-            <Route path="/sales" element={
-              <ProtectedRoute>
-                <SalesMainPage />
-              </ProtectedRoute>
-            } />
-
-            <Route path="/piy" element={
-              <ProtectedRoute>
-                <PiyConcept />
+                <MainPerformanceMarketings />
               </ProtectedRoute>
             } />
 
             <Route path="/inventory" element={
               <ProtectedRoute>
                 <InventeryConceptMains />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/content-score" element={
+              <ProtectedRoute>
+                <ContentAnalysisPage />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/category-rca" element={
+              <ProtectedRoute>
+                <CategoryRca />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/price-per-pack" element={
+              <ProtectedRoute>
+                <PricePerPack />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/volume-cohort" element={
+              <ProtectedRoute>
+                <VolumeCohort />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/insights" element={
+              <ProtectedRoute>
+                <Insights />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/sales" element={
+              <ProtectedRoute>
+                <SalesMainPage />
               </ProtectedRoute>
             } />
 
@@ -199,14 +183,29 @@ function AppContent() {
               </ProtectedRoute>
             } />
 
+            <Route path="/primary-overview" element={
+              <ProtectedRoute>
+                <PrimarySummaryPage />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/secondary-overview" element={
+              <ProtectedRoute>
+                <SecondarySummaryPage />
+              </ProtectedRoute>
+            } />
+
             <Route path="/admin" element={
-              <ProtectedRoute adminOnly={true}>
+              <ProtectedRoute>
                 <AdminPanel />
               </ProtectedRoute>
             } />
+
+            {/* Catch-all fallback */}
+            <Route path="*" element={<Navigate to="/watch-tower" replace />} />
           </Routes>
-          {isLoggedIn && <WalkthroughModal />}
-          {isLoggedIn && <HelpDrawer userDbName={user?.dbName} />}
+          <HelpDrawer />
+          <WalkthroughModal />
         </SocketProvider>
       </FilterProvider>
     </HelpProvider>

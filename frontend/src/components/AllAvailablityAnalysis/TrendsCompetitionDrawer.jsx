@@ -117,7 +117,7 @@ const arrayToFilter = (v) => {
 const DrawerMultiSelect = ({ title, value, options, onChange }) => {
   // Convert "All" or "a,b" into an array for MUI Select, with correct casing!
   const selectedValues = useMemo(() => {
-    if (!value || value === 'All') return [];
+    if (!value || value === 'All' || (typeof value === 'string' && value.toLowerCase() === 'all')) return [];
     
     let vals = [];
     if (typeof value === 'string') vals = value.split(',').map(v => v.trim()).filter(Boolean);
