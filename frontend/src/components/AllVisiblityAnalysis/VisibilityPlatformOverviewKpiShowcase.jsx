@@ -1338,7 +1338,7 @@ const SkuTable = ({ rows, loading }) => {
 const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeStep, externalFilters, externalCity }) => {
     const { selectedChannel, compareStart, compareEnd } = useContext(FilterContext);
     const [tab, setTab] = useState("brand");
-    const [city, setCity] = useState(externalCity || "All India");
+    const [city, setCity] = useState(externalCity && externalCity !== "All India" ? externalCity : "Select All");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
     const [filters, setFilters] = useState(externalFilters || {
         categories: [],
@@ -1373,12 +1373,12 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
 
     useEffect(() => {
         if (externalCity) {
-            setCity(externalCity);
+            setCity(externalCity === "All India" ? "Select All" : externalCity);
         }
     }, [externalCity]);
 
     const [filterOptions, setFilterOptions] = useState({
-        locations: ['All India'],
+        locations: ['Select All'],
         brands: ['All'],
         skus: ['All']
     });
@@ -1393,7 +1393,9 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             try {
                 const res = await axiosInstance.get(`/visibility-analysis/filter-options?filterType=cities&channel=${selectedChannel || 'All'}&platform=${selectedPlatform || 'All'}`);
                 if (res.data) {
-                    setFilterOptions(prev => ({ ...prev, locations: ['All India', ...(res.data.options || [])] }));
+                    const raw = res.data.options || [];
+                    const clean = raw.filter(c => c !== 'Select All' && c !== 'All' && c !== 'All India');
+                    setFilterOptions(prev => ({ ...prev, locations: ['Select All', ...clean] }));
                 }
             } catch (err) {
                 console.error('Failed to fetch city options:', err);
@@ -1408,7 +1410,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             try {
                 const params = {
                     platform: selectedPlatform || 'All',
-                    location: city !== 'All India' 
+                    location: (city !== 'All India' && city !== 'Select All' && city !== 'All') 
                         ? (Array.isArray(city) ? city.join(',').toLowerCase() : String(city).toLowerCase()) 
                         : 'all',
                     format: filters.categories.length > 0 ? filters.categories.join(',') : 'All',

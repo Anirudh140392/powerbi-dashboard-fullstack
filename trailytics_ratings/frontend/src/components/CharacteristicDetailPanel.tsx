@@ -17,7 +17,8 @@ import {
     ArrowUpRight,
     ArrowDownRight,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Review } from '../types';
@@ -26,6 +27,9 @@ interface CharacteristicDetailPanelProps {
     characteristic: string | null;
     reviews: Review[];
     onClose: () => void;
+    trendPeriodMonths?: number;
+    dateFrom?: string;
+    dateTo?: string;
 }
 
 interface ProductSKU {
@@ -37,7 +41,7 @@ interface ProductSKU {
     avgRating: number;
     negativeRate: number;
     positiveRate: number;
-    trend: 'improving' | 'stable' | 'declining';
+    trend: 'improving' | 'stable' | 'declining' | 'insufficient_data';
     recentNegRate: number;
     olderNegRate: number;
     sampleReview: string;
@@ -55,7 +59,10 @@ interface SubcategoryData {
 const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
     characteristic,
     reviews,
-    onClose
+    onClose,
+    trendPeriodMonths = 6,
+    dateFrom,
+    dateTo
 }) => {
     const [showReviewTimeline, setShowReviewTimeline] = useState(false);
     const [productSortBy, setProductSortBy] = useState<'mentions' | 'negRate' | 'rating'>('mentions');
@@ -65,29 +72,49 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
     const SKU_PAGE_SIZE = 8;
     const REVIEW_PAGE_SIZE = 10;
 
+    React.useEffect(() => {
+        setSkuPage(1);
+        setReviewPage(1);
+    }, [characteristic]);
+
     // Filter reviews containing this sentiment category OR subcategory
     const relevantReviews = useMemo(() => {
         if (!characteristic) return [];
-        const charNormalized = characteristic.toLowerCase().replace(/\s+/g, '_');
-        const charWithSpaces = characteristic.toLowerCase().replace(/_/g, ' ');
 
-        return reviews.filter(r => {
-            const category = (r.sentimentCategory || '').toLowerCase().replace(/\s+/g, '_');
-            const subcategory = (r.subcategory || '').toLowerCase().replace(/\s+/g, '_');
-            const productName = (r.product || '').toLowerCase();
-            const charLower = characteristic.toLowerCase();
-
-            return category === charNormalized ||
-                subcategory === charNormalized ||
-                category.includes(charWithSpaces) ||
-                subcategory.includes(charWithSpaces) ||
-                charNormalized.includes(category) ||
-                charNormalized.includes(subcategory) ||
-                productName === charLower ||
-                productName.includes(charLower) ||
-                charLower.includes(productName);
+        // 1) Filter by characteristic (Exact match to backend logic)
+        let filtered = reviews.filter(r => {
+            const sub = (r.subcategory || '').trim();
+            const cat = (r.sentimentCategory || '').trim();
+            const derivedChar = (sub !== '' ? sub : (cat !== '' ? cat : 'General')).replace(/_/g, ' ').toLowerCase();
+            return derivedChar === characteristic.toLowerCase();
         });
-    }, [characteristic, reviews]);
+
+        // 2) Force filter to ONLY the "Recent Period" (Now %)
+        // If there's a custom date range (dateFrom & dateTo), recent period is the second half.
+        // Otherwise, recent period is the last `trendPeriodMonths`.
+        let recentStart: Date;
+        let recentEnd: Date;
+
+        if (dateFrom && dateTo) {
+            const dFrom = new Date(dateFrom);
+            const dTo = new Date(dateTo);
+            const msDiff = dTo.getTime() - dFrom.getTime();
+            recentStart = new Date(dFrom.getTime() + (msDiff / 2));
+            recentEnd = dTo;
+        } else {
+            recentEnd = new Date(); // now
+            recentStart = new Date(recentEnd);
+            recentStart.setMonth(recentStart.getMonth() - trendPeriodMonths);
+        }
+
+        filtered = filtered.filter(r => {
+            if (!r.date) return false;
+            const rd = new Date(r.date);
+            return rd >= recentStart && rd <= recentEnd;
+        });
+
+        return filtered;
+    }, [characteristic, reviews, trendPeriodMonths, dateFrom, dateTo]);
 
     // Sentiment breakdown
     const sentimentBreakdown = useMemo(() => {
@@ -104,7 +131,7 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
             positiveRate: total > 0 ? (positive / total * 100).toFixed(1) : '0',
             negativeRate: total > 0 ? (negative / total * 100).toFixed(1) : '0',
             neutralRate: total > 0 ? (neutral / total * 100).toFixed(1) : '0',
-            healthScore: total > 0 ? Math.round((positive - negative * 0.5 + neutral * 0.25) / total * 100) + 50 : 50
+            healthScore: total > 0 ? Math.round(((positive - negative) / total) * 50) + 50 : 50
         };
     }, [relevantReviews]);
 
@@ -198,10 +225,11 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                 const recentNegRate = data.recentTotal > 0 ? (data.recentNeg / data.recentTotal) * 100 : 0;
                 const olderNegRate = data.olderTotal > 0 ? (data.olderNeg / data.olderTotal) * 100 : 0;
 
-                let trend: 'improving' | 'stable' | 'declining' = 'stable';
-                if (data.recentTotal >= 3 && data.olderTotal >= 3) {
-                    if (recentNegRate > olderNegRate + 10) trend = 'declining';
-                    else if (recentNegRate < olderNegRate - 10) trend = 'improving';
+                let trend: 'improving' | 'stable' | 'declining' | 'insufficient_data' = 'insufficient_data';
+                if (data.recentTotal > 0 && data.olderTotal > 0) {
+                    if (recentNegRate > olderNegRate + 5) trend = 'declining';
+                    else if (recentNegRate < olderNegRate - 5) trend = 'improving';
+                    else trend = 'stable';
                 }
 
                 return {
@@ -333,64 +361,74 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                     >
                         {/* Header */}
                         <div className="sticky top-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800 p-6 z-10">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white capitalize">
+                            <div className="flex items-start justify-between gap-6">
+                                <div className="min-w-0 flex-1">
+                                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white capitalize truncate" title={characteristic}>
                                         {characteristic}
                                     </h2>
-                                    <p className="text-sm text-slate-500 mt-1">
+                                    <p className="text-sm text-slate-500 mt-1 font-medium">
                                         Product-level analysis • {sentimentBreakdown.total.toLocaleString()} mentions
                                     </p>
                                 </div>
                                 <button
                                     onClick={onClose}
-                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                                    className="p-2 shrink-0 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 hover:text-slate-900 dark:hover:text-white bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700"
                                 >
-                                    <X size={24} />
+                                    <X size={20} />
                                 </button>
                             </div>
                         </div>
 
                         <div className="p-6 space-y-6">
                             {/* Quick Stats */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-500/10 dark:to-emerald-500/10 rounded-xl">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <ThumbsUp className="text-green-500" size={18} />
-                                        <span className="text-xs font-medium text-slate-500">Positive</span>
+                            <div className="bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-1.5 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800">
+                                <div className="flex-1 p-4 flex flex-col justify-center">
+                                    <div className="flex items-center gap-1.5 mb-1.5 opacity-80">
+                                        <ThumbsUp className="text-emerald-500" size={14} />
+                                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Positive</span>
                                     </div>
-                                    <div className="text-2xl font-bold text-green-600">{sentimentBreakdown.positiveRate}%</div>
-                                    <div className="text-xs text-slate-400">{sentimentBreakdown.positive} reviews</div>
+                                    <div className="flex items-baseline gap-2">
+                                        <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{sentimentBreakdown.positiveRate}<span className="text-lg font-semibold opacity-60">%</span></div>
+                                        <div className="text-xs text-slate-400 font-medium">{sentimentBreakdown.positive} mentions</div>
+                                    </div>
                                 </div>
 
-                                <div className="p-4 bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-500/10 dark:to-orange-500/10 rounded-xl">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <ThumbsDown className="text-red-500" size={18} />
-                                        <span className="text-xs font-medium text-slate-500">Negative</span>
+                                <div className="flex-1 p-4 flex flex-col justify-center">
+                                    <div className="flex items-center gap-1.5 mb-1.5 opacity-80">
+                                        <ThumbsDown className="text-rose-500" size={14} />
+                                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Negative</span>
                                     </div>
-                                    <div className="text-2xl font-bold text-red-600">{sentimentBreakdown.negativeRate}%</div>
-                                    <div className="text-xs text-slate-400">{sentimentBreakdown.negative} reviews</div>
+                                    <div className="flex items-baseline gap-2">
+                                        <div className="text-3xl font-bold text-rose-600 dark:text-rose-400">{sentimentBreakdown.negativeRate}<span className="text-lg font-semibold opacity-60">%</span></div>
+                                        <div className="text-xs text-slate-400 font-medium">{sentimentBreakdown.negative} mentions</div>
+                                    </div>
                                 </div>
 
-                                <div className="p-4 bg-gradient-to-br from-slate-50 to-gray-50 dark:from-slate-500/10 dark:to-gray-500/10 rounded-xl">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <Minus className="text-slate-500" size={18} />
-                                        <span className="text-xs font-medium text-slate-500">Neutral</span>
+                                <div className="flex-1 p-4 flex flex-col justify-center">
+                                    <div className="flex items-center gap-1.5 mb-1.5 opacity-80">
+                                        <Minus className="text-slate-400" size={14} />
+                                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Neutral</span>
                                     </div>
-                                    <div className="text-2xl font-bold text-slate-600">{sentimentBreakdown.neutralRate}%</div>
-                                    <div className="text-xs text-slate-400">{sentimentBreakdown.neutral} reviews</div>
+                                    <div className="flex items-baseline gap-2">
+                                        <div className="text-3xl font-bold text-slate-700 dark:text-slate-300">{sentimentBreakdown.neutralRate}<span className="text-lg font-semibold opacity-60">%</span></div>
+                                        <div className="text-xs text-slate-400 font-medium">{sentimentBreakdown.neutral} mentions</div>
+                                    </div>
                                 </div>
 
-                                <div className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-500/10 dark:to-purple-500/10 rounded-xl">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <Target className="text-indigo-500" size={18} />
-                                        <span className="text-xs font-medium text-slate-500">Health Score</span>
+                                <div className="flex-[1.2] p-4 flex flex-col justify-center bg-gradient-to-br from-indigo-50/50 to-purple-50/50 dark:from-indigo-900/10 dark:to-purple-900/10 md:rounded-r-xl">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <div className="flex items-center gap-1.5 opacity-80">
+                                            <Target className="text-indigo-500" size={14} />
+                                            <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Health Score</span>
+                                        </div>
+                                        <div className="text-[10px] font-semibold text-indigo-500/80 dark:text-indigo-400/80 bg-indigo-100/50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                            {trendDirection === 'improving' && <><TrendingUp size={10} /> Improving</>}
+                                            {trendDirection === 'declining' && <><TrendingDown size={10} /> Declining</>}
+                                            {trendDirection === 'stable' && 'Stable'}
+                                        </div>
                                     </div>
-                                    <div className="text-2xl font-bold text-indigo-600">{sentimentBreakdown.healthScore}</div>
-                                    <div className="text-xs text-slate-400 flex items-center gap-1">
-                                        {trendDirection === 'improving' && <><TrendingUp size={12} className="text-green-500" /> Improving</>}
-                                        {trendDirection === 'declining' && <><TrendingDown size={12} className="text-red-500" /> Declining</>}
-                                        {trendDirection === 'stable' && 'Stable'}
+                                    <div className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400">
+                                        {sentimentBreakdown.healthScore}
                                     </div>
                                 </div>
                             </div>
@@ -493,9 +531,7 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                                                         </span>
                                                                     </td>
                                                                     <td className="text-center py-3 px-3">
-                                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sku.negativeRate > 50 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                                                                                sku.negativeRate > 30 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-                                                                                    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sku.negativeRate > 0 ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 ring-1 ring-red-500/20' : 'bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400 ring-1 ring-slate-500/20'
                                                                             }`}>
                                                                             {sku.negativeRate.toFixed(0)}%
                                                                         </span>
@@ -520,17 +556,22 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                                                     </td>
                                                                     <td className="text-center py-3 px-3">
                                                                         {sku.trend === 'declining' && (
-                                                                            <span className="inline-flex items-center gap-0.5 text-xs text-red-600">
+                                                                            <span className="inline-flex items-center justify-center gap-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded">
                                                                                 <ArrowUpRight size={12} /> Worse
                                                                             </span>
                                                                         )}
                                                                         {sku.trend === 'improving' && (
-                                                                            <span className="inline-flex items-center gap-0.5 text-xs text-green-600">
+                                                                            <span className="inline-flex items-center justify-center gap-1 text-xs font-medium text-green-600 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded">
                                                                                 <ArrowDownRight size={12} /> Better
                                                                             </span>
                                                                         )}
                                                                         {sku.trend === 'stable' && (
-                                                                            <span className="text-xs text-slate-400">—</span>
+                                                                            <span className="inline-flex items-center justify-center gap-1 text-xs font-medium text-slate-500 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded">
+                                                                                <Minus size={12} /> Stable
+                                                                            </span>
+                                                                        )}
+                                                                        {sku.trend === 'insufficient_data' && (
+                                                                            <span className="text-xs text-slate-300" title="Not enough historical data">—</span>
                                                                         )}
                                                                     </td>
                                                                 </motion.tr>
@@ -577,52 +618,67 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                     transition={{ delay: 0.2 }}
                                     className="bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"
                                 >
-                                    <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
-                                        <BarChart3 className="text-indigo-500" size={20} />
-                                        <h3 className="font-bold text-slate-900 dark:text-white">
-                                            Sub-Issue Breakdown
-                                        </h3>
+                                    <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <BarChart3 className="text-indigo-500" size={20} />
+                                            <h3 className="font-bold text-slate-900 dark:text-white">
+                                                Sub-Issue Breakdown
+                                            </h3>
+                                        </div>
                                     </div>
-                                    <div className="divide-y divide-slate-50 dark:divide-slate-800">
+                                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {subcategoryData.map((sub, idx) => (
                                             <motion.div
                                                 key={sub.subcategory}
                                                 initial={{ opacity: 0, x: -10 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 transition={{ delay: idx * 0.04 }}
-                                                className="p-3 px-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                                                className="p-4 flex flex-col md:flex-row md:items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors gap-4"
                                             >
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`p-1.5 rounded-lg ${sub.negativeRate > 50 ? 'bg-red-100 dark:bg-red-900/20' :
-                                                            sub.negativeRate > 30 ? 'bg-orange-100 dark:bg-orange-900/20' :
-                                                                'bg-green-100 dark:bg-green-900/20'
+                                                <div className="flex items-start md:items-center gap-3 flex-1 min-w-0">
+                                                    <div className={`mt-0.5 md:mt-0 p-2 rounded-xl shrink-0 ${sub.negativeRate > 50 ? 'bg-red-50 text-red-500 dark:bg-red-500/10' :
+                                                            sub.negativeRate > 30 ? 'bg-orange-50 text-orange-500 dark:bg-orange-500/10' :
+                                                                'bg-emerald-50 text-emerald-500 dark:bg-emerald-500/10'
                                                         }`}>
                                                         {sub.negativeRate > 50 ? (
-                                                            <AlertTriangle size={14} className="text-red-500" />
+                                                            <AlertTriangle size={16} />
                                                         ) : sub.negativeRate > 30 ? (
-                                                            <AlertTriangle size={14} className="text-orange-500" />
+                                                            <AlertTriangle size={16} />
                                                         ) : (
-                                                            <CheckCircle size={14} className="text-green-500" />
+                                                            <CheckCircle size={16} />
                                                         )}
                                                     </div>
-                                                    <div>
-                                                        <span className="font-medium text-sm text-slate-700 dark:text-slate-300">
-                                                            {sub.subcategory.replace(/_/g, ' ')}
-                                                        </span>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3">
+                                                            <span className="font-semibold text-sm text-slate-800 dark:text-slate-200 capitalize truncate">
+                                                                {sub.subcategory.replace(/_/g, ' ')}
+                                                            </span>
+                                                            <span className="text-xs text-slate-400 shrink-0">{sub.total} mentions</span>
+                                                        </div>
                                                         {sub.topProduct && (
-                                                            <p className="text-[10px] text-slate-400 mt-0.5">
-                                                                Most affected: {sub.topProduct.length > 40 ? sub.topProduct.substring(0, 40) + '...' : sub.topProduct}
-                                                            </p>
+                                                            <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 truncate">
+                                                                <span className="text-slate-400">Most affected:</span>
+                                                                <span className="font-medium text-slate-600 dark:text-slate-300 truncate" title={sub.topProduct}>
+                                                                    {sub.topProduct}
+                                                                </span>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-xs text-slate-400">{sub.total} mentions</span>
-                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sub.negativeRate > 50 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                                                            sub.negativeRate > 30 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-                                                                'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                <div className="flex items-center gap-4 pl-12 md:pl-0 shrink-0">
+                                                    <div className="w-32 hidden sm:block">
+                                                        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                                                            <div 
+                                                                className={`h-full ${sub.negativeRate > 50 ? 'bg-red-500' : sub.negativeRate > 30 ? 'bg-orange-400' : 'bg-emerald-500'}`} 
+                                                                style={{ width: `${sub.negativeRate}%` }} 
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <span className={`px-2.5 py-1 rounded-md text-xs font-semibold w-16 text-center ${sub.negativeRate > 50 ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400 ring-1 ring-red-500/20' :
+                                                            sub.negativeRate > 30 ? 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 ring-1 ring-orange-500/20' :
+                                                                'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 ring-1 ring-emerald-500/20'
                                                         }`}>
-                                                        {sub.negativeRate.toFixed(0)}% neg
+                                                        {sub.negativeRate.toFixed(0)}%
                                                     </span>
                                                 </div>
                                             </motion.div>
@@ -645,9 +701,9 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                     className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                                 >
                                     <div className="flex items-center gap-2">
-                                        <BarChart3 className="text-indigo-500" size={20} />
-                                        <h3 className="font-bold text-slate-900 dark:text-white">📜 Review Timeline</h3>
-                                        <span className="text-xs text-slate-400">{relevantReviews.filter(r => r.text && r.text.length > 0).length} reviews</span>
+                                        <MessageSquare className="text-indigo-500" size={20} />
+                                        <h3 className="font-bold text-slate-900 dark:text-white">Review Verbatims</h3>
+                                        <span className="text-xs text-slate-400">({relevantReviews.filter(r => r.text && r.text.length > 0).length} reviews)</span>
                                     </div>
                                     {showReviewTimeline ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
                                 </button>
@@ -661,7 +717,7 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                             transition={{ duration: 0.3 }}
                                             className="overflow-hidden"
                                         >
-                                            <div className="space-y-4 p-4 pt-0">
+                                            <div className="space-y-5 p-4 pt-0">
                                                 {(() => {
                                                     const reviewsWithText = relevantReviews
                                                         .filter(r => r.text && r.text.length > 0)
@@ -673,17 +729,17 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                                     return (
                                                         <>
                                                             {paginatedReviews.map((review) => (
-                                                                <div key={review.id} className="relative pl-6 border-l-2 border-slate-200 dark:border-slate-700">
-                                                                    <div className={`absolute left-[-5px] top-0 w-2.5 h-2.5 rounded-full ${review.sentiment === 'Positive' ? 'bg-green-500' :
-                                                                            review.sentiment === 'Negative' ? 'bg-red-500' : 'bg-slate-400'
+                                                                <div key={review.id} className="relative pl-6 border-l-[3px] border-slate-100 dark:border-slate-700/50">
+                                                                    <div className={`absolute -left-[7px] top-2 w-[11px] h-[11px] rounded-full ring-4 ring-white dark:ring-slate-900 ${review.sentiment === 'Positive' ? 'bg-emerald-500' :
+                                                                            review.sentiment === 'Negative' ? 'bg-rose-500' : 'bg-slate-400'
                                                                         }`} />
 
-                                                                    <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
-                                                                        <div className="flex items-center justify-between mb-2">
-                                                                            <div className="flex items-center gap-2">
-                                                                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${review.sentiment === 'Positive' ? 'bg-green-100 text-green-600 dark:bg-green-500/20 dark:text-green-400' :
-                                                                                        review.sentiment === 'Negative' ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400' :
-                                                                                            'bg-slate-100 text-slate-600 dark:bg-slate-600/30 dark:text-slate-400'
+                                                                    <div className="p-4 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                                                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${review.sentiment === 'Positive' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 ring-1 ring-emerald-500/20' :
+                                                                                        review.sentiment === 'Negative' ? 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 ring-1 ring-rose-500/20' :
+                                                                                            'bg-slate-50 text-slate-600 dark:bg-slate-500/10 dark:text-slate-400 ring-1 ring-slate-500/20'
                                                                                     }`}>
                                                                                     {review.sentiment}
                                                                                 </span>
@@ -691,18 +747,18 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                                                                     {[...Array(5)].map((_, i) => (
                                                                                         <Star
                                                                                             key={i}
-                                                                                            size={10}
-                                                                                            className={i < review.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}
+                                                                                            size={12}
+                                                                                            className={i < review.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200 dark:text-slate-700'}
                                                                                         />
                                                                                     ))}
                                                                                 </div>
                                                                                 {review.product && (
-                                                                                    <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded font-medium">
-                                                                                        {review.product.length > 30 ? review.product.substring(0, 30) + '...' : review.product}
+                                                                                    <span className="text-[11px] px-2 py-0.5 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 rounded-md font-medium border border-slate-200 dark:border-slate-700 max-w-[200px] truncate" title={review.product}>
+                                                                                        {review.product}
                                                                                     </span>
                                                                                 )}
                                                                             </div>
-                                                                            <span className="text-xs text-slate-400">
+                                                                            <span className="text-[11px] font-semibold text-slate-400 shrink-0">
                                                                                 {new Date(review.date).toLocaleDateString('en-US', {
                                                                                     year: 'numeric',
                                                                                     month: 'short',
@@ -710,7 +766,7 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                                                                 })}
                                                                             </span>
                                                                         </div>
-                                                                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                                                                        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                                                                             {review.text}
                                                                         </p>
                                                                     </div>

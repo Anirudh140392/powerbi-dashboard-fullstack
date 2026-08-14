@@ -41,6 +41,8 @@ interface Props {
     onCategorySelect?: (category: string | null) => void;
     externalSelectedCategory?: string | null;
     allCategories?: ProductCategory[];
+    /** Global platform filter from GlobalFilterBar (e.g. 'Amazon', 'Flipkart', 'all') */
+    globalPlatform?: string;
 }
 
 type ViewLevel = 'overview' | 'category' | 'subcategory';
@@ -53,6 +55,7 @@ export default function CompetitorIntelligence({
     onCategorySelect,
     externalSelectedCategory,
     allCategories,
+    globalPlatform,
 }: Props) {
     const [viewLevel, setViewLevel] = useState<ViewLevel>('overview');
     const [viewMode, setViewMode] = useState<ViewMode>('segments');
@@ -61,7 +64,7 @@ export default function CompetitorIntelligence({
     const [expandedBrand, setExpandedBrand] = useState<string | null>(null);
     const [sortColumn, setSortColumn] = useState<'category' | 'prestige' | 'reviews' | 'issues'>('reviews');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-    const [platformFilter, setPlatformFilter] = useState<'all' | 'amazon' | 'flipkart'>('all');
+    // platformFilter is now driven by globalPlatform prop from the GlobalFilterBar
 
     const handleSort = (column: typeof sortColumn) => {
         if (sortColumn === column) {
@@ -79,13 +82,14 @@ export default function CompetitorIntelligence({
             : <ChevronDown size={14} className="text-purple-600" />;
     };
 
-    // Platform-filtered competitor reviews
+    // Platform-filtered competitor reviews — driven by globalPlatform from GlobalFilterBar
     const filteredCompetitorReviews = useMemo(() => {
-        if (platformFilter === 'all') return competitorReviews;
+        const platform = (globalPlatform || 'all').toLowerCase();
+        if (platform === 'all') return competitorReviews;
         return competitorReviews.filter(r =>
-            (r.platform || 'amazon').toLowerCase() === platformFilter
+            (r.platform || 'amazon').toLowerCase() === platform
         );
-    }, [competitorReviews, platformFilter]);
+    }, [competitorReviews, globalPlatform]);
 
     // Normalize generic brands into 'Other'
     const normalizeBrand = (brand: string): string => {
@@ -489,22 +493,11 @@ export default function CompetitorIntelligence({
                     </div>
                 )}
 
-                {/* Platform Filter Tabs */}
-                {viewLevel === 'overview' && (
-                    <div className="flex items-center bg-slate-100/80 dark:bg-slate-800/80 rounded-xl p-1 gap-1">
-                        {(['all', 'amazon', 'flipkart'] as const).map(p => (
-                            <motion.button
-                                key={p}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => setPlatformFilter(p)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${platformFilter === p
-                                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md'
-                                    : 'text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700/50'
-                                    }`}
-                            >
-                                {p === 'all' ? '🌐 All' : p === 'amazon' ? '🛒 Amazon' : '🏪 Flipkart'}
-                            </motion.button>
-                        ))}
+                {/* Platform filter is now controlled via GlobalFilterBar → Platform dropdown */}
+                {globalPlatform && globalPlatform !== 'all' && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300">
+                        <span>{globalPlatform === 'Amazon' ? '🛒' : '🏪'}</span>
+                        <span>{globalPlatform}</span>
                     </div>
                 )}
             </div>

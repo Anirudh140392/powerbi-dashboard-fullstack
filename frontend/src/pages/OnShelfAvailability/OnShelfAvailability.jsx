@@ -35,7 +35,7 @@ export default function OnShelfAvailability() {
 
   // Initialize filters from context
   const [filters, setFilters] = useState({
-    platform: platform || "Blinkit",
+    platform: platform || "",
     brand: selectedBrand || "All",
     location: selectedLocation || "All",
     category: selectedCategory || "All",

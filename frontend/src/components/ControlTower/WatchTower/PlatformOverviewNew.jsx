@@ -15,7 +15,11 @@ import {
     SlidersHorizontal,
     Scale,
     PieChart,
-    ChevronDown
+    ChevronDown,
+    ExternalLink,
+    ArrowUp,
+    ArrowDown,
+    ArrowUpDown
 } from 'lucide-react'
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { useNavigate } from 'react-router-dom'
@@ -24,15 +28,42 @@ import FlipkartLogo from '@/lib/Flipkart logo.png'
 import { copyToClipboard } from '../../../utils/clipboard'
 
 /* --- HELPER COMPONENTS & UTILS --- */
-const isEcomChannel = (chan) => chan && chan.toLowerCase().includes('ecom');
+const safeLower = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val.toLowerCase();
+    if (Array.isArray(val)) return val.map(v => String(v || '')).join(',').toLowerCase();
+    return String(val).toLowerCase();
+};
 
-// Platform classification helpers for SKU-level KPI visibility
-const ECOM_PLATFORM_NAMES = ['amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart'];
-const QCOM_PLATFORM_NAMES = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow'];
-const isEcomPlatform = (name) => ECOM_PLATFORM_NAMES.some(p => (name || '').toLowerCase().includes(p));
-const isQcomPlatform = (name) => QCOM_PLATFORM_NAMES.some(p => (name || '').toLowerCase().includes(p));
+const isEcomChannel = (chan) => {
+    const s = safeLower(chan);
+    return s.includes('ecom') || s.includes('e-commerce');
+};
+
+// Platform classification helpers for KPI visibility
+const QCOM_PLATFORM_NAMES = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow', 'minutes', 'quickcomm', 'quick commerce'];
+const isQcomPlatform = (name) => {
+    if (!name) return false;
+    const n = safeLower(name);
+    return QCOM_PLATFORM_NAMES.some(p => n.includes(p));
+};
+
+const isEcomPlatform = (name) => {
+    if (!name) return false;
+    if (isQcomPlatform(name)) return false; // Prevent 'flipkart minutes' from matching ecom
+    const n = safeLower(name);
+    return ['amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart', 'ecom'].some(p => n.includes(p));
+};
+
+const isBuyBoxPlatform = (name) => {
+    if (!name || name === 'All') return false;
+    if (isQcomPlatform(name)) return false;
+    const n = safeLower(name).trim();
+    return n.includes('amazon') || n.includes('flipkart');
+};
+
 // KPIs that are ecom-only at SKU level (not shown for qcom platforms)
-const SKU_ECOM_ONLY_KPIS = ['spend', 'conversion', 'cpc'];
+const SKU_ECOM_ONLY_KPIS = ['spend', 'conversion', 'cpc', 'roas_x'];
 const BrandLogo = ({ name, src, className, imgClassName }) => {
     const [error, setError] = useState(false);
 
@@ -80,6 +111,8 @@ const kpiLabels = {
     offtakes: 'Offtakes',
     quantitySold: 'Quantity Sold',
     spend: 'Spend',
+    tacos: 'TACoS',
+    roas_x: 'ROAS',
     availability: 'Availability',
     marketShare: 'Market share',
     conversion: 'Conversion',
@@ -99,6 +132,7 @@ const BACKEND_TITLE_TO_KEY = {
     'Offtakes': 'offtakes',
     'Quantity Sold': 'quantitySold',
     'Spend': 'spend',
+    'TACoS': 'tacos',
     'ROAS': 'roas_x',
     'Inorg Sales': 'inorgSales',
     'Conversion': 'conversion',
@@ -131,6 +165,8 @@ const mapApiEntityToFrontend = (apiEntity) => {
                 const isPositive = col.change?.positive !== false
                 data[key] = {
                     value: col.value || '0',
+                    rawVal: col.rawVal ?? col.rawValue ?? null,
+                    meta: col.meta || null,
                     delta: {
                         value: changeText.replace(/^[+-]/, ''),
                         dir: isPositive ? 'up' : 'down'
@@ -141,6 +177,50 @@ const mapApiEntityToFrontend = (apiEntity) => {
     }
     return data
 }
+
+const getFullDisplayValue = (kpiKey, cell) => {
+    if (!cell || cell?.value === 'N/A' || cell?.value === undefined) return 'N/A';
+    if (kpiKey === 'quantitySold' || kpiKey === 'offtakes') {
+        if (cell.rawVal !== undefined && cell.rawVal !== null && !isNaN(cell.rawVal)) {
+            return Math.round(Number(cell.rawVal)).toLocaleString('en-IN');
+        }
+        const cleanStr = String(cell.value).replace(/,/g, '').trim();
+        const numMatch = cleanStr.match(/-?[\d.]+/);
+        if (numMatch) {
+            let val = parseFloat(numMatch[0]);
+            if (!isNaN(val)) {
+                const lower = cleanStr.toLowerCase();
+                if (lower.includes('cr')) val *= 10000000;
+                else if (lower.includes('lac') || lower.includes('lak') || lower.includes('lakh')) val *= 100000;
+                else if (lower.includes('m')) val *= 1000000;
+                else if (lower.includes('k')) val *= 1000;
+
+                return Math.round(val).toLocaleString('en-IN');
+            }
+        }
+    }
+    return cell?.value || '0';
+};
+
+const parseKpiValue = (cell) => {
+    if (!cell || cell?.value === 'N/A' || cell?.value === undefined || cell?.value === null) {
+        return null;
+    }
+    if (cell.rawVal !== undefined && cell.rawVal !== null && !isNaN(cell.rawVal)) {
+        return Number(cell.rawVal);
+    }
+    const cleanStr = String(cell.value).replace(/,/g, '').trim();
+    const numMatch = cleanStr.match(/-?[\d.]+/);
+    if (!numMatch) return null;
+    let val = parseFloat(numMatch[0]);
+    if (isNaN(val)) return null;
+    const lower = cleanStr.toLowerCase();
+    if (lower.includes('cr')) val *= 10000000;
+    else if (lower.includes('lac') || lower.includes('lak') || lower.includes('lakh')) val *= 100000;
+    else if (lower.includes('m')) val *= 1000000;
+    else if (lower.includes('k')) val *= 1000;
+    return val;
+};
 
 // Dimension → API endpoint mapping
 const DIMENSION_API_MAP = {
@@ -160,9 +240,12 @@ const PlatformOverviewNew = ({
 }) => {
     const {
         platform: globalPlatform,
+        setPlatform,
         selectedBrand,
+        setSelectedBrand,
         brands: globalBrands,
         selectedCategory,
+        setSelectedCategory,
         categories: globalCategories,
         selectedLocation,
         selectedChannel,
@@ -173,13 +256,16 @@ const PlatformOverviewNew = ({
         compareEnd,
         datesFetched,
         platformsFetched,
-        selectedMsl
+        selectedMsl,
+        setSelectedMsl
     } = useContext(FilterContext);
 
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
         { key: 'quantitySold', label: 'Quantity Sold' },
         { key: 'spend', label: 'Spend' },
+        { key: 'tacos', label: 'TACoS' },
+        { key: 'roas_x', label: 'ROAS' },
         { key: 'inorgSales', label: 'Inorg Sales' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
@@ -196,9 +282,28 @@ const PlatformOverviewNew = ({
         { key: 'aov', label: 'AOV' },
     ]
     const [dimension, setDimension] = useState('platform')
-    const [localPlatformFilter, setLocalPlatformFilter] = useState('')
-    const [skuPlatformFilter, setSkuPlatformFilter] = useState('')
+    const [localPlatformFilter, setLocalPlatformFilter] = useState('All')
+    const [skuPlatformFilter, setSkuPlatformFilter] = useState('All')
     const [toastMessage, setToastMessage] = useState('');
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'desc' });
+
+    const handleSort = (kpiKey) => {
+        setSortConfig(prev => {
+            if (prev.key === kpiKey) {
+                if (prev.direction === 'desc') {
+                    return { key: kpiKey, direction: 'asc' };
+                } else if (prev.direction === 'asc') {
+                    return { key: null, direction: 'desc' };
+                }
+            }
+            return { key: kpiKey, direction: 'desc' };
+        });
+        setCurrentPage(1);
+    };
+
+    useEffect(() => {
+        setSortConfig({ key: null, direction: 'desc' });
+    }, [dimension]);
 
     const handleCopy = async (title, value) => {
         try {
@@ -210,20 +315,15 @@ const PlatformOverviewNew = ({
         }
     };
 
-    // Automatically set default platform to first valid platform when 'All' is selected
+    // Initialize default local platform filters to 'All' ONCE on mount
+    const isInitializedRef = useRef(false);
     useEffect(() => {
-        if (globalPlatforms?.length > 0) {
-            const validPlatforms = globalPlatforms.filter(p => p !== 'All');
-            if (validPlatforms.length > 0) {
-                if (localPlatformFilter === 'All' || !validPlatforms.includes(localPlatformFilter)) {
-                    setLocalPlatformFilter(validPlatforms[0]);
-                }
-                if (skuPlatformFilter === 'All' || !validPlatforms.includes(skuPlatformFilter)) {
-                    setSkuPlatformFilter(validPlatforms[0]);
-                }
-            }
+        if (!isInitializedRef.current && globalPlatforms?.length > 0) {
+            isInitializedRef.current = true;
+            setLocalPlatformFilter('All');
+            setSkuPlatformFilter('All');
         }
-    }, [globalPlatforms, localPlatformFilter, skuPlatformFilter]);
+    }, [globalPlatforms]);
 
     // Determine the active platform filter for non-platform, non-sku dimensions
     // (Brand, Category, Month now use a platform dropdown instead of channel)
@@ -239,17 +339,32 @@ const PlatformOverviewNew = ({
     const isSkuQcom = dimension === 'sku' && skuPlatformFilter !== 'All' && isQcomPlatform(skuPlatformFilter);
     const isSkuEcom = dimension === 'sku' && skuPlatformFilter !== 'All' && isEcomPlatform(skuPlatformFilter);
 
+    const isPidilite = useMemo(() => {
+        try {
+            const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+            return storedUser?.dbName?.toLowerCase() === 'pidilite';
+        } catch {
+            return false;
+        }
+    }, []);
+
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
         let baseKpis = kpis;
+        const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
+        const allowBuyBox = isBuyBoxPlatform(activePlat);
+
+        if (dimension === 'platform' || !allowBuyBox) {
+            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct');
+        }
         if (dimension === 'platform') {
-            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime');
+            baseKpis = baseKpis.filter(k => k.key !== 'deliveryTime');
         }
 
         if (isEcom) {
             baseKpis = baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare' && k.key !== 'cpm');
         } else if (isQuick) {
-            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime' && k.key !== 'cpc');
+            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime' && (isPidilite ? true : k.key !== 'cpc'));
         } else {
             baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime');
         }
@@ -260,45 +375,61 @@ const PlatformOverviewNew = ({
                 // CPM is never shown at SKU level
                 if (k.key === 'cpm') return false;
                 // Spend/Conversion/CPC are ecom-only at SKU level
-                if (isSkuQcom && SKU_ECOM_ONLY_KPIS.includes(k.key)) return false;
+                if (isSkuQcom && SKU_ECOM_ONLY_KPIS.includes(k.key)) {
+                    if (isPidilite && k.key === 'cpc') return true;
+                    return false;
+                }
                 return true;
             });
         }
         if (dimension === 'brand') return baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
         return baseKpis;
-    }, [dimension, activePlatformFilter, skuPlatformFilter]);
+    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite]);
 
     const defaultKpiKeys = useMemo(() => {
-        let base = ['offtakes', 'quantitySold', 'spend', 'availability', 'conversion', 'aov'];
+        let base = ['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'conversion', 'aov'];
+        const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
+        const allowBuyBox = isBuyBoxPlatform(activePlat);
+
         if (dimension === 'platform') {
             base.push('marketShare', 'categorySize');
             if (isEcom) base.push('cpc');
-            else if (isQuick) base.push('cpm');
+            else if (isQuick) {
+                base.push('cpm');
+                if (isPidilite) base.push('cpc');
+            }
             else base.push('cpc', 'cpm');
         } else {
             if (isEcom) {
-                base.push('buyBoxPct', 'deliveryTime', 'cpc');
+                if (allowBuyBox) base.push('buyBoxPct');
+                base.push('deliveryTime', 'cpc');
             } else if (isQuick) {
                 base.push('marketShare', 'categorySize', 'cpm');
+                if (isPidilite) base.push('cpc');
             } else {
+                if (allowBuyBox) base.push('buyBoxPct');
                 base.push('marketShare', 'categorySize', 'cpc', 'cpm');
             }
         }
 
         if (dimension === 'sku') {
             let skuBase = base.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'cpm');
+            if (!allowBuyBox) skuBase = skuBase.filter(k => k !== 'buyBoxPct');
             if (isSkuQcom) {
-                skuBase = skuBase.filter(k => !SKU_ECOM_ONLY_KPIS.includes(k));
+                skuBase = skuBase.filter(k => isPidilite && k === 'cpc' ? true : !SKU_ECOM_ONLY_KPIS.includes(k));
             }
             return skuBase;
         }
         if (dimension === 'brand') {
-            return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
+            let brandBase = base.filter(k => k !== 'categorySize' && k !== 'marketShare');
+            if (!allowBuyBox) brandBase = brandBase.filter(k => k !== 'buyBoxPct');
+            return brandBase;
         }
+        if (!allowBuyBox) base = base.filter(k => k !== 'buyBoxPct');
         return base;
-    }, [dimension, activePlatformFilter, skuPlatformFilter]);
+    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite]);
 
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'quantitySold', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
+    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const navigate = useNavigate()
     const [currentPage, setCurrentPage] = useState(1)
@@ -323,7 +454,7 @@ const PlatformOverviewNew = ({
     })
     const fetchIdRef = useRef(0)
 
-    // Reset advanced/local filters when global filters are reset to defaults
+    // Reset advanced filters when global filters are reset to defaults
     useEffect(() => {
         const isGlobalPlatformReset = globalPlatform === "All" || (Array.isArray(globalPlatform) && globalPlatform.includes("All")) || globalPlatform === "";
         const isGlobalBrandReset = selectedBrand === "All";
@@ -344,19 +475,21 @@ const PlatformOverviewNew = ({
                 kpis: defaultKpiKeys,
                 filterLogic: 'OR',
             });
-            setLocalPlatformFilter('');
-            setSkuPlatformFilter('');
         }
     }, [globalPlatform, selectedBrand, selectedCategory, selectedLocation, defaultKpiKeys]);
 
     // Re-sync glanceKpis when dimension changes or channel/platform changes
     useEffect(() => {
+        const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
+        const allowBuyBox = isBuyBoxPlatform(activePlat);
+
         if (dimension === 'sku') {
             setGlanceKpis(prev => {
                 let next = prev.filter(k => {
                     if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
                     // CPM never shown at SKU level
                     if (k === 'cpm') return false;
+                    if (!allowBuyBox && k === 'buyBoxPct') return false;
                     // Spend/Conversion/CPC are ecom-only at SKU level
                     if (isSkuQcom && SKU_ECOM_ONLY_KPIS.includes(k)) return false;
                     return true;
@@ -376,14 +509,24 @@ const PlatformOverviewNew = ({
                 if (!next.includes('conversion')) next.push('conversion');
                 if (isEcom) {
                     next = next.filter(k => k !== 'cpm');
-                    if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    if (allowBuyBox) {
+                        if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    } else {
+                        next = next.filter(k => k !== 'buyBoxPct');
+                    }
                     if (!next.includes('deliveryTime')) next.push('deliveryTime');
                     if (!next.includes('cpc')) next.push('cpc');
                 } else if (isQuick) {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpc');
+                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && (isPidilite ? true : k !== 'cpc'));
                     if (!next.includes('cpm')) next.push('cpm');
+                    if (isPidilite && !next.includes('cpc')) next.push('cpc');
                 } else {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime');
+                    next = next.filter(k => k !== 'deliveryTime');
+                    if (allowBuyBox) {
+                        if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    } else {
+                        next = next.filter(k => k !== 'buyBoxPct');
+                    }
                     if (!next.includes('cpc')) next.push('cpc');
                     if (!next.includes('cpm')) next.push('cpm');
                 }
@@ -400,7 +543,8 @@ const PlatformOverviewNew = ({
                     next = next.filter(k => k !== 'cpm');
                     if (!next.includes('cpc')) next.push('cpc');
                 } else if (isQuick) {
-                    next = next.filter(k => k !== 'cpc');
+                    if (!isPidilite) next = next.filter(k => k !== 'cpc');
+                    else if (!next.includes('cpc')) next.push('cpc');
                     if (!next.includes('cpm')) next.push('cpm');
                 } else {
                     if (!next.includes('cpc')) next.push('cpc');
@@ -416,18 +560,28 @@ const PlatformOverviewNew = ({
                     next = next.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpm');
                     if (!next.includes('spend')) next.push('spend');
                     if (!next.includes('conversion')) next.push('conversion');
-                    if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    if (allowBuyBox) {
+                        if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    } else {
+                        next = next.filter(k => k !== 'buyBoxPct');
+                    }
                     if (!next.includes('deliveryTime')) next.push('deliveryTime');
                     if (!next.includes('cpc')) next.push('cpc');
                 } else if (isQuick) {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpc');
+                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && (isPidilite ? true : k !== 'cpc'));
                     if (!next.includes('categorySize')) next.push('categorySize');
                     if (!next.includes('spend')) next.push('spend');
                     if (!next.includes('conversion')) next.push('conversion');
                     if (!next.includes('marketShare')) next.push('marketShare');
                     if (!next.includes('cpm')) next.push('cpm');
+                    if (isPidilite && !next.includes('cpc')) next.push('cpc');
                 } else {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime');
+                    next = next.filter(k => k !== 'deliveryTime');
+                    if (allowBuyBox) {
+                        if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    } else {
+                        next = next.filter(k => k !== 'buyBoxPct');
+                    }
                     if (!next.includes('categorySize')) next.push('categorySize');
                     if (!next.includes('spend')) next.push('spend');
                     if (!next.includes('conversion')) next.push('conversion');
@@ -470,10 +624,10 @@ const PlatformOverviewNew = ({
         // For SKU dimension, use the local skuPlatformFilter to override platform
         // For Brand/Category/Month, use localPlatformFilter to override platform
         let reqPlatform;
-        if (dimension === 'sku' && skuPlatformFilter && skuPlatformFilter !== 'All') {
-            reqPlatform = skuPlatformFilter;
-        } else if (dimension !== 'platform' && dimension !== 'sku' && localPlatformFilter && localPlatformFilter !== 'All') {
-            reqPlatform = localPlatformFilter;
+        if (dimension === 'sku') {
+            reqPlatform = skuPlatformFilter || 'All';
+        } else if (dimension !== 'platform') {
+            reqPlatform = localPlatformFilter || 'All';
         } else {
             reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
                 : (globalPlatform === 'All' ? 'All' : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
@@ -581,19 +735,21 @@ const PlatformOverviewNew = ({
         // Wait for essential context data
         if (!datesFetched || !platformsFetched) return;
 
-        // Skip fetching if the filter key hasn't actually changed.
-        // We intentionally do NOT check apiLoading here — re-fetching on the same
-        // filterKey just because loading is true causes race conditions where
-        // in-flight responses get silently dropped.
-        if (lastFetchedKey.current === filterKey) return;
+        if (lastFetchedKey.current === filterKey) {
+            setApiLoading(false);
+            return;
+        }
 
         const currentFetchId = ++fetchIdRef.current;
 
         const debounceTimer = setTimeout(() => {
-            if (currentFetchId !== fetchIdRef.current) return;
+            if (currentFetchId !== fetchIdRef.current) {
+                setApiLoading(false);
+                return;
+            }
             lastFetchedKey.current = filterKey;
-            fetchDimensionDataRef.current(currentFetchId)
-        }, 1000);
+            fetchDimensionDataRef.current(currentFetchId);
+        }, 50);
 
         return () => clearTimeout(debounceTimer);
     }, [filterKey, datesFetched, platformsFetched]);
@@ -633,9 +789,32 @@ const PlatformOverviewNew = ({
 
     // Handle filter apply from modal
     const handleApplyFilters = (filters) => {
-        setAdvancedFilters(filters)
-        setGlanceKpis(filters.kpis)
-    }
+        setAdvancedFilters(filters);
+        setGlanceKpis(filters.kpis);
+
+        // Synchronize back to global FilterContext so top blue filter button stays in 2-way sync
+        if (filters.categories && filters.categories.length > 0) {
+            setSelectedCategory(filters.categories.length === 1 ? filters.categories[0] : filters.categories);
+        } else if (filters.categories && filters.categories.length === 0) {
+            setSelectedCategory('All');
+        }
+
+        if (filters.brands && filters.brands.length > 0) {
+            setSelectedBrand(filters.brands.length === 1 ? filters.brands[0] : filters.brands);
+        } else if (filters.brands && filters.brands.length === 0) {
+            setSelectedBrand('All');
+        }
+
+        if (filters.platforms && filters.platforms.length > 0) {
+            setPlatform(filters.platforms.length === 1 ? filters.platforms[0] : filters.platforms);
+        } else if (filters.platforms && filters.platforms.length === 0) {
+            setPlatform('All');
+        }
+
+        if (filters.msl !== undefined && setSelectedMsl) {
+            setSelectedMsl(filters.msl);
+        }
+    };
     // Count active dimension filters
     const activeDimensionFilters = [
         advancedFilters.brands?.length > 0,
@@ -669,6 +848,7 @@ const PlatformOverviewNew = ({
                     logoSrc,
                     color,
                     offtakeShare: apiEntity.offtakeShare,
+                    page_url: apiEntity.page_url || null,
                     data: mapApiEntityToFrontend(apiEntity)
                 }
             })
@@ -710,18 +890,43 @@ const PlatformOverviewNew = ({
             })
         }
 
-        // Sort by market share descending if dimension is brand
-        if (dimension === 'brand') {
+        // Apply sorting based on sortConfig or default brand sort
+        if (sortConfig.key) {
+            const allRows = result.filter(e => {
+                const k = e.key.toLowerCase();
+                const n = e.name.toLowerCase();
+                return ALL_ROW_IDENTIFIERS.includes(k) || ALL_ROW_IDENTIFIERS.includes(n);
+            });
+            const otherRows = result.filter(e => {
+                const k = e.key.toLowerCase();
+                const n = e.name.toLowerCase();
+                return !ALL_ROW_IDENTIFIERS.includes(k) && !ALL_ROW_IDENTIFIERS.includes(n);
+            });
+
+            otherRows.sort((a, b) => {
+                const cellA = a.data?.[sortConfig.key];
+                const cellB = b.data?.[sortConfig.key];
+                const valA = parseKpiValue(cellA);
+                const valB = parseKpiValue(cellB);
+
+                if (valA === null && valB === null) return 0;
+                if (valA === null) return 1;
+                if (valB === null) return -1;
+
+                return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+            });
+
+            result = [...allRows, ...otherRows];
+        } else if (dimension === 'brand') {
             result.sort((a, b) => {
-                const parsePct = (s) => parseFloat(String(s || '0').replace(/[^\d.]/g, '')) || 0;
-                const valA = parsePct(a.data?.marketShare?.value);
-                const valB = parsePct(b.data?.marketShare?.value);
+                const valA = parseKpiValue(a.data?.marketShare) ?? 0;
+                const valB = parseKpiValue(b.data?.marketShare) ?? 0;
                 return valB - valA;
             });
         }
 
         return result
-    }, [apiData, dimension, globalPlatform])
+    }, [apiData, dimension, globalPlatform, localPlatformFilter, skuPlatformFilter, sortConfig])
 
 
     // Pagination logic
@@ -792,11 +997,12 @@ const PlatformOverviewNew = ({
                             {dimension === 'sku' && (
                                 <div className="relative flex items-center">
                                     <select
-                                        value={skuPlatformFilter}
+                                        value={skuPlatformFilter === 'All' ? 'All' : (globalPlatforms?.find(p => p.toLowerCase() === (skuPlatformFilter || '').toLowerCase()) || skuPlatformFilter || 'All')}
                                         onChange={(e) => setSkuPlatformFilter(e.target.value)}
                                         className="appearance-none bg-indigo-50 border border-indigo-100 text-indigo-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-indigo-100/50"
                                         style={{ fontFamily: 'Roboto, sans-serif' }}
                                     >
+                                        <option value="All">All Platforms</option>
                                         {globalPlatforms?.filter(p => p !== 'All').map(p => (
                                             <option key={p} value={p}>{p}</option>
                                         ))}
@@ -808,11 +1014,12 @@ const PlatformOverviewNew = ({
                             {dimension !== 'platform' && dimension !== 'sku' && (
                                 <div className="relative flex items-center">
                                     <select
-                                        value={localPlatformFilter || ''}
+                                        value={localPlatformFilter === 'All' ? 'All' : (globalPlatforms?.find(p => p.toLowerCase() === (localPlatformFilter || '').toLowerCase()) || localPlatformFilter || 'All')}
                                         onChange={(e) => setLocalPlatformFilter(e.target.value)}
                                         className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
                                         style={{ fontFamily: 'Roboto, sans-serif' }}
                                     >
+                                        <option value="All">All Platforms</option>
                                         {globalPlatforms?.filter(p => p !== 'All').map(p => (
                                             <option key={p} value={p}>{p}</option>
                                         ))}
@@ -834,7 +1041,7 @@ const PlatformOverviewNew = ({
                                                 setDimension(key);
                                             }}
                                             className={cn(
-                                                'flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-[12px] font-bold transition-all whitespace-nowrap',
+                                                'flex items-center gap-1 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-[12px] font-bold transition-all whitespace-nowrap cursor-pointer',
                                                 isSelected
                                                     ? 'bg-white text-blue-600 shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
                                                     : 'text-slate-500 hover:text-slate-800'
@@ -970,7 +1177,7 @@ const PlatformOverviewNew = ({
                             <div className="min-w-max pb-2">
                                 {/* KPI Labels Header - Premium */}
                                 <div className="flex items-center gap-2 mb-3 sm:mb-4 px-1">
-                                    <div className="w-36 sm:w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between">
+                                    <div className={cn("w-36 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between", dimension === 'sku' ? 'sm:w-72' : 'sm:w-56')}>
                                         <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
                                         {dimension === 'sku' && (
                                             <motion.button
@@ -985,13 +1192,39 @@ const PlatformOverviewNew = ({
                                             </motion.button>
                                         )}
                                     </div>
-                                    {selectedKpis.map(kpi => (
-                                        <div key={kpi.key} className={cn('flex-1 text-center py-2 px-2 rounded-lg bg-white border border-slate-100/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]', cardSize.minW)}>
-                                            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em]">
-                                                {kpiLabels[kpi.key] || kpi.label}
-                                            </div>
-                                        </div>
-                                    ))}
+                                    {selectedKpis.map(kpi => {
+                                        const isSorted = sortConfig.key === kpi.key;
+                                        const isAsc = isSorted && sortConfig.direction === 'asc';
+                                        const isDesc = isSorted && sortConfig.direction === 'desc';
+
+                                        return (
+                                            <button
+                                                key={kpi.key}
+                                                onClick={() => handleSort(kpi.key)}
+                                                className={cn(
+                                                    'flex-1 text-center py-2 px-2 rounded-lg transition-all duration-200 cursor-pointer select-none group flex items-center justify-center gap-1.5 border',
+                                                    cardSize.minW,
+                                                    isSorted
+                                                        ? 'bg-blue-50/90 border-blue-300 shadow-sm text-blue-700 font-extrabold'
+                                                        : 'bg-white border-slate-100/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:bg-slate-50 hover:border-slate-300 text-slate-500'
+                                                )}
+                                                title={`Sort by ${kpiLabels[kpi.key] || kpi.label} (${isSorted ? (isDesc ? 'Descending → Click for Ascending' : 'Ascending → Click to Reset') : 'Click to sort Descending'})`}
+                                            >
+                                                <span className={cn("text-[10px] font-bold uppercase tracking-[0.12em]", isSorted ? "text-blue-700" : "text-slate-500 group-hover:text-slate-800")}>
+                                                    {kpiLabels[kpi.key] || kpi.label}
+                                                </span>
+                                                {isSorted ? (
+                                                    isAsc ? (
+                                                        <ArrowUp size={12} className="text-blue-600 flex-shrink-0 stroke-[2.5]" />
+                                                    ) : (
+                                                        <ArrowDown size={12} className="text-blue-600 flex-shrink-0 stroke-[2.5]" />
+                                                    )
+                                                ) : (
+                                                    <ArrowUpDown size={11} className="text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0 opacity-60 group-hover:opacity-100" />
+                                                )}
+                                            </button>
+                                        )
+                                    })}
                                 </div>
 
                                 {/* Entity Rows */}
@@ -1005,7 +1238,7 @@ const PlatformOverviewNew = ({
                                             transition={{ duration: 0.3 }}
                                         >
                                             {/* Entity with Trend & RCA buttons - Sticky */}
-                                            <div className="w-36 sm:w-56 flex-shrink-0 flex items-center gap-1.5 sm:gap-2 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
+                                            <div className={cn("flex-shrink-0 flex items-center gap-1.5 sm:gap-2 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50", dimension === 'sku' ? 'w-44 sm:w-72' : 'w-36 sm:w-56')}>
                                                 {e.logoSrc ? (
                                                     <div className="h-7 w-7 sm:h-9 sm:w-9 rounded-lg bg-white shadow-sm ring-1 ring-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
                                                         <BrandLogo name={e.name} src={e.logoSrc} className="h-7 w-7 sm:h-9 sm:w-9" imgClassName="h-5 w-5 sm:h-6 sm:w-6" />
@@ -1021,7 +1254,7 @@ const PlatformOverviewNew = ({
                                                 <div className="flex flex-col flex-1 overflow-hidden justify-center">
                                                     <span
                                                         className="text-[11px] sm:text-[13px] font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis"
-                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined, textTransform: 'capitalize' }}
+                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '150px' : undefined, textTransform: 'capitalize' }}
                                                         title={e.name}
                                                     >
                                                         {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}
@@ -1038,6 +1271,18 @@ const PlatformOverviewNew = ({
 
                                                 {/* Trend & RCA buttons */}
                                                 <div className="hidden sm:flex items-center gap-1">
+                                                    {dimension === 'sku' && e.page_url && (
+                                                        <a
+                                                            href={e.page_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            onClick={(evt) => evt.stopPropagation()}
+                                                            className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:text-blue-600 text-slate-400"
+                                                            title="Open product page"
+                                                        >
+                                                            <ExternalLink size={13} />
+                                                        </a>
+                                                    )}
                                                     <button
                                                         onClick={(evt) => {
                                                             evt.stopPropagation();
@@ -1048,16 +1293,31 @@ const PlatformOverviewNew = ({
                                                     >
                                                         <LineChart size={13} className="text-slate-400" />
                                                     </button>
-                                                    <button
-                                                        onClick={(evt) => {
-                                                            evt.stopPropagation();
-                                                            onViewRca(e.name || e.label);
-                                                        }}
-                                                        className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-                                                        title={`View ${e.name} RCA`}
-                                                    >
-                                                        <MapPin size={13} className="text-slate-400" />
-                                                    </button>
+                                                    {(() => {
+                                                        const entityNameLower = safeLower(e.name || e.label).trim();
+                                                        const chanStr = safeLower(selectedChannel);
+                                                        const platStr = safeLower(globalPlatform);
+                                                        const isEcomEntity = isEcomPlatform(entityNameLower) || chanStr.includes('ecom') || chanStr.includes('e-commerce');
+                                                        const isAmazonEntity = entityNameLower.includes('amazon') || platStr.includes('amazon');
+
+                                                        // For e-commerce, ONLY show RCA button for Amazon; hide for all other e-commerce platforms
+                                                        if (isEcomEntity && !isAmazonEntity) {
+                                                            return null;
+                                                        }
+
+                                                        return (
+                                                            <button
+                                                                onClick={(evt) => {
+                                                                    evt.stopPropagation();
+                                                                    onViewRca(e.name || e.label);
+                                                                }}
+                                                                className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
+                                                                title={`View ${e.name} RCA`}
+                                                            >
+                                                                <MapPin size={13} className="text-slate-400" />
+                                                            </button>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
 
@@ -1068,12 +1328,12 @@ const PlatformOverviewNew = ({
 
                                                 if (dimension === 'platform') {
                                                     const platformName = e.name.toLowerCase();
-                                                    const isEcomRow = platformName.includes('amazon') || platformName.includes('flipkart') || platformName.includes('myntra') || platformName.includes('nykaa') || platformName.includes('jiomart');
-                                                    const isQuickRow = platformName.includes('blinkit') || platformName.includes('zepto') || platformName.includes('swiggy') || platformName.includes('instamart') || platformName.includes('bbnow');
+                                                    const isEcomRow = isEcomPlatform(platformName);
+                                                    const isQuickRow = isQcomPlatform(platformName);
 
                                                     if (isEcomRow && kpi.key === 'cpm') {
                                                         cell = null;
-                                                    } else if (isQuickRow && kpi.key === 'cpc') {
+                                                    } else if (isQuickRow && kpi.key === 'cpc' && !isPidilite) {
                                                         cell = null;
                                                     }
                                                 }
@@ -1081,11 +1341,12 @@ const PlatformOverviewNew = ({
                                                 const isNA = !cell || cell?.value === 'N/A' || cell?.value === undefined
                                                 const textColor = isNA ? 'text-slate-400' : getStatusText(cell?.delta)
                                                 const isUp = cell?.delta?.dir === 'up'
+                                                const hoverVal = getFullDisplayValue(kpi.key, cell)
 
                                                 return (
                                                     <motion.button
                                                         key={kpi.key}
-                                                        onClick={() => { if (!isNA) handleCopy(`${e.name} ${kpi.label}`, cell?.value) }}
+                                                        onClick={() => { if (!isNA) handleCopy(`${e.name} ${kpi.label}`, hoverVal) }}
                                                         className={cn(
                                                             'flex-1 px-3 rounded-xl text-center transition-all duration-200 relative overflow-hidden',
                                                             'bg-gradient-to-br from-white to-slate-50',
@@ -1095,7 +1356,7 @@ const PlatformOverviewNew = ({
                                                             !isNA && 'hover:shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:-translate-y-1 active:scale-[0.98]',
                                                             cardSize.minW, cardSize.py
                                                         )}
-                                                        title={isNA ? `${kpi.label}: N/A (Data Not Available)` : `${kpi.label}: ${cell?.value} (${cell?.delta?.dir === 'up' ? '▲' : '▼'} ${cell?.delta?.value})`}
+                                                        title={isNA ? `${kpi.label}: N/A (Data Not Available)` : `${kpi.label}: ${hoverVal} (${cell?.delta?.dir === 'up' ? '▲' : '▼'} ${cell?.delta?.value})`}
                                                         whileHover={isNA ? {} : { scale: 1.02 }}
                                                         whileTap={isNA ? {} : { scale: 0.98 }}
                                                     >

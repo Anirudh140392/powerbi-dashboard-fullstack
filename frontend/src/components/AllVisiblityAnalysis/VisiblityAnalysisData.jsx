@@ -113,9 +113,9 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
         setLocalError(null);
 
         const params = new URLSearchParams({
-          platform: (localMatrixFilters.platform && localMatrixFilters.platform !== 'All')
+          platform: activeTab === 'platform' ? 'All' : ((localMatrixFilters.platform && localMatrixFilters.platform !== 'All')
             ? (Array.isArray(localMatrixFilters.platform) ? localMatrixFilters.platform.join(',').toLowerCase() : String(localMatrixFilters.platform).toLowerCase())
-            : 'All',
+            : 'All'),
           brand: (localMatrixFilters.brand && localMatrixFilters.brand !== 'All')
             ? (Array.isArray(localMatrixFilters.brand) ? localMatrixFilters.brand.join(',').toLowerCase() : String(localMatrixFilters.brand).toLowerCase())
             : 'All',
@@ -826,7 +826,8 @@ const VisiblityAnalysisData = ({
   }, []);
 
   // BSR visibility logic
-  const isEcommerceChannel = ['ecommerce', 'e-commerce', 'ecom'].includes(selectedChannel?.toLowerCase());
+  const chanStr = (Array.isArray(selectedChannel) ? selectedChannel.join(',') : String(selectedChannel || '')).toLowerCase();
+  const isEcommerceChannel = ['ecommerce', 'e-commerce', 'ecom'].some(c => chanStr.includes(c));
 
   const isAmazonSelected = useMemo(() => {
     if (!globalPlatform) return false;

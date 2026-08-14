@@ -54,6 +54,8 @@ interface StakeholderSliderProps {
         price_max?: number | null;
         is_competitor?: string | null;
         sentiment_category?: string | null;
+        web_pid?: string | null;
+        period_months?: number | null;
     };
 }
 
@@ -87,31 +89,36 @@ const StakeholderSlider = ({ isOpen, onClose, stakeholderName, filters }: Stakeh
 
                             {/* Slider Panel */}
                             <motion.div
-                                initial={{ x: '100%' }}
-                                animate={{ x: 0 }}
-                                exit={{ x: '100%' }}
+                                initial={{ x: '100%', opacity: 0.5 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                exit={{ x: '100%', opacity: 0 }}
                                 transition={{ type: 'spring', damping: 30, stiffness: 350 }}
-                                className="absolute right-0 top-0 bottom-0 w-full md:w-[600px] lg:w-[720px] bg-white dark:bg-slate-900 shadow-2xl flex flex-col border-l border-slate-200/50 dark:border-slate-700/50 pointer-events-auto"
+                                className="absolute right-0 top-0 bottom-0 w-full md:w-[600px] lg:w-[720px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.15)] flex flex-col border-l border-white/20 dark:border-slate-700/50 pointer-events-auto"
                             >
                                 {/* Header */}
-                                <div className={`px-6 py-5 border-b border-slate-200 dark:border-slate-700/50 bg-gradient-to-r ${config.gradient} flex-shrink-0`}>
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 shadow-sm ${config.accent}`}>
-                                                <IconComponent size={22} />
+                                <div className={`px-6 py-5 border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-br ${config.gradient} flex-shrink-0 relative overflow-hidden`}>
+                                    <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                                    <div className="relative flex items-center justify-between z-10">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`p-3 rounded-2xl bg-white/90 dark:bg-slate-800/90 shadow-[0_4px_12px_rgba(0,0,0,0.05)] backdrop-blur-sm ${config.accent}`}>
+                                                <IconComponent size={24} strokeWidth={2.5} />
                                             </div>
                                             <div>
-                                                <h2 className="text-xl font-bold text-slate-900 dark:text-white">{stakeholderName}</h2>
-                                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                                                    {issues.length} issues • {totalSkus.toLocaleString()} SKUs • {totalNegative.toLocaleString()} negative reviews
+                                                <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">{stakeholderName}</h2>
+                                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2">
+                                                    <span className="px-2 py-0.5 rounded-md bg-white/60 dark:bg-slate-800/60 shadow-sm text-slate-700 dark:text-slate-200">{issues.length} issues</span>
+                                                    <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                                    <span className="px-2 py-0.5 rounded-md bg-white/60 dark:bg-slate-800/60 shadow-sm text-slate-700 dark:text-slate-200">{totalSkus.toLocaleString()} SKUs</span>
+                                                    <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                                    <span className="px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-900/20 text-red-600 shadow-sm">{totalNegative.toLocaleString()} negative reviews</span>
                                                 </p>
                                             </div>
                                         </div>
                                         <button
                                             onClick={onClose}
-                                            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                            className="p-2.5 rounded-full bg-white/50 hover:bg-white dark:bg-slate-800/50 dark:hover:bg-slate-800 shadow-sm hover:shadow transition-all duration-200 group"
                                         >
-                                            <X size={20} className="text-slate-500" />
+                                            <X size={20} className="text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors" />
                                         </button>
                                     </div>
                                 </div>
@@ -184,42 +191,62 @@ interface IssueRowProps {
 
 const IssueRow = ({ issue, index, isExpanded, onToggle, onViewReviews }: IssueRowProps) => (
     <motion.div
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: index * 0.03 }}
-        className="rounded-xl border border-slate-200/60 dark:border-slate-700/50 bg-white dark:bg-slate-800/60 overflow-hidden hover:shadow-md transition-shadow"
+        transition={{ delay: index * 0.04, type: "spring", stiffness: 300, damping: 24 }}
+        className={`rounded-2xl border transition-all duration-300 bg-white dark:bg-slate-800 overflow-hidden ${
+            isExpanded 
+                ? 'border-indigo-200 dark:border-indigo-500/30 shadow-[0_8px_30px_-12px_rgba(99,102,241,0.2)] ring-1 ring-indigo-500/10' 
+                : 'border-slate-200/60 dark:border-slate-700/50 hover:border-slate-300 hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)]'
+        }`}
     >
         {/* Issue summary row */}
         <div
-            className="p-3.5 flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors"
+            className={`p-4 flex items-center gap-4 cursor-pointer transition-colors duration-300 ${
+                isExpanded ? 'bg-indigo-50/30 dark:bg-indigo-900/10' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/80'
+            }`}
             onClick={onToggle}
         >
             {/* Issue indicator */}
-            <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-red-50 dark:bg-red-900/20 flex flex-col items-center justify-center">
-                <AlertTriangle size={14} className="text-red-500" />
-                <span className="text-[9px] font-bold text-red-500 leading-tight">{issue.negativeCount}</span>
+            <div className={`flex-shrink-0 w-12 h-12 rounded-2xl flex flex-col items-center justify-center transition-all duration-300 ${
+                isExpanded 
+                    ? 'bg-red-500 text-white shadow-[0_4px_12px_rgba(239,68,68,0.3)]' 
+                    : 'bg-red-50 dark:bg-red-900/20 text-red-500 group-hover:bg-red-100'
+            }`}>
+                <AlertTriangle size={16} className={isExpanded ? "text-white" : "text-red-500"} strokeWidth={isExpanded ? 2.5 : 2} />
+                <span className={`text-[10px] font-extrabold leading-tight mt-0.5 ${isExpanded ? "text-white" : "text-red-500"}`}>{issue.negativeCount}</span>
             </div>
 
             {/* Issue info */}
             <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 truncate">{issue.label}</p>
-                <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
-                        <Package size={9} /> {issue.skuCount} SKUs
+                <p className="text-base font-bold text-slate-800 dark:text-slate-100 truncate tracking-tight">{issue.label}</p>
+                <div className="flex items-center gap-3 mt-1">
+                    <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                        <Package size={10} className="opacity-70" /> {issue.skuCount} SKUs
                     </span>
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[11px] font-medium text-slate-400">
                         {issue.totalCount.toLocaleString()} total reviews
                     </span>
                 </div>
             </div>
 
-            {/* Negative % pill */}
-            <div className="flex-shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-50 dark:bg-red-900/20 text-red-500">
-                {((issue.negativeCount / Math.max(issue.totalCount, 1)) * 100).toFixed(0)}% neg
+            <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 shadow-sm border border-emerald-100/50 dark:border-emerald-800/50">
+                    {((issue.positiveCount / Math.max(issue.totalCount, 1)) * 100).toFixed(0)}% pos
+                </div>
+                <div className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-red-50 dark:bg-red-900/20 text-red-600 shadow-sm border border-red-100/50 dark:border-red-800/50">
+                    {((issue.negativeCount / Math.max(issue.totalCount, 1)) * 100).toFixed(0)}% neg
+                </div>
             </div>
 
-            <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="flex-shrink-0">
-                <ChevronDown size={14} className="text-slate-400" />
+            <motion.div 
+                animate={{ rotate: isExpanded ? 180 : 0 }} 
+                transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ml-1 transition-colors ${
+                    isExpanded ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                }`}
+            >
+                <ChevronDown size={16} strokeWidth={2.5} />
             </motion.div>
         </div>
 
@@ -230,46 +257,53 @@ const IssueRow = ({ issue, index, isExpanded, onToggle, onViewReviews }: IssueRo
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden border-t border-slate-100 dark:border-slate-700/30"
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="overflow-hidden border-t border-slate-100 dark:border-slate-700/30 bg-slate-50/50 dark:bg-slate-900/20"
                 >
-                    <div className="p-3 space-y-1.5">
+                    <div className="p-4 space-y-2">
                         {issue.skus.map((sku, i) => (
                             <motion.div
                                 key={sku.web_pid}
-                                initial={{ opacity: 0, x: 10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: i * 0.04 }}
-                                className="flex items-center gap-2.5 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 group hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-colors cursor-pointer"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.03, duration: 0.2 }}
+                                className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/40 dark:border-slate-700/40 group hover:border-indigo-200 dark:hover:border-indigo-700/50 hover:shadow-md transition-all duration-300 cursor-pointer hover:-translate-y-0.5"
                                 onClick={() => onViewReviews(sku)}
                             >
                                 {/* Rating badge */}
-                                <div className={`flex-shrink-0 w-9 h-9 rounded-lg flex flex-col items-center justify-center
-                                    ${(sku.pdp_rating || 0) >= 4.0
-                                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600'
-                                        : (sku.pdp_rating || 0) >= 3.0
-                                            ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600'
-                                            : 'bg-red-50 dark:bg-red-900/20 text-red-600'
+                                <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex flex-col items-center justify-center shadow-inner
+                                    ${(sku.issue_rating || 0) >= 4.0
+                                        ? 'bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-800/20 text-emerald-600 border border-emerald-200/50'
+                                        : (sku.issue_rating || 0) >= 3.0
+                                            ? 'bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-800/20 text-amber-600 border border-amber-200/50'
+                                            : 'bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/20 text-red-600 border border-red-200/50'
                                     }`}
+                                    title="Average rating for this issue"
                                 >
-                                    <Star size={8} className="fill-current" />
-                                    <span className="text-[10px] font-bold leading-tight">{sku.pdp_rating?.toFixed(1) || 'N/A'}</span>
+                                    <Star size={10} className="fill-current mb-0.5 opacity-80" />
+                                    <span className="text-[11px] font-extrabold leading-none tracking-tight">{sku.issue_rating?.toFixed(1) || 'N/A'}</span>
                                 </div>
 
                                 {/* SKU info */}
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{sku.product_name}</p>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-[9px] text-red-500 font-semibold">{sku.negCount} neg</span>
-                                        <span className="text-[9px] text-slate-400">/ {sku.totalCount} total</span>
+                                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                    <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{sku.product_name}</p>
+                                    <div className="flex items-center gap-2.5 mt-1">
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 flex items-center gap-1">
+                                            <span className="w-1 h-1 rounded-full bg-emerald-500"></span> {sku.posCount} pos
+                                        </span>
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-50 dark:bg-red-900/20 text-red-600 flex items-center gap-1">
+                                            <span className="w-1 h-1 rounded-full bg-red-500"></span> {sku.negCount} neg
+                                        </span>
+                                        <span className="text-[10px] font-medium text-slate-400 ml-1">/ {sku.totalCount} total</span>
                                     </div>
                                 </div>
 
                                 {/* View reviews button */}
                                 <button
-                                    className="flex-shrink-0 opacity-50 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-500"
+                                    className="flex-shrink-0 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 shadow-sm"
                                     title="View reviews"
                                 >
-                                    <Eye size={13} />
+                                    <Eye size={14} strokeWidth={2.5} />
                                 </button>
                             </motion.div>
                         ))}

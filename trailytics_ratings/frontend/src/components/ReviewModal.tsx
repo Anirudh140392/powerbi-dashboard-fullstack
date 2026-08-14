@@ -16,11 +16,7 @@ interface ReviewModalProps {
     subcategory: string | null;
     productName: string;
     issueLabel?: string;
-    filters?: {
-        date_from?: string | null;
-        date_to?: string | null;
-        is_competitor?: string | null;
-    };
+    filters?: Record<string, string | number | undefined>;
 }
 
 type ReviewSort = 'rating_asc' | 'rating_desc' | 'date';

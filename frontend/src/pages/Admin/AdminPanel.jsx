@@ -12,7 +12,9 @@ import {
     User,
     Inbox,
     RefreshCw,
-    Image as ImageIcon
+    Image as ImageIcon,
+    Sparkles,
+    UserPlus
 } from "lucide-react";
 import { useAuth } from "../../utils/AuthContext";
 import AdminDashboard from "./tabs/AdminDashboard";
@@ -23,6 +25,8 @@ import AllUsersTable from "./tabs/AllUsersTable";
 import NewRequests from "./tabs/NewRequests";
 import Updates from "./tabs/Updates";
 import CompanyLogo from "./tabs/CompanyLogo";
+import CustomInsights from "./tabs/CustomInsights";
+import InviteUser from "./tabs/InviteUser";
 
 const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState(() => {
@@ -50,25 +54,30 @@ const AdminPanel = () => {
     const { logout, user } = useAuth();
 
     const menuItems = [
+        { id: "invite-user", label: "Invite User", icon: UserPlus },
         { id: "users", label: "Live Users", icon: Users },
         { id: "all-users", label: "All Users", icon: Users },
         { id: "roles", label: "Permissions", icon: ShieldAlert },
         { id: "new-requests", label: "New Requests", icon: Inbox },
         { id: "updates", label: "Updates", icon: RefreshCw },
-        { id: "company-logo", label: "Company Logo", icon: ImageIcon }
+        { id: "company-logo", label: "Company Logo", icon: ImageIcon },
+        { id: "custom-insights", label: "Custom Insights", icon: Sparkles }
     ];
 
     const renderContent = () => {
         switch (activeTab) {
+            case "invite-user": return <InviteUser />;
             case "all-users": return <AllUsersTable />;
             case "users": return <UsersTable />;
             case "new-requests": return <NewRequests />;
             case "roles": return <RolesPermissions />;
             case "updates": return <Updates />;
             case "company-logo": return <CompanyLogo />;
+            case "custom-insights": return <CustomInsights />;
             default: return null;
         }
     };
+
 
     return (
         <div className="flex min-h-screen bg-slate-50/50 font-sans text-slate-900">

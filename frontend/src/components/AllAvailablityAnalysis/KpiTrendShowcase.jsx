@@ -30,7 +30,7 @@ function cn(...classes) {
 }
 
 const formatKpiValue = (value, unit = "%") => {
-  if (value === null || value === undefined || value === 0 || value === "0") {
+  if (value === null || value === undefined || value === "" || value === "N/A") {
       return "N/A";
   }
   const num = parseFloat(value);
@@ -623,7 +623,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
   const getListForTab = () => {
     if (activeTab === "category") return getCategoryOptions();
     if (activeTab === "brand") return getBrandOptions();
-    if (activeTab === "msl") return ["MSL Only (1)", "Non-MSL (0)"];
+    if (activeTab === "msl") return ["Top SKUs", "All SKUs"];
     return getSkuOptions();
   };
 
@@ -1476,8 +1476,8 @@ const getLocalMslFromGlobal = (globalMsl) => {
   if (!globalMsl || globalMsl === 'All' || globalMsl === 'all') return [];
   const normalized = Array.isArray(globalMsl) ? globalMsl : globalMsl.split(',');
   const local = [];
-  if (normalized.includes('1')) local.push("MSL Only (1)");
-  if (normalized.includes('0')) local.push("Non-MSL (0)");
+  if (normalized.includes('1')) local.push("Top SKUs");
+  if (normalized.includes('0') || normalized.includes('All')) local.push("All SKUs");
   return local;
 };
 
@@ -1487,8 +1487,8 @@ const getApiMslFromLocal = (localMsl, globalMsl) => {
     return Array.isArray(globalMsl) ? globalMsl.join(',') : globalMsl;
   }
   const apiValues = [];
-  if (localMsl.includes("MSL Only (1)")) apiValues.push('1');
-  if (localMsl.includes("Non-MSL (0)")) apiValues.push('0');
+  if (localMsl.includes("Top SKUs")) apiValues.push('1');
+  if (localMsl.includes("All SKUs")) apiValues.push('All');
   return apiValues.join(',');
 };
 
@@ -1516,8 +1516,9 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
     else keys = KPI_KEYS;
     
     // Hide 'Listing' KPI button if channel is NOT 'QuickComm' and platform does not fall into QuickComm
-    const isQuickComm = selectedChannel?.toLowerCase() === 'quickcomm' || 
-                        ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'].includes(platform?.toLowerCase());
+    const chanStr = (Array.isArray(selectedChannel) ? selectedChannel.join(',') : String(selectedChannel || '')).toLowerCase();
+    const isQuickComm = chanStr.includes('quickcomm') || 
+                        ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'].includes(String(platform || '').toLowerCase());
     
     if (!isQuickComm) {
       keys = keys.filter(k => k.key !== 'Listing');
@@ -1629,7 +1630,10 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
   const user = useMemo(() => {
     try { return JSON.parse(sessionStorage.getItem('user')); } catch { return null; }
   }, []);
-  const isDrl = user?.dbName?.toLowerCase() === 'drl';
+  const isDrl = (() => {
+    const db = user?.dbName?.toLowerCase();
+    return db === 'drl' || db === 'prestige';
+  })();
   const [resellerName, setResellerName] = useState('All');
   const [resellerOptions, setResellerOptions] = useState([]);
 
@@ -1716,7 +1720,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
       setLoading(true);
       try {
         const isCategoryFilterActive = filters.categories.length > 0;
-        const isCityFilterActive = city && city !== 'All India' && city !== 'All';
+        const isCityFilterActive = city && city !== 'All India' && city !== 'All' && city !== 'Select All' && city !== 'select all';
         const isBrandFilterActive = filters.brands.length > 0;
 
         // Prevent conflicting WHERE conditions (e.g. Category="Dental Floss" AND Category="Bodywash")
@@ -1773,7 +1777,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
           // For availability/other: call the watchtower competition endpoint
           const params = {
             platform: platform || 'All',
-            location: city === 'All India' ? 'All' : city,
+            location: isCityFilterActive ? city : 'All',
             category: isCategoryFilterActive ? filters.categories.join(',') : 'All',
             brand: isBrandFilterActive ? filters.brands.join(',') : 'All',
             sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',

@@ -558,10 +558,19 @@ export default function CategoryTable({ categories, activeTab = "", filters = {}
                       const isEcom = pLower.includes('amazon') || pLower.includes('flipkart') || pLower.includes('myntra') || pLower.includes('nykaa') || pLower.includes('jiomart');
                       const isQuick = pLower.includes('blinkit') || pLower.includes('zepto') || pLower.includes('swiggy') || pLower.includes('instamart') || pLower.includes('bbnow');
 
+                      const isPidilite = (() => {
+                        try {
+                          const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+                          return u?.dbName?.toLowerCase() === 'pidilite';
+                        } catch {
+                          return false;
+                        }
+                      })();
+
                       if (metricKeyLower === 'cpm' && isEcom) {
                         main = "N/A";
                         change = "-";
-                      } else if (metricKeyLower === 'cpc' && isQuick) {
+                      } else if (metricKeyLower === 'cpc' && isQuick && !isPidilite) {
                         main = "N/A";
                         change = "-";
                       }

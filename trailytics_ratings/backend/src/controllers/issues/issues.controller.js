@@ -7,10 +7,15 @@ const getTargetDb = (req) => {
 
 export const getIssuesBreakdown = async (req, res) => {
     try {
-        const { category: filterCategory, pareto_status: filterParetoStatus, rating_bifurcation, platform, date_from, date_to, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category } = req.query;
+        const { category: filterCategory, pareto_status: filterParetoStatus, rating_bifurcation, platform, date_from, date_to, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category, web_pid } = req.query;
 
         const queryParams = { companyId: String(req.companyId) };
         const extraFilters = [];
+
+        if (web_pid) {
+            queryParams.webPid = String(web_pid);
+            extraFilters.push(`r.web_pid = {webPid:String}`);
+        }
 
         if (is_competitor === 'true' || is_competitor === 'false') {
             extraFilters.push(`coalesce(r.is_competitor, 0) = {isCompetitor:UInt8}`);
@@ -216,62 +221,105 @@ export const getIssueDetail = async (req, res) => {
 
 export const getReviewsByIssue = async (req, res) => {
     try {
-        const { web_pid, subcategory, limit = 50, offset = 0, sort = 'rating_asc', date_from, date_to, is_competitor = 'false' } = req.query;
+        const { 
+            web_pid, subcategory, limit = 50, offset = 0, sort = 'rating_asc', 
+            date_from, date_to, period_months, is_competitor,
+            platform, category, pareto_status, price_mode, price_min, price_max,
+            rating_bifurcation, sentiment_category
+        } = req.query;
         if (!web_pid || !subcategory) return res.status(400).json({ error: 'web_pid and subcategory required' });
 
         const targetDb = getTargetDb(req);
         
-        let orderClause = 'ORDER BY review_date DESC NULLS LAST';
-        if (sort === 'rating_asc') orderClause = 'ORDER BY rating ASC, review_date DESC NULLS LAST';
-        else if (sort === 'rating_desc') orderClause = 'ORDER BY rating DESC, review_date DESC NULLS LAST';
+        let orderClause = 'ORDER BY r.review_date DESC NULLS LAST';
+        if (sort === 'rating_asc') orderClause = 'ORDER BY r.rating ASC, r.review_date DESC NULLS LAST';
+        else if (sort === 'rating_desc') orderClause = 'ORDER BY r.rating DESC, r.review_date DESC NULLS LAST';
 
         const queryParams = { 
             companyId: String(req.companyId), 
             webPid: web_pid, 
-            subcategory, 
+            subcategory,
             limit: parseInt(limit), 
             offset: parseInt(offset) 
         };
 
-        let dateFilter = '';
-        if (date_from) {
-            dateFilter += ' AND review_date >= {dateFrom:String}';
-            queryParams.dateFrom = date_from;
-        }
-        if (date_to) {
-            dateFilter += ' AND review_date <= {dateTo:String}';
-            queryParams.dateTo = date_to;
+        // Build the same WHERE conditions as getAsinIssues
+        let where = [
+            `r.company_id = {companyId:String}`,
+            `r.web_pid = {webPid:String}`
+        ];
+
+        if (platform && platform !== 'all') { where.push(`ilike(r.platform, {platform:String})`); queryParams.platform = platform; }
+        if (is_competitor && is_competitor !== 'all') { where.push(`coalesce(r.is_competitor, 0) = {isCompetitor:UInt8}`); queryParams.isCompetitor = is_competitor === 'true' ? 1 : 0; }
+        else if (!is_competitor) { where.push(`coalesce(r.is_competitor, 0) = 0`); }
+
+        if (date_from) { where.push(`r.review_date >= toDate({dateFrom:String})`); queryParams.dateFrom = date_from; }
+        if (date_to) { where.push(`r.review_date <= toDate({dateTo:String})`); queryParams.dateTo = date_to; }
+        if (!date_from && !date_to) {
+            const pm = Math.max(1, Math.min(parseInt(period_months, 10) || 6, 24));
+            where.push(`r.review_date >= addMonths(today(), -${pm})`);
         }
 
-        let compFilter = '';
-        if (is_competitor === 'true') compFilter = 'AND coalesce(is_competitor, false) = true';
-        else if (is_competitor === 'false') compFilter = 'AND coalesce(is_competitor, false) = false';
+        if (category) { where.push(`ilike(trim(coalesce(nullIf(ps.category, ''), nullIf(r.category, ''), nullIf(mp.category, ''))), {category:String})`); queryParams.category = category; }
+        if (pareto_status) {
+            if (pareto_status === 'Non-Pareto') {
+                where.push(`(coalesce(nullIf(mp.pareto_status, ''), nullIf(ps.pareto_status, ''), nullIf(r.pareto_status, '')) NOT IN ('Pareto', 'NPD') OR coalesce(nullIf(mp.pareto_status, ''), nullIf(ps.pareto_status, ''), nullIf(r.pareto_status, '')) = '')`);
+            } else {
+                where.push(`coalesce(nullIf(mp.pareto_status, ''), nullIf(ps.pareto_status, ''), nullIf(r.pareto_status, '')) = {paretoStatus:String}`);
+                queryParams.paretoStatus = pareto_status;
+            }
+        }
+        if (rating_bifurcation === 'NP') { where.push(`ps.rating >= 4.2`); }
+        else if (rating_bifurcation === 'Issue') { where.push(`ps.rating < 4.0`); }
+        else if (rating_bifurcation === 'NI') { where.push(`ps.rating >= 4.0 AND ps.rating < 4.2`); }
+        if (price_min !== undefined && price_min !== '') {
+            const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
+            where.push(`${priceExpr} >= {priceMin:Float64}`);
+            queryParams.priceMin = Number(price_min);
+        }
+        if (price_max !== undefined && price_max !== '') {
+            const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
+            where.push(`${priceExpr} <= {priceMax:Float64}`);
+            queryParams.priceMax = Number(price_max);
+        }
+        if (sentiment_category) { where.push(`ilike(r.sentiment_category, {sentimentCategory:String})`); queryParams.sentimentCategory = sentiment_category; }
+
+        where.push(`r.sentiment_subcategory = {subcategory:String}`);
+        // Only show negative reviews in the drill-down
+        where.push(`r.sentiment = 'Negative'`);
+
+        // Same fromClause JOIN as getAsinIssues
+        const fromClause = `
+            FROM ml_reviews r
+            LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
+            LEFT JOIN (
+                SELECT web_pid, platform, price_rp, price_sp, rating, category, pareto_status
+                FROM product_snapshots
+                WHERE company_id = {companyId:String} AND web_pid = {webPid:String}
+                ORDER BY snapshot_date DESC, created_at DESC
+                LIMIT 1 BY lower(platform), web_pid
+            ) ps ON ps.web_pid = r.web_pid AND lower(ps.platform) = lower(r.platform)
+        `;
 
         const sql = `
             SELECT
-                id, rating, review_title, review_text, review_date,
-                reviewer_name, is_verified_purchase, sentiment,
-                sentiment_subcategory, specific_issue,
-                ml_inferred_rating AS sentiment_score, quality_score,
-                product_name, pdp_rating
-            FROM ml_reviews
-            WHERE company_id = {companyId:String}
-              AND web_pid = {webPid:String}
-              AND (specific_issue = {subcategory:String} OR sentiment_category = {subcategory:String} OR sentiment_subcategory = {subcategory:String})
-              ${dateFilter}
-              ${compFilter}
+                r.id,
+                r.rating AS rating,
+                r.review_title, r.review_text, r.review_date,
+                r.reviewer_name, r.is_verified_purchase, r.sentiment,
+                r.sentiment_subcategory, r.specific_issue,
+                r.ml_inferred_rating AS sentiment_score, r.quality_score,
+                r.product_name, r.pdp_rating
+            ${fromClause}
+            WHERE ${where.join(' AND ')}
             ${orderClause}
             LIMIT {limit:UInt32} OFFSET {offset:UInt32}
         `;
         
         const countSql = `
             SELECT count() AS count
-            FROM ml_reviews
-            WHERE company_id = {companyId:String}
-              AND web_pid = {webPid:String}
-              AND (specific_issue = {subcategory:String} OR sentiment_category = {subcategory:String} OR sentiment_subcategory = {subcategory:String})
-              ${dateFilter}
-              ${compFilter}
+            ${fromClause}
+            WHERE ${where.join(' AND ')}
         `;
 
         const [chRes, chCount] = await Promise.all([
@@ -301,7 +349,11 @@ export const getReviewsByIssue = async (req, res) => {
 
 export const getAsinIssues = async (req, res) => {
     try {
-        const { web_pid } = req.query;
+        const {
+            web_pid, platform, category, pareto_status,
+            date_from, date_to, period_months, is_competitor, sentiment_category,
+            price_mode, price_min, price_max, rating_bifurcation
+        } = req.query;
         if (!web_pid) return res.status(400).json({ error: 'web_pid param required' });
 
         const targetDb = getTargetDb(req);
@@ -318,23 +370,74 @@ export const getAsinIssues = async (req, res) => {
         const productRows = await chProduct.json();
         const product = productRows[0] || { product_name: 'Unknown', pdp_rating: null, rating_count: 0, star_distribution: '{}' };
 
+        // Construct global filters
+        let where = [
+            `r.company_id = {companyId:String}`,
+            `r.web_pid = {webPid:String}`
+        ];
+
+        if (platform && platform !== 'all') { where.push(`ilike(r.platform, {platform:String})`); queryParams.platform = platform; }
+        if (is_competitor && is_competitor !== 'all') { where.push(`coalesce(r.is_competitor, 0) = {isCompetitor:UInt8}`); queryParams.isCompetitor = is_competitor === 'true' ? 1 : 0; }
+        else if (!is_competitor) { where.push(`coalesce(r.is_competitor, 0) = 0`); }
+
+        if (date_from) { where.push(`r.review_date >= toDate({dateFrom:String})`); queryParams.dateFrom = date_from; }
+        if (date_to) { where.push(`r.review_date <= toDate({dateTo:String})`); queryParams.dateTo = date_to; }
+        if (!date_from && !date_to) {
+            const pm = Math.max(1, Math.min(parseInt(period_months, 10) || 6, 24));
+            where.push(`r.review_date >= addMonths(today(), -${pm})`);
+        }
+        if (category) { where.push(`ilike(trim(coalesce(nullIf(ps.category, ''), nullIf(r.category, ''), nullIf(mp.category, ''))), {category:String})`); queryParams.category = category; }
+        if (pareto_status) {
+            if (pareto_status === 'Non-Pareto') {
+                where.push(`(coalesce(nullIf(mp.pareto_status, ''), nullIf(ps.pareto_status, ''), nullIf(r.pareto_status, '')) NOT IN ('Pareto', 'NPD') OR coalesce(nullIf(mp.pareto_status, ''), nullIf(ps.pareto_status, ''), nullIf(r.pareto_status, '')) = '')`);
+            } else {
+                where.push(`coalesce(nullIf(mp.pareto_status, ''), nullIf(ps.pareto_status, ''), nullIf(r.pareto_status, '')) = {paretoStatus:String}`);
+                queryParams.paretoStatus = pareto_status;
+            }
+        }
+        if (rating_bifurcation === 'NP') { where.push(`ps.rating >= 4.2`); }
+        else if (rating_bifurcation === 'Issue') { where.push(`ps.rating < 4.0`); }
+        else if (rating_bifurcation === 'NI') { where.push(`ps.rating >= 4.0 AND ps.rating < 4.2`); }
+
+        if (price_min !== undefined && price_min !== '') {
+            const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
+            where.push(`${priceExpr} >= {priceMin:Float64}`);
+            queryParams.priceMin = Number(price_min);
+        }
+        if (price_max !== undefined && price_max !== '') {
+            const priceExpr = price_mode === 'rp' ? 'coalesce(ps.price_rp, mp.mrp)' : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
+            where.push(`${priceExpr} <= {priceMax:Float64}`);
+            queryParams.priceMax = Number(price_max);
+        }
+        if (sentiment_category) { where.push(`ilike(r.sentiment_category, {sentimentCategory:String})`); queryParams.sentimentCategory = sentiment_category; }
+
+        const fromClause = `
+            FROM ml_reviews r
+            LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
+            LEFT JOIN (
+                SELECT web_pid, platform, price_rp, price_sp, rating, category, pareto_status
+                FROM product_snapshots
+                WHERE company_id = {companyId:String} AND web_pid = {webPid:String}
+                ORDER BY snapshot_date DESC, created_at DESC
+                LIMIT 1 BY lower(platform), web_pid
+            ) ps ON ps.web_pid = r.web_pid AND lower(ps.platform) = lower(r.platform)
+        `;
+
         // Get issue breakdown
         const issuesSql = `
             SELECT
-                sentiment_category AS issue_category,
-                sentiment_subcategory AS issue_type,
-                specific_issue AS rca,
+                r.sentiment_category AS issue_category,
+                r.sentiment_subcategory AS issue_type,
+                r.specific_issue AS rca,
                 count() AS total_count,
-                countIf(sentiment = 'Negative') AS negative_count,
-                countIf(sentiment = 'Positive') AS positive_count,
-                round(avg(rating), 2) AS avg_rating
-            FROM ml_reviews
-            WHERE company_id = {companyId:String}
-              AND web_pid = {webPid:String}
-              AND coalesce(is_competitor, false) = false
-              AND isNotNull(sentiment_subcategory)
-              AND sentiment_subcategory != ''
-            GROUP BY sentiment_category, sentiment_subcategory, specific_issue
+                countIf(r.sentiment = 'Negative') AS negative_count,
+                countIf(r.sentiment = 'Positive') AS positive_count,
+                round(avg(r.rating), 2) AS avg_rating
+            ${fromClause}
+            WHERE ${where.join(' AND ')}
+              AND isNotNull(r.sentiment_subcategory)
+              AND r.sentiment_subcategory != ''
+            GROUP BY r.sentiment_category, r.sentiment_subcategory, r.specific_issue
             ORDER BY negative_count DESC, total_count DESC
         `;
         const chIssues = await clickhouse.query({ database: targetDb, query: issuesSql, query_params: queryParams, format: 'JSONEachRow' });
@@ -344,12 +447,12 @@ export const getAsinIssues = async (req, res) => {
         const totalSql = `
             SELECT
                 count() AS total,
-                round(avg(rating), 2) AS user_rating,
-                round(avg(ml_inferred_rating), 2) AS ml_rating,
-                groupArray(tuple(platform, 1)) as platforms,
-                groupArray(tuple(multiIf(quality_score <= 2, '1', quality_score <= 4, '2', quality_score <= 6, '3', quality_score <= 8, '4', '5'), 1)) as ai_stars
-            FROM ml_reviews
-            WHERE company_id = {companyId:String} AND web_pid = {webPid:String} AND coalesce(is_competitor, false) = false
+                round(avg(r.rating), 2) AS user_rating,
+                round(avg(r.ml_inferred_rating), 2) AS ml_rating,
+                groupArray(tuple(toString(r.rating), 1)) as user_stars,
+                groupArray(tuple(multiIf(r.quality_score <= 2, '1', r.quality_score <= 4, '2', r.quality_score <= 6, '3', r.quality_score <= 8, '4', '5'), 1)) as ai_stars
+            ${fromClause}
+            WHERE ${where.join(' AND ')}
         `;
         const chTotal = await clickhouse.query({ database: targetDb, query: totalSql, query_params: queryParams, format: 'JSONEachRow' });
         const totalRows = await chTotal.json();
@@ -368,21 +471,32 @@ export const getAsinIssues = async (req, res) => {
             pctOfTotal: totalReviews > 0 ? Math.round((parseInt(r.total_count) / totalReviews) * 100) : 0,
         }));
 
-        let platformDistribution = {};
-        if (totalRows[0]?.platforms) {
-            totalRows[0].platforms.forEach(p => {
-                platformDistribution[p[0]] = (platformDistribution[p[0]] || 0) + 1;
+        // PDP Rating Distribution — from product_snapshots.star_distribution JSON
+        let platformDistribution = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+        try {
+            const starDist = typeof product.star_distribution === 'string'
+                ? JSON.parse(product.star_distribution)
+                : (product.star_distribution || {});
+            Object.entries(starDist).forEach(([k, v]) => {
+                const key = String(k);
+                if (['1','2','3','4','5'].includes(key)) {
+                    platformDistribution[key] = Number(v) || 0;
+                }
             });
-        }
-        
+        } catch (_) { /* leave as zeros */ }
+
+        // User Rating Distribution — from actual review ratings
         let aiDistribution = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
         let totalAiCount = 0;
         let aiSum = 0;
-        if (totalRows[0]?.ai_stars) {
-            totalRows[0].ai_stars.forEach(a => {
-                aiDistribution[a[0]] = (aiDistribution[a[0]] || 0) + 1;
-                totalAiCount += 1;
-                aiSum += parseInt(a[0]);
+        if (totalRows[0]?.user_stars) {
+            totalRows[0].user_stars.forEach(a => {
+                const key = String(Math.round(Number(a[0])));
+                if (['1','2','3','4','5'].includes(key)) {
+                    aiDistribution[key] = (aiDistribution[key] || 0) + 1;
+                    totalAiCount += 1;
+                    aiSum += Number(a[0]);
+                }
             });
         }
         const aiAvg = totalAiCount > 0 ? aiSum / totalAiCount : null;

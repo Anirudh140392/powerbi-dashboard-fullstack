@@ -17,7 +17,8 @@ import {
     ChevronRight,
     ArrowLeft,
     ChevronDown,
-    Info
+    Info,
+    ExternalLink
 } from 'lucide-react'
 import { getLogicalKpiValue } from '@/components/AllAvailablityAnalysis/availablityDataCenter.jsx'
 import AdvancedFilterModal from './../ControlTower/WatchTower/AdvancedFilterModal'
@@ -252,6 +253,12 @@ const LatestOverivewCatCity = ({
                 const sk = toParam(advancedFilters.skus?.length > 0 ? advancedFilters.skus : null);
                 if (sk) params.append('sku', sk);
 
+                // Grammage filter only applies to SKU dimension
+                if (dimension === 'sku') {
+                    const gr = toParam(advancedFilters.grammages?.length > 0 ? advancedFilters.grammages : null);
+                    if (gr) params.append('grammage', gr);
+                }
+
                 // MSL filter (global takes priority, fallback to advanced filters)
                 const hasMslFilter = (val) => {
                     if (!val) return false;
@@ -298,7 +305,7 @@ const LatestOverivewCatCity = ({
         };
         fetchData();
         return () => { isMounted = false; };
-    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, globalPlatform, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.dateFrom, advancedFilters.dateTo, advancedFilters.msl, selectedMsl]);
+    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, globalPlatform, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.grammages, advancedFilters.dateFrom, advancedFilters.dateTo, advancedFilters.msl, selectedMsl]);
 
     // Reset pagination when dimension or filters change
     useEffect(() => {
@@ -522,7 +529,7 @@ const LatestOverivewCatCity = ({
                                                     setExpandedSku(null);
                                                 }}
                                                 className={cn(
-                                                    'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-[14px] font-bold transition-all',
+                                                    'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-[14px] font-bold transition-all cursor-pointer',
                                                     isSelected
                                                         ? 'bg-white text-blue-600 shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
                                                         : 'text-slate-500 hover:text-slate-800'
@@ -709,6 +716,18 @@ const LatestOverivewCatCity = ({
                                                 </div>
 
                                                 <div className="flex items-center gap-1">
+                                                    {dimension === 'sku' && e.page_url && (
+                                                        <a
+                                                            href={e.page_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            onClick={(event) => event.stopPropagation()}
+                                                            className="p-1.5 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                                                            title="Open product page"
+                                                        >
+                                                            <ExternalLink size={14} />
+                                                        </a>
+                                                    )}
                                                     <button
                                                         onClick={(event) => {
                                                             event.stopPropagation();

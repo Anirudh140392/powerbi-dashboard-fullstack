@@ -3,7 +3,7 @@ import { FilterContext } from "../../utils/FilterContext";
 import { fetchSearchTermsPerformance, fetchSearchTermsLocations, fetchSearchTermsBrandBreakdown, fetchVisibilityFilterOptions } from "../../api/visibilityService";
 import { useAuth } from "../../utils/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, Search, X, Filter, ChevronRight, TrendingUp } from "lucide-react";
+import { Download, Search, X, Filter, ChevronRight, TrendingUp, ExternalLink } from "lucide-react";
 
 
 const sosColor = (val) => {
@@ -1012,14 +1012,41 @@ export default function SearchTermsPerformance() {
                           </svg>
                         </div>
                       )}
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>
-                        {activeView === "brand" 
-                          ? (row.name || "").split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
-                          : row.name}
-                      </span>
+                      {activeView === "sku" ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>
+                            {row.name}
+                          </span>
+                          {row.page_url && (
+                            <a
+                              href={row.page_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title="Open product page"
+                              style={{
+                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                padding: "2px 4px", borderRadius: 5, color: "#94a3b8",
+                                border: "1px solid #e2e8f0", background: "#fff",
+                                textDecoration: "none", flexShrink: 0, transition: "all 0.15s",
+                              }}
+                              onMouseOver={(e) => { e.currentTarget.style.color = "#3b82f6"; e.currentTarget.style.borderColor = "#93c5fd"; e.currentTarget.style.background = "#eff6ff"; }}
+                              onMouseOut={(e) => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#fff"; }}
+                            >
+                              <ExternalLink size={11} />
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>
+                          {activeView === "brand"
+                            ? (row.name || "").split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+                            : row.name}
+                        </span>
+                      )}
                       {row.searchVolume > 0 && activeView === "keyword" ? (
                         <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>
-                          Search Vol. {row.searchVolume.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                          Search Vol. {row.searchVolume.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%
                         </span>
                       ) : (row.volShare > 0 && activeView === "keyword" ? (
                         <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>

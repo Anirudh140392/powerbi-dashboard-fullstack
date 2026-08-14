@@ -88,7 +88,7 @@ export interface GlobalFilterState {
     brandScope: BrandScope;
     category: CategoryFilterState;
     productCategory: string | null;  // Product type: Pressure Cooker, Gas Stove, etc.
-    sku: string | null;
+    sku: string[];
     /** Rating Bifurcation drill-down: NP / Issue / NI (null = show all) */
     ratingBifurcation: RatingBifurcation | null;
     dateRange: DateRangeState;

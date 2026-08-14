@@ -702,7 +702,7 @@ export default function TrendsCompetitionDrawer({
 
   // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState(initialPlatform || "Blinkit");
+  const [selectedPlatform, setSelectedPlatform] = useState(initialPlatform || "");
   const [showPlatformPills, setShowPlatformPills] = useState(true);
   const [showAllPills, setShowAllPills] = useState(false);
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
@@ -720,20 +720,21 @@ export default function TrendsCompetitionDrawer({
   });
 
   const getMslDisplayValue = (val) => {
-    if (!val || val === 'All') return 'All';
+    if (!val || val === 'All' || val === '1,0' || val === '0,1') return 'All SKUs';
     return val.split(',')
-      .map(v => v === '1' ? 'MSL Only (1)' : (v === '0' ? 'Non-MSL (0)' : v))
+      .map(v => v === '1' ? 'Top SKUs' : (v === '0' ? 'All SKUs' : v))
       .join(',');
   };
 
   const handleMslChange = (v) => {
-    if (!v || v === 'All') {
+    if (!v || v === 'All' || v === 'All SKUs') {
       setDrawerFilters(prev => ({...prev, Msl: 'All'}));
     } else {
       const rawVal = v.split(',')
-        .map(display => display.includes('(1)') ? '1' : (display.includes('(0)') ? '0' : display))
+        .map(display => (display === 'Top SKUs' || display.includes('Top')) ? '1' : (display === 'All SKUs' ? 'All' : display))
+        .filter(Boolean)
         .join(',');
-      setDrawerFilters(prev => ({...prev, Msl: rawVal}));
+      setDrawerFilters(prev => ({...prev, Msl: rawVal || 'All'}));
     }
   };
 
@@ -741,7 +742,10 @@ export default function TrendsCompetitionDrawer({
   const drlUser = useMemo(() => {
     try { return JSON.parse(sessionStorage.getItem('user')); } catch { return null; }
   }, []);
-  const isDrl = drlUser?.dbName?.toLowerCase() === 'drl';
+  const isDrl = (() => {
+    const db = drlUser?.dbName?.toLowerCase();
+    return db === 'drl' || db === 'prestige';
+  })();
   const [resellerOptions, setResellerOptions] = useState([]);
 
   // Fetch reseller name options for DRL - cascaded by platform
@@ -2365,12 +2369,6 @@ export default function TrendsCompetitionDrawer({
   const formatTooltipValue = (val, seriesName) => {
     if (val === undefined || val === null) return 'N/A';
 
-    const isPromoOrDiscount = seriesName?.toLowerCase().includes('promo') || seriesName?.toLowerCase().includes('discount');
-    const isPercentageOrRate = seriesName?.includes('%') || seriesName?.toLowerCase().includes('rate') || seriesName?.toLowerCase().includes('share') || seriesName?.toLowerCase().includes('osa') || seriesName?.toLowerCase().includes('availability');
-    const allowZero = isPromoOrDiscount || isPercentageOrRate;
-
-    if ((val === 0 || val === "0") && !allowZero) return 'N/A';
-
     let formatted = val;
     if (typeof val === 'number') {
       const absVal = Math.abs(val);
@@ -2381,14 +2379,17 @@ export default function TrendsCompetitionDrawer({
       } else if (absVal >= 1000) {
         formatted = `${(val / 1000).toFixed(2).replace(/\.00$/, '')} K`;
       } else {
-        formatted = val.toFixed(2).replace(/\.00$/, '');
+        formatted = val === 0 ? '0' : val.toFixed(2).replace(/\.00$/, '');
       }
+    } else if (val === 0 || val === '0') {
+      formatted = '0';
     }
     
-    if (seriesName?.includes('%') || seriesName?.toLowerCase().includes('rate') || seriesName?.toLowerCase().includes('promo') || seriesName?.toLowerCase().includes('discount') || seriesName?.toLowerCase().includes('share') || seriesName?.toLowerCase().includes('osa') || seriesName?.toLowerCase().includes('availability')) {
+    const sName = (seriesName || '').toLowerCase();
+    if (sName.includes('%') || sName.includes('rate') || sName.includes('promo') || sName.includes('discount') || sName.includes('share') || sName.includes('osa') || sName.includes('availability') || sName.includes('sos') || sName.includes('conversion')) {
       return `${formatted}%`;
     }
-    if (seriesName?.includes('₹') || seriesName?.includes('AED') || seriesName?.toLowerCase().includes('price') || seriesName?.toLowerCase().includes('sales')) {
+    if (sName.includes('₹') || sName.includes('aed') || sName.includes('price') || sName.includes('sales') || sName.includes('offtake') || sName.includes('spend') || sName.includes('cpc') || sName.includes('cpm')) {
       return `${currencySymbol} ${formatted}`;
     }
     return formatted;
@@ -2396,8 +2397,15 @@ export default function TrendsCompetitionDrawer({
 
   const createTooltipFormatter = (params) => {
     if (!params || !params.length) return '';
+    const validParams = params.filter(param => {
+      if (param.value === null || param.value === undefined) return false;
+      const formattedValue = formatTooltipValue(param.value, param.seriesName);
+      return formattedValue !== 'N/A';
+    });
+    if (!validParams.length) return '';
+
     let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${params[0].axisValue}</div>`;
-    params.forEach(param => {
+    validParams.forEach(param => {
       const formattedValue = formatTooltipValue(param.value, param.seriesName);
       html += `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:4px;">
@@ -2410,6 +2418,17 @@ export default function TrendsCompetitionDrawer({
       `;
     });
     return html;
+  };
+
+  const cleanSeriesData = (arr) => {
+    if (!arr || !arr.length) return [];
+    const result = [...arr];
+    let i = result.length - 1;
+    while (i >= 0 && (result[i] === null || result[i] === undefined)) {
+      result[i] = null;
+      i--;
+    }
+    return result;
   };
 
   const trendOption = useMemo(() => {
@@ -2431,7 +2450,7 @@ export default function TrendsCompetitionDrawer({
           yAxisIndex: m.axis === "right" ? 1 : 0,
           lineStyle: { width: 2 },
           emphasis: { focus: "series" },
-          data: dataSource.map((p) => p[m.id] ?? null),
+          data: cleanSeriesData(dataSource.map((p) => p[m.id] ?? null)),
           itemStyle: { color: m.color },
         });
       });
@@ -2453,7 +2472,7 @@ export default function TrendsCompetitionDrawer({
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { lineStyle: { color: "#F3F4F6" } },
-          scale: true,
+          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
           axisLabel: {
             formatter: (value) => {
               const prefix = currencySymbol + " ";
@@ -2470,7 +2489,7 @@ export default function TrendsCompetitionDrawer({
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { show: false },
-          scale: true,
+          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
           axisLabel: {
             formatter: (value) => `${parseFloat(value.toFixed(2))} %`
           }
@@ -2680,6 +2699,14 @@ export default function TrendsCompetitionDrawer({
             label="Date"
             value={range}
           />
+          {/* Reseller Filter Chip (Commented out as requested) */}
+          {/* {isDrl && showResellerFilter && (
+            <SelectedFilterChip
+              label="Reseller"
+              value={drawerFilters.ResellerName}
+              color={drawerFilters.ResellerName !== 'All' ? "#0ea5e9" : "#64748B"}
+            />
+          )} */}
           {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
             <SelectedFilterChip
               label="MSL"
@@ -2767,8 +2794,8 @@ export default function TrendsCompetitionDrawer({
                     setDrawerFilters(prev => ({...prev, City: v}));
                   }}
                 />
-                {/* Reseller Name dropdown - DRL only */}
-                {isDrl && showResellerFilter && resellerOptions.length > 0 && (
+                {/* Reseller Name dropdown - DRL only (Commented out as requested) */}
+                {/* {isDrl && showResellerFilter && resellerOptions.length > 0 && (
                   <DrawerMultiSelect
                     title="Reseller"
                     value={drawerFilters.ResellerName}
@@ -2777,14 +2804,14 @@ export default function TrendsCompetitionDrawer({
                       setDrawerFilters(prev => ({...prev, ResellerName: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All'}));
                     }}
                   />
-                )}
+                )} */}
 
                 {/* MSL dropdown */}
                 {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
                   <DrawerMultiSelect
                     title="MSL"
                     value={getMslDisplayValue(drawerFilters.Msl)}
-                    options={["MSL Only (1)", "Non-MSL (0)"]}
+                    options={["Top SKUs", "All SKUs"]}
                     onChange={handleMslChange}
                   />
                 )}

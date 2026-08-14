@@ -66,7 +66,55 @@ interface ApiResponse {
 
 // --- REUSABLE UI COMPONENTS ---
 
-const MetricCard = ({ title, value, change, trend, subtext, icon: Icon, color = "indigo", weightage }: any) => {
+const getScoringRules = (platform: string, metric: string) => {
+  const p = (platform || '').toLowerCase();
+  
+  if (p === 'flipkart') {
+    switch (metric) {
+      case 'Title Score': return { weightage: 20, rules: ['<b>20:</b> Title &ge; 100 chars', '<b>10:</b> Title 50–99 chars', '<b>0:</b> Title &lt; 50 chars'] };
+      case 'Description Score': return { weightage: 20, rules: ['<b>20:</b> 400+ chars', '<b>10:</b> 200–399 chars', '<b>0:</b> &lt;200 chars'] };
+      case 'Thumbnail Image Score': return { weightage: 20, rules: ['<b>20:</b> 7+ images', '<b>10:</b> 1–6 images', '<b>0:</b> No images'] };
+      case 'Thumbnail Video Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 video', '<b>0:</b> None'] };
+      case 'A+ Image Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 A+ image', '<b>0:</b> None'] };
+      default: return null;
+    }
+  }
+  
+  if (p === 'zepto') {
+    switch (metric) {
+      case 'Title Score': return { weightage: 20, rules: ['<b>20:</b> &ge; 80 chars', '<b>10:</b> 50–79 chars', '<b>0:</b> &lt;50 chars'] };
+      case 'Description Score': return { weightage: 20, rules: ['<b>20:</b> 400+ chars', '<b>10:</b> 300–399 chars', '<b>0:</b> &lt;300 chars'] };
+      case 'A+ Image Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 A+ image', '<b>0:</b> None'] };
+      case 'Thumbnail Image Score': return { weightage: 20, rules: ['<b>20:</b> 5+ images', '<b>10:</b> 3–4 images', '<b>0:</b> &lt;3 images'] };
+      case 'Thumbnail Video Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 video', '<b>0:</b> None'] };
+      default: return null;
+    }
+  }
+  
+  if (p === 'blinkit') {
+    switch (metric) {
+      case 'Title Score': return { weightage: 20, rules: ['<b>20:</b> &ge; 50 chars', '<b>10:</b> 25–49 chars', '<b>0:</b> 0 chars'] };
+      case 'Bullet Score': return { weightage: 20, rules: ['<b>20:</b> 5+ bullets', '<b>10:</b> 3–4 bullets', '<b>0:</b> &lt;3 bullets'] };
+      case 'A+ Image Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 A+ image', '<b>0:</b> None'] };
+      case 'Thumbnail Image Score': return { weightage: 20, rules: ['<b>20:</b> 7+ images', '<b>10:</b> 5–6 images', '<b>0:</b> &lt;5 images'] };
+      case 'Thumbnail Video Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 video', '<b>0:</b> None'] };
+      default: return null;
+    }
+  }
+  
+  // Default fallback (matches existing hardcoded weightages in the dashboard)
+  switch (metric) {
+      case 'Title Score': return { weightage: 20 };
+      case 'Bullet Score': return { weightage: 20 };
+      case 'Description Score': return { weightage: 20 };
+      case 'Thumbnail Image Score': return { weightage: 15 };
+      case 'Thumbnail Video Score': return { weightage: 10 };
+      case 'A+ Image Score': return { weightage: 15 };
+      default: return null;
+  }
+};
+
+const MetricCard = ({ title, value, change, trend, subtext, icon: Icon, color = "indigo", weightage, rules }: any) => {
   const colorMap: any = {
     indigo: "bg-indigo-50 text-indigo-600",
     emerald: "bg-emerald-50 text-emerald-600",
@@ -98,15 +146,32 @@ const MetricCard = ({ title, value, change, trend, subtext, icon: Icon, color = 
             <div className="relative group/info cursor-help">
                <Info size={14} className="text-slate-300 group-hover/info:text-indigo-500 transition-colors" />
                {/* Tooltip */}
-               <div className="absolute bottom-full right-0 mb-2 hidden group-hover/info:block w-52 bg-slate-800 text-white p-3 rounded-xl shadow-2xl z-50 text-left border border-slate-700 pointer-events-none transition-all origin-bottom-right">
+               <div className="absolute bottom-full right-0 mb-2 hidden group-hover/info:block w-64 bg-slate-800 text-white p-3 rounded-xl shadow-2xl z-50 text-left border border-slate-700 pointer-events-none transition-all origin-bottom-right">
                  <p className="font-bold text-[10px] uppercase tracking-wider text-indigo-300 mb-1.5">{title}</p>
                  <p className="text-[11px] leading-relaxed text-slate-200">
                    Contributes <span className="font-bold text-white bg-slate-700/50 px-1 rounded">{weightage}%</span> to the overall score.
                  </p>
-                 <div className="h-px bg-slate-700 my-2"></div>
-                 <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
-                   Calculated by dividing the obtained points by the total weightage of {weightage}.
-                 </p>
+                 {rules && rules.length > 0 ? (
+                   <>
+                     <div className="h-px bg-slate-700 my-2"></div>
+                     <p className="font-bold text-[10px] text-slate-400 mb-1 uppercase">Scoring Criteria:</p>
+                     <ul className="text-[10px] text-slate-300 space-y-1">
+                       {rules.map((r: string, idx: number) => (
+                         <li key={idx} className="flex items-start">
+                           <span className="text-indigo-400 mr-1.5">•</span>
+                           <span dangerouslySetInnerHTML={{ __html: r }} />
+                         </li>
+                       ))}
+                     </ul>
+                   </>
+                 ) : (
+                   <>
+                     <div className="h-px bg-slate-700 my-2"></div>
+                     <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
+                       Calculated by dividing the obtained points by the total weightage of {weightage}.
+                     </p>
+                   </>
+                 )}
                  {/* Tooltip arrow */}
                  <div className="absolute top-full right-1 -mt-1 border-4 border-transparent border-t-slate-800"></div>
                </div>
@@ -666,7 +731,11 @@ const SkuDrillDownTable = ({
 
   const paginatedData = products;
 
-  const weightages = [100, 15, 10, 20, 20, 15, 20];
+  const metricLabels = ['Overall Score', 'Thumbnail Image Score', 'Thumbnail Video Score', 'Title Score', 'Bullet Score', 'A+ Image Score', 'Description Score'];
+
+  const weightages = metricLabels.map(label => 
+    label === 'Overall Score' ? 100 : (getScoringRules(platform as string, label)?.weightage || 0)
+  );
   const getScoreStyle = (score: number | null, columnIndex: number) => {
     const isOverall = columnIndex === 0;
     if (score === null) {
@@ -705,49 +774,52 @@ const SkuDrillDownTable = ({
   };
 
   const getDetailedBreakdown = (label: string) => {
+    const p = (platform as string || '').toLowerCase();
+
+    if (p === 'flipkart') {
+      switch (label) {
+        case 'Title Score': return [{ check: 'Title ≥ 100 chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'Title 50–99 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Title < 50 chars', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Description Score': return [{ check: '400+ chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '200–399 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<200 chars', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Image Score': return [{ check: '7+ images', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '1–6 images', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'No images', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Video Score': return [{ check: 'At least 1 video', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'None', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'A+ Image Score': return [{ check: 'At least 1 A+ image', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'None', score: 0, status: 'Fail', action: 'Action Required' }];
+        default: return [];
+      }
+    }
+
+    if (p === 'zepto') {
+      switch (label) {
+        case 'Title Score': return [{ check: '≥ 80 chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '50–79 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<50 chars', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Description Score': return [{ check: '400+ chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '300–399 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<300 chars', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'A+ Image Score': return [{ check: 'At least 1 A+ image', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'None', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Image Score': return [{ check: '5+ images', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '3–4 images', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<3 images', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Video Score': return [{ check: 'At least 1 video', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'None', score: 0, status: 'Fail', action: 'Action Required' }];
+        default: return [];
+      }
+    }
+
+    if (p === 'blinkit') {
+      switch (label) {
+        case 'Title Score': return [{ check: '≥ 50 chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '25–49 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: '0 chars', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Bullet Score': return [{ check: '5+ bullets', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '3–4 bullets', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<3 bullets', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'A+ Image Score': return [{ check: 'At least 1 A+ image', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'None', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Image Score': return [{ check: '7+ images', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '5–6 images', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<5 images', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Video Score': return [{ check: 'At least 1 video', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'None', score: 0, status: 'Fail', action: 'Action Required' }];
+        default: return [];
+      }
+    }
+
+    // Default (Amazon/Generic)
     switch (label) {
-      case 'Title Score':
-        return [
-          { check: 'Title ≥ 100 chars', score: 20, status: 'Pass', action: 'No Action Required' },
-          { check: 'Title 50–99 chars', score: 10, status: 'Warn', action: 'Action Required' },
-          { check: 'Title < 50 chars', score: 0, status: 'Fail', action: 'Action Required' },
-        ];
-      case 'Bullet Score':
-        return [
-          { check: '4+ bullets', score: 20, status: 'Pass', action: 'No Action Required' },
-          { check: '1–3 bullets', score: 10, status: 'Warn', action: 'Action Required' },
-          { check: 'No bullets', score: 0, status: 'Fail', action: 'Action Required' },
-        ];
-      case 'Description Score':
-        return [
-          { check: '400+ chars', score: 20, status: 'Pass', action: 'No Action Required' },
-          { check: '200–399 chars', score: 10, status: 'Warn', action: 'Action Required' },
-          { check: '<200 chars', score: 0, status: 'Fail', action: 'Action Required' },
-        ];
-      case 'Thumbnail Image Score':
-        return [
-          { check: '7+ images', score: 15, status: 'Pass', action: 'No Action Required' },
-          { check: '1–6 images', score: 5, status: 'Warn', action: 'Action Required' },
-          { check: 'No images', score: 0, status: 'Fail', action: 'Action Required' },
-        ];
-      case 'Thumbnail Video Score':
-        return [
-          { check: 'At least 1 video', score: 10, status: 'Pass', action: 'No Action Required' },
-          { check: 'No video', score: 0, status: 'Fail', action: 'Action Required' },
-        ];
-      case 'A+ Image Score':
-        return [
-          { check: 'At least 1 A+ image', score: 15, status: 'Pass', action: 'No Action Required' },
-          { check: 'No A+ images', score: 0, status: 'Fail', action: 'Action Required' },
-        ];
-      default:
-        return [
-          { check: 'Overall compliance', score: 100, status: 'Pass', action: 'No Action Required' },
-        ];
+      case 'Title Score': return [{ check: 'Title ≥ 100 chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'Title 50–99 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Title < 50 chars', score: 0, status: 'Fail', action: 'Action Required' }];
+      case 'Bullet Score': return [{ check: '4+ bullets', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '1–3 bullets', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'No bullets', score: 0, status: 'Fail', action: 'Action Required' }];
+      case 'Description Score': return [{ check: '400+ chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '200–399 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<200 chars', score: 0, status: 'Fail', action: 'Action Required' }];
+      case 'Thumbnail Image Score': return [{ check: '7+ images', score: 15, status: 'Pass', action: 'No Action Required' }, { check: '1–6 images', score: 5, status: 'Warn', action: 'Action Required' }, { check: 'No images', score: 0, status: 'Fail', action: 'Action Required' }];
+      case 'Thumbnail Video Score': return [{ check: 'At least 1 video', score: 10, status: 'Pass', action: 'No Action Required' }, { check: 'No video', score: 0, status: 'Fail', action: 'Action Required' }];
+      case 'A+ Image Score': return [{ check: 'At least 1 A+ image', score: 15, status: 'Pass', action: 'No Action Required' }, { check: 'No A+ images', score: 0, status: 'Fail', action: 'Action Required' }];
+      default: return [{ check: 'Overall compliance', score: 100, status: 'Pass', action: 'No Action Required' }];
     }
   };
-
-  const metricLabels = ['Overall Score', 'Thumbnail Image Score', 'Thumbnail Video Score', 'Title Score', 'Bullet Score', 'A+ Image Score', 'Description Score'];
 
   return (
     <>
@@ -766,7 +838,7 @@ const SkuDrillDownTable = ({
             <div className="relative group/tooltip inline-block ml-3 cursor-help">
               <Info size={18} className="text-slate-400 group-hover/tooltip:text-indigo-500 transition-colors" />
               <div className="absolute left-full top-1/2 -translate-y-1/2 ml-4 hidden group-hover/tooltip:block w-[480px] bg-slate-900 text-white p-4 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] z-50 text-left border border-slate-700/50 pointer-events-none">
-                <h3 className="text-[13px] font-bold text-indigo-400 mb-3 uppercase tracking-wider flex items-center"><Target size={14} className="mr-2" /> Amazon Scoring Rules</h3>
+                <h3 className="text-[13px] font-bold text-indigo-400 mb-3 uppercase tracking-wider flex items-center"><Target size={14} className="mr-2" /> {(platform as string) || 'Amazon'} Scoring Rules</h3>
                 <table className="w-full text-left border-collapse text-[11px]">
                   <thead>
                     <tr className="border-b border-slate-700 text-slate-400">
@@ -776,58 +848,24 @@ const SkuDrillDownTable = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    <tr className="hover:bg-slate-800/50 transition-colors">
-                      <td className="py-2 px-3 font-semibold text-white">Title Score</td>
-                      <td className="py-2 px-3 text-center text-indigo-300 font-bold">20</td>
-                      <td className="py-2 px-3 text-slate-300 leading-relaxed">
-                        <span className="font-bold text-white">20:</span> Title ≥ 100 chars<br/>
-                        <span className="font-bold text-white">10:</span> Title 50–99 chars<br/>
-                        <span className="font-bold text-white">0:</span> Title &lt; 50 chars
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-800/50 transition-colors">
-                      <td className="py-2 px-3 font-semibold text-white">Bullet Score</td>
-                      <td className="py-2 px-3 text-center text-indigo-300 font-bold">20</td>
-                      <td className="py-2 px-3 text-slate-300 leading-relaxed">
-                        <span className="font-bold text-white">20:</span> 4+ bullets<br/>
-                        <span className="font-bold text-white">10:</span> 1–3 bullets<br/>
-                        <span className="font-bold text-white">0:</span> No bullets
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-800/50 transition-colors">
-                      <td className="py-2 px-3 font-semibold text-white">Description Score</td>
-                      <td className="py-2 px-3 text-center text-indigo-300 font-bold">20</td>
-                      <td className="py-2 px-3 text-slate-300 leading-relaxed">
-                        <span className="font-bold text-white">20:</span> 400+ chars<br/>
-                        <span className="font-bold text-white">10:</span> 200–399 chars<br/>
-                        <span className="font-bold text-white">0:</span> &lt;200 chars
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-800/50 transition-colors">
-                      <td className="py-2 px-3 font-semibold text-white">Thumbnail Image Score</td>
-                      <td className="py-2 px-3 text-center text-indigo-300 font-bold">15</td>
-                      <td className="py-2 px-3 text-slate-300 leading-relaxed">
-                        <span className="font-bold text-white">15:</span> 7+ images<br/>
-                        <span className="font-bold text-white">5:</span> 1–6 images<br/>
-                        <span className="font-bold text-white">0:</span> No images
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-800/50 transition-colors">
-                      <td className="py-2 px-3 font-semibold text-white">Thumbnail Video Score</td>
-                      <td className="py-2 px-3 text-center text-indigo-300 font-bold">10</td>
-                      <td className="py-2 px-3 text-slate-300 leading-relaxed">
-                        <span className="font-bold text-white">10:</span> At least 1 video<br/>
-                        <span className="font-bold text-white">0:</span> No video
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-800/50 transition-colors">
-                      <td className="py-2 px-3 font-semibold text-white">A+ Image Score</td>
-                      <td className="py-2 px-3 text-center text-indigo-300 font-bold">15</td>
-                      <td className="py-2 px-3 text-slate-300 leading-relaxed">
-                        <span className="font-bold text-white">15:</span> At least 1 A+ image<br/>
-                        <span className="font-bold text-white">0:</span> No A+ images
-                      </td>
-                    </tr>
+                    {metricLabels.filter(l => l !== 'Overall Score').map(label => {
+                       const breakDown = getDetailedBreakdown(label);
+                       const w = weightages[metricLabels.indexOf(label)];
+                       if (!breakDown || breakDown.length === 0 || breakDown[0].check === 'Overall compliance') return null;
+                       return (
+                         <tr key={label} className="hover:bg-slate-800/50 transition-colors">
+                           <td className="py-2 px-3 font-semibold text-white">{label}</td>
+                           <td className="py-2 px-3 text-center text-indigo-300 font-bold">{w}</td>
+                           <td className="py-2 px-3 text-slate-300 leading-relaxed">
+                             {breakDown.map((rule, idx) => (
+                               <div key={idx}>
+                                 <span className="font-bold text-white">{rule.score}:</span> {rule.check}
+                               </div>
+                             ))}
+                           </td>
+                         </tr>
+                       );
+                    })}
                     <tr className="border-t border-slate-700 bg-slate-800/30">
                       <td className="py-2 px-3 font-bold text-white uppercase tracking-wider text-xs">Total Score</td>
                       <td className="py-2 px-3 text-center text-indigo-400 font-black text-xs">100</td>
@@ -897,6 +935,7 @@ const SkuDrillDownTable = ({
           </div>
           <div className="w-[80%] flex">
             {metricLabels.map((label, i) => {
+              if (label !== 'Overall Score' && !getScoringRules(platform as string, label)) return null;
               const weightage = weightages[i] || 100;
               return (
                 <div key={label} className={`flex-1 py-3 px-1 flex flex-col items-center justify-center text-center group relative cursor-help ${i !== metricLabels.length - 1 ? 'border-r border-slate-200' : ''}`}>
@@ -974,9 +1013,9 @@ const SkuDrillDownTable = ({
             const wasRowExpanded = lastExpandedCell?.ri === ri;
             const topMetrics = mapToTopMetrics(row);
 
-            // Deterministic avatar image using product ID as seed
-            const DANONE_LOGO = "https://logolook.net/wp-content/uploads/2024/09/Danone-Logo.png";
-            const imgUrl = DANONE_LOGO || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(row.productId)}&backgroundColor=ffffff`;
+            // Deterministic avatar image using product ID as seed or user logo
+            const storedUserLogo = (() => { try { const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}'); return u?.dbLogoUrl || u?.logo_url; } catch { return null; } })();
+            const imgUrl = storedUserLogo || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(row.productId)}&backgroundColor=ffffff`;
 
             return (
               <div key={ri} className={`flex flex-col bg-white transition-all duration-300 last:rounded-b-[14px] ${isRowExpanded ? 'bg-slate-50/50 shadow-inner' : 'hover:bg-slate-50/50'}`}>
@@ -1019,6 +1058,7 @@ const SkuDrillDownTable = ({
                   {/* Metrics */}
                   <div className="w-[80%] flex space-x-2 pr-2">
                     {topMetrics.map((score, ci) => {
+                      if (ci !== 0 && !getScoringRules(platform as string, metricLabels[ci])) return null;
                       const style = getScoreStyle(score, ci);
                       const isCellExpanded = expandedCell?.ri === ri && expandedCell?.ci === ci;
                       const colName = sortColumnMap[ci];
@@ -1207,7 +1247,16 @@ const SkuDrillDownTable = ({
 
 
 
-export default function Dashboard() {
+const getUserDbName = (): string => {
+  try {
+    const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+    return storedUser?.dbName || storedUser?.company_name || 'danone';
+  } catch {
+    return 'danone';
+  }
+};
+
+export default function Dashboard({ sidebarPlatform, company: propCompany }: { sidebarPlatform?: string; company?: string }) {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -1217,8 +1266,25 @@ export default function Dashboard() {
   const [imageRating, setImageRating] = useState(50);
 
   // --- API State ---
-  const [company, setCompany] = useState('danone');        // database name
-  const [platform, setPlatform] = useState('');           // platform filter
+  const [company, setCompany] = useState<string>(() => propCompany || getUserDbName());
+  const [platform, setPlatform] = useState(sidebarPlatform || '');           // platform filter
+
+  useEffect(() => {
+    if (propCompany) {
+      setCompany(propCompany);
+    } else {
+      const userDb = getUserDbName();
+      if (userDb && userDb !== company) {
+        setCompany(userDb);
+      }
+    }
+  }, [propCompany]);
+
+  useEffect(() => {
+    if (sidebarPlatform) {
+      setPlatform(sidebarPlatform);
+    }
+  }, [sidebarPlatform]);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [search, setSearch] = useState('');
@@ -1375,7 +1441,6 @@ export default function Dashboard() {
         open={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
         company={company}
-        platform={platform} setPlatform={setPlatform}
         category={category} setCategory={setCategory}
         brand={brand} setBrand={setBrand}
       />
@@ -1477,59 +1542,77 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
                   <MetricCard
                     title="Total Score"
-                    value={isSummaryLoading ? '…' : fmt(summary?.averageScore)}
+                    value={isSummaryLoading ? '…' : `${fmt(summary?.averageScore)}%`}
                     change="Live" trend="up"
                     subtext={`Avg across ${summary?.totalProducts || 0} SKUs`}
                     icon={Gauge} color="violet"
                   />
-                  <MetricCard
-                    title="Thumbnail Image Score"
-                    value={isSummaryLoading ? '…' : fmt(summary?.avgThumbnailScore)}
-                    change="Live" trend="up"
-                    subtext="Image completeness and quality"
-                    icon={LucideImage} color="blue"
-                    weightage={15}
-                  />
-                  <MetricCard
-                    title="Thumbnail Video Score"
-                    value={isSummaryLoading ? '…' : fmt(summary?.avgThumbnailVideoScore)}
-                    change="Live" trend="up"
-                    subtext="Video completeness and quality"
-                    icon={Images} color="rose"
-                    weightage={10}
-                  />
-                  <MetricCard
-                    title="Title Score"
-                    value={isSummaryLoading ? '…' : fmt(summary?.avgTitleScore)}
-                    change="Live" trend="up"
-                    subtext="Title Quality"
-                    icon={Type} color="indigo"
-                    weightage={20}
-                  />
-                  <MetricCard
-                    title="Bullet Score"
-                    value={isSummaryLoading ? '…' : fmt(summary?.avgBulletScore)}
-                    change="Live" trend="up"
-                    subtext="Bullet points details"
-                    icon={AlignLeft} color="cyan"
-                    weightage={20}
-                  />
-                  <MetricCard
-                    title="A+ Image Score"
-                    value={isSummaryLoading ? '…' : fmt(summary?.avgAplusScore)}
-                    change="Live" trend="up"
-                    subtext="A+ content quality"
-                    icon={LayoutGrid} color="fuchsia"
-                    weightage={15}
-                  />
-                  <MetricCard
-                    title="Description Score"
-                    value={isSummaryLoading ? '…' : fmt(summary?.avgDescriptionScore)}
-                    change="Live" trend="up"
-                    subtext="Description quality"
-                    icon={AlignLeft} color="amber"
-                    weightage={20}
-                  />
+                  {getScoringRules(platform as string, "Thumbnail Image Score") && (
+                    <MetricCard
+                      title="Thumbnail Image Score"
+                      value={isSummaryLoading ? '…' : fmt(summary?.avgThumbnailScore)}
+                      change="Live" trend="up"
+                      subtext="Image completeness and quality"
+                      icon={LucideImage} color="blue"
+                      weightage={getScoringRules(platform as string, "Thumbnail Image Score")?.weightage ?? 15}
+                      rules={getScoringRules(platform as string, "Thumbnail Image Score")?.rules}
+                    />
+                  )}
+                  {getScoringRules(platform as string, "Thumbnail Video Score") && (
+                    <MetricCard
+                      title="Thumbnail Video Score"
+                      value={isSummaryLoading ? '…' : fmt(summary?.avgThumbnailVideoScore)}
+                      change="Live" trend="up"
+                      subtext="Video completeness and quality"
+                      icon={Images} color="rose"
+                      weightage={getScoringRules(platform as string, "Thumbnail Video Score")?.weightage ?? 10}
+                      rules={getScoringRules(platform as string, "Thumbnail Video Score")?.rules}
+                    />
+                  )}
+                  {getScoringRules(platform as string, "Title Score") && (
+                    <MetricCard
+                      title="Title Score"
+                      value={isSummaryLoading ? '…' : fmt(summary?.avgTitleScore)}
+                      change="Live" trend="up"
+                      subtext="Title Quality"
+                      icon={Type} color="indigo"
+                      weightage={getScoringRules(platform as string, "Title Score")?.weightage ?? 20}
+                      rules={getScoringRules(platform as string, "Title Score")?.rules}
+                    />
+                  )}
+                  {getScoringRules(platform as string, "Bullet Score") && (
+                    <MetricCard
+                      title="Bullet Score"
+                      value={isSummaryLoading ? '…' : fmt(summary?.avgBulletScore)}
+                      change="Live" trend="up"
+                      subtext="Bullet points details"
+                      icon={AlignLeft} color="cyan"
+                      weightage={getScoringRules(platform as string, "Bullet Score")?.weightage ?? 20}
+                      rules={getScoringRules(platform as string, "Bullet Score")?.rules}
+                    />
+                  )}
+                  {getScoringRules(platform as string, "A+ Image Score") && (
+                    <MetricCard
+                      title="A+ Image Score"
+                      value={isSummaryLoading ? '…' : fmt(summary?.avgAplusScore)}
+                      change="Live" trend="up"
+                      subtext="A+ content quality"
+                      icon={LayoutGrid} color="fuchsia"
+                      weightage={getScoringRules(platform as string, "A+ Image Score")?.weightage ?? 15}
+                      rules={getScoringRules(platform as string, "A+ Image Score")?.rules}
+                    />
+                  )}
+                  {getScoringRules(platform as string, "Description Score") && (
+                    <MetricCard
+                      title="Description Score"
+                      value={isSummaryLoading ? '…' : fmt(summary?.avgDescriptionScore)}
+                      change="Live" trend="up"
+                      subtext="Description quality"
+                      icon={AlignLeft} color="amber"
+                      weightage={getScoringRules(platform as string, "Description Score")?.weightage ?? 20}
+                      rules={getScoringRules(platform as string, "Description Score")?.rules}
+                    />
+                  )}
                 </div>
 
                 <SkuDrillDownTable

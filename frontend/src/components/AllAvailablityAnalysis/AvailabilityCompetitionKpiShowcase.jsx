@@ -34,21 +34,17 @@ const getLocalMslFromGlobal = (selectedMsl) => {
     }
     const arrayVal = Array.isArray(selectedMsl) ? selectedMsl : String(selectedMsl).split(',');
     return arrayVal
-        .map(v => v === '1' ? 'MSL Only (1)' : (v === '0' ? 'Non-MSL (0)' : v))
-        .filter(v => v === 'MSL Only (1)' || v === 'Non-MSL (0)');
+        .map(v => v === '1' ? 'Top SKUs' : (v === '0' ? 'All SKUs' : v))
+        .filter(v => v === 'Top SKUs' || v === 'All SKUs');
 };
 
 const getApiMslFromLocal = (localMsl, globalMsl) => {
     if (localMsl && localMsl.length > 0) {
         return localMsl
-            .map(v => v.includes('(1)') ? '1' : (v.includes('(0)') ? '0' : v))
+            .map(v => (v === 'Top SKUs' || v.includes('1')) ? '1' : (v === 'All SKUs' ? 'All' : v))
             .join(',');
     }
-    if (globalMsl && globalMsl !== 'All' && globalMsl !== 'all') {
-        const arrayVal = Array.isArray(globalMsl) ? globalMsl : String(globalMsl).split(',');
-        return arrayVal.join(',');
-    }
-    return undefined;
+    return globalMsl && globalMsl !== 'All' ? globalMsl : undefined;
 };
 
 const formatKpiValue = (value, unit = "%") => {
@@ -440,11 +436,12 @@ const TrendView = ({ mode, filters, city, platform, channel, period, globalFilte
         setTrendLoading(true);
         setTrendError(null);
         try {
+            const cleanCity = (!city || city === 'Select All' || city === 'select all' || city === 'All India' || city === 'All') ? 'All' : city;
             const params = {
                 platform: platform || 'All',
                 channel: channel || 'All',
-                location: city === 'All India' ? 'All' : city,
-                category: filters.categories.length > 0 ? filters.categories.join('|') + '|' : 'All',
+                location: cleanCity,
+                category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                 period: period || '1M',
                 startDate: globalFilters?.startDate,
                 endDate: globalFilters?.endDate,
@@ -454,10 +451,10 @@ const TrendView = ({ mode, filters, city, platform, channel, period, globalFilte
 
             let endpoint = '';
             if (isBrandMode) {
-                params.brands = visibleIds.join('|') + '|';
+                params.brands = visibleIds.join(',');
                 endpoint = '/availability-analysis/competition-brand-trends';
             } else {
-                params.skus = visibleIds.join('|') + '|';
+                params.skus = visibleIds.join(',');
                 endpoint = '/availability-analysis/competition-sku-trends';
             }
 
@@ -953,7 +950,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
         if (activeTab === "category") return filterOptions.categories;
         if (activeTab === "brand") return filterOptions.brands;
         if (activeTab === "sku") return filterOptions.skus;
-        if (activeTab === "msl") return ["MSL Only (1)", "Non-MSL (0)"];
+        if (activeTab === "msl") return ["Top SKUs", "All SKUs"];
         return [];
     };
 
@@ -1119,7 +1116,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     const [tab, setTab] = useState("brand");
 
     const { selectedChannel, selectedMsl } = useContext(FilterContext);
-    const [city, setCity] = useState("All India");
+    const [city, setCity] = useState("Select All");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
     const [filters, setFilters] = useState({
         categories: [],
@@ -1132,7 +1129,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
     const [trendData, setTrendData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [availableCities, setAvailableCities] = useState(["All India"]);
+    const [availableCities, setAvailableCities] = useState(["Select All"]);
 
     // Derive active filters and city (controlled vs uncontrolled pattern)
     const activeFilters = useMemo(() => {
@@ -1149,7 +1146,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
 
     const activeCity = useMemo(() => {
         if (drawerFilters) {
-            return drawerFilters.City === 'All' ? 'All India' : drawerFilters.City;
+            return (drawerFilters.City === 'All' || drawerFilters.City === 'All India') ? 'Select All' : drawerFilters.City;
         }
         return city;
     }, [drawerFilters, city]);
@@ -1176,7 +1173,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
         if (setDrawerFilters) {
             setDrawerFilters(prev => ({
                 ...prev,
-                City: newCity === 'All India' ? 'All' : newCity
+                City: (newCity === 'All India' || newCity === 'Select All' || newCity === 'All') ? 'All' : newCity
             }));
         } else {
             setCity(newCity);
@@ -1194,7 +1191,9 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                     }
                 });
                 if (response.data && response.data.locations) {
-                    setAvailableCities(response.data.locations);
+                    const rawLocs = response.data.locations || [];
+                    const cleanLocs = rawLocs.filter(c => c !== 'Select All' && c !== 'All' && c !== 'All India');
+                    setAvailableCities(['Select All', ...cleanLocs]);
                 }
             } catch (error) {
                 console.error('[AvailabilityCompetitionKpiShowcase] Error fetching cities:', error);
@@ -1206,14 +1205,15 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
+            const cleanCity = (!activeCity || activeCity === 'Select All' || activeCity === 'select all' || activeCity === 'All India' || activeCity === 'All') ? 'All' : activeCity;
             try {
                 const params = {
                     platform: platform || 'All',
                     channel: selectedChannel || 'All',
-                    location: activeCity === 'All India' ? 'All' : activeCity,
-                    category: activeFilters.categories.length > 0 ? activeFilters.categories.join('|') + '|' : 'All',
-                    brand: activeFilters.brands.length > 0 ? activeFilters.brands.join('|') + '|' : 'All',
-                    sku: activeFilters.skus.length > 0 ? activeFilters.skus.join('|') + '|' : 'All',
+                    location: cleanCity,
+                    category: activeFilters.categories.length > 0 ? activeFilters.categories.join(',') : 'All',
+                    brand: activeFilters.brands.length > 0 ? activeFilters.brands.join(',') : 'All',
+                    sku: activeFilters.skus.length > 0 ? activeFilters.skus.join(',') : 'All',
                     period: period || '1M',
                     startDate: globalFilters?.startDate,
                     endDate: globalFilters?.endDate,

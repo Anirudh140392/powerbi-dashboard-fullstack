@@ -26,10 +26,11 @@ interface AsinIssueModalProps {
     isOpen: boolean;
     onClose: () => void;
     webPid: string | null;
+    apiFilters?: Record<string, string | number | undefined>;
 }
 
-const AsinIssueModal: React.FC<AsinIssueModalProps> = ({ isOpen, onClose, webPid }) => {
-    const { data, loading } = useAsinIssues(isOpen ? webPid : null);
+const AsinIssueModal: React.FC<AsinIssueModalProps> = ({ isOpen, onClose, webPid, apiFilters }) => {
+    const { data, loading } = useAsinIssues(isOpen ? webPid : null, apiFilters);
     const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
     const [reviewModal, setReviewModal] = useState<{ webPid: string; subcategory: string; productName: string } | null>(null);
 
@@ -47,8 +48,9 @@ const AsinIssueModal: React.FC<AsinIssueModalProps> = ({ isOpen, onClose, webPid
                 category,
                 totalNegative: issues.reduce((s, i) => s + i.negativeCount, 0),
                 totalCount: issues.reduce((s, i) => s + i.totalCount, 0),
-                issues: issues.sort((a, b) => b.negativeCount - a.negativeCount),
+                issues: issues.filter(i => i.negativeCount > 0).sort((a, b) => b.negativeCount - a.negativeCount),
             }))
+            .filter(g => g.totalNegative > 0)
             .sort((a, b) => b.totalNegative - a.totalNegative);
     }, [data]);
 
@@ -56,6 +58,21 @@ const AsinIssueModal: React.FC<AsinIssueModalProps> = ({ isOpen, onClose, webPid
         if (!data?.issues?.length) return 1;
         return Math.max(...data.issues.map(i => i.negativeCount), 1);
     }, [data]);
+
+    // Set first category as expanded by default when data loads
+    React.useEffect(() => {
+        if (isOpen && groupedIssues.length > 0 && expandedCategory === null) {
+            setExpandedCategory(groupedIssues[0].category);
+        }
+    }, [isOpen, groupedIssues, expandedCategory]);
+
+    // Reset state when modal closes
+    React.useEffect(() => {
+        if (!isOpen) {
+            setExpandedCategory(null);
+            setReviewModal(null);
+        }
+    }, [isOpen]);
 
     const renderDistributionChart = (dist: Record<string, number> | undefined, textColor: string, barColor: string) => {
         if (!dist) return <div className="text-xs text-center text-slate-400 py-4">No data</div>;
@@ -228,9 +245,9 @@ const AsinIssueModal: React.FC<AsinIssueModalProps> = ({ isOpen, onClose, webPid
                                                     </motion.div>
                                                 </button>
 
-                                                {/* Issue rows (always visible for first group, expandable for rest) */}
+                                                {/* Issue rows */}
                                                 <AnimatePresence initial={false}>
-                                                    {(expandedCategory === group.category || (expandedCategory === null && gIdx === 0)) && (
+                                                    {expandedCategory === group.category && (
                                                         <motion.div
                                                             initial={{ height: 0, opacity: 0 }}
                                                             animate={{ height: 'auto', opacity: 1 }}
@@ -285,10 +302,10 @@ const AsinIssueModal: React.FC<AsinIssueModalProps> = ({ isOpen, onClose, webPid
                                                                                             {issue.negativeCount}
                                                                                         </span>
                                                                                         <span className="text-[10px] text-slate-400">
-                                                                                            / {issue.totalCount}
+                                                                                            / {group.totalNegative}
                                                                                         </span>
                                                                                         <span className="text-[10px] text-slate-400">
-                                                                                            ({issue.pctOfTotal}%)
+                                                                                            ({group.totalNegative > 0 ? Math.round((issue.negativeCount / group.totalNegative) * 100) : 0}%)
                                                                                         </span>
                                                                                     </div>
                                                                                 </div>
@@ -347,6 +364,7 @@ const AsinIssueModal: React.FC<AsinIssueModalProps> = ({ isOpen, onClose, webPid
                     webPid={reviewModal.webPid}
                     subcategory={reviewModal.subcategory}
                     productName={reviewModal.productName}
+                    filters={apiFilters}
                 />
             )}
         </>

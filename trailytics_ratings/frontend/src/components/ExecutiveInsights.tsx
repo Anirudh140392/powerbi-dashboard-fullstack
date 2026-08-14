@@ -1,5 +1,5 @@
 import { getActiveBrandName } from '../utils/tenant';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, lazy } from 'react';
 import {
     AlertTriangle,
     TrendingUp,
@@ -9,7 +9,6 @@ import {
     ArrowDownRight,
     Flame,
     Shield,
-    Lightbulb,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
@@ -29,7 +28,8 @@ import {
     Sparkles,
     Cpu,
     Truck,
-    Megaphone
+    Megaphone,
+    HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Review } from '../types';
@@ -39,7 +39,7 @@ import IssueSlider from './IssueSlider';
 import StakeholderSlider from './StakeholderSlider';
 import CategoryCardsStrip from './CategoryCardsStrip';
 import SkuListModal from './SkuListModal';
-import CompetitorRadarChart from './CompetitorRadarChart';
+const CompetitorRadarChart = lazy(() => import('./CompetitorRadarChart'));
 import WordSphere3D from './WordSphere3D';
 import InfoTooltip from './ui/InfoTooltip';
 import { RatingSummaryInline, RatingSummaryCompare } from './ui/RatingSummary';
@@ -64,6 +64,7 @@ interface ExecutiveInsightsProps {
     reviews: Review[];
     competitorReviews?: Review[];
     onCharacteristicClick?: (characteristic: string) => void;
+    onProductClick?: (productName: string) => void;
     serverTrends?: { escalating: TrendItem[]; improving: TrendItem[] };
     serverTrendsLoading?: boolean;
     serverProductHealth?: ProductHealthItem[];
@@ -91,6 +92,8 @@ interface ExecutiveInsightsProps {
     globalPriceRange?: { min: number; max: number } | null;
     globalBrandScope?: string | null;
     globalSentimentCategory?: string | null;
+    /** Global SKU (web_pid) filter from GlobalFilterBar — drills every section down to a single SKU */
+    globalSku?: string;
     headlineMetrics?: any;
 }
 
@@ -192,7 +195,7 @@ const SectionLoadingState: React.FC<{ label: string }> = ({ label }) => (
 // MAIN COMPONENT
 // ============================================================================
 
-const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competitorReviews = [], onCharacteristicClick, serverTrends, serverTrendsLoading = false, serverProductHealth, serverProductHealthLoading = false, onRequestHeavyData, onCategorySelect, externalSelectedCategory, globalParetoStatus, globalRatingBifurcation, onClassificationSelect, externalClassification, globalPlatform, globalTrendPeriodMonths, globalDateFrom, globalDateTo, globalPriceMode, globalPriceRange, globalBrandScope, globalSentimentCategory, headlineMetrics }) => {
+const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competitorReviews = [], onCharacteristicClick, onProductClick, serverTrends, serverTrendsLoading = false, serverProductHealth, serverProductHealthLoading = false, onRequestHeavyData, onCategorySelect, externalSelectedCategory, globalParetoStatus, globalRatingBifurcation, externalClassification, globalPlatform, globalTrendPeriodMonths, globalDateFrom, globalDateTo, globalPriceMode, globalPriceRange, globalBrandScope, globalSentimentCategory, globalSku, headlineMetrics }) => {
     const selectedPeriod = globalTrendPeriodMonths || 6;
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
     const [productHealthTab, setProductHealthTab] = useState<'declining' | 'improving'>('declining');
@@ -270,7 +273,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
             onCategorySelect(cat);
         }
     };
-    const { data: categoryHealthData, globalMetadata, loading: categoryHealthLoading } = useCategoryHealth(
+    const { data: categoryHealthData, loading: categoryHealthLoading } = useCategoryHealth(
         globalPlatform,
         globalTrendPeriodMonths,
         globalDateFrom,
@@ -280,10 +283,13 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
         globalBrandScope,
         globalSentimentCategory,
         currentCategory,
+        globalParetoStatus || null,
+        globalRatingBifurcation || null,
+        globalSku || null,
     );
     const { data: executiveHealth, loading: healthLoading } = useExecutiveHealth(
         currentCategory,
-        null,
+        globalParetoStatus || null,
         globalRatingBifurcation,
         globalPlatform,
         globalTrendPeriodMonths,
@@ -293,6 +299,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
         globalPriceRange,
         globalBrandScope,
         globalSentimentCategory,
+        globalSku || null,
         { enabled: belowFoldDataReady },
     );
     const { data: nlpIssues, loading: issuesLoading } = useIssuesBreakdown(
@@ -307,6 +314,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
         globalPriceRange,
         globalBrandScope,
         globalSentimentCategory,
+        globalSku || null,
         { enabled: belowFoldDataReady },
     );
     const { benchmarks, loading: benchmarkLoading } = useBenchmarkData(
@@ -319,6 +327,8 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
             price_mode: globalPriceMode || undefined,
             price_min: globalPriceRange?.min,
             price_max: globalPriceRange?.max,
+            web_pid: globalSku || undefined,
+            sentiment_category: globalSentimentCategory || undefined,
         },
         { enabled: benchmarkDataReady },
     );
@@ -341,20 +351,11 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
             : localExpandedPareto;
 
     // Map ParetoKey → classification string for global filter
-    const keyToClassification = (key: ParetoKey | null): 'pareto' | 'non-pareto' | 'npd' | 'all' => {
-        if (key === 'pareto') return 'pareto';
-        if (key === 'nonPareto') return 'non-pareto';
-        if (key === 'npd') return 'npd';
-        return 'all';
-    };
+
 
     const handleParetoCardClick = (key: ParetoKey) => {
         const newKey = localExpandedPareto === key ? null : key;
         setLocalExpandedPareto(newKey);
-        // Propagate to global state — this drives filteredPrestigeReviews + NLP refetch
-        if (onClassificationSelect) {
-            onClassificationSelect(keyToClassification(newKey));
-        }
     };
 
     // SKU List Modal state (replaces inline Level 3 table)
@@ -381,7 +382,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
 
         nlpIssues.forEach(issue => {
             const owner = issue.stakeholder;
-            if (!owner) return; // skip unmapped issues
+            if (!owner || issue.negativeCount === 0) return; // skip unmapped or 0-negative issues
 
             if (!stakeholders[owner]) {
                 stakeholders[owner] = { name: owner, negativeCount: 0, totalIssues: 0, skuCount: new Set(), avgRating: 0, topIssues: [] };
@@ -425,7 +426,32 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
 
     const productHealth = useMemo(() => serverProductHealth ?? [], [serverProductHealth]);
 
-
+    // Construct global apiFilters object to pass down to modals (like SkuListModal -> AsinIssueModal)
+    const apiFilters = useMemo(() => {
+        const filters: Record<string, string | number> = {};
+        if (externalSelectedCategory) filters.category = externalSelectedCategory;
+        if (globalParetoStatus && globalParetoStatus !== 'all') filters.pareto_status = globalParetoStatus;
+        if (globalRatingBifurcation) filters.rating_bifurcation = globalRatingBifurcation;
+        if (globalPlatform && globalPlatform !== 'all') filters.platform = globalPlatform;
+        if (globalDateFrom) filters.date_from = globalDateFrom;
+        if (globalDateTo) filters.date_to = globalDateTo;
+        if (!globalDateFrom && !globalDateTo && globalTrendPeriodMonths) filters.period_months = globalTrendPeriodMonths;
+        if (globalPriceMode) filters.price_mode = globalPriceMode;
+        if (globalPriceRange) {
+            filters.price_min = globalPriceRange.min;
+            filters.price_max = globalPriceRange.max;
+        }
+        if (globalBrandScope === 'prestige') filters.is_competitor = 'false';
+        else if (globalBrandScope === 'competition') filters.is_competitor = 'true';
+        else if (globalBrandScope === 'all') filters.is_competitor = 'all';
+        if (globalSentimentCategory) filters.sentiment_category = globalSentimentCategory;
+        if (globalSku) filters.web_pid = globalSku;
+        return filters;
+    }, [
+        externalSelectedCategory, globalParetoStatus, globalRatingBifurcation, globalPlatform,
+        globalDateFrom, globalDateTo, globalTrendPeriodMonths, globalPriceMode, globalPriceRange,
+        globalBrandScope, globalSentimentCategory, globalSku
+    ]);
 
     // Competitive benchmark from real competitor data — multi-metric
     const competitiveBenchmark = useMemo(() => {
@@ -687,274 +713,307 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                 {/* ===== CATEGORY CARDS STRIP ===== */}
                 <CategoryCardsStrip
                     categories={categoryHealthData}
-                    globalMetadata={globalMetadata}
+
                     loading={categoryHealthLoading}
                     selectedCategory={currentCategory}
                     onCategorySelect={handleCategorySelect}
                 />
 
                 {/* ===== V2: PARETO / NON-PARETO / NPD CLASSIFICATION CARDS ===== */}
-                {healthLoading ? (
+                {healthLoading && !executiveHealth ? (
                     <div className="flex items-center justify-center py-12">
                         <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                     </div>
                 ) : executiveHealth && (
-                    <>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {([
-                                // authorativeTotal prefers the catalogue count (executive-health now returns
-                                // per-bucket catalogueTotal from masters.products) so NPD/Pareto reflect the
-                                // full catalogue, not just SKUs reviewed in the window (NPD was showing 1 vs 19).
-                                { key: 'npd' as const, label: 'NPD', bucket: executiveHealth.npd, authorativeTotal: executiveHealth.npd.catalogueTotal ?? globalMetadata?.npdCount ?? executiveHealth.npd.total, color: 'indigo', icon: <Zap size={20} />, desc: 'New Product Development', tooltipDef: TOOLTIPS.npdCard },
-                                { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth.pareto, authorativeTotal: executiveHealth.pareto.catalogueTotal ?? globalMetadata?.paretoCount ?? executiveHealth.pareto.total, color: 'indigo', icon: <Target size={20} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
-                                { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth.nonPareto, authorativeTotal: executiveHealth.nonPareto.catalogueTotal ?? globalMetadata?.nonParetoCount ?? executiveHealth.nonPareto.total, color: 'slate', icon: <Layers size={20} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
-                            ])
-                            .filter(card => getActiveBrandName().toLowerCase() !== 'danone' && card.authorativeTotal > 0 && (card.bucket.totalReviewCount ?? 0) > 0)
-                            .map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {
-                                const isExpanded = expandedPareto === key;
-                                // Build a healthy/watch/at-risk health bar from the rating-bifurcation buckets
-                                const healthTotal = (bucket?.np?.count || 0) + (bucket?.ni?.count || 0) + (bucket?.issue?.count || 0);
-                                const healthyPct = healthTotal > 0 ? ((bucket?.np?.count || 0) / healthTotal) * 100 : 0;
-                                const watchPct = healthTotal > 0 ? ((bucket?.ni?.count || 0) / healthTotal) * 100 : 0;
-                                const atRiskPct = healthTotal > 0 ? ((bucket?.issue?.count || 0) / healthTotal) * 100 : 0;
-                                // Helpers for compact number formatting
-                                const fmtK = (n: number) => n >= 10000000 ? `${(n/10000000).toFixed(1)}Cr` : n >= 100000 ? `${(n/100000).toFixed(1)}L` : n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n);
-                                const reviewsN = bucket.totalReviewCount ?? 0;
-                                const ratingsN = Number(bucket.totalRatings || 0);
-
-                                return (
-                                <motion.div
-                                    key={key}
-                                    initial={{ opacity: 0, y: 8 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    whileHover={{ y: -2 }}
-                                    onClick={() => handleParetoCardClick(key)}
-                                    className={`p-3.5 rounded-xl bg-white dark:bg-slate-900 cursor-pointer transition-all border ${
-                                        isExpanded
-                                            ? 'border-indigo-500 ring-1 ring-indigo-500/30 shadow-sm'
-                                            : 'border-slate-200 dark:border-slate-700/60 hover:border-indigo-400 hover:shadow-sm'
-                                    }`}
-                                >
-                                    {/* Single header line: icon + title + desc + trend + chevron */}
-                                    <div className="flex items-center gap-2 mb-2.5">
-                                        <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
-                                            {icon}
-                                        </div>
-                                        <h3 className="text-[13px] font-semibold text-slate-900 dark:text-white inline-flex items-center gap-1">
-                                            {label}
-                                            <InfoTooltip definition={tooltipDef} placement="top" size="sm" />
+                    <div className={`transition-opacity duration-300 ${healthLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                        {getActiveBrandName().toLowerCase() === 'prestige' && (
+                            <>
+                                <div className="flex items-center justify-between mt-6 mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <Target size={16} className="text-indigo-500" />
+                                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                                            Pareto Status
                                         </h3>
-                                        <span className="text-[10px] text-slate-400 truncate">· {desc}</span>
-                                        {bucket.reviewGrowthPct !== 0 && (
-                                            <span className={`ml-auto text-[10px] font-semibold inline-flex items-center gap-0.5 shrink-0 ${
-                                                bucket.reviewGrowthPct > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-                                            }`} title="Review volume vs prior period">
-                                                {bucket.reviewGrowthPct > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                                                {bucket.reviewGrowthPct > 0 ? '+' : ''}{bucket.reviewGrowthPct}% vol
-                                            </span>
-                                        )}
-                                        <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="shrink-0">
-                                            <ChevronDown size={14} className="text-slate-400" />
-                                        </motion.div>
                                     </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {([
+                                        { key: 'npd' as const, label: 'NPD', bucket: executiveHealth?.npd, authorativeTotal: executiveHealth?.npd?.total ?? 0, color: 'indigo', icon: <Zap size={14} />, desc: 'New Product Development', tooltipDef: TOOLTIPS.npdCard },
+                                        { key: 'pareto' as const, label: 'Pareto', bucket: executiveHealth?.pareto, authorativeTotal: executiveHealth?.pareto?.total ?? 0, color: 'indigo', icon: <Target size={14} />, desc: 'High-value SKUs', tooltipDef: TOOLTIPS.paretoCard },
+                                        { key: 'nonPareto' as const, label: 'Non-Pareto', bucket: executiveHealth?.nonPareto, authorativeTotal: executiveHealth?.nonPareto?.total ?? 0, color: 'slate', icon: <Layers size={14} />, desc: 'Standard catalogue', tooltipDef: TOOLTIPS.nonParetoCard },
+                                    ])
+                                    .filter(() => getActiveBrandName().toLowerCase() !== 'danone')
+                                    .map(({ key, label, bucket, authorativeTotal, icon, desc, tooltipDef }) => {
+                                        if (!bucket) return null;
+                                        const isExpanded = expandedPareto === key;
+                                        const isFilteredOut = globalParetoStatus && globalParetoStatus !== 'all' && (
+                                            (globalParetoStatus === 'Pareto' && key !== 'pareto') ||
+                                            (globalParetoStatus === 'Non-Pareto' && key !== 'nonPareto') ||
+                                            (globalParetoStatus === 'NPD' && key !== 'npd')
+                                        );
+                                        const hasSkus = !isFilteredOut && Number(authorativeTotal || 0) > 0;
+                                        // Build a healthy/watch/at-risk health bar from the rating-bifurcation buckets
+                                        const healthTotal = (bucket?.np?.count || 0) + (bucket?.ni?.count || 0) + (bucket?.issue?.count || 0);
+                                        const healthyPct = healthTotal > 0 ? ((bucket?.np?.count || 0) / healthTotal) * 100 : 0;
+                                        const watchPct = healthTotal > 0 ? ((bucket?.ni?.count || 0) / healthTotal) * 100 : 0;
+                                        const atRiskPct = healthTotal > 0 ? ((bucket?.issue?.count || 0) / healthTotal) * 100 : 0;
+                                        // Helpers for compact number formatting
+                                        const fmtK = (n: number) => n >= 10000000 ? `${(n/10000000).toFixed(1)}Cr` : n >= 100000 ? `${(n/100000).toFixed(1)}L` : n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n);
+                                        const reviewsN = bucket.totalReviewCount ?? 0;
+                                        const ratingsN = Number(bucket.totalRatings || 0);
 
-                                    <>
-                                    {/* Single dense stats row: hero count · ratings · counts · delta */}
-                                    <div className="grid grid-cols-12 gap-3 items-center">
-                                        {/* Hero SKU count — 3 cols */}
-                                        <div className="col-span-3">
-                                            <div className="flex items-baseline gap-1">
-                                                <span className="text-3xl font-bold text-slate-900 dark:text-white tabular-nums leading-none">
-                                                    {Number(authorativeTotal).toLocaleString()}
-                                                </span>
-                                                <span className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">SKUs</span>
-                                                {(bucket.reviewSkuCount !== undefined && bucket.reviewSkuCount > 0) && (
-                                                    <span className="text-[9px] text-slate-400 dark:text-slate-500 tabular-nums" title={`${bucket.reviewSkuCount.toLocaleString()} SKUs with at least one review in selected window`}>
-                                                        · {bucket.reviewSkuCount.toLocaleString()} reviewed
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-2 mt-1.5 text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
-                                                <span title={`${reviewsN.toLocaleString()} reviews`} className="inline-flex items-center gap-0.5">
-                                                    <MessageSquare size={9} /><span className="font-semibold text-slate-700 dark:text-slate-300">{fmtK(reviewsN)}</span>
-                                                </span>
-                                                <span title={`${ratingsN.toLocaleString()} ratings`} className="inline-flex items-center gap-0.5">
-                                                    <BarChart3 size={9} /><span className="font-semibold text-slate-700 dark:text-slate-300">{fmtK(ratingsN)}</span>
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* 3-column rating triplet — 6 cols */}
-                                        <div className="col-span-6 flex items-stretch border-x border-slate-100 dark:border-slate-800 px-3">
-                                            {[
-                                                { label: 'PDP', value: bucket.avgPlatformRating },
-                                                { label: 'User', value: bucket.userRating },
-                                                { label: 'ML', value: bucket.mlRating },
-                                            ].map((m, i) => (
-                                                <React.Fragment key={m.label}>
-                                                    {i > 0 && <div className="w-px bg-slate-100 dark:bg-slate-800 mx-1" />}
-                                                    <div className="flex-1 flex flex-col items-center justify-center">
-                                                        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{m.label}</span>
-                                                        <span className="text-lg font-bold text-slate-800 dark:text-slate-100 tabular-nums leading-tight">
-                                                            {m.value != null ? Number(m.value).toFixed(1) : '—'}
-                                                        </span>
+                                        return (
+                                        <motion.div
+                                            key={key}
+                                            initial={{ opacity: 0, y: 8 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            whileHover={{ y: -3 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={() => handleParetoCardClick(key)}
+                                            className={`relative p-3.5 rounded-xl cursor-pointer select-none transition-all duration-200 border bg-white dark:bg-slate-900 ${
+                                                isExpanded
+                                                    ? 'border-indigo-500 shadow-md shadow-indigo-500/10'
+                                                    : 'border-slate-200 dark:border-slate-700/60 hover:border-indigo-400 hover:shadow-sm'
+                                            }`}
+                                        >
+                                            <div className="flex flex-col h-full gap-2">
+                                                {/* Header */}
+                                                <div className="flex items-start gap-2">
+                                                    <div className={`p-1.5 rounded-lg flex-shrink-0 ${isExpanded ? 'bg-indigo-500/15 text-indigo-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                                                        {icon}
                                                     </div>
-                                                </React.Fragment>
-                                            ))}
-                                        </div>
-
-                                        {/* Rating delta vs prior — 3 cols */}
-                                        <div className="col-span-3 text-right">
-                                            <div className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Δ vs prior</div>
-                                            <div className={`text-lg font-bold tabular-nums leading-tight inline-flex items-center gap-1 ${
-                                                bucket.ratingGrowthDiff > 0 ? 'text-emerald-600 dark:text-emerald-400'
-                                                : bucket.ratingGrowthDiff < 0 ? 'text-rose-600 dark:text-rose-400'
-                                                : 'text-slate-400'
-                                            }`}>
-                                                {bucket.ratingGrowthDiff !== 0 && <Star size={11} className="fill-current" />}
-                                                {bucket.ratingGrowthDiff > 0 ? '+' : ''}{bucket.ratingGrowthDiff || '0'}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Rating health — bar + inline chips on one line */}
-                                    {healthTotal > 0 && (
-                                        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex h-2 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 flex-1 min-w-0" title={`${Math.round(healthyPct)}% healthy · ${Math.round(watchPct)}% watch · ${Math.round(atRiskPct)}% at-risk`}>
-                                                    {healthyPct > 0 && <div style={{ width: `${healthyPct}%` }} className="bg-emerald-500" />}
-                                                    {watchPct > 0 && <div style={{ width: `${watchPct}%` }} className="bg-amber-500" />}
-                                                    {atRiskPct > 0 && <div style={{ width: `${atRiskPct}%` }} className="bg-rose-500" />}
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="text-[12px] font-semibold text-slate-800 dark:text-slate-100 leading-tight pt-0.5 line-clamp-1 flex items-center gap-1">
+                                                            {label}
+                                                            <InfoTooltip definition={tooltipDef} placement="top" size="sm" />
+                                                        </h3>
+                                                        <div className="text-[10px] text-slate-400 truncate">· {desc}</div>
+                                                    </div>
+                                                    
+                                                    {bucket.reviewGrowthPct !== 0 && (
+                                                        <span className={`inline-flex items-center gap-0.5 font-semibold shrink-0 rounded-md px-1.5 py-0.5 text-[10px] ${
+                                                            bucket.reviewGrowthPct > 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400'
+                                                        }`} title="Review volume vs prior period">
+                                                            {bucket.reviewGrowthPct > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                                                            {bucket.reviewGrowthPct > 0 ? '+' : ''}{bucket.reviewGrowthPct}% vol
+                                                        </span>
+                                                    )}
+                                                    <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="shrink-0 pt-1">
+                                                        <ChevronDown size={14} className="text-slate-400" />
+                                                    </motion.div>
                                                 </div>
-                                                <div className="flex gap-2 text-[10px] tabular-nums shrink-0">
-                                                    {bucket?.np?.count > 0 && (
-                                                        <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-400" title="Rating ≥ 4.2★">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{bucket.np.count}
-                                                        </span>
-                                                    )}
-                                                    {bucket?.ni?.count > 0 && (
-                                                        <span className="inline-flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-400" title="Rating 4.0–4.2★">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{bucket.ni.count}
-                                                        </span>
-                                                    )}
-                                                    {bucket?.issue?.count > 0 && (
-                                                        <span className="inline-flex items-center gap-1 font-semibold text-rose-700 dark:text-rose-400" title="Rating < 4.0★">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />{bucket.issue.count}
-                                                        </span>
-                                                    )}
-                                                    {bucket?.noRating?.count > 0 && (
-                                                        <span className="inline-flex items-center gap-1 text-slate-500" title="Not yet rated">
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />{bucket.noRating.count}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                    </>
-                                </motion.div>
-                                );
-                            })}
-                        </div>
 
-                        {/* ===== DRILL-DOWN LEVEL 2: Rating Bifurcation (NP / Issue / NI) ===== */}
-                        <AnimatePresence>
-                            {expandedPareto && executiveHealth[expandedPareto] && (
-                                <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    className="overflow-hidden"
-                                >
-                                    <div className="card p-5">
-                                        <h3 className="font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
-                                            <Activity size={16} className="text-indigo-500" />
-                                            {executiveHealth[expandedPareto].name} — Rating Bifurcation
-                                            <InfoTooltip definition={TOOLTIPS.ratingBifurcation} placement="right" />
-                                        </h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                            {([
-                                                { status: 'np' as const, label: 'No Problem (NP)', desc: '≥4.2 Rating', icon: <CheckCircle2 size={16} />, color: 'emerald' },
-                                                { status: 'ni' as const, label: 'No Issue (NI)', desc: '4.0–4.2 Rating', icon: <Shield size={16} />, color: 'blue' },
-                                                { status: 'issue' as const, label: 'Issue', desc: '<4.0 Rating', icon: <XCircle size={16} />, color: 'orange' },
-                                                { status: 'critical' as const, label: 'Critical Issue', desc: '>15% 1-Star', icon: <AlertTriangle size={16} />, color: 'red' },
-                                            ]).map(({ status, label, desc, icon, color }) => {
-                                                const group = executiveHealth[expandedPareto!][status];
-                                                return (
-                                                    <motion.div
-                                                        key={status}
-                                                        initial={{ opacity: 0, y: 8 }}
-                                                        animate={{ opacity: 1, y: 0 }}
-                                                        whileHover={{ scale: 1.02 }}
-                                                        onClick={() => {
-                                                            if (!expandedPareto || !executiveHealth?.[expandedPareto]) return;
-                                                            setSkuModalData({
-                                                                skus: group.skus,
-                                                                bucketLabel: executiveHealth[expandedPareto].name,
-                                                                statusLabel: label,
-                                                                statusColor: color,
-                                                                totalRatings: group.totalRatings,
-                                                                avgPlatformRating: group.avgPlatformRating,
-                                                                positiveRate: group.positiveRate,
-                                                            });
-                                                        }}
-                                                        className={`p-4 rounded-xl cursor-pointer transition-all border-2 border-slate-200/40 dark:border-slate-700/40 hover:border-${color}-300 dark:hover:border-${color}-600 hover:shadow-md bg-gradient-to-br from-${color}-500/5 to-transparent`}
-                                                    >
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <div className={`text-${color}-500`}>{icon}</div>
-                                                            <div>
-                                                                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{label}</span>
-                                                                <p className="text-[9px] text-slate-400">{desc}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-baseline gap-1.5">
-                                                            <span className={`text-2xl font-bold text-${color}-600 dark:text-${color}-400`}>
-                                                                {group.count}
+                                                {isFilteredOut ? (
+                                                <div className="flex items-center gap-2 py-3 text-slate-400 dark:text-slate-500">
+                                                    <HelpCircle size={14} className="shrink-0" />
+                                                    <span className="text-xs font-medium">N/A - Filtered out by Type</span>
+                                                </div>
+                                                ) : !hasSkus ? (
+                                                <div className="flex items-center gap-2 py-3 text-slate-400 dark:text-slate-500">
+                                                    <HelpCircle size={14} className="shrink-0" />
+                                                    <span className="text-xs font-medium">No SKUs match the current filters</span>
+                                                </div>
+                                                ) : (
+                                                <>
+                                                    {/* Hero */}
+                                                    <div className="flex items-baseline flex-wrap gap-1.5 mt-1">
+                                                        <span className="text-2xl font-bold text-slate-900 dark:text-white tabular-nums leading-none">
+                                                            {Number(authorativeTotal).toLocaleString()}
+                                                        </span>
+                                                        <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">SKUS</span>
+                                                        {(bucket.reviewSkuCount !== undefined && bucket.reviewSkuCount > 0) && (
+                                                            <span className="text-[10px] text-slate-400 font-medium tabular-nums" title={`${bucket.reviewSkuCount.toLocaleString()} SKUs with at least one review in selected window`}>
+                                                                · {bucket.reviewSkuCount.toLocaleString()} reviewed
                                                             </span>
-                                                            <span className="text-xs text-slate-400">SKUs</span>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Ratings Grid */}
+                                                    <div className="flex items-stretch border-y border-slate-100 dark:border-slate-800 py-1.5 mt-2">
+                                                        {[
+                                                            { label: 'PDP', value: bucket.avgPlatformRating },
+                                                            { label: 'User', value: bucket.userRating },
+                                                            { label: 'ML', value: bucket.mlRating },
+                                                        ].map((m, i) => (
+                                                            <React.Fragment key={m.label}>
+                                                                {i > 0 && <div className="w-px bg-slate-100 dark:bg-slate-800" />}
+                                                                <div className="flex-1 flex flex-col items-center justify-center min-w-0">
+                                                                    <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{m.label}</span>
+                                                                    <span className="text-base font-bold text-slate-800 dark:text-slate-100 tabular-nums leading-tight">
+                                                                        {m.value != null ? Number(m.value).toFixed(1) : '—'}
+                                                                    </span>
+                                                                </div>
+                                                            </React.Fragment>
+                                                        ))}
+                                                        
+                                                        <div className="w-px bg-slate-100 dark:bg-slate-800" />
+                                                        <div className="flex-1 flex flex-col items-center justify-center min-w-0">
+                                                            <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 whitespace-nowrap">Δ VS PRIOR</span>
+                                                            <span className={`text-sm font-bold tabular-nums leading-tight inline-flex items-center gap-0.5 mt-0.5 ${
+                                                                bucket.ratingGrowthDiff > 0 ? 'text-emerald-600 dark:text-emerald-400'
+                                                                : bucket.ratingGrowthDiff < 0 ? 'text-rose-600 dark:text-rose-400'
+                                                                : 'text-slate-400'
+                                                            }`}>
+                                                                {bucket.ratingGrowthDiff !== 0 && <Star size={10} className="fill-current" />}
+                                                                {bucket.ratingGrowthDiff > 0 ? '+' : ''}{bucket.ratingGrowthDiff || '0'}
+                                                            </span>
                                                         </div>
-                                                        <div className="mt-2">
-                                                            <RatingSummaryInline
-                                                                metrics={createRatingMetrics({
-                                                                    pdp_rating: group.avgPlatformRating,
-                                                                    user_rating: group.userRating ?? null,
-                                                                    ml_rating: group.mlRating ?? null,
-                                                                    review_count: group.totalReviewCount ?? 0,
-                                                                    rating_count: group.totalRatings,
-                                                                })}
-                                                                title={`${label} group`}
-                                                            />
-                                                        </div>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            {group.positiveRate > 0 && (
-                                                                <span className="flex items-center gap-0.5 text-[9px] text-emerald-500 font-medium">
-                                                                    <TrendingUp size={9} />
-                                                                    {group.positiveRate}%
-                                                                </span>
+                                                    </div>
+
+                                                    {/* Footer Counts & Health Bar */}
+                                                    <div className="flex flex-col gap-2 mt-auto pt-1">
+                                                        <div className="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 tabular-nums">
+                                                            <span className="flex items-center gap-1" title={`${reviewsN.toLocaleString()} text reviews collected`}>
+                                                                <MessageSquare size={10} />
+                                                                <span className="font-semibold text-slate-700 dark:text-slate-300">{fmtK(reviewsN)}</span>
+                                                                <span className="text-slate-400">rev</span>
+                                                            </span>
+                                                            <span className="flex items-center gap-1" title={`${ratingsN.toLocaleString()} PDP star ratings (no text)`}>
+                                                                <BarChart3 size={10} />
+                                                                <span className="font-semibold text-slate-700 dark:text-slate-300">{fmtK(ratingsN)}</span>
+                                                                <span className="text-slate-400">rat</span>
+                                                            </span>
+                                                            {healthTotal > 0 && (
+                                                                <div className="flex gap-1.5 shrink-0 ml-auto">
+                                                                    {bucket?.np?.count > 0 && (
+                                                                        <span className="inline-flex items-center gap-0.5 font-semibold text-emerald-700 dark:text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{bucket.np.count}</span>
+                                                                    )}
+                                                                    {bucket?.ni?.count > 0 && (
+                                                                        <span className="inline-flex items-center gap-0.5 font-semibold text-amber-700 dark:text-amber-400"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{bucket.ni.count}</span>
+                                                                    )}
+                                                                    {bucket?.issue?.count > 0 && (
+                                                                        <span className="inline-flex items-center gap-0.5 font-semibold text-rose-700 dark:text-rose-400"><span className="w-1.5 h-1.5 rounded-full bg-rose-500" />{bucket.issue.count}</span>
+                                                                    )}
+                                                                </div>
                                                             )}
                                                         </div>
-                                                    </motion.div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                                                        
+                                                        {healthTotal > 0 && (
+                                                            <div className="flex h-1.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 w-full" title={`${Math.round(healthyPct)}% healthy · ${Math.round(watchPct)}% watch · ${Math.round(atRiskPct)}% at-risk`}>
+                                                                {healthyPct > 0 && <div style={{ width: `${healthyPct}%` }} className="bg-emerald-500" />}
+                                                                {watchPct > 0 && <div style={{ width: `${watchPct}%` }} className="bg-amber-500" />}
+                                                                {atRiskPct > 0 && <div style={{ width: `${atRiskPct}%` }} className="bg-rose-500" />}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </>
+                                                )}
+                                            </div>
+                                            
+                                            {isExpanded && (
+                                                <motion.div
+                                                    layoutId="paretoActiveBar"
+                                                    className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-indigo-500"
+                                                    transition={{ type: 'spring', bounce: 0.25, duration: 0.45 }}
+                                                />
+                                            )}
+                                        </motion.div>
+                                        );
+                                    })}
+                                </div>
 
-                        {/* SKU List Modal (replaces inline Level 3 table) */}
-                        <SkuListModal
-                            isOpen={!!skuModalData}
-                            onClose={() => setSkuModalData(null)}
-                            skus={skuModalData?.skus ?? []}
-                            bucketLabel={skuModalData?.bucketLabel ?? ''}
-                            statusLabel={skuModalData?.statusLabel ?? ''}
-                            statusColor={skuModalData?.statusColor ?? 'slate'}
-                            totalRatings={skuModalData?.totalRatings ?? 0}
-                            avgPlatformRating={skuModalData?.avgPlatformRating ?? null}
-                            positiveRate={skuModalData?.positiveRate ?? 0}
-                        />
-                    </>
+                                {/* ===== DRILL-DOWN LEVEL 2: Rating Bifurcation (NP / Issue / NI) ===== */}
+                                <AnimatePresence>
+                                    {expandedPareto && executiveHealth?.[expandedPareto as keyof typeof executiveHealth] && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="overflow-hidden"
+                                        >
+                                            <div className="card p-5">
+                                                <h3 className="font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                                                    <Activity size={16} className="text-indigo-500" />
+                                                    {(executiveHealth as any)?.[expandedPareto!]?.name} — Rating Bifurcation
+                                                    <InfoTooltip definition={TOOLTIPS.ratingBifurcation} placement="right" />
+                                                </h3>
+                                                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                                                    {([
+                                                        { status: 'np' as const, label: 'No Problem (NP)', desc: '≥4.2 Rating', icon: <CheckCircle2 size={16} />, color: 'emerald' },
+                                                        { status: 'ni' as const, label: 'No Issue (NI)', desc: '4.0–4.2 Rating', icon: <Shield size={16} />, color: 'blue' },
+                                                        { status: 'issue' as const, label: 'Issue', desc: '<4.0 Rating', icon: <XCircle size={16} />, color: 'orange' },
+                                                        { status: 'critical' as const, label: 'Critical Issue', desc: '>15% 1-Star', icon: <AlertTriangle size={16} />, color: 'red' },
+                                                        { status: 'noRating' as const, label: 'No Rating', desc: 'No PDP rating yet', icon: <HelpCircle size={16} />, color: 'slate' },
+                                                    ]).map(({ status, label, desc, icon, color }) => {
+                                                        if (!executiveHealth || !expandedPareto) return null;
+                                                        const group = (executiveHealth as any)[expandedPareto][status];
+                                                        return (
+                                                            <motion.div
+                                                                key={status}
+                                                                initial={{ opacity: 0, y: 8 }}
+                                                                animate={{ opacity: 1, y: 0 }}
+                                                                whileHover={{ scale: 1.02 }}
+                                                                onClick={() => {
+                                                                    setSkuModalData({
+                                                                        skus: group?.skus || [],
+                                                                        bucketLabel: (executiveHealth as any)[expandedPareto].name,
+                                                                        statusLabel: label,
+                                                                        statusColor: color,
+                                                                        totalRatings: group.totalRatings,
+                                                                        avgPlatformRating: group.avgPlatformRating,
+                                                                        positiveRate: group.positiveRate,
+                                                                    });
+                                                                }}
+                                                                className={`p-4 rounded-xl cursor-pointer transition-all border-2 border-slate-200/40 dark:border-slate-700/40 hover:border-${color}-300 dark:hover:border-${color}-600 hover:shadow-md bg-gradient-to-br from-${color}-500/5 to-transparent`}
+                                                            >
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <div className={`text-${color}-500`}>{icon}</div>
+                                                                    <div>
+                                                                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{label}</span>
+                                                                        <p className="text-[9px] text-slate-400">{desc}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-baseline gap-1.5">
+                                                                    <span className={`text-2xl font-bold text-${color}-600 dark:text-${color}-400`}>
+                                                                        {group.count}
+                                                                    </span>
+                                                                    <span className="text-xs text-slate-400">SKUs</span>
+                                                                </div>
+                                                                <div className="mt-2">
+                                                                    <RatingSummaryInline
+                                                                        metrics={createRatingMetrics({
+                                                                            pdp_rating: group.avgPlatformRating,
+                                                                            user_rating: group.userRating ?? null,
+                                                                            ml_rating: group.mlRating ?? null,
+                                                                            review_count: group.totalReviewCount ?? 0,
+                                                                            rating_count: group.totalRatings,
+                                                                        })}
+                                                                        title={`${label} group`}
+                                                                    />
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-1">
+                                                                    {group.positiveRate > 0 && (
+                                                                        <span className="flex items-center gap-0.5 text-[9px] text-emerald-500 font-medium">
+                                                                            <TrendingUp size={9} />
+                                                                            {group.positiveRate}%
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </motion.div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
+                                {/* SKU List Modal (replaces inline Level 3 table) */}
+                                <SkuListModal
+                                    isOpen={!!skuModalData}
+                                    onClose={() => setSkuModalData(null)}
+                                    skus={skuModalData?.skus ?? []}
+                                    bucketLabel={skuModalData?.bucketLabel ?? ''}
+                                    statusLabel={skuModalData?.statusLabel ?? ''}
+                                    statusColor={skuModalData?.statusColor ?? 'slate'}
+                                    totalRatings={skuModalData?.totalRatings ?? 0}
+                                    avgPlatformRating={skuModalData?.avgPlatformRating ?? null}
+                                    positiveRate={skuModalData?.positiveRate ?? 0}
+                                    apiFilters={apiFilters}
+                                />
+                            </>
+                        )}
+                    </div>
                 )}
 
                 <div ref={belowFoldTriggerRef} className="h-px w-full" />
@@ -976,10 +1035,10 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                         </span>
                     </div>
 
-                    {!belowFoldDataReady || issuesLoading ? (
+                    {!belowFoldDataReady || (issuesLoading && stakeholderSummary.length === 0) ? (
                         <SectionLoadingState label="Loading stakeholder issue analysis..." />
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 transition-opacity duration-300 ${issuesLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
                             {stakeholderSummary.map((sh, idx) => {
                                 const shName = sh.name.toLowerCase();
                                 const icon = (shName.includes('production') || shName.includes('manufacturing'))
@@ -1060,26 +1119,30 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="card p-5 border border-purple-200/40 dark:border-purple-800/40"
+                    className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-[20px] p-5 md:p-6 shadow-xl shadow-slate-200/40 dark:shadow-none border border-slate-200/60 dark:border-slate-700/50"
                 >
-                    <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                        <div className="flex items-center gap-2">
-                            <Target className="text-purple-500" size={20} />
-                            <h3 className="font-bold text-slate-900 dark:text-white">Competitive Benchmark</h3>
-                            <span className="text-[10px] bg-purple-100/80 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400 px-2 py-1 rounded-full font-medium">
-                                {serverCompetitiveBenchmark.some(item => item.compCount > 0) ? 'Real Competitor Data' : `${getActiveBrandName()} Only`}
-                            </span>
+                    {/* Decorative Background */}
+                    <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-purple-50/50 to-transparent dark:from-purple-900/10 pointer-events-none" />
+
+                    <div className="relative flex items-center justify-between mb-5 flex-wrap gap-4 z-10">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 shadow-sm border border-purple-100/50 dark:border-purple-800/50">
+                                <Target size={18} strokeWidth={2.5} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">Competitive Benchmark</h3>
+                            </div>
                         </div>
                         {/* Metric toggle */}
-                        <div className="flex gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+                        <div className="flex gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl shadow-inner border border-slate-200/50 dark:border-slate-700/50">
                             {BENCHMARK_METRICS.map(m => (
                                 <button
                                     key={m.key}
                                     onClick={() => setBenchmarkMetric(m.key)}
                                     title={m.tooltip}
-                                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${benchmarkMetric === m.key
-                                        ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm'
-                                        : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                    className={`px-3.5 py-1.5 text-[12px] font-bold rounded-lg transition-all duration-200 ${benchmarkMetric === m.key
+                                        ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
+                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
                                         }`}
                                 >
                                     {m.label}
@@ -1108,7 +1171,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                     No benchmark categories are available in this slice yet.
                                 </div>
                             ) : (
-                                <div className="space-y-3">
+                                <div className="space-y-1 relative z-10">
                                     {serverCompetitiveBenchmark.map(item => {
                                         // Derive values based on selected metric
                                         let prestigeVal = 0, compVal = 0, maxScale = 5, unit = '★';
@@ -1132,7 +1195,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                         const barWidth = maxScale > 0 ? (prestigeVal / maxScale) * 100 : 0;
                                         const compBarPos = maxScale > 0 ? (compVal / maxScale) * 100 : 0;
                                         const delta = prestigeVal - compVal;
-                                        const isWinning = delta > 0;
+                                        const isWinning = delta >= 0; // Treat equal as not losing
 
                                         const formatVal = (v: number) => {
                                             if (benchmarkMetric === 'rating') return `${v.toFixed(1)}${unit}`;
@@ -1141,37 +1204,47 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                         };
 
                                         return (
-                                            <div key={item.category} className="group">
+                                            <div key={item.category} className="group p-1.5 -mx-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors duration-200">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-28 text-sm font-medium text-slate-700 dark:text-slate-300">
-                                                        {item.category}
-                                                        <span className="text-[10px] text-slate-400 ml-1">
-                                                            ({item.prestigeCount >= 1000 ? `${(item.prestigeCount / 1000).toFixed(1)}k` : item.prestigeCount})
+                                                    <div className="w-28 flex flex-col justify-center">
+                                                        <span className="text-[12px] font-bold text-slate-800 dark:text-slate-200 tracking-tight leading-tight truncate">
+                                                            {item.category}
+                                                        </span>
+                                                        <span className="text-[9px] font-semibold text-slate-400">
+                                                            ({item.prestigeCount >= 1000 ? `${(item.prestigeCount / 1000).toFixed(1)}k` : item.prestigeCount} reviews)
                                                         </span>
                                                     </div>
-                                                    <div className="flex-1 relative">
-                                                        <div className="h-7 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                    <div className="flex-1 relative py-0.5">
+                                                        <div className="h-5 bg-slate-100 dark:bg-slate-800/80 rounded-full overflow-hidden shadow-inner border border-slate-200/40 dark:border-slate-700/40">
                                                             <motion.div
                                                                 key={benchmarkMetric}
                                                                 initial={{ width: 0 }}
                                                                 animate={{ width: `${Math.min(barWidth, 100)}%` }}
-                                                                transition={{ duration: 0.8, ease: 'easeOut' }}
-                                                                className={`h-full rounded-full transition-all ${isWinning ? 'bg-indigo-500' : 'bg-rose-500'}`}
+                                                                transition={{ duration: 0.8, type: 'spring', bounce: 0.2 }}
+                                                                className={`h-full rounded-full transition-all shadow-sm ${
+                                                                    isWinning 
+                                                                        ? 'bg-gradient-to-r from-indigo-500 to-indigo-400 dark:from-indigo-600 dark:to-indigo-400' 
+                                                                        : 'bg-gradient-to-r from-rose-500 to-rose-400 dark:from-rose-600 dark:to-rose-400'
+                                                                }`}
                                                             />
                                                         </div>
                                                         {/* Competitor marker */}
                                                         {compVal > 0 && (
                                                             <div
-                                                                className="absolute top-0 h-7 w-0.5 bg-slate-900 dark:bg-white opacity-50"
-                                                                style={{ left: `${Math.min(compBarPos, 100)}%` }}
+                                                                className="absolute top-0 bottom-0 w-[3px] bg-slate-800 dark:bg-white rounded-full z-10 shadow-[0_0_6px_rgba(0,0,0,0.4)]"
+                                                                style={{ left: `calc(${Math.min(compBarPos, 100)}% - 1.5px)` }}
                                                                 title={`Competitor: ${formatVal(compVal)}`}
                                                             />
                                                         )}
                                                     </div>
-                                                    <div className="w-28 text-right flex items-center justify-end gap-2">
-                                                        <span className="font-bold text-sm">{formatVal(prestigeVal)}</span>
+                                                    <div className="w-24 text-right flex items-center justify-end gap-2">
+                                                        <span className="font-extrabold text-[13px] text-slate-800 dark:text-slate-100">{formatVal(prestigeVal)}</span>
                                                         {compVal > 0 && (benchmarkMetric === 'volume' || item.prestigeCount > 0) && (
-                                                            <span className={`text-[11px] font-semibold ${isWinning ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shadow-sm border ${
+                                                                isWinning 
+                                                                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border-emerald-100/50 dark:border-emerald-800/50' 
+                                                                    : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 border-rose-100/50 dark:border-rose-800/50'
+                                                            }`}>
                                                                 {benchmarkMetric === 'rating'
                                                                     ? `${isWinning ? '+' : ''}${delta.toFixed(2)}`
                                                                     : benchmarkMetric === 'sentiment'
@@ -1185,10 +1258,13 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
 
                                                 {/* Brand breakdown on hover */}
                                                 {item.brandBreakdown.length > 0 && (
-                                                    <div className="hidden group-hover:flex gap-2 ml-28 pl-3 mt-1.5 flex-wrap">
+                                                    <div className="hidden group-hover:flex gap-1.5 ml-[124px] mt-1.5 flex-wrap pb-0.5">
                                                         {item.brandBreakdown.slice(0, 5).map(b => (
-                                                            <span key={b.brand} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
-                                                                {b.brand}: {benchmarkMetric === 'rating' ? `${b.avg.toFixed(1)}★` : benchmarkMetric === 'sentiment' ? `${b.positiveRate.toFixed(0)}%` : b.count} ({b.count})
+                                                            <span key={b.brand} className="text-[10px] font-medium px-2 py-1 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 shadow-sm flex items-center gap-1.5">
+                                                                <span className="truncate max-w-[80px]">{b.brand}</span>
+                                                                <span className="text-slate-400 dark:text-slate-500">|</span>
+                                                                <span className="font-bold text-slate-800 dark:text-slate-100">{benchmarkMetric === 'rating' ? `${b.avg.toFixed(1)}★` : benchmarkMetric === 'sentiment' ? `${b.positiveRate.toFixed(0)}%` : b.count}</span>
+                                                                <span className="text-[9px] text-slate-400">({b.count})</span>
                                                             </span>
                                                         ))}
                                                     </div>
@@ -1196,21 +1272,24 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                             </div>
                                         );
                                     })}
+                                    
                                     {/* Legend */}
-                                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400">
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex items-center gap-1">
-                                                <div className="w-3 h-3 rounded bg-indigo-500" />
-                                                <span>{getActiveBrandName()}</span>
+                                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px] font-semibold text-slate-500 dark:text-slate-400 relative z-10">
+                                        <div className="flex items-center gap-5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-3 h-3 rounded-full bg-indigo-500 shadow-sm" />
+                                                <span className="tracking-wide text-slate-700 dark:text-slate-300">{getActiveBrandName()}</span>
                                             </div>
                                             {serverCompetitiveBenchmark.some(item => item.compCount > 0) && (
-                                                <div className="flex items-center gap-1">
-                                                    <div className="w-3 h-0.5 bg-slate-900 dark:bg-white opacity-50" />
-                                                    <span>Competitor Avg</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-1.5 h-3.5 rounded-[1px] bg-slate-800 dark:bg-white shadow-sm" />
+                                                    <span className="tracking-wide text-slate-700 dark:text-slate-300">Competitor Avg</span>
                                                 </div>
                                             )}
                                         </div>
-                                        <span>Hover rows for brand breakdown</span>
+                                        <div className="italic font-medium opacity-80 flex items-center gap-1.5">
+                                            Hover rows for brand breakdown
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -1221,29 +1300,29 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white p-6 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/60"
+                    className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-[20px] p-5 md:p-6 shadow-xl shadow-slate-200/40 dark:shadow-none border border-slate-200/60 dark:border-slate-700/50"
                 >
-                    <div className="pointer-events-none absolute -left-16 top-0 h-40 w-40 rounded-full bg-indigo-400/8 blur-3xl dark:bg-indigo-500/10" />
-                    <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-slate-200/70 to-transparent dark:via-slate-700/60" />
+                    {/* Decorative Background */}
+                    <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-indigo-50/50 to-transparent dark:from-indigo-900/10 pointer-events-none" />
 
-                    <div className="relative">
+                    <div className="relative z-10">
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                             <div className="max-w-2xl">
-                                <div className="flex items-center gap-2">
-                                    <div className="rounded-2xl bg-indigo-500 p-2 text-white shadow-md shadow-indigo-500/20">
-                                        {competitiveCanvasView === 'radar' ? <Radar size={18} /> : <Sparkles size={18} />}
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 shadow-sm border border-indigo-100/50 dark:border-indigo-800/50">
+                                        {competitiveCanvasView === 'radar' ? <Radar size={18} strokeWidth={2.5} /> : <Sparkles size={18} strokeWidth={2.5} />}
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Competitive Signal Atlas</h3>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                                            Bring back the richer comparison surfaces: category shape and live review language, not just summary rows.
+                                        <h3 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">Competitive Signal Atlas</h3>
+                                        <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                                            Analyze nuanced category dynamics and review sentiment shapes beyond basic summary metrics.
                                         </p>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="flex flex-col items-start gap-2 lg:items-end">
-                                <div className="flex gap-1 rounded-2xl border border-slate-200/70 bg-white/80 p-1 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/75">
+                                <div className="flex gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl shadow-inner border border-slate-200/50 dark:border-slate-700/50">
                                     {[
                                         { key: 'radar' as const, label: 'Radar', icon: Radar },
                                         { key: 'cloud' as const, label: 'Word Field', icon: Sparkles },
@@ -1253,19 +1332,19 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                             <button
                                                 key={view.key}
                                                 onClick={() => setCompetitiveCanvasView(view.key)}
-                                                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-semibold transition-all ${competitiveCanvasView === view.key
-                                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
-                                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[12px] font-bold rounded-lg transition-all duration-200 ${competitiveCanvasView === view.key
+                                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
+                                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
                                                     }`}
                                             >
-                                                <Icon size={12} />
+                                                <Icon size={14} strokeWidth={2.5} />
                                                 {view.label}
                                             </button>
                                         );
                                     })}
                                 </div>
                                 {competitiveCanvasView === 'cloud' ? (
-                                    <div className="flex gap-1 rounded-2xl border border-slate-200/70 bg-white/80 p-1 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/75">
+                                    <div className="flex gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl shadow-inner border border-slate-200/50 dark:border-slate-700/50">
                                         {([
                                             { key: 'prestige', label: getActiveBrandName() },
                                             { key: 'competitor', label: 'Competitor' },
@@ -1273,9 +1352,9 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                             <button
                                                 key={side.key}
                                                 onClick={() => setCompetitiveSignalSide(side.key)}
-                                                className={`rounded-xl px-3 py-2 text-[11px] font-semibold transition-all ${competitiveSignalSide === side.key
-                                                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                                className={`px-3.5 py-1.5 text-[12px] font-bold rounded-lg transition-all duration-200 ${competitiveSignalSide === side.key
+                                                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
+                                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
                                                     }`}
                                             >
                                                 {side.label}
@@ -1308,21 +1387,21 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                                 />
                                             ) : null}
 
-                                            <div className="grid gap-3 sm:grid-cols-3">
-                                                <div className="rounded-[24px] border border-white/60 bg-white/75 px-4 py-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/65">
-                                                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Shared sentiment axes</div>
-                                                    <div className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{competitiveSignalStats.sharedCategoryCount}</div>
-                                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Only categories present for both {getActiveBrandName()} and competitors are plotted.</p>
+                                            <div className="grid gap-4 sm:grid-cols-3">
+                                                <div className="relative overflow-hidden rounded-[20px] bg-slate-50 dark:bg-slate-800/50 p-5 shadow-inner border border-slate-200/50 dark:border-slate-700/50 transition-all hover:shadow-md">
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">Shared sentiment axes</div>
+                                                    <div className="mt-1.5 text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">{competitiveSignalStats.sharedCategoryCount}</div>
+                                                    <p className="mt-2 text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-snug">Categories present for both {getActiveBrandName()} and competitors plotted.</p>
                                                 </div>
-                                                <div className="rounded-[24px] border border-white/60 bg-white/75 px-4 py-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/65">
-                                                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{getActiveBrandName()} category set</div>
-                                                    <div className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{competitiveSignalStats.prestigeCategoryCount}</div>
-                                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Signal families present in the selected {getActiveBrandName()} slice.</p>
+                                                <div className="relative overflow-hidden rounded-[20px] bg-slate-50 dark:bg-slate-800/50 p-5 shadow-inner border border-slate-200/50 dark:border-slate-700/50 transition-all hover:shadow-md">
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-purple-500">{getActiveBrandName()} category set</div>
+                                                    <div className="mt-1.5 text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">{competitiveSignalStats.prestigeCategoryCount}</div>
+                                                    <p className="mt-2 text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-snug">Signal families present in the selected {getActiveBrandName()} slice.</p>
                                                 </div>
-                                                <div className="rounded-[24px] border border-white/60 bg-white/75 px-4 py-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/65">
-                                                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Competitor category set</div>
-                                                    <div className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{competitiveSignalStats.competitorCategoryCount}</div>
-                                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Signal families captured across competitor reviews in this slice.</p>
+                                                <div className="relative overflow-hidden rounded-[20px] bg-slate-50 dark:bg-slate-800/50 p-5 shadow-inner border border-slate-200/50 dark:border-slate-700/50 transition-all hover:shadow-md">
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">Competitor category set</div>
+                                                    <div className="mt-1.5 text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">{competitiveSignalStats.competitorCategoryCount}</div>
+                                                    <p className="mt-2 text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-snug">Signal families captured across competitor reviews in this slice.</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -1345,13 +1424,13 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                         exit={{ opacity: 0, y: -16 }}
                                         className="space-y-5"
                                     >
-                                        <div className="space-y-3">
+                                        <div className="space-y-4">
                                             {competitiveSignalSide === 'prestige' ? (
                                                 <>
-                                                    <div>
-                                                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-500">{getActiveBrandName()} signal field</div>
-                                                        <h4 className="mt-1 text-lg font-bold text-slate-900 dark:text-white">What your own reviews are saying most often</h4>
-                                                        <p className="text-sm text-slate-500 dark:text-slate-400">One clean rotating sphere for the active slice. Click a signal cluster to drill down.</p>
+                                                    <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">{getActiveBrandName()} signal field</div>
+                                                        <h4 className="mt-1 text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">What your own reviews are saying most often</h4>
+                                                        <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-1">One clean rotating sphere for the active slice. Click a signal cluster to drill down.</p>
                                                     </div>
                                                     {reviews.length > 0 ? (
                                                         <WordSphere3D
@@ -1398,108 +1477,152 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Escalating Issues */}
                     <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="card p-5 border-l-4 border-red-500"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-[24px] p-5 md:p-6 shadow-xl shadow-slate-200/40 dark:shadow-none border border-slate-200/60 dark:border-slate-700/50"
                     >
-                        <div className="flex items-center gap-2 mb-4">
-                            <Flame className="text-red-500" size={20} />
-                            <h3 className="font-bold text-slate-900 dark:text-white">🚨 Escalating Issues</h3>
-                            <span className="ml-auto text-[10px] bg-red-100 dark:bg-red-500/15 text-red-600 px-2 py-1 rounded-full font-semibold">
-                                NEEDS ATTENTION
-                            </span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 mb-4">Issues getting worse in last 6M vs prior period</p>
+                        {/* Red Top Glow Gradient */}
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-red-500 to-orange-500" />
+                        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-red-50/50 dark:from-red-900/10 to-transparent pointer-events-none" />
 
-                        {!belowFoldDataReady || serverTrendsLoading ? (
-                            <SectionLoadingState label="Loading trend analysis..." />
-                        ) : trendAnalysis.escalating.length === 0 ? (
-                            <p className="text-sm text-emerald-500 flex items-center gap-2">
-                                <Shield size={16} /> No escalating issues detected
-                            </p>
-                        ) : (
-                            <ul className="space-y-2.5">
-                                {trendAnalysis.escalating.map((item) => (
-                                    <li
-                                        key={item.characteristic}
-                                        className="p-3 bg-red-50/80 dark:bg-red-500/8 rounded-xl cursor-pointer hover:bg-red-100 dark:hover:bg-red-500/15 transition-colors border border-red-100/60 dark:border-red-800/30"
-                                        onClick={() => handleClick(item.characteristic)}
-                                    >
-                                        <div className="flex items-center justify-between mb-1.5">
-                                            <span className="font-semibold text-sm text-slate-700 dark:text-slate-300 capitalize">
-                                                {item.characteristic}
-                                            </span>
-                                            <div className="flex items-center gap-2">
-                                                <span className="flex items-center gap-1 text-red-600 text-sm font-bold">
-                                                    <ArrowUpRight size={14} />
-                                                    +{(item.change * 100).toFixed(0)}%
+                        <div className="relative z-10">
+                            <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 shadow-sm border border-red-100/50 dark:border-red-800/50">
+                                        <Flame size={20} strokeWidth={2.5} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">Escalating Issues</h3>
+                                        <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Issues worsening over the last 6 months</p>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-bold tracking-widest uppercase bg-red-100/80 dark:bg-red-500/15 text-red-700 dark:text-red-300 px-2.5 py-1 rounded-md shadow-sm">
+                                    NEEDS ATTENTION
+                                </span>
+                            </div>
+
+                            {!belowFoldDataReady || serverTrendsLoading ? (
+                                <SectionLoadingState label="Loading trend analysis..." />
+                            ) : trendAnalysis.escalating.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                                    <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-full mb-3">
+                                        <Shield size={24} strokeWidth={2} />
+                                    </div>
+                                    <p className="text-[13px] font-bold text-slate-700 dark:text-slate-300">No escalating issues detected</p>
+                                    <p className="text-[11px] text-slate-500 mt-1">Your product is performing well without any recent spikes in complaints.</p>
+                                </div>
+                            ) : (
+                                <ul className="space-y-3 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {trendAnalysis.escalating.map((item) => (
+                                        <li
+                                            key={item.characteristic}
+                                            className="group p-4 bg-white dark:bg-slate-800/50 rounded-2xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-all border border-slate-100 dark:border-slate-700/50 hover:border-red-200 dark:hover:border-red-800/50 shadow-sm hover:shadow-md"
+                                            onClick={() => handleClick(item.characteristic)}
+                                        >
+                                            <div className="flex items-center justify-between mb-2.5">
+                                                <span className="font-bold text-[14px] text-slate-800 dark:text-slate-200 capitalize tracking-tight">
+                                                    {item.characteristic}
                                                 </span>
-                                                <motion.span
-                                                    whileHover={{ scale: 1.08 }}
-                                                    whileTap={{ scale: 0.95 }}
-                                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-red-600 text-white shadow-sm shadow-red-500/25 hover:bg-red-700 transition-colors"
-                                                    onClick={(e) => { e.stopPropagation(); handleClick(item.characteristic); }}
-                                                >
-                                                    Investigate <ExternalLink size={10} />
-                                                </motion.span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="flex items-center gap-0.5 text-red-600 text-[13px] font-extrabold bg-red-50 dark:bg-red-900/20 px-2.5 py-1 rounded-md border border-red-100/50 dark:border-red-800/50 shadow-sm">
+                                                        <ArrowUpRight size={14} strokeWidth={3} />
+                                                        +{(item.change * 100).toFixed(0)}%
+                                                    </span>
+                                                    <motion.span
+                                                        whileHover={{ scale: 1.05 }}
+                                                        whileTap={{ scale: 0.95 }}
+                                                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-extrabold tracking-wide uppercase bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm transition-all"
+                                                        onClick={(e) => { e.stopPropagation(); handleClick(item.characteristic); }}
+                                                    >
+                                                        Investigate <ExternalLink size={12} strokeWidth={2.5} />
+                                                    </motion.span>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                                            <span>Before: {(item.olderNegativeRate * 100).toFixed(0)}% neg</span>
-                                            <span>→</span>
-                                            <span className="text-red-500 font-medium">Now: {(item.recentNegativeRate * 100).toFixed(0)}% neg</span>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
+                                            <div className="flex items-center gap-3.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                                <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" /> Before: {(item.olderNegativeRate * 100).toFixed(0)}% neg</span>
+                                                <span className="opacity-40">→</span>
+                                                <span className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 font-bold"><span className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.5)]" /> Now: {(item.recentNegativeRate * 100).toFixed(0)}% neg</span>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
                     </motion.div>
 
                     {/* Improving Areas */}
                     <motion.div
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="card p-5 border-l-4 border-emerald-500"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="relative overflow-hidden bg-white dark:bg-slate-900 rounded-[24px] p-5 md:p-6 shadow-xl shadow-slate-200/40 dark:shadow-none border border-slate-200/60 dark:border-slate-700/50"
                     >
-                        <div className="flex items-center gap-2 mb-4">
-                            <TrendingUp className="text-emerald-500" size={20} />
-                            <h3 className="font-bold text-slate-900 dark:text-white">📈 Improving Areas</h3>
-                            <span className="ml-auto text-[10px] bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 px-2 py-1 rounded-full font-semibold">
-                                WINNING
-                            </span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 mb-4">Issues getting better — customer concerns addressed</p>
+                        {/* Emerald Top Glow Gradient */}
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-400 via-emerald-500 to-green-500" />
+                        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-emerald-50/50 dark:from-emerald-900/10 to-transparent pointer-events-none" />
 
-                        {!belowFoldDataReady || serverTrendsLoading ? (
-                            <SectionLoadingState label="Loading trend analysis..." />
-                        ) : trendAnalysis.improving.length === 0 ? (
-                            <p className="text-sm text-slate-400">No significant improvements detected</p>
-                        ) : (
-                            <ul className="space-y-2.5">
-                                {trendAnalysis.improving.map((item) => (
-                                    <li
-                                        key={item.characteristic}
-                                        className="p-3 bg-emerald-50/80 dark:bg-emerald-500/8 rounded-xl cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-500/15 transition-colors border border-emerald-100/60 dark:border-emerald-800/30"
-                                        onClick={() => handleClick(item.characteristic)}
-                                    >
-                                        <div className="flex items-center justify-between mb-1.5">
-                                            <span className="font-semibold text-sm text-slate-700 dark:text-slate-300 capitalize">
-                                                {item.characteristic}
-                                            </span>
-                                            <span className="flex items-center gap-1 text-emerald-600 text-sm font-bold">
-                                                <ArrowDownRight size={14} />
-                                                {(item.change * 100).toFixed(0)}%
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                                            <span>Before: {(item.olderNegativeRate * 100).toFixed(0)}% neg</span>
-                                            <span>→</span>
-                                            <span className="text-emerald-500 font-medium">Now: {(item.recentNegativeRate * 100).toFixed(0)}% neg</span>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
+                        <div className="relative z-10">
+                            <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 shadow-sm border border-emerald-100/50 dark:border-emerald-800/50">
+                                        <TrendingUp size={20} strokeWidth={2.5} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">Improving Areas</h3>
+                                        <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Issues getting better and concerns addressed</p>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-bold tracking-widest uppercase bg-emerald-100/80 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-md shadow-sm">
+                                    WINNING
+                                </span>
+                            </div>
+
+                            {!belowFoldDataReady || serverTrendsLoading ? (
+                                <SectionLoadingState label="Loading trend analysis..." />
+                            ) : trendAnalysis.improving.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                                    <div className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-full mb-3">
+                                        <Sparkles size={24} strokeWidth={2} />
+                                    </div>
+                                    <p className="text-[13px] font-bold text-slate-700 dark:text-slate-300">No significant improvements</p>
+                                    <p className="text-[11px] text-slate-500 mt-1">There are no major sentiment gains detected in this period vs the last.</p>
+                                </div>
+                            ) : (
+                                <ul className="space-y-3 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {trendAnalysis.improving.map((item) => (
+                                        <li
+                                            key={item.characteristic}
+                                            className="group p-4 bg-white dark:bg-slate-800/50 rounded-2xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-all border border-slate-100 dark:border-slate-700/50 hover:border-emerald-200 dark:hover:border-emerald-800/50 shadow-sm hover:shadow-md"
+                                            onClick={() => handleClick(item.characteristic)}
+                                        >
+                                            <div className="flex items-center justify-between mb-2.5">
+                                                <span className="font-bold text-[14px] text-slate-800 dark:text-slate-200 capitalize tracking-tight">
+                                                    {item.characteristic}
+                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="flex items-center gap-0.5 text-emerald-600 text-[13px] font-extrabold bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-1 rounded-md border border-emerald-100/50 dark:border-emerald-800/50 shadow-sm">
+                                                        <ArrowDownRight size={14} strokeWidth={3} />
+                                                        {(item.change * 100).toFixed(0)}%
+                                                    </span>
+                                                    <motion.span
+                                                        whileHover={{ scale: 1.05 }}
+                                                        whileTap={{ scale: 0.95 }}
+                                                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-extrabold tracking-wide uppercase bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm transition-all"
+                                                        onClick={(e) => { e.stopPropagation(); handleClick(item.characteristic); }}
+                                                    >
+                                                        Investigate <ExternalLink size={12} strokeWidth={2.5} />
+                                                    </motion.span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                                <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600" /> Before: {(item.olderNegativeRate * 100).toFixed(0)}% neg</span>
+                                                <span className="opacity-40">→</span>
+                                                <span className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 font-bold"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" /> Now: {(item.recentNegativeRate * 100).toFixed(0)}% neg</span>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
                     </motion.div>
                 </div>
 
@@ -1572,10 +1695,10 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                                             style={{ width: `${product.healthScore}%` }}
                                                         />
 
-                                                        <div className="p-3 flex items-center gap-3">
+                                                        <div className="p-3 grid grid-cols-12 gap-3 items-center">
                                                             {/* Score */}
                                                             <div
-                                                                className={`flex flex-col items-center justify-center min-w-10 ${getHealthColor(product.healthScore)}`}
+                                                                className={`col-span-2 md:col-span-1 flex flex-col items-center justify-center min-w-10 ${getHealthColor(product.healthScore)}`}
                                                                 title="Product Health Score (0-100)"
                                                             >
                                                                 <span className="text-xl font-bold leading-tight">{product.healthScore}</span>
@@ -1583,83 +1706,127 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                                             </div>
 
                                                             {/* Product name + meta */}
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
+                                                            <div className="col-span-10 md:col-span-4 min-w-0 flex flex-col justify-center">
+                                                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
                                                                     {product.product}
                                                                 </p>
-                                                                <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-0.5">
-                                                                    <span>{product.totalMentions.toLocaleString()} reviews</span>
-                                                                    <span>{(product.positiveRate * 100).toFixed(0)}% positive</span>
-                                                                    <span>{(product.negativeRate * 100).toFixed(0)}% negative</span>
+                                                                <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-500 font-medium">
+                                                                    <MessageSquare size={10} className="text-slate-400" />
+                                                                    {product.totalMentions.toLocaleString()} reviews
                                                                 </div>
                                                             </div>
 
-                                                            {/* Sparkline */}
-                                                            <MiniSparkline
-                                                                data={product.monthlyRatings.map(m => m.avg)}
-                                                                color={product.trend === 'improving' ? '#22c55e' : product.trend === 'declining' ? '#ef4444' : '#64748b'}
-                                                            />
+                                                            {/* Sentiment Breakdown */}
+                                                            <div className="hidden md:flex col-span-3 flex-col justify-center gap-1.5 px-2">
+                                                                <div className="flex items-center justify-between text-[9px] font-medium text-slate-500 uppercase tracking-wide">
+                                                                    <span>Sentiment</span>
+                                                                    <span className="text-emerald-500">{(product.positiveRate * 100).toFixed(0)}% Pos</span>
+                                                                </div>
+                                                                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden flex">
+                                                                    <div className="h-full bg-emerald-400" style={{ width: `${product.positiveRate * 100}%` }} title={`Positive: ${(product.positiveRate * 100).toFixed(0)}%`} />
+                                                                    <div className="h-full bg-slate-300 dark:bg-slate-500" style={{ width: `${(1 - product.positiveRate - product.negativeRate) * 100}%` }} title={`Neutral: ${((1 - product.positiveRate - product.negativeRate) * 100).toFixed(0)}%`} />
+                                                                    <div className="h-full bg-red-400" style={{ width: `${product.negativeRate * 100}%` }} title={`Negative: ${(product.negativeRate * 100).toFixed(0)}%`} />
+                                                                </div>
+                                                            </div>
 
-                                                            {/* Trend badge */}
-                                                            <div className={`shrink-0 flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold ${product.trend === 'improving'
-                                                                ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600'
-                                                                : product.trend === 'declining'
-                                                                    ? 'bg-red-100 dark:bg-red-900/20 text-red-600'
-                                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                                                                }`}>
-                                                                {product.trend === 'improving' && <TrendingUp size={10} />}
-                                                                {product.trend === 'declining' && <TrendingDown size={10} />}
-                                                                {product.trend}
+                                                            {/* Sparkline & Trend badge */}
+                                                            <div className="hidden md:flex col-span-3 items-center justify-end gap-6">
+                                                                <MiniSparkline
+                                                                    data={product.monthlyRatings.map(m => m.avg)}
+                                                                    color={product.trend === 'improving' ? '#22c55e' : product.trend === 'declining' ? '#ef4444' : '#64748b'}
+                                                                />
+                                                                <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold shadow-sm ${product.trend === 'improving'
+                                                                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20'
+                                                                    : product.trend === 'declining'
+                                                                        ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 ring-1 ring-red-500/20'
+                                                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-500 ring-1 ring-slate-500/20'
+                                                                    }`}>
+                                                                    {product.trend === 'improving' && <TrendingUp size={10} />}
+                                                                    {product.trend === 'declining' && <TrendingDown size={10} />}
+                                                                    {product.trend}
+                                                                </div>
                                                             </div>
 
                                                             {/* Expand arrow */}
-                                                            <motion.div animate={{ rotate: expandedProduct === product.product ? 180 : 0 }}>
-                                                                <ChevronDown size={14} className="text-slate-400" />
-                                                            </motion.div>
+                                                            <div className="hidden md:flex col-span-1 items-center justify-end">
+                                                                <motion.div animate={{ rotate: expandedProduct === product.product ? 180 : 0 }}>
+                                                                    <ChevronDown size={16} className="text-slate-400 hover:text-indigo-500 transition-colors" />
+                                                                </motion.div>
+                                                            </div>
                                                         </div>
 
                                                         {/* Expanded trend chart */}
                                                         <AnimatePresence>
-                                                            {expandedProduct === product.product && product.monthlyRatings.length > 1 && (
+                                                            {expandedProduct === product.product && product.monthlyRatings.length > 0 && (
                                                                 <motion.div
                                                                     initial={{ height: 0, opacity: 0 }}
                                                                     animate={{ height: 'auto', opacity: 1 }}
                                                                     exit={{ height: 0, opacity: 0 }}
-                                                                    className="overflow-hidden border-t border-slate-100 dark:border-slate-700/50"
+                                                                    className="overflow-hidden border-t border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-900/20"
                                                                 >
-                                                                    <div className="p-3 pt-2">
+                                                                    <div className="p-4 pt-3">
                                                                         <div className="flex items-center justify-between mb-2">
-                                                                            <p className="text-[10px] text-slate-400 font-medium">Monthly User Rating Trend</p>
-                                                                            <button
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    setFullTrendProduct(fullTrendProduct === product.product ? null : product.product);
-                                                                                }}
-                                                                                className={`text-[9px] font-semibold px-2 py-0.5 rounded-md transition-all ${fullTrendProduct === product.product
-                                                                                    ? 'bg-indigo-500 text-white shadow-sm'
-                                                                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-indigo-600'
-                                                                                    }`}
-                                                                            >
-                                                                                {fullTrendProduct === product.product ? 'Period View' : 'Full 12M'}
-                                                                            </button>
+                                                                            <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                                                                                <BarChart3 size={12} className="text-indigo-400" />
+                                                                                Monthly User Rating Trend
+                                                                            </p>
+                                                                            {product.monthlyRatings.length > selectedPeriod && (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        setFullTrendProduct(fullTrendProduct === product.product ? null : product.product);
+                                                                                    }}
+                                                                                    className={`text-[10px] font-semibold px-2.5 py-1 rounded-md transition-all border ${fullTrendProduct === product.product
+                                                                                        ? 'bg-indigo-500 text-white border-indigo-600 shadow-sm'
+                                                                                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-indigo-400 hover:text-indigo-600'
+                                                                                        }`}
+                                                                                >
+                                                                                    {fullTrendProduct === product.product ? 'Show Period View' : 'Show Full 12M'}
+                                                                                </button>
+                                                                            )}
                                                                         </div>
-                                                                        <div className="flex items-end gap-1 h-20">
-                                                                            {(fullTrendProduct === product.product ? product.monthlyRatings : product.monthlyRatings.slice(-selectedPeriod)).map((m, i) => {
-                                                                                const barH = ((m.avg - 1) / 4) * 100; // 1-5 scale -> 0-100%
-                                                                                return (
-                                                                                    <div key={m.month} className="flex-1 flex flex-col items-center gap-0.5">
-                                                                                        <span className="text-[8px] text-slate-400 font-medium">{m.avg.toFixed(1)}</span>
-                                                                                        <motion.div
-                                                                                            initial={{ height: 0 }}
-                                                                                            animate={{ height: `${barH}%` }}
-                                                                                            transition={{ delay: i * 0.05, duration: 0.4 }}
-                                                                                            className={`w-full rounded-t ${m.avg >= 4 ? 'bg-emerald-400' : m.avg >= 3 ? 'bg-amber-400' : 'bg-rose-400'}`}
-                                                                                            style={{ minHeight: '2px' }}
-                                                                                        />
-                                                                                        <span className="text-[7px] text-slate-400">{m.month.split('-')[1]}/{m.month.split('-')[0].slice(2)}</span>
+                                                                        <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 rounded-xl p-3 pb-6 mt-4 relative h-36 flex items-end justify-around gap-2 shadow-sm">
+                                                                            {/* Horizontal Grid Lines */}
+                                                                            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20 dark:opacity-10 pb-6 px-2">
+                                                                                {[5, 4, 3, 2, 1].map(n => (
+                                                                                    <div key={n} className="w-full border-b border-slate-400 border-dashed relative">
+                                                                                        <span className="absolute -left-1 -top-2 text-[8px] text-slate-500">{n}</span>
                                                                                     </div>
-                                                                                );
-                                                                            })}
+                                                                                ))}
+                                                                            </div>
+                                                                            
+                                                                            {(() => {
+                                                                                let displayData = fullTrendProduct === product.product ? product.monthlyRatings : product.monthlyRatings.slice(-selectedPeriod);
+                                                                                // Ensure we don't crash and layout looks good even with 1 point
+                                                                                if (displayData.length === 1) {
+                                                                                    displayData = [{ month: '---', avg: 0, count: 0 }, displayData[0], { month: '---', avg: 0, count: 0 }];
+                                                                                }
+                                                                                
+                                                                                return displayData.map((m, i) => {
+                                                                                    const barH = m.avg > 0 ? Math.max(0, ((m.avg - 1) / 4) * 100) : 0; // 1-5 scale -> 0-100%
+                                                                                    const isPlaceholder = m.month === '---';
+                                                                                    return (
+                                                                                        <div key={isPlaceholder ? `empty-${i}` : m.month} className={`flex-1 flex flex-col items-center justify-end h-full gap-1 z-10 relative ${isPlaceholder ? 'opacity-0' : 'group'}`}>
+                                                                                            <span className="text-[9px] text-slate-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity mb-0.5">
+                                                                                                {m.avg > 0 ? m.avg.toFixed(1) : ''}
+                                                                                            </span>
+                                                                                            <motion.div
+                                                                                                initial={{ height: 0 }}
+                                                                                                animate={{ height: `${barH}%` }}
+                                                                                                transition={{ delay: i * 0.03, duration: 0.5, type: 'spring', stiffness: 120 }}
+                                                                                                className={`w-full max-w-[32px] rounded-t-md transition-colors ${m.avg >= 4 ? 'bg-emerald-400/90 group-hover:bg-emerald-400' : m.avg >= 3 ? 'bg-amber-400/90 group-hover:bg-amber-400' : 'bg-rose-400/90 group-hover:bg-rose-400'}`}
+                                                                                                style={{ minHeight: isPlaceholder || m.avg === 0 ? '0' : '4px' }}
+                                                                                            />
+                                                                                            {!isPlaceholder && m.month.includes('-') && (
+                                                                                                <span className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded shadow-sm border border-slate-200 dark:border-slate-700 absolute -bottom-[22px] whitespace-nowrap">
+                                                                                                    {m.month.split('-')[1]}/{m.month.split('-')[0].slice(2)}
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    );
+                                                                                });
+                                                                            })()}
+
                                                                         </div>
                                                                     </div>
                                                                 </motion.div>
@@ -1713,39 +1880,61 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                     className="card p-5"
                 >
                     <div className="flex items-center gap-2 mb-4">
-                        <Lightbulb className="text-amber-500" size={20} />
-                        <h3 className="font-bold text-slate-900 dark:text-white">AI-Powered Recommendations</h3>
+                        <Sparkles className="text-indigo-500" size={18} />
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                            AI-Powered Recommendations
+                        </h3>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="p-4 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-slate-200/40 dark:border-slate-700/40">
-                            <h4 className="font-semibold text-red-600 dark:text-red-400 mb-2 text-sm">🔧 Immediate Action Required</h4>
-                            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                        {/* Immediate Action Card */}
+                        <div className="p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700/50">
+                                <AlertTriangle className="text-rose-500" size={16} />
+                                <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Immediate Action Required</h4>
+                            </div>
+                            <ul className="space-y-3">
                                 {trendAnalysis.escalating.slice(0, 2).map(item => (
-                                    <li key={item.characteristic} className="flex items-start gap-2">
-                                        <AlertTriangle className="text-red-500 mt-0.5 shrink-0" size={13} />
-                                        <span>Investigate <strong className="capitalize">{item.characteristic}</strong> complaints — up {(item.change * 100).toFixed(0)}% recently</span>
+                                    <li key={item.characteristic} className="flex items-start gap-3">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-2 shrink-0" />
+                                        <span className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                                            Investigate <strong className="font-semibold text-slate-900 dark:text-white capitalize">{item.characteristic}</strong> complaints — up <span className="font-medium text-rose-600 dark:text-rose-400">{(item.change * 100).toFixed(0)}%</span> recently
+                                        </span>
                                     </li>
                                 ))}
                                 {trendAnalysis.escalating.length === 0 && (
-                                    <li className="text-emerald-500">No urgent issues — maintain current quality standards</li>
+                                    <li className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                                        <CheckCircle2 className="text-emerald-500" size={16} />
+                                        No urgent issues detected — quality is stable.
+                                    </li>
                                 )}
                             </ul>
                         </div>
 
-                        <div className="p-4 bg-white/80 dark:bg-slate-800/80 rounded-xl border border-slate-200/40 dark:border-slate-700/40">
-                            <h4 className="font-semibold text-emerald-600 dark:text-emerald-400 mb-2 text-sm">🚀 Growth Opportunities</h4>
-                            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                        {/* Growth Opportunities Card */}
+                        <div className="p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700/50">
+                                <TrendingUp className="text-emerald-500" size={16} />
+                                <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Growth Opportunities</h4>
+                            </div>
+                            <ul className="space-y-3">
                                 {improvingProducts.slice(0, 2).map(product => (
-                                    <li key={product.product} className="flex items-start gap-2">
-                                        <TrendingUp className="text-emerald-500 mt-0.5 shrink-0" size={13} />
-                                        <span>Leverage <strong>{product.product.slice(0, 50)}...</strong> — {product.healthScore} health score</span>
+                                    <li key={product.product} className="flex items-start gap-3">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-2 shrink-0" />
+                                        <span className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                                            Leverage <strong className="font-semibold text-slate-900 dark:text-white" title={product.product}>{product.product}</strong>
+                                            <span className="inline-flex items-center ml-2 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800">
+                                                Score: {product.healthScore}
+                                            </span>
+                                        </span>
                                     </li>
                                 ))}
                                 {trendAnalysis.improving.slice(0, 2).map(item => (
-                                    <li key={item.characteristic} className="flex items-start gap-2">
-                                        <Target className="text-indigo-500 mt-0.5 shrink-0" size={13} />
-                                        <span>Promote <strong className="capitalize">{item.characteristic}</strong> improvements — down {Math.abs(item.change * 100).toFixed(0)}% complaints</span>
+                                    <li key={item.characteristic} className="flex items-start gap-3">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-2 shrink-0" />
+                                        <span className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                                            Promote <strong className="font-semibold text-slate-900 dark:text-white capitalize">{item.characteristic}</strong> improvements — down <span className="font-medium text-emerald-600 dark:text-emerald-400">{Math.abs(item.change * 100).toFixed(0)}%</span> complaints
+                                        </span>
                                     </li>
                                 ))}
                             </ul>
@@ -1753,20 +1942,50 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
 
                         {/* At-risk products */}
                         {decliningProducts.length > 0 && (
-                            <div className="p-4 bg-red-50/60 dark:bg-red-900/10 rounded-xl border border-red-200/40 dark:border-red-700/30 md:col-span-2">
-                                <h4 className="font-semibold text-red-600 dark:text-red-400 mb-2 text-sm">⚠️ Products Requiring Attention ({decliningProducts.length})</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                    {decliningProducts.slice(0, 6).map(product => (
-                                        <div
-                                            key={product.product}
-                                            className="flex items-center gap-2 p-2 bg-white/80 dark:bg-slate-800/80 rounded-lg cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                            onClick={() => handleClick(product.product)}
-                                        >
-                                            <span className={`text-lg font-bold ${getHealthColor(product.healthScore)}`}>{product.healthScore}</span>
-                                            <span className="text-[11px] text-slate-600 dark:text-slate-400 truncate">{product.product.slice(0, 40)}...</span>
-                                            <span className="text-[10px] text-red-500 ml-auto shrink-0">{(product.negativeRate * 100).toFixed(0)}% neg</span>
-                                        </div>
-                                    ))}
+                            <div className="p-5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm md:col-span-2">
+                                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-700/50">
+                                    <div className="flex items-center gap-2">
+                                        <AlertTriangle className="text-amber-500" size={16} />
+                                        <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">Products Requiring Attention</h4>
+                                    </div>
+                                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-600">
+                                        {decliningProducts.length} identified
+                                    </span>
+                                </div>
+                                <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1">
+                                        {decliningProducts.map(product => (
+                                            <div
+                                                key={product.product}
+                                                className="group flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors cursor-pointer"
+                                                onClick={() => onProductClick?.(product.product)}
+                                            >
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <span className={`inline-flex shrink-0 items-center justify-center w-8 h-8 rounded text-xs font-bold ${
+                                                        product.healthScore >= 70 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                                                        product.healthScore >= 40 ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
+                                                        'bg-rose-50 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400'
+                                                    }`}>
+                                                        {product.healthScore}
+                                                    </span>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[13px] font-medium text-slate-700 dark:text-slate-200" title={product.product}>
+                                                            {product.product}
+                                                        </p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                                                                {(product.negativeRate * 100).toFixed(0)}% negative
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                                                                • {product.totalMentions} mentions
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <ArrowUpRight className="text-slate-300 dark:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0" size={16} />
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1796,6 +2015,8 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                     date_to: globalDateTo,
                     is_competitor: globalBrandScope === 'prestige' ? 'false' : globalBrandScope === 'competition' ? 'true' : 'all',
                     sentiment_category: globalSentimentCategory,
+                    web_pid: globalSku,
+                    period_months: globalTrendPeriodMonths,
                     price_mode: globalPriceMode,
                     price_min: globalPriceRange?.min,
                     price_max: globalPriceRange?.max,

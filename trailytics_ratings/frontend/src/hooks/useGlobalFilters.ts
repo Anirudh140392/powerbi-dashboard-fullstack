@@ -26,7 +26,7 @@ import { CLASSIFICATION_RULES, PARETO_HEALTH_THRESHOLD, NI_RATING_THRESHOLD } fr
 // DATE UTILITIES
 // ============================================================================
 
-function getDateRangeForPreset(preset: DatePreset): { startDate: Date; endDate: Date } {
+export function getDateRangeForPreset(preset: DatePreset): { startDate: Date; endDate: Date } {
     const endDate = new Date();
     const startDate = new Date();
 
@@ -78,7 +78,7 @@ export interface GlobalFilterResult {
     setProductCategory: (productCategory: string | null) => void;
     setSubcategory: (subcategory: string | null) => void;
     setClassification: (classification: ProductClassification | 'all') => void;
-    setSku: (sku: string | null) => void;
+    setSku: (sku: string[]) => void;
     setRatingBifurcation: (bifurcation: RatingBifurcation | null) => void;
     setDatePreset: (preset: DatePreset) => void;
     setTrendPeriodMonths: (months: number | undefined) => void;
@@ -87,6 +87,7 @@ export interface GlobalFilterResult {
     setPriceRange: (priceRange: { min: number; max: number } | null) => void;
     setSearchTerm: (term: string) => void;
     setBrand: (brand: string | null) => void;
+    applyFilters: (newFilters: GlobalFilterState) => void;
     resetFilters: () => void;
 
     // Filtered data
@@ -130,7 +131,7 @@ const DEFAULT_FILTERS: GlobalFilterState = {
         classification: 'all',
     },
     productCategory: null,
-    sku: null,
+    sku: [],
     ratingBifurcation: null,
     dateRange: {
         preset: '6M',
@@ -160,7 +161,7 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         setFilters(prev => ({
             ...prev,
             category: { ...prev.category, selectedCategory, selectedSubcategory: null },
-            sku: null,
+            sku: [],
         }));
     }, []);
 
@@ -168,7 +169,7 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         setFilters(prev => ({
             ...prev,
             productCategory,
-            sku: null,
+            sku: [],
             category: {
                 ...prev.category,
                 selectedCategory: null
@@ -180,7 +181,7 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         setFilters(prev => ({
             ...prev,
             category: { ...prev.category, selectedSubcategory },
-            sku: null,
+            sku: [],
         }));
     }, []);
 
@@ -190,15 +191,15 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
             category: { ...prev.category, classification },
             // Reset bifurcation when classification changes
             ratingBifurcation: null,
-            sku: null,
+            sku: [],
         }));
     }, []);
 
     const setRatingBifurcation = useCallback((ratingBifurcation: RatingBifurcation | null) => {
-        setFilters(prev => ({ ...prev, ratingBifurcation, sku: null }));
+        setFilters(prev => ({ ...prev, ratingBifurcation, sku: [] }));
     }, []);
 
-    const setSku = useCallback((sku: string | null) => {
+    const setSku = useCallback((sku: string[]) => {
         setFilters(prev => ({ ...prev, sku }));
     }, []);
 
@@ -238,6 +239,10 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         setFilters(prev => ({ ...prev, brand }));
     }, []);
 
+    const applyFilters = useCallback((newFilters: GlobalFilterState) => {
+        setFilters(newFilters);
+    }, []);
+
     const resetFilters = useCallback(() => {
         setFilters(DEFAULT_FILTERS);
     }, []);
@@ -268,9 +273,22 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         const { startDate: sDate, endDate: eDate } = filters.dateRange;
         return allCompetitorReviews.filter(r => {
             const d = new Date(r.date);
-            return d >= sDate && d <= eDate;
+            const inDate = d >= sDate && d <= eDate;
+            if (!inDate) return false;
+            
+            if (filters.priceRange) {
+                const rAny = r as any;
+                const price = filters.priceMode === 'rp'
+                    ? (rAny.priceRp ?? undefined)
+                    : (rAny.priceSp ?? rAny.priceRp ?? undefined);
+                // Only exclude if price data is present AND outside the selected range
+                if (price !== undefined && price !== null && (price < filters.priceRange.min || price > filters.priceRange.max)) {
+                    return false;
+                }
+            }
+            return true;
         });
-    }, [allCompetitorReviews, filters.dateRange]);
+    }, [allCompetitorReviews, filters.dateRange, filters.priceMode, filters.priceRange]);
 
     // --- Available categories (server-driven only) ---
     const availableCategories = useMemo(() => {
@@ -380,8 +398,8 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         if (selectedSubcategory) {
             result = result.filter(r => r.subcategory === selectedSubcategory);
         }
-        if (filters.sku) {
-            result = result.filter(r => r.product === filters.sku);
+        if (filters.sku && filters.sku.length > 0) {
+            result = result.filter(r => r.product && filters.sku.includes(r.product));
         }
         if (classification !== 'all') {
             const rule = CLASSIFICATION_RULES.find(r => r.type === classification);
@@ -449,6 +467,19 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
             result = result.filter(r => r.platform === filters.competitorPlatform);
         }
 
+        // Apply Product Category filter
+        if (filters.productCategory) {
+            result = result.filter(r => {
+                const rAny = r as any;
+                return rAny.category === filters.productCategory || rAny.productCategory === filters.productCategory;
+            });
+        }
+
+        // Apply Brand filter if it is a competitor brand
+        if (filters.brand) {
+            result = result.filter(r => r.brand === filters.brand);
+        }
+
         // Apply Search Term filter
         if (filters.searchTerm) {
             const term = filters.searchTerm.toLowerCase();
@@ -462,7 +493,7 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         }
 
         return result;
-    }, [dateFilteredCompetitor, filters.category, filters.competitorPlatform, filters.searchTerm]);
+    }, [dateFilteredCompetitor, filters.category, filters.productCategory, filters.brand, filters.competitorPlatform, filters.searchTerm]);
 
     // --- Available platforms (config-driven) ---
     const PLATFORM_METADATA: Record<string, { label: string; icon: string; color: string }> = {
@@ -513,6 +544,7 @@ export function useGlobalFilters({ allPrestigeReviews, allCompetitorReviews, ser
         setPriceRange,
         setSearchTerm,
         setBrand,
+        applyFilters,
         resetFilters,
         filteredPrestigeReviews,
         filteredCompetitorReviews,

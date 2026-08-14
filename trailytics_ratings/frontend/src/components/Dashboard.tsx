@@ -11,6 +11,7 @@ import ExecutiveInsights from './ExecutiveInsights';
 import CharacteristicDetailPanel from './CharacteristicDetailPanel';
 import CompetitorBenchmarkPanel from './CompetitorBenchmarkPanel';
 import GlobalFilterBar from './GlobalFilterBar';
+import ProductDetailPanel from './ProductDetailPanel';
 
 // Hooks — ALL data from API
 import { useGlobalFilters } from '../hooks/useGlobalFilters';
@@ -114,6 +115,7 @@ const Dashboard: React.FC = () => {
     const [selectedCharacteristic, setSelectedCharacteristic] = useState<string | null>(null);
     const [isCompetitorPanelOpen, setIsCompetitorPanelOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+    const [selectedProductInsight, setSelectedProductInsight] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<TabKey>(() => {
         // Allow deep-linking from the /settings inventory cards and from
         // alert emails. /?tab=master pins the tab; /?web_pid=B0XYZ also
@@ -386,7 +388,7 @@ const Dashboard: React.FC = () => {
             <GlobalFilterBar 
                 filterResult={filterResult} 
                 tabsNode={
-                    getActiveBrandName().toLowerCase() !== 'danone' ? (
+                    getActiveBrandName().toLowerCase() === 'prestige' ? (
                         <nav className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-1 border border-slate-200/40 dark:border-slate-700/40 w-max mx-auto">
                             {TABS.filter(tab => {
                                 if (getActiveBrandName().toLowerCase() === 'prestige' && ['master', 'rules', 'reviews'].includes(tab.key)) {
@@ -452,6 +454,7 @@ const Dashboard: React.FC = () => {
                                     reviews={filteredPrestigeReviews}
                                     competitorReviews={filteredCompetitorReviews}
                                     onCharacteristicClick={setSelectedCharacteristic}
+                                    onProductClick={setSelectedProductInsight}
                                     onRequestHeavyData={enableOverviewHeavyData}
                                     serverTrends={serverTrends}
                                     serverTrendsLoading={serverTrendsLoading}
@@ -477,6 +480,7 @@ const Dashboard: React.FC = () => {
                                     globalPriceRange={filters.priceRange}
                                     globalBrandScope={filters.brandScope}
                                     globalSentimentCategory={currentSentimentCategory}
+                                    globalSku={apiFilters.web_pid as string | undefined}
                                     headlineMetrics={headlineMetrics}
                                 />
                             </motion.div>
@@ -497,6 +501,7 @@ const Dashboard: React.FC = () => {
                                         onCategoryClick={(category) => {
                                             setSelectedCharacteristic(category);
                                         }}
+                                        globalParetoStatus={apiFilters.pareto_status as string | undefined}
                                     />
                                 </Suspense>
                             </motion.div>
@@ -524,6 +529,7 @@ const Dashboard: React.FC = () => {
                                         }}
                                         externalSelectedCategory={filters.productCategory}
                                         allCategories={allProductCategories}
+                                        globalPlatform={filters.platform}
                                     />
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                         <CompetitorRadarChart reviews={filteredPrestigeReviews} competitorReviews={filteredCompetitorReviews} />
@@ -607,6 +613,17 @@ const Dashboard: React.FC = () => {
                 characteristic={selectedCharacteristic}
                 reviews={useMemo(() => ownReviewRows.map(toReview), [ownReviewRows])}
                 onClose={() => setSelectedCharacteristic(null)}
+                trendPeriodMonths={trendPeriodMonths}
+                dateFrom={apiFilters.date_from as string | undefined}
+                dateTo={apiFilters.date_to as string | undefined}
+            />
+
+            {/* Product Detail Panel */}
+            <ProductDetailPanel
+                productName={selectedProductInsight}
+                reviews={useMemo(() => ownReviewRows.map(toReview), [ownReviewRows])}
+                onClose={() => setSelectedProductInsight(null)}
+                productHealthInfo={serverProductHealth?.find(p => p.product === selectedProductInsight)}
             />
 
             {/* Competitor Benchmark Panel */}

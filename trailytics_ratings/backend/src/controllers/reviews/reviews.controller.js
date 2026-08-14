@@ -10,7 +10,7 @@ export const getReviews = async (req, res) => {
         const {
             platform, is_competitor, category, material, pareto_status, brand,
             date_from, date_to, web_pid, sentiment_category,
-            limit: queryLimit, offset: queryOffset, price_mode, price_min, price_max,
+            limit: queryLimit, offset: queryOffset, price_mode, price_min, price_max, rating_bifurcation
         } = req.query;
 
         let where = ['r.company_id = {companyId:String}'];
@@ -81,6 +81,11 @@ export const getReviews = async (req, res) => {
                 : 'coalesce(ps.price_sp, mp.selling_price, mp.mop, ps.price_rp, mp.mrp)';
             where.push(`${priceExpr} <= {priceMax:Float64}`);
             params.priceMax = Number(price_max);
+        }
+        if (rating_bifurcation) {
+            if (rating_bifurcation === 'NP') { where.push(`ps.rating >= 4.2`); }
+            else if (rating_bifurcation === 'Issue') { where.push(`ps.rating < 4.0`); }
+            else if (rating_bifurcation === 'NI') { where.push(`ps.rating >= 4.0 AND ps.rating < 4.2`); }
         }
 
         const limit = queryLimit === undefined ? 100000 : Math.max(0, parseInt(queryLimit, 10) || 0);

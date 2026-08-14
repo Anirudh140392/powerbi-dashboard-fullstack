@@ -70,7 +70,7 @@ const RolesPermissions = () => {
     const tabsList = [
         "Business Overview", "India Overview", "Insights", "Availability Analysis",
         "Market Coverage", "Visibility Analysis", "Market Share", "Sales Data", 
-        "Pricing Analysis", "Performance Marketing", "Portfolio Analysis", "Content Analysis",
+        "Pricing Analysis", "Performance Marketing", "Portfolio Analysis", "Content Score", "Content Analysis",
         "Inventory Analysis", "Play it Yourself", "Category RCA",
         "Scheduled Reports", "Download Report", "Ad Auto", "Rating", "Review Rating", "Supply", "Content", "Priority Action", "PDS Score"
     ];

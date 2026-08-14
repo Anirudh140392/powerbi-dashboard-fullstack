@@ -956,6 +956,52 @@ async function getPricingInsights(filters = {}) {
 }
 
 /**
+ * Helper to construct a product detail page (PDP) URL dynamically if none exists in the DB.
+ * Adapts to client country context (AED/amazon.ae for Hayatna, INR/amazon.in for India clients) and platform.
+ */
+export function buildDynamicSkuUrl(platformName, webPid) {
+    if (!platformName || !webPid) return null;
+    const platform = platformName.toLowerCase().trim();
+    const pid = webPid.trim();
+    const dbName = getCurrentDbName().toLowerCase();
+    const isHayatna = dbName.includes('hayatna');
+
+    if (platform.includes('amazon')) {
+        // Amazon ASINs are always uppercase (e.g. B0CGXQSHJZ)
+        return `https://www.amazon.${isHayatna ? 'ae' : 'in'}/dp/${pid.toUpperCase()}`;
+    }
+    if (platform.includes('noon')) {
+        // Noon product IDs are uppercase
+        return `https://www.noon.com/uae-en/${pid.toUpperCase()}/p/`;
+    }
+    if (platform.includes('carrefour')) {
+        return `https://www.carrefouruae.com/p/${pid}`;
+    }
+    if (platform.includes('blinkit')) {
+        return `https://blinkit.com/prn/x/id/${pid}`;
+    }
+    if (platform.includes('zepto')) {
+        // Zepto product pages accept the wildcard slug 'x' when followed by /pvid/UUID.
+        // The UUID must be in lowercase for Zepto's router to prevent 404 errors.
+        return `https://www.zeptonow.com/pn/x/pvid/${pid.toLowerCase()}`;
+    }
+    if (platform.includes('instamart') || platform.includes('swiggy')) {
+        // Swiggy Instamart items require a slug prefix followed by a dash and the item ID (e.g. product-itemId).
+        // A bare itemId will fail in the web router.
+        return `https://www.swiggy.com/instamart/item/product-${pid}`;
+    }
+    if (platform.includes('bigbasket')) {
+        return `https://www.bigbasket.com/pd/${pid}`;
+    }
+    if (platform.includes('flipkart')) {
+        // Flipkart direct PID URL
+        return `https://www.flipkart.com/product/p/itm?pid=${pid}`;
+    }
+    return null;
+}
+
+
+/**
  * Get Pricing Dimension Overview (Grouping by Category or Location)
  * @param {Object} filters - platform, location, brand, category, channel, startDate, endDate, dimension ('category' or 'location')
  */
@@ -1031,10 +1077,25 @@ const getDimensionOverview = async (filters = {}) => {
                 whereConditions.push(mslCond);
             }
 
+            const whereClauseNoGrammage = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
+
+            // ✅ Grammage filter ONLY applies to SKU dimension
+            const grammages = isSku ? parseMultiSelectFilter(filters.grammage) : null;
+            if (grammages) {
+                const pdpCols = await getTableColumns(src.table);
+                if (columnExists(pdpCols, 'weight')) {
+                    const weightCol = resolveColumn(pdpCols, 'weight');
+                    whereConditions.push(buildInClause(`p.${weightCol}`, grammages));
+                }
+            }
+
             const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
             const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
 
             let imageExpr = `'' AS image_url`;
+            let pageUrlExpr = `'' AS page_url`;
+            let platformNameExpr = `'' AS platform_name`;
+            let webPidExpr = `'' AS web_pid`;
             let joinClause = ``;
 
             if (isSku) {
@@ -1043,6 +1104,15 @@ const getDimensionOverview = async (filters = {}) => {
                     if (skuCols.size > 0 && columnExists(skuCols, 'image_url')) {
                         joinClause = `LEFT JOIN rb_sku_platform s ON LOWER(p.${f.webPid}) = LOWER(s.web_pid)`;
                         imageExpr = `any(s.image_url) AS image_url`;
+                        if (columnExists(skuCols, 'page_url')) {
+                            pageUrlExpr = `any(s.page_url) AS page_url`;
+                        }
+                        if (columnExists(skuCols, 'platform_name')) {
+                            platformNameExpr = `any(s.platform_name) AS platform_name`;
+                        }
+                        if (columnExists(skuCols, 'web_pid')) {
+                            webPidExpr = `any(s.web_pid) AS web_pid`;
+                        }
                     }
                 } catch (e) {
                     console.log("[PricingAnalysisService] rb_sku_platform or image_url missing, skipping image fetch");
@@ -1060,10 +1130,25 @@ const getDimensionOverview = async (filters = {}) => {
                 }
             }
 
+            let weightColExpr = `'' AS weight`;
+            try {
+                const pdpCols = await getTableColumns(src.table);
+                if (columnExists(pdpCols, 'weight')) {
+                    const weightCol = resolveColumn(pdpCols, 'weight');
+                    weightColExpr = `any(p.${weightCol}) AS weight`;
+                }
+            } catch (err) {
+                console.error('[getDimensionOverview] error resolving weight column', err);
+            }
+
             const query = `
                 SELECT
                     ${groupByExpr} AS dimension,
                     ${imageExpr},
+                    ${pageUrlExpr},
+                    ${platformNameExpr},
+                    ${webPidExpr},
+                    ${weightColExpr},
                     -- Current metrics (Subject Brands)
                     (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS Discount,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
@@ -1139,7 +1224,24 @@ const getDimensionOverview = async (filters = {}) => {
                     id: String(i + 1),
                     key: r.dimension,
                     name: r.dimension,
+                    weight: r.weight || null,
                     image_url: r.image_url || null,
+                    page_url: (() => {
+                        let raw = r.page_url || null;
+                        if (!raw && r.platform_name && r.web_pid) {
+                            raw = buildDynamicSkuUrl(r.platform_name, r.web_pid);
+                        }
+                        if (!raw) return null;
+                        try {
+                            const u = new URL(raw);
+                            const parts = u.pathname.split('/');
+                            parts[parts.length - 1] = parts[parts.length - 1].toUpperCase();
+                            u.pathname = parts.join('/');
+                            return u.toString();
+                        } catch (_) {
+                            return raw;
+                        }
+                    })(),
                     data: {
                         discount: getMetric(r.Discount, r.discount_prev),
                         pricePerUnit: getMetric(r.price_per_100g, r.price_per_100g_prev),
@@ -1687,5 +1789,10 @@ export {
     getPricingCompetition,
     getPricingCompetitionTrends,
     getPricingPlatforms,
-    getPricingChannels
+    getPricingChannels,
+    getPricingSource,
+    normalizeLocations,
+    normalizeChannels,
+    parseMultiSelectFilter,
+    buildInClause
 };

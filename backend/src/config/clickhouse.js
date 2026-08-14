@@ -28,6 +28,10 @@ function getClientForDb(dbName) {
             request: true,
             response: true,
         },
+        keep_alive: {
+            enabled: true,
+            idle_socket_ttl: 15000,
+        },
     });
 
     clientCache.set(dbName, client);

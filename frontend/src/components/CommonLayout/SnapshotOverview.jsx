@@ -899,12 +899,14 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                                     }
                                     if (typeof value !== 'number') return [value, ''];
                                     let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
+                                    let isPercentage = kpi.title?.includes('%') || kpi.subtitle?.includes('%') || kpi.title?.toLowerCase().includes('share') || kpi.title?.toLowerCase().includes('availability');
                                     let prefix = isCurrency ? '₹ ' : '';
-                                    let formatted = value.toFixed(1);
+                                    let suffix = isPercentage ? '%' : '';
+                                    let formatted = (value > 0 && value < 10) ? value.toFixed(2) : value.toFixed(1);
                                     if (Math.abs(value) >= 10000000) formatted = `${(value / 10000000).toFixed(2)} Cr`;
                                     else if (Math.abs(value) >= 100000) formatted = `${(value / 100000).toFixed(2)} L`;
                                     else if (Math.abs(value) >= 1000) formatted = `${(value / 1000).toFixed(2)} K`;
-                                    return [`${prefix}${formatted}`, ''];
+                                    return [`${prefix}${formatted}${suffix}`, ''];
                                 }}
                             />
                             <Area
@@ -948,7 +950,7 @@ const SnapshotOverview = ({
         const normalize = (str) => str?.toLowerCase().replace(/\s+/g, '_');
 
         // IDs to move to bottom (Actionable Intelligence)
-        const bottomIds = ['inorganic_sales', 'conversion', 'roas'];
+        const bottomIds = ['inorganic_sales', 'spend', 'conversion', 'roas'];
 
         // Identify specific KPIs from performanceData first (for values) or kpis (for structure)
         const ordersItem = kpis.find(k => normalize(k.title) === 'orders' || k.id === 'orders') ||
@@ -1056,15 +1058,28 @@ const SnapshotOverview = ({
         roasItem.infoTooltip = roasItem.infoTooltip || "The revenue generated for every unit of advertising spend.";
         const roasPerf = performanceData.find(p => p.id === 'roas_new') || {};
 
+        // 4. Spend
+        let spendItem = kpis.find(k => normalize(k.title) === 'spend');
+        if (!spendItem) spendItem = { title: 'Spend', id: 'spend' };
+        spendItem.infoTooltip = spendItem.infoTooltip || "Total advertising expenditure incurred across platforms.\n\nData Refresh: Sales and spend data is typically updated daily and available by 2:00 PM.";
+        const spendPerf = performanceData.find(p => p.id === 'spend') || {};
+
         // Helper to check for zero/empty
         const isZero = (v) => !v || v === '0' || v === '0.0' || v === 0;
 
         const buildBottomItem = (baseItem, perfItem, defaultId, defaultTitle, icon, gradient, idx) => {
             // Always use API data — no hardcoded fallback values
-            const val = baseItem?.value ?? perfItem?.value ?? '0';
+            let val = baseItem?.value ?? perfItem?.value ?? '0';
             const rawDelta = baseItem?.delta ?? (perfItem?.tag != null ? parseFloat(perfItem.tag) : 0);
             const delta = isNaN(rawDelta) ? 0 : rawDelta;
             const footer = baseItem?.subtitle || baseItem?.footer || perfItem?.footer || "Performance Metric";
+
+            if ((defaultId === 'conversion' || baseItem?.id === 'conversion' || defaultTitle === 'Conversion') && val && val !== '0' && val !== 'N/A') {
+                const strVal = String(val).trim();
+                if (!strVal.endsWith('%')) {
+                    val = `${strVal}%`;
+                }
+            }
 
             return {
                 id: baseItem?.id || defaultId,
@@ -1083,23 +1098,17 @@ const SnapshotOverview = ({
 
         const bottomItems = [];
 
-        // Inorganic Sales
+        // 1. Spend
         bottomItems.push(buildBottomItem(
-            inorganicItem, inorganicPerf, 'inorganic', 'Inorganic Sales', TrendingUp, ['#22c55e', '#4ade80'], 0
+            spendItem, spendPerf, 'spend', 'Spend', Wallet, ['#8b5cf6', '#a78bfa'], 0
         ));
 
-        // Conversion
+        // 2. Inorganic Sales
         bottomItems.push(buildBottomItem(
-            conversionItem, conversionPerf, 'conversion', 'Conversion', Target, ['#06b6d4', '#22d3ee'], 1
+            inorganicItem, inorganicPerf, 'inorganic', 'Inorganic Sales', TrendingUp, ['#22c55e', '#4ade80'], 1
         ));
 
-        // ROAS
-        bottomItems.push(buildBottomItem(
-            roasItem, roasPerf, 'roas', 'ROAS', DollarSign, ['#eab308', '#facc15'], 2
-        ));
-
-        // 4. Orders (Always last in this specific list)
-        // Check performanceData for orders KPI as well
+        // 3. Orders
         const ordersPerf = performanceData.find(p => p.id === 'orders') || {};
         const ordersVal = (ordersItem && ordersItem.value != null) ? (ordersItem.value || ordersItem.label)
             : (ordersPerf.value != null ? ordersPerf.value : '0');
@@ -1119,8 +1128,17 @@ const SnapshotOverview = ({
             infoTooltip: ordersItem?.infoTooltip || "The total number of completed purchase transactions within a given period.\n\nData Refresh: Sales data is typically updated daily and available by 2:00 PM.",
             trendSeries: makeSeries(45, 30, 0.14, seed)
         };
-
         bottomItems.push(finalOrders);
+
+        // 4. Conversion
+        bottomItems.push(buildBottomItem(
+            conversionItem, conversionPerf, 'conversion', 'Conversion', Target, ['#06b6d4', '#22d3ee'], 3
+        ));
+
+        // 5. ROAS
+        bottomItems.push(buildBottomItem(
+            roasItem, roasPerf, 'roas', 'ROAS', DollarSign, ['#eab308', '#facc15'], 4
+        ));
 
         return { topKpis: topRowItems, bottomKpis: bottomItems };
     }, [kpis, performanceData, variant, seed]);
@@ -1215,9 +1233,9 @@ const SnapshotOverview = ({
                                     </Box>
                                     <h3 className="text-[0.85rem] font-bold text-slate-800 tracking-tight">Performance Intelligence</h3>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                                     {performanceLoading ? (
-                                        [1, 2, 3, 4].map((i) => <ActionableMetricCard key={i} loading={true} />)
+                                        [1, 2, 3, 4, 5].map((i) => <ActionableMetricCard key={i} loading={true} />)
                                     ) : (
                                         bottomKpis.map((kpi, idx) => (
                                             <motion.div

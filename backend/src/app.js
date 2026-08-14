@@ -131,6 +131,10 @@ app.use("/api/auth/verify", (req, res, next) => {
 // Auth routes (PUBLIC - no JWT required)
 app.use("/api/auth", authRoutes);
 
+// WhatsApp Webhook route (PUBLIC - verified via hub.verify_token & HMAC SHA-256)
+import whatsappWebhookRoutes from "./routes/whatsappWebhookRoutes.js";
+app.use("/api/whatsapp/webhook", whatsappWebhookRoutes);
+
 
 // MySQL connection disabled - using ClickHouse only
 // connectDB()
@@ -187,6 +191,12 @@ const server = app.listen(port, () => {
 
 // Initialize WebSocket server for real-time notifications
 initSocket(server);
+
+// Start the background email alert cron scheduler
+import { initAlertCron } from './services/alertCronService.js';
+import { initKamAlertCron } from './services/kamAlertCronService.js';
+initAlertCron();
+initKamAlertCron();
 
 // Extend server timeout to 10 minutes (600,000ms) for large report downloads
 server.timeout = 10 * 60 * 1000;

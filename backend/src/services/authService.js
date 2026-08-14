@@ -6,7 +6,7 @@ import { toFlatPermissions } from './adminService.js';
 import { generateDeviceToken, getDeviceTokenForClient } from './deviceService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'trailytics_jwt_secret_2026';
-const JWT_EXPIRY = '7d';
+// Tokens are permanent (no expiration)
 
 /**
  * Authenticate user by email and password, with Trusted Device verification.
@@ -37,15 +37,19 @@ export async function loginUser(email, password, deviceInfo = {}) {
         ip: clientIp
     } = deviceInfo;
 
-    // 1. Find user by email (get latest active row)
+    const trimmedEmail = (email || '').trim();
+
+    // 1. Find user by email (get latest active row, case-insensitive match)
     const users = await queryAdminDB(
         `SELECT *, toString(db_id) as db_id_str, toString(id) as id_str, toString(user_id) as user_id_str 
          FROM tb_user 
-         WHERE user_email = {email:String} AND status = 'active'
+         WHERE lower(user_email) = lower({email:String}) AND status = 'active'
          ORDER BY last_login DESC
          LIMIT 1`,
-        { email }
+        { email: trimmedEmail }
     );
+
+
 
     if (!users || users.length === 0) {
         throw new Error('Invalid email or password');
@@ -92,6 +96,8 @@ export async function loginUser(email, password, deviceInfo = {}) {
         }
     }
 
+    let resolvedDbId = matchedDb ? matchedDb.db_id : userDbId;
+
     if (matchedDb) {
         dbName = matchedDb.db_name;
         dbLogoUrl = matchedDb.logo_url || "";
@@ -102,7 +108,7 @@ export async function loginUser(email, password, deviceInfo = {}) {
         if (rawCid && !isNullUuid) {
             companyId = rawCid;
         }
-        console.log(`[Auth] ✅ Database mapped for ${user.user_email}: ${dbName} (id: ${userDbId}) companyId: ${companyId || '(none)'}`);
+        console.log(`[Auth] ✅ Database mapped for ${user.user_email}: ${dbName} (id: ${resolvedDbId}) companyId: ${companyId || '(none)'}`);
     } else {
         console.warn(`[Auth] ⚠️ No matching database found for db_id=${userDbId}, using fallback: ${dbName}`);
     }
@@ -110,6 +116,8 @@ export async function loginUser(email, password, deviceInfo = {}) {
     // Workaround for readonly permission on tb_user: force mars for user
     if (user.user_email === 'kenilkavar@gmail.com') {
         dbName = 'mars';
+        const marsDb = databases.find(d => d.db_name === 'mars');
+        if (marsDb) resolvedDbId = marsDb.db_id;
         console.log(`[Auth] 💡 Manual override: forcing dbName='mars' for ${user.user_email}`);
     }
 
@@ -176,25 +184,30 @@ export async function loginUser(email, password, deviceInfo = {}) {
         if (matchedRow) {
             const currentAccess = (matchedRow.access || '').toLowerCase().trim();
 
-            if (currentAccess === 'allow') {
-                // ✅ Approved — allow login
+            if (currentAccess === 'allow' || currentAccess === 'pending') {
+                // ✅ Approved or Auto-Approved pending request — allow login
                 const isValidTok = (t) => t && typeof t === 'string' && !t.includes('{') && !t.includes('%') && t.length > 5;
                 resolvedDeviceToken = isValidTok(clientDeviceToken) ? clientDeviceToken : (isValidTok(matchedRow.device_token) ? matchedRow.device_token : generateDeviceToken());
-                console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} via approved device/user for client db_id=${user.db_id_str}`);
+                console.log(`[DEBUG_AUTH] ENFORCEMENT: Granting access to ${user.user_email} (Auto-approved) for client db_id=${user.db_id_str}`);
             } else if (currentAccess === 'deny') {
                 throw new Error('Access Denied: Your access request has been rejected by an administrator.');
             } else {
-                // Pending request already exists for this device
-                const err = new Error('Access Pending: Your request is still awaiting administrator review.');
-                err.deviceToken = clientDeviceToken;
-                err.dbId = user.db_id_str;
-                throw err;
+                // // ORIGINAL CODE (COMMENTED OUT AS REQUESTED):
+                // // Pending request already exists for this device
+                // const err = new Error('Access Pending: Your request is still awaiting administrator review.');
+                // err.deviceToken = clientDeviceToken;
+                // err.dbId = user.db_id_str;
+                // throw err;
+
+                const isValidTok = (t) => t && typeof t === 'string' && !t.includes('{') && !t.includes('%') && t.length > 5;
+                resolvedDeviceToken = isValidTok(clientDeviceToken) ? clientDeviceToken : (isValidTok(matchedRow.device_token) ? matchedRow.device_token : generateDeviceToken());
             }
         } else {
             // Step D: No existing record for this specific device or email for this client.
-            // Require admin approval for new user/device. Re-use existing token if available to avoid token churn.
+            // AUTO-APPROVE new access requests automatically
             const newToken = clientDeviceToken || generateDeviceToken();
-            console.log(`[DEBUG_AUTH] New device/user detected for ${user.user_email} (db_id: ${user.db_id_str}), creating pending access request with token ${newToken}`);
+            resolvedDeviceToken = newToken;
+            console.log(`[DEBUG_AUTH] New device/user detected for ${user.user_email} (db_id: ${user.db_id_str}), AUTO-APPROVING access request with token ${newToken}`);
             try {
                 const rowId = Date.now().toString();
                 await insertAdminDB('tb_user', [{
@@ -209,7 +222,7 @@ export async function loginUser(email, password, deviceInfo = {}) {
                     created_on: user.created_on,
                     status: 'active',
                     ip: fingerprintId || clientIp || '0.0.0.0',
-                    access: 'pending',
+                    access: 'allow', // AUTO-APPROVED (was 'pending')
                     db_status: user.db_status || 'active',
                     tab_permissions: user.tab_permissions || '',
                     device_token: newToken,
@@ -218,14 +231,16 @@ export async function loginUser(email, password, deviceInfo = {}) {
                     operating_system: os || '',
                     platform: platform || '',
                 }]);
-                console.log(`[DEBUG_AUTH] Created new pending request in tb_user for ${user.user_email} (db_id: ${user.db_id_str}) with token ${newToken}`);
+                console.log(`[DEBUG_AUTH] Created and auto-approved new request in tb_user for ${user.user_email} (db_id: ${user.db_id_str}) with token ${newToken}`);
             } catch (ipError) {
-                console.error(`[DEBUG_AUTH] Failed to insert pending row:`, ipError.message);
+                console.error(`[DEBUG_AUTH] Failed to insert row:`, ipError.message);
             }
-            const err = new Error('Access Pending: Your request is still awaiting administrator review.');
-            err.deviceToken = newToken;
-            err.dbId = user.db_id_str;
-            throw err;
+
+            // // ORIGINAL CODE (COMMENTED OUT AS REQUESTED):
+            // const err = new Error('Access Pending: Your request is still awaiting administrator review.');
+            // err.deviceToken = newToken;
+            // err.dbId = user.db_id_str;
+            // throw err;
         }
     } else {
         console.log(`[DEBUG_AUTH] ENFORCEMENT: Admin bypass for ${user.user_email}`);
@@ -320,14 +335,14 @@ export async function loginUser(email, password, deviceInfo = {}) {
         email: user.user_email,
         userName: user.user_name,
         dbName: dbName,
-        dbId: userDbId,
+        dbId: resolvedDbId,
         dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus: dbStatusBool,
         companyId,
     };
 
-    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+    const token = jwt.sign(tokenPayload, JWT_SECRET);
 
     return {
         token,
@@ -335,7 +350,7 @@ export async function loginUser(email, password, deviceInfo = {}) {
             email: user.user_email,
             name: user.user_name,
             dbName: dbName,
-            dbId: userDbId,
+            dbId: resolvedDbId,
             dbLogoUrl: dbLogoUrl,
             role: userRole,
             dbStatus: dbStatusBool,
@@ -382,16 +397,16 @@ export async function verifySession(token, deviceToken = null) {
         if (clientDeviceToken) {
             const tokenRows = await queryAdminDB(
                 `SELECT access FROM tb_user
-                 WHERE user_email = {email:String}
-                   AND db_id = {dbId:String}
+                 WHERE lower(user_email) = lower({email:String})
+                   AND (toString(db_id) = {dbId:String} OR {dbId:String} = '')
                    AND device_token = {dtoken:String}
                  ORDER BY last_login DESC
                  LIMIT 1`,
-                { email: decoded.email, dbId: decoded.dbId, dtoken: clientDeviceToken }
+                { email: decoded.email, dbId: String(decoded.dbId || ''), dtoken: clientDeviceToken }
             );
             if (tokenRows.length > 0) {
                 const status = (tokenRows[0].access || '').toLowerCase().trim();
-                if (status === 'allow') {
+                if (status === 'allow' || status === 'pending') {
                     accessVerified = true;
                 } else if (status === 'deny') {
                     throw new Error('Access Denied: Your device has been blocked by an administrator.');
@@ -405,18 +420,18 @@ export async function verifySession(token, deviceToken = null) {
         if (!accessVerified) {
             const accessRecords = await queryAdminDB(
                 `SELECT access FROM tb_user 
-                 WHERE user_email = {email:String}
-                   AND db_id = {dbId:String}
+                 WHERE lower(user_email) = lower({email:String})
+                   AND (toString(db_id) = {dbId:String} OR {dbId:String} = '')
                  ORDER BY
-                   CASE access WHEN 'allow' THEN 0 WHEN 'deny' THEN 1 ELSE 2 END,
+                   CASE access WHEN 'allow' THEN 0 WHEN 'pending' THEN 1 WHEN 'deny' THEN 2 ELSE 3 END,
                    last_login DESC
                  LIMIT 1`,
-                { email: decoded.email, dbId: decoded.dbId }
+                { email: decoded.email, dbId: String(decoded.dbId || '') }
             );
 
             const currentAccess = accessRecords.length > 0 ? (accessRecords[0].access || '').toLowerCase().trim() : null;
 
-            if (currentAccess !== 'allow') {
+            if (currentAccess !== 'allow' && currentAccess !== 'pending') {
                 throw new Error('Access not allowed. Please contact admin.');
             }
         }
@@ -436,9 +451,7 @@ export async function verifySession(token, deviceToken = null) {
         `);
         if (dbRows.length > 0) {
             dbLogoUrl = dbRows[0].logo_url || "";
-            if (!dbId) {
-                dbId = dbRows[0].db_id || "";
-            }
+            dbId = dbRows[0].db_id || dbId;
             // Filter out the null UUID sentinel (00000000-0000-0000-0000-000000000000)
             const rawCid = dbRows[0].company_id || '';
             const isNullUuid = rawCid === '00000000-0000-0000-0000-000000000000';
@@ -456,10 +469,12 @@ export async function verifySession(token, deviceToken = null) {
     try {
         const permRows = await queryAdminDB(
             `SELECT 
-                ifNull(argMaxIf(db_status, last_login, db_status != ''), 'active') as db_status,
-                ifNull(argMaxIf(tab_permissions, last_login, tab_permissions != ''), '') as tab_permissions
+                db_status,
+                tab_permissions
              FROM tb_user 
-             WHERE user_email = {email:String}`,
+             WHERE lower(user_email) = lower({email:String}) AND status != 'deleted'
+             ORDER BY last_login DESC, created_on DESC
+             LIMIT 1`,
             { email: decoded.email }
         );
         if (permRows.length > 0) {
@@ -488,3 +503,78 @@ export async function verifySession(token, deviceToken = null) {
         companyId,      // ratings postgres company_id — passed to ratings tab via sessionStorage
     };
 }
+
+/**
+ * Verify invitation token
+ */
+export async function verifyInviteToken(token) {
+    const { inviteTokensMap } = await import('./adminService.js');
+    if (!token || !inviteTokensMap.has(token)) {
+        throw new Error('Invalid or expired invitation token. Please request a new invitation from your admin.');
+    }
+    const info = inviteTokensMap.get(token);
+    if (Date.now() > info.expiresAt) {
+        inviteTokensMap.delete(token);
+        throw new Error('This invitation link has expired (48h limit). Please request a new invitation.');
+    }
+    return {
+        valid: true,
+        email: info.email,
+        dbName: info.dbName,
+        dbId: info.dbId,
+        role: info.role,
+    };
+}
+
+/**
+ * Complete invitation: create password, set status = 'active', and log user in
+ */
+export async function completeInvitation(token, password, deviceInfo = {}) {
+    const inviteInfo = await verifyInviteToken(token);
+    if (!password || password.length < 6) {
+        throw new Error('Password must be at least 6 characters long.');
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const { email, dbId, role } = inviteInfo;
+
+    const hashRes = await queryAdminDB(`SELECT toString(cityHash64('${email}')) as hash`);
+    const user_id = hashRes[0]?.hash || Date.now().toString();
+    const id = Date.now().toString();
+    const currentTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0];
+
+    let defaultTabPermissions = '';
+    try {
+        const permQuery = `SELECT tab_permissions FROM tb_user WHERE lower(user_email) = {email:String} AND tab_permissions != '' LIMIT 1`;
+        const rows = await queryAdminDB(permQuery, { email });
+        if (rows && rows.length > 0 && rows[0].tab_permissions) {
+            defaultTabPermissions = rows[0].tab_permissions;
+        }
+    } catch (e) { /* ignore */ }
+
+    await insertAdminDB('tb_user', [{
+        id,
+        user_id,
+        user_email: email,
+        user_name: email.split('@')[0],
+        user_role: role || 'user',
+        password_hash: hashedPassword,
+        db_id: dbId,
+        last_login: currentTimestamp,
+        created_on: currentTimestamp,
+        status: 'active',
+        ip: deviceInfo.ip || '',
+        access: 'allow',
+        db_status: 'active',
+        tab_permissions: defaultTabPermissions
+    }]);
+
+    // Clear token after single use
+    const { inviteTokensMap } = await import('./adminService.js');
+    inviteTokensMap.delete(token);
+
+    // Authenticate and return JWT token session
+    const { authenticateSsoUser } = await import('./ssoService.js');
+    return await authenticateSsoUser({ email, name: email.split('@')[0], provider: 'local' }, deviceInfo);
+}
+

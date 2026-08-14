@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useContext } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import TrailyticsTypewriterLoader from "../../components/insights/TrailyticsTypewriterLoader";
 import "./ContentAnalysisPage.css";
+import { FilterContext } from "../../utils/FilterContext";
 
 // Lazy-load the dashboard so it only loads when this route is visited
 const ContentDashboard = React.lazy(() =>
@@ -9,6 +10,21 @@ const ContentDashboard = React.lazy(() =>
 );
 
 export default function ContentAnalysisPage() {
+  const { platform } = useContext(FilterContext);
+
+  // Get logged in user's DB name
+  const storedUser = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("user") || sessionStorage.getItem("kiryana_user") || "{}");
+    } catch {
+      return {};
+    }
+  })();
+  const userDbName = storedUser?.dbName || storedUser?.company_name || "";
+  
+  // Resolve sidebar platform to a single string, since Content Analysis should only have one selected
+  let sidebarPlatform = typeof platform === "string" ? platform : (Array.isArray(platform) ? platform[0] : "All");
+  
   return (
     <CommonContainer
       title="Content Analysis"
@@ -25,7 +41,7 @@ export default function ContentAnalysisPage() {
             </div>
           }
         >
-          <ContentDashboard />
+          <ContentDashboard sidebarPlatform={sidebarPlatform} company={userDbName} />
         </React.Suspense>
       </div>
     </CommonContainer>

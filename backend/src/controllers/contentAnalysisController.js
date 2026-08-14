@@ -110,7 +110,10 @@ export const ContentAnalysisPlatformBreakdownController = async (req, res) => {
 
 export const ContentAnalysisPlatformsController = async (req, res) => {
     try {
-        const platforms = await getContentAnalysisPlatforms();
+        const { channel } = req.query;
+        console.log(`[ContentAnalysisPlatformsController] Received channel: ${channel}`);
+        const platforms = await getContentAnalysisPlatforms(channel);
+        console.log(`[ContentAnalysisPlatformsController] Returning platforms:`, platforms);
         res.json(platforms);
     } catch (error) {
         console.error('Error in Content Analysis Platforms:', error);

@@ -35,6 +35,7 @@ interface SkuListModalProps {
     totalRatings: number;
     avgPlatformRating: number | null;
     positiveRate: number;
+    apiFilters?: Record<string, string | number | undefined>;
 }
 
 const SORT_OPTIONS: { key: SkuSort; label: string }[] = [
@@ -57,6 +58,7 @@ const SkuListModal: React.FC<SkuListModalProps> = ({
     totalRatings,
     avgPlatformRating,
     positiveRate,
+    apiFilters,
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [sortKey, setSortKey] = useState<SkuSort>('latest');
@@ -451,6 +453,7 @@ const SkuListModal: React.FC<SkuListModalProps> = ({
                     isOpen={!!asinModalWebPid}
                     onClose={() => setAsinModalWebPid(null)}
                     webPid={asinModalWebPid}
+                    apiFilters={apiFilters}
                 />
             )}
         </>

@@ -609,32 +609,43 @@ const PlatformOverview = ({
                             <TrendingUp size={17} />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="RCA" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => onViewRca(platform.label)}
-                            className="trend-icon"
-                            sx={{
-                              borderRadius: 2,
-                              border: "1px solid #e5e7eb",
-                              background: "#EEF2F7",
-                              width: 32,
-                              height: 32,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              "&:hover": {
-                                background: "#DBEAFE",
-                              },
-                            }}
-                          >
-                            <LightbulbCogRCAIcon
-                              size={18}
-                              color="#000000"
-                              glow="#fde68a"
-                            />
-                          </IconButton>
-                        </Tooltip>
+                        {(() => {
+                          const pName = (platform.label || '').toLowerCase().trim();
+                          const ECOM_PLATFORMS = ['amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart'];
+                          const isEcomP = ECOM_PLATFORMS.some(p => pName.includes(p));
+                          const isAmazonP = pName.includes('amazon');
+
+                          if (isEcomP && !isAmazonP) return null;
+
+                          return (
+                            <Tooltip title="RCA" arrow>
+                              <IconButton
+                                size="small"
+                                onClick={() => onViewRca(platform.label)}
+                                className="trend-icon"
+                                sx={{
+                                  borderRadius: 2,
+                                  border: "1px solid #e5e7eb",
+                                  background: "#EEF2F7",
+                                  width: 32,
+                                  height: 32,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  "&:hover": {
+                                    background: "#DBEAFE",
+                                  },
+                                }}
+                              >
+                                <LightbulbCogRCAIcon
+                                  size={18}
+                                  color="#000000"
+                                  glow="#fde68a"
+                                />
+                              </IconButton>
+                            </Tooltip>
+                          );
+                        })()}
                       </Box>
                     </Box>
 

@@ -16,20 +16,23 @@ const ROUTE_TO_TAB_LABEL = {
     "/pricing-analysis": "Pricing Analysis",
     "/performance-marketing": "Performance Marketing",
     "/volume-cohort": "Portfolio Analysis",
-    "/content-score": "Content Analysis",
+    "/content-score": "Content Score",
+    "/content-analysis": "Content Analysis",
     "/inventory": "Inventory Analysis",
     "/piy": "Play it Yourself",
     "/category-rca": "Category RCA",
     "/scheduled-reports": "Scheduled Reports",
     "/download-report": "Download Report",
     "/review-rating": "Review Rating",
+    "/pds-score": "PDS Score",
+    "/on-shelf-availability": "Market Coverage",
 };
 
 // Ordered list of routes to try when finding the first allowed page
 const ROUTE_PRIORITY = [
     "/watch-tower", "/geo-intelligence", "/insights", "/availability-analysis",
     "/visibility-anlysis", "/market-share", "/pricing-analysis",
-    "/performance-marketing", "/content-score", "/inventory",
+    "/performance-marketing", "/content-score", "/content-analysis", "/inventory",
     "/scheduled-reports", "/download-report", "/review-rating",
 ];
 
@@ -47,8 +50,12 @@ function isRouteAllowed(path, user) {
     // Check per-user tab permissions
     const tabPerms = user?.tabPermissions;
     if (tabPerms && Object.keys(tabPerms).length > 0) {
-        if (tabPerms[tabLabel] !== undefined && tabPerms[tabLabel] === false) {
-            return false;
+        if (tabPerms[tabLabel] !== undefined) {
+            if (tabPerms[tabLabel] === false) return false;
+        } else {
+            // Fallback for Content Score / Content Analysis label alias mismatch
+            if (tabLabel === "Content Score" && tabPerms["Content Analysis"] === false) return false;
+            if (tabLabel === "Content Analysis" && tabPerms["Content Score"] === false) return false;
         }
     }
 
@@ -58,13 +65,13 @@ function isRouteAllowed(path, user) {
 /**
  * Find the first allowed route for this user
  */
-function getFirstAllowedRoute(user) {
+export function getFirstAllowedRoute(user) {
     for (const route of ROUTE_PRIORITY) {
         if (isRouteAllowed(route, user)) {
             return route;
         }
     }
-    return null; // No routes allowed
+    return "/watch-tower";
 }
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
