@@ -517,12 +517,12 @@ const getAbsoluteOsaOverview = async (filters) => {
                 if (columnExists(pdpCols, 'delivery_date')) {
                     deliveryDaysSQL = `
                         IF(
-                            delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
+                            delivery_date IS NULL OR toString(delivery_date) = '' OR toString(delivery_date) = '0',
                             NULL,
                             CASE
-                                WHEN dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))) < 0 THEN 0
-                                WHEN dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))) > 30 THEN NULL
-                                ELSE dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))))
+                                WHEN dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(toString(delivery_date)), parseDateTimeBestEffortOrNull(concat(toString(delivery_date), ' ', toString(toYear(DATE)))))) < 0 THEN 0
+                                WHEN dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(toString(delivery_date)), parseDateTimeBestEffortOrNull(concat(toString(delivery_date), ' ', toString(toYear(DATE)))))) > 30 THEN NULL
+                                ELSE dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(toString(delivery_date)), parseDateTimeBestEffortOrNull(concat(toString(delivery_date), ' ', toString(toYear(DATE))))))
                             END
                         )
                     `;
@@ -859,12 +859,12 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 if (columnExists(pdpColsMatrix, 'delivery_date')) {
                     deliveryDaysSQL = `
                         IF(
-                            delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
+                            delivery_date IS NULL OR toString(delivery_date) = '' OR toString(delivery_date) = '0',
                             NULL,
                             CASE
-                                WHEN dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE)))))) < 0 THEN 0
-                                WHEN dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE)))))) > 30 THEN NULL
-                                ELSE dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE))))))
+                                WHEN dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(toString(delivery_date)), parseDateTimeBestEffortOrNull(concat(toString(delivery_date), ' ', toString(toYear(t1.DATE)))))) < 0 THEN 0
+                                WHEN dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(toString(delivery_date)), parseDateTimeBestEffortOrNull(concat(toString(delivery_date), ' ', toString(toYear(t1.DATE)))))) > 30 THEN NULL
+                                ELSE dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(toString(delivery_date)), parseDateTimeBestEffortOrNull(concat(toString(delivery_date), ' ', toString(toYear(t1.DATE))))))
                             END
                         )
                     `;
@@ -1168,12 +1168,12 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         argMax(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0), if(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0) > 0, t1.DATE, toDate('1970-01-01'))) as latest_inventory,
                         avg(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', 
                             IF(
-                                delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
+                                delivery_date IS NULL OR toString(delivery_date) = '' OR toString(delivery_date) = '0',
                                 NULL,
                                 CASE
-                                    WHEN dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE)))))) < 0 THEN 0
-                                    WHEN dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE)))))) > 30 THEN NULL
-                                    ELSE dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE))))))
+                                    WHEN dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(toString(delivery_date)), parseDateTimeBestEffortOrNull(concat(toString(delivery_date), ' ', toString(toYear(t1.DATE)))))) < 0 THEN 0
+                                    WHEN dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(toString(delivery_date)), parseDateTimeBestEffortOrNull(concat(toString(delivery_date), ' ', toString(toYear(t1.DATE)))))) > 30 THEN NULL
+                                    ELSE dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(toString(delivery_date)), parseDateTimeBestEffortOrNull(concat(toString(delivery_date), ' ', toString(toYear(t1.DATE))))))
                                 END
                             ), NULL)) as avg_delivery_days
 
@@ -2876,12 +2876,12 @@ const getAvailabilityKpiTrends = async (filters) => {
                 if (columnExists(pdpCols, 'delivery_date')) {
                     deliveryDaysSQL = `
                         IF(
-                            delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
+                            delivery_date IS NULL OR toString(delivery_date) = '' OR toString(delivery_date) = '0',
                             NULL,
                             CASE
-                                WHEN dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))) < 0 THEN 0
-                                WHEN dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))) > 30 THEN NULL
-                                ELSE dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))))
+                                WHEN dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(toString(delivery_date)), parseDateTimeBestEffortOrNull(concat(toString(delivery_date), ' ', toString(toYear(DATE)))))) < 0 THEN 0
+                                WHEN dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(toString(delivery_date)), parseDateTimeBestEffortOrNull(concat(toString(delivery_date), ' ', toString(toYear(DATE)))))) > 30 THEN NULL
+                                ELSE dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(toString(delivery_date)), parseDateTimeBestEffortOrNull(concat(toString(delivery_date), ' ', toString(toYear(DATE))))))
                             END
                         )
                     `;
