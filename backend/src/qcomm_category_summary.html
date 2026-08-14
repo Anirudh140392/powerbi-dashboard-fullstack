@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Quick Commerce Performance Summary — Ops Console (Frost Blue)</title>
+<!--
+  DYNAMIC PERFORMANCE SUMMARY EMAIL TEMPLATE — Reference Document (Light / Frost Blue theme)
+  =============================================================================================
+  Reskin of perfSummaryEmailTemplate.html — theme inspired by the KW Delta SOS alert card
+  (light blue header band, gray-blue table header, bordered table rows, plain footer).
+  STRUCTURE, PLACEHOLDER CONTRACT, AND ROW SEMANTICS OF THE ORIGINAL TEMPLATE ARE UNCHANGED —
+  only the color theme and the METRIC/column set below are new.
+
+  Actual rendering happens in: src/utils/categoryPerfSummaryEmailTemplate.js
+  Data is fetched by:           src/services/perfSummaryDataService.js
+  Orchestrated by:              src/services/alertCronService.js
+
+  TRIGGER: alert_type = 'performance_summary' in tb_alert
+  SCHEDULE: Fires on scheduled_day (e.g. every Thursday)
+
+  DATE LOGIC (naming matches the existing Low-OSA / KW-Delta-SOS alert convention):
+  - CW (Current Week)   = current calendar week's aggregated value, as of scheduled_day - 1
+  - L4W AVG             = average of that same metric over the preceding 4 complete weeks
+  - DELTA               = CW VALUE vs L4W AVG VALUE
+      • for %-based metrics (Weighted Discount, OSA, TACoS, SOS) → absolute point difference (CW − L4W AVG)
+      • for count/currency metrics (Offtake Units, Offtake GMV, Ad Spend) → relative % change ((CW − L4W AVG) / L4W AVG × 100)
+
+  METRICS (per platform) — confirm exact source tables/fields against the pipeline before wiring live data:
+  1. Offtake Units      = SUM(Qty_Sold)                          from rb_pdp_olap
+  2. Offtake GMV        = SUM(Selling_Price * Qty_Sold)          from rb_pdp_olap
+  3. Weighted Discount  = weighted avg ((MRP-SP)/MRP)*100         from rb_pdp_olap
+  4. OSA                = SUM(neno_osa)/SUM(deno_osa)*100         from rb_pdp_olap
+  5. Ad Spend & TACoS   = SUM(ad_spend)  +  ad_spend/Offtake GMV*100 (TACoS)   from rb_ads_olap (TODO: confirm table)
+  6. SOS                = brand_rows / total_rows * 100           from rb_kw_olap
+
+  DYNAMIC PLACEHOLDERS:
+  - {{LOGO_URL}}       → tb_database.logo_url (via tb_alert.db_id)
+  - {{COMPANY_NAME}}   → tb_database.db_name
+  - {{CW_DATE}}        → current week "as of" date (e.g. "12 Aug 2026")
+  - {{L4W_RANGE}}      → trailing 4-week window label (e.g. "16 Jul – 12 Aug 2026")
+  - {{PLATFORM_NAME}}  → Per platform from tb_alert.platforms[]
+  - {{SEVERITY_LEVEL}} → tb_alert.severity_level (unused for visual severity in this alert type; kept for schema parity)
+
+  MULTI-PLATFORM: When >1 platform selected, cards stack vertically (same as original).
+-->
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style>
+  body, table, td { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { border: 0; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+  body { margin: 0; padding: 0; width: 100% !important; background-color: #EEF2FC; }
+  table { border-collapse: collapse; border-spacing: 0; }
+  @media screen and (max-width: 400px) {
+    .email-container { width: 100% !important; max-width: 100% !important; }
+  }
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#EEF2FC;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#EEF2FC;">
+<tr>
+<td align="center" style="padding:18px 12px;">
+
+<!--[if mso]>
+<table role="presentation" align="center" width="398" cellpadding="0" cellspacing="0" border="0"><tr><td>
+<![endif]-->
+<table role="presentation" class="email-container" width="398" align="center" cellpadding="0" cellspacing="0" border="0" style="width:398px; max-width:398px; margin:0 auto;">
+
+<!-- MASTHEAD -->
+<tr>
+<td style="padding:4px 0 14px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td valign="middle" align="left" style="padding-bottom:12px;">
+<!-- LOGO PLACEHOLDER -->
+<img src="{{LOGO_URL}}" width="140" height="28" alt="{{COMPANY_NAME}} Logo" style="display:block; border:0; outline:none; text-decoration:none;">
+</td>
+</tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td valign="middle" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#5C6B94;">
+Weekly snapshot &middot; CW as of {{CW_DATE}} vs L4W Avg ({{L4W_RANGE}})
+</td>
+<td valign="middle" align="right">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right" style="background-color:#EAF0FF; border-radius:999px;">
+  <tr>
+    <td style="padding:3px 8px 2px 8px; font-family:Arial, Helvetica, sans-serif; font-size:8px; letter-spacing:.9px; text-transform:uppercase; color:#2F5FEA; font-weight:bold; white-space:nowrap;">
+      QUICK COMMERCE
+    </td>
+  </tr>
+</table>
+</td>
+</tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td height="10" style="font-size:1px; line-height:10px;">&nbsp;</td>
+</tr>
+<tr>
+<td height="3" style="background-color:#2F5FEA; border-radius:3px; font-size:1px; line-height:3px;">&nbsp;</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- ============================================================ -->
+<!-- PLATFORM CATEGORY CARD (repeated per platform + category)    -->
+<!-- ============================================================ -->
+<!-- CARD: Blinkit - {{CATEGORY_NAME}} -->
+<tr>
+<td style="padding-bottom:16px;">
+<!--[if mso]>
+<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" arcsize="4%" stroke="t" strokecolor="#E4E9F7" fillcolor="#FFFFFF" style="width:398px;">
+<v:textbox style="mso-fit-shape-to-text:true" inset="0,0,0,0">
+<![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border:1px solid #E4E9F7; border-radius:16px; box-shadow:0 10px 20px -14px rgba(47,95,234,0.20);">
+
+<!-- Band header (light blue, dark blue text — Blinkit-inspired) -->
+<tr>
+<td style="padding:13px 17px; background-color:#DCE9FE; border-radius:16px 16px 0 0; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:15px; color:#173C9C;">{{PLATFORM_NAME}} - {{CATEGORY_NAME}}</td>
+</tr>
+
+<!-- Section label bar -->
+<tr>
+<td style="padding:8px 17px; background-color:#F5F7FC; border-bottom:1px solid #EEF1FA;">
+<span style="font-family:Arial, Helvetica, sans-serif; font-size:9px; font-weight:bold; letter-spacing:.8px; text-transform:uppercase; color:#6B7A9E;">PERFORMANCE METRICS</span>
+</td>
+</tr>
+
+<!-- Column headers -->
+<tr>
+<td style="padding:10px 17px 7px 17px; border-bottom:1.5px solid #C9D6FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:8.5px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA;">METRIC</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8.5px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">CW VALUE</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8.5px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">L4W AVG VALUE</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8.5px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">DELTA</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Offtake Units -->
+<tr>
+<td style="padding:11px 17px; background-color:#FFFFFF;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#16224A; font-weight:bold;" valign="middle">Offtake Units</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12.5px; color:#0B1B3F; white-space:nowrap;" valign="middle">1,240</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11.5px; color:#5C6B94; white-space:nowrap;" valign="middle">1,050</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 18.1%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Offtake GMV -->
+<tr>
+<td style="padding:11px 17px; background-color:#F8FAFD; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#16224A; font-weight:bold;" valign="middle">Offtake GMV</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12.5px; color:#0B1B3F; white-space:nowrap;" valign="middle">&#8377;2.86L</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11.5px; color:#5C6B94; white-space:nowrap;" valign="middle">&#8377;2.42L</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 18.2%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Weighted Discount -->
+<tr>
+<td style="padding:11px 17px; background-color:#FFFFFF; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#16224A; font-weight:bold;" valign="middle">Weighted Discount</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12.5px; color:#0B1B3F; white-space:nowrap;" valign="middle">34.6%</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11.5px; color:#5C6B94; white-space:nowrap;" valign="middle">31.8%</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 2.8%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- OSA -->
+<tr>
+<td style="padding:11px 17px; background-color:#F8FAFD; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#16224A; font-weight:bold;" valign="middle">OSA</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12.5px; color:#0B1B3F; white-space:nowrap;" valign="middle">88.4%</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11.5px; color:#5C6B94; white-space:nowrap;" valign="middle">91.2%</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12px; color:#DC3B3B; white-space:nowrap;" valign="middle">&#9660; 2.8%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Ad Spend & TACoS (compound metric — two-line value cells) -->
+<tr>
+<td style="padding:11px 17px; background-color:#FFFFFF; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#16224A; font-weight:bold;" valign="middle">Ad Spend &amp; TACoS</td>
+<td width="24%" align="right" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right">
+<tr><td align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12.5px; color:#0B1B3F; white-space:nowrap;">&#8377;42.5K</td></tr>
+<tr><td align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:9px; color:#8A96B8; white-space:nowrap; padding-top:1px;">TACoS 7.8%</td></tr>
+</table>
+</td>
+<td width="24%" align="right" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right">
+<tr><td align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11.5px; color:#5C6B94; white-space:nowrap;">&#8377;38.1K</td></tr>
+<tr><td align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:9px; color:#8A96B8; white-space:nowrap; padding-top:1px;">TACoS 8.6%</td></tr>
+</table>
+</td>
+<td width="18%" align="right" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right">
+<tr><td align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12px; color:#157347; white-space:nowrap;">&#9650; 11.5%</td></tr>
+<tr><td align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:9px; color:#DC3B3B; white-space:nowrap; padding-top:1px;">&#9660; 0.8pp</td></tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- SOS -->
+<tr>
+<td style="padding:11px 17px; background-color:#F8FAFD; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#16224A; font-weight:bold;" valign="middle">SOS</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12.5px; color:#0B1B3F; white-space:nowrap;" valign="middle">24.3%</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11.5px; color:#5C6B94; white-space:nowrap;" valign="middle">21.6%</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 2.7%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- CARD FOOTER (plain, rounds off bottom corners) -->
+<tr>
+<td style="padding:12px 17px; background-color:#FFFFFF; border-top:1px solid #EEF1FA; border-radius:0 0 16px 16px; font-size:1px; line-height:1px;">&nbsp;</td>
+</tr>
+
+</table>
+<!--[if mso]>
+</v:textbox>
+</v:roundrect>
+<![endif]-->
+</td>
+</tr>
+<!-- END PLATFORM CARD -->
+
+<!-- GLOBAL FOOTER -->
+<tr>
+<td align="center" style="padding:10px 4px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td align="center" style="font-family:Arial, Helvetica, sans-serif; font-size:9px; color:#5C6B94;">
+Automated performance summary generated by <strong>Trailytics</strong>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+</table>
+<!--[if mso]>
+</td></tr></table>
+<![endif]-->
+
+</td>
+</tr>
+</table>
+</body>
+</html>

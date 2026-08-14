@@ -24,6 +24,17 @@ import { createAlert, updateAlert } from "../../api/insightsService";
 // Defined Alert Rule Presets
 const ALERT_PRESETS = [
     {
+        id: "category_perf_summary",
+        name: "Performance Summary (Category)",
+        category: "Overall Performance",
+        metrics: ["All KPIs"],
+        formula: "Weekly performance snapshot across all KPIs",
+        condition: "Weekly Schedule",
+        operator: "eq",
+        defaultThreshold: "0",
+        severity: "Medium",
+    },
+    {
         id: "low_osa_bottom_city",
         name: "Low OSA Alert (Bottom % City Level)",
         category: "Inventory & On-Shelf Availability",
@@ -147,7 +158,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const [scheduledDay, setScheduledDay] = useState("Monday");
 
     const [emailNotify, setEmailNotify] = useState(true);
-    const [emailAddress, setEmailAddress] = useState("");
+    const [emailAddresses, setEmailAddresses] = useState([]);
+    const [emailInput, setEmailInput] = useState("");
     const [whatsappNotify, setWhatsappNotify] = useState(false);
     const [whatsappNumber, setWhatsappNumber] = useState("");
     const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -161,17 +173,19 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const severityDropdownRef = useRef(null);
 
     const selectedPresets = ALERT_PRESETS.filter(p => selectedPresetIds.includes(p.id));
-    const isPerformanceSummarySelected = selectedPresetIds.includes("performance_summary");
+    const isPerformanceSummarySelected = selectedPresetIds.includes("category_perf_summary");
     // eslint-disable-next-line no-unused-vars
     const isWeeklyForced = selectedPresetIds.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id));
 
     // Sync values when editing an existing alert
     useEffect(() => {
         if (open && editingAlert) {
-            const isPerfSummary = editingAlert.alert_type === "performance_summary";
+            const isPerfSummary = editingAlert.alert_type === "category_perf_summary";
             setAlertName(editingAlert.alert_name || editingAlert.alertName || "Untitled Custom Alert");
             setIsCustomAlertName(true);
-            setEmailAddress(editingAlert.send_email || editingAlert.email || "");
+            const initialEmailStr = editingAlert.send_email || editingAlert.email || "";
+            setEmailAddresses(initialEmailStr ? initialEmailStr.split(',').map(e => e.trim()).filter(Boolean) : []);
+            setEmailInput("");
             setEmailNotify(!!(editingAlert.send_email || editingAlert.email));
             setWhatsappNumber(isPerfSummary ? "" : (editingAlert.whatsapp_no || editingAlert.phone || ""));
             setWhatsappNotify(isPerfSummary ? false : !!(editingAlert.whatsapp_no || editingAlert.phone));
@@ -212,6 +226,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
             setSelectedPlatforms([]);
             setSelectedBrands([]);
             setScheduledDay("Monday");
+            setEmailAddresses([]);
+            setEmailInput("");
         }
     }, [open, editingAlert]);
 
@@ -269,7 +285,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         }
 
         // When Performance Summary is selected, disable WhatsApp
-        if (presetId === "performance_summary") {
+        if (presetId === "category_perf_summary") {
             setWhatsappNotify(false);
         }
 
@@ -398,14 +414,14 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         setIsSubmitting(true);
         setSubmitError("");
 
-        const isPerfSummary = selectedPresetIds.includes("performance_summary");
+        const isPerfSummary = selectedPresetIds.includes("category_perf_summary");
 
         try {
             // Map form fields to the backend API schema (matches admin_master.tb_alert columns)
             const apiPayload = {
                 alertName: alertName || "Untitled Custom Alert",
                 alertType: selectedPresetIds.join(','),
-                sendEmail: emailNotify ? (emailAddress || "") : "",
+                sendEmail: emailNotify ? emailAddresses.join(",") : "",
                 whatsappNo: isPerfSummary ? "" : (whatsappNotify ? (whatsappNumber || "") : ""),
                 platforms: selectedPlatforms.includes("All Platforms") ? availablePlatforms : selectedPlatforms,
                 brands: isPerfSummary ? availableBrands : (selectedBrands.includes("All Brands") ? availableBrands : selectedBrands),
@@ -1007,9 +1023,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                 {/* WhatsApp Card */}
                                 <div
                                     onClick={() => {
-                                        if (!isPerformanceSummarySelected) {
-                                            setWhatsappNotify((prev) => !prev);
-                                        }
+                                        // Disabled
                                     }}
                                     style={{
                                         display: "flex",
@@ -1017,14 +1031,14 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                         justifyContent: "space-between",
                                         padding: "14px 16px",
                                         borderRadius: "12px",
-                                        border: (whatsappNotify && !isPerformanceSummarySelected) ? "2px solid #10b981" : "1.5px solid #e2e8f0",
-                                        background: isPerformanceSummarySelected ? "#f8fafc" : ((whatsappNotify && !isPerformanceSummarySelected) ? "#f0fdf4" : "#ffffff"),
-                                        cursor: isPerformanceSummarySelected ? "not-allowed" : "pointer",
-                                        opacity: isPerformanceSummarySelected ? 0.55 : 1,
-                                        boxShadow: (whatsappNotify && !isPerformanceSummarySelected) ? "0 4px 12px rgba(16, 185, 129, 0.08)" : "0 1px 3px rgba(0, 0, 0, 0.02)",
+                                        border: "1.5px solid #e2e8f0",
+                                        background: "#f8fafc",
+                                        cursor: "not-allowed",
+                                        opacity: 0.55,
+                                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.02)",
                                         transition: "all 0.18s ease",
                                     }}
-                                    title={isPerformanceSummarySelected ? "WhatsApp is disabled for Performance Summary alert" : ""}
+                                    title="WhatsApp alerts are currently disabled"
                                 >
                                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                                         <div
@@ -1032,21 +1046,21 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                 width: 36,
                                                 height: 36,
                                                 borderRadius: "8px",
-                                                background: isPerformanceSummarySelected ? "#94a3b8" : "#25D366",
+                                                background: "#94a3b8",
                                                 display: "flex",
                                                 alignItems: "center",
                                                 justifyContent: "center",
-                                                boxShadow: isPerformanceSummarySelected ? "none" : "0 2px 6px rgba(37, 211, 102, 0.3)",
+                                                boxShadow: "none",
                                             }}
                                         >
                                             <MessageSquare size={18} color="#ffffff" />
                                         </div>
                                         <div>
-                                            <span style={{ display: "block", fontSize: "13.5px", fontWeight: 700, color: isPerformanceSummarySelected ? "#94a3b8" : "#0f172a" }}>
+                                            <span style={{ display: "block", fontSize: "13.5px", fontWeight: 700, color: "#94a3b8" }}>
                                                 WhatsApp
                                             </span>
-                                            <span style={{ fontSize: "11px", color: isPerformanceSummarySelected ? "#94a3b8" : "#64748b" }}>
-                                                {isPerformanceSummarySelected ? "Disabled for Performance Summary" : "Real-time mobile pings"}
+                                            <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+                                                Currently disabled
                                             </span>
                                         </div>
                                     </div>
@@ -1056,81 +1070,125 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                             width: 20,
                                             height: 20,
                                             borderRadius: "6px",
-                                            background: (whatsappNotify && !isPerformanceSummarySelected) ? "#10b981" : "#ffffff",
-                                            border: (whatsappNotify && !isPerformanceSummarySelected) ? "none" : "1.5px solid #cbd5e1",
+                                            background: "#ffffff",
+                                            border: "1.5px solid #cbd5e1",
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "center",
                                             transition: "all 0.15s ease",
                                         }}
                                     >
-                                        {(whatsappNotify && !isPerformanceSummarySelected) && <Check size={14} color="#ffffff" strokeWidth={3} />}
                                     </div>
                                 </div>
                             </div>
 
                             {/* Dynamic Channel Input Fields */}
-                            {(emailNotify || (whatsappNotify && !isPerformanceSummarySelected)) && (
+                            {emailNotify && (
                                 <motion.div
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: "auto" }}
                                     exit={{ opacity: 0, height: 0 }}
-                                    style={{ display: "grid", gridTemplateColumns: (emailNotify && (whatsappNotify && !isPerformanceSummarySelected)) ? "1fr 1fr" : "1fr", gap: "14px" }}
+                                    style={{ display: "grid", gridTemplateColumns: "1fr", gap: "14px" }}
                                 >
                                     {emailNotify && (
                                         <div>
                                             <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
                                                 EMAIL ADDRESS
                                             </label>
-                                            <div style={{ position: "relative" }}>
-                                                <Mail size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#64748b" }} />
+                                            <div
+                                                className="form-input-focus"
+                                                style={{
+                                                    width: "100%",
+                                                    minHeight: "40px",
+                                                    padding: "4px 14px 4px 36px",
+                                                    borderRadius: "10px",
+                                                    border: "1px solid #cbd5e1",
+                                                    background: "#fff",
+                                                    display: "flex",
+                                                    flexWrap: "wrap",
+                                                    alignItems: "center",
+                                                    gap: "6px",
+                                                    position: "relative",
+                                                    boxSizing: "border-box",
+                                                    cursor: "text",
+                                                }}
+                                                onClick={() => {
+                                                    document.getElementById('email-input')?.focus();
+                                                }}
+                                            >
+                                                <Mail size={16} style={{ position: "absolute", left: 12, top: "20px", transform: "translateY(-50%)", color: "#64748b" }} />
+                                                {emailAddresses.map((email, idx) => (
+                                                    <span key={idx} style={{
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        gap: "4px",
+                                                        padding: "2px 8px",
+                                                        borderRadius: "16px",
+                                                        background: "#eff6ff",
+                                                        border: "1px solid #bfdbfe",
+                                                        color: "#0047FF",
+                                                        fontSize: "12px",
+                                                        fontWeight: 600,
+                                                    }}>
+                                                        {email}
+                                                        <span
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEmailAddresses(prev => prev.filter((_, i) => i !== idx));
+                                                            }}
+                                                            style={{
+                                                                display: "inline-flex",
+                                                                alignItems: "center",
+                                                                justifyContent: "center",
+                                                                width: "14px",
+                                                                height: "14px",
+                                                                borderRadius: "50%",
+                                                                background: "#dbeafe",
+                                                                color: "#0047FF",
+                                                                cursor: "pointer",
+                                                                fontSize: "9px",
+                                                                fontWeight: 800,
+                                                                marginLeft: "2px"
+                                                            }}
+                                                        >
+                                                            ✕
+                                                        </span>
+                                                    </span>
+                                                ))}
                                                 <input
-                                                    type="email"
-                                                    className="form-input-focus"
-                                                    placeholder="e.g., alert-team@company.com"
-                                                    value={emailAddress}
-                                                    onChange={(e) => setEmailAddress(e.target.value)}
-                                                    style={{
-                                                        width: "100%",
-                                                        height: "40px",
-                                                        padding: "0 14px 0 36px",
-                                                        borderRadius: "10px",
-                                                        border: "1px solid #cbd5e1",
-                                                        fontSize: "13px",
-                                                        color: "#0f172a",
-                                                        outline: "none",
-                                                        boxSizing: "border-box",
-                                                        background: "#fff",
+                                                    id="email-input"
+                                                    type="text"
+                                                    placeholder={emailAddresses.length === 0 ? "e.g., alert-team@company.com" : ""}
+                                                    value={emailInput}
+                                                    onChange={(e) => setEmailInput(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (["Enter", "Tab", ","].includes(e.key)) {
+                                                            e.preventDefault();
+                                                            const val = emailInput.trim().replace(/,$/, '');
+                                                            if (val && !emailAddresses.includes(val)) {
+                                                                setEmailAddresses(prev => [...prev, val]);
+                                                                setEmailInput("");
+                                                            }
+                                                        } else if (e.key === "Backspace" && emailInput === "" && emailAddresses.length > 0) {
+                                                            setEmailAddresses(prev => prev.slice(0, -1));
+                                                        }
                                                     }}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {(whatsappNotify && !isPerformanceSummarySelected) && (
-                                        <div>
-                                            <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
-                                                WHATSAPP NUMBER
-                                            </label>
-                                            <div style={{ position: "relative" }}>
-                                                <Phone size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#10b981" }} />
-                                                <input
-                                                    type="tel"
-                                                    className="form-input-focus"
-                                                    placeholder="e.g., +91 98765 43210"
-                                                    value={whatsappNumber}
-                                                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                                                    onBlur={() => {
+                                                        const val = emailInput.trim().replace(/,$/, '');
+                                                        if (val && !emailAddresses.includes(val)) {
+                                                            setEmailAddresses(prev => [...prev, val]);
+                                                            setEmailInput("");
+                                                        }
+                                                    }}
                                                     style={{
-                                                        width: "100%",
-                                                        height: "40px",
-                                                        padding: "0 14px 0 36px",
-                                                        borderRadius: "10px",
-                                                        border: "1px solid #cbd5e1",
+                                                        flex: 1,
+                                                        minWidth: "120px",
+                                                        height: "30px",
+                                                        border: "none",
+                                                        outline: "none",
+                                                        background: "transparent",
                                                         fontSize: "13px",
                                                         color: "#0f172a",
-                                                        outline: "none",
-                                                        boxSizing: "border-box",
-                                                        background: "#fff",
                                                     }}
                                                 />
                                             </div>

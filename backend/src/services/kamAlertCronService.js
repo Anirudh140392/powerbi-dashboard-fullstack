@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import { queryAdminDB } from '../config/adminClickhouse.js';
-import { generateAlertEmailHtml } from '../utils/alertEmailTemplate.js';
+// import { generateAlertEmailHtml } from '../utils/alertEmailTemplate.js';
 import { generatePerfSummaryEmailHtml } from '../utils/perfSummaryEmailTemplate.js';
 import { fetchAllPlatformKPIs } from './perfSummaryDataService.js';
 import { getLatestDataDate, computeDateRanges, getBrandOsaByPlatform, getImpactedSkus, getAggregateOsa } from './alertDataService.js';
@@ -199,9 +199,11 @@ export const runKamAlertsJob = async () => {
     const minutes = istNow.getMinutes();
 
     // Trigger only exactly at 16:30. Since it runs every 1 minute, this should fire once per day.
+    /* DEVELOPMENT OVERRIDE
     if (hours !== 16 || minutes !== 30) {
         return;
     }
+    */
 
     const istNowStr = getISTDateTimeString();
     console.log(`[KamAlertCron ${istNowStr} IST] Running scheduled KAM email alerts job at 4:30 PM...`);
@@ -308,9 +310,11 @@ export const runKamAlertsJob = async () => {
 
                         // Validate Frequency
                         const emailFreqCheck = shouldSendBasedOnFrequency(lastSentDateStr, alert.alert_frequency);
+                        /* DEVELOPMENT OVERRIDE
                         if (!emailFreqCheck.allowed) {
                             continue;
                         }
+                        */
 
                         // Determine Platforms for Query
                         let alertPlatforms = [];
@@ -571,16 +575,39 @@ export const runKamAlertsJob = async () => {
                                     const totalImpactedSkus = platformData.reduce((sum, pd) => sum + (pd.skus ? pd.skus.length : 0), 0);
 
                                     if (totalImpactedSkus > 0) {
-                                        emailHtml = generateAlertEmailHtml({
+                                        const finalDynamicEmailData = platformData.map(p => {
+                                            const tables = [];
+                                            if (p.brands && p.brands.length > 0) {
+                                                tables.push({
+                                                    tableName: 'Impacted Brands',
+                                                    headers: ['Brand', 'Current OSA'],
+                                                    rows: p.brands.map(b => [b.brand || 'Unknown', `${b.currentOsa}%`])
+                                                });
+                                            }
+                                            if (p.skus && p.skus.length > 0) {
+                                                tables.push({
+                                                    tableName: 'Impacted SKUs',
+                                                    headers: ['SKU', 'Brand', 'Current OSA'],
+                                                    rows: p.skus.map(s => [s.sku_name || s.sku || 'Unknown', s.brand || 'Unknown', `${s.currentOsa}%`])
+                                                });
+                                            }
+                                            return {
+                                                platformName: p.platform,
+                                                tables
+                                            };
+                                        });
+
+                                        emailHtml = generateDynamicAlertEmailHtml({
                                             logoUrl,
                                             companyName: companyDisplayName,
                                             istNow: istNowStr,
                                             alertName: alert.alert_name || 'Low OSA Alert',
                                             severityLevel: alert.severity_level || 'Warning',
-                                            thresholdValue: threshold,
-                                            conditionalOperator: alertOpSym,
-                                            aggregateOsa,
-                                            platformData,
+                                            currentMetricValue: aggregateOsa.currentOsa ? `${aggregateOsa.currentOsa}%` : 'N/A',
+                                            metricDelta: aggregateOsa.delta,
+                                            operator: alertOpSym,
+                                            threshold: threshold,
+                                            platformData: finalDynamicEmailData,
                                         });
                                         subject = `🚨 ALERT TRIGGERED: ${alert.alert_name}`;
                                     } else {
@@ -654,6 +681,11 @@ export const initKamAlertCron = () => {
             console.error('[KamAlertCron] Interval execution failed:', err.message);
         });
     }, INTERVAL_MS);
+
+    // DEVELOPMENT OVERRIDE: Run once immediately on start for developer verification
+    runKamAlertsJob().catch(err => {
+        console.error('[KamAlertCron] Immediate execution failed:', err.message);
+    });
 };
 
 export const stopKamAlertCron = () => {

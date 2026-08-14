@@ -12,8 +12,9 @@ const formatCompact = (value, currency = '₹') => {
     const sign = value < 0 ? '-' : '';
     if (abs >= 1e7) return `${sign}${currency}${(abs / 1e7).toFixed(1)}Cr`;
     if (abs >= 1e5) return `${sign}${currency}${(abs / 1e5).toFixed(1)}L`;
-    if (abs >= 1e3) return `${sign}${currency}${(abs / 1e3).toFixed(2)}K`;
-    return `${sign}${currency}${abs.toFixed(0)}`;
+    if (abs >= 1e3) return `${sign}${currency}${(abs / 1e3).toFixed(1)}K`;
+    const hasDecimal = abs % 1 !== 0;
+    return `${sign}${currency}${hasDecimal ? abs.toFixed(1) : abs.toString()}`;
 };
 
 /**
@@ -25,8 +26,9 @@ const formatNumber = (value) => {
     const sign = value < 0 ? '-' : '';
     if (abs >= 1e7) return `${sign}${(abs / 1e7).toFixed(1)}Cr`;
     if (abs >= 1e5) return `${sign}${(abs / 1e5).toFixed(1)}L`;
-    if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(2)}K`;
-    return `${sign}${abs.toFixed(0)}`;
+    if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}K`;
+    const hasDecimal = abs % 1 !== 0;
+    return `${sign}${hasDecimal ? abs.toFixed(1) : abs.toLocaleString('en-IN')}`;
 };
 
 /**
@@ -75,9 +77,9 @@ const buildMetricRow = (label, svgIcon, currentFormatted, previousFormatted, del
         const arrow = isUp ? '&#9650;' : '&#9660;';
         const absVal = Math.abs(delta).toFixed(1);
         deltaHtml = `<td style="padding-left:4px;" valign="middle">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background-color:${pillBgColor}; border-radius:999px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background-color:${pillBgColor};">
 <tr>
-<td style="padding:4px 8px; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:${color}; line-height:16px; white-space:nowrap;" valign="middle">${arrow} ${absVal}%</td>
+<td style="padding:4px 8px; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12px; color:${color}; line-height:16px; white-space:nowrap;" valign="middle">${arrow} ${absVal}%</td>
 </tr>
 </table>
 </td>`;
@@ -93,25 +95,25 @@ const buildMetricRow = (label, svgIcon, currentFormatted, previousFormatted, del
     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
     <tr>
     <td width="22" valign="middle">
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:20px; height:20px; background-color:#EAF0FF; border-radius:10px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:20px; height:20px; background-color:#EAF0FF;">
     <tr><td align="center" valign="middle" style="width:20px; height:20px; line-height:0;">
     ${svgIcon}
     </td></tr>
     </table>
     </td>
-    <td style="padding-left:7px; font-family:Arial, Helvetica, sans-serif; font-size:11.5px; color:#16224A; font-weight:bold; white-space:nowrap;" valign="middle">${label}${extraLabelHtml}</td>
+    <td style="padding-left:7px; font-family:Arial, Helvetica, sans-serif; font-size:10.5px; color:#16224A; font-weight:bold; white-space:nowrap;" valign="middle">${label}${extraLabelHtml}</td>
     </tr>
     </table>
     </td>
     <td width="38%" align="right" valign="middle">
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right">
     <tr>
-    <td style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#0B1B3F; white-space:nowrap;" valign="middle">${currentFormatted}</td>
+    <td style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:12px; color:#0B1B3F; white-space:nowrap;" valign="middle">${currentFormatted}</td>
     ${deltaHtml}
     </tr>
     </table>
     </td>
-    <td width="26%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#5C6B94; white-space:nowrap;" valign="middle">${previousFormatted}</td>
+    <td width="26%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10px; color:#5C6B94; white-space:nowrap;" valign="middle">${previousFormatted}</td>
     </tr>
 </table>
 </td>
@@ -176,15 +178,11 @@ const buildPlatformCard = (platformName, kpis, currentDateStr, previousDateStr, 
 <!-- CARD: ${platformName} -->
 <tr>
 <td style="padding-bottom:16px;">
-<!--[if mso]>
-<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" arcsize="4%" stroke="f" fillcolor="#FFFFFF" style="width:398px;">
-<v:textbox style="mso-fit-shape-to-text:true" inset="0,0,0,0">
-<![endif]-->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:16px; box-shadow:0 12px 24px -10px rgba(31,74,216,0.18);">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; box-shadow:0 12px 24px -10px rgba(31,74,216,0.18);">
 
 <!-- Band header -->
 <tr>
-<td style="padding:13px 17px; background-color:#12295E; border-radius:16px 16px 0 0; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:15px; color:#FFFFFF;">${escapeHtml(platformName)}</td>
+<td style="padding:13px 17px; background-color:#12295E; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:14px; color:#FFFFFF;">${escapeHtml(platformName)}</td>
 </tr>
 
 <!-- Column headers -->
@@ -192,9 +190,9 @@ const buildPlatformCard = (platformName, kpis, currentDateStr, previousDateStr, 
 <td style="padding:10px 17px 7px 17px; border-bottom:1.5px solid #C9D6FA;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
     <tr>
-    <td width="36%" align="left" style="padding-left:29px; font-family:Arial, Helvetica, sans-serif; font-size:8.5px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA;">METRIC</td>
-    <td width="38%" align="right" style="padding-right:20px; font-family:Arial, Helvetica, sans-serif; font-size:8.5px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">CURRENT (T-1)</td>
-    <td width="26%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8.5px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">PREVIOUS (LWD)</td>
+    <td width="36%" align="left" style="padding-left:29px; font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA;">METRIC</td>
+    <td width="38%" align="right" style="padding-right:20px; font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">CURRENT (T-1)</td>
+    <td width="26%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">PREVIOUS (LWD)</td>
     </tr>
 </table>
 </td>
@@ -204,14 +202,10 @@ ${rows.join('')}
 
     <!-- FOOTER -->
     <tr>
-    <td style="height:16px; background-color:#12295E; border-radius:0 0 16px 16px; font-size:1px; line-height:16px;">&nbsp;</td>
+    <td style="height:16px; background-color:#12295E; font-size:1px; line-height:16px;">&nbsp;</td>
     </tr>
 
 </table>
-<!--[if mso]>
-</v:textbox>
-</v:roundrect>
-<![endif]-->
 </td>
 </tr>`;
 };
@@ -296,7 +290,7 @@ No platform data available for this summary.
   img { border: 0; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
   body { margin: 0; padding: 0; width: 100% !important; background-color: #EEF2FC; }
   table { border-collapse: collapse; border-spacing: 0; }
-  @media screen and (max-width: 400px) {
+  @media screen and (max-width: 500px) {
     .email-container { width: 100% !important; max-width: 100% !important; }
   }
 </style>
@@ -307,9 +301,9 @@ No platform data available for this summary.
 <td align="center" style="padding:18px 12px;">
 
 <!--[if mso]>
-<table role="presentation" align="center" width="398" cellpadding="0" cellspacing="0" border="0"><tr><td>
+<table role="presentation" align="center" width="500" cellpadding="0" cellspacing="0" border="0"><tr><td>
 <![endif]-->
-<table role="presentation" class="email-container" width="398" align="center" cellpadding="0" cellspacing="0" border="0" style="width:398px; max-width:398px; margin:0 auto;">
+<table role="presentation" class="email-container" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:500px; margin:0 auto;">
 
 <!-- MASTHEAD -->
 <tr>
@@ -327,7 +321,7 @@ ${logoHtml}
 Weekly snapshot &middot; data as of ${currentDisplay} (T-1) vs ${previousDisplay}
 </td>
 <td valign="middle" align="right">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right" style="background-color:#EAF0FF; border-radius:999px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right" style="background-color:#EAF0FF;">
   <tr>
     <td style="padding:3px 8px 2px 8px; font-family:Arial, Helvetica, sans-serif; font-size:8px; letter-spacing:.9px; text-transform:uppercase; color:#2F5FEA; font-weight:bold; white-space:nowrap;">
       QUICK COMMERCE

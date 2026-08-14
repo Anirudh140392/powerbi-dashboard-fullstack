@@ -3,10 +3,10 @@
 import nodemailer from 'nodemailer';
 import { queryAdminDB } from '../config/adminClickhouse.js';
 import { decrypt } from '../utils/encryption.js';
-import { generateAlertEmailHtml } from '../utils/alertEmailTemplate.js';
-import { generatePerfSummaryEmailHtml } from '../utils/perfSummaryEmailTemplate.js';
+
 import { generateDynamicAlertEmailHtml } from '../utils/dynamicAlertEmailTemplate.js';
-import { fetchAllPlatformKPIs } from './perfSummaryDataService.js';
+import { fetchAllPlatformCategoryKPIs, getCWDateRange } from './categoryPerfSummaryDataService.js';
+import { generateCategoryPerfSummaryEmailHtml } from '../utils/categoryPerfSummaryEmailTemplate.js';
 import { buildAlertTemplateComponents, buildAlertFullText } from '../utils/whatsappTemplate.js';
 import { sendWhatsappMessage } from './whatsappService.js';
 import { getCompanyLogo, getLatestDataDate, computeDateRanges, getBrandOsaByPlatform, getImpactedSkus, getAggregateOsa } from './alertDataService.js';
@@ -300,7 +300,7 @@ export const runEmailAlertsJob = async () => {
         const alerts = await queryAdminDB(`
             SELECT 
                 toString(id) as id,
-                db_id,
+                toString(db_id) as db_id,
                 send_email,
                 whatsapp_no,
                 alert_name,
@@ -345,11 +345,11 @@ export const runEmailAlertsJob = async () => {
             const currency = getCurrencySymbol(dbName);
             const alertType = (alert.alert_type || 'low_osa').toLowerCase();
 
-            // ── PERFORMANCE SUMMARY HANDLER ──────────────────────────────────
-            // When alert_type is 'performance_summary', this is a scheduled
+            // ── CATEGORY PERFORMANCE SUMMARY HANDLER ─────────────────────────
+            // When alert_type is 'category_perf_summary', this is a scheduled
             // weekly digest (not condition-triggered). It fires on the
-            // scheduled_day and sends the qcomm_summary email with 7 KPIs.
-            if (alertType === 'performance_summary' || alertType.includes('performance_summary')) {
+            // scheduled_day and sends the category performance summary email.
+            if (alertType === 'category_perf_summary' || alertType.includes('category_perf_summary')) {
                 try {
                     // 1. Check if today is the scheduled day
                     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -394,28 +394,7 @@ export const runEmailAlertsJob = async () => {
                         continue;
                     }
 
-                    // 3. Compute dates
-                    //    Current (T-1) = today - 1, Previous (LWD) = T-1 - 7
-                    //    Market Share (T-3) = today - 3, MS Previous = T-3 - 7
-                    const currentDateObj = new Date(istNow);
-                    currentDateObj.setDate(currentDateObj.getDate() - 1);
-                    const currentDate = fmtDate(currentDateObj);
-
-                    const previousDateObj = new Date(currentDateObj);
-                    previousDateObj.setDate(previousDateObj.getDate() - 7);
-                    const previousDate = fmtDate(previousDateObj);
-
-                    const msCurrentDateObj = new Date(istNow);
-                    msCurrentDateObj.setDate(msCurrentDateObj.getDate() - 3);
-                    const msCurrentDate = fmtDate(msCurrentDateObj);
-
-                    const msPreviousDateObj = new Date(msCurrentDateObj);
-                    msPreviousDateObj.setDate(msPreviousDateObj.getDate() - 7);
-                    const msPreviousDate = fmtDate(msPreviousDateObj);
-
-                    console.log(`[AlertCron] 📊 Performance Summary "${alert.alert_name}" on ${dbName} | Current: ${currentDate} | LWD: ${previousDate} | MS: ${msCurrentDate}`);
-
-                    // 4. Determine platforms to iterate
+                    // 3. Determine platforms to iterate
                     const alertPlatforms = (Array.isArray(alert.platforms) && alert.platforms.length > 0)
                         ? alert.platforms.filter(p => p && p !== 'All Platforms')
                         : [];
@@ -425,23 +404,31 @@ export const runEmailAlertsJob = async () => {
                         continue;
                     }
 
-                    // 5. Fetch KPIs per platform
-                    const platformCards = [];
+                    // 4. Get CW date range for display (uses same Sun-Sat logic as other alerts)
+                    const dateRange = await getCWDateRange(dbName, alertPlatforms[0]);
+                    console.log(`[AlertCron] 📊 Performance Summary "${alert.alert_name}" on ${dbName} | CW: ${dateRange.cwStart} – ${dateRange.cwEnd} | L4W: ${dateRange.l4wStart} – ${dateRange.l4wEnd}`);
+
+                    // 5. Fetch KPIs per platform per category (CW/L4W computed inside data service)
+                    let platformCategoryCards = [];
                     for (const plat of alertPlatforms) {
                         try {
-                            const kpis = await fetchAllPlatformKPIs(
-                                dbName, plat, alert.brands,
-                                currentDate, previousDate,
-                                msCurrentDate, msPreviousDate
+                            const categoryData = await fetchAllPlatformCategoryKPIs(
+                                dbName, plat, alert.brands
                             );
-                            platformCards.push({ platform: plat, kpis });
+                            for (const catData of categoryData) {
+                                platformCategoryCards.push({
+                                    platform: plat,
+                                    categoryName: catData.categoryName,
+                                    kpis: catData.kpis
+                                });
+                            }
                         } catch (kpiErr) {
                             console.error(`[AlertCron] Failed to fetch KPIs for ${plat} on ${dbName}:`, kpiErr.message);
                         }
                     }
 
-                    if (platformCards.length === 0) {
-                        console.warn(`[AlertCron] No KPI data returned for any platform in "${alert.alert_name}". Skipping email.`);
+                    if (platformCategoryCards.length === 0) {
+                        console.warn(`[AlertCron] No KPI data returned for any platform/category in "${alert.alert_name}". Skipping email.`);
                         continue;
                     }
 
@@ -449,15 +436,15 @@ export const runEmailAlertsJob = async () => {
                     const logoUrl = logoMap.get(alert.db_id) || '';
                     const companyDisplayName = dbName ? (dbName.charAt(0).toUpperCase() + dbName.slice(1)) : 'Company';
 
-                    const emailHtml = generatePerfSummaryEmailHtml({
+                    const emailHtml = generateCategoryPerfSummaryEmailHtml({
                         logoUrl,
                         companyName: companyDisplayName,
-                        currentDate,
-                        previousDate,
-                        msCurrentDate,
-                        severityLevel: alert.severity_level || 'Medium',
+                        cwStart: dateRange.cwStart,
+                        cwEnd: dateRange.cwEnd,
+                        l4wStart: dateRange.l4wStart,
+                        l4wEnd: dateRange.l4wEnd,
                         currency,
-                        platformCards,
+                        platformCategoryCards,
                     });
 
                     // 7. Send email
@@ -466,7 +453,7 @@ export const runEmailAlertsJob = async () => {
                         from: `"Trailytics Alerts" <${fromEmail}>`,
                         to: sendEmail,
                         subject: `📊 Performance Summary: ${alert.alert_name} — ${companyDisplayName}`,
-                        text: `Hi,\n\nYour weekly Performance Summary for ${companyDisplayName} is ready.\n\nPlatforms: ${alertPlatforms.join(', ')}\nData as of: ${currentDate} (T-1)\n\nBest regards,\nTrailytics Team`,
+                        text: `Hi,\n\nYour weekly Performance Summary for ${companyDisplayName} is ready.\n\nPlatforms: ${alertPlatforms.join(', ')}\nData as of: ${dateRange.cwEnd}\n\nBest regards,\nTrailytics Team`,
                         html: emailHtml,
                     };
 
@@ -1291,36 +1278,50 @@ export const runEmailAlertsJob = async () => {
 
                             if (totalImpactedSkus > 0 || isDynamicAlert) {
                                 let emailHtml = '';
+                                if (isDynamicAlert && !isTriggered) {
+                                    console.log(`[AlertCron] Dynamic alert "${alert.alert_name}" not triggered (no data crossed threshold). Skipping email and not updating last_email_sent.`);
+                                    continue;
+                                }
+
+                                let finalDynamicEmailData = [];
                                 if (isDynamicAlert) {
-                                    if (!isTriggered) {
-                                        console.log(`[AlertCron] Dynamic alert "${alert.alert_name}" not triggered (no data crossed threshold). Skipping email and not updating last_email_sent.`);
-                                        continue;
-                                    }
-                                    emailHtml = generateDynamicAlertEmailHtml({
-                                        logoUrl,
-                                        companyName: companyDisplayName,
-                                        istNow,
-                                        alertName: alert.alert_name || metricDetails.ruleType,
-                                        severityLevel: alert.severity_level || 'Warning',
-                                        currentMetricValue: metricDetails.calculatedOSA,
-                                        metricDelta: metricDetails.aggDelta !== undefined ? metricDetails.aggDelta : aggregateOsa.delta,
-                                        operator: formatOperatorSymbol(alert.conditional_operator) || '<=',
-                                        threshold: threshold,
-                                        platformData: Array.isArray(dynamicEmailData) ? dynamicEmailData : (dynamicEmailData ? [dynamicEmailData] : []),
-                                    });
+                                    finalDynamicEmailData = Array.isArray(dynamicEmailData) ? dynamicEmailData : (dynamicEmailData ? [dynamicEmailData] : []);
                                 } else {
-                                    emailHtml = generateAlertEmailHtml({
-                                        logoUrl,
-                                        companyName: companyDisplayName,
-                                        istNow,
-                                        alertName: alert.alert_name || 'Low OSA Alert',
-                                        severityLevel: alert.severity_level || 'Warning',
-                                        thresholdValue: threshold,
-                                        conditionalOperator: alertOpSym,
-                                        aggregateOsa,
-                                        platformData,
+                                    finalDynamicEmailData = platformData.map(p => {
+                                        const tables = [];
+                                        if (p.brands && p.brands.length > 0) {
+                                            tables.push({
+                                                tableName: 'Impacted Brands',
+                                                headers: ['Brand', 'Current OSA'],
+                                                rows: p.brands.map(b => [b.brand || 'Unknown', `${b.currentOsa}%`])
+                                            });
+                                        }
+                                        if (p.skus && p.skus.length > 0) {
+                                            tables.push({
+                                                tableName: 'Impacted SKUs',
+                                                headers: ['SKU', 'Brand', 'Current OSA'],
+                                                rows: p.skus.map(s => [s.sku_name || s.sku || 'Unknown', s.brand || 'Unknown', `${s.currentOsa}%`])
+                                            });
+                                        }
+                                        return {
+                                            platformName: p.platform,
+                                            tables
+                                        };
                                     });
                                 }
+
+                                emailHtml = generateDynamicAlertEmailHtml({
+                                    logoUrl,
+                                    companyName: companyDisplayName,
+                                    istNow,
+                                    alertName: alert.alert_name || (isDynamicAlert ? metricDetails.ruleType : 'Low OSA Alert'),
+                                    severityLevel: alert.severity_level || 'Warning',
+                                    currentMetricValue: isDynamicAlert ? metricDetails.calculatedOSA : (aggregateOsa.currentOsa ? `${aggregateOsa.currentOsa}%` : 'N/A'),
+                                    metricDelta: isDynamicAlert ? (metricDetails.aggDelta !== undefined ? metricDetails.aggDelta : aggregateOsa.delta) : aggregateOsa.delta,
+                                    operator: isDynamicAlert ? (formatOperatorSymbol(alert.conditional_operator) || '<=') : alertOpSym,
+                                    threshold: threshold,
+                                    platformData: finalDynamicEmailData,
+                                });
 
                                 const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
                                 const mailOptions = {
