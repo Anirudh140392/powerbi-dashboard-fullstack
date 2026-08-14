@@ -114,6 +114,7 @@ const kpiLabels = {
     tacos: 'TACoS',
     roas_x: 'ROAS',
     availability: 'Availability',
+    wtOsa: 'Wt OSA',
     marketShare: 'Market share',
     conversion: 'Conversion',
     shareOfVolume: 'SHARE OF SEARCH',
@@ -137,6 +138,7 @@ const BACKEND_TITLE_TO_KEY = {
     'Inorg Sales': 'inorgSales',
     'Conversion': 'conversion',
     'Availability': 'availability',
+    'Wt OSA': 'wtOsa',
     'SOS': 'shareOfVolume',
     'Share of Search': 'shareOfVolume',
     'Ad SOV': 'ad_sov',
@@ -269,6 +271,7 @@ const PlatformOverviewNew = ({
         { key: 'inorgSales', label: 'Inorg Sales' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
+        { key: 'wtOsa', label: 'Wt OSA' },
         { key: 'shareOfVolume', label: 'Share of Search' },
         { key: 'ad_sov', label: 'Ad SOV' },
         { key: 'organic_sov', label: 'Organic SOV' },
@@ -315,29 +318,39 @@ const PlatformOverviewNew = ({
         }
     };
 
-    // Initialize default local platform filters to 'All' ONCE on mount
-    const isInitializedRef = useRef(false);
+    // Keep local platform filters in sync when globalPlatform changes from top global header dropdown
     useEffect(() => {
-        if (!isInitializedRef.current && globalPlatforms?.length > 0) {
-            isInitializedRef.current = true;
-            setLocalPlatformFilter('All');
-            setSkuPlatformFilter('All');
+        if (globalPlatform) {
+            const platVal = Array.isArray(globalPlatform)
+                ? (globalPlatform.length === 1 ? globalPlatform[0] : (globalPlatform.includes('All') ? 'All' : globalPlatform.join(',')))
+                : globalPlatform;
+            setLocalPlatformFilter(platVal || 'All');
+            setSkuPlatformFilter(platVal || 'All');
         }
-    }, [globalPlatforms]);
+    }, [globalPlatform]);
+
+    const effectivePlatform = useMemo(() => {
+        if (globalPlatform && globalPlatform !== 'All') {
+            return Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform;
+        }
+        return 'All';
+    }, [globalPlatform]);
 
     // Determine the active platform filter for non-platform, non-sku dimensions
     // (Brand, Category, Month now use a platform dropdown instead of channel)
     const activePlatformFilter = (dimension !== 'platform' && dimension !== 'sku')
-        ? (localPlatformFilter || 'All')
-        : 'All';
+        ? (localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform)
+        : (dimension === 'sku')
+            ? (skuPlatformFilter !== 'All' ? skuPlatformFilter : effectivePlatform)
+            : effectivePlatform;
 
     // Derive isEcom / isQuick from the selected platform name
     const isEcom = activePlatformFilter !== 'All' && isEcomPlatform(activePlatformFilter);
     const isQuick = activePlatformFilter !== 'All' && isQcomPlatform(activePlatformFilter);
 
     // For SKU dimension: determine if selected platform is qcom
-    const isSkuQcom = dimension === 'sku' && skuPlatformFilter !== 'All' && isQcomPlatform(skuPlatformFilter);
-    const isSkuEcom = dimension === 'sku' && skuPlatformFilter !== 'All' && isEcomPlatform(skuPlatformFilter);
+    const isSkuQcom = dimension === 'sku' && activePlatformFilter !== 'All' && isQcomPlatform(activePlatformFilter);
+    const isSkuEcom = dimension === 'sku' && activePlatformFilter !== 'All' && isEcomPlatform(activePlatformFilter);
 
     const isPidilite = useMemo(() => {
         try {
@@ -387,7 +400,7 @@ const PlatformOverviewNew = ({
     }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite]);
 
     const defaultKpiKeys = useMemo(() => {
-        let base = ['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'conversion', 'aov'];
+        let base = ['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'wtOsa', 'conversion', 'aov'];
         const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
         const allowBuyBox = isBuyBoxPlatform(activePlat);
 
@@ -621,16 +634,13 @@ const PlatformOverviewNew = ({
     }
 
     const filterKey = useMemo(() => {
-        // For SKU dimension, use the local skuPlatformFilter to override platform
-        // For Brand/Category/Month, use localPlatformFilter to override platform
         let reqPlatform;
         if (dimension === 'sku') {
-            reqPlatform = skuPlatformFilter || 'All';
+            reqPlatform = skuPlatformFilter !== 'All' ? skuPlatformFilter : effectivePlatform;
         } else if (dimension !== 'platform') {
-            reqPlatform = localPlatformFilter || 'All';
+            reqPlatform = localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform;
         } else {
-            reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
-                : (globalPlatform === 'All' ? 'All' : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
+            reqPlatform = effectivePlatform;
         }
         const reqBrand = advancedFilters.brands?.length > 0 ? advancedFilters.brands.join(',')
             : (selectedBrand && selectedBrand !== 'All' ? (Array.isArray(selectedBrand) ? selectedBrand.join(',') : selectedBrand) : '');
@@ -655,8 +665,8 @@ const PlatformOverviewNew = ({
             reqEndDate,
             reqCompareStart,
             reqCompareEnd,
-            skuPlatformFilter: dimension === 'sku' ? skuPlatformFilter : undefined,
-            localPlatformFilter: (dimension !== 'platform' && dimension !== 'sku') ? localPlatformFilter : undefined,
+            skuPlatformFilter: dimension === 'sku' ? (skuPlatformFilter !== 'All' ? skuPlatformFilter : effectivePlatform) : undefined,
+            localPlatformFilter: (dimension !== 'platform' && dimension !== 'sku') ? (localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform) : undefined,
             advancedFilters: {
                 skuName: advancedFilters.skuName,
                 skuCode: advancedFilters.skuCode,
@@ -665,7 +675,7 @@ const PlatformOverviewNew = ({
             },
             selectedMsl
         });
-    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter, selectedMsl]);
+    }, [dimension, effectivePlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter, selectedMsl]);
 
     // Fetch data from backend API when filters change (stable version)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
