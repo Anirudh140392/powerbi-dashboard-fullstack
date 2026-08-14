@@ -253,6 +253,12 @@ const LatestOverivewCatCity = ({
                 const sk = toParam(advancedFilters.skus?.length > 0 ? advancedFilters.skus : null);
                 if (sk) params.append('sku', sk);
 
+                // Grammage filter only applies to SKU dimension
+                if (dimension === 'sku') {
+                    const gr = toParam(advancedFilters.grammages?.length > 0 ? advancedFilters.grammages : null);
+                    if (gr) params.append('grammage', gr);
+                }
+
                 // MSL filter (global takes priority, fallback to advanced filters)
                 const hasMslFilter = (val) => {
                     if (!val) return false;
@@ -299,7 +305,7 @@ const LatestOverivewCatCity = ({
         };
         fetchData();
         return () => { isMounted = false; };
-    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, globalPlatform, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.dateFrom, advancedFilters.dateTo, advancedFilters.msl, selectedMsl]);
+    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, globalPlatform, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.grammages, advancedFilters.dateFrom, advancedFilters.dateTo, advancedFilters.msl, selectedMsl]);
 
     // Reset pagination when dimension or filters change
     useEffect(() => {

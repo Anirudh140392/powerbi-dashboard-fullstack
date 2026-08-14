@@ -252,11 +252,13 @@ const Sidebar = ({
 
     const fetchLatestLogo = async () => {
       const token = sessionStorage.getItem("token");
-      if (token) {
+      if (token && !user?.dbLogoUrl) {
         try {
           const response = await fetch("/api/auth/verify", {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include"
           });
+          if (!response.ok) return;
           const data = await response.json();
           if (data.success && data.user?.dbLogoUrl) {
             setDbLogoUrl(data.user.dbLogoUrl);

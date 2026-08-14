@@ -1,4 +1,4 @@
-import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPmPlatforms, getPlatformMetadata, getPlatformChannels, getChannels, getPdpPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductCategories, getMaxDatesAll, getWatchTowerCascadedFilters, getMsls } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPmPlatforms, getPlatformMetadata, getPlatformChannels, getChannels, getPdpPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductsWithSap, getProductCategories, getMaxDatesAll, getWatchTowerCascadedFilters, getMsls } from '../controllers/watchTowerController.js';
 import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
 import { getCompareSkuDateRange, getCompareSkuFilters, getCompareSkuProducts, getCompareSkuMetrics, getCompareSkuTrend } from '../controllers/compareSkuController.js';
 
@@ -188,6 +188,9 @@ export default (app) => {
 
     // Products (SKUs) endpoint for filter dropdowns
     app.get('/api/watchtower/products', getProducts);
+
+    // DRL-only: Products with SAP codes for the SKU filter dropdown
+    app.get('/api/watchtower/products-with-sap', getProductsWithSap);
 
     // Product Categories endpoint for Availability Analysis filter dropdown
     app.get('/api/watchtower/product-categories', getProductCategories);

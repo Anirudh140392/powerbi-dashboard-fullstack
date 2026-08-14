@@ -118,11 +118,11 @@ const DrawerMultiSelect = ({ title, value, options, onChange }) => {
   // Convert "All" or "a,b" into an array for MUI Select, with correct casing!
   const selectedValues = useMemo(() => {
     if (!value || value === 'All') return [];
-    
+
     let vals = [];
     if (typeof value === 'string') vals = value.split(',').map(v => v.trim()).filter(Boolean);
     else if (Array.isArray(value)) vals = value.filter(Boolean);
-    
+
     // MUI Select uses strict equality. If the parent passes 'blinkit' but the option is 'Blinkit',
     // MUI Select won't recognize it, and will discard it when a new option is clicked.
     // So we MUST normalize the casing to match the options.
@@ -144,8 +144,8 @@ const DrawerMultiSelect = ({ title, value, options, onChange }) => {
   const isActive = selectedValues.length > 0;
   const displayText = selectedValues.length === 0 ? title
     : selectedValues.length === 1 ? selectedValues[0]
-    : selectedValues.length === 2 ? selectedValues.join(', ')
-    : `${selectedValues.length} Selected`;
+      : selectedValues.length === 2 ? selectedValues.join(', ')
+        : `${selectedValues.length} Selected`;
 
   return (
     <Select
@@ -192,7 +192,7 @@ const DrawerMultiSelect = ({ title, value, options, onChange }) => {
         }
       }}
       sx={{
-        borderRadius: '999px', 
+        borderRadius: '999px',
         border: '1px solid',
         borderColor: isActive ? '#3B82F6' : '#E2E8F0',
         backgroundColor: isActive ? '#EFF6FF' : 'white',
@@ -211,9 +211,9 @@ const DrawerMultiSelect = ({ title, value, options, onChange }) => {
       ) : (
         options.map((opt) => (
           <MenuItem key={opt} value={opt} sx={{ fontSize: '13px', py: 1 }}>
-            <Checkbox 
-              checked={selectedValues.includes(opt)} 
-              size="small" 
+            <Checkbox
+              checked={selectedValues.includes(opt)}
+              size="small"
               sx={{ p: 0, mr: 1.5 }}
             />
             <ListItemText primary={opt} primaryTypographyProps={{ fontSize: '13px', fontWeight: selectedValues.includes(opt) ? 600 : 400 }} />
@@ -607,7 +607,7 @@ const KPI_SOURCE_MAP = {
 const SelectedFilterChip = ({ label, value, color = "#3B82F6" }) => {
   const displayVal = useMemo(() => {
     if (!value || value === 'All') return 'All';
-    const arr = typeof value === 'string' && value.includes(',') 
+    const arr = typeof value === 'string' && value.includes(',')
       ? value.split(',').map(s => s.trim()).filter(Boolean)
       : (Array.isArray(value) ? value : [value]);
     if (arr.length <= 2) return arr.join(', ');
@@ -728,13 +728,13 @@ export default function TrendsCompetitionDrawer({
 
   const handleMslChange = (v) => {
     if (!v || v === 'All' || v === 'All SKUs') {
-      setDrawerFilters(prev => ({...prev, Msl: 'All'}));
+      setDrawerFilters(prev => ({ ...prev, Msl: 'All' }));
     } else {
       const rawVal = v.split(',')
         .map(display => (display === 'Top SKUs' || display.includes('Top')) ? '1' : (display === 'All SKUs' ? 'All' : display))
         .filter(Boolean)
         .join(',');
-      setDrawerFilters(prev => ({...prev, Msl: rawVal || 'All'}));
+      setDrawerFilters(prev => ({ ...prev, Msl: rawVal || 'All' }));
     }
   };
 
@@ -745,6 +745,10 @@ export default function TrendsCompetitionDrawer({
   const isDrl = (() => {
     const db = drlUser?.dbName?.toLowerCase();
     return db === 'drl' || db === 'prestige';
+  })();
+  const isDrlUser = (() => {
+    const db = drlUser?.dbName?.toLowerCase();
+    return db === 'drl';
   })();
   const [resellerOptions, setResellerOptions] = useState([]);
 
@@ -784,7 +788,7 @@ export default function TrendsCompetitionDrawer({
     if (selectedLevel?.toLowerCase() === "platform" && selectedColumn) return normalizeToString(selectedColumn);
     return normalizeToString(selectedPlatform) !== 'All' ? normalizeToString(selectedPlatform) : normalizeToString(initialPlatform);
   };
-  
+
   // platName: for multi-value, join all values for ecom/qcom detection
   const platName = (() => {
     const eff = getEffectivePlatform();
@@ -793,7 +797,7 @@ export default function TrendsCompetitionDrawer({
   })();
   const ECOM_PLATFORMS = ['amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart'];
   const QCOM_PLATFORMS = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow'];
-  
+
   const isEcom = ECOM_PLATFORMS.some(p => platName.includes(p));
   const isQcom = QCOM_PLATFORMS.some(p => platName.includes(p));
   // ===================== CONSOLIDATED DRAWER FILTER INITIALIZATION =====================
@@ -896,13 +900,13 @@ export default function TrendsCompetitionDrawer({
     }
 
     // Set platform pill selection (first value for pill display)
-    const platForPill = newFilters.Platform !== 'All' 
-      ? newFilters.Platform.split(',')[0].trim() 
-      : (normInitPlat !== 'All' 
-         ? normInitPlat.split(',')[0].trim() 
-         : (normalizeToString(selectedColumn) !== 'All' && targetDimensionKey === 'Platform'
-            ? normalizeToString(selectedColumn).split(',')[0].trim() 
-            : "Blinkit"));
+    const platForPill = newFilters.Platform !== 'All'
+      ? newFilters.Platform.split(',')[0].trim()
+      : (normInitPlat !== 'All'
+        ? normInitPlat.split(',')[0].trim()
+        : (normalizeToString(selectedColumn) !== 'All' && targetDimensionKey === 'Platform'
+          ? normalizeToString(selectedColumn).split(',')[0].trim()
+          : "Blinkit"));
     setSelectedPlatform(platForPill);
 
     setDrawerFilters(newFilters);
@@ -932,6 +936,7 @@ export default function TrendsCompetitionDrawer({
     cities: [],
     brands: [],
     skus: [],
+    skuDetails: [],
     loading: true
   });
 
@@ -1008,11 +1013,11 @@ export default function TrendsCompetitionDrawer({
       try {
         console.log("[TrendsDrawer] Cascading: fetching categories/brands for platform:", platformParam || 'All', "resellerName:", resellerParam || 'All');
         const [formatsRes, brandsRes] = await Promise.all([
-          axiosInstance.get('/watchtower/trends-filter-options', { 
-            params: { filterType: 'categories', platform: platformParam, resellerName: resellerParam } 
+          axiosInstance.get('/watchtower/trends-filter-options', {
+            params: { filterType: 'categories', platform: platformParam, resellerName: resellerParam }
           }),
-          axiosInstance.get('/watchtower/trends-filter-options', { 
-            params: { filterType: 'brands', platform: platformParam, resellerName: resellerParam } 
+          axiosInstance.get('/watchtower/trends-filter-options', {
+            params: { filterType: 'brands', platform: platformParam, resellerName: resellerParam }
           }),
         ]);
         if (cancelled) return;
@@ -1066,7 +1071,8 @@ export default function TrendsCompetitionDrawer({
         });
         if (cancelled) return;
         const skus = (skusRes.data?.options || []).filter(s => s !== 'All' && s.trim()).sort();
-        setFilterOptions(prev => ({ ...prev, skus }));
+        const skuDetails = skusRes.data?.skuDetails || [];
+        setFilterOptions(prev => ({ ...prev, skus, skuDetails }));
       } catch (error) {
         console.error("[TrendsDrawer] Error fetching cascaded SKUs:", error);
       }
@@ -1274,7 +1280,7 @@ export default function TrendsCompetitionDrawer({
       setCompLoading(false);
     }
   }, [view, open, range, drawerFilters]);
-  
+
   const handleRowTrendClick = useCallback((target, type) => {
     setView("Trends");
     if (type === 'brand') {
@@ -1825,7 +1831,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               id: "MWSales",
-              label: "MW Estimated Sales (Cr)",
+              label: "MW Estimated Sales",
               color: "#F43F5E",
               axis: "left",
               default: false,
@@ -1870,7 +1876,7 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
           metrics: [
             { id: "MWMarketShare", label: "MW Market Share%", color: "#14B8A6", default: true },
-            { id: "MWSales", label: "MW Estimated Sales (Cr)", color: "#F43F5E", default: false },
+            { id: "MWSales", label: "MW Estimated Sales", color: "#F43F5E", default: false },
             { id: "MLMarketShare", label: "ML Market Share%", color: "#8B5CF6", default: false },
             { id: "MLSales", label: "ML Sales (Cr)", color: "#F97316", default: false },
           ],
@@ -1889,7 +1895,7 @@ export default function TrendsCompetitionDrawer({
           columns: [
             { id: "brand", label: "Brand", type: "text" },
             { id: "MWMarketShare", label: "MW Market Share%", type: "metric" },
-            { id: "MWSales", label: "MW Estimated Sales (Cr)", type: "metric" },
+            { id: "MWSales", label: "MW Estimated Sales", type: "metric" },
             { id: "MLMarketShare", label: "ML Market Share%", type: "metric" },
             { id: "MLSales", label: "ML Sales (Cr)", type: "metric" },
           ],
@@ -2384,7 +2390,7 @@ export default function TrendsCompetitionDrawer({
     } else if (val === 0 || val === '0') {
       formatted = '0';
     }
-    
+
     const sName = (seriesName || '').toLowerCase();
     if (sName.includes('%') || sName.includes('rate') || sName.includes('promo') || sName.includes('discount') || sName.includes('share') || sName.includes('osa') || sName.includes('availability') || sName.includes('sos') || sName.includes('conversion')) {
       return `${formatted}%`;
@@ -2699,13 +2705,14 @@ export default function TrendsCompetitionDrawer({
             label="Date"
             value={range}
           />
-          {isDrl && showResellerFilter && (
+          {/* Reseller Filter Chip (Commented out as requested) */}
+          {/* {isDrl && showResellerFilter && (
             <SelectedFilterChip
               label="Reseller"
               value={drawerFilters.ResellerName}
               color={drawerFilters.ResellerName !== 'All' ? "#0ea5e9" : "#64748B"}
             />
-          )}
+          )} */}
           {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
             <SelectedFilterChip
               label="MSL"
@@ -2737,10 +2744,10 @@ export default function TrendsCompetitionDrawer({
           <Box display="flex" flexDirection="column" gap={0}>
             {/* Title Block */}
             {!(allTrendMeta?.context?.audience?.toLowerCase() === 'platform' || selectedLevel?.toLowerCase() === 'platform' || dimensionType === 'platform') && selectedColumn && (
-              <Typography 
-                variant="h5" 
-                fontWeight={800} 
-                sx={{ 
+              <Typography
+                variant="h5"
+                fontWeight={800}
+                sx={{
                   color: '#0f172a',
                   lineHeight: 1.2,
                   mb: 2,
@@ -2751,11 +2758,11 @@ export default function TrendsCompetitionDrawer({
             )}
 
             {/* HEADER FILTER CONTAINER */}
-            <Box 
-              display="flex" 
-              alignItems="center" 
-              justifyContent="space-between" 
-              flexWrap="wrap" 
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="space-between"
+              flexWrap="wrap"
               gap={2}
               mb={3}
             >
@@ -2766,7 +2773,7 @@ export default function TrendsCompetitionDrawer({
                   value={drawerFilters.Platform}
                   options={PLATFORM_OPTIONS}
                   onChange={(v) => {
-                    setDrawerFilters(prev => ({...prev, Platform: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All', ResellerName: 'All'}));
+                    setDrawerFilters(prev => ({ ...prev, Platform: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All', ResellerName: 'All' }));
                   }}
                 />
                 <DrawerMultiSelect
@@ -2774,7 +2781,7 @@ export default function TrendsCompetitionDrawer({
                   value={drawerFilters.Format}
                   options={FORMAT_OPTIONS}
                   onChange={(v) => {
-                    setDrawerFilters(prev => ({...prev, Format: v, SKU: 'All'}));
+                    setDrawerFilters(prev => ({ ...prev, Format: v, SKU: 'All' }));
                   }}
                 />
                 <DrawerMultiSelect
@@ -2782,7 +2789,7 @@ export default function TrendsCompetitionDrawer({
                   value={drawerFilters.Brand}
                   options={BRAND_OPTIONS}
                   onChange={(v) => {
-                    setDrawerFilters(prev => ({...prev, Brand: v, SKU: 'All'}));
+                    setDrawerFilters(prev => ({ ...prev, Brand: v, SKU: 'All' }));
                   }}
                 />
                 <DrawerMultiSelect
@@ -2790,20 +2797,20 @@ export default function TrendsCompetitionDrawer({
                   value={drawerFilters.City}
                   options={CITY_OPTIONS}
                   onChange={(v) => {
-                    setDrawerFilters(prev => ({...prev, City: v}));
+                    setDrawerFilters(prev => ({ ...prev, City: v }));
                   }}
                 />
-                {/* Reseller Name dropdown - DRL only */}
-                {isDrl && showResellerFilter && resellerOptions.length > 0 && (
+                {/* Reseller Name dropdown - DRL only (Commented out as requested) */}
+                {/* {isDrl && showResellerFilter && resellerOptions.length > 0 && (
                   <DrawerMultiSelect
                     title="Reseller"
                     value={drawerFilters.ResellerName}
                     options={resellerOptions}
                     onChange={(v) => {
-                      setDrawerFilters(prev => ({...prev, ResellerName: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All'}));
+                      setDrawerFilters(prev => ({ ...prev, ResellerName: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All' }));
                     }}
                   />
-                )}
+                )} */}
 
                 {/* MSL dropdown */}
                 {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
@@ -2814,7 +2821,7 @@ export default function TrendsCompetitionDrawer({
                     onChange={handleMslChange}
                   />
                 )}
-                
+
                 <Button
                   onClick={() => setIsMoreFiltersOpen(prev => !prev)}
                   startIcon={<SlidersHorizontal size={14} />}
@@ -2881,198 +2888,219 @@ export default function TrendsCompetitionDrawer({
               </Box>
             </Box>
 
-        {/* ADDITIONAL FILTERS INLINE PANEL — slides in from the right within the drawer */}
-        {isMoreFiltersOpen && (
-          <Box
-            sx={{
-              position: "absolute",
-              top: 0,
-              right: 0,
-              bottom: 0,
-              width: 300,
-              bgcolor: "white",
-              borderLeft: "1px solid #E2E8F0",
-              boxShadow: "-4px 0 20px rgba(0,0,0,0.06)",
-              zIndex: 10,
-              display: "flex",
-              flexDirection: "column",
-              p: 3,
-              animation: "slideInRight 0.2s ease-out",
-              "@keyframes slideInRight": {
-                from: { transform: "translateX(100%)" },
-                to: { transform: "translateX(0)" },
-              },
-            }}
-          >
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-              <Typography variant="h6" fontWeight={700} fontSize="1.05rem">SKU Selection</Typography>
-              <IconButton onClick={() => setIsMoreFiltersOpen(false)} size="small">
-                <X size={18} />
-              </IconButton>
-            </Box>
-
-            <Box display="flex" flexDirection="column" gap={3} flex={1}>
-              
-              <Box>
-                <Typography variant="body2" fontWeight={600} mb={1} color="#475569">SKU</Typography>
-                {/* Search input */}
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="Search SKUs..."
-                  value={skuSearchTerm || ''}
-                  onChange={(e) => setSkuSearchTerm(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Search size={14} color="#94A3B8" />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{
-                    mb: 1,
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      fontSize: '13px',
-                    }
-                  }}
-                />
-                {/* Scrollable SKU list */}
-                <Box
-                  sx={{
-                    maxHeight: 220,
-                    overflowY: 'auto',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 2,
-                    '&::-webkit-scrollbar': { width: 6 },
-                    '&::-webkit-scrollbar-thumb': { backgroundColor: '#CBD5E1', borderRadius: 3 },
-                  }}
-                >
-                  {/* "All SKUs" option */}
-                  <Box
-                    onClick={() => setDrawerFilters(prev => ({...prev, SKU: 'All'}))}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      px: 1.5,
-                      py: 1,
-                      cursor: 'pointer',
-                      borderBottom: '1px solid #F1F5F9',
-                      backgroundColor: drawerFilters.SKU === 'All' ? '#EFF6FF' : 'transparent',
-                      '&:hover': { backgroundColor: '#F8FAFC' },
-                    }}
-                  >
-                    <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${drawerFilters.SKU === 'All' ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: drawerFilters.SKU === 'All' ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {drawerFilters.SKU === 'All' && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
-                    </Box>
-                    <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>All SKUs</Typography>
-                  </Box>
-
-                  {/* Filtered SKU items */}
-                  {SKU_OPTIONS
-                    .filter(opt => !skuSearchTerm || opt.toLowerCase().includes(skuSearchTerm.toLowerCase()))
-                    .map(opt => {
-                      const isSelected = drawerFilters.SKU !== 'All' && 
-                        drawerFilters.SKU.split(';;').map(s => s.trim().toLowerCase()).includes(opt.toLowerCase());
-                      // Truncate display: show last part in parentheses as variant hint
-                      const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
-                      const variant = parenMatch ? parenMatch[1] : '';
-                      const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
-
-                      return (
-                        <Box
-                          key={opt}
-                          onClick={() => {
-                            if (drawerFilters.SKU === 'All') {
-                              setDrawerFilters(prev => ({...prev, SKU: opt}));
-                            } else {
-                              const selected = drawerFilters.SKU.split(';;').map(s => s.trim());
-                              const exists = selected.some(s => s.toLowerCase() === opt.toLowerCase());
-                              let nextSelected;
-                              if (exists) {
-                                nextSelected = selected.filter(s => s.toLowerCase() !== opt.toLowerCase());
-                              } else {
-                                nextSelected = [...selected, opt];
-                              }
-                              setDrawerFilters(prev => ({
-                                ...prev, 
-                                SKU: nextSelected.length > 0 ? nextSelected.join(';;') : 'All'
-                              }));
-                            }
-                          }}
-                          title={opt}
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1,
-                            px: 1.5,
-                            py: 0.8,
-                            cursor: 'pointer',
-                            borderBottom: '1px solid #F8FAFC',
-                            backgroundColor: isSelected ? '#EFF6FF' : 'transparent',
-                            transition: 'background 0.15s',
-                            '&:hover': { backgroundColor: isSelected ? '#DBEAFE' : '#F8FAFC' },
-                          }}
-                        >
-                          <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${isSelected ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: isSelected ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
-                          </Box>
-                          <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
-                            <Typography sx={{
-                              fontSize: '12px',
-                              fontWeight: isSelected ? 600 : 400,
-                              color: isSelected ? '#1E40AF' : '#334155',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              maxWidth: 200,
-                            }}>
-                              {mainName}
-                            </Typography>
-                            {variant && (
-                              <Typography sx={{ fontSize: '10px', color: '#94A3B8', mt: '-1px' }}>
-                                {variant}
-                              </Typography>
-                            )}
-                          </Box>
-                        </Box>
-                      );
-                    })
-                  }
-                  {SKU_OPTIONS.filter(opt => !skuSearchTerm || opt.toLowerCase().includes(skuSearchTerm.toLowerCase())).length === 0 && (
-                    <Typography sx={{ p: 2, textAlign: 'center', fontSize: '12px', color: '#94A3B8' }}>No SKUs found</Typography>
-                  )}
-                </Box>
-              </Box>
-            </Box>
-
-            <Box display="flex" justifyContent="flex-end" gap={2} pt={3} borderTop="1px solid #F1F5F9">
-              <Button 
-                onClick={() => setIsMoreFiltersOpen(false)}
-                variant="outlined"
-                sx={{ borderRadius: 2, textTransform: 'none', borderColor: '#E2E8F0', color: '#475569', minWidth: 90, fontSize: '13px' }}
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={() => setIsMoreFiltersOpen(false)}
-                variant="contained"
-                sx={{ 
-                  borderRadius: 2, 
-                  textTransform: 'none', 
-                  boxShadow: 'none', 
-                  bgcolor: '#0F172A',
-                  '&:hover': { bgcolor: '#1E293B', boxShadow: 'none' },
-                  minWidth: 120,
-                  fontSize: '13px'
+            {/* ADDITIONAL FILTERS INLINE PANEL — slides in from the right within the drawer */}
+            {isMoreFiltersOpen && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: 300,
+                  bgcolor: "white",
+                  borderLeft: "1px solid #E2E8F0",
+                  boxShadow: "-4px 0 20px rgba(0,0,0,0.06)",
+                  zIndex: 10,
+                  display: "flex",
+                  flexDirection: "column",
+                  p: 3,
+                  animation: "slideInRight 0.2s ease-out",
+                  "@keyframes slideInRight": {
+                    from: { transform: "translateX(100%)" },
+                    to: { transform: "translateX(0)" },
+                  },
                 }}
               >
-                Apply Filters
-              </Button>
-            </Box>
-          </Box>
-        )}
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                  <Typography variant="h6" fontWeight={700} fontSize="1.05rem">SKU Selection</Typography>
+                  <IconButton onClick={() => setIsMoreFiltersOpen(false)} size="small">
+                    <X size={18} />
+                  </IconButton>
+                </Box>
+
+                <Box display="flex" flexDirection="column" gap={3} flex={1}>
+
+                  <Box>
+                    <Typography variant="body2" fontWeight={600} mb={1} color="#475569">SKU</Typography>
+                    {/* Search input */}
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder={isDrlUser ? "Search SKUs or SAP code..." : "Search SKUs..."}
+                      value={skuSearchTerm || ''}
+                      onChange={(e) => setSkuSearchTerm(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Search size={14} color="#94A3B8" />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{
+                        mb: 1,
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                          fontSize: '13px',
+                        }
+                      }}
+                    />
+                    {/* Scrollable SKU list */}
+                    <Box
+                      sx={{
+                        maxHeight: 220,
+                        overflowY: 'auto',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: 2,
+                        '&::-webkit-scrollbar': { width: 6 },
+                        '&::-webkit-scrollbar-thumb': { backgroundColor: '#CBD5E1', borderRadius: 3 },
+                      }}
+                    >
+                      {/* "All SKUs" option */}
+                      <Box
+                        onClick={() => setDrawerFilters(prev => ({ ...prev, SKU: 'All' }))}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          px: 1.5,
+                          py: 1,
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #F1F5F9',
+                          backgroundColor: drawerFilters.SKU === 'All' ? '#EFF6FF' : 'transparent',
+                          '&:hover': { backgroundColor: '#F8FAFC' },
+                        }}
+                      >
+                        <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${drawerFilters.SKU === 'All' ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: drawerFilters.SKU === 'All' ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {drawerFilters.SKU === 'All' && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                        </Box>
+                        <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>All SKUs</Typography>
+                      </Box>
+
+                      {/* Filtered SKU items */}
+                      {(() => {
+                        const getSkuSapCode = (skuName) => {
+                          if (!skuName || !filterOptions.skuDetails) return null;
+                          const match = filterOptions.skuDetails.find(d => d.name?.toLowerCase() === skuName.toLowerCase());
+                          return match?.sapCode || null;
+                        };
+
+                        const filteredSkus = SKU_OPTIONS.filter(opt => {
+                          if (!skuSearchTerm) return true;
+                          const term = skuSearchTerm.toLowerCase();
+                          if (opt.toLowerCase().includes(term)) return true;
+                          if (isDrlUser) {
+                            const sap = getSkuSapCode(opt);
+                            if (sap && String(sap).toLowerCase().includes(term)) return true;
+                          }
+                          return false;
+                        });
+
+                        return (
+                          <>
+                            {filteredSkus.map(opt => {
+                              const isSelected = drawerFilters.SKU !== 'All' &&
+                                drawerFilters.SKU.split(';;').map(s => s.trim().toLowerCase()).includes(opt.toLowerCase());
+                              // Truncate display: show last part in parentheses as variant hint
+                              const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
+                              const variant = parenMatch ? parenMatch[1] : '';
+                              const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
+                              const sapCode = isDrlUser ? getSkuSapCode(opt) : null;
+
+                              return (
+                                <Box
+                                  key={opt}
+                                  onClick={() => {
+                                    if (drawerFilters.SKU === 'All') {
+                                      setDrawerFilters(prev => ({ ...prev, SKU: opt }));
+                                    } else {
+                                      const selected = drawerFilters.SKU.split(';;').map(s => s.trim());
+                                      const exists = selected.some(s => s.toLowerCase() === opt.toLowerCase());
+                                      let nextSelected;
+                                      if (exists) {
+                                        nextSelected = selected.filter(s => s.toLowerCase() !== opt.toLowerCase());
+                                      } else {
+                                        nextSelected = [...selected, opt];
+                                      }
+                                      setDrawerFilters(prev => ({
+                                        ...prev,
+                                        SKU: nextSelected.length > 0 ? nextSelected.join(';;') : 'All'
+                                      }));
+                                    }
+                                  }}
+                                  title={sapCode ? `${opt} (SAP: ${sapCode})` : opt}
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                    px: 1.5,
+                                    py: 0.8,
+                                    cursor: 'pointer',
+                                    borderBottom: '1px solid #F8FAFC',
+                                    backgroundColor: isSelected ? '#EFF6FF' : 'transparent',
+                                    transition: 'background 0.15s',
+                                    '&:hover': { backgroundColor: isSelected ? '#DBEAFE' : '#F8FAFC' },
+                                  }}
+                                >
+                                  <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${isSelected ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: isSelected ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                                  </Box>
+                                  <Box sx={{ overflow: 'hidden', minWidth: 0, flex: 1 }}>
+                                    <Typography sx={{
+                                      fontSize: '12px',
+                                      fontWeight: isSelected ? 600 : 400,
+                                      color: isSelected ? '#1E40AF' : '#334155',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      maxWidth: 220,
+                                    }}>
+                                      {mainName}
+                                    </Typography>
+                                    {variant && (
+                                      <Typography sx={{ fontSize: '10px', color: '#94A3B8', mt: '-1px' }}>
+                                        {variant}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                </Box>
+                              );
+                            })}
+                            {filteredSkus.length === 0 && (
+                              <Typography sx={{ p: 2, textAlign: 'center', fontSize: '12px', color: '#94A3B8' }}>No SKUs found</Typography>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Box display="flex" justifyContent="flex-end" gap={2} pt={3} borderTop="1px solid #F1F5F9">
+                  <Button
+                    onClick={() => setIsMoreFiltersOpen(false)}
+                    variant="outlined"
+                    sx={{ borderRadius: 2, textTransform: 'none', borderColor: '#E2E8F0', color: '#475569', minWidth: 90, fontSize: '13px' }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => setIsMoreFiltersOpen(false)}
+                    variant="contained"
+                    sx={{
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      boxShadow: 'none',
+                      bgcolor: '#0F172A',
+                      '&:hover': { bgcolor: '#1E293B', boxShadow: 'none' },
+                      minWidth: 120,
+                      fontSize: '13px'
+                    }}
+                  >
+                    Apply Filters
+                  </Button>
+                </Box>
+              </Box>
+            )}
 
             {/* CHART */}
             <Paper
@@ -3114,7 +3142,7 @@ export default function TrendsCompetitionDrawer({
                     if (dynamicKey !== "pricing" && (m.id === "Discount" || m.id === "discount")) {
                       sourceGroup = 'pdp';
                     }
-                    
+
                     const isMetricNA = kpiAvailability && sourceGroup ? !kpiAvailability[sourceGroup] : false;
                     return (
                       <MetricChip
