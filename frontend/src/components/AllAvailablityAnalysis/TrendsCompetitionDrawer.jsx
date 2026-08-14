@@ -2705,13 +2705,14 @@ export default function TrendsCompetitionDrawer({
             label="Date"
             value={range}
           />
-          {isDrl && showResellerFilter && (
+          {/* Reseller Filter Chip (Commented out as requested) */}
+          {/* {isDrl && showResellerFilter && (
             <SelectedFilterChip
               label="Reseller"
               value={drawerFilters.ResellerName}
               color={drawerFilters.ResellerName !== 'All' ? "#0ea5e9" : "#64748B"}
             />
-          )}
+          )} */}
           {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
             <SelectedFilterChip
               label="MSL"
@@ -2799,8 +2800,8 @@ export default function TrendsCompetitionDrawer({
                     setDrawerFilters(prev => ({ ...prev, City: v }));
                   }}
                 />
-                {/* Reseller Name dropdown - DRL only */}
-                {isDrl && showResellerFilter && resellerOptions.length > 0 && (
+                {/* Reseller Name dropdown - DRL only (Commented out as requested) */}
+                {/* {isDrl && showResellerFilter && resellerOptions.length > 0 && (
                   <DrawerMultiSelect
                     title="Reseller"
                     value={drawerFilters.ResellerName}
@@ -2809,7 +2810,7 @@ export default function TrendsCompetitionDrawer({
                       setDrawerFilters(prev => ({ ...prev, ResellerName: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All' }));
                     }}
                   />
-                )}
+                )} */}
 
                 {/* MSL dropdown */}
                 {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
