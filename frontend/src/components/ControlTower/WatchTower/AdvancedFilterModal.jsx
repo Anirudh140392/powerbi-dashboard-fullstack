@@ -169,7 +169,7 @@ function SingleSelectDropdown({ label, icon: Icon, options, value, onChange, pla
 // ========================================
 // MULTI-SELECT DROPDOWN COMPONENT
 // ========================================
-function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChange, placeholder }) {
+function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChange, placeholder, showSapCode = false }) {
     const [isOpen, setIsOpen] = useState(false)
     const [search, setSearch] = useState('')
     const dropdownRef = useRef(null)
@@ -185,9 +185,15 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
-    const filteredOptions = (options || []).filter(opt =>
-        opt && opt.name && typeof opt.name === 'string' && opt.name.toLowerCase().includes(search.toLowerCase())
-    )
+    const filteredOptions = (options || []).filter(opt => {
+        if (!opt || !opt.name || typeof opt.name !== 'string') return false;
+        const q = search.toLowerCase();
+        if (!q) return true;
+        if (opt.name.toLowerCase().includes(q)) return true;
+        // For DRL: also match against sapCode
+        if (showSapCode && opt.sapCode && String(opt.sapCode).toLowerCase().includes(q)) return true;
+        return false;
+    })
 
     const isOptionSelected = (opt) => {
         if (!selected || !selected.length || !opt) return false;
@@ -272,7 +278,7 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
                                     type="text"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    placeholder={`Search ${label.toLowerCase()}...`}
+                                    placeholder={showSapCode ? `Search SKU name or SAP code...` : `Search ${label.toLowerCase()}...`}
                                     className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
                                 />
                             </div>
@@ -324,7 +330,9 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
                                                     <Check size={10} className="text-white" strokeWidth={3} />
                                                 )}
                                             </div>
-                                            <span className="truncate capitalize">{opt.name}</span>
+                                            <div className="flex flex-col min-w-0 flex-1">
+                                                <span className="truncate capitalize text-xs leading-tight">{opt.name}</span>
+                                            </div>
                                         </button>
                                     );
                                 })
@@ -344,6 +352,15 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         try {
             const u = JSON.parse(sessionStorage.getItem('user'));
             return u?.dbName?.toLowerCase() === 'boat';
+        } catch {
+            return false;
+        }
+    }, []);
+
+    const isDrlUser = useMemo(() => {
+        try {
+            const u = JSON.parse(sessionStorage.getItem('user'));
+            return u?.dbName?.toLowerCase() === 'drl';
         } catch {
             return false;
         }
@@ -425,6 +442,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         }
     }, [skus])
 
+
     // Cascaded dynamic fetching effect
     useEffect(() => {
         if (!isOpen) return
@@ -475,9 +493,13 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                     endDate
                 }
 
+                const productsEndpoint = isDrlUser
+                    ? '/watchtower/products-with-sap'
+                    : '/watchtower/products';
+
                 const [cascadedRes, productsRes] = await Promise.allSettled([
                     axiosInstance.get('/watchtower/cascaded-filters', { params }),
-                    axiosInstance.get('/watchtower/products', {
+                    axiosInstance.get(productsEndpoint, {
                         params: {
                             platform: params.platform,
                             brand: params.brand,
@@ -521,10 +543,16 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
 
                 if (productsRes.status === 'fulfilled' && productsRes.value.data && Array.isArray(productsRes.value.data)) {
                     const mappedSkus = productsRes.value.data.map(p => {
-                        const parentOpt = skus?.find(opt => opt.name?.toLowerCase() === p.toLowerCase() || opt.id?.toLowerCase() === p.toLowerCase())
-                        if (parentOpt) return parentOpt
-                        return { id: p, name: p }
-                    })
+                        // DRL: p is {name, sapCode}; others: p is a plain string
+                        const productName = typeof p === 'object' ? (p.name || '') : String(p);
+                        const sapCode = typeof p === 'object' ? (p.sapCode || null) : null;
+                        const parentOpt = skus?.find(opt =>
+                            opt.name?.toLowerCase() === productName.toLowerCase() ||
+                            opt.id?.toLowerCase() === productName.toLowerCase()
+                        );
+                        if (parentOpt) return { ...parentOpt, sapCode: sapCode ?? parentOpt.sapCode ?? null };
+                        return { id: productName, name: productName, sapCode };
+                    }).filter(p => p.name);
                     setDynamicSkus(mappedSkus)
                 }
             } catch (err) {
@@ -826,6 +854,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 selected={localFilters.skus}
                                                 onChange={(val) => updateFilter('skus', val)}
                                                 placeholder="All Skus"
+                                                showSapCode={isDrlUser}
                                             />
                                         )}
                                         {(currentDimension === 'sku' && dynamicGrammages.length > 0) && (

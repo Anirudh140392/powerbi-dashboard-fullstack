@@ -8388,6 +8388,21 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
             }
             addResellerCondition(conditions);
 
+            const isDrl = dbName === 'drl';
+            if (isDrl) {
+                const tableName = src.table || 'rb_pdp_olap';
+                const cols = await getTableColumns(tableName);
+                const hasSapCode = columnExists(cols, 'sap_code');
+                if (hasSapCode) {
+                    const sapCol = resolveColumn(cols, 'sap_code');
+                    const query = `SELECT DISTINCT ${src.f.product} as sku, any(${sapCol}) as sap_code FROM ${src.table} WHERE ${conditions.join(' AND ')} GROUP BY sku ORDER BY sku`;
+                    const results = await queryClickHouse(query);
+                    const skuList = results.map(s => s.sku).filter(s => s && s.trim()).sort();
+                    const skuDetails = results.filter(s => s.sku && s.sku.trim()).map(s => ({ name: s.sku, sapCode: s.sap_code || null }));
+                    return { options: [...skuList], skuDetails };
+                }
+            }
+
             const query = `SELECT DISTINCT ${src.f.product} as sku FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY sku`;
             const results = await queryClickHouse(query);
             const skuList = results.map(s => s.sku).filter(s => s && s.trim()).sort();
@@ -12664,6 +12679,61 @@ const getProducts = async (filters = {}) => {
     }
 };
 
+/**
+ * DRL-only: returns [{name, sapCode}] for every product.
+ * The main getProducts is intentionally left unchanged (returns plain strings)
+ * so existing callers keep working. This is a separate endpoint.
+ */
+const getProductsWithSap = async (filters = {}) => {
+    try {
+        const src = await getWatchtowerSource();
+        const { platform, brand, category } = filters;
+        const conditions = [
+            `${src.f.product} IS NOT NULL`,
+            `${src.f.product} != ''`,
+            `toString(${src.f.compFlag}) = '0'`
+        ];
+
+        const _esc = (str) => str ? str.replace(/'/g, "''") : '';
+        const platArr = normalizeFilterArray(platform);
+        const bndArr = normalizeFilterArray(brand);
+        const catArr = normalizeFilterArray(category);
+
+        if (platArr && platArr.length > 0) {
+            conditions.push(`${src.f.platform} IN(${platArr.map(p => `'${_esc(p)}'`).join(', ')})`);
+        }
+        if (bndArr && bndArr.length > 0) {
+            conditions.push(`${src.f.brand} IN(${bndArr.map(b => `'${_esc(b)}'`).join(', ')})`);
+        }
+        if (catArr && catArr.length > 0) {
+            conditions.push(`${src.f.category} IN(${catArr.map(c => `'${_esc(c)}'`).join(', ')})`);
+        }
+
+        // Discover sap_code column safely — fall back to empty string if absent
+        const tableName = src.table || 'rb_pdp_olap';
+        const cols = await getTableColumns(tableName);
+        const hasSap = columnExists(cols, 'sap_code');
+        const sapExpr = hasSap ? resolveColumn(cols, 'sap_code') : "''";
+
+        const query = `
+                        SELECT
+                            ${src.f.product} AS product_name,
+                            any(${sapExpr}) AS sap_code
+                        FROM ${src.table}
+                        WHERE ${conditions.join(' AND ')}
+                        GROUP BY product_name
+                        ORDER BY product_name
+                    `;
+        const results = await queryClickHouse(query);
+        return results
+            .filter(r => r.product_name)
+            .map(r => ({ name: r.product_name, sapCode: r.sap_code || null }));
+    } catch (error) {
+        console.error('[getProductsWithSap] Error:', error);
+        return [];
+    }
+};
+
 const getProductCategories = async (filters = {}) => {
     try {
         const { platform } = filters;
@@ -12767,9 +12837,9 @@ const getWatchTowerCascadedFilters = async (filters) => {
                 const src = await getPricingSource();
                 const f = src.f;
                 if (!src.hasWeight) return [];
-                
+
                 let whereConditions = [`p.${f.weight} IS NOT NULL`, `p.${f.weight} != ''`];
-                
+
                 const platforms = parseMultiSelectFilter(platform);
                 if (platforms) whereConditions.push(buildInClause(`p.${f.platform}`, platforms));
 
@@ -12789,7 +12859,7 @@ const getWatchTowerCascadedFilters = async (filters) => {
                 if (channels) whereConditions.push(buildInClause(`p.${f.channel}`, channels));
 
                 whereConditions.push(`p.${f.compFlag} = '0'`);
-                
+
                 if (startDate && endDate) {
                     whereConditions.push(`p.${f.date} BETWEEN '${startDate}' AND '${endDate}'`);
                 }
@@ -12886,6 +12956,7 @@ export default {
     getCityOverview,
     getPerformanceBreakdownData,
     getProducts,
+    getProductsWithSap,
     getProductCategories,
     getChannels,
     getPdpPlatforms,

@@ -338,8 +338,9 @@ export const getKpiTrends = async (req, res) => {
 export const getTrendsFilterOptions = async (req, res) => {
     try {
         const { filterType, platform, brand, category, resellerName } = req.query;
-        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand, category, resellerName });
-        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand, category, resellerName });
+        const dbName = req.user?.dbName?.toLowerCase();
+        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand, category, resellerName, dbName });
+        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand, category, resellerName, dbName });
         res.json(data);
     } catch (error) {
         console.error('[getTrendsFilterOptions] Error:', error);
@@ -555,6 +556,22 @@ export const getProducts = async (req, res) => {
         res.json(products);
     } catch (error) {
         console.error('[getProducts] Error:', error);
+        res.json([]);
+    }
+};
+
+/**
+ * DRL-only: Get products with SAP codes for the SKU filter dropdown
+ * GET /api/watchtower/products-with-sap
+ * Returns [{name, sapCode}] — only called by DRL clients
+ */
+export const getProductsWithSap = async (req, res) => {
+    try {
+        const { platform, brand, category } = req.query;
+        const products = await watchTowerService.getProductsWithSap({ platform, brand, category });
+        res.json(products);
+    } catch (error) {
+        console.error('[getProductsWithSap] Error:', error);
         res.json([]);
     }
 };
