@@ -42,14 +42,14 @@ const cardSize = {
 const kpiDefs = [
     { key: 'categorySize', label: 'Category Size' },
     { key: 'mwMarketShare', label: 'Market Share%' },
-    { key: 'mwSales', label: 'Estimated Sales (Cr)' },
+    { key: 'mwSales', label: 'Estimated Sales' },
     { key: 'mlMarketShare', label: 'ML Market Share%' },
 ];
 
 const baseKpiLabels = {
     categorySize: 'Category Size',
     mwMarketShare: 'Market Share%',
-    mwSales: 'Estimated Sales (Cr)',
+    mwSales: 'Estimated Sales',
     mlMarketShare: 'ML Market Share%',
 };
 
@@ -71,7 +71,7 @@ const MarketCatOverview = ({
     const kpiLabels = useMemo(() => ({
         ...baseKpiLabels,
         mwMarketShare: `Market Share%`,
-        mwSales: `Estimated Sales (Cr)`,
+        mwSales: `Estimated Sales`,
     }), []);
 
     const {

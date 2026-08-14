@@ -29,7 +29,7 @@ import MarketShareShareTable from "./MarketShareShareTable";
 const marketShareKpis = [
   {
     id: "ms-mars-wrigley",
-    title: "Boat Estimated Sales (Cr)",
+    title: "Boat Estimated Sales",
     value: "₹ 6.90 Cr",
     subtitle: "Our brand estimated sales performance",
     delta: 38.1,
@@ -345,7 +345,7 @@ export default function MarketShareAnalysis() {
   const [kpis, setKpis] = useState(() =>
     marketShareKpis.map(k =>
       k.id === 'ms-mars-wrigley'
-        ? { ...k, title: `${dbDisplayName} Estimated Sales (Cr)`, subtitle: `${dbDisplayName} brand estimated sales performance` }
+        ? { ...k, title: `${dbDisplayName} Estimated Sales`, subtitle: `${dbDisplayName} brand estimated sales performance` }
         : k
     )
   );
