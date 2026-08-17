@@ -149,7 +149,7 @@ const buildFilterClauseExcluding = (filters, excludeKey) => {
 };
 
 const getMetricColumn = (metricType) => {
-    return metricType === 'Units' ? 'quantity' : 'amount_inr';
+    return metricType === 'Units' ? 'quantity' : 'COALESCE(amount_inr, net_amount * 100000)';
 };
 
 /**
@@ -162,7 +162,7 @@ export const getPrimaryKpis = async (filters = {}) => {
 
     const query = `
         SELECT
-            COALESCE(SUM(toFloat64OrZero(toString(amount_inr))), 0) AS total_sales,
+            COALESCE(SUM(toFloat64OrZero(toString(COALESCE(amount_inr, net_amount * 100000)))), 0) AS total_sales,
             COALESCE(SUM(toInt64OrZero(toString(quantity))), 0) AS total_units
         FROM ${table}
         WHERE billing_date IS NOT NULL
@@ -177,7 +177,7 @@ export const getPrimaryKpis = async (filters = {}) => {
     const momQuery = `
         SELECT
             toStartOfMonth(toDate(billing_date)) AS month_start,
-            COALESCE(SUM(toFloat64OrZero(toString(amount_inr))), 0) AS sales,
+            COALESCE(SUM(toFloat64OrZero(toString(COALESCE(amount_inr, net_amount * 100000)))), 0) AS sales,
             COALESCE(SUM(toInt64OrZero(toString(quantity))), 0) AS units
         FROM ${table}
         WHERE billing_date IS NOT NULL
@@ -403,7 +403,7 @@ export const getPrimaryPivotTable = async (filters = {}, xAxis = 'customer_name'
         const compQuery = `
             SELECT
                 toString(${columnName}) AS dimension_value,
-                COALESCE(SUM(toFloat64OrZero(toString(amount_inr))), 0) AS sales_val,
+                COALESCE(SUM(toFloat64OrZero(toString(COALESCE(amount_inr, net_amount * 100000)))), 0) AS sales_val,
                 COALESCE(SUM(toInt64OrZero(toString(quantity))), 0) AS units_val
             FROM ${table}
             WHERE billing_date IS NOT NULL
@@ -437,7 +437,7 @@ export const getPrimaryPivotTable = async (filters = {}, xAxis = 'customer_name'
     const currentQuery = `
         SELECT
             toString(${columnName}) AS dimension_value,
-            COALESCE(SUM(toFloat64OrZero(toString(amount_inr))), 0) AS sales_val,
+            COALESCE(SUM(toFloat64OrZero(toString(COALESCE(amount_inr, net_amount * 100000)))), 0) AS sales_val,
             COALESCE(SUM(toInt64OrZero(toString(quantity))), 0) AS units_val
         FROM ${table}
         WHERE billing_date IS NOT NULL
@@ -690,7 +690,7 @@ export const getPrimaryTopProducts = async (
     const query = `
         SELECT
             toString(${targetCol}) AS sub_name,
-            COALESCE(SUM(toFloat64OrZero(toString(amount_inr))), 0) AS sales_val,
+            COALESCE(SUM(toFloat64OrZero(toString(COALESCE(amount_inr, net_amount * 100000)))), 0) AS sales_val,
             COALESCE(SUM(toInt64OrZero(toString(quantity))), 0) AS units_val
         FROM ${table}
         WHERE ${targetCol} IS NOT NULL
