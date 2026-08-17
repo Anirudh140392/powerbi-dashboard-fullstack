@@ -8492,8 +8492,8 @@ const getCompetitionData = async (filters = {}) => {
         const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
         const days = periodDays[period] || 30;
 
-        const endDate = dayjs();
-        const startDate = endDate.clone().subtract(days, 'days');
+        const endDate = (filters.startDate && filters.endDate) ? dayjs(filters.endDate) : dayjs();
+        const startDate = (filters.startDate && filters.endDate) ? dayjs(filters.startDate) : endDate.clone().subtract(days, 'days');
         const momStartDate = startDate.clone().subtract(days, 'days');
         const momEndDate = startDate.clone().subtract(1, 'day');
 
@@ -9195,14 +9195,16 @@ const getCompetitionData = async (filters = {}) => {
             const skuMsCurr = getSkuMarketShare(sku.Product, skuCategory, skuMsMap, categoryTotalSalesMap);
             const skuMsPrev = getSkuMarketShare(sku.Product, skuCategory, skuMsMapPrev, categoryTotalSalesMapPrev);
 
-            const hasMsData = brandSalesMap.has(sku.Brand?.toLowerCase()) || (skuMsCurr !== null && skuMsCurr > 0);
-            const marketShare = skuMsCurr;
+            const totalSkuSalesVal = parseFloat(sku.total_sales || 0);
+            const fallbackMs = (totalSkuSales > 0 && totalSkuSalesVal > 0) ? (totalSkuSalesVal * 100.0) / totalSkuSales : 0;
+            const marketShare = (skuMsCurr !== null && skuMsCurr > 0) ? skuMsCurr : fallbackMs;
             const marketShareDelta = marketShare === null ? null : calcChange(marketShare, skuMsPrev || 0);
 
             // Category Share: Our brands' share in this SKU's specific category
             const lowerSkuCat = skuCategory.toLowerCase();
             const skuBrandSales = brandAbsoluteSalesMap.get(sku.Brand?.toLowerCase()) || 0;
             const skuCategoryTotalSales = categoryTotalSalesMap.get(lowerSkuCat) || 0;
+            const hasMsData = brandSalesMap.has(sku.Brand?.toLowerCase()) || (marketShare !== null && marketShare > 0);
             const categoryShare = hasMsData ? (skuCategoryTotalSales > 0 ? (skuBrandSales / skuCategoryTotalSales) * 100 : 0) : null;
 
             const skuBrandSalesPrev = brandAbsoluteSalesMapPrev.get(sku.Brand?.toLowerCase()) || 0;
@@ -9219,6 +9221,7 @@ const getCompetitionData = async (filters = {}) => {
                 sku_name: sku.Product,
                 brand_name: sku.Brand,
                 brand: sku.Product,
+                total_sales: totalSkuSalesVal,
                 OSA: { value: osa === null ? null : parseFloat(osa.toFixed(2)), delta: osaDelta === null ? null : parseFloat(osaDelta.toFixed(2)) },
                 SOS: { value: sos === null ? null : parseFloat(sos.toFixed(3)), delta: sosDelta === null ? null : parseFloat(sosDelta.toFixed(3)) },
                 Price: { value: parseFloat(avgPrice.toFixed(0)), delta: parseFloat(priceDelta.toFixed(2)) },
@@ -9230,12 +9233,17 @@ const getCompetitionData = async (filters = {}) => {
             };
         });
 
-        // Sort by Market Share descending, falling back to OSA descending
+        // Sort by Market Share descending (highest to lowest), falling back to total_sales, then OSA
         skuMetrics.sort((a, b) => {
-            const msA = Number(a.MarketShare?.value) || 0;
-            const msB = Number(b.MarketShare?.value) || 0;
-            if (msB !== msA) return msB - msA;
-            return (b.OSA?.value || 0) - (a.OSA?.value || 0);
+            const msA = Number(a.MarketShare?.value ?? a.MarketShare) || 0;
+            const msB = Number(b.MarketShare?.value ?? b.MarketShare) || 0;
+            if (Math.abs(msB - msA) > 0.0001) return msB - msA;
+            const salesA = Number(a.total_sales) || 0;
+            const salesB = Number(b.total_sales) || 0;
+            if (salesB !== salesA) return salesB - salesA;
+            const osaA = Number(a.OSA?.value ?? a.OSA) || 0;
+            const osaB = Number(b.OSA?.value ?? b.OSA) || 0;
+            return osaB - osaA;
         });
         const topSkus = skuMetrics;
 

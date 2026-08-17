@@ -1298,6 +1298,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
       value: apiData.metroCity.isMetroCity === false ? "N/A" : `${Number(apiData.metroCity.stockAvailability || 0).toFixed(2)}%`,
       delta: apiData.metroCity.isMetroCity === false ? 0 : Number(apiData.metroCity.stockAvailability || 0) - Number(apiData.metroCity.prevStockAvailability || 0),
       isNotMetro: apiData.metroCity.isMetroCity === false,
+      metroCities: apiData.metroCity.metroCities || ['Ahmedabad', 'Bengaluru', 'Chennai', 'Delhi', 'Hyderabad', 'Kolkata', 'Mumbai', 'Pune'],
       trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: (p.Osa !== null && p.Osa !== undefined) ? p.Osa : null, label: p.date || '' })) || []
     } : null;
 
@@ -1402,6 +1403,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         prevText: prevText,
         isNotMetro: data.isNotMetro,
         isNA: isCardNA,
+        metroCities: data.metroCities,
         infoTooltip: cfg.infoTooltip,
         loading: cfg.loading || false
       };

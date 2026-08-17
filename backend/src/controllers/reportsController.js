@@ -1,4 +1,4 @@
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
@@ -159,6 +159,21 @@ export const getReportBuilderOptions = async (req, res) => {
             if (!out.subCategories) out.subCategories = [];
             if (!out.regions) out.regions = [];
 
+            try {
+                const hasDarkstoreTable = await checkTableExists('rb_pdp_week');
+                if (hasDarkstoreTable) {
+                    const dates = await queryClickHouse('SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM rb_pdp_week');
+                    if (dates && dates[0] && dates[0].minDate) {
+                        out.darkstoreDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking darkstoreDateRange:', err);
+            }
+
             return out;
         }, CACHE_TTL.METRICS);
 
@@ -224,6 +239,64 @@ export const downloadReport = async (req, res) => {
             const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
             return `lower(${column}) IN (${items})`;
         };
+
+        const dataMode = req.query.dataMode || 'aggregated';
+
+        // ── DARKSTORE DATA EXPORT (rb_pdp_week) for DRL ──
+        if (dataMode === 'darkstore' || reportType === 'Darkstore Data') {
+            const currentDb = getCurrentDbName() || 'drl';
+            const weekTable = (currentDb === 'drl' || currentDb === 'prestige') ? `${currentDb}.rb_pdp_week` : 'drl.rb_pdp_week';
+
+            const darkstoreConds = [];
+            const pCond = buildInClause('platform_name', platform);
+            if (pCond) darkstoreConds.push(pCond);
+            const bCond = buildInClause('brand_name', brand);
+            if (bCond) darkstoreConds.push(bCond);
+            const lCond = buildInClause('location_name', city);
+            if (lCond) darkstoreConds.push(lCond);
+            const cCond = buildInClause('brand_category_name', format);
+            if (cCond) darkstoreConds.push(cCond);
+
+            darkstoreConds.push(`toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`);
+
+            const darkstoreWhere = darkstoreConds.length > 0 ? `WHERE ${darkstoreConds.join(' AND ')}` : '';
+
+            const darkstoreQuery = `
+                SELECT 
+                    toString(created_on) as created_on,
+                    platform_name as platform,
+                    brand_name as brand,
+                    brand_category_name as category,
+                    location_name as location,
+                    pincode,
+                    pincode_area,
+                    web_pid,
+                    sku_name as sku,
+                    pdp_page_url,
+                    osa,
+                    osa_remark
+                FROM ${weekTable}
+                ${darkstoreWhere}
+                ORDER BY created_on DESC
+            `;
+
+            console.log(`[downloadReport] Executing Darkstore query on ${weekTable}:`, darkstoreQuery);
+            const rawData = await queryClickHouse(darkstoreQuery);
+            console.log(`[downloadReport] Fetched ${rawData?.length || 0} Darkstore rows`);
+
+            if (!rawData || rawData.length === 0) {
+                return res.status(204).send();
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(rawData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Darkstore_Data");
+
+            const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename=Darkstore_Data_${dayjs().format('YYYYMMDD')}.xlsx`);
+            return res.send(buffer);
+        }
 
         let query = '';
         const conditions = [];

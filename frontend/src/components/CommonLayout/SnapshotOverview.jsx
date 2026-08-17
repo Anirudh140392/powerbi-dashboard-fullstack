@@ -633,6 +633,83 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
         )
     }
 
+    const renderTier1CitiesHoverButton = (itemKpi) => {
+        const isMetroKpi = itemKpi?.title === "Metro City Stock Availability" || (itemKpi?.metroCities && itemKpi.metroCities.length > 0);
+        if (!isMetroKpi) return null;
+
+        const rawCities = (itemKpi?.metroCities && itemKpi.metroCities.length > 0)
+            ? itemKpi.metroCities
+            : ['Ahmedabad', 'Bengaluru', 'Chennai', 'Delhi', 'Hyderabad', 'Kolkata', 'Mumbai', 'Pune'];
+
+        const formattedCities = rawCities.map(c => c.charAt(0).toUpperCase() + c.slice(1).toLowerCase());
+
+        return (
+            <Tooltip
+                title={
+                    <Box sx={{ p: 0.8, maxWidth: 300 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1, pb: 0.8, borderBottom: '1px solid rgba(255,255,255,0.15)' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <MapPin size={15} color="#a78bfa" />
+                                <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>
+                                    Tier 1 Metro Cities
+                                </Typography>
+                            </Box>
+                            <Box sx={{ px: 1, py: 0.2, borderRadius: '100px', background: 'rgba(99, 102, 241, 0.3)', border: '1px solid rgba(129, 140, 248, 0.4)', color: '#c7d2fe', fontSize: '10px', fontWeight: 700 }}>
+                                {formattedCities.length} Cities
+                            </Box>
+                        </Box>
+                        <Typography sx={{ fontSize: '11px', color: '#94a3b8', mb: 1.2, leading: 1.4 }}>
+                            Tier 1 cities from <code style={{ background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: '4px', color: '#60a5fa', fontSize: '10px' }}>rb_location_darkstore</code>:
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, maxHeight: 180, overflowY: 'auto' }}>
+                            {formattedCities.map((city) => (
+                                <Box
+                                    key={city}
+                                    sx={{
+                                        px: 1.2, py: 0.4,
+                                        borderRadius: '6px',
+                                        background: 'rgba(99, 102, 241, 0.2)',
+                                        border: '1px solid rgba(129, 140, 248, 0.35)',
+                                        color: '#e0e7ff',
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                    }}
+                                >
+                                    {city}
+                                </Box>
+                            ))}
+                        </Box>
+                    </Box>
+                }
+                arrow
+                placement="top"
+                enterDelay={100}
+                leaveDelay={150}
+                slotProps={{
+                    tooltip: {
+                        sx: {
+                            bgcolor: '#0f172a',
+                            color: '#f8fafc',
+                            borderRadius: '12px',
+                            boxShadow: '0 12px 36px rgba(0,0,0,0.35)',
+                            p: 1.5,
+                            border: '1px solid rgba(255,255,255,0.1)'
+                        }
+                    },
+                    arrow: { sx: { color: '#0f172a' } }
+                }}
+            >
+                <button
+                    type="button"
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-violet-100/80 text-violet-800 border border-violet-300/80 hover:bg-violet-200/80 transition-all cursor-pointer shadow-2xs"
+                >
+                    <MapPin size={11} className="text-violet-600" />
+                    <span>Tier 1 Cities</span>
+                </button>
+            </Tooltip>
+        );
+    };
+
     // Not a Metro City — show premium styled block
     if (kpi.isNotMetro) {
         const locationName = kpi.notMetroLocation && kpi.notMetroLocation !== 'All'
@@ -647,7 +724,10 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
 
                 <div className="px-5 pt-5 pb-3 flex-1 relative z-10">
                     <div className="flex items-center justify-between gap-1.5 mb-3">
-                        <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
+                            {renderTier1CitiesHoverButton(kpi)}
+                        </div>
                         {kpi.infoTooltip && (
                             <Tooltip
                                 title={<Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>}
@@ -750,7 +830,10 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
         <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg flex flex-col h-full font-roboto">
             <div className="px-5 pt-5 pb-3 flex-1">
                 <div className="flex items-center justify-between gap-1.5 mb-1">
-                    <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
+                        {renderTier1CitiesHoverButton(kpi)}
+                    </div>
                     {kpi.infoTooltip && (
                         <Tooltip
                             title={

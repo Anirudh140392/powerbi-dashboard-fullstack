@@ -1883,7 +1883,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
       apiSkus = apiSkus.filter(s => filters.skus.includes(s.sku_name || s.name));
     }
 
-    return apiSkus.slice(0, 8).map((s, idx) => {
+    const mapped = apiSkus.map((s, idx) => {
       const getVal = (v1, v2, v3, v4) => {
         if (v1 !== undefined) return v1;
         if (v2 !== undefined) return v2;
@@ -1924,7 +1924,20 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         RPI: typeof s.RPI === 'number' ? s.RPI : (s.RPI?.value ?? parseFloat(s.rpi ?? s.RPI) ?? 0),
         ASP: typeof s.ASP === 'number' ? s.ASP : (s.ASP?.value ?? parseFloat(s.asp ?? s.ASP) ?? 0),
         Offtake: typeof s.Offtake === 'number' ? s.Offtake : (s.Offtake?.value ?? parseFloat(s.offtake ?? s.Offtake) ?? 0),
+        total_sales: s.total_sales || s.Sales?.value || s.Sales || 0,
       };
+    });
+
+    return mapped.sort((a, b) => {
+      const valA = Number(a.MarketShare?.value ?? a.MarketShare ?? a.marketShare ?? 0) || 0;
+      const valB = Number(b.MarketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0) || 0;
+      if (Math.abs(valB - valA) > 0.0001) return valB - valA;
+      const salesA = Number(a.total_sales || a.Sales || 0) || 0;
+      const salesB = Number(b.total_sales || b.Sales || 0) || 0;
+      if (salesB !== salesA) return salesB - salesA;
+      const osaA = Number(a.Osa ?? 0) || 0;
+      const osaB = Number(b.Osa ?? 0) || 0;
+      return osaB - osaA;
     });
   }, [competitionData.skus, filters.brands, filters.skus]);
 
