@@ -242,8 +242,8 @@ const ITEM_DOT_COLORS = [
   "#f59e0b",
 ];
 
-// Month order for the CY vs LY chart X-axis (financial year order Apr -> Mar)
-const FY_MONTH_ORDER = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
+// Month order for the CY vs LY chart X-axis (calendar year order Jan -> Dec)
+const CY_MONTH_ORDER = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const capitalizeWords = (str) => {
   if (!str) return "";
@@ -574,39 +574,39 @@ export default function PrimaryPlanVsAchieved() {
 
   // Current Year vs Last Year chart data
   // Backend returns labels like "Apr-24", "Jul-25", "Jan-26" etc.
-  // We detect the FY years present in the data and assign the two most recent years
-  // to y_prev (last year) and y_curr (current year) buckets.
+  // We group by Calendar Year (Jan-Dec) and show the two most recent calendar years.
   const dynamicCurrentVsLyData = useMemo(() => {
     if (!liveMomData || liveMomData.length === 0) return [];
 
-    // Collect all unique 2-digit year suffixes from the data, e.g. ["24", "25", "26"]
-    const yearsSet = new Set();
+    // Collect all unique 2-digit calendar year suffixes from the data
+    const cySet = new Set();
     liveMomData.forEach((r) => {
       if (!r.month) return;
       const dashIdx = r.month.lastIndexOf("-");
-      if (dashIdx !== -1) yearsSet.add(r.month.slice(dashIdx + 1));
+      if (dashIdx !== -1) cySet.add(r.month.slice(dashIdx + 1)); // e.g. "25", "26"
     });
 
-    const sortedYears = Array.from(yearsSet).sort(); // ascending: ["24","25","26"]
-    const currYrSuffix = sortedYears[sortedYears.length - 1];         // e.g. "26"
-    const prevYrSuffix = sortedYears[sortedYears.length - 2] || null; // e.g. "25"
+    const sortedCYs = Array.from(cySet).sort(); // e.g. ["24", "25", "26"]
+    const currCY = sortedCYs[sortedCYs.length - 1];         // e.g. "26"
+    const prevCY = sortedCYs[sortedCYs.length - 2] || null; // e.g. "25"
 
-    const currYrFull = currYrSuffix ? `20${currYrSuffix}` : null;
-    const prevYrFull = prevYrSuffix ? `20${prevYrSuffix}` : null;
+    const currYrLabel = currCY ? `20${currCY}` : "Current Year";
+    const prevYrLabel = prevCY ? `20${prevCY}` : "Last Year";
 
-    // Build a lookup: "Apr-26" -> value
+    // Build a lookup: "Jan-26" -> value
     const valueMap = {};
     liveMomData.forEach((r) => {
       if (r.month) valueMap[r.month] = Number(r.value || 0);
     });
 
-    // Build chart rows — one per FY_MONTH_ORDER month
-    return FY_MONTH_ORDER.map((mName) => {
-      const currKey = currYrSuffix ? `${mName}-${currYrSuffix}` : null;
-      const prevKey = prevYrSuffix ? `${mName}-${prevYrSuffix}` : null;
+    // Build chart rows — one per calendar month (Jan -> Dec)
+    const allRows = CY_MONTH_ORDER.map((mName) => {
+      const currKey = currCY ? `${mName}-${currCY}` : null;
+      const prevKey = prevCY ? `${mName}-${prevCY}` : null;
 
-      const currVal = currKey && valueMap[currKey] != null ? valueMap[currKey] : null;
-      const prevVal = prevKey && valueMap[prevKey] != null ? valueMap[prevKey] : null;
+      // Use hasOwnProperty so 0-value months are kept (not treated as missing)
+      const currVal = currKey && Object.prototype.hasOwnProperty.call(valueMap, currKey) ? valueMap[currKey] : null;
+      const prevVal = prevKey && Object.prototype.hasOwnProperty.call(valueMap, prevKey) ? valueMap[prevKey] : null;
 
       const currMil = currVal != null ? parseFloat((currVal / 1000000).toFixed(2)) : null;
       const prevMil = prevVal != null ? parseFloat((prevVal / 1000000).toFixed(2)) : null;
@@ -617,10 +617,18 @@ export default function PrimaryPlanVsAchieved() {
         y_curr: currMil,
         y_prevLabel: prevVal != null ? formatShortVal(prevVal, true) : null,
         y_currLabel: currVal != null ? formatShortVal(currVal, true) : null,
-        _currYear: currYrFull,
-        _prevYear: prevYrFull,
+        _currYear: currYrLabel,
+        _prevYear: prevYrLabel,
       };
     });
+
+    // Trim trailing months where BOTH lines have no data
+    // (avoids a long empty tail when current year is incomplete)
+    let lastDataIdx = allRows.length - 1;
+    while (lastDataIdx >= 0 && allRows[lastDataIdx].y_prev == null && allRows[lastDataIdx].y_curr == null) {
+      lastDataIdx--;
+    }
+    return allRows.slice(0, lastDataIdx + 1);
   }, [liveMomData]);
 
   const handleFilterChange = (key, value) => {
