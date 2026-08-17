@@ -91,7 +91,7 @@ const getPlatformMeta = (name, index) => {
 /* ─────────────────────────────────────────────────────────────
    STATIC GRANULARITY & METRICS
 ───────────────────────────────────────────────────────────── */
-const SKU_OPTS = ["Category", "Sub Category", "Brand (Own)", "Brand (Own + Comp)", "SKU (Own)", "SKU (Own + Comp)"];
+const SKU_OPTS = ["Category", "Brand (Own)", "Brand (Own + Comp)", "SKU (Own)", "SKU (Own + Comp)"];
 const GEO_OPTS = ["Pan India", "City (Expanded)"];
 const TIME_OPTS = ["Daily", "Weekly", "Monthly"];
 
@@ -109,7 +109,7 @@ const PLATFORM_UNAVAILABLE_KPIS = {
 const PAGE_METRICS = [
   {
     key: "Business Overview", label: "Business Overview", icon: <DashboardIcon />, color: "#4F46E5",
-    tags: ["Offtake", "Units Sold", "Orders", "Stock Availability", "Listing %", "Inorganic Sales", "ROAS", "Conversion Rate", "CPM", "CPC", "BMI Sales Ratio", "Promo %"],
+    tags: ["Offtake", "Quantity Sold", "Orders", "Listing %", "Inorganic Sales", "ROAS", "Conversion Rate", "CPM", "CPC"],
     activeInSidebar: true
   },
   {
@@ -119,7 +119,7 @@ const PAGE_METRICS = [
   },
   {
     key: "Availability Analysis", label: "Availability Analysis", icon: <InventoryIcon />, color: "#10B981",
-    tags: ["OSA %", "Stock Out %", "DOI", "SOS %", "PSL", "Assortment", "Metro City Stock Availability"],
+    tags: ["OSA %", "DOI", "PSL", "Assortment"],
     activeInSidebar: true
   },
   {
@@ -129,12 +129,12 @@ const PAGE_METRICS = [
   },
   {
     key: "Pricing Analysis", label: "Pricing Analysis", icon: <DiscountIcon />, color: "#F59E0B",
-    tags: ["ECP", "MRP", "Discount %", "RPI"],
+    tags: ["Selling Price", "MRP", "Discount %"],
     activeInSidebar: true, hideForDb: ['mamaearth']
   },
   {
     key: "Performance Marketing", label: "Performance Marketing", icon: <CampaignIcon />, color: "#EF4444",
-    tags: ["Impressions", "Clicks", "Spend"],
+    tags: ["Impressions", "Clicks", "Spend", "Inorganic Sales", "ROAS", "Conversion Rate", "CPM", "CPC", "AOV"],
     activeInSidebar: true, hideForDb: ['mamaearth', 'boat']
   },
   {
@@ -149,7 +149,7 @@ const PAGE_METRICS = [
   },
   {
     key: "Market Share", label: "Market Share", icon: <PieChartIcon />, color: "#14B8A6",
-    tags: ["Sales Value", "Market Share %", "Category Size"],
+    tags: ["Market Share %", "Category Size"],
     activeInSidebar: true, hideForDb: ['mars_petcare']
   },
   {
@@ -232,6 +232,18 @@ export default function ReportBuilder({
       setPlatforms(init);
     }
   }, [dynamicPlatforms]);
+
+  const handleSelectAllPlatforms = () => {
+    const next = {};
+    dynamicPlatforms.forEach(p => { next[p.id] = true; });
+    setPlatforms(next);
+  };
+
+  const handleClearPlatforms = () => {
+    const next = {};
+    dynamicPlatforms.forEach(p => { next[p.id] = false; });
+    setPlatforms(next);
+  };
 
   const [sku, setSku] = useState("Category");
   const [geo, setGeo] = useState("Pan India");
@@ -476,8 +488,50 @@ export default function ReportBuilder({
               {/* ── STEP 0: PLATFORM ── */}
               {step === 0 && (
                 <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: "#1E293B", mb: 0.5 }}>Select Platforms</Typography>
-                  <Typography variant="body2" sx={{ color: "#64748B", mb: 3 }}>Choose data sources to include in this report</Typography>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 3, flexWrap: "wrap", gap: 1.5 }}>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: "#1E293B", mb: 0.5 }}>Select Platforms</Typography>
+                      <Typography variant="body2" sx={{ color: "#64748B" }}>Choose data sources to include in this report</Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", gap: 1 }}>
+                      <Button
+                        size="small"
+                        onClick={handleSelectAllPlatforms}
+                        sx={{
+                          textTransform: "none",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: "#4F46E5",
+                          borderRadius: "8px",
+                          px: 1.8,
+                          py: 0.5,
+                          border: "1px solid rgba(79, 70, 229, 0.2)",
+                          background: "#EEF2FF",
+                          "&:hover": { background: "#E0E7FF" },
+                        }}
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={handleClearPlatforms}
+                        sx={{
+                          textTransform: "none",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "#64748B",
+                          borderRadius: "8px",
+                          px: 1.8,
+                          py: 0.5,
+                          border: "1px solid #E2E8F0",
+                          background: "#F8FAFC",
+                          "&:hover": { background: "#F1F5F9", borderColor: "#CBD5E1" },
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    </Box>
+                  </Box>
 
                   <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 1.5, mb: 3 }}>
                     {dynamicPlatforms.map(p => {
