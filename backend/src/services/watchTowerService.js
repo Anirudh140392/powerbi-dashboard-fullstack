@@ -7909,14 +7909,30 @@ const getKpiTrends = async (filters) => {
 
     const pmKpiConds = buildPmConds();
 
-    // Reseller_Name condition for DRL: only filter Offtake (total_sales), leave other KPIs unfiltered
+    // Reseller_Name condition for DRL: handle Buy More (buymore_rb_pdp_olap) and RK World (rb_pdp_olap)
     const dbNameForTrends = getCurrentDbName();
-    const resellerArrTrends = ((dbNameForTrends === 'drl' || dbNameForTrends === 'prestige') && resellerName && resellerName !== 'All' && resellerName !== 'all')
-        ? normalizeFilterArray(resellerName)
-        : null;
-    const resellerCondSql = (resellerArrTrends && resellerArrTrends.length > 0)
-        ? `Reseller_Name IN (${resellerArrTrends.map(r => `'${escapeStr(r)}'`).join(', ')})`
-        : null;
+    const isDrlDb = dbNameForTrends === 'drl';
+    const resellerList = (resellerName && resellerName !== 'All' && resellerName !== 'all')
+        ? normalizeFilterArray(resellerName).map(r => String(r).toLowerCase().trim())
+        : [];
+
+    let includeRkWorld = true;
+    let includeBuyMore = true;
+
+    if (isDrlDb && resellerList.length > 0) {
+        const hasRk = resellerList.some(r => r.includes('rk') || r.includes('world'));
+        const hasBuy = resellerList.some(r => r.includes('buy') || r.includes('more'));
+        if (hasRk && !hasBuy) {
+            includeRkWorld = true;
+            includeBuyMore = false;
+        } else if (hasBuy && !hasRk) {
+            includeRkWorld = false;
+            includeBuyMore = true;
+        } else if (hasRk && hasBuy) {
+            includeRkWorld = true;
+            includeBuyMore = true;
+        }
+    }
 
     const channelColSql = src.f.channel ? `lower(${src.f.channel})` : `(CASE WHEN lower(${src.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${src.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
     const pmChannelColSql = pmSrc.f.channel ? `lower(${pmSrc.f.channel})` : `(CASE WHEN lower(${pmSrc.f.platform}) IN ('amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart') THEN 'ecommerce' WHEN lower(${pmSrc.f.platform}) IN ('blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow') THEN 'quickcomm' ELSE 'other' END)`;
@@ -7927,7 +7943,7 @@ const getKpiTrends = async (filters) => {
             SELECT 
                 ${groupExpression.replace('DATE', src.f.date)} as date_group,
                 MAX(toDate(${src.f.date})) as ref_date,
-                ${resellerCondSql ? `SUM(CASE WHEN ${resellerCondSql} THEN ${src.f.sales} ELSE 0 END)` : `SUM(${src.f.sales})`} as total_sales,
+                SUM(${src.f.sales}) as total_sales,
                 SUM(${src.f.adSales}) as total_Ad_sales,
                 SUM(${src.f.spend}) as total_ad_spend,
                 SUM(${src.f.orders}) as total_ad_orders,
@@ -7970,6 +7986,84 @@ const getKpiTrends = async (filters) => {
             GROUP BY date_group
         `)
     ]);
+
+    if (isDrlDb) {
+        let buymoreMap = new Map();
+        if (includeBuyMore) {
+            const buildBuymoreConds = () => {
+                const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+                if (dimension && dimensionValue && dimensionValue !== 'All') {
+                    const dimKey = dimension.toLowerCase();
+                    const val = dimensionValue;
+                    if (dimKey === 'platform') conds.push(`lower(Platform) = '${escapeStr(val.toLowerCase())}'`);
+                    else if (dimKey === 'category' || dimKey === 'format') conds.push(`lower(trim(BOTH '\t\n ' FROM category)) = '${escapeStr(val.toLowerCase())}'`);
+                    else if (dimKey === 'brand') conds.push(`lower(brand) = '${escapeStr(val.toLowerCase())}'`);
+                    else if (dimKey === 'city' || dimKey === 'location') conds.push(`lower(Location) = '${escapeStr(val.toLowerCase())}'`);
+                }
+                if (catArr && catArr.length > 0) conds.push(`lower(trim(BOTH '\t\n ' FROM category)) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+                if (brandArr && brandArr.length > 0) {
+                    const brandConditions = brandArr.map(b => `lower(brand) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ');
+                    conds.push(`(${brandConditions})`);
+                }
+                if (locArr && locArr.length > 0) conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+                if (platArr && platArr.length > 0) conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                return conds.join(' AND ');
+            };
+
+            try {
+                const buymoreGroupExpr = groupExpression.replace('DATE', 'DATE');
+                const buymoreResults = await queryClickHouse(`
+                    SELECT 
+                        ${buymoreGroupExpr} as date_group,
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales
+                    FROM drl.buymore_rb_pdp_olap
+                    WHERE ${buildBuymoreConds()}
+                    GROUP BY date_group
+                `);
+                buymoreMap = new Map(buymoreResults.map(r => [String(r.date_group), parseFloat(r.buymore_sales || 0)]));
+            } catch (err) {
+                console.error('[getKpiTrends] Error querying buymore_rb_pdp_olap:', err);
+            }
+        }
+
+        const kpiMap = new Map();
+        kpiResults.forEach(r => kpiMap.set(String(r.date_group), r));
+
+        if (includeBuyMore) {
+            buymoreMap.forEach((buySales, groupKey) => {
+                if (kpiMap.has(groupKey)) {
+                    const row = kpiMap.get(groupKey);
+                    if (!includeRkWorld) {
+                        row.total_sales = buySales;
+                    } else {
+                        row.total_sales = parseFloat(row.total_sales || 0) + buySales;
+                    }
+                } else {
+                    const newRow = {
+                        date_group: groupKey,
+                        total_sales: buySales,
+                        total_Ad_sales: 0,
+                        total_ad_spend: 0,
+                        total_ad_orders: 0,
+                        total_ad_clicks: 0,
+                        total_ad_impressions: 0,
+                        total_availability: null,
+                        assortment_count: 0
+                    };
+                    kpiResults.push(newRow);
+                    kpiMap.set(groupKey, newRow);
+                }
+            });
+        }
+
+        if (!includeRkWorld && includeBuyMore) {
+            kpiResults.forEach(r => {
+                if (!buymoreMap.has(String(r.date_group))) {
+                    r.total_sales = 0;
+                }
+            });
+        }
+    }
 
     // Create a map for PM results for easy lookup during bucket processing
     const pmDataMap = new Map();
@@ -8369,13 +8463,14 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
         }
 
         if (filterType === 'resellerNames') {
-            // Fetch unique reseller names for DRL only — cascaded by platform
-            if (dbName !== 'drl' && dbName !== 'prestige') return { options: [] };
-            const conditions = [`Reseller_Name IS NOT NULL`, `Reseller_Name != ''`, `Comp_flag = 0`];
+            const pdpCols = await getTableColumns(src.table);
+            const rNameCol = resolveColumn(pdpCols, 'Reseller_Name', 'Reseller_Name');
+            if (!pdpCols.has(rNameCol.toLowerCase())) return { options: [] };
+            const conditions = [`${rNameCol} IS NOT NULL`, `toString(${rNameCol}) != ''`, `lower(toString(${rNameCol})) != 'none'`];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
-            const query = `SELECT DISTINCT Reseller_Name as value FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY value`;
+            const query = `SELECT DISTINCT toString(${rNameCol}) as value FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY value`;
             const results = await queryClickHouse(query);
             return { options: results.map(r => r.value).filter(Boolean) };
         }

@@ -752,27 +752,11 @@ export default function TrendsCompetitionDrawer({
   })();
   const [resellerOptions, setResellerOptions] = useState([]);
 
-  // Fetch reseller name options for DRL - cascaded by platform
+  // Fetch reseller name options - hardcoded options
   useEffect(() => {
-    if (!open || !isDrl || !showResellerFilter) return;
-    let cancelled = false;
-    const platformParam = toApiParam(drawerFilters.Platform);
-    const fetchResellerOptions = async () => {
-      try {
-        const res = await axiosInstance.get('/watchtower/trends-filter-options', {
-          params: { filterType: 'resellerNames', platform: platformParam }
-        });
-        if (cancelled) return;
-        if (res.data?.options) {
-          setResellerOptions(res.data.options);
-        }
-      } catch (err) {
-        console.error('[TrendsDrawer] Error fetching reseller names:', err);
-      }
-    };
-    fetchResellerOptions();
-    return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, isDrl]);
+    if (!open || !showResellerFilter) return;
+    setResellerOptions(["Buy More", "RK World"]);
+  }, [open, showResellerFilter]);
 
   const prevPropsRef = useRef({
     open: false,
@@ -2705,14 +2689,14 @@ export default function TrendsCompetitionDrawer({
             label="Date"
             value={range}
           />
-          {/* Reseller Filter Chip (Commented out as requested) */}
-          {/* {isDrl && showResellerFilter && (
+          {/* Reseller Filter Chip */}
+          {showResellerFilter && drawerFilters.ResellerName !== 'All' && (
             <SelectedFilterChip
               label="Reseller"
               value={drawerFilters.ResellerName}
               color={drawerFilters.ResellerName !== 'All' ? "#0ea5e9" : "#64748B"}
             />
-          )} */}
+          )}
           {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
             <SelectedFilterChip
               label="MSL"
@@ -2800,8 +2784,8 @@ export default function TrendsCompetitionDrawer({
                     setDrawerFilters(prev => ({ ...prev, City: v }));
                   }}
                 />
-                {/* Reseller Name dropdown - DRL only (Commented out as requested) */}
-                {/* {isDrl && showResellerFilter && resellerOptions.length > 0 && (
+                {/* Reseller Name dropdown */}
+                {showResellerFilter && (
                   <DrawerMultiSelect
                     title="Reseller"
                     value={drawerFilters.ResellerName}
@@ -2810,7 +2794,7 @@ export default function TrendsCompetitionDrawer({
                       setDrawerFilters(prev => ({ ...prev, ResellerName: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All' }));
                     }}
                   />
-                )} */}
+                )}
 
                 {/* MSL dropdown */}
                 {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
