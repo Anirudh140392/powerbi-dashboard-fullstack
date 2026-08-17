@@ -61,6 +61,7 @@ export default function GeoIntelligenceMap() {
     const [platforms, setPlatforms] = useState([]);
     const [category, setCategory] = useState("All");
     const [categories, setCategories] = useState([]);
+    const [showIntensityInfo, setShowIntensityInfo] = useState(false);
 
     // --- Brand State ---
     const [brand, setBrand] = useState(globalSelectedBrand || "All");
@@ -945,7 +946,144 @@ export default function GeoIntelligenceMap() {
                         }}>
                             {/* The Luminous Prism Scale */}
                             <div style={{ marginBottom: "24px" }}>
-                                <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "800", textTransform: "uppercase", letterSpacing: "2px", marginBottom: "16px" }}>Intensity Prism</div>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", position: "relative" }}>
+                                    <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "800", textTransform: "uppercase", letterSpacing: "2px" }}>Intensity Prism</div>
+                                    <div
+                                        style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
+                                        onMouseEnter={() => setShowIntensityInfo(true)}
+                                        onMouseLeave={() => setShowIntensityInfo(false)}
+                                    >
+                                        <button
+                                            type="button"
+                                            style={{
+                                                width: "20px",
+                                                height: "20px",
+                                                borderRadius: "50%",
+                                                background: showIntensityInfo ? "#4f46e5" : "#f1f5f9",
+                                                color: showIntensityInfo ? "#ffffff" : "#64748b",
+                                                border: "none",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                fontSize: "11px",
+                                                fontWeight: "700",
+                                                cursor: "pointer",
+                                                transition: "all 0.2s ease",
+                                                boxShadow: showIntensityInfo ? "0 2px 8px rgba(79,70,229,0.3)" : "none"
+                                            }}
+                                            aria-label="Color Logic Info"
+                                        >
+                                            i
+                                        </button>
+
+                                        {/* Hover Tooltip Window */}
+                                        {showIntensityInfo && (
+                                            <div style={{
+                                                position: "absolute",
+                                                bottom: "28px",
+                                                right: "0",
+                                                width: "290px",
+                                                background: "#0f172a",
+                                                color: "#f8fafc",
+                                                borderRadius: "16px",
+                                                padding: "14px 16px",
+                                                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)",
+                                                zIndex: 100,
+                                                border: "1px solid rgba(255, 255, 255, 0.1)",
+                                                pointerEvents: "none"
+                                            }}>
+                                                <div style={{ fontSize: "11px", fontWeight: "800", textTransform: "uppercase", letterSpacing: "1px", color: "#38bdf8", marginBottom: "6px" }}>
+                                                    Color & Comparison Logic ({metric})
+                                                </div>
+                                                <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "10px", lineHeight: "1.4" }}>
+                                                    How pin-point colors are assigned on the map for {metric}:
+                                                </div>
+
+                                                {metric === "OSA %" && (
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.Green, flexShrink: 0 }}></span>
+                                                            <span style={{ color: "#e2e8f0", fontWeight: "600" }}>Leader:</span>
+                                                            <span style={{ color: "#94a3b8" }}>OSA &gt; 80%</span>
+                                                        </div>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.Blue, flexShrink: 0 }}></span>
+                                                            <span style={{ color: "#e2e8f0", fontWeight: "600" }}>Medium-High:</span>
+                                                            <span style={{ color: "#94a3b8" }}>65% &lt; OSA ≤ 80%</span>
+                                                        </div>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.Orange, flexShrink: 0 }}></span>
+                                                            <span style={{ color: "#e2e8f0", fontWeight: "600" }}>Medium-Low:</span>
+                                                            <span style={{ color: "#94a3b8" }}>45% &lt; OSA ≤ 65%</span>
+                                                        </div>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.Red, flexShrink: 0 }}></span>
+                                                            <span style={{ color: "#e2e8f0", fontWeight: "600" }}>Critical:</span>
+                                                            <span style={{ color: "#94a3b8" }}>OSA ≤ 45%</span>
+                                                        </div>
+                                                        <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.08)", fontSize: "10px", color: "#cbd5e1", lineHeight: "1.3" }}>
+                                                            <strong style={{ color: "#38bdf8" }}>Period Scope:</strong> Stock availability averaged over the selected date range ({timePeriod}).
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {metric === "Market Share" && (
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.Green, flexShrink: 0 }}></span>
+                                                            <span style={{ color: "#e2e8f0", fontWeight: "600" }}>Leader:</span>
+                                                            <span style={{ color: "#94a3b8" }}>Market Share &gt; 4.9%</span>
+                                                        </div>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.Red, flexShrink: 0 }}></span>
+                                                            <span style={{ color: "#e2e8f0", fontWeight: "600" }}>Critical / Low:</span>
+                                                            <span style={{ color: "#94a3b8" }}>Market Share ≤ 4.9%</span>
+                                                        </div>
+                                                        <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.08)", fontSize: "10px", color: "#cbd5e1", lineHeight: "1.3" }}>
+                                                            <strong style={{ color: "#38bdf8" }}>Period Scope:</strong> Market share ratio for the selected date range ({timePeriod}).
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {metric === "Sales" && (
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.Green, flexShrink: 0 }}></span>
+                                                            <span style={{ color: "#e2e8f0", fontWeight: "600" }}>Growth:</span>
+                                                            <span style={{ color: "#94a3b8" }}>Sales Growth ≥ 0%</span>
+                                                        </div>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.Red, flexShrink: 0 }}></span>
+                                                            <span style={{ color: "#e2e8f0", fontWeight: "600" }}>Degrowth:</span>
+                                                            <span style={{ color: "#94a3b8" }}>Sales Change &lt; 0%</span>
+                                                        </div>
+                                                        <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.08)", fontSize: "10px", color: "#cbd5e1", lineHeight: "1.3" }}>
+                                                            <strong style={{ color: "#38bdf8" }}>Comparison Period:</strong> Compares current {timePeriod} sales against the <em>preceding equivalent period / previous month</em>.
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {metric === "Orders" && (
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "11px" }}>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.Green, flexShrink: 0 }}></span>
+                                                            <span style={{ color: "#e2e8f0", fontWeight: "600" }}>Growth:</span>
+                                                            <span style={{ color: "#94a3b8" }}>Orders Growth ≥ 0%</span>
+                                                        </div>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: COLORS.Red, flexShrink: 0 }}></span>
+                                                            <span style={{ color: "#e2e8f0", fontWeight: "600" }}>Degrowth:</span>
+                                                            <span style={{ color: "#94a3b8" }}>Orders Change &lt; 0%</span>
+                                                        </div>
+                                                        <div style={{ marginTop: "8px", paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.08)", fontSize: "10px", color: "#cbd5e1", lineHeight: "1.3" }}>
+                                                            <strong style={{ color: "#38bdf8" }}>Comparison Period:</strong> Compares current {timePeriod} order volume against the <em>preceding equivalent period / previous month</em>.
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                                 <div style={{ display: "flex", alignItems: "flex-end", gap: "6px", height: "40px" }}>
                                     {(metric === "Sales" || metric === "Orders" || metric === "Market Share") ? (
                                         <>

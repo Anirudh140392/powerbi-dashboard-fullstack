@@ -7,7 +7,7 @@ let transporter = null;
 function getTransporter() {
     if (!transporter) {
         const user = process.env.SMTP_USER || process.env.Alert_email;
-        const pass = process.env.SMTP_PASS || process.env.Alert_email_password;
+        const pass = process.env.SMTP_PASS || process.env.ALERT_EMAIL_PASSWORD || process.env.Alert_email_password;
         const host = process.env.SMTP_HOST || 'smtp.office365.com';
         const port = parseInt(process.env.SMTP_PORT || '587', 10);
 

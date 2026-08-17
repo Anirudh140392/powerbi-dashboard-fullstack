@@ -114,6 +114,9 @@ const kpiLabels = {
     tacos: 'TACoS',
     roas_x: 'ROAS',
     availability: 'Availability',
+    wtOsa: 'Wt OSA',
+    wtDiscount: 'Wt Discount',
+    listingPercent: 'Listing %',
     marketShare: 'Market share',
     conversion: 'Conversion',
     shareOfVolume: 'SHARE OF SEARCH',
@@ -137,6 +140,13 @@ const BACKEND_TITLE_TO_KEY = {
     'Inorg Sales': 'inorgSales',
     'Conversion': 'conversion',
     'Availability': 'availability',
+    'Wt OSA': 'wtOsa',
+    'Wt Discount': 'wtDiscount',
+    'Weighted Discount': 'wtDiscount',
+    'Listing %': 'listingPercent',
+    'Listing Percentage': 'listingPercent',
+    'listing_percentage': 'listingPercent',
+    'Listing': 'listingPercent',
     'SOS': 'shareOfVolume',
     'Share of Search': 'shareOfVolume',
     'Ad SOV': 'ad_sov',
@@ -269,6 +279,9 @@ const PlatformOverviewNew = ({
         { key: 'inorgSales', label: 'Inorg Sales' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
+        { key: 'wtOsa', label: 'Wt OSA' },
+        { key: 'wtDiscount', label: 'Wt Discount' },
+        { key: 'listingPercent', label: 'Listing %' },
         { key: 'shareOfVolume', label: 'Share of Search' },
         { key: 'ad_sov', label: 'Ad SOV' },
         { key: 'organic_sov', label: 'Organic SOV' },
@@ -315,29 +328,48 @@ const PlatformOverviewNew = ({
         }
     };
 
-    // Initialize default local platform filters to 'All' ONCE on mount
-    const isInitializedRef = useRef(false);
+    // Keep local platform filters in sync when globalPlatform changes from top global header dropdown
     useEffect(() => {
-        if (!isInitializedRef.current && globalPlatforms?.length > 0) {
-            isInitializedRef.current = true;
-            setLocalPlatformFilter('All');
-            setSkuPlatformFilter('All');
+        if (globalPlatform) {
+            const platVal = Array.isArray(globalPlatform)
+                ? (globalPlatform.length === 1 ? globalPlatform[0] : (globalPlatform.includes('All') ? 'All' : globalPlatform.join(',')))
+                : globalPlatform;
+            setLocalPlatformFilter(platVal || 'All');
+            setSkuPlatformFilter(platVal || 'All');
         }
-    }, [globalPlatforms]);
+    }, [globalPlatform]);
+
+    const effectivePlatform = useMemo(() => {
+        if (globalPlatform && globalPlatform !== 'All') {
+            return Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform;
+        }
+        return 'All';
+    }, [globalPlatform]);
 
     // Determine the active platform filter for non-platform, non-sku dimensions
     // (Brand, Category, Month now use a platform dropdown instead of channel)
     const activePlatformFilter = (dimension !== 'platform' && dimension !== 'sku')
-        ? (localPlatformFilter || 'All')
-        : 'All';
+        ? (localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform)
+        : (dimension === 'sku')
+            ? (skuPlatformFilter !== 'All' ? skuPlatformFilter : effectivePlatform)
+            : effectivePlatform;
 
     // Derive isEcom / isQuick from the selected platform name
     const isEcom = activePlatformFilter !== 'All' && isEcomPlatform(activePlatformFilter);
     const isQuick = activePlatformFilter !== 'All' && isQcomPlatform(activePlatformFilter);
 
     // For SKU dimension: determine if selected platform is qcom
-    const isSkuQcom = dimension === 'sku' && skuPlatformFilter !== 'All' && isQcomPlatform(skuPlatformFilter);
-    const isSkuEcom = dimension === 'sku' && skuPlatformFilter !== 'All' && isEcomPlatform(skuPlatformFilter);
+    const isSkuQcom = dimension === 'sku' && activePlatformFilter !== 'All' && isQcomPlatform(activePlatformFilter);
+    const isSkuEcom = dimension === 'sku' && activePlatformFilter !== 'All' && isEcomPlatform(activePlatformFilter);
+
+    const isPidilite = useMemo(() => {
+        try {
+            const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+            return storedUser?.dbName?.toLowerCase() === 'pidilite';
+        } catch {
+            return false;
+        }
+    }, []);
 
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
@@ -355,7 +387,7 @@ const PlatformOverviewNew = ({
         if (isEcom) {
             baseKpis = baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare' && k.key !== 'cpm');
         } else if (isQuick) {
-            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime' && k.key !== 'cpc');
+            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime' && (isPidilite ? true : k.key !== 'cpc'));
         } else {
             baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime');
         }
@@ -366,13 +398,16 @@ const PlatformOverviewNew = ({
                 // CPM is never shown at SKU level
                 if (k.key === 'cpm') return false;
                 // Spend/Conversion/CPC are ecom-only at SKU level
-                if (isSkuQcom && SKU_ECOM_ONLY_KPIS.includes(k.key)) return false;
+                if (isSkuQcom && SKU_ECOM_ONLY_KPIS.includes(k.key)) {
+                    if (isPidilite && k.key === 'cpc') return true;
+                    return false;
+                }
                 return true;
             });
         }
         if (dimension === 'brand') return baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
         return baseKpis;
-    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom]);
+    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite]);
 
     const defaultKpiKeys = useMemo(() => {
         let base = ['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'conversion', 'aov'];
@@ -382,7 +417,10 @@ const PlatformOverviewNew = ({
         if (dimension === 'platform') {
             base.push('marketShare', 'categorySize');
             if (isEcom) base.push('cpc');
-            else if (isQuick) base.push('cpm');
+            else if (isQuick) {
+                base.push('cpm');
+                if (isPidilite) base.push('cpc');
+            }
             else base.push('cpc', 'cpm');
         } else {
             if (isEcom) {
@@ -390,6 +428,7 @@ const PlatformOverviewNew = ({
                 base.push('deliveryTime', 'cpc');
             } else if (isQuick) {
                 base.push('marketShare', 'categorySize', 'cpm');
+                if (isPidilite) base.push('cpc');
             } else {
                 if (allowBuyBox) base.push('buyBoxPct');
                 base.push('marketShare', 'categorySize', 'cpc', 'cpm');
@@ -400,7 +439,7 @@ const PlatformOverviewNew = ({
             let skuBase = base.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'cpm');
             if (!allowBuyBox) skuBase = skuBase.filter(k => k !== 'buyBoxPct');
             if (isSkuQcom) {
-                skuBase = skuBase.filter(k => !SKU_ECOM_ONLY_KPIS.includes(k));
+                skuBase = skuBase.filter(k => isPidilite && k === 'cpc' ? true : !SKU_ECOM_ONLY_KPIS.includes(k));
             }
             return skuBase;
         }
@@ -411,7 +450,7 @@ const PlatformOverviewNew = ({
         }
         if (!allowBuyBox) base = base.filter(k => k !== 'buyBoxPct');
         return base;
-    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom]);
+    }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite]);
 
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
@@ -501,8 +540,9 @@ const PlatformOverviewNew = ({
                     if (!next.includes('deliveryTime')) next.push('deliveryTime');
                     if (!next.includes('cpc')) next.push('cpc');
                 } else if (isQuick) {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpc');
+                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && (isPidilite ? true : k !== 'cpc'));
                     if (!next.includes('cpm')) next.push('cpm');
+                    if (isPidilite && !next.includes('cpc')) next.push('cpc');
                 } else {
                     next = next.filter(k => k !== 'deliveryTime');
                     if (allowBuyBox) {
@@ -526,7 +566,8 @@ const PlatformOverviewNew = ({
                     next = next.filter(k => k !== 'cpm');
                     if (!next.includes('cpc')) next.push('cpc');
                 } else if (isQuick) {
-                    next = next.filter(k => k !== 'cpc');
+                    if (!isPidilite) next = next.filter(k => k !== 'cpc');
+                    else if (!next.includes('cpc')) next.push('cpc');
                     if (!next.includes('cpm')) next.push('cpm');
                 } else {
                     if (!next.includes('cpc')) next.push('cpc');
@@ -550,12 +591,13 @@ const PlatformOverviewNew = ({
                     if (!next.includes('deliveryTime')) next.push('deliveryTime');
                     if (!next.includes('cpc')) next.push('cpc');
                 } else if (isQuick) {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpc');
+                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && (isPidilite ? true : k !== 'cpc'));
                     if (!next.includes('categorySize')) next.push('categorySize');
                     if (!next.includes('spend')) next.push('spend');
                     if (!next.includes('conversion')) next.push('conversion');
                     if (!next.includes('marketShare')) next.push('marketShare');
                     if (!next.includes('cpm')) next.push('cpm');
+                    if (isPidilite && !next.includes('cpc')) next.push('cpc');
                 } else {
                     next = next.filter(k => k !== 'deliveryTime');
                     if (allowBuyBox) {
@@ -602,16 +644,13 @@ const PlatformOverviewNew = ({
     }
 
     const filterKey = useMemo(() => {
-        // For SKU dimension, use the local skuPlatformFilter to override platform
-        // For Brand/Category/Month, use localPlatformFilter to override platform
         let reqPlatform;
         if (dimension === 'sku') {
-            reqPlatform = skuPlatformFilter || 'All';
+            reqPlatform = skuPlatformFilter !== 'All' ? skuPlatformFilter : effectivePlatform;
         } else if (dimension !== 'platform') {
-            reqPlatform = localPlatformFilter || 'All';
+            reqPlatform = localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform;
         } else {
-            reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
-                : (globalPlatform === 'All' ? 'All' : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
+            reqPlatform = effectivePlatform;
         }
         const reqBrand = advancedFilters.brands?.length > 0 ? advancedFilters.brands.join(',')
             : (selectedBrand && selectedBrand !== 'All' ? (Array.isArray(selectedBrand) ? selectedBrand.join(',') : selectedBrand) : '');
@@ -636,8 +675,8 @@ const PlatformOverviewNew = ({
             reqEndDate,
             reqCompareStart,
             reqCompareEnd,
-            skuPlatformFilter: dimension === 'sku' ? skuPlatformFilter : undefined,
-            localPlatformFilter: (dimension !== 'platform' && dimension !== 'sku') ? localPlatformFilter : undefined,
+            skuPlatformFilter: dimension === 'sku' ? (skuPlatformFilter !== 'All' ? skuPlatformFilter : effectivePlatform) : undefined,
+            localPlatformFilter: (dimension !== 'platform' && dimension !== 'sku') ? (localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform) : undefined,
             advancedFilters: {
                 skuName: advancedFilters.skuName,
                 skuCode: advancedFilters.skuCode,
@@ -646,7 +685,7 @@ const PlatformOverviewNew = ({
             },
             selectedMsl
         });
-    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter, selectedMsl]);
+    }, [dimension, effectivePlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter, selectedMsl]);
 
     // Fetch data from backend API when filters change (stable version)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
@@ -1314,7 +1353,7 @@ const PlatformOverviewNew = ({
 
                                                     if (isEcomRow && kpi.key === 'cpm') {
                                                         cell = null;
-                                                    } else if (isQuickRow && kpi.key === 'cpc') {
+                                                    } else if (isQuickRow && kpi.key === 'cpc' && !isPidilite) {
                                                         cell = null;
                                                     }
                                                 }
@@ -1449,7 +1488,7 @@ const PlatformOverviewNew = ({
                     <AdvancedFilterModal
                         isOpen={isFilterModalOpen}
                         onClose={() => setIsFilterModalOpen(false)}
-                        filters={advancedFilters}
+                        filters={{ ...advancedFilters, kpis: glanceKpis }}
                         onApply={handleApplyFilters}
                         currentDimension={dimension}
                         brands={brandOptions}
