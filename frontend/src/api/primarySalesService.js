@@ -39,3 +39,42 @@ export const fetchPrimaryFilterOptions = async (params = {}) => {
         throw error;
     }
 };
+
+/**
+ * Fetch latest available billing dates in rb_primary_olap
+ */
+export const fetchPrimaryLatestDate = async () => {
+    try {
+        const response = await axiosInstance.get("/primary-sales/latest-date");
+        return response.data;
+    } catch (error) {
+        console.error("fetchPrimaryLatestDate error:", error);
+        throw error;
+    }
+};
+
+/**
+ * Fetch top products/sub-items for Gainers and Drainers drilldown
+ */
+export const fetchPrimaryTopProducts = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/primary-sales/top-products", { params: formatParams(params) });
+        return response.data;
+    } catch (error) {
+        console.error("fetchPrimaryTopProducts error:", error);
+        throw error;
+    }
+};
+
+/**
+ * Fetch daily retailer sales/units trend for Retailer Wise Analysis chart
+ */
+export const fetchPrimaryRetailerDailyTrend = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/primary-sales/retailer-daily-trend", { params: formatParams(params) });
+        return response.data;
+    } catch (error) {
+        console.error("fetchPrimaryRetailerDailyTrend error:", error);
+        throw error;
+    }
+};
