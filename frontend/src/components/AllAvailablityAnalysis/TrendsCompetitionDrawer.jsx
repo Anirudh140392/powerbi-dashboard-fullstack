@@ -738,17 +738,19 @@ export default function TrendsCompetitionDrawer({
     }
   };
 
-  // --- Reseller Name filter (DRL only) ---
+  // --- Reseller Name & SAP filter (DRL only) ---
   const drlUser = useMemo(() => {
-    try { return JSON.parse(sessionStorage.getItem('user')); } catch { return null; }
+    try {
+      return JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || localStorage.getItem('user') || '{}');
+    } catch { return null; }
   }, []);
   const isDrl = (() => {
-    const db = drlUser?.dbName?.toLowerCase();
+    const db = (drlUser?.dbName || drlUser?.db_name || drlUser?.database || '').toLowerCase();
     return db === 'drl' || db === 'prestige';
   })();
   const isDrlUser = (() => {
-    const db = drlUser?.dbName?.toLowerCase();
-    return db === 'drl';
+    const db = (drlUser?.dbName || drlUser?.db_name || drlUser?.database || '').toLowerCase();
+    return db === 'drl' || db === 'prestige';
   })();
   const [resellerOptions, setResellerOptions] = useState([]);
 
@@ -1071,7 +1073,22 @@ export default function TrendsCompetitionDrawer({
         });
         if (cancelled) return;
         const skus = (skusRes.data?.options || []).filter(s => s !== 'All' && s.trim()).sort();
-        const skuDetails = skusRes.data?.skuDetails || [];
+        let skuDetails = skusRes.data?.skuDetails || [];
+
+        // Fallback: If skuDetails is empty and isDrlUser, fetch from products-with-sap
+        if ((!skuDetails || skuDetails.length === 0) && isDrlUser) {
+          try {
+            const sapRes = await axiosInstance.get('/watchtower/products-with-sap', {
+              params: { platform: platformParam, brand: brandParam, category: categoryParam }
+            });
+            if (!cancelled && sapRes.data && Array.isArray(sapRes.data)) {
+              skuDetails = sapRes.data;
+            }
+          } catch (err) {
+            console.warn("[TrendsDrawer] Fallback products-with-sap error:", err);
+          }
+        }
+
         setFilterOptions(prev => ({ ...prev, skus, skuDetails }));
       } catch (error) {
         console.error("[TrendsDrawer] Error fetching cascaded SKUs:", error);
@@ -1079,7 +1096,7 @@ export default function TrendsCompetitionDrawer({
     };
     fetchSkus();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format, drawerFilters.ResellerName, isDrl]);
+  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format, drawerFilters.ResellerName, isDrl, isDrlUser]);
 
   const [trendError, setTrendError] = useState(null);
 
@@ -2979,19 +2996,17 @@ export default function TrendsCompetitionDrawer({
                       {/* Filtered SKU items */}
                       {(() => {
                         const getSkuSapCode = (skuName) => {
-                          if (!skuName || !filterOptions.skuDetails) return null;
-                          const match = filterOptions.skuDetails.find(d => d.name?.toLowerCase() === skuName.toLowerCase());
-                          return match?.sapCode || null;
+                          if (!skuName || !filterOptions.skuDetails || !filterOptions.skuDetails.length) return null;
+                          const match = filterOptions.skuDetails.find(d => (d.name || d.product_name || '')?.toLowerCase() === skuName.toLowerCase());
+                          return match?.sapCode || match?.sap_code || null;
                         };
 
                         const filteredSkus = SKU_OPTIONS.filter(opt => {
                           if (!skuSearchTerm) return true;
-                          const term = skuSearchTerm.toLowerCase();
+                          const term = skuSearchTerm.toLowerCase().trim();
                           if (opt.toLowerCase().includes(term)) return true;
-                          if (isDrlUser) {
-                            const sap = getSkuSapCode(opt);
-                            if (sap && String(sap).toLowerCase().includes(term)) return true;
-                          }
+                          const sap = getSkuSapCode(opt);
+                          if (sap && String(sap).toLowerCase().includes(term)) return true;
                           return false;
                         });
 
@@ -3004,7 +3019,7 @@ export default function TrendsCompetitionDrawer({
                               const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
                               const variant = parenMatch ? parenMatch[1] : '';
                               const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
-                              const sapCode = isDrlUser ? getSkuSapCode(opt) : null;
+                              const sapCode = getSkuSapCode(opt);
 
                               return (
                                 <Box
@@ -3056,11 +3071,15 @@ export default function TrendsCompetitionDrawer({
                                     }}>
                                       {mainName}
                                     </Typography>
-                                    {variant && (
+                                    {sapCode ? (
+                                      <Typography sx={{ fontSize: '10px', color: '#64748B', fontWeight: 500, mt: '-1px' }}>
+                                        {/* SAP: {sapCode} */}
+                                      </Typography>
+                                    ) : variant ? (
                                       <Typography sx={{ fontSize: '10px', color: '#94A3B8', mt: '-1px' }}>
                                         {variant}
                                       </Typography>
-                                    )}
+                                    ) : null}
                                   </Box>
                                 </Box>
                               );
