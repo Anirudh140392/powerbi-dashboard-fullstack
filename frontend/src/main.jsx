@@ -14,6 +14,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// Normal app render
 createRoot(document.getElementById("root")).render(
   <>
     <AppThemeProvider>

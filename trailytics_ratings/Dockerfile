@@ -34,6 +34,7 @@ RUN npm ci
 COPY . .
 
 # Build the React/Vite Frontend
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build
 
 # Prune development dependencies to keep final image tidy (Optional, but good practice)

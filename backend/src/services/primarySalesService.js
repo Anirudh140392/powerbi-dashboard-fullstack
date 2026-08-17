@@ -1,6 +1,6 @@
 // src/services/primarySalesService.js
 // Service for PRIMARY SUMMARY segment on Business Overview page
-// Data source: drl_primary_sales_olap table in the user's DB
+// Data source: rb_primary_olap table in the user's DB
 // Metric: SUM(amount_inr)
 
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';

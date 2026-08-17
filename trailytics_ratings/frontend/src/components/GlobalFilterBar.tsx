@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import type { GlobalFilterResult } from '../hooks/useGlobalFilters';
 import { getDateRangeForPreset } from '../hooks/useGlobalFilters';
-import type { GlobalFilterState, DatePreset, PriceFilterMode, RatingBifurcation, BrandScope } from '../types/filterTypes';
+import type { GlobalFilterState, DatePreset, PriceFilterMode, RatingBifurcation } from '../types/filterTypes';
 import { getClassificationOptions } from '../config/productClassifications';
 import { useProductCategories, useSkuList, usePriceRanges, useClientBrands } from '../hooks/useRatingsAPI';
 import { getActiveBrandName } from '../utils/tenant';
@@ -110,7 +110,7 @@ function FilterDropdown({
 
 const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNode }) => {
     const {
-        filters, setCategory, setRatingBifurcation, setPriceMode, setPriceRange, resetFilters,
+        filters, resetFilters,
         availablePlatforms, availableCategories,
     } = filterResult;
 

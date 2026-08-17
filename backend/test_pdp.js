@@ -1,5 +1,5 @@
 import { getContentAnalysisPlatforms } from './src/services/contentAnalysisService.js';
-import { setCurrentDbName } from './src/utils/RequestContext.js';
+import { setCurrentDbName } from './src/utils/requestContext.js';
 async function test() {
   try {
     setCurrentDbName('prestige');

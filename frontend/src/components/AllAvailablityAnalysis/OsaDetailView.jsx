@@ -80,7 +80,7 @@ export default function OsaDetailTableLight({
         try {
             const u = JSON.parse(sessionStorage.getItem('user'));
             const db = u?.dbName?.toLowerCase();
-            return db === 'drl' || db === 'prestige';
+            return db === 'drl';
         } catch {
             return false;
         }
@@ -190,33 +190,94 @@ export default function OsaDetailTableLight({
 
     const filterOptions = useMemo(() => {
         if (!apiData?.osaDetail) return [];
+
         const mk = arr => arr.map(p => ({ id: p, label: p }));
+
+        const getMatchingRowsExcluding = (targetKey) => {
+            let res = apiData.osaDetail;
+
+            if (targetKey !== 'msl' && tempMslFilter === '1') {
+                res = res.filter(r => r.isTopSku || r.msl === '1' || r.topSku === true || r.top_sku === 1);
+            }
+
+            Object.entries(advancedFilters).forEach(([key, values]) => {
+                if (key === targetKey || !values?.length) return;
+                if (key === 'platform') {
+                    res = res.filter(r => values.includes(r.platform));
+                } else if (key === 'brand') {
+                    res = res.filter(r => values.includes(r.brand));
+                } else if (key === 'productName') {
+                    res = res.filter(r => values.includes(r.name || r.productName));
+                } else if (key === 'format') {
+                    res = res.filter(r => values.includes(r.format));
+                } else if (key === 'grammage') {
+                    res = res.filter(r => values.includes(r.grammage || r.weight));
+                } else if (key === 'city') {
+                    res = res.filter(r => r.cities?.some(c => values.includes(c.name || c)));
+                } else if (key === 'resellerName') {
+                    res = res.filter(r => r.resellerName && values.includes(r.resellerName));
+                }
+            });
+            return res;
+        };
+
+        const platformRows = getMatchingRowsExcluding('platform');
+        const brandRows = getMatchingRowsExcluding('brand');
+        const productNameRows = getMatchingRowsExcluding('productName');
+        const formatRows = getMatchingRowsExcluding('format');
+        const grammageRows = getMatchingRowsExcluding('grammage');
+        const cityRows = getMatchingRowsExcluding('city');
+
+        // Build product name options with SAP code included in label for searchability
+        const productOptions = [...new Set(productNameRows.map(r => {
+            const name = r.name || r.productName;
+            const sapCode = r.sap_code;
+            return JSON.stringify({ name, sapCode });
+        }))]
+            .map(json => JSON.parse(json))
+            .filter(p => p.name)
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+            .map(p => ({
+                id: p.name,
+                // Include SAP code in the label so it's searchable in the filter panel
+                label: p.sapCode ? `${p.name} (SAP: ${p.sapCode})` : p.name
+            }));
+
+        // Only show Grammage filter if at least one row has a non-null/non-empty grammage value
+        const hasGrammageData = apiData.osaDetail.some(r => r.grammage || r.weight);
+
         const opts = [
             { id: "msl", label: "MSL", options: [
                 { id: "0", label: "All SKUs" },
                 { id: "1", label: "Top SKUs" }
             ] },
-            { id: "platform", label: "Platform", options: mk([...new Set(apiData.osaDetail.map(r => r.platform).filter(Boolean))]) },
-            { id: "brand", label: "Brand", options: mk([...new Set(apiData.osaDetail.map(r => r.brand).filter(Boolean))]) },
-            { id: "productName", label: "Product Name", options: mk([...new Set(apiData.osaDetail.map(r => r.name).filter(Boolean))]) },
-            { id: "format", label: "Category", options: mk([...new Set(apiData.osaDetail.map(r => r.format).filter(Boolean))]) },
-            { id: "city", label: "City", options: mk([...new Set(apiData.osaDetail.flatMap(r => r.cities?.map(c => c.name) || []).filter(Boolean))]) },
+            { id: "platform", label: "Platform", options: mk([...new Set(platformRows.map(r => r.platform).filter(Boolean))].sort()) },
+            { id: "brand", label: "Brand", options: mk([...new Set(brandRows.map(r => r.brand).filter(Boolean))].sort()) },
+            { id: "productName", label: "Product Name", options: productOptions },
+            { id: "format", label: "Category", options: mk([...new Set(formatRows.map(r => r.format).filter(Boolean))].sort()) },
+            ...(hasGrammageData ? [{ id: "grammage", label: "Grammage", options: mk([...new Set(grammageRows.map(r => r.grammage || r.weight).filter(Boolean))].sort()) }] : []),
+            { id: "city", label: "City", options: mk([...new Set(cityRows.flatMap(r => r.cities?.map(c => c.name || c) || []).filter(Boolean))].sort()) },
         ];
         if (isDrlClient && resellerOptions.length > 0) {
-            opts.push({ id: "resellerName", label: "Reseller", options: mk(resellerOptions) });
+            const resellerRows = getMatchingRowsExcluding('resellerName');
+            const availableResellerSet = new Set(resellerRows.map(r => r.resellerName).filter(Boolean));
+            const filteredResellers = resellerOptions.filter(r => availableResellerSet.size === 0 || availableResellerSet.has(r));
+            opts.push({ id: "resellerName", label: "Reseller", options: mk(filteredResellers.length > 0 ? filteredResellers : resellerOptions) });
         }
         return opts;
-    }, [apiData, isDrlClient, resellerOptions]);
+    }, [apiData, isDrlClient, resellerOptions, advancedFilters, tempMslFilter]);
 
     const baseRows = useMemo(() => {
         if (!apiData?.osaDetail?.length) return [];
         return apiData.osaDetail.map(row => ({
             name: row.name || row.productName || "Unknown Product",
             sku: row.sku || "N/A", brand: row.brand, platform: row.platform, format: row.format,
+            grammage: row.grammage || row.weight || "",
             imageUrl: row.imageUrl,
             page_url: row.page_url || null,
             values: row.values || [], avg7: row.avg7 || 0, avg31: row.avg31 || 0,
-            avgSelected: row.avgSelected || row.avg31 || 0, status: row.status || "Healthy", cities: row.cities || []
+            avgSelected: row.avgSelected || row.avg31 || 0, status: row.status || "Healthy", cities: row.cities || [],
+            sap_code: row.sap_code || null
         }));
     }, [apiData]);
 
@@ -227,7 +288,8 @@ export default function OsaDetailTableLight({
             const q = searchSkuTerm.toLowerCase().trim();
             res = res.filter(r => 
                 r.name.toLowerCase().includes(q) || 
-                r.sku.toLowerCase().includes(q)
+                r.sku.toLowerCase().includes(q) ||
+                (r.sap_code && String(r.sap_code).toLowerCase().includes(q))
             );
         }
 
@@ -237,6 +299,7 @@ export default function OsaDetailTableLight({
             else if (key === 'brand') res = res.filter(r => values.includes(r.brand));
             else if (key === 'productName') res = res.filter(r => values.includes(r.name));
             else if (key === 'format') res = res.filter(r => values.includes(r.format));
+            else if (key === 'grammage') res = res.filter(r => values.includes(r.grammage || r.weight));
             else if (key === 'city') {
                 res = res.filter(r => r.cities?.some(c => values.includes(c.name)));
                 res = res.map(r => ({ ...r, cities: r.cities.filter(c => values.includes(c.name)) }));
@@ -296,7 +359,7 @@ export default function OsaDetailTableLight({
                             <div className="flex items-center gap-2">
                                 <input
                                     type="text"
-                                    placeholder="Search product / SKU..."
+                                    placeholder="Search SAP Code, Product, SKU..."
                                     value={searchSkuTerm}
                                     onChange={(e) => {
                                         setSearchSkuTerm(e.target.value);
@@ -409,6 +472,11 @@ export default function OsaDetailTableLight({
                                                                             </a>
                                                                         )}
                                                                     </div>
+                                                                    {r.sap_code && (
+                                                                        <div className="text-[9px] text-slate-500 font-normal mt-0.5">
+                                                                            SAP: {r.sap_code}
+                                                                        </div>
+                                                                    )}
                                                                     <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight mt-1">{r.platform}</div>
                                                                 </div>
                                                             </div>

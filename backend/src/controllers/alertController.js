@@ -54,6 +54,8 @@ export const createAlertHandler = async (req, res) => {
             benchmarkPeriod,
             alertFrequency,
             severityLevel,
+            scheduledDay,
+            scheduled_day,
         } = req.body;
 
         if (!alertName || !alertName.trim()) {
@@ -76,6 +78,7 @@ export const createAlertHandler = async (req, res) => {
             benchmarkPeriod: benchmarkPeriod || '',
             alertFrequency: alertFrequency || '',
             severityLevel: severityLevel || '',
+            scheduledDay: scheduledDay || scheduled_day || '',
         });
 
         return res.status(201).json({
@@ -194,6 +197,8 @@ export const updateAlertHandler = async (req, res) => {
             benchmarkPeriod,
             alertFrequency,
             severityLevel,
+            scheduledDay,
+            scheduled_day,
         } = req.body;
 
         const result = await updateAlertById(alertId, dbId, {
@@ -208,6 +213,7 @@ export const updateAlertHandler = async (req, res) => {
             benchmarkPeriod: benchmarkPeriod || '',
             alertFrequency: alertFrequency || '',
             severityLevel: severityLevel || '',
+            scheduledDay: scheduledDay || scheduled_day || '',
         });
 
         return res.status(200).json({

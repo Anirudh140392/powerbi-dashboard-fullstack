@@ -4210,7 +4210,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                   {title === "Availability Analysis" || title === "Visibility Analysis" ? (
                     <>
                       {/* Channel Switch Removed as per user request */}                      {/* SOS / BSR Toggle below Channel Switch */}
-                      {title === "Visibility Analysis" && !isHayatna && (['ecommerce', 'e-commerce', 'ecom'].includes(selectedChannel?.toLowerCase())) && (
+                      {title === "Visibility Analysis" && !isHayatna && (['ecommerce', 'e-commerce', 'ecom'].includes((Array.isArray(selectedChannel) ? selectedChannel.join(',') : String(selectedChannel || '')).toLowerCase())) && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                           <Box sx={{ display: 'flex', bgcolor: '#f1f5f9', borderRadius: '8px', p: '3px', width: 'fit-content', border: '1px solid #e2e8f0' }}>
                             <Box

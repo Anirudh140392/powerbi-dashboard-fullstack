@@ -457,12 +457,12 @@ export const getEcomRcaData = async (filters = {}) => {
                             ${colName} as name,
                             ${src.overallGvCol} AS gv_val,
                             CASE
-                                WHEN ${src.deliveryDateCol} IS NULL OR ${src.deliveryDateCol} = '' OR ${src.deliveryDateCol} = '0' THEN NULL
+                                WHEN ${src.deliveryDateCol} IS NULL OR toString(${src.deliveryDateCol}) = '' OR toString(${src.deliveryDateCol}) = '0' THEN NULL
                                 ELSE
                                     CASE
-                                        WHEN dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(${src.deliveryDateCol}, ' ', toString(toYear(${src.f.date}))))) < 0 THEN 0
-                                        WHEN dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(${src.deliveryDateCol}, ' ', toString(toYear(${src.f.date}))))) > 30 THEN NULL
-                                        ELSE dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(${src.deliveryDateCol}, ' ', toString(toYear(${src.f.date})))))
+                                        WHEN dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(toString(${src.deliveryDateCol}), ' ', toString(toYear(${src.f.date}))))) < 0 THEN 0
+                                        WHEN dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(toString(${src.deliveryDateCol}), ' ', toString(toYear(${src.f.date}))))) > 30 THEN NULL
+                                        ELSE dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(toString(${src.deliveryDateCol}), ' ', toString(toYear(${src.f.date})))))
                                     END
                             END AS delivery_days
                         FROM ${src.table}
@@ -790,12 +790,12 @@ export const getEcomRcaData = async (filters = {}) => {
                     SELECT
                         ${src.overallGvCol} AS gv_val,
                         CASE
-                            WHEN ${src.deliveryDateCol} IS NULL OR ${src.deliveryDateCol} = '' OR ${src.deliveryDateCol} = '0' THEN NULL
+                            WHEN ${src.deliveryDateCol} IS NULL OR toString(${src.deliveryDateCol}) = '' OR toString(${src.deliveryDateCol}) = '0' THEN NULL
                             ELSE
                                 CASE
-                                    WHEN dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(${src.deliveryDateCol}, ' ', toString(toYear(${src.f.date}))))) < 0 THEN 0
-                                    WHEN dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(${src.deliveryDateCol}, ' ', toString(toYear(${src.f.date}))))) > 30 THEN NULL
-                                    ELSE dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(${src.deliveryDateCol}, ' ', toString(toYear(${src.f.date})))))
+                                    WHEN dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(toString(${src.deliveryDateCol}), ' ', toString(toYear(${src.f.date}))))) < 0 THEN 0
+                                    WHEN dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(toString(${src.deliveryDateCol}), ' ', toString(toYear(${src.f.date}))))) > 30 THEN NULL
+                                    ELSE dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(toString(${src.deliveryDateCol}), ' ', toString(toYear(${src.f.date})))))
                                 END
                         END AS delivery_days
                     FROM ${src.table}

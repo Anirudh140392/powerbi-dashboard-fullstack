@@ -67,6 +67,8 @@ const mockPlatforms = [
 const kpiOptions = [
     { key: 'offtakes', label: 'Offtakes' },
     { key: 'spend', label: 'Spend' },
+    { key: 'tacos', label: 'TACoS' },
+    { key: 'roas_x', label: 'ROAS' },
     { key: 'categorySize', label: 'Category size' },
     { key: 'inorgSales', label: 'Inorg Sales' },
     { key: 'conversion', label: 'Conversion' },
@@ -167,7 +169,7 @@ function SingleSelectDropdown({ label, icon: Icon, options, value, onChange, pla
 // ========================================
 // MULTI-SELECT DROPDOWN COMPONENT
 // ========================================
-function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChange, placeholder }) {
+function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChange, placeholder, showSapCode = false }) {
     const [isOpen, setIsOpen] = useState(false)
     const [search, setSearch] = useState('')
     const dropdownRef = useRef(null)
@@ -183,20 +185,44 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
-    const filteredOptions = (options || []).filter(opt =>
-        opt && opt.name && typeof opt.name === 'string' && opt.name.toLowerCase().includes(search.toLowerCase())
-    )
+    const filteredOptions = (options || []).filter(opt => {
+        if (!opt || !opt.name || typeof opt.name !== 'string') return false;
+        const q = search.toLowerCase();
+        if (!q) return true;
+        if (opt.name.toLowerCase().includes(q)) return true;
+        // For DRL: also match against sapCode
+        if (showSapCode && opt.sapCode && String(opt.sapCode).toLowerCase().includes(q)) return true;
+        return false;
+    })
 
-    const toggleOption = (id) => {
-        if (selected.includes(id)) {
-            onChange(selected.filter(s => s !== id))
+    const isOptionSelected = (opt) => {
+        if (!selected || !selected.length || !opt) return false;
+        const optIdStr = String(opt.id || '').toLowerCase().trim();
+        const optNameStr = String(opt.name || '').toLowerCase().trim();
+        return selected.some(s => {
+            const sStr = String(s || '').toLowerCase().trim();
+            return sStr === optIdStr || sStr === optNameStr;
+        });
+    };
+
+    const toggleOption = (optId) => {
+        const targetOpt = (options || []).find(o => o.id === optId) || { id: optId, name: optId };
+        const isSel = isOptionSelected(targetOpt);
+        const optIdStr = String(targetOpt.id || '').toLowerCase().trim();
+        const optNameStr = String(targetOpt.name || '').toLowerCase().trim();
+
+        if (isSel) {
+            onChange(selected.filter(s => {
+                const sStr = String(s || '').toLowerCase().trim();
+                return sStr !== optIdStr && sStr !== optNameStr;
+            }));
         } else {
-            onChange([...selected, id])
+            onChange([...selected, optId]);
         }
-    }
+    };
 
-    const selectAll = () => onChange(options.map(o => o.id))
-    const clearAll = () => onChange([])
+    const selectAll = () => onChange(options.map(o => o.id));
+    const clearAll = () => onChange([]);
 
     return (
         <div ref={dropdownRef} className="relative">
@@ -252,7 +278,7 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
                                     type="text"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    placeholder={`Search ${label.toLowerCase()}...`}
+                                    placeholder={showSapCode ? `Search SKU name or SAP code...` : `Search ${label.toLowerCase()}...`}
                                     className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
                                 />
                             </div>
@@ -281,30 +307,35 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
                                     No results found
                                 </div>
                             ) : (
-                                filteredOptions.map(opt => (
-                                    <button
-                                        key={opt.id}
-                                        onClick={() => toggleOption(opt.id)}
-                                        className={cn(
-                                            'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
-                                            selected.includes(opt.id)
-                                                ? 'bg-slate-100 text-slate-900'
-                                                : 'text-slate-600 hover:bg-slate-50'
-                                        )}
-                                    >
-                                        <div className={cn(
-                                            'w-4 h-4 rounded border flex items-center justify-center transition-colors',
-                                            selected.includes(opt.id)
-                                                ? 'bg-slate-900 border-slate-900'
-                                                : 'border-slate-300'
-                                        )}>
-                                            {selected.includes(opt.id) && (
-                                                <Check size={10} className="text-white" strokeWidth={3} />
+                                filteredOptions.map(opt => {
+                                    const isOptSelected = isOptionSelected(opt);
+                                    return (
+                                        <button
+                                            key={opt.id}
+                                            onClick={() => toggleOption(opt.id)}
+                                            className={cn(
+                                                'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
+                                                isOptSelected
+                                                    ? 'bg-slate-100 text-slate-900'
+                                                    : 'text-slate-600 hover:bg-slate-50'
                                             )}
-                                        </div>
-                                        <span className="truncate capitalize">{opt.name}</span>
-                                    </button>
-                                ))
+                                        >
+                                            <div className={cn(
+                                                'w-4 h-4 rounded border flex items-center justify-center transition-colors',
+                                                isOptSelected
+                                                    ? 'bg-slate-900 border-slate-900'
+                                                    : 'border-slate-300'
+                                            )}>
+                                                {isOptSelected && (
+                                                    <Check size={10} className="text-white" strokeWidth={3} />
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col min-w-0 flex-1">
+                                                <span className="truncate capitalize text-xs leading-tight">{opt.name}</span>
+                                            </div>
+                                        </button>
+                                    );
+                                })
                             )}
                         </div>
                     </motion.div>
@@ -321,6 +352,15 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         try {
             const u = JSON.parse(sessionStorage.getItem('user'));
             return u?.dbName?.toLowerCase() === 'boat';
+        } catch {
+            return false;
+        }
+    }, []);
+
+    const isDrlUser = useMemo(() => {
+        try {
+            const u = JSON.parse(sessionStorage.getItem('user'));
+            return u?.dbName?.toLowerCase() === 'drl';
         } catch {
             return false;
         }
@@ -343,6 +383,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         categories: [],
         platforms: [],
         skus: [],
+        grammages: [],
         dateFrom: '',
         dateTo: '',
         msl: '0',
@@ -358,13 +399,14 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         filterLogic: 'OR',
     })
 
-    const { maxDate, selectedChannel, selectedLocation, platform: globalPlatform, selectedBrand, selectedCategory } = useContext(FilterContext)
+    const { maxDate, selectedChannel, selectedLocation, platform: globalPlatform, selectedBrand, selectedCategory, selectedMsl, timeStart, timeEnd } = useContext(FilterContext)
     const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate])
 
     const [dynamicBrands, setDynamicBrands] = useState([])
     const [dynamicCategories, setDynamicCategories] = useState([])
     const [dynamicPlatforms, setDynamicPlatforms] = useState([])
     const [dynamicSkus, setDynamicSkus] = useState([])
+    const [dynamicGrammages, setDynamicGrammages] = useState([])
     const [loadingFilters, setLoadingFilters] = useState(false)
 
     // Synchronize initial options from props when props change
@@ -399,6 +441,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             setDynamicSkus([])
         }
     }, [skus])
+
 
     // Cascaded dynamic fetching effect
     useEffect(() => {
@@ -437,17 +480,26 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                     ? localFilters.categories
                     : (selectedCategory && selectedCategory !== 'All' ? [selectedCategory] : []);
 
+                const startDate = localFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : undefined);
+                const endDate = localFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined);
+
                 const params = {
                     channel: cleanParam(selectedChannel),
                     location: cleanParam(selectedLocation),
                     platform: cleanParam(activePlatforms),
                     brand: cleanParam(activeBrands),
                     category: cleanParam(activeCategories),
+                    startDate,
+                    endDate
                 }
+
+                const productsEndpoint = isDrlUser
+                    ? '/watchtower/products-with-sap'
+                    : '/watchtower/products';
 
                 const [cascadedRes, productsRes] = await Promise.allSettled([
                     axiosInstance.get('/watchtower/cascaded-filters', { params }),
-                    axiosInstance.get('/watchtower/products', {
+                    axiosInstance.get(productsEndpoint, {
                         params: {
                             platform: params.platform,
                             brand: params.brand,
@@ -460,7 +512,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
 
                 if (cascadedRes.status === 'fulfilled' && cascadedRes.value.data) {
                     const data = cascadedRes.value.data
-                    
+
                     if (data.brands && Array.isArray(data.brands)) {
                         const mappedBrands = data.brands.map(b => {
                             const parentOpt = brands?.find(opt => opt.name?.toLowerCase() === b.toLowerCase())
@@ -491,10 +543,16 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
 
                 if (productsRes.status === 'fulfilled' && productsRes.value.data && Array.isArray(productsRes.value.data)) {
                     const mappedSkus = productsRes.value.data.map(p => {
-                        const parentOpt = skus?.find(opt => opt.name?.toLowerCase() === p.toLowerCase() || opt.id?.toLowerCase() === p.toLowerCase())
-                        if (parentOpt) return parentOpt
-                        return { id: p, name: p }
-                    })
+                        // DRL: p is {name, sapCode}; others: p is a plain string
+                        const productName = typeof p === 'object' ? (p.name || '') : String(p);
+                        const sapCode = typeof p === 'object' ? (p.sapCode || null) : null;
+                        const parentOpt = skus?.find(opt =>
+                            opt.name?.toLowerCase() === productName.toLowerCase() ||
+                            opt.id?.toLowerCase() === productName.toLowerCase()
+                        );
+                        if (parentOpt) return { ...parentOpt, sapCode: sapCode ?? parentOpt.sapCode ?? null };
+                        return { id: productName, name: productName, sapCode };
+                    }).filter(p => p.name);
                     setDynamicSkus(mappedSkus)
                 }
             } catch (err) {
@@ -514,6 +572,8 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         localFilters.brands,
         localFilters.categories,
         localFilters.platforms,
+        localFilters.dateFrom,
+        localFilters.dateTo,
         selectedChannel,
         selectedLocation,
         globalPlatform,
@@ -525,12 +585,105 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         skus
     ])
 
-    // Sync with parent filters when modal opens
+    // Fetch grammage dropdown values from dimension-overview API on every brand/category/platform/date change
     useEffect(() => {
-        if (isOpen && filters) {
-            setLocalFilters(prev => ({ ...prev, ...filters }))
-        }
-    }, [isOpen, filters])
+        if (!isOpen || currentDimension !== 'sku') return;
+
+        let active = true;
+
+        const fetchGrammages = async () => {
+            try {
+                // Only platform and category drive the grammage dropdown options
+                const activePlatforms = localFilters.platforms?.length > 0
+                    ? localFilters.platforms
+                    : (globalPlatform && globalPlatform !== 'All' ? [globalPlatform] : []);
+
+                const activeCategories = localFilters.categories?.length > 0
+                    ? localFilters.categories
+                    : (selectedCategory && selectedCategory !== 'All' ? [selectedCategory] : []);
+
+                const startDate = localFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : undefined);
+                const endDate = localFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined);
+
+                const params = new URLSearchParams();
+                params.append('dimension', 'sku');
+                if (activePlatforms.length > 0) params.append('platform', activePlatforms.join(','));
+                if (activeCategories.length > 0) params.append('category', activeCategories.join(','));
+                if (selectedChannel && selectedChannel !== 'All') params.append('channel', selectedChannel);
+                if (selectedLocation && selectedLocation !== 'All') params.append('location', selectedLocation);
+                if (startDate) params.append('startDate', startDate);
+                if (endDate) params.append('endDate', endDate);
+
+                const response = await axiosInstance.get(`/pricing-analysis/dimension-overview?${params.toString()}`);
+
+                if (!active) return;
+
+                if (response.data?.success && Array.isArray(response.data.data)) {
+                    const weights = [...new Set(
+                        response.data.data
+                            .map(row => row.weight)
+                            .filter(w => w !== null && w !== undefined && w !== '')
+                    )].sort();
+                    setDynamicGrammages(weights.map(w => ({ id: w, name: w })));
+                }
+            } catch (err) {
+                console.error('[AdvancedFilterModal] Error fetching grammages from dimension-overview:', err);
+            }
+        };
+
+        fetchGrammages();
+
+        return () => { active = false; };
+    }, [
+        isOpen,
+        currentDimension,
+        localFilters.categories,
+        localFilters.platforms,
+        localFilters.dateFrom,
+        localFilters.dateTo,
+        selectedChannel,
+        selectedLocation,
+        globalPlatform,
+        selectedCategory,
+    ])
+
+    // Sync with parent filters + FilterContext when modal opens
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const normalizeArr = (val) => {
+            if (!val || val === 'All') return [];
+            if (Array.isArray(val)) return val.filter(v => v !== 'All');
+            return [val];
+        };
+
+        setLocalFilters(prev => {
+            const categories = (filters?.categories && filters.categories.length > 0)
+                ? filters.categories
+                : normalizeArr(selectedCategory);
+
+            const brands = (filters?.brands && filters.brands.length > 0)
+                ? filters.brands
+                : normalizeArr(selectedBrand);
+
+            const platforms = (filters?.platforms && filters.platforms.length > 0)
+                ? filters.platforms
+                : normalizeArr(globalPlatform);
+
+            const msl = (filters?.msl !== undefined && filters.msl !== '0')
+                ? filters.msl
+                : (selectedMsl || '0');
+
+            return {
+                ...prev,
+                ...(filters || {}),
+                categories,
+                brands,
+                platforms,
+                msl,
+            };
+        });
+    }, [isOpen, filters, selectedCategory, selectedBrand, globalPlatform, selectedMsl]);
 
     const updateFilter = (key, value) => {
         setLocalFilters(prev => ({ ...prev, [key]: value }))
@@ -553,6 +706,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             categories: [],
             platforms: [],
             skus: [],
+            grammages: [],
             dateFrom: '',
             dateTo: '',
             msl: '0',
@@ -576,6 +730,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             brands: localFilters.brands.map(b => typeof b === 'string' ? b.toLowerCase() : b),
             categories: localFilters.categories.map(c => typeof c === 'string' ? c.toLowerCase() : c),
             skus: localFilters.skus.map(s => typeof s === 'string' ? s.toLowerCase() : s),
+            grammages: localFilters.grammages,
         };
         onApply(lowerFilters)
         onClose()
@@ -699,6 +854,17 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 selected={localFilters.skus}
                                                 onChange={(val) => updateFilter('skus', val)}
                                                 placeholder="All Skus"
+                                                showSapCode={isDrlUser}
+                                            />
+                                        )}
+                                        {(currentDimension === 'sku' && dynamicGrammages.length > 0) && (
+                                            <MultiSelectDropdown
+                                                label="Grammage"
+                                                icon={Filter}
+                                                options={dynamicGrammages}
+                                                selected={localFilters.grammages || []}
+                                                onChange={(val) => updateFilter('grammages', val)}
+                                                placeholder="All Grammages"
                                             />
                                         )}
                                         <SingleSelectDropdown

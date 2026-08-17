@@ -1,5 +1,5 @@
 import React from "react";
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import { LocalizationProvider } from "@mui/x-date-pickers";
 import SalesMainPage from "./pages/Sales/SalesMainPage";
@@ -39,6 +39,7 @@ import ReviewRatingPage from "./pages/ReviewRating/ReviewRatingPage";
 import ContentAnalysisPage from "./pages/ContentAnalysis/ContentAnalysisPage";
 import PrimarySummaryPage from "./pages/PrimarySummary/PrimarySummaryPage";
 import SecondarySummaryPage from "./pages/SecondarySummary/SecondarySummaryPage";
+import AcceptInvitePage from "./pages/Login/AcceptInvitePage";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -54,6 +55,7 @@ function AppContent() {
         <SocketProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
             <Route path="/" element={<Navigate to="/watch-tower" replace />} />
 
@@ -216,9 +218,9 @@ export default function App() {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <AuthProvider>
-        <HashRouter>
+        <BrowserRouter>
           <AppContent />
-        </HashRouter>
+        </BrowserRouter>
       </AuthProvider>
     </LocalizationProvider>
   );

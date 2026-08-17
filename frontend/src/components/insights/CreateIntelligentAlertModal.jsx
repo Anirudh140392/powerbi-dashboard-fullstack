@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect, useRef } from "react";
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -13,7 +14,8 @@ import {
     Zap,
     AlertTriangle,
     Edit3,
-    Loader2
+    Loader2,
+    Calendar
 } from "lucide-react";
 import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
@@ -22,37 +24,48 @@ import { createAlert, updateAlert } from "../../api/insightsService";
 // Defined Alert Rule Presets
 const ALERT_PRESETS = [
     {
-        id: "low_osa",
-        name: "Low OSA Alert",
-        category: "Inventory & On-Shelf Availability",
-        metrics: ["OSA %", "Category"],
-        formula: "OSA = (Available SKUs / Total Listed SKUs) * 100",
-        condition: "Category OSA < Threshold (e.g. 85%)",
-        operator: "lt",
-        defaultThreshold: "85",
-        severity: "High",
+        id: "category_perf_summary",
+        name: "Performance Summary (Category)",
+        category: "Overall Performance",
+        metrics: ["All KPIs"],
+        formula: "Weekly performance snapshot across all KPIs",
+        condition: "Weekly Schedule",
+        operator: "eq",
+        defaultThreshold: "0",
+        severity: "Medium",
     },
     {
-        id: "promo_discount_change",
-        name: "Sharp Promo/Discount Change Alert",
-        category: "Pricing Positioning & Discounts",
-        metrics: ["Current Discount", "Baseline Discount"],
-        formula: "Discount Shift% = ((Current - Baseline) / Baseline) * 100",
-        condition: "Increase or decrease in discount > 20%",
-        operator: "changes",
+        id: "low_osa_bottom_city",
+        name: "Low OSA Alert (Bottom % City Level)",
+        category: "Inventory & On-Shelf Availability",
+        metrics: ["Bottom %", "City"],
+        formula: "Bottom N% cities by OSA score",
+        condition: "City falls in bottom threshold %",
+        operator: "lt",
         defaultThreshold: "20",
         severity: "High",
     },
     {
-        id: "category_health",
-        name: "Category Health Alert",
-        category: "Category Health & Multi-Metric",
-        metrics: ["OSA", "Price", "ASP", "Discount", "Ad Spend"],
-        formula: "Multi-metric comparison vs baseline / previous period",
-        condition: "One or more metrics deteriorate beyond thresholds",
-        operator: "drops",
-        defaultThreshold: "15",
-        severity: "Critical",
+        id: "low_osa_bottom_product",
+        name: "Low OSA Alert (Bottom % Product Level)",
+        category: "Inventory & On-Shelf Availability",
+        metrics: ["Bottom %", "Product"],
+        formula: "Bottom N% products by OSA score",
+        condition: "Product falls in bottom threshold %",
+        operator: "lt",
+        defaultThreshold: "20",
+        severity: "High",
+    },
+    {
+        id: "keyword_delta_sos",
+        name: "Keyword Delta SOS Exceeds Threshold",
+        category: "Share of Search",
+        metrics: ["Delta", "Keyword"],
+        formula: "Delta SOS > N",
+        condition: "Keyword Delta SOS exceeds threshold",
+        operator: "gt",
+        defaultThreshold: "10",
+        severity: "Medium",
     },
 ];
 
@@ -73,6 +86,7 @@ const formatPlatformName = (name) => {
 };
 
 // Helper function to resolve platform logo image URLs
+// eslint-disable-next-line no-unused-vars
 const getPlatformLogo = (platName, platformMetadata = []) => {
     if (!platName || platName === "All Platforms" || platName === "All") return null;
     const lower = String(platName).toLowerCase().trim();
@@ -104,23 +118,24 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const filterCtx = useContext(FilterContext) || {};
 
     // Multi-Select Preset Rules State
-    const [selectedPresetIds, setSelectedPresetIds] = useState(["low_osa"]);
+    const [selectedPresetIds, setSelectedPresetIds] = useState(["low_osa_bottom_city"]);
     const [showPresetDropdown, setShowPresetDropdown] = useState(false);
 
     // Custom Alert Name & User Override Tracking
-    const [alertName, setAlertName] = useState("Low OSA Alert");
+    const [alertName, setAlertName] = useState("Low OSA Alert (Bottom % City Level)");
     const [isCustomAlertName, setIsCustomAlertName] = useState(false);
 
-    const [category, setCategory] = useState("Inventory & On-Shelf Availability");
+    const [, setCategory] = useState("Inventory & On-Shelf Availability");
     const [triggerOperator, setTriggerOperator] = useState("lt");
-    const [thresholdValue, setThresholdValue] = useState("85");
-    const [comparisonPeriod, setComparisonPeriod] = useState("vs 7-Day Average");
+    const [thresholdValue, setThresholdValue] = useState("20");
+    const [comparisonPeriod, setComparisonPeriod] = useState("vs L4W Avg");
 
     // Multi-Select Scope Selection State (Platforms & Brands)
     const [selectedPlatforms, setSelectedPlatforms] = useState([]);
     const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
 
     const [selectedBrands, setSelectedBrands] = useState([]);
+    // eslint-disable-next-line no-unused-vars
     const [showBrandDropdown, setShowBrandDropdown] = useState(false);
 
     // Dynamic Lists (from Global FilterContext + Backend API)
@@ -130,17 +145,21 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     // Custom Rule Formula & Condition Overrides (Edit Mode State)
     const [customFormulas, setCustomFormulas] = useState({});
     const [customConditions, setCustomConditions] = useState({});
-    const [editingRuleId, setEditingRuleId] = useState(null);
+    const [editingRuleId] = useState(null);
 
     // Frequency & Severity Custom Dropdowns State
-    const [frequency, setFrequency] = useState("Hourly");
+    const [frequency, setFrequency] = useState("Weekly Summary");
     const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false);
 
     const [severity, setSeverity] = useState("Critical");
     const [showSeverityDropdown, setShowSeverityDropdown] = useState(false);
 
+    // Custom Day Schedule for Performance Summary Alert (e.g. Monday, Tuesday...)
+    const [scheduledDay, setScheduledDay] = useState("Monday");
+
     const [emailNotify, setEmailNotify] = useState(true);
-    const [emailAddress, setEmailAddress] = useState("");
+    const [emailAddresses, setEmailAddresses] = useState([]);
+    const [emailInput, setEmailInput] = useState("");
     const [whatsappNotify, setWhatsappNotify] = useState(false);
     const [whatsappNumber, setWhatsappNumber] = useState("");
     const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -154,16 +173,22 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const severityDropdownRef = useRef(null);
 
     const selectedPresets = ALERT_PRESETS.filter(p => selectedPresetIds.includes(p.id));
+    const isPerformanceSummarySelected = selectedPresetIds.includes("category_perf_summary");
+    // eslint-disable-next-line no-unused-vars
+    const isWeeklyForced = selectedPresetIds.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id));
 
     // Sync values when editing an existing alert
     useEffect(() => {
         if (open && editingAlert) {
+            const isPerfSummary = editingAlert.alert_type === "category_perf_summary";
             setAlertName(editingAlert.alert_name || editingAlert.alertName || "Untitled Custom Alert");
             setIsCustomAlertName(true);
-            setEmailAddress(editingAlert.send_email || editingAlert.email || "");
+            const initialEmailStr = editingAlert.send_email || editingAlert.email || "";
+            setEmailAddresses(initialEmailStr ? initialEmailStr.split(',').map(e => e.trim()).filter(Boolean) : []);
+            setEmailInput("");
             setEmailNotify(!!(editingAlert.send_email || editingAlert.email));
-            setWhatsappNumber(editingAlert.whatsapp_no || editingAlert.phone || "");
-            setWhatsappNotify(!!(editingAlert.whatsapp_no || editingAlert.phone));
+            setWhatsappNumber(isPerfSummary ? "" : (editingAlert.whatsapp_no || editingAlert.phone || ""));
+            setWhatsappNotify(isPerfSummary ? false : !!(editingAlert.whatsapp_no || editingAlert.phone));
             if (Array.isArray(editingAlert.platforms) && editingAlert.platforms.length > 0) {
                 setSelectedPlatforms(editingAlert.platforms);
             }
@@ -171,19 +196,38 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                 setSelectedBrands(editingAlert.brands);
             }
             setTriggerOperator(editingAlert.conditional_operator || editingAlert.operator || "lt");
-            setThresholdValue(editingAlert.threshold_value !== undefined ? String(editingAlert.threshold_value) : String(editingAlert.threshold || "85"));
-            setComparisonPeriod(editingAlert.benchmark_period || "vs 7-Day Average");
-            setFrequency(editingAlert.alert_frequency || editingAlert.frequency || "Hourly");
+            setThresholdValue(editingAlert.threshold_value !== undefined ? String(editingAlert.threshold_value) : String(editingAlert.threshold || "20"));
+            setComparisonPeriod(editingAlert.benchmark_period || "vs L4W Avg");
+            if (["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].some(id => editingAlert.alert_type?.includes(id))) {
+                setFrequency("Weekly Summary");
+            } else {
+                setFrequency(editingAlert.alert_frequency || editingAlert.frequency || "Hourly");
+            }
             setSeverity(editingAlert.severity_level || editingAlert.severity || "Critical");
             if (editingAlert.alert_type) {
                 setSelectedPresetIds(editingAlert.alert_type.split(','));
             }
+
+            if (editingAlert.scheduled_day || editingAlert.scheduledDay) {
+                setScheduledDay(editingAlert.scheduled_day || editingAlert.scheduledDay);
+            } else {
+                // Sync scheduled day if present in alert_frequency
+                const freqStr = editingAlert.alert_frequency || editingAlert.frequency || "";
+                const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+                const matchedDay = days.find(d => freqStr.toLowerCase().includes(d.toLowerCase()));
+                if (matchedDay) {
+                    setScheduledDay(matchedDay);
+                }
+            }
         } else if (open && !editingAlert) {
             setIsCustomAlertName(false);
-            setAlertName("Low OSA Alert");
-            setSelectedPresetIds(["low_osa"]);
+            setAlertName("Low OSA Alert (Bottom % City Level)");
+            setSelectedPresetIds(["low_osa_bottom_city"]);
             setSelectedPlatforms([]);
             setSelectedBrands([]);
+            setScheduledDay("Monday");
+            setEmailAddresses([]);
+            setEmailInput("");
         }
     }, [open, editingAlert]);
 
@@ -199,6 +243,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     };
 
     // Toggle Multi-Select Brands
+    // eslint-disable-next-line no-unused-vars
     const handleToggleBrand = (brand) => {
         if (brand === "All Brands") {
             if (selectedBrands.includes("All Brands") || selectedBrands.length === availableBrands.length) {
@@ -233,6 +278,16 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         }
 
         setSelectedPresetIds(updated);
+
+        // When a weekly-forced alert is selected, set frequency
+        if (updated.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id))) {
+            setFrequency("Weekly Summary");
+        }
+
+        // When Performance Summary is selected, disable WhatsApp
+        if (presetId === "category_perf_summary") {
+            setWhatsappNotify(false);
+        }
 
         const activePresets = ALERT_PRESETS.filter(p => updated.includes(p.id));
 
@@ -359,20 +414,24 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         setIsSubmitting(true);
         setSubmitError("");
 
+        const isPerfSummary = selectedPresetIds.includes("category_perf_summary");
+
         try {
             // Map form fields to the backend API schema (matches admin_master.tb_alert columns)
             const apiPayload = {
                 alertName: alertName || "Untitled Custom Alert",
                 alertType: selectedPresetIds.join(','),
-                sendEmail: emailNotify ? (emailAddress || "") : "",
-                whatsappNo: whatsappNotify ? (whatsappNumber || "") : "",
+                sendEmail: emailNotify ? emailAddresses.join(",") : "",
+                whatsappNo: isPerfSummary ? "" : (whatsappNotify ? (whatsappNumber || "") : ""),
                 platforms: selectedPlatforms.includes("All Platforms") ? availablePlatforms : selectedPlatforms,
-                brands: selectedBrands.includes("All Brands") ? availableBrands : selectedBrands,
-                conditionalOperator: triggerOperator,
-                thresholdValue: parseFloat(thresholdValue) || 0,
-                benchmarkPeriod: comparisonPeriod,
-                alertFrequency: frequency,
-                severityLevel: severity,
+                brands: isPerfSummary ? availableBrands : (selectedBrands.includes("All Brands") ? availableBrands : selectedBrands),
+                conditionalOperator: isPerfSummary ? "eq" : triggerOperator,
+                thresholdValue: isPerfSummary ? 0 : (parseFloat(thresholdValue) || 0),
+                benchmarkPeriod: isPerfSummary ? "Weekly Schedule" : comparisonPeriod,
+                alertFrequency: isPerfSummary ? `Weekly Summary (${scheduledDay})` : frequency,
+                severityLevel: isPerfSummary ? "Medium" : severity,
+                scheduledDay: isPerfSummary ? scheduledDay : "",
+                scheduled_day: isPerfSummary ? scheduledDay : "",
             };
 
             let response;
@@ -550,7 +609,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                 </span>
                             </div>
 
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
                                 {/* MULTI-SELECT PLATFORM */}
                                 <div>
                                     <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
@@ -689,166 +748,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                     </div>
                                 </div>
 
-                                {/* MULTI-SELECT BRAND */}
-                                <div>
-                                    <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
-                                        SELECT BRAND(S)
-                                    </label>
-
-                                    <div style={{ position: "relative" }} ref={brandDropdownRef}>
-                                        <div
-                                            onClick={() => setShowBrandDropdown((prev) => !prev)}
-                                            className="form-input-focus"
-                                            style={{
-                                                width: "100%",
-                                                minHeight: "42px",
-                                                padding: "6px 12px",
-                                                borderRadius: "10px",
-                                                border: showBrandDropdown ? "1.5px solid #10b981" : "1px solid #cbd5e1",
-                                                boxShadow: showBrandDropdown ? "0 0 0 3px rgba(16, 185, 129, 0.12)" : "none",
-                                                background: "#ffffff",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-between",
-                                                cursor: "pointer",
-                                                boxSizing: "border-box",
-                                                gap: "8px",
-                                                transition: "all 0.15s ease",
-                                            }}
-                                        >
-                                            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center", flex: 1 }}>
-                                                {selectedBrands.length === 0 ? (
-                                                    <span style={{ fontSize: "13px", color: "#94a3b8" }}>Select brand(s)...</span>
-                                                ) : selectedBrands.includes("All Brands") ? (
-                                                    <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#10b981", background: "#f0fdf4", padding: "2px 8px", borderRadius: "12px", border: "1px solid #a7f3d0" }}>
-                                                        All Brands
-                                                    </span>
-                                                ) : (
-                                                    selectedBrands.map((b) => (
-                                                        <span
-                                                            key={b}
-                                                            style={{
-                                                                display: "inline-flex",
-                                                                alignItems: "center",
-                                                                gap: "5px",
-                                                                padding: "2px 8px",
-                                                                borderRadius: "16px",
-                                                                background: "#f0fdf4",
-                                                                border: "1px solid #a7f3d0",
-                                                                color: "#10b981",
-                                                                fontSize: "12px",
-                                                                fontWeight: 700,
-                                                            }}
-                                                        >
-                                                            {b}
-                                                            <span
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleToggleBrand(b);
-                                                                }}
-                                                                style={{
-                                                                    display: "inline-flex",
-                                                                    alignItems: "center",
-                                                                    justifyContent: "center",
-                                                                    width: "14px",
-                                                                    height: "14px",
-                                                                    borderRadius: "50%",
-                                                                    background: "#d1fae5",
-                                                                    color: "#059669",
-                                                                    cursor: "pointer",
-                                                                    fontSize: "9px",
-                                                                    fontWeight: 800,
-                                                                }}
-                                                            >
-                                                                ✕
-                                                            </span>
-                                                        </span>
-                                                    ))
-                                                )}
-                                            </div>
-
-                                            <ChevronDown size={16} style={{ color: "#64748b", transform: showBrandDropdown ? "rotate(180deg)" : "none", transition: "transform 0.15s ease", flexShrink: 0 }} />
-                                        </div>
-
-                                        {/* Dropdown Options for Brands */}
-                                        {showBrandDropdown && (
-                                            <div
-                                                style={{
-                                                    position: "absolute",
-                                                    top: "100%",
-                                                    left: 0,
-                                                    right: 0,
-                                                    marginTop: "6px",
-                                                    background: "#ffffff",
-                                                    border: "1px solid #e2e8f0",
-                                                    borderRadius: "12px",
-                                                    boxShadow: "0 12px 28px -4px rgba(15, 23, 42, 0.18)",
-                                                    padding: "6px",
-                                                    zIndex: 30,
-                                                    maxHeight: "220px",
-                                                    overflowY: "auto",
-                                                    display: "flex",
-                                                    flexDirection: "column",
-                                                    gap: "2px",
-                                                }}
-                                            >
-                                                {/* All Brands Toggle */}
-                                                <div
-                                                    onClick={() => handleToggleBrand("All Brands")}
-                                                    style={{
-                                                        padding: "8px 12px",
-                                                        borderRadius: "8px",
-                                                        background: selectedBrands.includes("All Brands") ? "#f0fdf4" : "transparent",
-                                                        color: selectedBrands.includes("All Brands") ? "#10b981" : "#1e293b",
-                                                        fontSize: "12.5px",
-                                                        fontWeight: 700,
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "space-between",
-                                                        cursor: "pointer",
-                                                    }}
-                                                >
-                                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                                        <div style={{ width: 18, height: 18, borderRadius: 4, border: selectedBrands.includes("All Brands") ? "none" : "1.5px solid #cbd5e1", background: selectedBrands.includes("All Brands") ? "#10b981" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                            {selectedBrands.includes("All Brands") && <Check size={13} color="#fff" strokeWidth={3} />}
-                                                        </div>
-                                                        <span>All Brands</span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Individual Brands */}
-                                                {availableBrands.map((b) => {
-                                                    const isSelected = selectedBrands.includes(b);
-                                                    return (
-                                                        <div
-                                                            key={`b_${b}`}
-                                                            onClick={() => handleToggleBrand(b)}
-                                                            style={{
-                                                                padding: "8px 12px",
-                                                                borderRadius: "8px",
-                                                                background: isSelected ? "#f0fdf4" : "transparent",
-                                                                color: isSelected ? "#10b981" : "#1e293b",
-                                                                fontSize: "12.5px",
-                                                                fontWeight: isSelected ? 700 : 500,
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                justifyContent: "space-between",
-                                                                cursor: "pointer",
-                                                            }}
-                                                        >
-                                                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                                                <div style={{ width: 18, height: 18, borderRadius: 4, border: isSelected ? "none" : "1.5px solid #cbd5e1", background: isSelected ? "#10b981" : "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                                    {isSelected && <Check size={13} color="#fff" strokeWidth={3} />}
-                                                                </div>
-                                                                <span>{b}</span>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                                {/* MULTI-SELECT BRAND SECTION REMOVED */}
                             </div>
                         </div>
 
@@ -1120,22 +1020,25 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                         {emailNotify && <Check size={14} color="#ffffff" strokeWidth={3} />}
                                     </div>
                                 </div>
-
                                 {/* WhatsApp Card */}
                                 <div
-                                    onClick={() => setWhatsappNotify((prev) => !prev)}
+                                    onClick={() => {
+                                        // Disabled
+                                    }}
                                     style={{
                                         display: "flex",
                                         alignItems: "center",
                                         justifyContent: "space-between",
                                         padding: "14px 16px",
                                         borderRadius: "12px",
-                                        border: whatsappNotify ? "2px solid #10b981" : "1.5px solid #e2e8f0",
-                                        background: whatsappNotify ? "#f0fdf4" : "#ffffff",
-                                        cursor: "pointer",
-                                        boxShadow: whatsappNotify ? "0 4px 12px rgba(16, 185, 129, 0.08)" : "0 1px 3px rgba(0, 0, 0, 0.02)",
+                                        border: "1.5px solid #e2e8f0",
+                                        background: "#f8fafc",
+                                        cursor: "not-allowed",
+                                        opacity: 0.55,
+                                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.02)",
                                         transition: "all 0.18s ease",
                                     }}
+                                    title="WhatsApp alerts are currently disabled"
                                 >
                                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                                         <div
@@ -1143,20 +1046,22 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                 width: 36,
                                                 height: 36,
                                                 borderRadius: "8px",
-                                                background: "#25D366",
+                                                background: "#94a3b8",
                                                 display: "flex",
                                                 alignItems: "center",
                                                 justifyContent: "center",
-                                                boxShadow: "0 2px 6px rgba(37, 211, 102, 0.3)",
+                                                boxShadow: "none",
                                             }}
                                         >
                                             <MessageSquare size={18} color="#ffffff" />
                                         </div>
                                         <div>
-                                            <span style={{ display: "block", fontSize: "13.5px", fontWeight: 700, color: "#0f172a" }}>
+                                            <span style={{ display: "block", fontSize: "13.5px", fontWeight: 700, color: "#94a3b8" }}>
                                                 WhatsApp
                                             </span>
-                                            <span style={{ fontSize: "11px", color: "#64748b" }}>Real-time mobile pings</span>
+                                            <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+                                                Currently disabled
+                                            </span>
                                         </div>
                                     </div>
 
@@ -1165,81 +1070,125 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                             width: 20,
                                             height: 20,
                                             borderRadius: "6px",
-                                            background: whatsappNotify ? "#10b981" : "#ffffff",
-                                            border: whatsappNotify ? "none" : "1.5px solid #cbd5e1",
+                                            background: "#ffffff",
+                                            border: "1.5px solid #cbd5e1",
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "center",
                                             transition: "all 0.15s ease",
                                         }}
                                     >
-                                        {whatsappNotify && <Check size={14} color="#ffffff" strokeWidth={3} />}
                                     </div>
                                 </div>
                             </div>
 
                             {/* Dynamic Channel Input Fields */}
-                            {(emailNotify || whatsappNotify) && (
+                            {emailNotify && (
                                 <motion.div
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: "auto" }}
                                     exit={{ opacity: 0, height: 0 }}
-                                    style={{ display: "grid", gridTemplateColumns: (emailNotify && whatsappNotify) ? "1fr 1fr" : "1fr", gap: "14px" }}
+                                    style={{ display: "grid", gridTemplateColumns: "1fr", gap: "14px" }}
                                 >
                                     {emailNotify && (
                                         <div>
                                             <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
                                                 EMAIL ADDRESS
                                             </label>
-                                            <div style={{ position: "relative" }}>
-                                                <Mail size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#64748b" }} />
+                                            <div
+                                                className="form-input-focus"
+                                                style={{
+                                                    width: "100%",
+                                                    minHeight: "40px",
+                                                    padding: "4px 14px 4px 36px",
+                                                    borderRadius: "10px",
+                                                    border: "1px solid #cbd5e1",
+                                                    background: "#fff",
+                                                    display: "flex",
+                                                    flexWrap: "wrap",
+                                                    alignItems: "center",
+                                                    gap: "6px",
+                                                    position: "relative",
+                                                    boxSizing: "border-box",
+                                                    cursor: "text",
+                                                }}
+                                                onClick={() => {
+                                                    document.getElementById('email-input')?.focus();
+                                                }}
+                                            >
+                                                <Mail size={16} style={{ position: "absolute", left: 12, top: "20px", transform: "translateY(-50%)", color: "#64748b" }} />
+                                                {emailAddresses.map((email, idx) => (
+                                                    <span key={idx} style={{
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        gap: "4px",
+                                                        padding: "2px 8px",
+                                                        borderRadius: "16px",
+                                                        background: "#eff6ff",
+                                                        border: "1px solid #bfdbfe",
+                                                        color: "#0047FF",
+                                                        fontSize: "12px",
+                                                        fontWeight: 600,
+                                                    }}>
+                                                        {email}
+                                                        <span
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEmailAddresses(prev => prev.filter((_, i) => i !== idx));
+                                                            }}
+                                                            style={{
+                                                                display: "inline-flex",
+                                                                alignItems: "center",
+                                                                justifyContent: "center",
+                                                                width: "14px",
+                                                                height: "14px",
+                                                                borderRadius: "50%",
+                                                                background: "#dbeafe",
+                                                                color: "#0047FF",
+                                                                cursor: "pointer",
+                                                                fontSize: "9px",
+                                                                fontWeight: 800,
+                                                                marginLeft: "2px"
+                                                            }}
+                                                        >
+                                                            ✕
+                                                        </span>
+                                                    </span>
+                                                ))}
                                                 <input
-                                                    type="email"
-                                                    className="form-input-focus"
-                                                    placeholder="e.g., alert-team@company.com"
-                                                    value={emailAddress}
-                                                    onChange={(e) => setEmailAddress(e.target.value)}
-                                                    style={{
-                                                        width: "100%",
-                                                        height: "40px",
-                                                        padding: "0 14px 0 36px",
-                                                        borderRadius: "10px",
-                                                        border: "1px solid #cbd5e1",
-                                                        fontSize: "13px",
-                                                        color: "#0f172a",
-                                                        outline: "none",
-                                                        boxSizing: "border-box",
-                                                        background: "#fff",
+                                                    id="email-input"
+                                                    type="text"
+                                                    placeholder={emailAddresses.length === 0 ? "e.g., alert-team@company.com" : ""}
+                                                    value={emailInput}
+                                                    onChange={(e) => setEmailInput(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (["Enter", "Tab", ","].includes(e.key)) {
+                                                            e.preventDefault();
+                                                            const val = emailInput.trim().replace(/,$/, '');
+                                                            if (val && !emailAddresses.includes(val)) {
+                                                                setEmailAddresses(prev => [...prev, val]);
+                                                                setEmailInput("");
+                                                            }
+                                                        } else if (e.key === "Backspace" && emailInput === "" && emailAddresses.length > 0) {
+                                                            setEmailAddresses(prev => prev.slice(0, -1));
+                                                        }
                                                     }}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {whatsappNotify && (
-                                        <div>
-                                            <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
-                                                WHATSAPP NUMBER
-                                            </label>
-                                            <div style={{ position: "relative" }}>
-                                                <Phone size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#10b981" }} />
-                                                <input
-                                                    type="tel"
-                                                    className="form-input-focus"
-                                                    placeholder="e.g., +91 98765 43210"
-                                                    value={whatsappNumber}
-                                                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                                                    onBlur={() => {
+                                                        const val = emailInput.trim().replace(/,$/, '');
+                                                        if (val && !emailAddresses.includes(val)) {
+                                                            setEmailAddresses(prev => [...prev, val]);
+                                                            setEmailInput("");
+                                                        }
+                                                    }}
                                                     style={{
-                                                        width: "100%",
-                                                        height: "40px",
-                                                        padding: "0 14px 0 36px",
-                                                        borderRadius: "10px",
-                                                        border: "1px solid #cbd5e1",
+                                                        flex: 1,
+                                                        minWidth: "120px",
+                                                        height: "30px",
+                                                        border: "none",
+                                                        outline: "none",
+                                                        background: "transparent",
                                                         fontSize: "13px",
                                                         color: "#0f172a",
-                                                        outline: "none",
-                                                        boxSizing: "border-box",
-                                                        background: "#fff",
                                                     }}
                                                 />
                                             </div>
@@ -1249,428 +1198,498 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                             )}
                         </div>
 
-                        {/* Section 4: Trigger Configuration & Formula Specs with EDIT BUTTON */}
-                        <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                                <div style={{ width: "4px", height: "16px", borderRadius: "2px", background: "#0047FF" }} />
-                                <span style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
-                                    Trigger Configuration & Logic Rules
-                                </span>
-                            </div>
+                        {/* Section 4: Trigger Configuration & Formula Specs with EDIT BUTTON (Hidden for Performance Summary) */}
+                        {!isPerformanceSummarySelected && (
+                            <div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                                    <div style={{ width: "4px", height: "16px", borderRadius: "2px", background: "#0047FF" }} />
+                                    <span style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
+                                        Trigger Configuration & Logic Rules
+                                    </span>
+                                </div>
 
-                            <div
-                                style={{
-                                    background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
-                                    border: "1px solid #e2e8f0",
-                                    borderRadius: "14px",
-                                    padding: "16px 18px",
-                                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    gap: "14px",
-                                }}
-                            >
-                                {/* Formula Specs Card with Inline Edit Mode */}
-                                {selectedPresets.length > 0 && (
-                                    <div
-                                        style={{
-                                            background: "#ffffff",
-                                            borderRadius: "10px",
-                                            border: "1px solid #dbeafe",
-                                            padding: "12px 14px",
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            gap: "12px",
-                                        }}
-                                    >
-                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px" }}>
-                                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                                <Sliders size={14} color="#0047FF" />
-                                                <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>
-                                                    Metric(s) Required:
-                                                </span>
-                                            </div>
-                                            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                                                {Array.from(new Set(selectedPresets.flatMap(p => p.metrics))).map(m => (
-                                                    <span
-                                                        key={m}
-                                                        style={{
-                                                            padding: "2px 8px",
-                                                            borderRadius: "6px",
-                                                            background: "#eff6ff",
-                                                            border: "1px solid #bfdbfe",
-                                                            color: "#0047FF",
-                                                            fontSize: "11px",
-                                                            fontWeight: 700,
-                                                        }}
-                                                    >
-                                                        {m}
+                                <div
+                                    style={{
+                                        background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: "14px",
+                                        padding: "16px 18px",
+                                        boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "14px",
+                                    }}
+                                >
+                                    {/* Formula Specs Card with Inline Edit Mode */}
+                                    {selectedPresets.length > 0 && (
+                                        <div
+                                            style={{
+                                                background: "#ffffff",
+                                                borderRadius: "10px",
+                                                border: "1px solid #dbeafe",
+                                                padding: "12px 14px",
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                gap: "12px",
+                                            }}
+                                        >
+                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px" }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                                    <Sliders size={14} color="#0047FF" />
+                                                    <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>
+                                                        Metric(s) Required:
                                                     </span>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {selectedPresets.map(preset => {
-                                            const isEditingThis = editingRuleId === preset.id;
-                                            const currentFormula = customFormulas[preset.id] || preset.formula;
-                                            const currentCond = customConditions[preset.id] || preset.condition;
-
-                                            return (
-                                                <div key={`formula_${preset.id}`} style={{ display: "flex", flexDirection: "column", gap: "6px", borderBottom: "1px dashed #e2e8f0", paddingBottom: "10px" }}>
-                                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                                        <span style={{ fontSize: "12px", fontWeight: 800, color: "#0047FF" }}>
-                                                            {preset.name} Rules
-                                                        </span>
-                                                    </div>
-
-                                                    {/* Formula Box */}
-                                                    <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", background: "#faf5ff", padding: "8px 10px", borderRadius: "6px", border: "1px solid #f3e8ff" }}>
-                                                        <Zap size={14} color="#9333ea" style={{ marginTop: 2, flexShrink: 0 }} />
-                                                        <div style={{ flex: 1 }}>
-                                                            <span style={{ fontSize: "11px", fontWeight: 700, color: "#6b21a8" }}>Formula: </span>
-                                                            {isEditingThis ? (
-                                                                <input
-                                                                    type="text"
-                                                                    value={currentFormula}
-                                                                    onChange={(e) => setCustomFormulas({ ...customFormulas, [preset.id]: e.target.value })}
-                                                                    style={{
-                                                                        width: "100%",
-                                                                        marginTop: "4px",
-                                                                        padding: "4px 8px",
-                                                                        borderRadius: "4px",
-                                                                        border: "1px solid #c084fc",
-                                                                        fontSize: "11px",
-                                                                        fontFamily: "monospace",
-                                                                        background: "#fff",
-                                                                    }}
-                                                                />
-                                                            ) : (
-                                                                <code style={{ fontSize: "11px", fontFamily: "monospace", color: "#581c87", fontWeight: 600 }}>
-                                                                    {currentFormula}
-                                                                </code>
-                                                            )}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Condition Box */}
-                                                    <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#fff7ed", padding: "6px 10px", borderRadius: "6px", border: "1px solid #ffedd5" }}>
-                                                        <AlertTriangle size={13} color="#c2410c" style={{ flexShrink: 0 }} />
-                                                        <div style={{ flex: 1 }}>
-                                                            <span style={{ fontSize: "11px", fontWeight: 600, color: "#9a3412" }}>
-                                                                Condition:{" "}
-                                                            </span>
-                                                            {isEditingThis ? (
-                                                                <input
-                                                                    type="text"
-                                                                    value={currentCond}
-                                                                    onChange={(e) => setCustomConditions({ ...customConditions, [preset.id]: e.target.value })}
-                                                                    style={{
-                                                                        width: "100%",
-                                                                        marginTop: "4px",
-                                                                        padding: "4px 8px",
-                                                                        borderRadius: "4px",
-                                                                        border: "1px solid #fdba74",
-                                                                        fontSize: "11px",
-                                                                        background: "#fff",
-                                                                    }}
-                                                                />
-                                                            ) : (
-                                                                <span style={{ fontSize: "11px", fontWeight: 600, color: "#9a3412" }}>
-                                                                    {currentCond}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
+                                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                                    {Array.from(new Set(selectedPresets.flatMap(p => p.metrics))).map(m => (
+                                                        <span
+                                                            key={m}
+                                                            style={{
+                                                                padding: "2px 8px",
+                                                                borderRadius: "6px",
+                                                                background: "#eff6ff",
+                                                                border: "1px solid #bfdbfe",
+                                                                color: "#0047FF",
+                                                                fontSize: "11px",
+                                                                fontWeight: 700,
+                                                            }}
+                                                        >
+                                                            {m}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
 
-                                {/* Interactive Operators & Threshold Value */}
-                                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.3fr 1.2fr", gap: "12px", alignItems: "center" }}>
-                                    {/* Operator Dropdown */}
-                                    <div style={{ position: "relative" }}>
-                                        <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
-                                            CONDITION OPERATOR
-                                        </label>
-                                        <select
-                                            value={triggerOperator}
-                                            onChange={(e) => setTriggerOperator(e.target.value)}
-                                            style={{
-                                                width: "100%",
-                                                height: "38px",
-                                                padding: "0 28px 0 10px",
-                                                borderRadius: "8px",
-                                                border: "1.5px solid #0047FF",
-                                                background: "#eff6ff",
-                                                color: "#0047FF",
-                                                fontWeight: 700,
-                                                fontSize: "12.5px",
-                                                outline: "none",
-                                                cursor: "pointer",
-                                                appearance: "none",
-                                                boxSizing: "border-box",
-                                            }}
-                                        >
-                                            <option value="gt">Greater than (&gt;)</option>
-                                            <option value="lt">Less than (&lt;)</option>
-                                            <option value="eq">Equal to (=)</option>
-                                            <option value="changes">Changes by (%)</option>
-                                            <option value="drops">Drops by (%)</option>
-                                        </select>
-                                        <ChevronDown size={14} style={{ position: "absolute", right: 8, bottom: 12, color: "#0047FF", pointerEvents: "none" }} />
-                                    </div>
+                                            {selectedPresets.map(preset => {
+                                                const isEditingThis = editingRuleId === preset.id;
+                                                const currentFormula = customFormulas[preset.id] || preset.formula;
+                                                const currentCond = customConditions[preset.id] || preset.condition;
 
-                                    {/* Threshold Value Input */}
+                                                return (
+                                                    <div key={`formula_${preset.id}`} style={{ display: "flex", flexDirection: "column", gap: "6px", borderBottom: "1px dashed #e2e8f0", paddingBottom: "10px" }}>
+                                                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                                            <span style={{ fontSize: "12px", fontWeight: 800, color: "#0047FF" }}>
+                                                                {preset.name} Rules
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Formula Box */}
+                                                        <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", background: "#faf5ff", padding: "8px 10px", borderRadius: "6px", border: "1px solid #f3e8ff" }}>
+                                                            <Zap size={14} color="#9333ea" style={{ marginTop: 2, flexShrink: 0 }} />
+                                                            <div style={{ flex: 1 }}>
+                                                                <span style={{ fontSize: "11px", fontWeight: 700, color: "#6b21a8" }}>Formula: </span>
+                                                                {isEditingThis ? (
+                                                                    <input
+                                                                        type="text"
+                                                                        value={currentFormula}
+                                                                        onChange={(e) => setCustomFormulas({ ...customFormulas, [preset.id]: e.target.value })}
+                                                                        style={{
+                                                                            width: "100%",
+                                                                            marginTop: "4px",
+                                                                            padding: "4px 8px",
+                                                                            borderRadius: "4px",
+                                                                            border: "1px solid #c084fc",
+                                                                            fontSize: "11px",
+                                                                            fontFamily: "monospace",
+                                                                            background: "#fff",
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <code style={{ fontSize: "11px", fontFamily: "monospace", color: "#581c87", fontWeight: 600 }}>
+                                                                        {currentFormula}
+                                                                    </code>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Condition Box */}
+                                                        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#fff7ed", padding: "6px 10px", borderRadius: "6px", border: "1px solid #ffedd5" }}>
+                                                            <AlertTriangle size={13} color="#c2410c" style={{ flexShrink: 0 }} />
+                                                            <div style={{ flex: 1 }}>
+                                                                <span style={{ fontSize: "11px", fontWeight: 600, color: "#9a3412" }}>
+                                                                    Condition:{" "}
+                                                                </span>
+                                                                {isEditingThis ? (
+                                                                    <input
+                                                                        type="text"
+                                                                        value={currentCond}
+                                                                        onChange={(e) => setCustomConditions({ ...customConditions, [preset.id]: e.target.value })}
+                                                                        style={{
+                                                                            width: "100%",
+                                                                            marginTop: "4px",
+                                                                            padding: "4px 8px",
+                                                                            borderRadius: "4px",
+                                                                            border: "1px solid #fdba74",
+                                                                            fontSize: "11px",
+                                                                            background: "#fff",
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#9a3412" }}>
+                                                                        {currentCond}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {/* Interactive Operators & Threshold Value */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.3fr 1.2fr", gap: "12px", alignItems: "center" }}>
+                                        {/* Operator Dropdown */}
+                                        <div style={{ position: "relative" }}>
+                                            <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
+                                                CONDITION OPERATOR
+                                            </label>
+                                            <select
+                                                value={triggerOperator}
+                                                onChange={(e) => setTriggerOperator(e.target.value)}
+                                                style={{
+                                                    width: "100%",
+                                                    height: "38px",
+                                                    padding: "0 28px 0 10px",
+                                                    borderRadius: "8px",
+                                                    border: "1.5px solid #0047FF",
+                                                    background: "#eff6ff",
+                                                    color: "#0047FF",
+                                                    fontWeight: 700,
+                                                    fontSize: "12.5px",
+                                                    outline: "none",
+                                                    cursor: "pointer",
+                                                    appearance: "none",
+                                                    boxSizing: "border-box",
+                                                }}
+                                            >
+                                                <option value="gt">Greater than (&gt;)</option>
+                                                <option value="lt">Lesser than (&lt;)</option>
+                                            </select>
+                                            <ChevronDown size={14} style={{ position: "absolute", right: 8, bottom: 12, color: "#0047FF", pointerEvents: "none" }} />
+                                        </div>
+
+                                        {/* Threshold Value Input */}
+                                        <div>
+                                            <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
+                                                THRESHOLD VALUE
+                                            </label>
+                                            <input
+                                                type="text"
+                                                className="form-input-focus"
+                                                placeholder="Threshold (e.g. 85)"
+                                                value={thresholdValue}
+                                                onChange={(e) => setThresholdValue(e.target.value)}
+                                                style={{
+                                                    width: "100%",
+                                                    height: "38px",
+                                                    padding: "0 12px",
+                                                    borderRadius: "8px",
+                                                    border: "1px solid #cbd5e1",
+                                                    fontSize: "12.5px",
+                                                    fontWeight: 600,
+                                                    color: "#0f172a",
+                                                    outline: "none",
+                                                    boxSizing: "border-box",
+                                                    background: "#fff",
+                                                }}
+                                            />
+                                        </div>
+
+                                        {/* Comparison Period */}
+                                        <div style={{ position: "relative" }}>
+                                            <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
+                                                BENCHMARK PERIOD
+                                            </label>
+                                            <select
+                                                value={comparisonPeriod}
+                                                onChange={(e) => setComparisonPeriod(e.target.value)}
+                                                className="form-input-focus"
+                                                style={{
+                                                    width: "100%",
+                                                    height: "38px",
+                                                    padding: "0 28px 0 10px",
+                                                    borderRadius: "8px",
+                                                    border: "1px solid #cbd5e1",
+                                                    fontSize: "12.5px",
+                                                    color: "#0f172a",
+                                                    background: "#fff",
+                                                    outline: "none",
+                                                    cursor: "pointer",
+                                                    appearance: "none",
+                                                    boxSizing: "border-box",
+                                                }}
+                                            >
+                                                <option value="vs L4W Avg">vs L4W Avg</option>
+                                            </select>
+                                            <ChevronDown size={14} style={{ position: "absolute", right: 8, bottom: 12, color: "#64748b", pointerEvents: "none" }} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Section 5: Frequency & Severity (Hidden for Performance Summary) */}
+                        {!isPerformanceSummarySelected && (
+                            <div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+                                    <div style={{ width: "4px", height: "16px", borderRadius: "2px", background: "#0047FF" }} />
+                                    <span style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
+                                        Frequency & Severity
+                                    </span>
+                                </div>
+
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                                    {/* ALERT FREQUENCY */}
                                     <div>
-                                        <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
-                                            THRESHOLD VALUE
+                                        <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
+                                            ALERT FREQUENCY
                                         </label>
-                                        <input
-                                            type="text"
-                                            className="form-input-focus"
-                                            placeholder="Threshold (e.g. 85)"
-                                            value={thresholdValue}
-                                            onChange={(e) => setThresholdValue(e.target.value)}
-                                            style={{
-                                                width: "100%",
-                                                height: "38px",
-                                                padding: "0 12px",
-                                                borderRadius: "8px",
-                                                border: "1px solid #cbd5e1",
-                                                fontSize: "12.5px",
-                                                fontWeight: 600,
-                                                color: "#0f172a",
-                                                outline: "none",
-                                                boxSizing: "border-box",
-                                                background: "#fff",
-                                            }}
-                                        />
-                                    </div>
-
-                                    {/* Comparison Period */}
-                                    <div style={{ position: "relative" }}>
-                                        <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
-                                            BENCHMARK PERIOD
-                                        </label>
-                                        <select
-                                            value={comparisonPeriod}
-                                            onChange={(e) => setComparisonPeriod(e.target.value)}
-                                            className="form-input-focus"
-                                            style={{
-                                                width: "100%",
-                                                height: "38px",
-                                                padding: "0 28px 0 10px",
-                                                borderRadius: "8px",
-                                                border: "1px solid #cbd5e1",
-                                                fontSize: "12.5px",
-                                                color: "#0f172a",
-                                                background: "#fff",
-                                                outline: "none",
-                                                cursor: "pointer",
-                                                appearance: "none",
-                                                boxSizing: "border-box",
-                                            }}
-                                        >
-                                            <option value="vs 7-Day Average">vs 7-Day Average</option>
-                                            <option value="vs Previous Day">vs Previous Day</option>
-                                            <option value="vs 30-Day Average">vs 30-Day Average</option>
-                                            <option value="vs Same Day Last Week">vs Same Day Last Week</option>
-                                            <option value="vs Benchmark">vs Benchmark</option>
-                                        </select>
-                                        <ChevronDown size={14} style={{ position: "absolute", right: 8, bottom: 12, color: "#64748b", pointerEvents: "none" }} />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Section 5: Frequency & Severity */}
-                        <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
-                                <div style={{ width: "4px", height: "16px", borderRadius: "2px", background: "#0047FF" }} />
-                                <span style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
-                                    Frequency & Severity
-                                </span>
-                            </div>
-
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                                {/* ALERT FREQUENCY */}
-                                <div>
-                                    <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
-                                        ALERT FREQUENCY
-                                    </label>
-                                    <div style={{ position: "relative" }} ref={frequencyDropdownRef}>
-                                        <div
-                                            onClick={() => setShowFrequencyDropdown((prev) => !prev)}
-                                            className="form-input-focus"
-                                            style={{
-                                                width: "100%",
-                                                height: "42px",
-                                                padding: "0 14px",
-                                                borderRadius: "10px",
-                                                border: showFrequencyDropdown ? "1.5px solid #0047FF" : "1px solid #cbd5e1",
-                                                boxShadow: showFrequencyDropdown ? "0 0 0 3px rgba(0, 71, 255, 0.12)" : "none",
-                                                background: "#ffffff",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-between",
-                                                cursor: "pointer",
-                                                boxSizing: "border-box",
-                                                transition: "all 0.15s ease",
-                                            }}
-                                        >
-                                            <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>
-                                                {frequency}
-                                            </span>
-                                            <ChevronDown size={16} style={{ color: "#64748b", transform: showFrequencyDropdown ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }} />
-                                        </div>
-
-                                        {/* Dropdown Options (Upwards Opening) */}
-                                        {showFrequencyDropdown && (
+                                        <div style={{ position: "relative" }} ref={frequencyDropdownRef}>
                                             <div
+                                                onClick={() => setShowFrequencyDropdown((prev) => !prev)}
+                                                className="form-input-focus"
                                                 style={{
-                                                    position: "absolute",
-                                                    bottom: "100%",
-                                                    left: 0,
-                                                    right: 0,
-                                                    marginBottom: "6px",
+                                                    width: "100%",
+                                                    height: "42px",
+                                                    padding: "0 14px",
+                                                    borderRadius: "10px",
+                                                    border: showFrequencyDropdown ? "1.5px solid #0047FF" : "1px solid #cbd5e1",
+                                                    boxShadow: showFrequencyDropdown ? "0 0 0 3px rgba(0, 71, 255, 0.12)" : "none",
                                                     background: "#ffffff",
-                                                    border: "1px solid #e2e8f0",
-                                                    borderRadius: "12px",
-                                                    boxShadow: "0 12px 28px -4px rgba(15, 23, 42, 0.18)",
-                                                    padding: "6px",
-                                                    zIndex: 40,
                                                     display: "flex",
-                                                    flexDirection: "column",
-                                                    gap: "2px",
+                                                    alignItems: "center",
+                                                    justifyContent: "space-between",
+                                                    cursor: "pointer",
+                                                    boxSizing: "border-box",
+                                                    transition: "all 0.15s ease",
                                                 }}
                                             >
-                                                {["Hourly", "Daily Digest", "Weekly Summary"].map((freqOption) => (
-                                                    <div
-                                                        key={freqOption}
-                                                        onClick={() => {
-                                                            setFrequency(freqOption);
-                                                            setShowFrequencyDropdown(false);
-                                                        }}
-                                                        style={{
-                                                            padding: "9px 12px",
-                                                            borderRadius: "8px",
-                                                            background: frequency === freqOption ? "#eff6ff" : "transparent",
-                                                            color: frequency === freqOption ? "#0047FF" : "#1e293b",
-                                                            fontSize: "13px",
-                                                            fontWeight: frequency === freqOption ? 700 : 500,
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            justifyContent: "space-between",
-                                                            cursor: "pointer",
-                                                            transition: "all 0.12s ease",
-                                                        }}
-                                                        onMouseEnter={(e) => {
-                                                            if (frequency !== freqOption) e.currentTarget.style.background = "#f8fafc";
-                                                        }}
-                                                        onMouseLeave={(e) => {
-                                                            if (frequency !== freqOption) e.currentTarget.style.background = "transparent";
-                                                        }}
-                                                    >
-                                                        <span>{freqOption}</span>
-                                                        {frequency === freqOption && <Check size={16} strokeWidth={3} />}
-                                                    </div>
-                                                ))}
+                                                <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>
+                                                    {frequency}
+                                                </span>
+                                                <ChevronDown size={16} style={{ color: "#64748b", transform: showFrequencyDropdown ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }} />
                                             </div>
-                                        )}
-                                    </div>
-                                </div>
 
-                                {/* SEVERITY LEVEL */}
-                                <div>
-                                    <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
-                                        SEVERITY LEVEL
-                                    </label>
-                                    <div style={{ position: "relative" }} ref={severityDropdownRef}>
-                                        <div
-                                            onClick={() => setShowSeverityDropdown((prev) => !prev)}
-                                            className="form-input-focus"
-                                            style={{
-                                                width: "100%",
-                                                height: "42px",
-                                                padding: "0 14px",
-                                                borderRadius: "10px",
-                                                border: showSeverityDropdown ? "1.5px solid #0047FF" : "1px solid #cbd5e1",
-                                                boxShadow: showSeverityDropdown ? "0 0 0 3px rgba(0, 71, 255, 0.12)" : "none",
-                                                background: "#ffffff",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-between",
-                                                cursor: "pointer",
-                                                boxSizing: "border-box",
-                                                transition: "all 0.15s ease",
-                                            }}
-                                        >
-                                            <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>
-                                                {severity}
-                                            </span>
-                                            <ChevronDown size={16} style={{ color: "#64748b", transform: showSeverityDropdown ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }} />
+                                            {/* Dropdown Options (Upwards Opening) */}
+                                            {showFrequencyDropdown && (
+                                                <div
+                                                    style={{
+                                                        position: "absolute",
+                                                        bottom: "100%",
+                                                        left: 0,
+                                                        right: 0,
+                                                        marginBottom: "6px",
+                                                        background: "#ffffff",
+                                                        border: "1px solid #e2e8f0",
+                                                        borderRadius: "12px",
+                                                        boxShadow: "0 12px 28px -4px rgba(15, 23, 42, 0.18)",
+                                                        padding: "6px",
+                                                        zIndex: 40,
+                                                        display: "flex",
+                                                        flexDirection: "column",
+                                                        gap: "2px",
+                                                    }}
+                                                >
+                                                    {["Weekly Summary"].map((freqOption) => (
+                                                        <div
+                                                            key={freqOption}
+                                                            onClick={() => {
+                                                                setFrequency(freqOption);
+                                                                setShowFrequencyDropdown(false);
+                                                            }}
+                                                            style={{
+                                                                padding: "9px 12px",
+                                                                borderRadius: "8px",
+                                                                background: frequency === freqOption ? "#eff6ff" : "transparent",
+                                                                color: frequency === freqOption ? "#0047FF" : "#1e293b",
+                                                                fontSize: "13px",
+                                                                fontWeight: frequency === freqOption ? 700 : 500,
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                justifyContent: "space-between",
+                                                                cursor: "pointer",
+                                                                transition: "all 0.12s ease",
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                if (frequency !== freqOption) e.currentTarget.style.background = "#f8fafc";
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                if (frequency !== freqOption) e.currentTarget.style.background = "transparent";
+                                                            }}
+                                                        >
+                                                            <span>{freqOption}</span>
+                                                            {frequency === freqOption && <Check size={16} strokeWidth={3} />}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
+                                    </div>
 
-                                        {/* Dropdown Options (Upwards Opening) */}
-                                        {showSeverityDropdown && (
+                                    {/* SEVERITY LEVEL */}
+                                    <div>
+                                        <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
+                                            SEVERITY LEVEL
+                                        </label>
+                                        <div style={{ position: "relative" }} ref={severityDropdownRef}>
                                             <div
+                                                onClick={() => setShowSeverityDropdown((prev) => !prev)}
+                                                className="form-input-focus"
                                                 style={{
-                                                    position: "absolute",
-                                                    bottom: "100%",
-                                                    left: 0,
-                                                    right: 0,
-                                                    marginBottom: "6px",
+                                                    width: "100%",
+                                                    height: "42px",
+                                                    padding: "0 14px",
+                                                    borderRadius: "10px",
+                                                    border: showSeverityDropdown ? "1.5px solid #0047FF" : "1px solid #cbd5e1",
+                                                    boxShadow: showSeverityDropdown ? "0 0 0 3px rgba(0, 71, 255, 0.12)" : "none",
                                                     background: "#ffffff",
-                                                    border: "1px solid #e2e8f0",
-                                                    borderRadius: "12px",
-                                                    boxShadow: "0 12px 28px -4px rgba(15, 23, 42, 0.18)",
-                                                    padding: "6px",
-                                                    zIndex: 40,
                                                     display: "flex",
-                                                    flexDirection: "column",
-                                                    gap: "2px",
+                                                    alignItems: "center",
+                                                    justifyContent: "space-between",
+                                                    cursor: "pointer",
+                                                    boxSizing: "border-box",
+                                                    transition: "all 0.15s ease",
                                                 }}
                                             >
-                                                {["Critical", "High / Warning", "Medium", "Low"].map((sevOption) => (
-                                                    <div
-                                                        key={sevOption}
-                                                        onClick={() => {
-                                                            setSeverity(sevOption);
-                                                            setShowSeverityDropdown(false);
-                                                        }}
-                                                        style={{
-                                                            padding: "9px 12px",
-                                                            borderRadius: "8px",
-                                                            background: severity === sevOption ? "#eff6ff" : "transparent",
-                                                            color: severity === sevOption ? "#0047FF" : "#1e293b",
-                                                            fontSize: "13px",
-                                                            fontWeight: severity === sevOption ? 700 : 500,
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            justifyContent: "space-between",
-                                                            cursor: "pointer",
-                                                            transition: "all 0.12s ease",
-                                                        }}
-                                                        onMouseEnter={(e) => {
-                                                            if (severity !== sevOption) e.currentTarget.style.background = "#f8fafc";
-                                                        }}
-                                                        onMouseLeave={(e) => {
-                                                            if (severity !== sevOption) e.currentTarget.style.background = "transparent";
-                                                        }}
-                                                    >
-                                                        <span>{sevOption}</span>
-                                                        {severity === sevOption && <Check size={16} strokeWidth={3} />}
-                                                    </div>
-                                                ))}
+                                                <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>
+                                                    {severity}
+                                                </span>
+                                                <ChevronDown size={16} style={{ color: "#64748b", transform: showSeverityDropdown ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }} />
                                             </div>
-                                        )}
+
+                                            {/* Dropdown Options (Upwards Opening) */}
+                                            {showSeverityDropdown && (
+                                                <div
+                                                    style={{
+                                                        position: "absolute",
+                                                        bottom: "100%",
+                                                        left: 0,
+                                                        right: 0,
+                                                        marginBottom: "6px",
+                                                        background: "#ffffff",
+                                                        border: "1px solid #e2e8f0",
+                                                        borderRadius: "12px",
+                                                        boxShadow: "0 12px 28px -4px rgba(15, 23, 42, 0.18)",
+                                                        padding: "6px",
+                                                        zIndex: 40,
+                                                        display: "flex",
+                                                        flexDirection: "column",
+                                                        gap: "2px",
+                                                    }}
+                                                >
+                                                    {["Critical", "High / Warning", "Medium", "Low"].map((sevOption) => (
+                                                        <div
+                                                            key={sevOption}
+                                                            onClick={() => {
+                                                                setSeverity(sevOption);
+                                                                setShowSeverityDropdown(false);
+                                                            }}
+                                                            style={{
+                                                                padding: "9px 12px",
+                                                                borderRadius: "8px",
+                                                                background: severity === sevOption ? "#eff6ff" : "transparent",
+                                                                color: severity === sevOption ? "#0047FF" : "#1e293b",
+                                                                fontSize: "13px",
+                                                                fontWeight: severity === sevOption ? 700 : 500,
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                justifyContent: "space-between",
+                                                                cursor: "pointer",
+                                                                transition: "all 0.12s ease",
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                if (severity !== sevOption) e.currentTarget.style.background = "#f8fafc";
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                if (severity !== sevOption) e.currentTarget.style.background = "transparent";
+                                                            }}
+                                                        >
+                                                            <span>{sevOption}</span>
+                                                            {severity === sevOption && <Check size={16} strokeWidth={3} />}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                        )}
+
+                        {/* Section 5 (Alternate for Performance Summary): Schedule Auto Report Segment */}
+                        {isPerformanceSummarySelected && (
+                            <div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+                                    <div style={{ width: "4px", height: "16px", borderRadius: "2px", background: "#0047FF" }} />
+                                    <span style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}>
+                                        Schedule Auto Report
+                                    </span>
+                                </div>
+
+                                <div
+                                    style={{
+                                        background: "linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%)",
+                                        border: "1px solid #bfdbfe",
+                                        borderRadius: "14px",
+                                        padding: "18px 20px",
+                                        boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "14px",
+                                    }}
+                                >
+                                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                        <div style={{ width: 38, height: 38, borderRadius: "10px", background: "#dbeafe", border: "1px solid #bfdbfe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                            <Calendar size={20} color="#0047FF" />
+                                        </div>
+                                        <div>
+                                            <span style={{ display: "block", fontSize: "13.5px", fontWeight: 700, color: "#0f172a" }}>
+                                                Weekly Automated Performance Digest
+                                            </span>
+                                            <span style={{ fontSize: "11px", color: "#64748b" }}>
+                                                Schedule an automated weekly cross-platform brand performance report.
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
+                                            SELECT DELIVERY DAY OF THE WEEK
+                                        </label>
+                                        <div style={{ position: "relative" }}>
+                                            <select
+                                                value={scheduledDay}
+                                                onChange={(e) => setScheduledDay(e.target.value)}
+                                                className="form-input-focus"
+                                                style={{
+                                                    width: "100%",
+                                                    height: "42px",
+                                                    padding: "0 32px 0 14px",
+                                                    borderRadius: "10px",
+                                                    border: "1.5px solid #0047FF",
+                                                    background: "#ffffff",
+                                                    color: "#0f172a",
+                                                    fontWeight: 700,
+                                                    fontSize: "13.5px",
+                                                    outline: "none",
+                                                    cursor: "pointer",
+                                                    appearance: "none",
+                                                    boxSizing: "border-box",
+                                                }}
+                                            >
+                                                {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => (
+                                                    <option key={day} value={day}>
+                                                        Every {day}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown size={16} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#0047FF", pointerEvents: "none" }} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}</div>
 
                     {/* Footer Actions */}
                     <div

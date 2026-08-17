@@ -41,7 +41,11 @@ axiosInstance.interceptors.response.use(
             localStorage.removeItem("isLoggedIn");
             localStorage.removeItem("token");
             localStorage.removeItem("user");
-            window.location.hash = "#/login";
+            if (window.location.hash) {
+                window.location.hash = "#/login";
+            } else {
+                window.location.href = "/login";
+            }
         }
         return Promise.reject(error);
     }

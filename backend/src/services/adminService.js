@@ -444,15 +444,16 @@ export const getPermissionsUsers = async () => {
 export const updateUserDbStatus = async (userIdOrEmail, dbStatus) => {
     try {
         const statusValue = dbStatus ? 'active' : 'inactive';
-        const isEmail = userIdOrEmail.includes('@');
+        const cleanIdOrEmail = userIdOrEmail.replace(/'/g, "\\'");
+        const isEmail = cleanIdOrEmail.includes('@');
         const query = isEmail ? `
             ALTER TABLE tb_user 
             UPDATE db_status = '${statusValue}' 
-            WHERE user_email = '${userIdOrEmail}'
+            WHERE lower(user_email) = lower('${cleanIdOrEmail}')
         ` : `
             ALTER TABLE tb_user 
             UPDATE db_status = '${statusValue}' 
-            WHERE toString(user_id) = '${userIdOrEmail}'
+            WHERE toString(user_id) = '${cleanIdOrEmail}' OR lower(user_email) = lower('${cleanIdOrEmail}')
         `;
         await queryAdminDB(query);
         return { success: true };
@@ -467,26 +468,31 @@ export const updateUserDbStatus = async (userIdOrEmail, dbStatus) => {
  */
 export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions) => {
     try {
-        // 1. Fetch user's db_id
-        const isEmail = userIdOrEmail.includes('@');
+        const cleanIdOrEmail = userIdOrEmail.replace(/'/g, "\\'");
+        const isEmail = cleanIdOrEmail.includes('@');
         const userQuery = isEmail 
-            ? `SELECT toString(db_id) as db_id FROM tb_user WHERE user_email = '${userIdOrEmail.replace(/'/g, "\\'")}' LIMIT 1`
-            : `SELECT toString(db_id) as db_id FROM tb_user WHERE toString(user_id) = '${userIdOrEmail}' LIMIT 1`;
+            ? `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email FROM tb_user WHERE lower(user_email) = lower('${cleanIdOrEmail}') LIMIT 1`
+            : `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email FROM tb_user WHERE toString(user_id) = '${cleanIdOrEmail}' OR lower(user_email) = lower('${cleanIdOrEmail}') LIMIT 1`;
         const userRows = await queryAdminDB(userQuery);
         
         let cleanedPermissions = { ...tabPermissions };
+        let foundUserId = '';
+        let foundUserEmail = isEmail ? cleanIdOrEmail : '';
         
         if (userRows && userRows.length > 0) {
             const dbId = userRows[0].db_id;
-            // 2. Fetch db_name from tb_database
+            foundUserId = userRows[0].user_id || '';
+            if (userRows[0].user_email) foundUserEmail = userRows[0].user_email;
+
+            // Fetch db_name from tb_database
             const dbRows = await queryAdminDB(`SELECT db_name FROM tb_database WHERE toString(db_id) = '${dbId}' LIMIT 1`);
             if (dbRows && dbRows.length > 0) {
                 const dbName = dbRows[0].db_name;
-                // 3. Get active platforms for this database
+                // Get active platforms for this database
                 const activePlatforms = await getAdminPlatforms(dbName);
                 const activePlatformKeys = new Set(activePlatforms.map(p => `platform_${p.toLowerCase()}`));
                 
-                // 4. Remove all platform_* keys that are not active in this DB
+                // Remove all platform_* keys that are not active in this DB
                 Object.keys(cleanedPermissions).forEach(key => {
                     if (key.startsWith('platform_') && !activePlatformKeys.has(key)) {
                         delete cleanedPermissions[key];
@@ -497,14 +503,22 @@ export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions) =>
 
         const nestedPermissions = toNestedPermissions(cleanedPermissions);
         const jsonStr = JSON.stringify(nestedPermissions).replace(/'/g, "\\'");
-        const query = isEmail ? `
+
+        let whereConditions = [];
+        if (foundUserEmail) {
+            whereConditions.push(`lower(user_email) = lower('${foundUserEmail.replace(/'/g, "\\'")}')`);
+        }
+        if (foundUserId) {
+            whereConditions.push(`toString(user_id) = '${foundUserId}'`);
+        }
+        if (whereConditions.length === 0) {
+            whereConditions.push(isEmail ? `lower(user_email) = lower('${cleanIdOrEmail}')` : `toString(user_id) = '${cleanIdOrEmail}'`);
+        }
+
+        const query = `
             ALTER TABLE tb_user 
             UPDATE tab_permissions = '${jsonStr}' 
-            WHERE user_email = '${userIdOrEmail}'
-        ` : `
-            ALTER TABLE tb_user 
-            UPDATE tab_permissions = '${jsonStr}' 
-            WHERE toString(user_id) = '${userIdOrEmail}'
+            WHERE ${whereConditions.join(' OR ')}
         `;
         await queryAdminDB(query);
         return { success: true };
@@ -824,4 +838,102 @@ export const getAdminPlatforms = async (dbName) => {
         return fallback;
     }
 };
+
+// In-memory token storage for pending user invitations (48h TTL)
+export const inviteTokensMap = new Map();
+
+/**
+ * Invite a new user, map them to a tenant database, generate invite token, and send invite email
+ */
+export const inviteUser = async ({ email, dbId, role = 'user', frontendUrl = '' }) => {
+    if (!email || !dbId) {
+        throw new Error('Email and Database ID are required');
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check if active user already exists
+    const existing = await queryAdminDB(
+        `SELECT status FROM tb_user WHERE lower(user_email) = {email:String} AND status = 'active' LIMIT 1`,
+        { email: cleanEmail }
+    );
+
+    if (existing && existing.length > 0) {
+        throw new Error(`A user with email "${cleanEmail}" is already active.`);
+    }
+
+    // Get DB name for email template
+    const dbs = await queryAdminDB(
+        `SELECT db_name, toString(db_id) as db_id FROM tb_database WHERE status = 'active'`
+    );
+    const targetDb = dbs.find(d => d.db_id === String(dbId)) || dbs[0];
+    const dbName = targetDb ? targetDb.db_name : 'Trailytics';
+
+    // Generate secure 32-byte token
+    const cryptoMod = await import('crypto');
+    const token = cryptoMod.default.randomBytes(32).toString('hex');
+    const expiresAt = Date.now() + (48 * 60 * 60 * 1000); // 48 hours
+
+    inviteTokensMap.set(token, {
+        email: cleanEmail,
+        dbId: String(dbId),
+        dbName,
+        role: role.toLowerCase(),
+        expiresAt,
+    });
+
+    const id = Date.now().toString();
+    const hashRes = await queryAdminDB(`SELECT toString(cityHash64('${cleanEmail}')) as hash`);
+    const user_id = hashRes[0]?.hash || id;
+    const currentTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0];
+
+    // Fetch tab_permissions from existing user in same database if available
+    let defaultTabPermissions = '';
+    try {
+        const permQuery = `
+            SELECT tab_permissions
+            FROM tb_user
+            WHERE toString(db_id) = '${dbId}'
+              AND tab_permissions != ''
+              AND status != 'deleted'
+            ORDER BY last_login DESC
+            LIMIT 1
+        `;
+        const permRows = await queryAdminDB(permQuery);
+        if (permRows && permRows.length > 0 && permRows[0].tab_permissions) {
+            defaultTabPermissions = permRows[0].tab_permissions;
+        }
+    } catch (e) { /* ignore */ }
+
+    await insertAdminDB('tb_user', [{
+        id,
+        user_id,
+        user_email: cleanEmail,
+        user_name: cleanEmail.split('@')[0],
+        user_role: role.toLowerCase(),
+        password_hash: '',
+        db_id: String(dbId),
+        last_login: currentTimestamp,
+        created_on: currentTimestamp,
+        status: 'invited',
+        ip: '',
+        access: 'allow',
+        db_status: 'active',
+        tab_permissions: defaultTabPermissions
+    }]);
+
+    const baseUrl = frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const inviteLink = `${baseUrl.replace(/\/$/, '')}/accept-invite?token=${token}`;
+
+    const { sendUserInviteEmail } = await import('./emailService.js');
+    await sendUserInviteEmail(cleanEmail, inviteLink, dbName);
+
+    return {
+        success: true,
+        message: `Invitation sent successfully to ${cleanEmail}`,
+        inviteLink,
+        token
+    };
+};
+
 

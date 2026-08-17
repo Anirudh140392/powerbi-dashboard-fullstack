@@ -297,6 +297,7 @@ export const FilterProvider = ({ children }) => {
     }, [fetchChannels]);
 
     const prevChannelRef = useRef(selectedChannel);
+    const activePlatformReq = useRef(0);
 
     // ====== FETCH PLATFORMS FROM DB (based on channel) ======
     const fetchPlatformsFromDb = useCallback(async () => {
@@ -308,7 +309,7 @@ export const FilterProvider = ({ children }) => {
         setPlatformsFetched(false);
         try {
             // If we are on the Market Share page, fetch all top filters from rb_ms_olap
-            const isMarketShare = window.location.hash.includes('/market-share');
+            const isMarketShare = (currentPath + window.location.hash).includes('/market-share');
 
             if (isMarketShare) {
                 console.log("[FilterContext] Fetching Market Share top filters from rb_ms_olap for channel:", selectedChannel);
@@ -382,7 +383,7 @@ export const FilterProvider = ({ children }) => {
                         return valid.length === 1 ? valid[0] : valid;
                     });
                 }
-            } else if (window.location.hash.includes('/visibility-analysis') || window.location.hash.includes('/visibility-anlysis')) {
+            } else if ((currentPath + window.location.hash).includes('/visibility-analysis') || (currentPath + window.location.hash).includes('/visibility-anlysis')) {
                 console.log("[FilterContext] Fetching Visibility Analysis dynamic filters for channel:", selectedChannel);
                 
                 // Fetch platforms specifically for Visibility Analysis
@@ -424,29 +425,41 @@ export const FilterProvider = ({ children }) => {
                     if (newChannels.length > 0) {
                         console.log("[FilterContext] Refreshed channels for Visibility Analysis:", newChannels);
                         setChannels(newChannels);
+                        // Only update selectedChannel if it's genuinely invalid in the new list.
+                        // Use channel-family equivalence to avoid re-fetch loops
+                        // (e.g. quickcomm vs Quick Commerce are the same family — no need to change).
                         setSelectedChannel(prev => {
                             if (prev === "All") return "All";
                             const lowerPrev = prev.toLowerCase();
-                            // Handle mapping from Ecom/QuickComm to ecommerce/quickcomm
-                            if (['ecom', 'ecommerce', 'e-commerce'].includes(lowerPrev)) {
-                                const found = newChannels.find(c => ['ecommerce', 'ecom'].includes(c.toLowerCase()));
-                                if (found) return found;
-                            }
-                            if (lowerPrev === 'quickcomm' || lowerPrev === 'quick commerce' || lowerPrev.includes('quick')) {
-                                const found = newChannels.find(c => ['quickcomm', 'quick commerce', 'quick_commerce'].includes(c.toLowerCase()));
-                                if (found) return found;
-                            }
-                            const exactMatch = newChannels.find(c => c.toLowerCase() === lowerPrev);
-                            if (exactMatch) return exactMatch;
+
+                            // Helper: check if a channel belongs to a known family
+                            const isQcommFamily = (ch) => ['quickcomm', 'quick commerce', 'quick_commerce', 'qcomm'].includes(ch) || ch.includes('quick');
+                            const isEcommFamily = (ch) => ['ecommerce', 'ecom', 'e-commerce'].includes(ch);
+                            const isModernTradeFamily = (ch) => ['modern trades', 'moderntrade', 'modern_trade'].includes(ch);
+
+                            // 1. Exact match — no change needed
+                            if (newChannels.some(c => c.toLowerCase() === lowerPrev)) return prev;
+
+                            // 2. Same channel family — keep prev to avoid triggering a re-fetch
+                            if (isEcommFamily(lowerPrev) && newChannels.some(c => isEcommFamily(c.toLowerCase()))) return prev;
+                            if (isQcommFamily(lowerPrev) && newChannels.some(c => isQcommFamily(c.toLowerCase()))) return prev;
+                            if (isModernTradeFamily(lowerPrev) && newChannels.some(c => isModernTradeFamily(c.toLowerCase()))) return prev;
+
+                            // 3. No match at all — pick first valid channel
                             const validChannels = newChannels.filter(c => c !== 'All');
                             return validChannels.length > 0 ? validChannels[0] : 'All';
                         });
                     }
                 }
-            } else if (window.location.hash.includes('/content-analysis') || window.location.hash.includes('/content-score')) {
+            } else if ((currentPath + window.location.hash).includes('/content-analysis') || (currentPath + window.location.hash).includes('/content-score')) {
+                const reqId = ++activePlatformReq.current;
                 const res = await axiosInstance.get("/content-analysis/platforms", {
                     params: { channel: selectedChannel === "All" ? undefined : selectedChannel }
                 });
+                if (reqId !== activePlatformReq.current) {
+                    console.log("[FilterContext] Ignoring stale platforms response for", selectedChannel);
+                    return;
+                }
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched dynamic platforms from Content Analysis:", res.data);
                     setPlatforms(res.data);
@@ -466,9 +479,14 @@ export const FilterProvider = ({ children }) => {
                 // Refresh channels for other pages to clear any restricted lists (like from Market Share)
                 fetchChannels();
                 
+                const reqId = ++activePlatformReq.current;
                 const res = await axiosInstance.get("/watchtower/platforms", {
                     params: { channel: selectedChannel === "All" ? undefined : selectedChannel }
                 });
+                if (reqId !== activePlatformReq.current) {
+                    console.log("[FilterContext] Ignoring stale platforms response for", selectedChannel);
+                    return;
+                }
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched dynamic platforms from Watchtower:", res.data);
                     setPlatforms(res.data);
@@ -504,7 +522,7 @@ export const FilterProvider = ({ children }) => {
         const fetchPlatformMetadata = async () => {
             if (!isAuthenticated) return;
             // Skip watchtower metadata fetch on Market Share page — it provides its own metadata
-            const isMarketShare = window.location.hash.includes('/market-share');
+            const isMarketShare = (currentPath + window.location.hash).includes('/market-share');
             if (isMarketShare) return;
             try {
                 const res = await axiosInstance.get("/watchtower/platform-metadata");
@@ -529,7 +547,7 @@ export const FilterProvider = ({ children }) => {
         const fetchCategories = async () => {
             if (!isAuthenticated) return;
             // Skip generic category fetch if on Market Share page
-            if (window.location.hash.includes('/market-share')) return;
+            if ((currentPath + window.location.hash).includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/watchtower/categories", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
@@ -559,7 +577,7 @@ export const FilterProvider = ({ children }) => {
         const fetchVisibilityCategories = async () => {
             if (!isAuthenticated) return;
             // Skip generic category fetch if on Market Share page
-            if (window.location.hash.includes('/market-share')) return;
+            if ((currentPath + window.location.hash).includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/visibility-analysis/categories", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
@@ -625,7 +643,7 @@ export const FilterProvider = ({ children }) => {
         const fetchLocations = async () => {
             if (!isAuthenticated) return;
             // Skip generic location fetch if on Market Share page
-            if (window.location.hash.includes('/market-share')) return;
+            if ((currentPath + window.location.hash).includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/watchtower/locations", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
@@ -663,7 +681,7 @@ export const FilterProvider = ({ children }) => {
         const fetchBrands = async () => {
             if (!isAuthenticated) return;
             // Skip generic brand fetch if on Market Share page
-            if (window.location.hash.includes('/market-share')) return;
+            if ((currentPath + window.location.hash).includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/watchtower/brands", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }

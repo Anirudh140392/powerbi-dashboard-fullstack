@@ -23,7 +23,9 @@ export const getStakeholderDetail = async (req, res) => {
             format: 'JSONEachRow'
         });
         const mappingRows = await chMappingRes.json();
-        const subcategories = mappingRows.map(r => r.sentiment_subcategory);
+        const subcategories = mappingRows
+            .map(r => r.sentiment_subcategory)
+            .filter(s => s !== 'General_Feedback');
         console.log('Subcategories:', subcategories, 'for companyId:', req.companyId, 'stakeholder:', stakeholder);
         const labelMap = {};
         mappingRows.forEach(r => { labelMap[r.sentiment_subcategory] = r.display_label; });
@@ -49,6 +51,10 @@ export const getStakeholderDetail = async (req, res) => {
         if (date_to) {
             queryParams.dateTo = date_to;
             extraFilters.push(`r.review_date <= toDate({dateTo:String})`);
+        }
+        if (!date_from && !date_to) {
+            const pm = Math.max(1, Math.min(parseInt(req.query.period_months, 10) || 6, 24));
+            extraFilters.push(`r.review_date >= addMonths(today(), -${pm})`);
         }
         if (filterCategory) {
             queryParams.filterCategory = filterCategory;
@@ -106,6 +112,8 @@ export const getStakeholderDetail = async (req, res) => {
                 any(r.product_name) AS product_name,
                 any(ps.rating) AS pdp_rating,
                 countIf(r.sentiment = 'Negative') AS neg_count,
+                countIf(r.sentiment = 'Positive') AS pos_count,
+                round(avg(r.rating), 1) AS issue_rating,
                 count() AS total_count
             FROM ml_reviews r
             LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
@@ -133,6 +141,7 @@ export const getStakeholderDetail = async (req, res) => {
                     subcategory: r.sentiment_subcategory,
                     label: labelMap[r.sentiment_subcategory] || r.sentiment_subcategory.replace(/_/g, ' '),
                     negativeCount: 0,
+                    positiveCount: 0,
                     totalCount: 0,
                     skuCount: 0,
                     skus: []
@@ -140,6 +149,7 @@ export const getStakeholderDetail = async (req, res) => {
             }
 
             subcatMap[r.sentiment_subcategory].negativeCount += parseInt(r.neg_count || 0);
+            subcatMap[r.sentiment_subcategory].positiveCount += parseInt(r.pos_count || 0);
             subcatMap[r.sentiment_subcategory].totalCount += parseInt(r.total_count || 0);
 
             uniqueSkus.add(r.web_pid);
@@ -148,16 +158,20 @@ export const getStakeholderDetail = async (req, res) => {
                 web_pid: r.web_pid,
                 product_name: r.product_name,
                 pdp_rating: r.pdp_rating !== null ? parseFloat(r.pdp_rating) : null,
+                issue_rating: r.issue_rating !== null ? parseFloat(r.issue_rating) : null,
                 negCount: parseInt(r.neg_count || 0),
+                posCount: parseInt(r.pos_count || 0),
                 totalCount: parseInt(r.total_count || 0)
             });
         });
 
-        const issues = Object.values(subcatMap).map(issue => {
-            issue.skuCount = issue.skus.length;
-            issue.skus.sort((a, b) => b.negCount - a.negCount);
-            return issue;
-        }).sort((a, b) => b.negativeCount - a.negativeCount);
+        const issues = Object.values(subcatMap)
+            .filter(issue => issue.negativeCount > 0)
+            .map(issue => {
+                issue.skuCount = issue.skus.length;
+                issue.skus.sort((a, b) => b.negCount - a.negCount);
+                return issue;
+            }).sort((a, b) => b.negativeCount - a.negativeCount);
 
         res.json({ issues, uniqueSkuCount: uniqueSkus.size });
     } catch (err) {

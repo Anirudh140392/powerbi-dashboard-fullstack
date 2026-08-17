@@ -252,11 +252,13 @@ const Sidebar = ({
 
     const fetchLatestLogo = async () => {
       const token = sessionStorage.getItem("token");
-      if (token) {
+      if (token && !user?.dbLogoUrl) {
         try {
           const response = await fetch("/api/auth/verify", {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include"
           });
+          if (!response.ok) return;
           const data = await response.json();
           if (data.success && data.user?.dbLogoUrl) {
             setDbLogoUrl(data.user.dbLogoUrl);
@@ -1111,7 +1113,13 @@ const Sidebar = ({
               const tabPerms = user?.tabPermissions;
               if (tabPerms && Object.keys(tabPerms).length > 0) {
                 // If this tab label has an explicit permission set, respect it
-                if (tabPerms[item.label] !== undefined && tabPerms[item.label] === false) return false;
+                if (tabPerms[item.label] !== undefined) {
+                  if (tabPerms[item.label] === false) return false;
+                } else {
+                  // Fallback for Content Score / Content Analysis label alias mismatch
+                  if (item.label === "Content Score" && tabPerms["Content Analysis"] === false) return false;
+                  if (item.label === "Content Analysis" && tabPerms["Content Score"] === false) return false;
+                }
               }
               return true;
             }).map((item) => {

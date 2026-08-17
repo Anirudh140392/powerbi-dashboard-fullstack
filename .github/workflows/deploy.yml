@@ -6,6 +6,7 @@ on:
     branches:
       - enhancement_01122025_backend_kenil
       - enhancement_01122025_dev_kenil
+      - enhancement_01122025_marico_kenil
   workflow_dispatch:  # Allow manual trigger
 
 env:
@@ -32,6 +33,34 @@ jobs:
             echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_URL }}" >> $GITHUB_ENV
             echo "TARGET_ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}" >> $GITHUB_ENV
             echo "TARGET_VITE_API_URL=${{ secrets.VITE_API_URL }}" >> $GITHUB_ENV
+
+            GOOGLE_PROD_ID="${{ secrets.GOOGLE_PROD_CLIENT_ID }}"
+            [ -z "$GOOGLE_PROD_ID" ] && GOOGLE_PROD_ID="${{ secrets.GOOGLE_CLIENT_ID }}"
+            echo "TARGET_GOOGLE_CLIENT_ID=${GOOGLE_PROD_ID}" >> $GITHUB_ENV
+
+            GOOGLE_PROD_SECRET="${{ secrets.GOOGLE_PROD_CLIENT_SECRET }}"
+            [ -z "$GOOGLE_PROD_SECRET" ] && GOOGLE_PROD_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}"
+            echo "TARGET_GOOGLE_CLIENT_SECRET=${GOOGLE_PROD_SECRET}" >> $GITHUB_ENV
+
+            GOOGLE_PROD_URL="${{ secrets.GOOGLE_PROD_CALLBACK_URL }}"
+            [ -z "$GOOGLE_PROD_URL" ] && GOOGLE_PROD_URL="${{ secrets.GOOGLE_CALLBACK_URL }}"
+            echo "TARGET_GOOGLE_CALLBACK_URL=${GOOGLE_PROD_URL}" >> $GITHUB_ENV
+
+            MICROSOFT_PROD_ID="${{ secrets.MICROSOFT_PROD_CLIENT_ID }}"
+            [ -z "$MICROSOFT_PROD_ID" ] && MICROSOFT_PROD_ID="${{ secrets.MICROSOFT_CLIENT_ID }}"
+            echo "TARGET_MICROSOFT_CLIENT_ID=${MICROSOFT_PROD_ID}" >> $GITHUB_ENV
+
+            MICROSOFT_PROD_TENANT="${{ secrets.MICROSOFT_PROD_TENANT_ID }}"
+            [ -z "$MICROSOFT_PROD_TENANT" ] && MICROSOFT_PROD_TENANT="${{ secrets.MICROSOFT_TENANT_ID }}"
+            echo "TARGET_MICROSOFT_TENANT_ID=${MICROSOFT_PROD_TENANT}" >> $GITHUB_ENV
+
+            MICROSOFT_PROD_SECRET="${{ secrets.MICROSOFT_PROD_CLIENT_SECRET }}"
+            [ -z "$MICROSOFT_PROD_SECRET" ] && MICROSOFT_PROD_SECRET="${{ secrets.MICROSOFT_CLIENT_SECRET }}"
+            echo "TARGET_MICROSOFT_CLIENT_SECRET=${MICROSOFT_PROD_SECRET}" >> $GITHUB_ENV
+
+            MICROSOFT_PROD_URL="${{ secrets.MICROSOFT_PROD_CALLBACK_URL }}"
+            [ -z "$MICROSOFT_PROD_URL" ] && MICROSOFT_PROD_URL="${{ secrets.MICROSOFT_CALLBACK_URL }}"
+            echo "TARGET_MICROSOFT_CALLBACK_URL=${MICROSOFT_PROD_URL}" >> $GITHUB_ENV
           elif [ "${{ github.ref_name }}" = "enhancement_01122025_dev_kenil" ]; then
             echo "DEPLOY_ENV=development" >> $GITHUB_ENV
             echo "TARGET_HOST=${{ secrets.EC2_DEV_HOST }}" >> $GITHUB_ENV
@@ -48,6 +77,65 @@ jobs:
             VITE_API_DEV_URL="${{ secrets.VITE_API_DEV_URL }}"
             [ -z "$VITE_API_DEV_URL" ] && VITE_API_DEV_URL="${{ secrets.VITE_API_URL }}"
             echo "TARGET_VITE_API_URL=${VITE_API_DEV_URL}" >> $GITHUB_ENV
+            GOOGLE_DEV_ID="${{ secrets.GOOGLE_DEV_CLIENT_ID }}"
+            [ -z "$GOOGLE_DEV_ID" ] && GOOGLE_DEV_ID="${{ secrets.GOOGLE_CLIENT_ID }}"
+            echo "TARGET_GOOGLE_CLIENT_ID=${GOOGLE_DEV_ID}" >> $GITHUB_ENV
+
+            GOOGLE_DEV_SECRET="${{ secrets.GOOGLE_DEV_CLIENT_SECRET }}"
+            [ -z "$GOOGLE_DEV_SECRET" ] && GOOGLE_DEV_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}"
+            echo "TARGET_GOOGLE_CLIENT_SECRET=${GOOGLE_DEV_SECRET}" >> $GITHUB_ENV
+
+            GOOGLE_DEV_URL="${{ secrets.GOOGLE_DEV_CALLBACK_URL }}"
+            [ -z "$GOOGLE_DEV_URL" ] && GOOGLE_DEV_URL="${{ secrets.GOOGLE_CALLBACK_URL }}"
+            echo "TARGET_GOOGLE_CALLBACK_URL=${GOOGLE_DEV_URL}" >> $GITHUB_ENV
+
+            MICROSOFT_DEV_ID="${{ secrets.MICROSOFT_DEV_CLIENT_ID }}"
+            [ -z "$MICROSOFT_DEV_ID" ] && MICROSOFT_DEV_ID="${{ secrets.MICROSOFT_CLIENT_ID }}"
+            echo "TARGET_MICROSOFT_CLIENT_ID=${MICROSOFT_DEV_ID}" >> $GITHUB_ENV
+
+            MICROSOFT_DEV_TENANT="${{ secrets.MICROSOFT_DEV_TENANT_ID }}"
+            [ -z "$MICROSOFT_DEV_TENANT" ] && MICROSOFT_DEV_TENANT="${{ secrets.MICROSOFT_TENANT_ID }}"
+            echo "TARGET_MICROSOFT_TENANT_ID=${MICROSOFT_DEV_TENANT}" >> $GITHUB_ENV
+
+            MICROSOFT_DEV_SECRET="${{ secrets.MICROSOFT_DEV_CLIENT_SECRET }}"
+            [ -z "$MICROSOFT_DEV_SECRET" ] && MICROSOFT_DEV_SECRET="${{ secrets.MICROSOFT_CLIENT_SECRET }}"
+            echo "TARGET_MICROSOFT_CLIENT_SECRET=${MICROSOFT_DEV_SECRET}" >> $GITHUB_ENV
+
+            MICROSOFT_DEV_URL="${{ secrets.MICROSOFT_DEV_CALLBACK_URL }}"
+            [ -z "$MICROSOFT_DEV_URL" ] && MICROSOFT_DEV_URL="${{ secrets.MICROSOFT_CALLBACK_URL }}"
+            echo "TARGET_MICROSOFT_CALLBACK_URL=${MICROSOFT_DEV_URL}" >> $GITHUB_ENV
+          elif [ "${{ github.ref_name }}" = "enhancement_01122025_marico_kenil" ]; then
+            echo "DEPLOY_ENV=marico" >> $GITHUB_ENV
+            echo "APP_DIR=/project/powerbi-dashboard-fullstack" >> $GITHUB_ENV
+            echo "TARGET_HOST=${{ secrets.EC2_HOST_MARICO }}" >> $GITHUB_ENV
+            echo "TARGET_SSH_KEY<<EOF" >> $GITHUB_ENV
+            echo "${{ secrets.EC2_SSH_KEY_MARICO }}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+            echo "TARGET_USER=${{ secrets.EC2_USERNAME_MARICO }}" >> $GITHUB_ENV
+            echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_MARICO_URL }}" >> $GITHUB_ENV
+            echo "TARGET_ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}" >> $GITHUB_ENV
+            echo "TARGET_VITE_API_URL=${{ secrets.VITE_API_URL }}" >> $GITHUB_ENV
+
+            GOOGLE_MARICO_ID="${{ secrets.GOOGLE_CLIENT_ID }}"
+            echo "TARGET_GOOGLE_CLIENT_ID=${GOOGLE_MARICO_ID}" >> $GITHUB_ENV
+
+            GOOGLE_MARICO_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}"
+            echo "TARGET_GOOGLE_CLIENT_SECRET=${GOOGLE_MARICO_SECRET}" >> $GITHUB_ENV
+
+            GOOGLE_MARICO_URL="${{ secrets.GOOGLE_CALLBACK_URL }}"
+            echo "TARGET_GOOGLE_CALLBACK_URL=${GOOGLE_MARICO_URL}" >> $GITHUB_ENV
+
+            MICROSOFT_MARICO_ID="${{ secrets.MICROSOFT_CLIENT_ID }}"
+            echo "TARGET_MICROSOFT_CLIENT_ID=${MICROSOFT_MARICO_ID}" >> $GITHUB_ENV
+
+            MICROSOFT_MARICO_TENANT="${{ secrets.MICROSOFT_TENANT_ID }}"
+            echo "TARGET_MICROSOFT_TENANT_ID=${MICROSOFT_MARICO_TENANT}" >> $GITHUB_ENV
+
+            MICROSOFT_MARICO_SECRET="${{ secrets.MICROSOFT_CLIENT_SECRET }}"
+            echo "TARGET_MICROSOFT_CLIENT_SECRET=${MICROSOFT_MARICO_SECRET}" >> $GITHUB_ENV
+
+            MICROSOFT_MARICO_URL="${{ secrets.MICROSOFT_CALLBACK_URL }}"
+            echo "TARGET_MICROSOFT_CALLBACK_URL=${MICROSOFT_MARICO_URL}" >> $GITHUB_ENV
           fi
           echo "🎯 Deploying to ${{ github.ref_name }} environment"
 
@@ -89,6 +177,13 @@ jobs:
           WHATSAPP_ACCESS_TOKEN=${{ secrets.WHATSAPP_ACCESS_TOKEN || 'EAAPMTMAVpQEBSBNxvjgROhRGV46WSYpGTKyvh3XOxuWfQp8wyMr0i3BzroskRPWHDWlU0aQYJubg4ssghpHak8ePQN15ck5L9SJiB1PElNVwSZAGGhMSaFY1v99UC4iIYLktojcmbETYO9CxxtIkJDzL3dFYbM9tWqhQOWNsjSBPRAZCkHwYdwDuAZC9VqZBAQZDZD' }}
           WHATSAPP_TEMPLATE_NAME=${{ secrets.WHATSAPP_TEMPLATE_NAME || 'digital_insight_alert' }}
           WHATSAPP_TEMPLATE_LANG=${{ secrets.WHATSAPP_TEMPLATE_LANG || 'en' }}
+          GOOGLE_CLIENT_ID=${{ env.TARGET_GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET=${{ env.TARGET_GOOGLE_CLIENT_SECRET }}
+          GOOGLE_CALLBACK_URL=${{ env.TARGET_GOOGLE_CALLBACK_URL }}
+          MICROSOFT_CLIENT_ID=${{ env.TARGET_MICROSOFT_CLIENT_ID }}
+          MICROSOFT_TENANT_ID=${{ env.TARGET_MICROSOFT_TENANT_ID }}
+          MICROSOFT_CLIENT_SECRET=${{ env.TARGET_MICROSOFT_CLIENT_SECRET }}
+          MICROSOFT_CALLBACK_URL=${{ env.TARGET_MICROSOFT_CALLBACK_URL }}
           EOF
             echo "✅ Main backend .env file created for ${{ env.DEPLOY_ENV }} environment"
           ENDSSH
@@ -137,6 +232,9 @@ jobs:
             mkdir -p frontend
             cat > frontend/.env << 'EOF'
           VITE_API_URL=${{ env.TARGET_VITE_API_URL }}
+          VITE_GOOGLE_CLIENT_ID=${{ env.TARGET_GOOGLE_CLIENT_ID }}
+          VITE_MICROSOFT_CLIENT_ID=${{ env.TARGET_MICROSOFT_CLIENT_ID }}
+          VITE_MICROSOFT_TENANT_ID=${{ env.TARGET_MICROSOFT_TENANT_ID }}
           EOF
             echo "✅ Frontend .env files created for ${{ env.DEPLOY_ENV }} environment"
           ENDSSH
@@ -173,17 +271,17 @@ jobs:
             git reset --hard origin/${{ github.ref_name }}
             
             echo "🛑 Stopping and removing all managed containers..."
-            sudo docker stop backend_multiple frontend_multiple ratings_backend content_backend || true
-            sudo docker rm backend_multiple frontend_multiple ratings_backend content_backend || true
+            docker stop backend_multiple frontend_multiple ratings_backend content_backend || true
+            docker rm backend_multiple frontend_multiple ratings_backend content_backend || true
             
             echo "🔨 Building and starting all containers..."
-            sudo docker compose up -d --build
+            docker compose up -d --build
             
             echo "⏳ Waiting for services to start..."
             sleep 15
             
             echo "🔍 Checking container status..."
-            sudo docker compose ps
+            docker compose ps
             
             echo "✅ Health checks..."
             curl -sf http://localhost:5000/health || { echo "❌ Main backend health check failed"; exit 1; }
@@ -218,3 +316,5 @@ jobs:
           echo "| Ratings Backend | ratings_backend | 3001 |" >> $GITHUB_STEP_SUMMARY
           echo "| Content Analysis Backend | content_backend | 8000 |" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend | frontend_multiple | 9400 |" >> $GITHUB_STEP_SUMMARY
+
+          

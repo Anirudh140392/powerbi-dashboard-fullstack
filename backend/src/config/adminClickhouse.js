@@ -40,6 +40,10 @@ export const queryAdminDB = async (query, params = {}) => {
                 query_params: params,
                 clickhouse_settings: {
                     max_query_size: 100 * 1024 * 1024,
+                    // Wait for ALTER TABLE UPDATE/DELETE mutations to complete
+                    // before returning. Without this, mutations are async and
+                    // subsequent SELECTs may read stale pre-mutation data.
+                    mutations_sync: 1,
                 }
             });
             return [];

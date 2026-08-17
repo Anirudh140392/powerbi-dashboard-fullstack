@@ -84,7 +84,7 @@ export const KPI_SOURCE_MAP = {
   Availability: 'pdp', Osa: 'pdp', osa: 'pdp',
   Discount: 'pdp', 'Promo-My': 'pdp', 'promo-my': 'pdp', PromoMyBrand: 'pdp', discount: 'pdp',
   Assortment: 'pdp', Listing: 'pdp',
-  PricePerUnit: 'pdp', ASP: 'pdp', RPI: 'pdp',
+  PricePerUnit: 'pdp', ASP: 'pdp', RPI: 'pdp', Price: 'pdp', price: 'pdp',
   // PM table KPIs
   InorganicSales: 'pm', InorgSales: 'pm',
   Conversion: 'pm', conversion: 'pm', Roas: 'pm', ROAS: 'pm', roas: 'pm',
@@ -1440,6 +1440,11 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
   const [trendLoading, setTrendLoading] = useState(false);
   const [trendError, setTrendError] = useState(null);
 
+  const [localTimeStep, setLocalTimeStep] = useState(timeStep || "Daily");
+  useEffect(() => {
+    if (timeStep) setLocalTimeStep(timeStep);
+  }, [timeStep]);
+
   const fetchTrendData = useCallback(async () => {
     if (visibleIds.length === 0) {
       setApiTrendData({ dates: [] });
@@ -1451,11 +1456,13 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
       // Use POST for SKU mode to avoid comma-in-name issues (SKU names contain commas)
       // Brand names are safe to comma-join in query params
       const baseParams = {
-        platform: (platform || "All").toLowerCase(),
-        location: city === "All India" ? "All" : (city || "All").toLowerCase(),
-        category: filters.categories.length > 0 ? filters.categories.map(c => c.toLowerCase()).join(",") : "All",
+        platform: platform || "All",
+        location: city || "All",
+        category: filters.categories.length > 0
+          ? filters.categories.map(c => typeof c === 'string' ? c : (c.name || c.id || String(c))).join(",")
+          : "All",
         period: period || "1M",
-        timeStep: timeStep || "Weekly",
+        timeStep: localTimeStep || "Daily",
       };
 
       let response;
@@ -1492,7 +1499,7 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
     } finally {
       setTrendLoading(false);
     }
-  }, [visibleIds, city, platform, isBrandMode, filters.categories, period, timeStep]);
+  }, [visibleIds, city, platform, isBrandMode, filters.categories, period, localTimeStep]);
 
   useEffect(() => {
     fetchTrendData();
@@ -1558,6 +1565,24 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
               })}
           </Box>
           <div className="flex items-center gap-2">
+            {/* Time Step Selector (Daily | Weekly | Monthly) */}
+            <div className="flex items-center gap-1 bg-slate-100/90 p-0.5 rounded-lg border border-slate-200">
+              <span className="text-[11px] font-medium text-slate-500 pl-1.5 pr-0.5">Time Step:</span>
+              {["Daily", "Weekly", "Monthly"].map((step) => (
+                <button
+                  key={step}
+                  onClick={() => setLocalTimeStep(step)}
+                  className={`px-2 py-0.5 text-xs font-semibold rounded-md transition-all ${
+                    localTimeStep === step
+                      ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
+                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                  }`}
+                >
+                  {step}
+                </button>
+              ))}
+            </div>
+
             <Button variant="outline" size="sm" onClick={onSwitchToKpi}>
               <BarChart3 className="mr-1 h-4 w-4" />
               Compare by KPIs
@@ -1715,7 +1740,7 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
                 <Tooltip
                   content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
-                      const validParams = payload.filter(p => p.value !== null && p.value !== undefined);
+                      const validParams = payload.filter(p => p.value !== null && p.value !== undefined && formatValue(p.value) !== "N/A");
                       if (!validParams.length) return null;
                       return (
                         <div className="bg-white p-3 border border-slate-100 rounded-lg shadow-lg text-sm min-w-[140px]">
@@ -1857,6 +1882,11 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
   const [loading, setLoading] = useState(false);
   const [compareError, setCompareError] = useState(null);
 
+  const [localTimeStep, setLocalTimeStep] = useState(timeStep || "Daily");
+  useEffect(() => {
+    if (timeStep) setLocalTimeStep(timeStep);
+  }, [timeStep]);
+
   const fetchCompareTrendData = useCallback(async () => {
     if (selectedIds.length === 0) {
       setApiTrendData({ brands: {} });
@@ -1872,7 +1902,7 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
         skus: isBrandMode ? "All" : selectedIds.join(","),
         category: filters?.categories?.length > 0 ? filters.categories.join(",") : "All",
         period: period || "1M",
-        timeStep: timeStep || "Weekly",
+        timeStep: localTimeStep || "Daily",
       };
 
       const response = await axiosInstance.get("/watchtower/competition-brand-trends", { params });
@@ -1883,7 +1913,7 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
     } finally {
       setLoading(false);
     }
-  }, [selectedIds, city, platform, isBrandMode, filters, period, timeStep]);
+  }, [selectedIds, city, platform, isBrandMode, filters, period, localTimeStep]);
 
   useEffect(() => {
     fetchCompareTrendData();
@@ -1938,9 +1968,29 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
           </div>
         </div>
 
-        <Button variant="ghost" size="sm" onClick={onBackToTrend}>
-          Back to trend
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Time Step Selector (Daily | Weekly | Monthly) */}
+          <div className="flex items-center gap-1 bg-slate-100/90 p-0.5 rounded-lg border border-slate-200">
+            <span className="text-[11px] font-medium text-slate-500 pl-1.5 pr-0.5">Time Step:</span>
+            {["Daily", "Weekly", "Monthly"].map((step) => (
+              <button
+                key={step}
+                onClick={() => setLocalTimeStep(step)}
+                className={`px-2 py-0.5 text-xs font-semibold rounded-md transition-all ${
+                  localTimeStep === step
+                    ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                }`}
+              >
+                {step}
+              </button>
+            ))}
+          </div>
+
+          <Button variant="ghost" size="sm" onClick={onBackToTrend}>
+            Back to trend
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="grid max-h-[420px] gap-4 overflow-y-auto pt-4 md:grid-cols-2">
