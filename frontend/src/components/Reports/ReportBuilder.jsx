@@ -109,7 +109,7 @@ const PLATFORM_UNAVAILABLE_KPIS = {
 const PAGE_METRICS = [
   {
     key: "Business Overview", label: "Business Overview", icon: <DashboardIcon />, color: "#4F46E5",
-    tags: ["Offtake", "Quantity Sold", "Orders", "Listing %", "Inorganic Sales", "ROAS", "Conversion Rate", "CPM", "CPC"],
+    tags: ["Offtake", "Quantity Sold", "Orders", "Listing %", "Inorganic Sales", "ROAS", "Conversion Rate", "CPM", "CPC", "Buy Box %"],
     activeInSidebar: true
   },
   {
@@ -119,7 +119,7 @@ const PAGE_METRICS = [
   },
   {
     key: "Availability Analysis", label: "Availability Analysis", icon: <InventoryIcon />, color: "#10B981",
-    tags: ["OSA %", "DOI", "PSL", "Assortment"],
+    tags: ["OSA %", "Buy Box %", "DOI", "PSL", "Assortment"],
     activeInSidebar: true
   },
   {

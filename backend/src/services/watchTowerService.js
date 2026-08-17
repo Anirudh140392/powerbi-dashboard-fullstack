@@ -7909,28 +7909,30 @@ const getKpiTrends = async (filters) => {
 
     const pmKpiConds = buildPmConds();
 
-    // Reseller_Name condition for DRL: handle Buy More (buymore_rb_pdp_olap) and RK World (rb_pdp_olap)
+    // Reseller_Name condition for DRL: handle Buy More (buymore_rb_pdp_olap) and other resellers (rb_pdp_olap)
     const dbNameForTrends = getCurrentDbName();
     const isDrlDb = dbNameForTrends === 'drl';
     const resellerList = (resellerName && resellerName !== 'All' && resellerName !== 'all')
         ? normalizeFilterArray(resellerName).map(r => String(r).toLowerCase().trim())
         : [];
 
-    let includeRkWorld = true;
+    let includeOtherResellers = true;
     let includeBuyMore = true;
+    const nonBuyMoreList = resellerList.filter(r => !(r.includes('buy') || r.includes('more')));
 
     if (isDrlDb && resellerList.length > 0) {
-        const hasRk = resellerList.some(r => r.includes('rk') || r.includes('world'));
         const hasBuy = resellerList.some(r => r.includes('buy') || r.includes('more'));
-        if (hasRk && !hasBuy) {
-            includeRkWorld = true;
+        const hasOther = nonBuyMoreList.length > 0;
+
+        if (hasBuy && !hasOther) {
+            includeBuyMore = true;
+            includeOtherResellers = false;
+        } else if (!hasBuy && hasOther) {
             includeBuyMore = false;
-        } else if (hasBuy && !hasRk) {
-            includeRkWorld = false;
+            includeOtherResellers = true;
+        } else {
             includeBuyMore = true;
-        } else if (hasRk && hasBuy) {
-            includeRkWorld = true;
-            includeBuyMore = true;
+            includeOtherResellers = true;
         }
     }
 
@@ -7965,7 +7967,7 @@ const getKpiTrends = async (filters) => {
                 SUM(${src.f.sellingPrice}) as sum_selling_price,
                 0 as sum_weight
             FROM ${src.table}
-            WHERE ${kpiConds}
+            WHERE ${kpiConds} ${(isDrlDb && nonBuyMoreList.length > 0) ? `AND lower(trim(Reseller_Name)) IN (${nonBuyMoreList.map(r => `'${escapeStr(r)}'`).join(', ')})` : ''}
             GROUP BY date_group
             ORDER BY ref_date ASC
         `),
@@ -8007,6 +8009,25 @@ const getKpiTrends = async (filters) => {
                 }
                 if (locArr && locArr.length > 0) conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
                 if (platArr && platArr.length > 0) conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+
+                // Enforce 11 specific Status values for buymore_rb_pdp_olap
+                const validStatuses = [
+                    'shiplable generated',
+                    'pickup_complete',
+                    'pickup pending',
+                    'payment success',
+                    'packed',
+                    'ndr/npr',
+                    'shipment_issue',
+                    'out for delivery',
+                    'in transit',
+                    'drs prepared',
+                    'dispatched',
+                    'delivered',
+                    'created'
+                ];
+                conds.push(`lower(trim(Status)) IN (${validStatuses.map(s => `'${escapeStr(s.toLowerCase())}'`).join(', ')})`);
+
                 return conds.join(' AND ');
             };
 
@@ -8033,7 +8054,7 @@ const getKpiTrends = async (filters) => {
             buymoreMap.forEach((buySales, groupKey) => {
                 if (kpiMap.has(groupKey)) {
                     const row = kpiMap.get(groupKey);
-                    if (!includeRkWorld) {
+                    if (!includeOtherResellers) {
                         row.total_sales = buySales;
                     } else {
                         row.total_sales = parseFloat(row.total_sales || 0) + buySales;
@@ -8056,7 +8077,7 @@ const getKpiTrends = async (filters) => {
             });
         }
 
-        if (!includeRkWorld && includeBuyMore) {
+        if (!includeOtherResellers && includeBuyMore) {
             kpiResults.forEach(r => {
                 if (!buymoreMap.has(String(r.date_group))) {
                     r.total_sales = 0;
@@ -8463,16 +8484,31 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
         }
 
         if (filterType === 'resellerNames') {
-            const pdpCols = await getTableColumns(src.table);
-            const rNameCol = resolveColumn(pdpCols, 'Reseller_Name', 'Reseller_Name');
-            if (!pdpCols.has(rNameCol.toLowerCase())) return { options: [] };
-            const conditions = [`${rNameCol} IS NOT NULL`, `toString(${rNameCol}) != ''`, `lower(toString(${rNameCol})) != 'none'`];
-            if (platArr && platArr.length > 0) {
-                conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+            const currentDb = getCurrentDbName() || 'drl';
+            const table = (currentDb === 'drl' || currentDb === 'prestige') ? `${currentDb}.rb_pdp_olap` : src.table;
+
+            const query = `
+                SELECT DISTINCT Reseller_Name
+                FROM ${table}
+                WHERE lower(Platform) = 'amazon'
+                  AND buy_box_neno_osa > 0
+                  AND (toString(Comp_flag) = '0' OR toString(flag) = '0')
+                  AND Reseller_Name IS NOT NULL
+                  AND Reseller_Name != ''
+                ORDER BY Reseller_Name
+            `;
+            try {
+                const results = await queryClickHouse(query);
+                let resellerList = results.map(r => r.Reseller_Name).filter(Boolean);
+                const hasBuyMore = resellerList.some(r => r.toLowerCase().includes('buy') || r.toLowerCase().includes('more'));
+                if (!hasBuyMore) {
+                    resellerList.unshift('buy more');
+                }
+                return { options: resellerList };
+            } catch (err) {
+                console.error('[getTrendsFilterOptions] Error executing reseller options query:', err);
+                return { options: ['buy more', 'rk world infocom pvt ltd'] };
             }
-            const query = `SELECT DISTINCT toString(${rNameCol}) as value FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY value`;
-            const results = await queryClickHouse(query);
-            return { options: results.map(r => r.value).filter(Boolean) };
         }
 
         if (filterType === 'categories') {
@@ -9562,8 +9598,10 @@ const getLatestAvailableMonth = async (filters = {}) => {
         }
 
         // Always query rb_pdp_olap directly for date range detection
-        // (not the agg table, since user wants dates from rb_pdp_olap specifically)
-        const cols = await getTableColumns('rb_pdp_olap');
+        const currentDb = getCurrentDbName() || 'drl';
+        const targetTable = (currentDb === 'drl' || currentDb === 'prestige') ? `${currentDb}.rb_pdp_olap` : 'rb_pdp_olap';
+
+        const cols = await getTableColumns(targetTable);
         const r = (name) => resolveColumn(cols, name);
         const dateCol = r('DATE');
         const compFlagCol = r('Comp_flag');
@@ -9594,7 +9632,7 @@ const getLatestAvailableMonth = async (filters = {}) => {
         // Query rb_pdp_olap for the latest date
         const result = await queryClickHouse(`
             SELECT MIN(toDate(${dateCol})) as minDate, MAX(toDate(${dateCol})) as latestDate
-            FROM rb_pdp_olap
+            FROM ${targetTable}
             ${whereClause}
         `);
 

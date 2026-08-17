@@ -749,12 +749,29 @@ export default function TrendsCompetitionDrawer({
     return db === 'drl';
   })();
   const [resellerOptions, setResellerOptions] = useState([]);
+  const isAmazonPlatform = (drawerFilters.Platform || '').toLowerCase() === 'amazon';
+  const shouldShowResellerFilter = isDrlUser && isAmazonPlatform;
 
-  // Fetch reseller name options - hardcoded options
+  // Fetch reseller name options dynamically from ClickHouse for Amazon (DRL only)
   useEffect(() => {
-    if (!open || !showResellerFilter) return;
-    setResellerOptions(["Buy More", "RK World"]);
-  }, [open, showResellerFilter]);
+    if (!open || !shouldShowResellerFilter) {
+      setResellerOptions([]);
+      return;
+    }
+    const fetchResellerOptions = async () => {
+      try {
+        const res = await axiosInstance.get('/watchtower/trends-filter-options', {
+          params: { filterType: 'resellerNames', platform: 'amazon' }
+        });
+        if (res.data?.options) {
+          setResellerOptions(res.data.options);
+        }
+      } catch (err) {
+        console.error('[TrendsDrawer] Error fetching reseller names:', err);
+      }
+    };
+    fetchResellerOptions();
+  }, [open, shouldShowResellerFilter]);
 
   const prevPropsRef = useRef({
     open: false,
@@ -2782,8 +2799,8 @@ export default function TrendsCompetitionDrawer({
                     setDrawerFilters(prev => ({ ...prev, City: v }));
                   }}
                 />
-                {/* Reseller Name dropdown */}
-                {showResellerFilter && (
+                {/* Reseller Name dropdown (shown ONLY when DRL + Amazon platform) */}
+                {shouldShowResellerFilter && (
                   <DrawerMultiSelect
                     title="Reseller"
                     value={drawerFilters.ResellerName}

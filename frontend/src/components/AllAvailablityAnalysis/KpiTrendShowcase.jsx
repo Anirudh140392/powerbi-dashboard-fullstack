@@ -1637,17 +1637,20 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
   const [resellerName, setResellerName] = useState('All');
   const [resellerOptions, setResellerOptions] = useState([]);
 
-  // Only show reseller dropdown on Availability Analysis Competition page
-  const showResellerDropdown = isDrl && dynamicKey === 'availability';
+  // Only show reseller dropdown for DRL when Amazon platform is selected
+  const isAmazonPlatform = (platform || '').toLowerCase() === 'amazon';
+  const showResellerDropdown = isDrl && isAmazonPlatform;
 
-  // Fetch reseller name options for DRL - cascaded by platform
+  // Fetch reseller name options for DRL - when Amazon platform selected
   useEffect(() => {
-    if (!showResellerDropdown) return;
+    if (!showResellerDropdown) {
+      setResellerOptions([]);
+      return;
+    }
     const fetchResellerOptions = async () => {
       try {
-        const platformParam = platform && platform !== 'All' ? platform : undefined;
         const res = await axiosInstance.get('/watchtower/trends-filter-options', {
-          params: { filterType: 'resellerNames', platform: platformParam }
+          params: { filterType: 'resellerNames', platform: 'amazon' }
         });
         if (res.data?.options) {
           setResellerOptions(res.data.options);
@@ -1657,7 +1660,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
       }
     };
     fetchResellerOptions();
-  }, [showResellerDropdown, platform]);
+  }, [showResellerDropdown]);
 
   // Reset resellerName when platform changes
   useEffect(() => {
