@@ -228,19 +228,19 @@ export const downloadReport = async (req, res) => {
         let query = '';
         const conditions = [];
 
-        const platformCond = buildInClause('Platform', platform);
+        const platformCond = buildInClause(col('Platform'), platform);
         if (platformCond) conditions.push(platformCond);
 
-        const brandCond = buildInClause('Brand', brand);
+        const brandCond = buildInClause(col('Brand'), brand);
         if (brandCond) conditions.push(brandCond);
 
-        const cityCond = buildInClause('Location', city);
+        const cityCond = buildInClause(col('Location'), city);
         if (cityCond) conditions.push(cityCond);
 
         const formatCond = buildInClause(catCol, format);
         if (formatCond) conditions.push(formatCond);
 
-        conditions.push(`toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'`);
+        conditions.push(`toDate(${col('DATE')}) BETWEEN '${startDate}' AND '${endDate}'`);
 
         // Handle Granularity constraints
         const granularitySku = req.query.granularitySku || '';
@@ -465,7 +465,7 @@ export const downloadReport = async (req, res) => {
                 else if (msCols.has('Comp_flag')) msFlagCond = " AND Comp_flag = 0";
             }
 
-            let hasPlatform = reqDimensions.includes('Platform');
+            let hasPlatform = true; // Platform is ALWAYS included in exported report!
             let hasBrand = reqDimensions.includes('Brand');
             let hasCity = reqDimensions.includes('City');
             let hasFormat = reqDimensions.includes('Category') || reqDimensions.includes('Format');
@@ -483,11 +483,11 @@ export const downloadReport = async (req, res) => {
 
             const dimSelects = [];
             const dimGroups = [];
-            if (hasPlatform) { dimSelects.push(`t.Platform as Platform`); dimGroups.push(`Platform`); }
-            if (hasBrand) { dimSelects.push(`t.Brand as Brand`); dimGroups.push(`Brand`); }
-            if (hasCity) { dimSelects.push(`t.Location as City`); dimGroups.push(`City`); }
+            if (hasPlatform) { dimSelects.push(`t.${col('Platform')} as Platform`); dimGroups.push(`Platform`); }
+            if (hasBrand) { dimSelects.push(`t.${col('Brand')} as Brand`); dimGroups.push(`Brand`); }
+            if (hasCity) { dimSelects.push(`t.${col('Location')} as City`); dimGroups.push(`City`); }
             if (hasFormat) { dimSelects.push(`t.${catCol} as Format`); dimGroups.push(`Format`); }
-            if (hasProduct) { dimSelects.push(`t.Product as Product`); dimGroups.push(`Product`); }
+            if (hasProduct) { dimSelects.push(`t.${col('Product')} as Product`); dimGroups.push(`Product`); }
 
             const dimGroupStr = dimGroups.length > 0 ? ', ' + dimGroups.join(', ') : '';
 
@@ -536,19 +536,8 @@ export const downloadReport = async (req, res) => {
                     GROUP BY ${totGroupCols.join(', ')}
                 ),` : 'WITH ';
 
-            const pricingSelectLoc = hasCity ? ", Location" : "";
-            const pricingGroupLoc = hasCity ? ", Location" : "";
-            const pricingJoinLoc = hasCity ? " AND t.Location = p.Location" : "";
-
-            const pricingCte = `
-                pricing_stats AS (
-                    SELECT 
-                        ${cteTimeAgg} as DATE${pricingSelectLoc}, ${catCol} as Category,
-                        avg(toFloat64(Selling_Price)) as Cat_Avg_Price
-                    FROM rb_pdp_olap
-                    WHERE toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'
-                    GROUP BY DATE${pricingGroupLoc}, Category
-                ),`;
+            const pricingCte = '';
+            const pricingJoin = '';
 
             const msSelectLoc = hasCity ? ", location as Location" : "";
             const msGroupLoc = hasCity ? ", Location" : "";
@@ -600,8 +589,7 @@ export const downloadReport = async (req, res) => {
                 LEFT JOIN sos_stats s ON ${sosJoinOn.join(' AND ')}
                 LEFT JOIN total_kw_stats tot ON ${totJoinOn.join(' AND ')}` : '';
 
-            const pricingJoin = `
-                LEFT JOIN pricing_stats p ON ${timeAgg} = p.DATE${pricingJoinLoc} AND t.${catCol} = p.Category`;
+
 
             const msJoin = `
                 LEFT JOIN ms_stats ms ON ${timeAgg} = ms.DATE AND t.Brand = ms.Brand AND t.${catCol} = ms.Category${msJoinLoc}
@@ -629,52 +617,51 @@ export const downloadReport = async (req, res) => {
                 SELECT 
                     ${timeAgg} as DATE${dimSelects.length > 0 ? ', ' + dimSelects.join(', ') : ''},
                     -- Sales / Basics
-                    SUM(toFloat64(${col('Sales')})) as Offtake,
-                    SUM(assumeNotNull(${col('Qty_Sold')})) as Units_Sold,
-                    SUM(assumeNotNull(${col('Qty_Sold')})) as Orders,
-                    round(SUM(toFloat64(${col('Sales')})) / nullIf(SUM(assumeNotNull(${col('Qty_Sold')})), 0), 2) as ASP,
+                    SUM(toFloat64(t.${col('Sales')})) as Offtake,
+                    SUM(assumeNotNull(t.${col('Qty_Sold')})) as Units_Sold,
+                    SUM(assumeNotNull(t.${col('Qty_Sold')})) as Orders,
+                    round(SUM(toFloat64(t.${col('Sales')})) / nullIf(SUM(assumeNotNull(t.${col('Qty_Sold')})), 0), 2) as ASP,
 
                     -- Availability
-                    round(SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100, 2) as Stock_Availability,
-                    round(avg(toFloat64(${col('DIH')})), 2) as DOI,
-                    round(avg(ifNull(toFloat64OrZero(toString(${col('listing_percent')})), 0)), 2) as Listing_Percentage,
+                    round(SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as Stock_Availability,
+                    round(avg(toFloat64(t.${col('DIH')})), 2) as DOI,
+                    round(avg(ifNull(toFloat64OrZero(toString(t.${col('listing_percent')})), 0)), 2) as Listing_Percentage,
 
                     -- PM
-                    SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Impressions')})), 0)) as Impressions,
-                    SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Clicks')})), 0)) as Clicks,
-                    round(SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Spend')})), 0)), 2) as Spend,
-                    round(SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Sales')})), 0)), 2) as Inorganic_Sales,
-                    round(if(SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Spend')})), 0)) > 0, SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Sales')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Spend')})), 0)), 0), 2) as ROAS,
-                    round(if(SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Clicks')})), 0)) > 0, (SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Quantity_sold')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Clicks')})), 0))) * 100, 0), 2) as Conversion_Rate,
-                    round(if(SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Impressions')})), 0)) > 0, (SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Spend')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Impressions')})), 0))) * 1000, 0), 2) as CPM,
-                    round(if(SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Clicks')})), 0)) > 0, SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Spend')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Clicks')})), 0)), 0), 2) as CPC,
-                    round(if(SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Quantity_sold')})), 0)) > 0, SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Sales')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(${col('Ad_Quantity_sold')})), 0)), 0), 2) as AOV,
+                    SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Impressions')})), 0)) as Impressions,
+                    SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0)) as Clicks,
+                    round(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)), 2) as Spend,
+                    round(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Sales')})), 0)), 2) as Inorganic_Sales,
+                    round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)) > 0, SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Sales')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)), 0), 2) as ROAS,
+                    round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0)) > 0, (SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Quantity_sold')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0))) * 100, 0), 2) as Conversion_Rate,
+                    round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Impressions')})), 0)) > 0, (SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Impressions')})), 0))) * 1000, 0), 2) as CPM,
+                    round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0)) > 0, SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0)), 0), 2) as CPC,
+                    round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Quantity_sold')})), 0)) > 0, SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Sales')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Quantity_sold')})), 0)), 0), 2) as AOV,
 
                     -- Inventory
-                    SUM(toFloat64(${col('Inventory')})) as Current_Inventory,
-                    SUM(toFloat64(${col('MSL')})) as Target_Inventory,
+                    SUM(toFloat64(t.${col('Inventory')})) as Current_Inventory,
+                    SUM(toFloat64(t.${col('MSL')})) as Target_Inventory,
 
                     -- Pricing
-                    round(avg(toFloat64(${col('Selling_Price')})), 2) as Selling_Price,
-                    round(avg(toFloat64(${col('Selling_Price')})), 2) as ECP,
-                    round(avg(toFloat64(${col('MRP')})), 2) as MRP,
-                    round(avg((toFloat64(${col('MRP')}) - toFloat64(${col('Selling_Price')})) / nullIf(toFloat64(${col('MRP')}), 0) * 100), 2) as Discount_Percentage,
+                    round(avg(toFloat64(t.${col('Selling_Price')})), 2) as Selling_Price,
+                    round(avg(toFloat64(t.${col('Selling_Price')})), 2) as ECP,
+                    round(avg(toFloat64(t.${col('MRP')})), 2) as MRP,
+                    round(avg((toFloat64(t.${col('MRP')}) - toFloat64(t.${col('Selling_Price')})) / nullIf(toFloat64(t.${col('MRP')}), 0) * 100), 2) as Discount_Percentage,
                     
                     ${sosCol}
                     
-                    round((SUM(toFloat64(${col('Ad_Spend')})) / nullIf(SUM(toFloat64(${col('Sales')})), 0)) * 100, 2) as BMI_Sales_Ratio,
-                    round(avg(toFloat64(${col('Discount')})), 2) as Promo_Percentage,
+                    round((SUM(toFloat64(t.${col('Ad_Spend')})) / nullIf(SUM(toFloat64(t.${col('Sales')})), 0)) * 100, 2) as BMI_Sales_Ratio,
+                    round(avg(toFloat64(t.${col('Discount')})), 2) as Promo_Percentage,
 
                     -- Additional Availability KPIs
-                    round(SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100, 2) as OSA_Percentage,
-                    round(100 - (SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage,
+                    round(SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as OSA_Percentage,
+                    round(100 - (SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage,
                     
-                    round(SUM(toFloat64(${col('Inventory')})) / nullIf(SUM(toFloat64(${col('MSL')})), 0) * 100, 2) as PSL,
+                    round(SUM(toFloat64(t.${col('Inventory')})) / nullIf(SUM(toFloat64(t.${col('MSL')})), 0) * 100, 2) as PSL,
                     COUNT(DISTINCT t.${col('Web_Pid')}) as Assortment,
                     ${metroCol}
 
                     -- New Pricing, Sales, Category KPIs
-                    round(avg(toFloat64(t.Selling_Price)) / nullIf(any(p.Cat_Avg_Price), 0), 2) as RPI,
                     any(ms.brand_sales) as Sales_Value,
                     round(any(ms.brand_sales) / nullIf(any(cms.cat_sales), 0) * 100, 2) as Market_Share_Percentage,
                     any(cs.Cat_Size) as Cat_Size
@@ -691,25 +678,14 @@ export const downloadReport = async (req, res) => {
             `;
         } else if (reportType === "Pricing Analysis") {
             query = `
-                WITH category_stats AS (
-                    SELECT 
-                        toDate(DATE) as JoinDate, Location, ${catCol} as Category,
-                        avg(toFloat64(Selling_Price)) as Cat_Avg_Price
-                    FROM rb_pdp_olap
-                    ${whereClause.replace(/\bCategory\b/g, catCol)}
-                    GROUP BY JoinDate, Location, Category
-                )
                 SELECT 
-                    toDate(t.DATE) as DATE, t.Platform, t.Brand, t.Location as City, t.${catCol} as Format, t.Product,
-                    round(avg(toFloat64(t.Selling_Price)), 2) as Selling_Price,
-                    round(avg(toFloat64(t.Selling_Price)), 2) as ECP,
-                    round(avg(toFloat64(t.MRP)), 2) as MRP,
-                    round(avg((toFloat64(t.MRP) - toFloat64(t.Selling_Price)) / nullIf(toFloat64(t.MRP), 0) * 100), 2) as Discount_Percentage,
-                    round(avg(toFloat64(t.Selling_Price)) / nullIf(any(c.Cat_Avg_Price), 0), 2) as RPI
+                    toDate(t.${col('DATE')}) as DATE, t.${col('Platform')} as Platform, t.${col('Brand')} as Brand, t.${col('Location')} as City, t.${catCol} as Format, t.${col('Product')} as Product,
+                    round(avg(toFloat64(t.${col('Selling_Price')})), 2) as Selling_Price,
+                    round(avg(toFloat64(t.${col('MRP')})), 2) as MRP,
+                    round(avg((toFloat64(t.${col('MRP')}) - toFloat64(t.${col('Selling_Price')})) / nullIf(toFloat64(t.${col('MRP')}), 0) * 100), 2) as Discount_Percentage
                 FROM rb_pdp_olap t
-                LEFT JOIN category_stats c ON toDate(t.DATE) = c.JoinDate AND t.Location = c.Location AND t.${catCol} = c.Category
-                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (m) => m === 'Category' ? catCol : 't.' + m)}
-                GROUP BY DATE, t.Platform, t.Brand, t.Location, t.${catCol}, t.Product
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (m) => m === 'Category' ? catCol : 't.' + col(m))}
+                GROUP BY DATE, Platform, Brand, City, Format, Product
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Performance Marketing") {
