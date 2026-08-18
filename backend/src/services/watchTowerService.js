@@ -5796,6 +5796,8 @@ const getPlatformOverview = async (filters) => {
 
     let currBuymoreMap = new Map();
     let prevBuymoreMap = new Map();
+    let currBuymoreQtyMap = new Map();
+    let prevBuymoreQtyMap = new Map();
 
     if (isDrlDb) {
         const buildBuymoreCondsForOverview = (sDate, eDate) => {
@@ -5821,20 +5823,30 @@ const getPlatformOverview = async (filters) => {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
                 queryClickHouse(`
-                    SELECT lower(Platform) as platform, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales
+                    SELECT lower(Platform) as platform,
+                           SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                           SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
                     FROM drl.buymore_rb_pdp_olap
                     WHERE ${buildBuymoreCondsForOverview(startDate, endDate)}
                     GROUP BY platform
                 `),
                 queryClickHouse(`
-                    SELECT lower(Platform) as platform, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales
+                    SELECT lower(Platform) as platform,
+                           SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                           SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
                     FROM drl.buymore_rb_pdp_olap
                     WHERE ${buildBuymoreCondsForOverview(momStart, momEnd)}
                     GROUP BY platform
                 `)
             ]);
-            currBmRes.forEach(r => currBuymoreMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_sales || 0)));
-            prevBmRes.forEach(r => prevBuymoreMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_sales || 0)));
+            currBmRes.forEach(r => {
+                currBuymoreMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_sales || 0));
+                currBuymoreQtyMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_qty || 0));
+            });
+            prevBmRes.forEach(r => {
+                prevBuymoreMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_sales || 0));
+                prevBuymoreQtyMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_qty || 0));
+            });
         } catch (err) {
             console.error('[getPlatformOverview] Error querying buymore_rb_pdp_olap:', err);
         }
@@ -5851,10 +5863,14 @@ const getPlatformOverview = async (filters) => {
 
         let currSalesVal = parseFloat(c?.sales || 0);
         let prevSalesVal = parseFloat(pv?.sales || 0);
+        let currQtyVal = parseFloat(c?.qty || 0);
+        let prevQtyVal = parseFloat(pv?.qty || 0);
 
         if (isDrlDb && (key === 'amazon' || key === 'flipkart')) {
             currSalesVal += (currBuymoreMap.get(key) || 0);
             prevSalesVal += (prevBuymoreMap.get(key) || 0);
+            currQtyVal += (currBuymoreQtyMap.get(key) || 0);
+            prevQtyVal += (prevBuymoreQtyMap.get(key) || 0);
         }
 
         // Calculate SOS for this platform
@@ -5876,7 +5892,7 @@ const getPlatformOverview = async (filters) => {
         bulkPlatformMap.set(p.label, {
             curr: {
                 sales: currSalesVal,
-                qty: parseFloat(c?.qty || 0),
+                qty: currQtyVal,
                 spend: parseFloat(cpmVal?.spend || 0),
                 adSales: parseFloat(cpmVal?.Ad_sales || 0),
                 clicks: parseFloat(cpmVal?.clicks || 0),
@@ -5899,7 +5915,7 @@ const getPlatformOverview = async (filters) => {
             },
             prev: {
                 sales: prevSalesVal,
-                qty: parseFloat(pv?.qty || 0),
+                qty: prevQtyVal,
                 spend: parseFloat(pvpmVal?.spend || 0),
                 adSales: parseFloat(pvpmVal?.Ad_sales || 0),
                 clicks: parseFloat(pvpmVal?.clicks || 0),
