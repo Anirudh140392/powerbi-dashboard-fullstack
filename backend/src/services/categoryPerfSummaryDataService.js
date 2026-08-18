@@ -21,23 +21,14 @@ const CATEGORY_EXPR = `if(Category IS NOT NULL AND Category != '' AND Category !
 // PDP KPIs: Offtake Units, Offtake GMV, Weighted Discount, OSA
 // CW = latest completed Sun-Sat week, L4W = prior 4 weeks avg
 // ─────────────────────────────────────────────────────────────
-const getPdpKPIsByCategory = async (dbName, platform, brands) => {
+const getPdpKPIsByCategory = async (dbName, platform, brands, cwStart) => {
     const brandClause = buildBrandClause(brands);
     const platClause = `AND lower(Platform) = '${esc(platform.trim().toLowerCase())}'`;
 
     const query = `
         WITH
-            latest_date AS (
-                SELECT MAX(DATE) AS max_date
-                FROM \`${dbName}\`.rb_pdp_olap
-                WHERE DATE IS NOT NULL ${platClause} AND (Comp_flag = 0 OR Comp_flag IS NULL) ${brandClause}
-            ),
             week_boundaries AS (
-                SELECT
-                    max_date,
-                    -- Latest completed Sunday-Saturday week start
-                    subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS cw_start
-                FROM latest_date
+                SELECT toDate('${cwStart}') AS cw_start
             ),
             weekly_cat AS (
                 SELECT
@@ -99,10 +90,10 @@ const getPdpKPIsByCategory = async (dbName, platform, brands) => {
     for (const row of rows) {
         const cat = row.CategoryName || 'Uncategorized';
         result[cat] = {
-            qtySold:      { current: parseFloat(row.cw_qty) || 0, previous: parseFloat(row.l4w_qty) || 0 },
-            gmv:          { current: parseFloat(row.cw_gmv) || 0, previous: parseFloat(row.l4w_gmv) || 0 },
-            discounting:  { current: parseFloat(row.cw_disc) || 0, previous: parseFloat(row.l4w_disc) || 0 },
-            osa:          { current: parseFloat(row.cw_osa) || 0, previous: parseFloat(row.l4w_osa) || 0 },
+            qtySold: { current: parseFloat(row.cw_qty) || 0, previous: parseFloat(row.l4w_qty) || 0 },
+            gmv: { current: parseFloat(row.cw_gmv) || 0, previous: parseFloat(row.l4w_gmv) || 0 },
+            discounting: { current: parseFloat(row.cw_disc) || 0, previous: parseFloat(row.l4w_disc) || 0 },
+            osa: { current: parseFloat(row.cw_osa) || 0, previous: parseFloat(row.l4w_osa) || 0 },
         };
     }
     return result;
@@ -112,7 +103,7 @@ const getPdpKPIsByCategory = async (dbName, platform, brands) => {
 // Ad Spend & TACoS from rb_pm_olap
 // TACoS = Ad Spend / GMV * 100 (needs GMV from PDP)
 // ─────────────────────────────────────────────────────────────
-const getAdSpendByCategory = async (dbName, platform, brands) => {
+const getAdSpendByCategory = async (dbName, platform, brands, cwStart) => {
     const brandClause = buildBrandClause(brands);
     // rb_pm_olap uses lowercase 'platform' and 'brand'
     let pmPlatClause = '';
@@ -127,22 +118,16 @@ const getAdSpendByCategory = async (dbName, platform, brands) => {
         }
     }
 
+    const PM_CATEGORY_EXPR = `if(category IS NOT NULL AND category != '' AND category != '0' AND category != '-', category, 'Uncategorized')`;
+
     const query = `
         WITH
-            latest_date AS (
-                SELECT MAX(DATE) AS max_date
-                FROM \`${dbName}\`.rb_pm_olap
-                WHERE DATE IS NOT NULL ${pmPlatClause} ${pmBrandClause}
-            ),
             week_boundaries AS (
-                SELECT
-                    max_date,
-                    subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS cw_start
-                FROM latest_date
+                SELECT toDate('${cwStart}') AS cw_start
             ),
             weekly_cat AS (
                 SELECT
-                    ${CATEGORY_EXPR} AS cat,
+                    ${PM_CATEGORY_EXPR} AS cat,
                     subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
                     SUM(ifNull(toFloat64OrZero(toString(ad_spend)), 0)) AS spend
                 FROM \`${dbName}\`.rb_pm_olap
@@ -197,22 +182,14 @@ const getAdSpendByCategory = async (dbName, platform, brands) => {
 // ─────────────────────────────────────────────────────────────
 // SOS from rb_kw_olap
 // ─────────────────────────────────────────────────────────────
-const getSOSByCategory = async (dbName, platform) => {
+const getSOSByCategory = async (dbName, platform, cwStart) => {
     const platClause = `AND lower(platform_name) = '${esc(platform.trim().toLowerCase())}'`;
 
     // Try keyword_category first, fallback to category
     const buildQuery = (catCol) => `
         WITH
-            latest_date AS (
-                SELECT MAX(DATE) AS max_date
-                FROM \`${dbName}\`.rb_kw_olap
-                WHERE DATE IS NOT NULL ${platClause}
-            ),
             week_boundaries AS (
-                SELECT
-                    max_date,
-                    subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS cw_start
-                FROM latest_date
+                SELECT toDate('${cwStart}') AS cw_start
             ),
             weekly_cat AS (
                 SELECT
@@ -318,18 +295,45 @@ export const getCWDateRange = async (dbName, platform) => {
 export const fetchAllPlatformCategoryKPIs = async (dbName, platform, brands) => {
     console.log(`[CatPerfSummary] Fetching CW/L4W KPIs for ${platform} on ${dbName}`);
 
+    // Centralize date boundary logic so all KPIs align
+    const dateRange = await getCWDateRange(dbName, platform);
+    if (!dateRange.cwStart) {
+        console.warn(`[CatPerfSummary] No valid data found for ${platform} to establish date boundaries.`);
+        return [];
+    }
+    const { cwStart } = dateRange;
+
     const [pdpData, adSpendData, sosData] = await Promise.all([
-        getPdpKPIsByCategory(dbName, platform, brands),
-        getAdSpendByCategory(dbName, platform, brands),
-        getSOSByCategory(dbName, platform),
+        getPdpKPIsByCategory(dbName, platform, brands, cwStart),
+        getAdSpendByCategory(dbName, platform, brands, cwStart),
+        getSOSByCategory(dbName, platform, cwStart),
     ]);
 
-    // Collect all unique categories
-    const categoriesSet = new Set([
-        ...Object.keys(pdpData),
-        ...Object.keys(adSpendData),
-        ...Object.keys(sosData),
-    ]);
+    const normalizeCat = (cat) => cat ? cat.trim().toUpperCase() : 'UNCATEGORIZED';
+    const originalCats = {}; 
+    const unifiedData = {};
+
+    const addData = (source, type) => {
+        for (const [cat, data] of Object.entries(source)) {
+            const norm = normalizeCat(cat);
+            if (!unifiedData[norm]) {
+                unifiedData[norm] = {
+                    pdp: { qtySold: { current: 0, previous: 0 }, gmv: { current: 0, previous: 0 }, discounting: { current: 0, previous: 0 }, osa: { current: 0, previous: 0 } },
+                    ad: { current: 0, previous: 0 },
+                    sos: { current: 0, previous: 0 }
+                };
+                originalCats[norm] = cat;
+            } else if (cat === norm && originalCats[norm] !== norm) {
+                // If the new category is exactly the uppercase version, prefer it for display
+                originalCats[norm] = cat;
+            }
+            unifiedData[norm][type] = data;
+        }
+    };
+
+    addData(pdpData, 'pdp');
+    addData(adSpendData, 'ad');
+    addData(sosData, 'sos');
 
     const round1 = (v) => parseFloat(parseFloat(v).toFixed(1));
     const pctDelta = (curr, prev) => {
@@ -340,32 +344,27 @@ export const fetchAllPlatformCategoryKPIs = async (dbName, platform, brands) => 
     const ptDelta = (curr, prev) => round1(round1(curr) - round1(prev));
 
     const results = [];
-    for (const cat of categoriesSet) {
-        if (!cat || cat.trim() === '') continue;
+    for (const norm of Object.keys(unifiedData)) {
+        if (!norm || norm === '') continue;
 
-        const pdp = pdpData[cat] || {
-            qtySold: { current: 0, previous: 0 },
-            gmv: { current: 0, previous: 0 },
-            discounting: { current: 0, previous: 0 },
-            osa: { current: 0, previous: 0 },
-        };
-        const ad = adSpendData[cat] || { current: 0, previous: 0 };
-        const sos = sosData[cat] || { current: 0, previous: 0 };
+        const pdp = unifiedData[norm].pdp;
+        const ad = unifiedData[norm].ad;
+        const sos = unifiedData[norm].sos;
 
         // Compute TACoS = Ad Spend / GMV * 100
         const cwTacos = pdp.gmv.current > 0 ? round1(ad.current / pdp.gmv.current * 100) : 0;
         const l4wTacos = pdp.gmv.previous > 0 ? round1(ad.previous / pdp.gmv.previous * 100) : 0;
 
         results.push({
-            categoryName: cat,
+            categoryName: originalCats[norm],
             kpis: {
-                qtySold:     { current: pdp.qtySold.current,     previous: pdp.qtySold.previous,     delta: pctDelta(pdp.qtySold.current, pdp.qtySold.previous) },
-                gmv:         { current: pdp.gmv.current,         previous: pdp.gmv.previous,         delta: pctDelta(pdp.gmv.current, pdp.gmv.previous) },
+                qtySold: { current: pdp.qtySold.current, previous: pdp.qtySold.previous, delta: pctDelta(pdp.qtySold.current, pdp.qtySold.previous) },
+                gmv: { current: pdp.gmv.current, previous: pdp.gmv.previous, delta: pctDelta(pdp.gmv.current, pdp.gmv.previous) },
                 discounting: { current: pdp.discounting.current, previous: pdp.discounting.previous, delta: ptDelta(pdp.discounting.current, pdp.discounting.previous) },
-                osa:         { current: pdp.osa.current,         previous: pdp.osa.previous,         delta: ptDelta(pdp.osa.current, pdp.osa.previous) },
-                adSpend:     { current: ad.current,              previous: ad.previous,              delta: pctDelta(ad.current, ad.previous) },
-                tacos:       { current: cwTacos,                 previous: l4wTacos,                 delta: ptDelta(cwTacos, l4wTacos) },
-                sos:         { current: sos.current,             previous: sos.previous,             delta: ptDelta(sos.current, sos.previous) },
+                osa: { current: pdp.osa.current, previous: pdp.osa.previous, delta: ptDelta(pdp.osa.current, pdp.osa.previous) },
+                adSpend: { current: ad.current, previous: ad.previous, delta: pctDelta(ad.current, ad.previous) },
+                tacos: { current: cwTacos, previous: l4wTacos, delta: ptDelta(cwTacos, l4wTacos) },
+                sos: { current: sos.current, previous: sos.previous, delta: ptDelta(sos.current, sos.previous) },
             }
         });
     }
