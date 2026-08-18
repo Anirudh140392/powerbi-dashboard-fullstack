@@ -542,6 +542,7 @@ export const runEmailAlertsJob = async () => {
                                     sum(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS sales
                                 FROM \`${dbName}\`.rb_pdp_olap
                                 WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                                  AND Location IS NOT NULL AND lower(Location) NOT IN ('other', 'others', 'null', 'undefined', '')
                                 GROUP BY Platform, City, week_start
                             ),
                             weekly_osa AS (
@@ -683,6 +684,7 @@ export const runEmailAlertsJob = async () => {
                                     sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
                                 FROM \`${dbName}\`.rb_pdp_olap
                                 WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                                  AND Product IS NOT NULL AND lower(Product) NOT IN ('other', 'others', 'null', 'undefined', '')
                                 GROUP BY Platform, Web_Pid, week_start
                             ),
                             weekly_osa AS (
@@ -853,6 +855,7 @@ export const runEmailAlertsJob = async () => {
                                     DATE >= b.current_week_start
                                     AND DATE < b.current_week_start + INTERVAL 7 DAY
                                     ${kwFilterClause}
+                                    AND keyword IS NOT NULL AND lower(keyword) NOT IN ('other', 'others', 'null', 'undefined', '')
 
                                 GROUP BY
                                     lower(platform_name),
@@ -888,6 +891,7 @@ export const runEmailAlertsJob = async () => {
                                     DATE >= b.current_week_start - INTERVAL 28 DAY
                                     AND DATE < b.current_week_start
                                     ${kwFilterClause}
+                                    AND keyword IS NOT NULL AND lower(keyword) NOT IN ('other', 'others', 'null', 'undefined', '')
 
                                 GROUP BY
                                     lower(platform_name),
@@ -1310,6 +1314,23 @@ export const runEmailAlertsJob = async () => {
                                     });
                                 }
 
+                                let finalCwStart = dateRanges.currentStart;
+                                let finalCwEnd = dateRanges.currentEnd;
+                                let finalL4wStart = dateRanges.prevStart;
+                                let finalL4wEnd = dateRanges.prevEnd;
+
+                                if (isDynamicAlert) {
+                                    const platForDate = alertPlatforms.length > 0 ? alertPlatforms[0] : '';
+                                    const tableName = alert.alert_type === 'keyword_delta_sos' ? 'rb_kw_olap' : 'rb_pdp_olap';
+                                    const cwDateRange = await getCWDateRange(dbName, platForDate, tableName);
+                                    if (cwDateRange && cwDateRange.cwStart) {
+                                        finalCwStart = cwDateRange.cwStart;
+                                        finalCwEnd = cwDateRange.cwEnd;
+                                        finalL4wStart = cwDateRange.l4wStart;
+                                        finalL4wEnd = cwDateRange.l4wEnd;
+                                    }
+                                }
+
                                 emailHtml = generateDynamicAlertEmailHtml({
                                     logoUrl,
                                     companyName: companyDisplayName,
@@ -1321,6 +1342,11 @@ export const runEmailAlertsJob = async () => {
                                     operator: isDynamicAlert ? (formatOperatorSymbol(alert.conditional_operator) || '<=') : alertOpSym,
                                     threshold: threshold,
                                     platformData: finalDynamicEmailData,
+                                    cwStart: finalCwStart,
+                                    cwEnd: finalCwEnd,
+                                    l4wStart: finalL4wStart,
+                                    l4wEnd: finalL4wEnd,
+                                    isDynamicAlert: isDynamicAlert,
                                 });
 
                                 const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';

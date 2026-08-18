@@ -15,7 +15,7 @@ const buildBrandClause = (brands) => {
 };
 
 // Common Category expression — maps empty/null to 'Uncategorized'
-const CATEGORY_EXPR = `if(Category IS NOT NULL AND Category != '' AND Category != '0' AND Category != '-', Category, 'Uncategorized')`;
+const CATEGORY_EXPR = `if(Category IS NOT NULL AND trim(Category) != '' AND trim(Category) != '0' AND trim(Category) != '-', trim(Category), 'Uncategorized')`;
 
 // ─────────────────────────────────────────────────────────────
 // PDP KPIs: Offtake Units, Offtake GMV, Weighted Discount, OSA
@@ -46,6 +46,8 @@ const getPdpKPIsByCategory = async (dbName, platform, brands, cwStart) => {
                   AND DATE < b.cw_start + INTERVAL 7 DAY
                   ${platClause}
                   AND (Comp_flag = 0 OR Comp_flag IS NULL)
+                  AND Category IS NOT NULL AND trim(Category) != '' AND trim(Category) != '0' AND trim(Category) != '-'
+                  AND lower(trim(Category)) NOT IN ('uncategorized', 'other', 'others', 'undefined', 'null')
                   ${brandClause}
                 GROUP BY cat, week_start
             ),
@@ -118,16 +120,14 @@ const getAdSpendByCategory = async (dbName, platform, brands, cwStart) => {
         }
     }
 
-    const PM_CATEGORY_EXPR = `if(category IS NOT NULL AND category != '' AND category != '0' AND category != '-', category, 'Uncategorized')`;
-
-    const query = `
+    const buildAdQuery = (catCol) => `
         WITH
             week_boundaries AS (
                 SELECT toDate('${cwStart}') AS cw_start
             ),
             weekly_cat AS (
                 SELECT
-                    ${PM_CATEGORY_EXPR} AS cat,
+                    if(${catCol} IS NOT NULL AND trim(${catCol}) != '' AND trim(${catCol}) != '0' AND trim(${catCol}) != '-', trim(${catCol}), 'Uncategorized') AS cat,
                     subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
                     SUM(ifNull(toFloat64OrZero(toString(ad_spend)), 0)) AS spend
                 FROM \`${dbName}\`.rb_pm_olap
@@ -135,6 +135,8 @@ const getAdSpendByCategory = async (dbName, platform, brands, cwStart) => {
                 WHERE DATE >= b.cw_start - INTERVAL 28 DAY
                   AND DATE < b.cw_start + INTERVAL 7 DAY
                   ${pmPlatClause}
+                  AND ${catCol} IS NOT NULL AND trim(${catCol}) != '' AND trim(${catCol}) != '0' AND trim(${catCol}) != '-'
+                  AND lower(trim(${catCol})) NOT IN ('uncategorized', 'other', 'others', 'undefined', 'null')
                   ${pmBrandClause}
                 GROUP BY cat, week_start
             ),
@@ -162,8 +164,7 @@ const getAdSpendByCategory = async (dbName, platform, brands, cwStart) => {
         FULL OUTER JOIN l4w l ON c.cat = l.cat
     `;
 
-    try {
-        const rows = await queryAdminDB(query);
+    const parseAdRows = (rows) => {
         const result = {};
         for (const row of rows) {
             const cat = row.CategoryName || 'Uncategorized';
@@ -173,9 +174,20 @@ const getAdSpendByCategory = async (dbName, platform, brands, cwStart) => {
             };
         }
         return result;
+    };
+
+    try {
+        const rows = await queryAdminDB(buildAdQuery('category'));
+        return parseAdRows(rows);
     } catch (err) {
-        console.warn(`[CatPerfSummary] getAdSpendByCategory failed for ${platform}:`, err.message);
-        return {};
+        console.warn(`[CatPerfSummary] getAdSpendByCategory first try ERROR (category):`, err.message);
+        try {
+            const rows = await queryAdminDB(buildAdQuery('Category'));
+            return parseAdRows(rows);
+        } catch (e2) {
+            console.error(`[CatPerfSummary] getAdSpendByCategory second try ERROR (Category):`, e2.message);
+            return {};
+        }
     }
 };
 
@@ -201,6 +213,8 @@ const getSOSByCategory = async (dbName, platform, cwStart) => {
                 WHERE DATE >= b.cw_start - INTERVAL 28 DAY
                   AND DATE < b.cw_start + INTERVAL 7 DAY
                   ${platClause}
+                  AND ${catCol} IS NOT NULL AND trim(${catCol}) != '' AND trim(${catCol}) != '0' AND trim(${catCol}) != '-'
+                  AND lower(trim(${catCol})) NOT IN ('uncategorized', 'other', 'others', 'undefined', 'null')
                 GROUP BY cat, week_start
             ),
             cw AS (
@@ -241,14 +255,25 @@ const getSOSByCategory = async (dbName, platform, cwStart) => {
     };
 
     try {
-        const rows = await queryAdminDB(buildQuery('keyword_category'));
+        const query1 = buildQuery('keyword_category');
+        const rows = await queryAdminDB(query1);
         return parseRows(rows);
     } catch (err) {
+        console.warn(`[CatPerfSummary] getSOSByCategory first try ERROR (keyword_category):`, err.message);
         try {
-            const rows = await queryAdminDB(buildQuery('category'));
+            const query2 = buildQuery('category');
+            const rows = await queryAdminDB(query2);
             return parseRows(rows);
         } catch (e2) {
-            return {};
+            console.warn(`[CatPerfSummary] getSOSByCategory second try ERROR (category):`, e2.message);
+            try {
+                const query3 = buildQuery('Category');
+                const rows = await queryAdminDB(query3);
+                return parseRows(rows);
+            } catch (e3) {
+                console.error(`[CatPerfSummary] getSOSByCategory third try ERROR (Category):`, e3.message);
+                return {};
+            }
         }
     }
 };
@@ -256,17 +281,21 @@ const getSOSByCategory = async (dbName, platform, cwStart) => {
 // ─────────────────────────────────────────────────────────────
 // Get the CW date range for display (e.g. "3 Aug – 9 Aug 2026")
 // ─────────────────────────────────────────────────────────────
-export const getCWDateRange = async (dbName, platform) => {
-    const platClause = platform
-        ? `AND lower(Platform) = '${esc(platform.trim().toLowerCase())}'`
-        : '';
+export const getCWDateRange = async (dbName, platform, tableName = 'rb_pdp_olap') => {
+    let platClause = '';
+    if (platform) {
+        const platCol = tableName === 'rb_kw_olap' ? 'platform_name' : 'Platform';
+        platClause = `AND lower(${platCol}) = '${esc(platform.trim().toLowerCase())}'`;
+    }
+
+    const compClause = tableName === 'rb_kw_olap' ? '' : 'AND (Comp_flag = 0 OR Comp_flag IS NULL)';
 
     try {
         const rows = await queryAdminDB(`
             WITH latest_date AS (
                 SELECT MAX(DATE) AS max_date
-                FROM \`${dbName}\`.rb_pdp_olap
-                WHERE DATE IS NOT NULL ${platClause} AND (Comp_flag = 0 OR Comp_flag IS NULL)
+                FROM \`${dbName}\`.\`${tableName}\`
+                WHERE DATE IS NOT NULL ${platClause} ${compClause}
             )
             SELECT
                 subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS cw_start,
@@ -345,7 +374,11 @@ export const fetchAllPlatformCategoryKPIs = async (dbName, platform, brands) => 
 
     const results = [];
     for (const norm of Object.keys(unifiedData)) {
-        if (!norm || norm === '') continue;
+        if (!norm || norm === '' || ['UNCATEGORIZED', 'UNDEFINED', 'NULL', 'OTHER', 'OTHERS', '0'].includes(norm)) {
+            console.log(`[CategoryPerfSummary] Skipping norm=${norm}`);
+            continue;
+        }
+        console.log(`[CategoryPerfSummary] Pushing norm=${norm}, originalCat=${originalCats[norm]}`);
 
         const pdp = unifiedData[norm].pdp;
         const ad = unifiedData[norm].ad;

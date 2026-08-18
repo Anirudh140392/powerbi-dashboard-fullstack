@@ -608,6 +608,10 @@ export const runKamAlertsJob = async () => {
                                             operator: alertOpSym,
                                             threshold: threshold,
                                             platformData: finalDynamicEmailData,
+                                            cwStart: dateRanges.currentStart,
+                                            cwEnd: dateRanges.currentEnd,
+                                            l4wStart: dateRanges.prevStart,
+                                            l4wEnd: dateRanges.prevEnd,
                                         });
                                         subject = `🚨 ALERT TRIGGERED: ${alert.alert_name}`;
                                     } else {
