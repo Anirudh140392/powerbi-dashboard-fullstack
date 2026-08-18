@@ -2292,20 +2292,26 @@ const getDOI = async (filters) => {
 };
 
 const getMetroCities = async () => {
-    const cacheKey = generateCacheKey('metro_cities_list', {});
-
-    return getCachedOrCompute(cacheKey, async () => {
+    return getCachedOrCompute('metro_cities_list_v2', async () => {
         try {
+            const currentDb = getCurrentDbName() || 'drl';
+            const table = (currentDb === 'drl' || currentDb === 'prestige' || currentDb === 'mamaearth' || currentDb === 'mcvities' || currentDb === 'sugar' || currentDb === 'pidilite' || currentDb === 'zydus' || currentDb === 'trailytics') 
+                ? `${currentDb}.rb_location_darkstore` 
+                : 'rb_location_darkstore';
+
             const query = `
                 SELECT DISTINCT location
-                FROM rb_location_darkstore
-                WHERE lower(tier) = 'tier 1'
+                FROM ${table}
+                WHERE lower(tier) = 'tier 1' OR lower(tier) LIKE '%tier 1%' OR lower(tier) = '1'
+                ORDER BY location
             `;
             const results = await queryClickHouse(query);
-            return results.map(r => r.location).filter(Boolean);
+            const cities = results.map(r => r.location).filter(Boolean);
+            if (cities.length > 0) return cities;
+            return ['Ahmedabad', 'Bengaluru', 'Chennai', 'Delhi', 'Hyderabad', 'Kolkata', 'Mumbai', 'Pune'];
         } catch (error) {
             console.error('[getMetroCities] Error:', error);
-            return [];
+            return ['Ahmedabad', 'Bengaluru', 'Chennai', 'Delhi', 'Hyderabad', 'Kolkata', 'Mumbai', 'Pune'];
         }
     }, CACHE_TTL.LONG);
 };
@@ -2319,7 +2325,7 @@ const isMetroCity = async (location) => {
 const getMetroCityStockAvailability = async (filters) => {
     console.log('[getMetroCityStockAvailability] Request received with filters:', filters);
 
-    const cacheKey = generateCacheKey('metro_city_osa', filters);
+    const cacheKey = generateCacheKey('metro_city_osa_v2', filters);
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
@@ -2333,6 +2339,7 @@ const getMetroCityStockAvailability = async (filters) => {
                     prevStockAvailability: 0,
                     change: 0,
                     isMetroCity: false,
+                    metroCities: ['Ahmedabad', 'Bengaluru', 'Chennai', 'Delhi', 'Hyderabad', 'Kolkata', 'Mumbai', 'Pune'],
                     filters: filters,
                     timestamp: new Date().toISOString()
                 };
@@ -2350,6 +2357,7 @@ const getMetroCityStockAvailability = async (filters) => {
                         prevStockAvailability: 0,
                         change: 0,
                         isMetroCity: false,
+                        metroCities: metroCities,
                         filters: filters,
                         timestamp: new Date().toISOString()
                     };
@@ -2421,6 +2429,7 @@ const getMetroCityStockAvailability = async (filters) => {
                 change: parseFloat((currentOsa - prevOsa).toFixed(2)),
                 isMetroCity: true,
                 metroCitiesCount: targetLocations.length,
+                metroCities: metroCities,
                 filters: filters,
                 timestamp: new Date().toISOString()
             };
@@ -3138,12 +3147,14 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 WHERE ${whereClause}
                   AND Product IS NOT NULL AND Product != ''
                 GROUP BY Product, Brand
-                ORDER BY total_deno DESC
-                LIMIT 8
+                ORDER BY total_sales DESC, total_deno DESC
+                LIMIT 50
             `;
 
 
             const skuResults = await queryClickHouse(skuQuery);
+            const grandTotalSales = skuResults.reduce((sum, s) => sum + (parseFloat(s.total_sales) || 0), 0);
+
             const skus = skuResults.map(s => {
                 const neno = parseFloat(s.total_neno) || 0;
                 const deno = parseFloat(s.total_deno) || 0;
@@ -3157,11 +3168,16 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
                 // PSL = (SUM(Sales) / (OSA_Percentage / 100)) - SUM(Sales)  [currency format]
                 const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
+                const marketShare = grandTotalSales > 0 ? (totalSales * 100.0) / grandTotalSales : 0;
 
                 return {
                     sku_name: s.sku_name,
                     brand_name: s.brand_name,
+                    total_sales: totalSales,
+                    marketShare: parseFloat(marketShare.toFixed(2)),
+                    MarketShare: { value: parseFloat(marketShare.toFixed(2)), delta: 0 },
                     osa: osa !== null ? parseFloat(osa.toFixed(1)) : null,
+                    OSA: { value: osa !== null ? parseFloat(osa.toFixed(1)) : null, delta: 0 },
                     osaDelta: 0,
                     doi: parseFloat(doi.toFixed(1)),
                     fillrate: 'Coming Soon',
@@ -3169,6 +3185,13 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     psl: parseFloat(psl.toFixed(2)),
                     listing: parseFloat(listing.toFixed(1))
                 };
+            });
+
+            skus.sort((a, b) => {
+                const msA = Number(a.marketShare) || 0;
+                const msB = Number(b.marketShare) || 0;
+                if (Math.abs(msB - msA) > 0.0001) return msB - msA;
+                return (b.total_sales || 0) - (a.total_sales || 0);
             });
 
             return {

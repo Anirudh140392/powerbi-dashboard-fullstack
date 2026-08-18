@@ -53,6 +53,8 @@ const ROUTE_TABLE_MAP = {
   "/insights": "rb_pdp_olap",
   "/sales": "rb_pdp_olap",
   "/volume-cohort": "rb_pdp_olap",
+  "/primary-overview": "rb_pdp_olap",
+  "/secondary-overview": "rb_pdp_olap",
 };
 
 function getTableForRoute(pathname) {

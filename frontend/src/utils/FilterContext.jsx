@@ -182,7 +182,9 @@ export const FilterProvider = ({ children }) => {
         try {
             const path = currentPath;
             const isMarketShare = path.includes('/market-share');
-            const isVisibility = path.includes('/visibility-anlysis');
+            const isVisibility = path.includes('/visibility-anlysis') || path.includes('/visibility-analysis');
+            const isSecondary = path.includes('/secondary');
+            const isPrimary = path.includes('/primary') && !path.includes('/watch-tower') && !path.includes('/watchtower');
 
             let endpoint;
             let pageLabel;
@@ -192,6 +194,12 @@ export const FilterProvider = ({ children }) => {
             } else if (isVisibility) {
                 endpoint = '/visibility-analysis/latest-available-dates';
                 pageLabel = 'Visibility Analysis (rb_kw_olap)';
+            } else if (isSecondary) {
+                endpoint = '/secondary-sales/latest-date';
+                pageLabel = 'Secondary Sales (rb_secondary_olap)';
+            } else if (isPrimary) {
+                endpoint = '/primary-sales/latest-date';
+                pageLabel = 'Primary Sales (rb_primary_olap)';
             } else {
                 endpoint = '/watchtower/latest-available-month';
                 pageLabel = 'Default (rb_pdp_olap)';

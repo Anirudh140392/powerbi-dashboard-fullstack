@@ -45,6 +45,6 @@
 }
 
 /* ── ensure Suspense fallback also centers inside the full height ── */
-.content-analysis-isolated > * {
+.content-analysis-isolated>* {
   min-height: 0;
 }

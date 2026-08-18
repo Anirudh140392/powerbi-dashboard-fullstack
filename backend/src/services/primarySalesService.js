@@ -3,7 +3,7 @@
 // Data source: rb_primary_olap table in the user's DB
 // Metric: SUM(amount_inr)
 
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 
 /**
  * Escape ClickHouse string values
@@ -37,7 +37,7 @@ const buildMultiCondition = (value, column) => {
  *   division     -> division
  *   zone         -> zone
  */
-const buildFilterClause = (filters) => {
+const buildFilterClause = (filters, ignoreDates = false) => {
     const conditions = [];
 
     if (filters.location && filters.location !== 'All') {
@@ -45,12 +45,6 @@ const buildFilterClause = (filters) => {
     }
     if (filters.brandName && filters.brandName !== 'All') {
         conditions.push(buildMultiCondition(filters.brandName, 'brand'));
-    }
-    if (filters.channel && filters.channel !== 'All') {
-        conditions.push(buildMultiCondition(filters.channel, 'channel'));
-    }
-    if (filters.platform && filters.platform !== 'All') {
-        conditions.push(buildMultiCondition(filters.platform, 'platform'));
     }
     if (filters.retailerName && filters.retailerName !== 'All') {
         conditions.push(buildMultiCondition(filters.retailerName, 'customer_name'));
@@ -63,6 +57,37 @@ const buildFilterClause = (filters) => {
     }
     if (filters.zone && filters.zone !== 'All') {
         conditions.push(buildMultiCondition(filters.zone, 'zone'));
+    }
+
+    if (filters.monthYear && filters.monthYear !== 'All') {
+        const myValues = String(filters.monthYear).split(',').map(v => v.trim()).filter(Boolean);
+        if (myValues.length > 0) {
+            if (myValues.length === 1) {
+                conditions.push(`formatDateTime(toStartOfMonth(toDate(billing_date)), '%b-%y') = '${escapeCH(myValues[0])}'`);
+            } else {
+                conditions.push(`formatDateTime(toStartOfMonth(toDate(billing_date)), '%b-%y') IN (${myValues.map(v => `'${escapeCH(v)}'`).join(',')})`);
+            }
+        }
+    }
+
+    if (filters.fy && filters.fy !== 'All') {
+        const fyValues = String(filters.fy).split(',').map(v => v.trim()).filter(Boolean);
+        const fyConditions = [];
+        fyValues.forEach(fyVal => {
+            const fyMatch = fyVal.match(/FY(\d{4})-(\d{2})/i);
+            if (fyMatch) {
+                const startYear = fyMatch[1];
+                const endYear = parseInt(startYear) + 1;
+                fyConditions.push(`(toDate(billing_date) >= toDate('${startYear}-04-01') AND toDate(billing_date) <= toDate('${endYear}-03-31'))`);
+            }
+        });
+        if (fyConditions.length > 0) {
+            conditions.push(`(${fyConditions.join(' OR ')})`);
+        }
+    }
+
+    if (!ignoreDates && filters.startDate && filters.endDate) {
+        conditions.push(`toDate(billing_date) >= toDate('${escapeCH(filters.startDate)}') AND toDate(billing_date) <= toDate('${escapeCH(filters.endDate)}')`);
     }
 
     return conditions.length > 0 ? conditions.join(' AND ') : '1=1';
@@ -80,12 +105,6 @@ const buildFilterClauseExcluding = (filters, excludeKey) => {
     if (excludeKey !== 'brandName' && filters.brandName && filters.brandName !== 'All') {
         conditions.push(buildMultiCondition(filters.brandName, 'brand'));
     }
-    if (excludeKey !== 'channel' && filters.channel && filters.channel !== 'All') {
-        conditions.push(buildMultiCondition(filters.channel, 'channel'));
-    }
-    if (excludeKey !== 'platform' && filters.platform && filters.platform !== 'All') {
-        conditions.push(buildMultiCondition(filters.platform, 'platform'));
-    }
     if (excludeKey !== 'retailerName' && filters.retailerName && filters.retailerName !== 'All') {
         conditions.push(buildMultiCondition(filters.retailerName, 'customer_name'));
     }
@@ -99,11 +118,128 @@ const buildFilterClauseExcluding = (filters, excludeKey) => {
         conditions.push(buildMultiCondition(filters.zone, 'zone'));
     }
 
+    if (excludeKey !== 'monthYear' && filters.monthYear && filters.monthYear !== 'All') {
+        const myValues = String(filters.monthYear).split(',').map(v => v.trim()).filter(Boolean);
+        if (myValues.length > 0) {
+            if (myValues.length === 1) {
+                conditions.push(`formatDateTime(toStartOfMonth(toDate(billing_date)), '%b-%y') = '${escapeCH(myValues[0])}'`);
+            } else {
+                conditions.push(`formatDateTime(toStartOfMonth(toDate(billing_date)), '%b-%y') IN (${myValues.map(v => `'${escapeCH(v)}'`).join(',')})`);
+            }
+        }
+    }
+
+    if (excludeKey !== 'fy' && filters.fy && filters.fy !== 'All') {
+        const fyValues = String(filters.fy).split(',').map(v => v.trim()).filter(Boolean);
+        const fyConditions = [];
+        fyValues.forEach(fyVal => {
+            const fyMatch = fyVal.match(/FY(\d{4})-(\d{2})/i);
+            if (fyMatch) {
+                const startYear = fyMatch[1];
+                const endYear = parseInt(startYear) + 1;
+                fyConditions.push(`(toDate(billing_date) >= toDate('${startYear}-04-01') AND toDate(billing_date) <= toDate('${endYear}-03-31'))`);
+            }
+        });
+        if (fyConditions.length > 0) {
+            conditions.push(`(${fyConditions.join(' OR ')})`);
+        }
+    }
+
     return conditions.length > 0 ? conditions.join(' AND ') : '1=1';
 };
 
 const getMetricColumn = (metricType) => {
-    return metricType === 'Units' ? 'quantity' : 'amount_inr';
+    return metricType === 'Units' ? 'quantity' : 'COALESCE(amount_inr, net_amount * 100000)';
+};
+
+/**
+ * Get PRIMARY KPI summary cards data (Total Sales, Total Units Sold, Growth rates)
+ */
+export const getPrimaryKpis = async (filters = {}) => {
+    const dbName = getCurrentDbName();
+    const table = `${dbName}.rb_primary_olap`;
+    const filterClause = buildFilterClause(filters);
+
+    const query = `
+        SELECT
+            COALESCE(SUM(toFloat64OrZero(toString(COALESCE(amount_inr, net_amount * 100000)))), 0) AS total_sales,
+            COALESCE(SUM(toInt64OrZero(toString(quantity))), 0) AS total_units
+        FROM ${table}
+        WHERE billing_date IS NOT NULL
+          AND ${filterClause}
+    `;
+
+    const rows = await queryClickHouse(query);
+    const totalSales = parseFloat(rows[0]?.total_sales || 0);
+    const totalUnits = parseInt(rows[0]?.total_units || 0);
+
+    // Calculate latest month vs previous month growth
+    const momQuery = `
+        SELECT
+            toStartOfMonth(toDate(billing_date)) AS month_start,
+            COALESCE(SUM(toFloat64OrZero(toString(COALESCE(amount_inr, net_amount * 100000)))), 0) AS sales,
+            COALESCE(SUM(toInt64OrZero(toString(quantity))), 0) AS units
+        FROM ${table}
+        WHERE billing_date IS NOT NULL
+          AND ${filterClause}
+        GROUP BY month_start
+        ORDER BY month_start DESC
+        LIMIT 2
+    `;
+
+    const momRows = await queryClickHouse(momQuery);
+    let salesGrowth = 0;
+    let unitsGrowth = 0;
+
+    if (momRows.length >= 2) {
+        const currSales = parseFloat(momRows[0].sales || 0);
+        const prevSales = parseFloat(momRows[1].sales || 0);
+        if (prevSales > 0) {
+            salesGrowth = parseFloat((((currSales - prevSales) / prevSales) * 100).toFixed(2));
+        }
+
+        const currUnits = parseInt(momRows[0].units || 0);
+        const prevUnits = parseInt(momRows[1].units || 0);
+        if (prevUnits > 0) {
+            unitsGrowth = parseFloat((((currUnits - prevUnits) / prevUnits) * 100).toFixed(2));
+        }
+    }
+
+    return {
+        totalSales,
+        totalUnits,
+        salesGrowth,
+        unitsGrowth,
+    };
+};
+
+/**
+ * Get latest available billing dates in rb_primary_olap
+ */
+export const getPrimaryLatestDate = async () => {
+    const dbName = getCurrentDbName();
+    const table = `${dbName}.rb_primary_olap`;
+    const query = `
+        SELECT 
+            formatDateTime(MAX(toDate(billing_date)), '%Y-%m-%d') AS max_date,
+            formatDateTime(MIN(toDate(billing_date)), '%Y-%m-%d') AS min_date
+        FROM ${table}
+        WHERE billing_date IS NOT NULL
+    `;
+    const rows = await queryClickHouse(query);
+    const maxDate = rows[0]?.max_date || '2026-07-30';
+    const minDate = rows[0]?.min_date || '2024-04-01';
+    
+    // Default start date is 1st day of the max date month
+    const defaultStartDate = maxDate.substring(0, 7) + '-01';
+    const defaultEndDate = maxDate;
+
+    return {
+        maxDate,
+        minDate,
+        defaultStartDate,
+        defaultEndDate,
+    };
 };
 
 /**
@@ -111,7 +247,9 @@ const getMetricColumn = (metricType) => {
  * Returns SUM(metricColumn) grouped by month
  */
 export const getPrimaryMOM = async (filters = {}, metricType = 'MRP') => {
-    const filterClause = buildFilterClause(filters);
+    const dbName = getCurrentDbName();
+    const table = `${dbName}.rb_primary_olap`;
+    const filterClause = buildFilterClause(filters, false);
     const metricColumn = getMetricColumn(metricType);
 
     const query = `
@@ -119,7 +257,7 @@ export const getPrimaryMOM = async (filters = {}, metricType = 'MRP') => {
             toStartOfMonth(toDate(billing_date)) AS month_start,
             formatDateTime(toDate(billing_date), '%b-%y') AS month_label,
             COALESCE(SUM(toFloat64OrZero(toString(${metricColumn}))), 0) AS value
-        FROM rb_primary_olap
+        FROM ${table}
         WHERE billing_date IS NOT NULL
           AND ${filterClause}
         GROUP BY month_start, month_label
@@ -135,6 +273,40 @@ export const getPrimaryMOM = async (filters = {}, metricType = 'MRP') => {
     }));
 };
 
+/**
+ * Get PRIMARY Retailer Daily / MoM trend chart data for Retailer Wise Analysis
+ */
+export const getPrimaryRetailerDailyTrend = async (filters = {}, metricType = 'MRP') => {
+    const dbName = getCurrentDbName();
+    const table = `${dbName}.rb_primary_olap`;
+    const filterClause = buildFilterClause(filters, false);
+    const metricColumn = getMetricColumn(metricType);
+
+    const query = `
+        SELECT
+            toDate(billing_date) AS date_val,
+            formatDateTime(toDate(billing_date), '%d %b''%y') AS date_label,
+            toString(customer_name) AS retailer,
+            COALESCE(SUM(toFloat64OrZero(toString(${metricColumn}))), 0) AS value
+        FROM ${table}
+        WHERE billing_date IS NOT NULL
+          AND customer_name IS NOT NULL
+          AND toString(customer_name) != ''
+          AND toString(customer_name) != '0'
+          AND ${filterClause}
+        GROUP BY date_val, date_label, retailer
+        ORDER BY date_val ASC
+    `;
+
+    const rows = await queryClickHouse(query);
+    return rows.map(r => ({
+        date: r.date_label,
+        dateVal: r.date_val,
+        retailer: r.retailer,
+        value: parseFloat(r.value || 0),
+    }));
+};
+
 
 /**
  * Get QUARTER WISE PRIMARY DATA bar chart data
@@ -146,7 +318,9 @@ export const getPrimaryMOM = async (filters = {}, metricType = 'MRP') => {
  * Label format: "Q1 FY2026-27" etc.
  */
 export const getPrimaryQuarterly = async (filters = {}, metricType = 'MRP') => {
-    const filterClause = buildFilterClause(filters);
+    const dbName = getCurrentDbName();
+    const table = `${dbName}.rb_primary_olap`;
+    const filterClause = buildFilterClause(filters, false);
     const metricColumn = getMetricColumn(metricType);
 
     // Use ClickHouse month extraction and map to FY quarters
@@ -165,7 +339,7 @@ export const getPrimaryQuarterly = async (filters = {}, metricType = 'MRP') => {
                 ELSE toYear(toDate(billing_date)) - 1
             END AS fy_start_year,
             COALESCE(SUM(toFloat64OrZero(toString(${metricColumn}))), 0) AS value
-        FROM rb_primary_olap
+        FROM ${table}
         WHERE billing_date IS NOT NULL
           AND ${filterClause}
         GROUP BY fy_quarter, fy_start_year
@@ -195,8 +369,8 @@ export const getPrimaryQuarterly = async (filters = {}, metricType = 'MRP') => {
  * Returns rows grouped by the chosen dimension, with monthly columns
  */
 export const getPrimaryPivotTable = async (filters = {}, xAxis = 'customer_name', metricType = 'MRP') => {
-    const filterClause = buildFilterClause(filters);
-    const metricColumn = getMetricColumn(metricType);
+    const dbName = getCurrentDbName();
+    const table = `${dbName}.rb_primary_olap`;
 
     // Map frontend xAxis label to DB column
     const xAxisColumnMap = {
@@ -208,63 +382,141 @@ export const getPrimaryPivotTable = async (filters = {}, xAxis = 'customer_name'
     };
     const columnName = xAxisColumnMap[xAxis] || xAxis;
 
-    const query = `
+    // Build exact filter clause for the current period (respects exact startDate/endDate)
+    const currentFilterClause = buildFilterClause(filters, false);
+
+    // Build comparison period filter clause (prior full month)
+    let compLabel = null;
+    let compRows = [];
+    if (filters.startDate) {
+        const d = new Date(filters.startDate);
+        d.setMonth(d.getMonth() - 1);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const compStart = `${yyyy}-${mm}-01`;
+        const compEnd = `${yyyy}-${mm}-${new Date(yyyy, d.getMonth() + 1, 0).getDate()}`;
+        compLabel = `${new Date(compStart).toLocaleString('default', { month: 'short' })}-${String(yyyy).slice(-2)}`;
+
+        const compFilters = { ...filters, startDate: compStart, endDate: compEnd };
+        const compFilterClause = buildFilterClause(compFilters, false);
+
+        const compQuery = `
+            SELECT
+                toString(${columnName}) AS dimension_value,
+                COALESCE(SUM(toFloat64OrZero(toString(COALESCE(amount_inr, net_amount * 100000)))), 0) AS sales_val,
+                COALESCE(SUM(toInt64OrZero(toString(quantity))), 0) AS units_val
+            FROM ${table}
+            WHERE billing_date IS NOT NULL
+              AND ${columnName} IS NOT NULL
+              AND toString(${columnName}) != ''
+              AND ${compFilterClause}
+            GROUP BY dimension_value
+            ORDER BY dimension_value ASC
+        `;
+        compRows = await queryClickHouse(compQuery);
+    }
+
+    // Build index of comparison data
+    const compMap = {};
+    compRows.forEach(r => {
+        compMap[r.dimension_value || 'Unknown'] = {
+            sales_val: parseFloat(r.sales_val || 0),
+            units_val: parseFloat(r.units_val || 0),
+        };
+    });
+
+    // Derive current period label from startDate month
+    const userMonthLabel = filters.startDate
+        ? (() => {
+            const d = new Date(filters.startDate);
+            return `${d.toLocaleString('default', { month: 'short' })}-${String(d.getFullYear()).slice(-2)}`;
+          })()
+        : null;
+
+    // Query for exact current period
+    const currentQuery = `
         SELECT
             toString(${columnName}) AS dimension_value,
-            formatDateTime(toStartOfMonth(toDate(billing_date)), '%b-%y') AS month_label,
-            toStartOfMonth(toDate(billing_date)) AS month_start,
-            COALESCE(SUM(toFloat64OrZero(toString(${metricColumn}))), 0) AS value
-        FROM rb_primary_olap
+            COALESCE(SUM(toFloat64OrZero(toString(COALESCE(amount_inr, net_amount * 100000)))), 0) AS sales_val,
+            COALESCE(SUM(toInt64OrZero(toString(quantity))), 0) AS units_val
+        FROM ${table}
         WHERE billing_date IS NOT NULL
           AND ${columnName} IS NOT NULL
           AND toString(${columnName}) != ''
-          AND ${filterClause}
-        GROUP BY dimension_value, month_label, month_start
-        ORDER BY dimension_value ASC, month_start ASC
+          AND ${currentFilterClause}
+        GROUP BY dimension_value
+        ORDER BY dimension_value ASC
     `;
 
-    const rows = await queryClickHouse(query);
+    const currentRows = await queryClickHouse(currentQuery);
 
-    // Collect all unique months (ordered)
-    const monthSet = new Map(); // month_start -> month_label
-    rows.forEach(r => {
-        if (!monthSet.has(r.month_start)) {
-            monthSet.set(r.month_start, r.month_label);
+    // Merge current + comparison into pivot rows
+    const pivotMap = {};
+
+    // Add all entities from current period
+    currentRows.forEach(r => {
+        const dim = r.dimension_value || 'Unknown';
+        const sVal = parseFloat(r.sales_val || 0);
+        const uVal = parseFloat(r.units_val || 0);
+        const comp = compMap[dim] || { sales_val: 0, units_val: 0 };
+
+        pivotMap[dim] = {
+            name: dim,
+            rawName: dim,
+            sales_total: sVal,
+            units_total: uVal,
+        };
+
+        // Current period columns
+        if (userMonthLabel) {
+            pivotMap[dim][userMonthLabel] = metricType === 'Units' ? uVal : sVal;
+            pivotMap[dim][userMonthLabel + '_sales'] = sVal;
+            pivotMap[dim][userMonthLabel + '_units'] = uVal;
+        }
+
+        // Comparison period columns
+        if (compLabel) {
+            pivotMap[dim][compLabel] = metricType === 'Units' ? comp.units_val : comp.sales_val;
+            pivotMap[dim][compLabel + '_sales'] = comp.sales_val;
+            pivotMap[dim][compLabel + '_units'] = comp.units_val;
         }
     });
 
-    // Sort months chronologically
-    const sortedMonths = [...monthSet.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([, label]) => label);
-
-    // Build pivot: { dimensionValue -> { monthLabel -> value } }
-    const pivotMap = {};
-    rows.forEach(r => {
+    // Also add entities that ONLY appear in comparison period (not current) — for drainers
+    compRows.forEach(r => {
         const dim = r.dimension_value || 'Unknown';
         if (!pivotMap[dim]) {
-            pivotMap[dim] = { name: dim };
+            const comp = compMap[dim] || { sales_val: 0, units_val: 0 };
+            pivotMap[dim] = {
+                name: dim,
+                rawName: dim,
+                sales_total: 0,
+                units_total: 0,
+            };
+            if (userMonthLabel) {
+                pivotMap[dim][userMonthLabel] = 0;
+                pivotMap[dim][userMonthLabel + '_sales'] = 0;
+                pivotMap[dim][userMonthLabel + '_units'] = 0;
+            }
+            if (compLabel) {
+                pivotMap[dim][compLabel] = metricType === 'Units' ? comp.units_val : comp.sales_val;
+                pivotMap[dim][compLabel + '_sales'] = comp.sales_val;
+                pivotMap[dim][compLabel + '_units'] = comp.units_val;
+            }
         }
-        pivotMap[dim][r.month_label] = parseFloat(r.value || 0);
     });
 
-    // Fill missing months with null
-    const tableData = Object.values(pivotMap).map(row => {
-        sortedMonths.forEach(m => {
-            if (row[m] === undefined) row[m] = null;
-        });
-        return row;
-    });
+    const sortedMonths = userMonthLabel ? [userMonthLabel] : [];
+    const allSortedMonths = compLabel ? [compLabel, ...(userMonthLabel ? [userMonthLabel] : [])] : sortedMonths;
 
-    // Sort rows by total value descending
-    tableData.sort((a, b) => {
-        const totalA = sortedMonths.reduce((sum, m) => sum + (a[m] || 0), 0);
-        const totalB = sortedMonths.reduce((sum, m) => sum + (b[m] || 0), 0);
-        return totalB - totalA;
-    });
+    const tableData = Object.values(pivotMap);
+
+    // Sort by sales_total descending
+    tableData.sort((a, b) => (b.sales_total || 0) - (a.sales_total || 0));
 
     return {
         months: sortedMonths,
+        allMonths: allSortedMonths,
         data: tableData,
     };
 };
@@ -275,34 +527,187 @@ export const getPrimaryPivotTable = async (filters = {}, xAxis = 'customer_name'
  * Returns distinct values for each filter dropdown
  */
 export const getPrimaryFilterOptions = async (filters = {}) => {
+    const dbName = getCurrentDbName();
+    const table = `${dbName}.rb_primary_olap`;
+
     const brandClause = buildFilterClauseExcluding(filters, 'brandName');
     const retailerClause = buildFilterClauseExcluding(filters, 'retailerName');
     const productClause = buildFilterClauseExcluding(filters, 'product');
     const divisionClause = buildFilterClauseExcluding(filters, 'division');
     const zoneClause = buildFilterClauseExcluding(filters, 'zone');
     const locationClause = buildFilterClauseExcluding(filters, 'location');
-    const channelClause = buildFilterClauseExcluding(filters, 'channel');
-    const platformClause = buildFilterClauseExcluding(filters, 'platform');
 
-    const [brands, retailers, products, divisions, zones, locations, channels, platforms] = await Promise.all([
-        queryClickHouse(`SELECT DISTINCT toString(brand) AS val FROM rb_primary_olap WHERE brand IS NOT NULL AND toString(brand) != '' AND ${brandClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(customer_name) AS val FROM rb_primary_olap WHERE customer_name IS NOT NULL AND toString(customer_name) != '' AND ${retailerClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(product_description) AS val FROM rb_primary_olap WHERE product_description IS NOT NULL AND toString(product_description) != '' AND ${productClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(division) AS val FROM rb_primary_olap WHERE division IS NOT NULL AND toString(division) != '' AND ${divisionClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(zone) AS val FROM rb_primary_olap WHERE zone IS NOT NULL AND toString(zone) != '' AND ${zoneClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(location) AS val FROM rb_primary_olap WHERE location IS NOT NULL AND toString(location) != '' AND ${locationClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(channel) AS val FROM rb_primary_olap WHERE channel IS NOT NULL AND toString(channel) != '' AND ${channelClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(platform) AS val FROM rb_primary_olap WHERE platform IS NOT NULL AND toString(platform) != '' AND ${platformClause} ORDER BY val`),
+    const [brands, retailers, products, divisions, zones, locations, monthYears] = await Promise.all([
+        queryClickHouse(`SELECT DISTINCT toString(brand) AS val FROM ${table} WHERE brand IS NOT NULL AND toString(brand) != '' AND toString(brand) != '0' AND ${brandClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(customer_name) AS val FROM ${table} WHERE customer_name IS NOT NULL AND toString(customer_name) != '' AND toString(customer_name) != '0' AND ${retailerClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(product_description) AS val FROM ${table} WHERE product_description IS NOT NULL AND toString(product_description) != '' AND toString(product_description) != '0' AND ${productClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(division) AS val FROM ${table} WHERE division IS NOT NULL AND toString(division) != '' AND toString(division) != '0' AND ${divisionClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(zone) AS val FROM ${table} WHERE zone IS NOT NULL AND toString(zone) != '' AND toString(zone) != '0' AND ${zoneClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(location) AS val FROM ${table} WHERE location IS NOT NULL AND toString(location) != '' AND toString(location) != '0' AND ${locationClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT formatDateTime(toStartOfMonth(toDate(billing_date)), '%b-%y') AS val, toStartOfMonth(toDate(billing_date)) AS m_start FROM ${table} WHERE billing_date IS NOT NULL ORDER BY m_start ASC`),
     ]);
 
-    return {
-        brandName: brands.map(r => r.val).filter(Boolean),
-        retailerName: retailers.map(r => r.val).filter(Boolean),
-        product: products.map(r => r.val).filter(Boolean),
-        division: divisions.map(r => r.val).filter(Boolean),
-        zone: zones.map(r => r.val).filter(Boolean),
-        location: locations.map(r => r.val).filter(Boolean),
-        channel: channels.map(r => r.val).filter(Boolean),
-        platform: platforms.map(r => r.val).filter(Boolean),
+    const formatList = (arr) => {
+        const uniqueMap = new Map();
+        arr.forEach(r => {
+            if (!r.val) return;
+            const str = String(r.val).trim();
+            if (!str || str === '0' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') return;
+            const formatted = str.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+            if (!uniqueMap.has(formatted.toLowerCase())) {
+                uniqueMap.set(formatted.toLowerCase(), formatted);
+            }
+        });
+        return Array.from(uniqueMap.values()).sort();
     };
+
+    const brandList = formatList(brands);
+    const retailerList = formatList(retailers);
+    const productList = formatList(products);
+    const divisionList = formatList(divisions);
+    const zoneList = formatList(zones);
+    const locationList = formatList(locations);
+    const monthYearList = monthYears.map(r => r.val).filter(Boolean);
+    const fyList = ["FY2022-23", "FY2023-24", "FY2024-25", "FY2025-26", "FY2026-27"];
+
+    return {
+        brandName: brandList,
+        brands: brandList,
+        retailerName: retailerList,
+        retailers: retailerList,
+        product: productList,
+        products: productList,
+        division: divisionList,
+        divisions: divisionList,
+        zone: zoneList,
+        zones: zoneList,
+        location: locationList,
+        locations: locationList,
+        monthYears: monthYearList,
+        monthYear: monthYearList,
+        fyList: fyList,
+        fy: fyList,
+        channel: [],
+        platform: [],
+    };
+};
+
+/**
+ * Get top products or sub-items for a specific entity (Retailer/Brand/Product/Division/Zone)
+ * Supports multi-level hierarchical drilldowns: Retailer -> Zone -> Division -> Brand -> Product
+ */
+export const getPrimaryTopProducts = async (
+    filters = {},
+    entityName = '',
+    xAxis = 'Retailer Name',
+    metricType = 'MRP',
+    targetLevel = '',
+    retailerName = '',
+    zoneName = '',
+    divisionName = '',
+    brandName = ''
+) => {
+    const dbName = getCurrentDbName();
+    const table = `${dbName}.rb_primary_olap`;
+
+    let parentCol = 'customer_name';
+    let targetCol = 'product_description';
+
+    const normalizedX = (xAxis || '').toLowerCase();
+
+    if (targetLevel) {
+        // Map targetLevel to actual DB column names
+        const targetLevelMap = {
+            'product': 'product_description',
+            'brand': 'brand',
+            'division': 'division',
+            'zone': 'zone',
+            'retailer': 'customer_name',
+        };
+        targetCol = targetLevelMap[targetLevel.toLowerCase()] || targetLevel;
+    } else {
+        if (normalizedX.includes('brand')) {
+            parentCol = 'brand';
+            targetCol = 'product_description';
+        } else if (normalizedX.includes('product')) {
+            parentCol = 'product_description';
+            targetCol = 'customer_name';
+        } else if (normalizedX.includes('division')) {
+            parentCol = 'division';
+            targetCol = 'product_description';
+        } else if (normalizedX.includes('zone')) {
+            parentCol = 'zone';
+            targetCol = 'division';
+        } else {
+            parentCol = 'customer_name';
+            targetCol = 'zone';
+        }
+    }
+
+    // Keep base filters (dates, location, channel, platform) but strip dimension filters
+    // since those are applied via parentConditions below
+    const scopedFilters = { ...filters };
+    delete scopedFilters.retailerName;
+    delete scopedFilters.zone;
+    delete scopedFilters.division;
+    delete scopedFilters.brandName;
+    delete scopedFilters.product;
+
+    const metricColumn = getMetricColumn(metricType);
+    const filterClause = buildFilterClause(scopedFilters, false);
+
+    // Build hierarchical parent conditions
+    let parentConditions = '';
+    if (retailerName) {
+        const cleanName = escapeCH(retailerName.trim());
+        parentConditions += ` AND (lower(trim(toString(customer_name))) = lower(trim('${cleanName}')) OR lower(toString(customer_name)) LIKE lower('${cleanName}%'))`;
+    }
+    if (zoneName) {
+        const cleanZone = escapeCH(zoneName.trim());
+        parentConditions += ` AND lower(trim(toString(zone))) = lower(trim('${cleanZone}'))`;
+    }
+    if (divisionName) {
+        const cleanDiv = escapeCH(divisionName.trim());
+        parentConditions += ` AND lower(trim(toString(division))) = lower(trim('${cleanDiv}'))`;
+    }
+    if (brandName) {
+        const cleanBrand = escapeCH(brandName.trim());
+        parentConditions += ` AND lower(trim(toString(brand))) = lower(trim('${cleanBrand}'))`;
+    }
+
+    // Fallback if no specific parent level conditions were passed but entityName was
+    if (!parentConditions && entityName) {
+        if (normalizedX.includes('brand')) parentCol = 'brand';
+        else if (normalizedX.includes('product')) parentCol = 'product_description';
+        else if (normalizedX.includes('division')) parentCol = 'division';
+        else if (normalizedX.includes('zone')) parentCol = 'zone';
+        else parentCol = 'customer_name';
+
+        const cleanEntity = escapeCH(entityName.trim());
+        parentConditions = ` AND (lower(trim(toString(${parentCol}))) = lower(trim('${cleanEntity}')) OR lower(toString(${parentCol})) LIKE lower('${cleanEntity}%'))`;
+    }
+
+    const query = `
+        SELECT
+            toString(${targetCol}) AS sub_name,
+            COALESCE(SUM(toFloat64OrZero(toString(COALESCE(amount_inr, net_amount * 100000)))), 0) AS sales_val,
+            COALESCE(SUM(toInt64OrZero(toString(quantity))), 0) AS units_val
+        FROM ${table}
+        WHERE ${targetCol} IS NOT NULL
+          AND toString(${targetCol}) != ''
+          AND toString(${targetCol}) != '0'
+          AND ${filterClause}
+          ${parentConditions}
+        GROUP BY sub_name
+        ORDER BY sales_val DESC
+        LIMIT 10
+    `;
+
+    const rows = await queryClickHouse(query);
+    return rows.map(r => ({
+        name: r.sub_name ? r.sub_name.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : 'Unknown',
+        val: parseFloat(r.sales_val || 0),
+        unitsVal: parseFloat(r.units_val || 0),
+        rawName: r.sub_name,
+    }));
 };

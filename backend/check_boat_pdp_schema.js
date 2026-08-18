@@ -6,9 +6,10 @@ async function check() {
     try {
         const res = await queryAdminDB("DESCRIBE boat.rb_pdp_olap");
         console.log("Columns:", res.map(r => r.name));
-    } catch(e) {
+    } catch (e) {
         console.error(e);
     }
     process.exit(0);
 }
 check();
+
