@@ -7920,6 +7920,20 @@ const getKpiTrends = async (filters) => {
     let includeBuyMore = true;
     const nonBuyMoreList = resellerList.filter(r => !(r.includes('buy') || r.includes('more')));
 
+    // For DRL: buymore data should ONLY be included for Amazon/Flipkart platforms, not for quick commerce
+    if (isDrlDb) {
+        const quickCommPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow'];
+        const selectedPlatforms = platArr.map(p => p.toLowerCase());
+        const isOnlyQuickComm = selectedPlatforms.length > 0 && selectedPlatforms.every(p => quickCommPlatforms.includes(p));
+        const hasEcomm = selectedPlatforms.length === 0 || selectedPlatforms.includes('amazon') || selectedPlatforms.includes('flipkart');
+        
+        if (isOnlyQuickComm) {
+            includeBuyMore = false;
+        } else if (!hasEcomm) {
+            includeBuyMore = false;
+        }
+    }
+
     if (isDrlDb && resellerList.length > 0) {
         const hasBuy = resellerList.some(r => r.includes('buy') || r.includes('more'));
         const hasOther = nonBuyMoreList.length > 0;
@@ -7967,7 +7981,7 @@ const getKpiTrends = async (filters) => {
                 SUM(${src.f.sellingPrice}) as sum_selling_price,
                 0 as sum_weight
             FROM ${src.table}
-            WHERE ${kpiConds} ${(isDrlDb && nonBuyMoreList.length > 0) ? `AND lower(trim(Reseller_Name)) IN (${nonBuyMoreList.map(r => `'${escapeStr(r)}'`).join(', ')})` : ''}
+            WHERE ${kpiConds} ${(isDrlDb && nonBuyMoreList.length > 0) ? `AND lower(trim(Reseller_Name)) IN (${nonBuyMoreList.map(r => `'${escapeStr(r)}'`).join(', ')})` : ''} ${(isDrlDb && includeBuyMore && includeOtherResellers && nonBuyMoreList.length === 0) ? `AND (lower(trim(Reseller_Name)) NOT LIKE '%buy%more%' OR Reseller_Name IS NULL OR Reseller_Name = '')` : ''}
             GROUP BY date_group
             ORDER BY ref_date ASC
         `),
@@ -8486,28 +8500,48 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
         if (filterType === 'resellerNames') {
             const currentDb = getCurrentDbName() || 'drl';
             const table = (currentDb === 'drl' || currentDb === 'prestige') ? `${currentDb}.rb_pdp_olap` : src.table;
+            const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+            const platformFilter = (platform && platform !== 'All') ? escapeStr(platform.toLowerCase()) : 'amazon';
 
-            const query = `
-                SELECT DISTINCT Reseller_Name
-                FROM ${table}
-                WHERE lower(Platform) = 'amazon'
-                  AND buy_box_neno_osa > 0
-                  AND (toString(Comp_flag) = '0' OR toString(flag) = '0')
-                  AND Reseller_Name IS NOT NULL
-                  AND Reseller_Name != ''
-                ORDER BY Reseller_Name
-            `;
+            let query;
+            if (platformFilter === 'flipkart') {
+                // Flipkart: use Comp_flag=0 AND Sales>0
+                query = `
+                    SELECT DISTINCT Reseller_Name
+                    FROM ${table}
+                    WHERE buy_box_neno_osa > 0
+                      AND lower(Platform) = 'flipkart'
+                      AND toString(Comp_flag) = '0'
+                      AND Sales > 0
+                      AND Reseller_Name IS NOT NULL
+                      AND Reseller_Name != ''
+                    ORDER BY Reseller_Name
+                `;
+            } else {
+                // Amazon (default): same logic
+                query = `
+                    SELECT DISTINCT Reseller_Name
+                    FROM ${table}
+                    WHERE buy_box_neno_osa > 0
+                      AND lower(Platform) = '${platformFilter}'
+                      AND toString(Comp_flag) = '0'
+                      AND Sales > 0
+                      AND Reseller_Name IS NOT NULL
+                      AND Reseller_Name != ''
+                    ORDER BY Reseller_Name
+                `;
+            }
             try {
                 const results = await queryClickHouse(query);
                 let resellerList = results.map(r => r.Reseller_Name).filter(Boolean);
-                const hasBuyMore = resellerList.some(r => r.toLowerCase().includes('buy') || r.toLowerCase().includes('more'));
+                const hasBuyMore = resellerList.some(r => r.toLowerCase().includes('buy') && r.toLowerCase().includes('more'));
                 if (!hasBuyMore) {
                     resellerList.unshift('buy more');
                 }
                 return { options: resellerList };
             } catch (err) {
                 console.error('[getTrendsFilterOptions] Error executing reseller options query:', err);
-                return { options: ['buy more', 'rk world infocom pvt ltd'] };
+                return { options: ['buy more'] };
             }
         }
 

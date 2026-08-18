@@ -749,10 +749,11 @@ export default function TrendsCompetitionDrawer({
     return db === 'drl';
   })();
   const [resellerOptions, setResellerOptions] = useState([]);
-  const isAmazonPlatform = (drawerFilters.Platform || '').toLowerCase() === 'amazon';
-  const shouldShowResellerFilter = isDrlUser && isAmazonPlatform;
+  const selectedPlatformLower = (drawerFilters.Platform || '').toLowerCase();
+  const isEcommPlatform = selectedPlatformLower === 'amazon' || selectedPlatformLower === 'flipkart';
+  const shouldShowResellerFilter = isDrlUser && isEcommPlatform;
 
-  // Fetch reseller name options dynamically from ClickHouse for Amazon (DRL only)
+  // Fetch reseller name options dynamically from ClickHouse for Amazon/Flipkart (DRL only)
   useEffect(() => {
     if (!open || !shouldShowResellerFilter) {
       setResellerOptions([]);
@@ -761,7 +762,7 @@ export default function TrendsCompetitionDrawer({
     const fetchResellerOptions = async () => {
       try {
         const res = await axiosInstance.get('/watchtower/trends-filter-options', {
-          params: { filterType: 'resellerNames', platform: 'amazon' }
+          params: { filterType: 'resellerNames', platform: selectedPlatformLower }
         });
         if (res.data?.options) {
           setResellerOptions(res.data.options);
@@ -771,7 +772,7 @@ export default function TrendsCompetitionDrawer({
       }
     };
     fetchResellerOptions();
-  }, [open, shouldShowResellerFilter]);
+  }, [open, shouldShowResellerFilter, selectedPlatformLower]);
 
   const prevPropsRef = useRef({
     open: false,
