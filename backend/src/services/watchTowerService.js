@@ -5488,6 +5488,16 @@ const getPlatformOverview = async (filters) => {
     const prevSosConds = buildSosConds(momStart, momEnd);
 
 
+    const dbNameForOverview = getCurrentDbName();
+    const isDrlDb = dbNameForOverview === 'drl';
+
+    const drlExcludeBuyMoreCond = (isDrlDb)
+        ? ` AND (lower(${src.f.platform}) NOT IN ('amazon', 'flipkart') OR lower(trim(Reseller_Name)) NOT LIKE '%buy%more%' OR Reseller_Name IS NULL OR Reseller_Name = '')`
+        : '';
+
+    const currOfftakeCondsWithDrl = currOfftakeConds + drlExcludeBuyMoreCond;
+    const prevOfftakeCondsWithDrl = prevOfftakeConds + drlExcludeBuyMoreCond;
+
     // Get valid brand names for market share
     const validBrandResult = await queryClickHouse(`
             SELECT DISTINCT brand_name 
@@ -5532,7 +5542,7 @@ const getPlatformOverview = async (filters) => {
                         AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
                     FROM ${src.table}
-                    WHERE ${currOfftakeConds}
+                    WHERE ${currOfftakeCondsWithDrl}
                     GROUP BY Platform
                 `),
         // Query 2: Previous period offtake metrics by platform
@@ -5549,7 +5559,7 @@ const getPlatformOverview = async (filters) => {
                         AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
                     FROM ${src.table}
-                    WHERE ${prevOfftakeConds}
+                    WHERE ${prevOfftakeCondsWithDrl}
                     GROUP BY Platform
                 `),
         // Query 2.1: Current Marketing Metrics from PM table
@@ -5784,6 +5794,52 @@ const getPlatformOverview = async (filters) => {
         getPmConversionBulk(momStart, momEnd, platformArr, locationArr, rawCategory, brandArr, channel, 'lower(Platform)')
     ]);
 
+    let currBuymoreMap = new Map();
+    let prevBuymoreMap = new Map();
+
+    if (isDrlDb) {
+        const buildBuymoreCondsForOverview = (sDate, eDate) => {
+            const conds = [`toDate(DATE) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
+            if (rawCategory && rawCategory !== 'All') conds.push(`lower(trim(BOTH '\t\n ' FROM category)) = '${escapeStr(rawCategory.toLowerCase())}'`);
+            if (brandArr && brandArr.length > 0) {
+                const brandConditions = brandArr.map(b => `lower(brand) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ');
+                conds.push(`(${brandConditions})`);
+            }
+            if (locationArr && locationArr.length > 0) conds.push(`lower(Location) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            if (platformArr && platformArr.length > 0) conds.push(`lower(Platform) IN (${platformArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+            else conds.push(`lower(Platform) IN ('amazon', 'flipkart')`);
+
+            const validStatuses = [
+                'shiplable generated', 'pickup_complete', 'pickup pending', 'payment success',
+                'packed', 'ndr/npr', 'shipment_issue', 'out for delivery', 'in transit',
+                'drs prepared', 'dispatched', 'delivered', 'created'
+            ];
+            conds.push(`lower(trim(Status)) IN (${validStatuses.map(s => `'${escapeStr(s.toLowerCase())}'`).join(', ')})`);
+            return conds.join(' AND ');
+        };
+
+        try {
+            const [currBmRes, prevBmRes] = await Promise.all([
+                queryClickHouse(`
+                    SELECT lower(Platform) as platform, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales
+                    FROM drl.buymore_rb_pdp_olap
+                    WHERE ${buildBuymoreCondsForOverview(startDate, endDate)}
+                    GROUP BY platform
+                `),
+                queryClickHouse(`
+                    SELECT lower(Platform) as platform, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales
+                    FROM drl.buymore_rb_pdp_olap
+                    WHERE ${buildBuymoreCondsForOverview(momStart, momEnd)}
+                    GROUP BY platform
+                `)
+            ]);
+            currBmRes.forEach(r => currBuymoreMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_sales || 0)));
+            prevBmRes.forEach(r => prevBuymoreMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_sales || 0)));
+        } catch (err) {
+            console.error('[getPlatformOverview] Error querying buymore_rb_pdp_olap:', err);
+        }
+    }
+
     // Build bulk platform metrics map
     const bulkPlatformMap = new Map();
     platformDefinitions.forEach(p => {
@@ -5792,6 +5848,14 @@ const getPlatformOverview = async (filters) => {
         const pv = prevData.find(d => d.Platform && d.Platform.toLowerCase() === key);
         const cpmVal = currPmData.find(d => d.Platform && d.Platform.toLowerCase() === key);
         const pvpmVal = prevPmData.find(d => d.Platform && d.Platform.toLowerCase() === key);
+
+        let currSalesVal = parseFloat(c?.sales || 0);
+        let prevSalesVal = parseFloat(pv?.sales || 0);
+
+        if (isDrlDb && (key === 'amazon' || key === 'flipkart')) {
+            currSalesVal += (currBuymoreMap.get(key) || 0);
+            prevSalesVal += (prevBuymoreMap.get(key) || 0);
+        }
 
         // Calculate SOS for this platform
         const currSosValue = calcSos(currSosOurMap.get(key) || 0, currSosTotalMap.get(key) || 0);
@@ -5811,7 +5875,7 @@ const getPlatformOverview = async (filters) => {
 
         bulkPlatformMap.set(p.label, {
             curr: {
-                sales: parseFloat(c?.sales || 0),
+                sales: currSalesVal,
                 qty: parseFloat(c?.qty || 0),
                 spend: parseFloat(cpmVal?.spend || 0),
                 adSales: parseFloat(cpmVal?.Ad_sales || 0),
@@ -5834,7 +5898,7 @@ const getPlatformOverview = async (filters) => {
                 myWtDiscount: parseFloat(c?.my_wt_discount || 0)
             },
             prev: {
-                sales: parseFloat(pv?.sales || 0),
+                sales: prevSalesVal,
                 qty: parseFloat(pv?.qty || 0),
                 spend: parseFloat(pvpmVal?.spend || 0),
                 adSales: parseFloat(pvpmVal?.Ad_sales || 0),
@@ -6192,7 +6256,7 @@ const getPlatformOverview = async (filters) => {
         const key = p.label.toLowerCase();
         const metrics = bulkPlatformMap.get(p.label) || { curr: {}, prev: {} };
 
-        const hasPdp = currData.some(d => d.Platform && d.Platform.toLowerCase() === key);
+        const hasPdp = currData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && (key === 'amazon' || key === 'flipkart') && (currBuymoreMap.get(key) || 0) > 0);
         const hasPm = currPmData.some(d => d.Platform && d.Platform.toLowerCase() === key);
         const hasMsCheck = currMsMap.has(key) || currMsDenomMap.has(key);
         const hasSosCheck = currSosOurMap.has(key) || currSosTotalMap.has(key);
@@ -6233,7 +6297,7 @@ const getPlatformOverview = async (filters) => {
         const asp = hasPdp ? (metrics.curr.asp ?? null) : null;
 
         // Previous period
-        const prevHasPdp = prevData.some(d => d.Platform && d.Platform.toLowerCase() === key);
+        const prevHasPdp = prevData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && (key === 'amazon' || key === 'flipkart') && (prevBuymoreMap.get(key) || 0) > 0);
         const prevHasPm = prevPmData.some(d => d.Platform && d.Platform.toLowerCase() === key);
         const prevHasMsCheck = prevMsMap.has(key) || prevMsDenomMap.has(key);
         const prevHasSosCheck = prevSosOurMap.has(key) || prevSosTotalMap.has(key);
@@ -7920,6 +7984,20 @@ const getKpiTrends = async (filters) => {
     let includeBuyMore = true;
     const nonBuyMoreList = resellerList.filter(r => !(r.includes('buy') || r.includes('more')));
 
+    // For DRL: buymore data should ONLY be included for Amazon/Flipkart platforms, not for quick commerce
+    if (isDrlDb) {
+        const quickCommPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow'];
+        const selectedPlatforms = platArr.map(p => p.toLowerCase());
+        const isOnlyQuickComm = selectedPlatforms.length > 0 && selectedPlatforms.every(p => quickCommPlatforms.includes(p));
+        const hasEcomm = selectedPlatforms.length === 0 || selectedPlatforms.includes('amazon') || selectedPlatforms.includes('flipkart');
+        
+        if (isOnlyQuickComm) {
+            includeBuyMore = false;
+        } else if (!hasEcomm) {
+            includeBuyMore = false;
+        }
+    }
+
     if (isDrlDb && resellerList.length > 0) {
         const hasBuy = resellerList.some(r => r.includes('buy') || r.includes('more'));
         const hasOther = nonBuyMoreList.length > 0;
@@ -7967,7 +8045,7 @@ const getKpiTrends = async (filters) => {
                 SUM(${src.f.sellingPrice}) as sum_selling_price,
                 0 as sum_weight
             FROM ${src.table}
-            WHERE ${kpiConds} ${(isDrlDb && nonBuyMoreList.length > 0) ? `AND lower(trim(Reseller_Name)) IN (${nonBuyMoreList.map(r => `'${escapeStr(r)}'`).join(', ')})` : ''}
+            WHERE ${kpiConds} ${(isDrlDb && nonBuyMoreList.length > 0) ? `AND lower(trim(Reseller_Name)) IN (${nonBuyMoreList.map(r => `'${escapeStr(r)}'`).join(', ')})` : ''} ${(isDrlDb && includeBuyMore && includeOtherResellers && nonBuyMoreList.length === 0) ? `AND (lower(trim(Reseller_Name)) NOT LIKE '%buy%more%' OR Reseller_Name IS NULL OR Reseller_Name = '')` : ''}
             GROUP BY date_group
             ORDER BY ref_date ASC
         `),
@@ -8486,28 +8564,48 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
         if (filterType === 'resellerNames') {
             const currentDb = getCurrentDbName() || 'drl';
             const table = (currentDb === 'drl' || currentDb === 'prestige') ? `${currentDb}.rb_pdp_olap` : src.table;
+            const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+            const platformFilter = (platform && platform !== 'All') ? escapeStr(platform.toLowerCase()) : 'amazon';
 
-            const query = `
-                SELECT DISTINCT Reseller_Name
-                FROM ${table}
-                WHERE lower(Platform) = 'amazon'
-                  AND buy_box_neno_osa > 0
-                  AND (toString(Comp_flag) = '0' OR toString(flag) = '0')
-                  AND Reseller_Name IS NOT NULL
-                  AND Reseller_Name != ''
-                ORDER BY Reseller_Name
-            `;
+            let query;
+            if (platformFilter === 'flipkart') {
+                // Flipkart: use Comp_flag=0 AND Sales>0
+                query = `
+                    SELECT DISTINCT Reseller_Name
+                    FROM ${table}
+                    WHERE buy_box_neno_osa > 0
+                      AND lower(Platform) = 'flipkart'
+                      AND toString(Comp_flag) = '0'
+                      AND Sales > 0
+                      AND Reseller_Name IS NOT NULL
+                      AND Reseller_Name != ''
+                    ORDER BY Reseller_Name
+                `;
+            } else {
+                // Amazon (default): same logic
+                query = `
+                    SELECT DISTINCT Reseller_Name
+                    FROM ${table}
+                    WHERE buy_box_neno_osa > 0
+                      AND lower(Platform) = '${platformFilter}'
+                      AND toString(Comp_flag) = '0'
+                      AND Sales > 0
+                      AND Reseller_Name IS NOT NULL
+                      AND Reseller_Name != ''
+                    ORDER BY Reseller_Name
+                `;
+            }
             try {
                 const results = await queryClickHouse(query);
                 let resellerList = results.map(r => r.Reseller_Name).filter(Boolean);
-                const hasBuyMore = resellerList.some(r => r.toLowerCase().includes('buy') || r.toLowerCase().includes('more'));
+                const hasBuyMore = resellerList.some(r => r.toLowerCase().includes('buy') && r.toLowerCase().includes('more'));
                 if (!hasBuyMore) {
                     resellerList.unshift('buy more');
                 }
                 return { options: resellerList };
             } catch (err) {
                 console.error('[getTrendsFilterOptions] Error executing reseller options query:', err);
-                return { options: ['buy more', 'rk world infocom pvt ltd'] };
+                return { options: ['buy more'] };
             }
         }
 
