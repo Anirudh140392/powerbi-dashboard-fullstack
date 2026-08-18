@@ -5490,9 +5490,10 @@ const getPlatformOverview = async (filters) => {
 
     const dbNameForOverview = getCurrentDbName();
     const isDrlDb = dbNameForOverview === 'drl';
+    const buymorePlatforms = ['amazon', 'flipkart', 'jiomart', 'meesho', 'myntra', 'pharmeasy', 'shopify'];
 
     const drlExcludeBuyMoreCond = (isDrlDb)
-        ? ` AND (lower(${src.f.platform}) NOT IN ('amazon', 'flipkart') OR lower(trim(Reseller_Name)) NOT LIKE '%buy%more%' OR Reseller_Name IS NULL OR Reseller_Name = '')`
+        ? ` AND (lower(${src.f.platform}) NOT IN (${buymorePlatforms.map(p => `'${p}'`).join(', ')}) OR lower(trim(Reseller_Name)) NOT LIKE '%buy%more%' OR Reseller_Name IS NULL OR Reseller_Name = '')`
         : '';
 
     const currOfftakeCondsWithDrl = currOfftakeConds + drlExcludeBuyMoreCond;
@@ -5809,7 +5810,7 @@ const getPlatformOverview = async (filters) => {
             }
             if (locationArr && locationArr.length > 0) conds.push(`lower(Location) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
             if (platformArr && platformArr.length > 0) conds.push(`lower(Platform) IN (${platformArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
-            else conds.push(`lower(Platform) IN ('amazon', 'flipkart')`);
+            else conds.push(`lower(Platform) IN (${buymorePlatforms.map(p => `'${p}'`).join(', ')})`);
 
             const validStatuses = [
                 'shiplable generated', 'pickup_complete', 'pickup pending', 'payment success',
@@ -5866,7 +5867,7 @@ const getPlatformOverview = async (filters) => {
         let currQtyVal = parseFloat(c?.qty || 0);
         let prevQtyVal = parseFloat(pv?.qty || 0);
 
-        if (isDrlDb && (key === 'amazon' || key === 'flipkart')) {
+        if (isDrlDb && buymorePlatforms.includes(key)) {
             currSalesVal += (currBuymoreMap.get(key) || 0);
             prevSalesVal += (prevBuymoreMap.get(key) || 0);
             currQtyVal += (currBuymoreQtyMap.get(key) || 0);
@@ -6272,7 +6273,7 @@ const getPlatformOverview = async (filters) => {
         const key = p.label.toLowerCase();
         const metrics = bulkPlatformMap.get(p.label) || { curr: {}, prev: {} };
 
-        const hasPdp = currData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && (key === 'amazon' || key === 'flipkart') && (currBuymoreMap.get(key) || 0) > 0);
+        const hasPdp = currData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && buymorePlatforms.includes(key) && (currBuymoreMap.get(key) || 0) > 0);
         const hasPm = currPmData.some(d => d.Platform && d.Platform.toLowerCase() === key);
         const hasMsCheck = currMsMap.has(key) || currMsDenomMap.has(key);
         const hasSosCheck = currSosOurMap.has(key) || currSosTotalMap.has(key);
@@ -6313,7 +6314,7 @@ const getPlatformOverview = async (filters) => {
         const asp = hasPdp ? (metrics.curr.asp ?? null) : null;
 
         // Previous period
-        const prevHasPdp = prevData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && (key === 'amazon' || key === 'flipkart') && (prevBuymoreMap.get(key) || 0) > 0);
+        const prevHasPdp = prevData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && buymorePlatforms.includes(key) && (prevBuymoreMap.get(key) || 0) > 0);
         const prevHasPm = prevPmData.some(d => d.Platform && d.Platform.toLowerCase() === key);
         const prevHasMsCheck = prevMsMap.has(key) || prevMsDenomMap.has(key);
         const prevHasSosCheck = prevSosOurMap.has(key) || prevSosTotalMap.has(key);
@@ -8000,12 +8001,13 @@ const getKpiTrends = async (filters) => {
     let includeBuyMore = true;
     const nonBuyMoreList = resellerList.filter(r => !(r.includes('buy') || r.includes('more')));
 
-    // For DRL: buymore data should ONLY be included for Amazon/Flipkart platforms, not for quick commerce
+    // For DRL: buymore data should ONLY be included for e-commerce platforms, not for quick commerce
     if (isDrlDb) {
         const quickCommPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow'];
+        const ecommPlatforms = ['amazon', 'flipkart', 'jiomart', 'meesho', 'myntra', 'pharmeasy', 'shopify'];
         const selectedPlatforms = platArr.map(p => p.toLowerCase());
         const isOnlyQuickComm = selectedPlatforms.length > 0 && selectedPlatforms.every(p => quickCommPlatforms.includes(p));
-        const hasEcomm = selectedPlatforms.length === 0 || selectedPlatforms.includes('amazon') || selectedPlatforms.includes('flipkart');
+        const hasEcomm = selectedPlatforms.length === 0 || selectedPlatforms.some(p => ecommPlatforms.includes(p));
         
         if (isOnlyQuickComm) {
             includeBuyMore = false;
