@@ -184,7 +184,7 @@ export const FilterProvider = ({ children }) => {
             const isMarketShare = path.includes('/market-share');
             const isVisibility = path.includes('/visibility-anlysis') || path.includes('/visibility-analysis');
             const isSecondary = path.includes('/secondary');
-            const isPrimary = path.includes('/primary') || path.includes('/watch-tower') || path.includes('/watchtower');
+            const isPrimary = path.includes('/primary') && !path.includes('/watch-tower') && !path.includes('/watchtower');
 
             let endpoint;
             let pageLabel;

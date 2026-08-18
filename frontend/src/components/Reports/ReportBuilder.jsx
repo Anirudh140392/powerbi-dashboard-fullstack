@@ -109,7 +109,7 @@ const PLATFORM_UNAVAILABLE_KPIS = {
 const PAGE_METRICS = [
   {
     key: "Business Overview", label: "Business Overview", icon: <DashboardIcon />, color: "#4F46E5",
-    tags: ["Offtake", "Quantity Sold", "Orders", "Listing %", "Inorganic Sales", "ROAS", "Conversion Rate", "CPM", "CPC"],
+    tags: ["Offtake", "Quantity Sold", "Orders", "Listing %", "Inorganic Sales", "ROAS", "Conversion Rate", "CPM", "CPC", "Buy Box %"],
     activeInSidebar: true
   },
   {
@@ -119,7 +119,7 @@ const PAGE_METRICS = [
   },
   {
     key: "Availability Analysis", label: "Availability Analysis", icon: <InventoryIcon />, color: "#10B981",
-    tags: ["OSA %", "DOI", "PSL", "Assortment"],
+    tags: ["OSA %", "Buy Box %", "DOI", "PSL", "Assortment"],
     activeInSidebar: true
   },
   {
@@ -250,6 +250,16 @@ export default function ReportBuilder({
   const [time, setTime] = useState("Daily");
   const [filters, setFilters] = useState(["Category", "Brand", "City"]);
   const [showFilterOpts, setShowFilterOpts] = useState(false);
+  const isDrl = user?.dbName?.toLowerCase() === 'drl';
+  const [dataMode, setDataMode] = useState("aggregated"); // "aggregated" | "darkstore"
+
+  // Sync date range bounds when switching dataMode to darkstore for DRL
+  useEffect(() => {
+    if (dataMode === 'darkstore' && builderOptions?.darkstoreDateRange) {
+      setStartDate(dayjs(builderOptions.darkstoreDateRange.minDate));
+      setEndDate(dayjs(builderOptions.darkstoreDateRange.maxDate));
+    }
+  }, [dataMode, builderOptions?.darkstoreDateRange]);
 
   // ── Filter PAGE_METRICS to only show available report types and allowed permissions ──
   const visibleMetrics = useMemo(() => {
@@ -391,7 +401,8 @@ export default function ReportBuilder({
     };
 
     parentHandleDownload({
-      reportType: "Master Dump",
+      reportType: dataMode === "darkstore" ? "Darkstore Data" : "Master Dump",
+      dataMode: dataMode,
       metrics: activeTags,
       dimensions: activeDimensions,
       platform: platformOverride,
@@ -652,60 +663,119 @@ export default function ReportBuilder({
                   <Typography variant="h6" sx={{ fontWeight: 700, color: "#1E293B", mb: 0.5 }}>Choose Metrics</Typography>
                   <Typography variant="body2" sx={{ color: "#64748B", mb: 3 }}>Select the KPIs you want to include in your export</Typography>
 
-                  <Card elevation={0} sx={{ border: "1px solid #E2E8F0", borderRadius: "14px", overflow: "hidden" }}>
-                    <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <AssessmentIcon sx={{ color: '#4F46E5', fontSize: '1.2rem' }} />
-                        <Typography sx={{ fontWeight: 600, color: '#1E293B', fontSize: '0.95rem' }}>Available Metrics</Typography>
+                  {/* Data Source Toggle for DRL */}
+                  {isDrl && (
+                    <Box sx={{ mb: 3, p: 2, borderRadius: "14px", background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: "#1E293B", mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                        <StoreIcon sx={{ color: "#4F46E5", fontSize: 20 }} /> Data Source Option (DRL Only)
+                      </Typography>
+                      <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+                        <Button
+                          variant={dataMode === "aggregated" ? "contained" : "outlined"}
+                          onClick={() => setDataMode("aggregated")}
+                          sx={{
+                            textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                            background: dataMode === "aggregated" ? "linear-gradient(135deg, #4F46E5, #3730A3)" : "white",
+                            color: dataMode === "aggregated" ? "white" : "#64748B",
+                            borderColor: dataMode === "aggregated" ? "#4F46E5" : "#CBD5E1",
+                            "&:hover": { background: dataMode === "aggregated" ? "linear-gradient(135deg, #4338CA, #312E81)" : "#F1F5F9" }
+                          }}
+                        >
+                          Aggregated Data (rb_pdp_olap)
+                        </Button>
+                        <Button
+                          variant={dataMode === "darkstore" ? "contained" : "outlined"}
+                          onClick={() => setDataMode("darkstore")}
+                          sx={{
+                            textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                            background: dataMode === "darkstore" ? "linear-gradient(135deg, #0EA5E9, #0284C7)" : "white",
+                            color: dataMode === "darkstore" ? "white" : "#64748B",
+                            borderColor: dataMode === "darkstore" ? "#0EA5E9" : "#CBD5E1",
+                            "&:hover": { background: dataMode === "darkstore" ? "linear-gradient(135deg, #0284C7, #0369A1)" : "#F1F5F9" }
+                          }}
+                        >
+                          Darkstore Data (rb_pdp_week)
+                        </Button>
                       </Box>
-                      <Button
-                        onClick={() => {
-                          const availableTags = allTags.filter(t => availableKpis.has(t));
-                          const allOn = availableTags.every(t => tagOn[t]);
-                          const next = {};
-                          availableTags.forEach(t => { next[t] = !allOn; });
-                          setTagOn(prev => ({ ...prev, ...next }));
-                        }}
-                        sx={{ textTransform: "none", fontSize: 13, fontWeight: 700, px: 1.5, py: 0.5 }}
-                      >
-                        {allTags.filter(t => availableKpis.has(t)).every(t => tagOn[t]) ? "Deselect All" : "Select All"}
-                      </Button>
                     </Box>
-                    <Box sx={{ px: 2.5, py: 3, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {allTags.map(tag => {
-                        const isAvailable = availableKpis.has(tag);
-                        const isOn = tagOn[tag] && isAvailable;
-                        return (
-                          <Chip
-                            key={tag}
-                            label={
-                              <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-                                {tag}
-                                {!isAvailable && (
-                                  <Box component="span" sx={{ ml: 0.3, px: 0.6, py: 0.1, borderRadius: '4px', backgroundColor: '#FEF3C7', color: '#92400E', fontSize: '9px', fontWeight: 700, letterSpacing: '0.05em' }}>
-                                    N/A
-                                  </Box>
-                                )}
-                              </Box>
-                            }
-                            onClick={isAvailable ? () => setTagOn(prev => ({ ...prev, [tag]: !prev[tag] })) : undefined}
-                            sx={{
-                              borderRadius: '8px',
-                              fontWeight: 500,
-                              cursor: isAvailable ? 'pointer' : 'not-allowed',
-                              opacity: isAvailable ? 1 : 0.55,
-                              border: isOn ? '1px solid #c7d2fe' : '1px solid #E2E8F0',
-                              background: isOn ? '#EEF2FF' : isAvailable ? '#fff' : '#F8FAFC',
-                              color: isOn ? '#4F46E5' : isAvailable ? '#64748B' : '#94A3B8',
-                              '&:hover': {
-                                background: !isAvailable ? '#F8FAFC' : isOn ? '#E0E7FF' : '#F1F5F9'
+                  )}
+
+                  {dataMode === "darkstore" ? (
+                    <Card elevation={0} sx={{ border: "1.5px solid #0EA5E9", borderRadius: "14px", overflow: "hidden", p: 3, background: "#F0F9FF" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 }}>
+                        <StoreIcon sx={{ color: "#0EA5E9", fontSize: 24 }} />
+                        <Typography sx={{ fontWeight: 700, color: "#0369A1", fontSize: "1.05rem" }}>
+                          Darkstore Raw Data Export (rb_pdp_week)
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" sx={{ color: "#0284C7", mb: 2 }}>
+                        This report will export raw darkstore records from <strong>rb_pdp_week</strong> including the following 12 columns:
+                      </Typography>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                        {[
+                          "created_on", "platform", "brand", "category", "location",
+                          "pincode", "pincode_area", "web_pid", "sku", "pdp_page_url", "osa", "osa_remark"
+                        ].map((col) => (
+                          <Chip key={col} label={col} size="small" sx={{ background: "#E0F2FE", color: "#0369A1", fontWeight: 600, borderRadius: "6px", fontFamily: "'JetBrains Mono', monospace" }} />
+                        ))}
+                      </Box>
+                    </Card>
+                  ) : (
+                    <Card elevation={0} sx={{ border: "1px solid #E2E8F0", borderRadius: "14px", overflow: "hidden" }}>
+                      <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <AssessmentIcon sx={{ color: '#4F46E5', fontSize: '1.2rem' }} />
+                          <Typography sx={{ fontWeight: 600, color: '#1E293B', fontSize: '0.95rem' }}>Available Metrics</Typography>
+                        </Box>
+                        <Button
+                          onClick={() => {
+                            const availableTags = allTags.filter(t => availableKpis.has(t));
+                            const allOn = availableTags.every(t => tagOn[t]);
+                            const next = {};
+                            availableTags.forEach(t => { next[t] = !allOn; });
+                            setTagOn(prev => ({ ...prev, ...next }));
+                          }}
+                          sx={{ textTransform: "none", fontSize: 13, fontWeight: 700, px: 1.5, py: 0.5 }}
+                        >
+                          {allTags.filter(t => availableKpis.has(t)).every(t => tagOn[t]) ? "Deselect All" : "Select All"}
+                        </Button>
+                      </Box>
+                      <Box sx={{ px: 2.5, py: 3, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {allTags.map(tag => {
+                          const isAvailable = availableKpis.has(tag);
+                          const isOn = tagOn[tag] && isAvailable;
+                          return (
+                            <Chip
+                              key={tag}
+                              label={
+                                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                                  {tag}
+                                  {!isAvailable && (
+                                    <Box component="span" sx={{ ml: 0.3, px: 0.6, py: 0.1, borderRadius: '4px', backgroundColor: '#FEF3C7', color: '#92400E', fontSize: '9px', fontWeight: 700, letterSpacing: '0.05em' }}>
+                                      N/A
+                                    </Box>
+                                  )}
+                                </Box>
                               }
-                            }}
-                          />
-                        );
-                      })}
-                    </Box>
-                  </Card>
+                              onClick={isAvailable ? () => setTagOn(prev => ({ ...prev, [tag]: !prev[tag] })) : undefined}
+                              sx={{
+                                borderRadius: '8px',
+                                fontWeight: 500,
+                                cursor: isAvailable ? 'pointer' : 'not-allowed',
+                                opacity: isAvailable ? 1 : 0.55,
+                                border: isOn ? '1px solid #c7d2fe' : '1px solid #E2E8F0',
+                                background: isOn ? '#EEF2FF' : isAvailable ? '#fff' : '#F8FAFC',
+                                color: isOn ? '#4F46E5' : isAvailable ? '#64748B' : '#94A3B8',
+                                '&:hover': {
+                                  background: !isAvailable ? '#F8FAFC' : isOn ? '#E0E7FF' : '#F1F5F9'
+                                }
+                              }}
+                            />
+                          );
+                        })}
+                      </Box>
+                    </Card>
+                  )}
 
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 2, mt: 1, borderTop: "1px solid #E2E8F0" }}>
                     <Button startIcon={<ArrowBackIcon />} onClick={() => setStep(1)} variant="outlined" sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px", color: "#64748B", borderColor: "#E2E8F0" }}>Back</Button>

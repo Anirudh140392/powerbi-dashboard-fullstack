@@ -1250,17 +1250,36 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     }, [competitionData.brands]);
 
     const skuRows = useMemo(() => {
-        return (competitionData.skus || []).map((s, idx) => ({
-            id: s.sku_name || `sku-${idx}`,
-            name: s.sku_name || 'Unknown',
-            brandName: s.brand_name || 'Unknown',
-            osa: s.osa || 0,
-            listing: s.listing || 0,
-            doi: s.doi || 0,
-            fillrate: s.fillrate || 0,
-            assortment: s.assortment || 0,
-            psl: s.psl || 0
-        }));
+        const mapped = (competitionData.skus || []).map((s, idx) => {
+            const msVal = Number(s.MarketShare?.value ?? s.marketShare?.value ?? s.MarketShare ?? s.marketShare ?? 0);
+            return {
+                id: s.sku_name || `sku-${idx}`,
+                name: s.sku_name || 'Unknown',
+                brandName: s.brand_name || 'Unknown',
+                osa: s.osa ?? s.OSA?.value ?? 0,
+                listing: s.listing ?? s.Listing?.value ?? 0,
+                doi: s.doi || 0,
+                fillrate: s.fillrate || 0,
+                assortment: s.assortment || 0,
+                psl: s.psl || 0,
+                MarketShare: msVal,
+                marketShare: msVal,
+                total_sales: s.total_sales || s.Sales?.value || s.Sales || 0,
+                ...s
+            };
+        });
+
+        return mapped.sort((a, b) => {
+            const valA = Number(a.MarketShare?.value ?? a.marketShare?.value ?? a.MarketShare ?? a.marketShare ?? 0) || 0;
+            const valB = Number(b.MarketShare?.value ?? b.marketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0) || 0;
+            if (Math.abs(valB - valA) > 0.0001) return valB - valA;
+            const salesA = Number(a.total_sales || 0);
+            const salesB = Number(b.total_sales || 0);
+            if (salesB !== salesA) return salesB - salesA;
+            const osaA = Number(a.osa ?? 0) || 0;
+            const osaB = Number(b.osa ?? 0) || 0;
+            return osaB - osaA;
+        });
     }, [competitionData.skus]);
 
     return (

@@ -751,18 +751,20 @@ export default function TrendsCompetitionDrawer({
     return db === 'drl' || db === 'prestige';
   })();
   const [resellerOptions, setResellerOptions] = useState([]);
+  const isAmazonPlatform = (drawerFilters.Platform || '').toLowerCase() === 'amazon';
+  const shouldShowResellerFilter = isDrlUser && isAmazonPlatform;
 
-  // Fetch reseller name options for DRL - cascaded by platform
+  // Fetch reseller name options dynamically from ClickHouse for Amazon (DRL only)
   useEffect(() => {
-    if (!open || !isDrl || !showResellerFilter) return;
-    let cancelled = false;
-    const platformParam = toApiParam(drawerFilters.Platform);
+    if (!open || !shouldShowResellerFilter) {
+      setResellerOptions([]);
+      return;
+    }
     const fetchResellerOptions = async () => {
       try {
         const res = await axiosInstance.get('/watchtower/trends-filter-options', {
-          params: { filterType: 'resellerNames', platform: platformParam }
+          params: { filterType: 'resellerNames', platform: 'amazon' }
         });
-        if (cancelled) return;
         if (res.data?.options) {
           setResellerOptions(res.data.options);
         }
@@ -771,8 +773,7 @@ export default function TrendsCompetitionDrawer({
       }
     };
     fetchResellerOptions();
-    return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, isDrl]);
+  }, [open, shouldShowResellerFilter]);
 
   const prevPropsRef = useRef({
     open: false,
@@ -2720,14 +2721,14 @@ export default function TrendsCompetitionDrawer({
             label="Date"
             value={range}
           />
-          {/* Reseller Filter Chip (Commented out as requested) */}
-          {/* {isDrl && showResellerFilter && (
+          {/* Reseller Filter Chip */}
+          {showResellerFilter && drawerFilters.ResellerName !== 'All' && (
             <SelectedFilterChip
               label="Reseller"
               value={drawerFilters.ResellerName}
               color={drawerFilters.ResellerName !== 'All' ? "#0ea5e9" : "#64748B"}
             />
-          )} */}
+          )}
           {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
             <SelectedFilterChip
               label="MSL"
@@ -2815,8 +2816,8 @@ export default function TrendsCompetitionDrawer({
                     setDrawerFilters(prev => ({ ...prev, City: v }));
                   }}
                 />
-                {/* Reseller Name dropdown - DRL only (Commented out as requested) */}
-                {/* {isDrl && showResellerFilter && resellerOptions.length > 0 && (
+                {/* Reseller Name dropdown (shown ONLY when DRL + Amazon platform) */}
+                {shouldShowResellerFilter && (
                   <DrawerMultiSelect
                     title="Reseller"
                     value={drawerFilters.ResellerName}
@@ -2825,7 +2826,7 @@ export default function TrendsCompetitionDrawer({
                       setDrawerFilters(prev => ({ ...prev, ResellerName: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All' }));
                     }}
                   />
-                )} */}
+                )}
 
                 {/* MSL dropdown */}
                 {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
