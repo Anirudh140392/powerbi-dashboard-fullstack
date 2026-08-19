@@ -113,6 +113,12 @@ function AppContent() {
               </ProtectedRoute>
             } />
 
+            <Route path="/content-analysis" element={
+              <ProtectedRoute>
+                <ContentAnalysisPage />
+              </ProtectedRoute>
+            } />
+
             <Route path="/category-rca" element={
               <ProtectedRoute>
                 <CategoryRca />

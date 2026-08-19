@@ -173,35 +173,41 @@ export const getPrimaryKpis = async (filters = {}) => {
     const totalSales = parseFloat(rows[0]?.total_sales || 0);
     const totalUnits = parseInt(rows[0]?.total_units || 0);
 
-    // Calculate latest month vs previous month growth
-    const momQuery = `
-        SELECT
-            toStartOfMonth(toDate(billing_date)) AS month_start,
-            COALESCE(SUM(toFloat64OrZero(toString(COALESCE(amount_inr, net_amount * 100000)))), 0) AS sales,
-            COALESCE(SUM(toInt64OrZero(toString(quantity))), 0) AS units
-        FROM ${table}
-        WHERE billing_date IS NOT NULL
-          AND ${filterClause}
-        GROUP BY month_start
-        ORDER BY month_start DESC
-        LIMIT 2
-    `;
-
-    const momRows = await queryClickHouse(momQuery);
     let salesGrowth = 0;
     let unitsGrowth = 0;
 
-    if (momRows.length >= 2) {
-        const currSales = parseFloat(momRows[0].sales || 0);
-        const prevSales = parseFloat(momRows[1].sales || 0);
-        if (prevSales > 0) {
-            salesGrowth = parseFloat((((currSales - prevSales) / prevSales) * 100).toFixed(2));
-        }
+    if (filters.startDate && filters.endDate) {
+        const startD = new Date(filters.startDate + 'T00:00:00Z');
+        const endD = new Date(filters.endDate + 'T00:00:00Z');
+        const durationMs = endD.getTime() - startD.getTime() + 86400000;
 
-        const currUnits = parseInt(momRows[0].units || 0);
-        const prevUnits = parseInt(momRows[1].units || 0);
+        const compEndD = new Date(startD.getTime() - 86400000);
+        const compStartD = new Date(compEndD.getTime() - durationMs + 86400000);
+
+        const compStart = compStartD.toISOString().slice(0, 10);
+        const compEnd = compEndD.toISOString().slice(0, 10);
+
+        const compFilters = { ...filters, startDate: compStart, endDate: compEnd };
+        const compFilterClause = buildFilterClause(compFilters, false);
+
+        const compQuery = `
+            SELECT
+                COALESCE(SUM(toFloat64OrZero(toString(COALESCE(amount_inr, net_amount * 100000)))), 0) AS comp_sales,
+                COALESCE(SUM(toInt64OrZero(toString(quantity))), 0) AS comp_units
+            FROM ${table}
+            WHERE billing_date IS NOT NULL
+              AND ${compFilterClause}
+        `;
+
+        const compRows = await queryClickHouse(compQuery);
+        const prevSales = parseFloat(compRows[0]?.comp_sales || 0);
+        const prevUnits = parseInt(compRows[0]?.comp_units || 0);
+
+        if (prevSales > 0) {
+            salesGrowth = parseFloat((((totalSales - prevSales) / prevSales) * 100).toFixed(2));
+        }
         if (prevUnits > 0) {
-            unitsGrowth = parseFloat((((currUnits - prevUnits) / prevUnits) * 100).toFixed(2));
+            unitsGrowth = parseFloat((((totalUnits - prevUnits) / prevUnits) * 100).toFixed(2));
         }
     }
 
@@ -243,35 +249,60 @@ export const getPrimaryLatestDate = async () => {
 };
 
 /**
- * Get PRIMARY MOM (Month-over-Month) bar chart data
- * Returns SUM(metricColumn) grouped by month
+ * Get PRIMARY MOM (Month-over-Month / Day-over-Day / Week-over-Week) chart data
+ * granularity: 'daily' | 'weekly' | 'monthly' (default)
  */
-export const getPrimaryMOM = async (filters = {}, metricType = 'MRP') => {
+export const getPrimaryMOM = async (filters = {}, metricType = 'MRP', granularity = 'monthly') => {
     const dbName = getCurrentDbName();
     const table = `${dbName}.rb_primary_olap`;
     const filterClause = buildFilterClause(filters, false);
     const metricColumn = getMetricColumn(metricType);
 
+    let selectPeriod, groupBy, orderBy;
+
+    if (granularity === 'daily') {
+        selectPeriod = `
+            toDate(billing_date) AS period_start,
+            formatDateTime(toDate(billing_date), '%d %b') AS period_label`;
+        groupBy = `period_start, period_label`;
+        orderBy = `period_start ASC`;
+    } else if (granularity === 'weekly') {
+        selectPeriod = `
+            toStartOfMonth(toDate(billing_date)) AS m_start,
+            intDiv(toDayOfMonth(toDate(billing_date)) - 1, 7) + 1 AS wk_num,
+            concat(formatDateTime(toStartOfMonth(toDate(billing_date)), '%b'), ' Wk ', toString(wk_num)) AS period_label,
+            min(toDate(billing_date)) AS period_start`;
+        groupBy = `m_start, wk_num, period_label`;
+        orderBy = `m_start ASC, wk_num ASC`;
+    } else {
+        // monthly (default)
+        selectPeriod = `
+            toStartOfMonth(toDate(billing_date)) AS period_start,
+            formatDateTime(toDate(billing_date), '%b-%y') AS period_label`;
+        groupBy = `period_start, period_label`;
+        orderBy = `period_start ASC`;
+    }
+
     const query = `
         SELECT
-            toStartOfMonth(toDate(billing_date)) AS month_start,
-            formatDateTime(toDate(billing_date), '%b-%y') AS month_label,
+            ${selectPeriod},
             COALESCE(SUM(toFloat64OrZero(toString(${metricColumn}))), 0) AS value
         FROM ${table}
         WHERE billing_date IS NOT NULL
           AND ${filterClause}
-        GROUP BY month_start, month_label
-        ORDER BY month_start ASC
+        GROUP BY ${groupBy}
+        ORDER BY ${orderBy}
     `;
 
     const rows = await queryClickHouse(query);
 
     return rows.map(r => ({
-        month: r.month_label,
-        monthStart: r.month_start,
+        month: r.period_label,
+        monthStart: r.period_start,
         value: parseFloat(r.value || 0),
     }));
 };
+
 
 /**
  * Get PRIMARY Retailer Daily / MoM trend chart data for Retailer Wise Analysis
@@ -385,17 +416,24 @@ export const getPrimaryPivotTable = async (filters = {}, xAxis = 'customer_name'
     // Build exact filter clause for the current period (respects exact startDate/endDate)
     const currentFilterClause = buildFilterClause(filters, false);
 
-    // Build comparison period filter clause (prior full month)
+    // Build comparison period filter clause (prior period matching duration)
     let compLabel = null;
     let compRows = [];
-    if (filters.startDate) {
-        const d = new Date(filters.startDate);
-        d.setMonth(d.getMonth() - 1);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const compStart = `${yyyy}-${mm}-01`;
-        const compEnd = `${yyyy}-${mm}-${new Date(yyyy, d.getMonth() + 1, 0).getDate()}`;
-        compLabel = `${new Date(compStart).toLocaleString('default', { month: 'short' })}-${String(yyyy).slice(-2)}`;
+    if (filters.startDate && filters.endDate) {
+        const startD = new Date(filters.startDate + 'T00:00:00Z');
+        const endD = new Date(filters.endDate + 'T00:00:00Z');
+        const durationMs = endD.getTime() - startD.getTime() + 86400000;
+
+        const compEndD = new Date(startD.getTime() - 86400000);
+        const compStartD = new Date(compEndD.getTime() - durationMs + 86400000);
+
+        const compStart = compStartD.toISOString().slice(0, 10);
+        const compEnd = compEndD.toISOString().slice(0, 10);
+
+        const formatShort = (d) => `${d.getUTCDate().toString().padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}'${String(d.getUTCFullYear()).slice(-2)}`;
+        compLabel = durationMs > 35 * 86400000
+            ? `${compStartD.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}-${String(compStartD.getUTCFullYear()).slice(-2)}`
+            : `${formatShort(compStartD)} - ${formatShort(compEndD)}`;
 
         const compFilters = { ...filters, startDate: compStart, endDate: compEnd };
         const compFilterClause = buildFilterClause(compFilters, false);
@@ -425,11 +463,16 @@ export const getPrimaryPivotTable = async (filters = {}, xAxis = 'customer_name'
         };
     });
 
-    // Derive current period label from startDate month
-    const userMonthLabel = filters.startDate
+    // Derive current period label from startDate/endDate
+    const userMonthLabel = (filters.startDate && filters.endDate)
         ? (() => {
-            const d = new Date(filters.startDate);
-            return `${d.toLocaleString('default', { month: 'short' })}-${String(d.getFullYear()).slice(-2)}`;
+            const startD = new Date(filters.startDate + 'T00:00:00Z');
+            const endD = new Date(filters.endDate + 'T00:00:00Z');
+            const durationMs = endD.getTime() - startD.getTime() + 86400000;
+            const formatShort = (d) => `${d.getUTCDate().toString().padStart(2, '0')} ${d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}'${String(d.getUTCFullYear()).slice(-2)}`;
+            return durationMs > 35 * 86400000
+                ? `${startD.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}-${String(startD.getUTCFullYear()).slice(-2)}`
+                : `${formatShort(startD)} - ${formatShort(endD)}`;
           })()
         : null;
 

@@ -307,6 +307,7 @@ function SearchableDropdownFilter({ label, filterKey, currentVal, options = ["Al
 }
 
 export default function PrimarySummary() {
+  const filterCtx = useContext(FilterContext) || {};
   const {
     timeStart,
     setTimeStart,
@@ -320,7 +321,7 @@ export default function PrimarySummary() {
     minDate,
     setUserSetDate,
     setComparisonLabel,
-  } = useContext(FilterContext);
+  } = filterCtx;
 
   const [metricType, setMetricType] = useState("Units"); // "Units" | "MRP"
   const [loading, setLoading] = useState(false);
@@ -403,6 +404,7 @@ export default function PrimarySummary() {
           platform: filters.platform,
           xAxis: filters.xAxis,
           metricType: metricType,
+          granularity: "monthly",
           startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
           endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
         };
@@ -636,33 +638,39 @@ export default function PrimarySummary() {
 
   // Dynamic MoM Summary Badges from ClickHouse — revenue only
   const momBadges = useMemo(() => {
+    const peakLabel = "PEAK MONTH";
+    const runRateUnit = "/ Mo";
+    const tag = "MoM";
+
     if (displayMomData && displayMomData.length > 0) {
       const sortedByVal = [...displayMomData].sort((a, b) => (b.rawValue || b.achievement) - (a.rawValue || a.achievement));
       const peak = sortedByVal[0];
       const totalVal = displayMomData.reduce((sum, d) => sum + (Number(d.rawValue || d.achievement) || 0), 0);
       const avgRunRate = totalVal / displayMomData.length;
 
-      let growthStr = "+0.0% MoM";
+      let growthStr = `+0.0% ${tag}`;
       if (displayMomData.length >= 2) {
         const latest = Number(displayMomData[displayMomData.length - 1].rawValue || displayMomData[displayMomData.length - 1].achievement);
         const prev = Number(displayMomData[displayMomData.length - 2].rawValue || displayMomData[displayMomData.length - 2].achievement);
         if (prev > 0) {
           const diff = ((latest - prev) / prev) * 100;
-          growthStr = `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}% MoM`;
+          growthStr = `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}% ${tag}`;
         }
       }
 
       return {
         peakMonth: peak ? `${peak.month} (${formatShortValue(peak.rawValue || peak.achievement, metricType === "MRP")})` : "-",
-        runRate: `${formatShortValue(avgRunRate, metricType === "MRP")} / Mo`,
+        runRate: `${formatShortValue(avgRunRate, metricType === "MRP")} ${runRateUnit}`,
         growth: growthStr,
+        peakLabel,
       };
     }
 
     return {
       peakMonth: "-",
-      runRate: "0 / Mo",
-      growth: "+0.0% MoM",
+      runRate: `0 ${runRateUnit}`,
+      growth: `+0.0% ${tag}`,
+      peakLabel,
     };
   }, [displayMomData, metricType]);
 
@@ -743,7 +751,7 @@ export default function PrimarySummary() {
                 xs: "repeat(1, 1fr)",
                 sm: "repeat(2, 1fr)",
                 md: "repeat(3, 1fr)",
-                lg: "repeat(8, 1fr)",
+                lg: "repeat(7, 1fr)",
               },
               gap: 2,
               alignItems: "flex-end",
@@ -754,6 +762,7 @@ export default function PrimarySummary() {
               border: "1px solid #e2e8f0",
             }}
           >
+
             {["brandName", "retailerName", "product", "division", "zone"].map((key) => {
               const label = key
                 .replace(/([A-Z])/g, " $1")
@@ -1185,7 +1194,7 @@ export default function PrimarySummary() {
                       }}
                     >
                       <Typography sx={{ fontSize: "0.6rem", fontWeight: 800, color: "#2563eb", letterSpacing: "0.05em" }}>
-                        PEAK MONTH
+                        {momBadges.peakLabel || "PEAK MONTH"}
                       </Typography>
                       <Typography sx={{ fontSize: "0.8rem", fontWeight: 800, color: "#1e293b", mt: 0.2 }}>
                         {momBadges.peakMonth}

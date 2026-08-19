@@ -57,9 +57,10 @@ export const getPrimaryMOMHandler = async (req, res) => {
     try {
         const filters = extractFilters(req.query);
         const metricType = req.query.metricType || 'MRP';
-        console.log('[getPrimaryMOM] Filters:', filters, '| metricType:', metricType);
+        const granularity = req.query.granularity || 'monthly';
+        console.log('[getPrimaryMOM] Filters:', filters, '| metricType:', metricType, '| granularity:', granularity);
 
-        const data = await getPrimaryMOM(filters, metricType);
+        const data = await getPrimaryMOM(filters, metricType, granularity);
         res.json({ success: true, data });
     } catch (error) {
         console.error('[getPrimaryMOM] Error:', error.message);
@@ -141,10 +142,11 @@ export const getPrimaryAllHandler = async (req, res) => {
         const filters = extractFilters(req.query);
         const xAxis = req.query.xAxis || 'Retailer Name';
         const metricType = req.query.metricType || 'MRP';
-        console.log('[getPrimaryAll] Filters:', filters, '| xAxis:', xAxis, '| metricType:', metricType);
+        const granularity = req.query.granularity || 'monthly';
+        console.log('[getPrimaryAll] Filters:', filters, '| xAxis:', xAxis, '| metricType:', metricType, '| granularity:', granularity);
 
         const [mom, quarterly, pivotTable, kpis] = await Promise.all([
-            getPrimaryMOM(filters, metricType),
+            getPrimaryMOM(filters, metricType, granularity),
             getPrimaryQuarterly(filters, metricType),
             getPrimaryPivotTable(filters, xAxis, metricType),
             getPrimaryKpis(filters),
