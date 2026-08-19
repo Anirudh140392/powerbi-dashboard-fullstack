@@ -331,52 +331,58 @@ export const getContentAnalysisPlatformBreakdown = async (filters, isCompare = f
 
 export const getContentAnalysisPlatforms = async (channel) => {
     try {
-        const pdpCols = await getTableColumns('rb_pdp_olap');
-        const hasChannelPdp = columnExists(pdpCols, 'channel');
-        const pdpPlatformCol = resolveColumn(pdpCols, 'platform', 'Platform');
-        const pdpChannelCol = resolveColumn(pdpCols, 'channel', 'Channel');
+        const tableExists = await queryClickHouse("EXISTS TABLE rb_content_olap");
+        if (!tableExists || tableExists[0]?.result !== 1) {
+            console.log("[getContentAnalysisPlatforms] rb_content_olap table does not exist");
+            return [];
+        }
 
         const contentCols = await getTableColumns('rb_content_olap');
         const contentPlatformCol = resolveColumn(contentCols, 'platform', 'Platform');
 
-        // Step 1: Get all platforms that have data in rb_content_olap
+        // Step 1: Get all distinct platforms from rb_content_olap
         let query = `SELECT DISTINCT ${contentPlatformCol} AS Platform FROM rb_content_olap WHERE isNotNull(${contentPlatformCol}) AND ${contentPlatformCol} != '\\\\N' AND ${contentPlatformCol} != ''`;
 
         // Step 2: If a channel is selected, keep only platforms whose Channel in rb_pdp_olap matches
-        if (hasChannelPdp && channel && channel !== 'All') {
-            // Use the raw channel value directly — it comes from getChannels() which reads rb_pdp_olap.Channel,
-            // so the value already matches what is stored in the DB. No remapping needed.
-            const safeChannel = channel.trim().replace(/'/g, "''");
-            query += ` AND lower(${contentPlatformCol}) IN (
-                SELECT DISTINCT lower(${pdpPlatformCol})
-                FROM rb_pdp_olap
-                WHERE isNotNull(${pdpPlatformCol})
-                  AND lower(${pdpChannelCol}) = lower('${safeChannel}')
-            )`;
+        if (channel && channel !== 'All') {
+            const pdpCols = await getTableColumns('rb_pdp_olap');
+            const hasChannelPdp = columnExists(pdpCols, 'channel');
+            if (hasChannelPdp) {
+                const pdpPlatformCol = resolveColumn(pdpCols, 'platform', 'Platform');
+                const pdpChannelCol = resolveColumn(pdpCols, 'channel', 'Channel');
+
+                const channelLower = channel.trim().toLowerCase();
+                let channelCond = `lower(${pdpChannelCol}) = lower('${channel.trim().replace(/'/g, "''")}')`;
+                if (['qcomm', 'quickcomm', 'quick commerce', 'q-comm'].includes(channelLower)) {
+                    channelCond = `(lower(${pdpChannelCol}) LIKE '%quick%' OR lower(${pdpChannelCol}) LIKE '%qcomm%')`;
+                } else if (['ecomm', 'ecommerce', 'e-commerce', 'ecom', 'marketplace'].includes(channelLower)) {
+                    channelCond = `(lower(${pdpChannelCol}) LIKE '%ecom%' OR lower(${pdpChannelCol}) LIKE '%market%')`;
+                }
+
+                query += ` AND lower(${contentPlatformCol}) IN (
+                    SELECT DISTINCT lower(${pdpPlatformCol})
+                    FROM rb_pdp_olap
+                    WHERE isNotNull(${pdpPlatformCol})
+                      AND ${channelCond}
+                )`;
+            }
         }
 
         query += ` ORDER BY Platform`;
 
         const result = await queryClickHouse(query);
         const platforms = result.map(row => row.Platform).filter(Boolean);
+
+        // If channel filter returned 0, return all distinct platforms present in rb_content_olap
         if (platforms && platforms.length > 0) return platforms;
 
-        // Fallback: read directly from rb_pdp_olap filtered by channel (in case rb_content_olap is empty)
-        console.log(`[getContentAnalysisPlatforms] rb_content_olap returned no platforms for channel="${channel}", falling back to rb_pdp_olap`);
-        let pdpQuery = `SELECT DISTINCT ${pdpPlatformCol} AS Platform FROM rb_pdp_olap WHERE isNotNull(${pdpPlatformCol}) AND ${pdpPlatformCol} != '\\\\N' AND ${pdpPlatformCol} != ''`;
-        if (hasChannelPdp && channel && channel !== 'All') {
-            const safeChannel = channel.trim().replace(/'/g, "''");
-            pdpQuery += ` AND lower(${pdpChannelCol}) = lower('${safeChannel}')`;
-        }
-        pdpQuery += ` ORDER BY Platform`;
-        const pdpResult = await queryClickHouse(pdpQuery);
-        const pdpPlatforms = pdpResult.map(row => row.Platform).filter(Boolean);
-        if (pdpPlatforms && pdpPlatforms.length > 0) return pdpPlatforms;
-
-        return ['Amazon', 'Blinkit', 'Flipkart', 'Zepto', 'Instamart'];
+        const allContentPlatforms = await queryClickHouse(
+            `SELECT DISTINCT ${contentPlatformCol} AS Platform FROM rb_content_olap WHERE isNotNull(${contentPlatformCol}) AND ${contentPlatformCol} != '\\\\N' AND ${contentPlatformCol} != '' ORDER BY Platform`
+        );
+        return allContentPlatforms.map(row => row.Platform).filter(Boolean);
     } catch (error) {
         console.error("Error in getContentAnalysisPlatforms:", error);
-        return ['Amazon', 'Blinkit', 'Flipkart', 'Zepto', 'Instamart'];
+        return [];
     }
 };
 

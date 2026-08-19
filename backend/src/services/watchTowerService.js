@@ -4579,13 +4579,20 @@ const getPlatformMetadata = async () => {
             'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg',
             'swiggy': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
             'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+            'amazon now': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
             'flipkart': 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Flipkart-logo.png',
             'instamart': '/instamart.jpeg',
             'swiggy instamart': '/instamart.jpeg',
             'jiomart': 'https://upload.wikimedia.org/wikipedia/en/5/54/JioMart_logo.svg',
             'meesho': 'https://upload.wikimedia.org/wikipedia/commons/3/33/Meesho_logo.png',
             'myntra': 'https://static.vecteezy.com/system/resources/previews/067/941/729/non_2x/myntra-logo-myntra-icon-transparent-background-free-png.png',
-            'pharmeasy': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmvGD4R2shvyr2o70i_tkpo4J2fygT8Im2YAcHruh45A&s'
+            'pharmeasy': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmvGD4R2shvyr2o70i_tkpo4J2fygT8Im2YAcHruh45A&s',
+            '1mg': 'https://downloadr2.apkmirror.com/wp-content/uploads/2022/01/23/61e9605e26437.png',
+            '1_mg': 'https://downloadr2.apkmirror.com/wp-content/uploads/2022/01/23/61e9605e26437.png',
+            'apollo': 'https://pbs.twimg.com/profile_images/800955664155557888/OP1uO2ZW_400x400.jpg',
+            'apollo 247': 'https://pbs.twimg.com/profile_images/800955664155557888/OP1uO2ZW_400x400.jpg',
+            'netmeds': 'https://www.haptik.ai/hs-fs/hubfs/Netmeds_240323.webp',
+            'bigbasket': 'https://upload.wikimedia.org/wikipedia/commons/2/22/Bigbasket_logo.png'
         };
 
         // 3) Merge: for each platform in rca_sku_dim, attach the image
