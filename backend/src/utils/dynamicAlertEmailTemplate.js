@@ -132,6 +132,16 @@ const buildSubTable = (headers, rows, tableName) => {
     return tableHtml;
 };
 
+const formatDateDisplay = (dateStr) => {
+    if (!dateStr) return '';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    const day = parseInt(parts[2], 10);
+    const month = months[parseInt(parts[1], 10) - 1] || '';
+    return `${day} ${month} ${parts[0]}`;
+};
+
 export const generateDynamicAlertEmailHtml = (data) => {
     const {
         logoUrl = '',
@@ -144,6 +154,11 @@ export const generateDynamicAlertEmailHtml = (data) => {
         operator = '<',
         threshold = '',
         platformData = [], // Array of { platformName, tables: [{ tableName, headers, rows }] } or { platformName, headers, rows }
+        cwStart = '',
+        cwEnd = '',
+        l4wStart = '',
+        l4wEnd = '',
+        isDynamicAlert = false,
     } = data;
 
     // We read the HTML template
@@ -157,6 +172,23 @@ export const generateDynamicAlertEmailHtml = (data) => {
     template = template.replace(/\{\{LOGO_URL\}\}/g, logoHtml);
     
     template = template.replace(/\{\{TIMESTAMP\}\}/g, escapeHtml(istNow));
+
+    let dateRangeHtml = '';
+    if (cwStart && cwEnd && l4wStart && l4wEnd) {
+        const currentDisplay = `${formatDateDisplay(cwStart)} – ${formatDateDisplay(cwEnd)}`;
+        const previousDisplay = `${formatDateDisplay(l4wStart)} – ${formatDateDisplay(l4wEnd)}`;
+        
+        let labelHtml = `Snapshot &middot; Current (${currentDisplay}) vs Previous (${previousDisplay})`;
+        if (isDynamicAlert) {
+            labelHtml = `Weekly snapshot &middot; CW as of ${currentDisplay} vs L4W Avg (${previousDisplay})`;
+        }
+
+        dateRangeHtml = `<div style="font-family:Arial,sans-serif;color:#667085;font-size:11px;padding-top:4px;">
+    ${labelHtml}
+</div>`;
+    }
+    template = template.replace(/\{\{DATE_RANGE_HTML\}\}/g, dateRangeHtml);
+
     template = template.replace(/\{\{ALERT_NAME\}\}/g, escapeHtml(alertName));
     template = template.replace(/\{\{CURRENT_METRIC_VALUE\}\}/g, escapeHtml(currentMetricValue));
     template = template.replace(/\{\{METRIC_DELTA\}\}/g, escapeHtml(metricDelta));
