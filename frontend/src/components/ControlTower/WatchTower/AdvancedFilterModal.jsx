@@ -190,8 +190,9 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
         const q = search.toLowerCase();
         if (!q) return true;
         if (opt.name.toLowerCase().includes(q)) return true;
-        // For DRL: also match against sapCode
+        // Match against the product identifiers exposed by the shared SKU endpoint.
         if (showSapCode && opt.sapCode && String(opt.sapCode).toLowerCase().includes(q)) return true;
+        if (opt.webPid && String(opt.webPid).toLowerCase().includes(q)) return true;
         return false;
     })
 
@@ -278,7 +279,9 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
                                     type="text"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    placeholder={showSapCode ? `Search SKU name or SAP code...` : `Search ${label.toLowerCase()}...`}
+                                    placeholder={label.toLowerCase() === 'sku'
+                                        ? (showSapCode ? 'Search SKU name, SAP code or Web PID...' : 'Search SKU name or Web PID...')
+                                        : `Search ${label.toLowerCase()}...`}
                                     className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200"
                                 />
                             </div>
@@ -348,19 +351,19 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
 // MAIN ADVANCED FILTER MODAL
 // ========================================
 export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, kpiOptions: propKpiOptions = null }) {
-    const isBoatUser = useMemo(() => {
+    const isDrlUser = useMemo(() => {
         try {
-            const u = JSON.parse(sessionStorage.getItem('user'));
-            return u?.dbName?.toLowerCase() === 'boat';
+            const u = JSON.parse(sessionStorage.getItem('user') || '{}');
+            return u?.dbName?.toLowerCase() === 'drl';
         } catch {
             return false;
         }
     }, []);
 
-    const isDrlUser = useMemo(() => {
+    const isBoatUser = useMemo(() => {
         try {
             const u = JSON.parse(sessionStorage.getItem('user'));
-            return u?.dbName?.toLowerCase() === 'drl';
+            return u?.dbName?.toLowerCase() === 'boat';
         } catch {
             return false;
         }
@@ -493,9 +496,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                     endDate
                 }
 
-                const productsEndpoint = isDrlUser
-                    ? '/watchtower/products-with-sap'
-                    : '/watchtower/products';
+                const productsEndpoint = '/watchtower/products-with-sap';
 
                 const [cascadedRes, productsRes] = await Promise.allSettled([
                     axiosInstance.get('/watchtower/cascaded-filters', { params }),
@@ -543,15 +544,16 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
 
                 if (productsRes.status === 'fulfilled' && productsRes.value.data && Array.isArray(productsRes.value.data)) {
                     const mappedSkus = productsRes.value.data.map(p => {
-                        // DRL: p is {name, sapCode}; others: p is a plain string
+                        // Shared endpoint returns identifiers for every client.
                         const productName = typeof p === 'object' ? (p.name || '') : String(p);
                         const sapCode = typeof p === 'object' ? (p.sapCode || null) : null;
+                        const webPid = typeof p === 'object' ? (p.webPid || p.web_pid || null) : null;
                         const parentOpt = skus?.find(opt =>
                             opt.name?.toLowerCase() === productName.toLowerCase() ||
                             opt.id?.toLowerCase() === productName.toLowerCase()
                         );
-                        if (parentOpt) return { ...parentOpt, sapCode: sapCode ?? parentOpt.sapCode ?? null };
-                        return { id: productName, name: productName, sapCode };
+                        if (parentOpt) return { ...parentOpt, sapCode: sapCode ?? parentOpt.sapCode ?? null, webPid: webPid ?? parentOpt.webPid ?? null };
+                        return { id: productName, name: productName, sapCode, webPid };
                     }).filter(p => p.name);
                     setDynamicSkus(mappedSkus)
                 }
@@ -730,6 +732,10 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             brands: localFilters.brands.map(b => typeof b === 'string' ? b.toLowerCase() : b),
             categories: localFilters.categories.map(c => typeof c === 'string' ? c.toLowerCase() : c),
             skus: localFilters.skus.map(s => typeof s === 'string' ? s.toLowerCase() : s),
+            skuName: localFilters.skus.map(s => typeof s === 'string' ? s.toLowerCase() : s),
+            skuCode: localFilters.skus
+                .map(s => dynamicSkus.find(opt => String(opt.id).toLowerCase() === String(s).toLowerCase() || String(opt.name).toLowerCase() === String(s).toLowerCase())?.webPid)
+                .filter(Boolean),
             grammages: localFilters.grammages,
         };
         onApply(lowerFilters)
