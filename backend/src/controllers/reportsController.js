@@ -1,4 +1,4 @@
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
@@ -159,6 +159,21 @@ export const getReportBuilderOptions = async (req, res) => {
             if (!out.subCategories) out.subCategories = [];
             if (!out.regions) out.regions = [];
 
+            try {
+                const hasDarkstoreTable = await checkTableExists('rb_pdp_week');
+                if (hasDarkstoreTable) {
+                    const dates = await queryClickHouse('SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM rb_pdp_week');
+                    if (dates && dates[0] && dates[0].minDate) {
+                        out.darkstoreDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking darkstoreDateRange:', err);
+            }
+
             return out;
         }, CACHE_TTL.METRICS);
 
@@ -224,6 +239,64 @@ export const downloadReport = async (req, res) => {
             const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
             return `lower(${column}) IN (${items})`;
         };
+
+        const dataMode = req.query.dataMode || 'aggregated';
+
+        // ── DARKSTORE DATA EXPORT (rb_pdp_week) for DRL ──
+        if (dataMode === 'darkstore' || reportType === 'Darkstore Data') {
+            const currentDb = getCurrentDbName() || 'drl';
+            const weekTable = (currentDb === 'drl' || currentDb === 'prestige') ? `${currentDb}.rb_pdp_week` : 'drl.rb_pdp_week';
+
+            const darkstoreConds = [];
+            const pCond = buildInClause('platform_name', platform);
+            if (pCond) darkstoreConds.push(pCond);
+            const bCond = buildInClause('brand_name', brand);
+            if (bCond) darkstoreConds.push(bCond);
+            const lCond = buildInClause('location_name', city);
+            if (lCond) darkstoreConds.push(lCond);
+            const cCond = buildInClause('brand_category_name', format);
+            if (cCond) darkstoreConds.push(cCond);
+
+            darkstoreConds.push(`toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`);
+
+            const darkstoreWhere = darkstoreConds.length > 0 ? `WHERE ${darkstoreConds.join(' AND ')}` : '';
+
+            const darkstoreQuery = `
+                SELECT 
+                    toString(created_on) as created_on,
+                    platform_name as platform,
+                    brand_name as brand,
+                    brand_category_name as category,
+                    location_name as location,
+                    pincode,
+                    pincode_area,
+                    web_pid,
+                    sku_name as sku,
+                    pdp_page_url,
+                    osa,
+                    osa_remark
+                FROM ${weekTable}
+                ${darkstoreWhere}
+                ORDER BY created_on DESC
+            `;
+
+            console.log(`[downloadReport] Executing Darkstore query on ${weekTable}:`, darkstoreQuery);
+            const rawData = await queryClickHouse(darkstoreQuery);
+            console.log(`[downloadReport] Fetched ${rawData?.length || 0} Darkstore rows`);
+
+            if (!rawData || rawData.length === 0) {
+                return res.status(204).send();
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(rawData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Darkstore_Data");
+
+            const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename=Darkstore_Data_${dayjs().format('YYYYMMDD')}.xlsx`);
+            return res.send(buffer);
+        }
 
         let query = '';
         const conditions = [];
@@ -291,11 +364,16 @@ export const downloadReport = async (req, res) => {
             const sosCol = hasKwOlap ? `round(any(s.brand_kw_count) / nullIf(any(tot.total_kw_count), 0) * 100, 2) as SOS_Percentage,` : '';
             const metroCol = hasLocationDarkstore ? `round(SUM(if(m.is_metro = 1, toFloat64(t.${col('neno_osa')}), 0)) / nullIf(SUM(if(m.is_metro = 1, toFloat64(t.${col('deno_osa')}), 0)), 0) * 100, 2) as Metro_City_Stock_Availability` : `0 as Metro_City_Stock_Availability`;
 
+            const hasWebPidInAvail = (req.query.granularitySku || '').includes('SKU');
+            const webPidSelectInAvail = hasWebPidInAvail ? `, t.${col('Web_Pid')} as Web_Pid` : '';
+            const webPidGroupInAvail = hasWebPidInAvail ? `, t.${col('Web_Pid')}` : '';
+
             query = `
                 ${sosCte}
                 SELECT 
-                    t.${col('DATE')} as DATE, t.${col('Platform')} as Platform, t.${col('Brand')} as Brand, t.${col('Location')} as City, t.${col(catCol)} as Format, t.${col('Product')} as Product,
+                    t.${col('DATE')} as DATE, t.${col('Platform')} as Platform, t.${col('Brand')} as Brand, t.${col('Location')} as City, t.${col(catCol)} as Format, t.${col('Product')} as Product${webPidSelectInAvail},
                     round(SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as OSA_Percentage,
+                    round(SUM(toFloat64(t.${col('buy_box_neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as Buy_Box_Percentage,
                     round(100 - (SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage,
                     round(avg(toFloat64(t.${col('DIH')})), 2) as DOI,
                     round(SUM(toFloat64(t.${col('buy_box_neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as Fillrate_Percentage,
@@ -307,32 +385,20 @@ export const downloadReport = async (req, res) => {
                 ${sosJoin}
                 ${metroJoin}
                 ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col(catCol) : 't.' + col(match))}
-                GROUP BY t.DATE, t.Platform, t.Brand, t.Location, t.${catCol}, t.Product
+                GROUP BY t.DATE, t.Platform, t.Brand, t.Location, t.${catCol}, t.Product${webPidGroupInAvail}
                 ORDER BY t.DATE DESC
             `;
         } else if (reportType === "Visibility Analysis") {
             query = `
-                WITH category_stats AS (
-                    SELECT 
-                        toDate(DATE) as JoinDate, platform_name as Platform, keyword_category as Category,
-                        count() as Total_Category_Keywords
-                    FROM rb_kw_olap
-                    WHERE toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'
-                    AND POSITION < 11
-                    ${buildInClause('platform_name', platform) ? `AND ${buildInClause('platform_name', platform)}` : ''}
-                    GROUP BY JoinDate, Platform, Category
-                )
                 SELECT 
                     toDate(t.DATE) as DATE, t.platform_name as Platform, t.brand as Brand, t.keyword_category as Keyword_Category, t.keyword_type as Keyword_Type,
-                    round(countIf(toString(t.flag) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Overall_SOS_Percentage,
-                    round(countIf(toInt32(t.spons) = 1 AND toString(t.flag) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Sponsored_SOS_Percentage,
-                    round(countIf(toInt32(t.spons) != 1 AND toString(t.flag) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Organic_SOS_Percentage,
+                    round(sumIf(toFloat64OrZero(toString(t.overall)), toString(t.flag) = '1' OR t.flag = 1) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(t.overall)), 1=1), 0), 2) as Overall_SOS_Percentage,
+                    round(sumIf(toFloat64OrZero(toString(t.spons)), toString(t.flag) = '1' OR t.flag = 1) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(t.spons)), 1=1), 0), 2) as Sponsored_SOS_Percentage,
+                    round(sumIf(toFloat64OrZero(toString(t.organic)), toString(t.flag) = '1' OR t.flag = 1) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(t.organic)), 1=1), 0), 2) as Organic_SOS_Percentage,
                     round(avgIf(toInt64OrZero(toString(t.POSITION)), toInt32(t.spons) = 1), 2) as Ad_POS,
                     round(avgIf(toInt64OrZero(toString(t.POSITION)), toInt32(t.spons) != 1), 2) as Org_Pos
                 FROM rb_kw_olap t
-                LEFT JOIN category_stats c ON toDate(t.DATE) = c.JoinDate AND t.platform_name = c.Platform AND t.keyword_category = c.Category
                 WHERE toDate(t.DATE) BETWEEN '${startDate}' AND '${endDate}'
-                AND t.POSITION < 11
                 ${buildInClause('t.platform_name', platform) ? `AND ${buildInClause('t.platform_name', platform)}` : ''}
                 ${buildInClause('t.brand', brand) ? `AND ${buildInClause('t.brand', brand)}` : ''}
                 GROUP BY DATE, Platform, Brand, t.keyword_category, t.keyword_type
@@ -488,6 +554,7 @@ export const downloadReport = async (req, res) => {
             if (hasCity) { dimSelects.push(`t.${col('Location')} as City`); dimGroups.push(`City`); }
             if (hasFormat) { dimSelects.push(`t.${catCol} as Format`); dimGroups.push(`Format`); }
             if (hasProduct) { dimSelects.push(`t.${col('Product')} as Product`); dimGroups.push(`Product`); }
+            if (granSku.includes('SKU')) { dimSelects.push(`t.${col('Web_Pid')} as Web_Pid`); dimGroups.push(`Web_Pid`); }
 
             const dimGroupStr = dimGroups.length > 0 ? ', ' + dimGroups.join(', ') : '';
 
@@ -516,24 +583,14 @@ export const downloadReport = async (req, res) => {
                 WITH sos_stats AS (
                     SELECT 
                         ${sosSelectCols.join(', ')},
-                        count() as brand_kw_count,
-                        countIf(toString(flag) = '1' AND POSITION < 11) as overall_sos_count,
-                        countIf(toInt32(spons) = 1 AND toString(flag) = '1' AND POSITION < 11) as spons_sos_count,
-                        countIf(toInt32(spons) != 1 AND toString(flag) = '1' AND POSITION < 11) as org_sos_count,
-                        avgIf(toInt64OrZero(toString(POSITION)), toInt32(spons) = 1 AND POSITION < 11) as ad_pos,
-                        avgIf(toInt64OrZero(toString(POSITION)), toInt32(spons) != 1 AND POSITION < 11) as org_pos
+                        round(sumIf(toFloat64OrZero(toString(overall)), toString(flag) = '1' OR flag = 1) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(overall)), 1=1), 0), 2) as overall_sos_pct,
+                        round(sumIf(toFloat64OrZero(toString(spons)), toString(flag) = '1' OR flag = 1) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(spons)), 1=1), 0), 2) as spons_sos_pct,
+                        round(sumIf(toFloat64OrZero(toString(organic)), toString(flag) = '1' OR flag = 1) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(organic)), 1=1), 0), 2) as org_sos_pct,
+                        avgIf(toInt64OrZero(toString(POSITION)), toInt32(spons) = 1) as ad_pos,
+                        avgIf(toInt64OrZero(toString(POSITION)), toInt32(spons) != 1) as org_pos
                     FROM rb_kw_olap
-                    WHERE toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'${kwFlagCond}
+                    WHERE toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'
                     GROUP BY ${sosGroupCols.join(', ')}
-                ),
-                total_kw_stats AS (
-                    SELECT 
-                        ${totSelectCols.join(', ')},
-                        count() as total_kw_count,
-                        countIf(POSITION < 11) as total_cat_keywords_top10
-                    FROM rb_kw_olap
-                    WHERE toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'${kwFlagCond}
-                    GROUP BY ${totGroupCols.join(', ')}
                 ),` : 'WITH ';
 
             const pricingCte = '';
@@ -578,7 +635,7 @@ export const downloadReport = async (req, res) => {
                     GROUP BY DATE, Platform${catSizeGroupLoc}
                 )`;
 
-            const metroJoin = (hasLocationDarkstore && hasCity) ? `
+            const metroJoin = hasLocationDarkstore ? `
                 LEFT JOIN (
                     SELECT DISTINCT LOWER(location) as location, 1 as is_metro
                     FROM rb_location_darkstore
@@ -586,8 +643,7 @@ export const downloadReport = async (req, res) => {
                 ) m ON LOWER(t.Location) = m.location` : '';
 
             const sosJoin = hasKwOlap ? `
-                LEFT JOIN sos_stats s ON ${sosJoinOn.join(' AND ')}
-                LEFT JOIN total_kw_stats tot ON ${totJoinOn.join(' AND ')}` : '';
+                LEFT JOIN sos_stats s ON ${sosJoinOn.join(' AND ')}` : '';
 
 
 
@@ -599,10 +655,10 @@ export const downloadReport = async (req, res) => {
                 LEFT JOIN cat_size_stats cs ON ${timeAgg} = cs.DATE AND t.Platform = cs.Platform${catSizeJoinLoc}`;
 
             const sosCol = hasKwOlap ? `
-                    round(any(s.brand_kw_count) / nullIf(any(tot.total_kw_count), 0) * 100, 2) as SOS_Percentage,
-                    round(any(s.overall_sos_count) * 100.0 / nullIf(any(tot.total_cat_keywords_top10), 0), 2) as Overall_SOS_Percentage,
-                    round(any(s.spons_sos_count) * 100.0 / nullIf(any(tot.total_cat_keywords_top10), 0), 2) as Sponsored_SOS_Percentage,
-                    round(any(s.org_sos_count) * 100.0 / nullIf(any(tot.total_cat_keywords_top10), 0), 2) as Organic_SOS_Percentage,
+                    any(s.overall_sos_pct) as SOS_Percentage,
+                    any(s.overall_sos_pct) as Overall_SOS_Percentage,
+                    any(s.spons_sos_pct) as Sponsored_SOS_Percentage,
+                    any(s.org_sos_pct) as Organic_SOS_Percentage,
                     round(any(s.ad_pos), 2) as Ad_POS,
                     round(any(s.org_pos), 2) as Org_Pos,
             ` : '';
@@ -655,6 +711,7 @@ export const downloadReport = async (req, res) => {
 
                     -- Additional Availability KPIs
                     round(SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as OSA_Percentage,
+                    round(SUM(toFloat64(t.${col('buy_box_neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as Buy_Box_Percentage,
                     round(100 - (SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage,
                     
                     round(SUM(toFloat64(t.${col('Inventory')})) / nullIf(SUM(toFloat64(t.${col('MSL')})), 0) * 100, 2) as PSL,
@@ -858,6 +915,7 @@ export const downloadReport = async (req, res) => {
                 // Availability
                 "Stock Availability": "Stock_Availability",
                 "OSA %": "OSA_Percentage",
+                "Buy Box %": "Buy_Box_Percentage",
                 "Stock Out %": "Stock_Out_Percentage",
                 "DOI": "DOI",
                 "Listing %": "Listing_Percentage",
@@ -913,6 +971,7 @@ export const downloadReport = async (req, res) => {
                 if (row.City !== undefined) newRow.City = row.City;
                 if (row.Format !== undefined) newRow.Format = row.Format;
                 if (row.Product !== undefined) newRow.Product = row.Product;
+                if (row.Web_Pid !== undefined) newRow["Web Pid"] = row.Web_Pid;
 
                 requestedTags.forEach(tag => {
                     const alias = TAG_MAP[tag];
