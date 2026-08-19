@@ -78,8 +78,10 @@ export const FilterProvider = ({ children }) => {
     const [maxDate, setMaxDate] = useState(dayjs());
     const [minDate, setMinDate] = useState(null);
 
-    // Tracks if the user has manually overridden the default dates
     const [userSetDate, setUserSetDate] = useState(false);
+
+    // Granularity toggle for charts: "daily" | "weekly" | "monthly"
+    const [activeGranularity, setActiveGranularity] = useState("monthly");
 
     // Tracks if async data is loaded
     const [datesFetched, setDatesFetched] = useState(false);
@@ -864,6 +866,8 @@ export const FilterProvider = ({ children }) => {
             setSelectedProductCategory,
             maxDate,
             minDate,
+            activeGranularity,
+            setActiveGranularity,
             datesInitialized,
             datesFetched,
             platformsFetched,
