@@ -5,7 +5,8 @@ import SecondaryDailyTracking from "../../components/ControlTower/WatchTower/Sec
 import { FilterContext } from "../../utils/FilterContext";
 
 export default function SecondarySummaryPage() {
-  const { timeStart, timeEnd } = useContext(FilterContext);
+  const filterCtx = useContext(FilterContext) || {};
+  const { timeStart, timeEnd } = filterCtx;
 
   return (
     <CommonContainer title="Secondary Summary" hideFilters={true}>

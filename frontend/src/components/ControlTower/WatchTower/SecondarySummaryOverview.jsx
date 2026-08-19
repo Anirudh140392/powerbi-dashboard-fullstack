@@ -13,6 +13,8 @@ import {
   TextField,
   Skeleton,
   Chip,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import {
   ResponsiveContainer,
@@ -124,27 +126,27 @@ function MultiSelectFilterPopover({ label, options = [], selected = [], onChange
     !(options.length > 0 && selected.length === options.length);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, flex: "1 1 100px", minWidth: 90 }}>
-      <Typography sx={{ fontSize: "0.60rem", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.6, flex: "1 1 0px", minWidth: 80 }}>
+      <Typography sx={{ fontSize: "0.65rem", fontWeight: 700, color: "#64748b", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {label}
       </Typography>
       <Button
         onClick={open}
         variant="outlined"
-        endIcon={<ChevronDown size={12} />}
+        endIcon={<ChevronDown size={12} color="#64748b" />}
         sx={{
-          height: 30, px: 1.2, justifyContent: "space-between",
-          fontSize: "0.72rem", fontWeight: 600,
-          color: hasSelection ? "#6366f1" : "#475569",
-          backgroundColor: hasSelection ? "#eef2ff" : "#f8fafc",
+          height: 36, width: "100%", px: 1.2, justifyContent: "space-between",
+          fontSize: "0.75rem", fontWeight: 600,
+          color: hasSelection ? "#6366f1" : "#334155",
+          backgroundColor: hasSelection ? "#eef2ff" : "#ffffff",
           borderRadius: "8px",
           borderColor: hasSelection ? "#a5b4fc" : "#e2e8f0",
           textTransform: "none",
-          transition: "all 0.2s",
+          transition: "all 0.15s ease",
           "&:hover": { backgroundColor: "#f0f4ff", borderColor: "#6366f1", color: "#6366f1" },
         }}
       >
-        <Typography noWrap sx={{ fontSize: "0.72rem", fontWeight: 600, maxWidth: 80 }}>
+        <Typography noWrap sx={{ fontSize: "0.75rem", fontWeight: 600 }}>
           {btnText}
         </Typography>
       </Button>
@@ -241,12 +243,14 @@ const DarkTooltip = ({ active, payload, labelKey = "label" }) => {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function SecondarySummaryOverview() {
+  const filterCtx = useContext(FilterContext) || {};
   const {
     timeStart, setTimeStart, timeEnd, setTimeEnd,
     compareStart, setCompareStart, compareEnd, setCompareEnd,
     maxDate, minDate, setMinDate, setMaxDate,
     setUserSetDate, setComparisonLabel,
-  } = useContext(FilterContext);
+    activeGranularity, setActiveGranularity,
+  } = filterCtx;
 
   useEffect(() => {
     fetchSecondaryLatestDate().then((res) => {
@@ -267,6 +271,10 @@ export default function SecondarySummaryOverview() {
     sku: [], sapCode: [], fiscalYear: [], quarter: [],
   });
 
+  const applyGranularity = (granularity) => {
+    setActiveGranularity(granularity);
+  };
+
   // Chart data
   const [sellerData, setSellerData] = useState(null);
   const [quarterData, setQuarterData] = useState(null);
@@ -286,7 +294,8 @@ export default function SecondarySummaryOverview() {
     startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
     endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
     metricType: metric,
-  }), [filters, timeStart, timeEnd, salesMetric]);
+    granularity: activeGranularity || "monthly",
+  }), [filters, timeStart, timeEnd, salesMetric, activeGranularity]);
 
   // Fetch cascading filter options
   useEffect(() => {
@@ -310,7 +319,7 @@ export default function SecondarySummaryOverview() {
       if (b?.success) setBrandsData(b.data);
       if (t?.success) setTimelineData(t.data);
     }).catch(() => {}).finally(() => setLoadingCharts(false));
-  }, [filters, timeStart, timeEnd, salesMetric]);
+  }, [filters, timeStart, timeEnd, salesMetric, activeGranularity]);
 
   const setFilter = (key, val) => setFilters((p) => ({ ...p, [key]: val }));
 
@@ -360,7 +369,7 @@ export default function SecondarySummaryOverview() {
             )}
           </Box>
 
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.2, alignItems: "flex-end" }}>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "flex-end", width: "100%" }}>
             {FILTERS.map((f) => (
               <MultiSelectFilterPopover
                 key={f.key} label={f.label}
@@ -369,9 +378,39 @@ export default function SecondarySummaryOverview() {
                 onChange={(v) => setFilter(f.key, v)}
               />
             ))}
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, flex: "1 1 200px", minWidth: 180 }}>
-              <Typography sx={{ fontSize: "0.60rem", fontWeight: 700, color: "#94a3b8", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                Time Period
+
+            {/* VIEW BY SELECT DROPDOWN */}
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.6, flex: "1 1 0px", minWidth: 80 }}>
+              <Typography sx={{ fontSize: "0.65rem", fontWeight: 700, color: "#64748b", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                VIEW BY
+              </Typography>
+              <Select
+                size="small"
+                value={activeGranularity || "monthly"}
+                onChange={(e) => applyGranularity(e.target.value)}
+                sx={{
+                  height: 36,
+                  width: "100%",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "#6366f1",
+                  backgroundColor: "#eef2ff",
+                  borderRadius: "8px",
+                  "& .MuiOutlinedInput-notchedOutline": { borderColor: "#a5b4fc" },
+                  "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#6366f1" },
+                  "& .MuiSelect-select": { py: "4px", px: "10px" },
+                }}
+              >
+                <MenuItem value="daily" sx={{ fontSize: "0.75rem", fontWeight: 600 }}>Daily</MenuItem>
+                <MenuItem value="weekly" sx={{ fontSize: "0.75rem", fontWeight: 600 }}>Weekly</MenuItem>
+                <MenuItem value="monthly" sx={{ fontSize: "0.75rem", fontWeight: 600 }}>Monthly</MenuItem>
+              </Select>
+            </Box>
+
+            {/* TIME PERIOD */}
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.6, flex: "1.8 1 0px", minWidth: 180 }}>
+              <Typography sx={{ fontSize: "0.65rem", fontWeight: 700, color: "#64748b", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                TIME PERIOD
               </Typography>
               <DateRangeComparePicker
                 timeStart={timeStart} timeEnd={timeEnd}

@@ -103,7 +103,8 @@ export const getSecondarySalesTimelineHandler = async (req, res) => {
     try {
         const filters = extractFilters(req.query);
         const metricType = req.query.metricType || 'MRP';
-        const data = await getSecondarySalesTimeline(filters, metricType);
+        const granularity = req.query.granularity || 'monthly';
+        const data = await getSecondarySalesTimeline(filters, metricType, granularity);
         res.json({ success: true, data });
     } catch (error) {
         console.error('[getSecondarySalesTimelineHandler] Error:', error.message);

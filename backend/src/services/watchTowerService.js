@@ -4561,7 +4561,7 @@ const getPlatformMetadata = async () => {
             const tableExists = await queryClickHouse("EXISTS TABLE rb_platform");
             if (tableExists && tableExists[0]?.result === 1) {
                 const visuals = await queryClickHouse(
-                    "SELECT DISTINCT pf_name, platform_description FROM rb_platform WHERE status = 1"
+                    "SELECT DISTINCT pf_name, platform_description FROM rb_platform WHERE platform_description IS NOT NULL AND platform_description != ''"
                 );
                 visuals.forEach(v => {
                     if (v.pf_name && v.platform_description) {
@@ -4582,6 +4582,10 @@ const getPlatformMetadata = async () => {
             'flipkart': 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Flipkart-logo.png',
             'instamart': '/instamart.jpeg',
             'swiggy instamart': '/instamart.jpeg',
+            'jiomart': 'https://upload.wikimedia.org/wikipedia/en/5/54/JioMart_logo.svg',
+            'meesho': 'https://upload.wikimedia.org/wikipedia/commons/3/33/Meesho_logo.png',
+            'myntra': 'https://static.vecteezy.com/system/resources/previews/067/941/729/non_2x/myntra-logo-myntra-icon-transparent-background-free-png.png',
+            'pharmeasy': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmvGD4R2shvyr2o70i_tkpo4J2fygT8Im2YAcHruh45A&s'
         };
 
         // 3) Merge: for each platform in rca_sku_dim, attach the image
@@ -5245,10 +5249,10 @@ const getPlatformOverview = async (filters) => {
             // Check if rb_platform exists first to avoid crash on DBs without it
             const tableExists = await queryClickHouse("EXISTS TABLE rb_platform");
             if (tableExists && tableExists[0]?.result === 1) {
-                const visuals = await queryClickHouse("SELECT DISTINCT pf_name, platform_description FROM rb_platform WHERE status = 1");
+                const visuals = await queryClickHouse("SELECT DISTINCT pf_name, platform_description FROM rb_platform WHERE platform_description IS NOT NULL AND platform_description != ''");
                 visuals.forEach(v => {
                     if (v.pf_name && v.platform_description) {
-                        platformVisualsMap.set(v.pf_name.toLowerCase(), v.platform_description);
+                        platformVisualsMap.set(v.pf_name.toLowerCase().trim(), v.platform_description);
                     }
                 });
             }
@@ -5259,7 +5263,7 @@ const getPlatformOverview = async (filters) => {
         const platformsFromDb = await queryClickHouse(`SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != ''`);
 
         const getPlatformLogo = (name) => {
-            const dbLogo = platformVisualsMap.get(name.toLowerCase());
+            const dbLogo = platformVisualsMap.get(name.toLowerCase().trim());
             if (dbLogo && dbLogo.startsWith('http')) return dbLogo;
 
             const logoMap = {
@@ -5269,9 +5273,13 @@ const getPlatformOverview = async (filters) => {
                 'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
                 'flipkart': 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Flipkart-logo.png',
                 'instamart': '/instamart.jpeg',
-                'swiggy instamart': '/instamart.jpeg'
+                'swiggy instamart': '/instamart.jpeg',
+                'jiomart': 'https://upload.wikimedia.org/wikipedia/en/5/54/JioMart_logo.svg',
+                'meesho': 'https://upload.wikimedia.org/wikipedia/commons/3/33/Meesho_logo.png',
+                'myntra': 'https://static.vecteezy.com/system/resources/previews/067/941/729/non_2x/myntra-logo-myntra-icon-transparent-background-free-png.png',
+                'pharmeasy': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmvGD4R2shvyr2o70i_tkpo4J2fygT8Im2YAcHruh45A&s'
             };
-            return logoMap[name.toLowerCase()] || 'https://cdn-icons-png.flaticon.com/512/3502/3502685.png';
+            return logoMap[name.toLowerCase().trim()] || 'https://cdn-icons-png.flaticon.com/512/3502/3502685.png';
         };
 
         const getPlatformType = (name) => {
