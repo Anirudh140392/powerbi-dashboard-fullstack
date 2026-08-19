@@ -305,28 +305,52 @@ export const getSecondaryTopBrands = async (filters = {}, metricType = 'MRP') =>
 };
 
 /**
- * GET MRP Sales / Units Timeline — monthly area/bar chart
+ * GET MRP Sales / Units Timeline — supports daily / weekly / monthly granularity
+ * granularity: 'daily' | 'weekly' | 'monthly' (default)
  */
-export const getSecondarySalesTimeline = async (filters = {}, metricType = 'MRP') => {
+export const getSecondarySalesTimeline = async (filters = {}, metricType = 'MRP', granularity = 'monthly') => {
     const dbName = getCurrentDbName();
     const table = `${dbName}.rb_secondary_olap`;
-    // Use date filters to make timeline dynamic
     const filterClause = buildFilterClause(filters);
     const metricCol = metricType === 'Units' ? 'qty' : '`MRP Sales Final`';
 
-    console.log('[getSecondarySalesTimeline] Filters:', filters);
+    console.log('[getSecondarySalesTimeline] Filters:', filters, '| granularity:', granularity);
     console.log('[getSecondarySalesTimeline] Filter clause:', filterClause);
+
+    let selectPeriod, groupBy, orderBy;
+
+    if (granularity === 'daily') {
+        selectPeriod = `
+            toDate(date) AS period_start,
+            formatDateTime(toDate(date), '%d %b') AS period_label`;
+        groupBy = `period_start, period_label`;
+        orderBy = `period_start ASC`;
+    } else if (granularity === 'weekly') {
+        selectPeriod = `
+            toStartOfMonth(toDate(date)) AS m_start,
+            intDiv(toDayOfMonth(toDate(date)) - 1, 7) + 1 AS wk_num,
+            concat(formatDateTime(toStartOfMonth(toDate(date)), '%b'), ' Wk ', toString(wk_num)) AS period_label,
+            min(toDate(date)) AS period_start`;
+        groupBy = `m_start, wk_num, period_label`;
+        orderBy = `m_start ASC, wk_num ASC`;
+    } else {
+        // monthly (default)
+        selectPeriod = `
+            toStartOfMonth(toDate(date)) AS period_start,
+            formatDateTime(toStartOfMonth(toDate(date)), '%b-%y') AS period_label`;
+        groupBy = `period_start, period_label`;
+        orderBy = `period_start ASC`;
+    }
 
     const query = `
         SELECT
-            toStartOfMonth(toDate(date)) AS month_start,
-            formatDateTime(toStartOfMonth(toDate(date)), '%b-%y') AS month_label,
+            ${selectPeriod},
             COALESCE(SUM(toFloat64OrZero(toString(${metricCol}))), 0) AS value
         FROM ${table}
         WHERE date IS NOT NULL
           AND ${filterClause}
-        GROUP BY month_start, month_label
-        ORDER BY month_start ASC
+        GROUP BY ${groupBy}
+        ORDER BY ${orderBy}
     `;
 
     console.log('[getSecondarySalesTimeline] Query:', query);
@@ -335,7 +359,7 @@ export const getSecondarySalesTimeline = async (filters = {}, metricType = 'MRP'
     console.log('[getSecondarySalesTimeline] Rows returned:', rows.length);
 
     return rows.map(r => ({
-        month: r.month_label,
+        month: r.period_label,
         value: parseFloat(r.value || 0),
         label: formatRupeeLabel(parseFloat(r.value || 0)),
     }));

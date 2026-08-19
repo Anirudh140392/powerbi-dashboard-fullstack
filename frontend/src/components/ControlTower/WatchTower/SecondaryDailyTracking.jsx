@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import {
   Box,
   Card,
   CardContent,
   Typography,
+  Skeleton,
 } from "@mui/material";
 import {
   ResponsiveContainer,
@@ -20,6 +21,7 @@ import dayjs from "dayjs";
 
 // Import API service
 import { fetchSecondarySalesTimeline } from "../../../api/secondarySalesService";
+import { FilterContext } from "../../../utils/FilterContext";
 
 const platformLegends = [
   { name: "Amazon", color: "#1e293b" },
@@ -41,6 +43,8 @@ const platformLegends = [
 ];
 
 export default function SecondaryDailyTracking({ timeStart, timeEnd }) {
+  const filterCtx = useContext(FilterContext) || {};
+  const { activeGranularity } = filterCtx;
   const [dailyMrpData, setDailyMrpData] = useState([]);
   const [monthlyPlatformTrend, setMonthlyPlatformTrend] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -116,8 +120,10 @@ export default function SecondaryDailyTracking({ timeStart, timeEnd }) {
       console.warn('[SecondaryDailyTracking] No timeEnd provided');
     }
 
+    params.granularity = activeGranularity || 'monthly';
+
     return params;
-  }, [timeStart, timeEnd]);
+  }, [timeStart, timeEnd, activeGranularity]);
 
   // Fetch data from API
   const fetchData = useCallback(async () => {
@@ -218,7 +224,11 @@ export default function SecondaryDailyTracking({ timeStart, timeEnd }) {
               fontFamily: "Roboto, sans-serif",
             }}
           >
-            SECONDARY DAILY TRACKING
+            {activeGranularity === "daily"
+              ? "SECONDARY DAILY TRACKING"
+              : activeGranularity === "weekly"
+              ? "SECONDARY WEEKLY TRACKING"
+              : "SECONDARY MONTHLY TRACKING"}
           </Typography>
         </Box>
       </Box>
@@ -235,13 +245,15 @@ export default function SecondaryDailyTracking({ timeStart, timeEnd }) {
       >
         <CardContent sx={{ p: 3 }}>
           <Typography sx={{ fontSize: "0.85rem", fontWeight: 800, color: "#1e293b", letterSpacing: "0.03em", mb: 2 }}>
-            MRP SALES
+            {activeGranularity === "daily"
+              ? "MRP SALES (DAILY TREND)"
+              : activeGranularity === "weekly"
+              ? "MRP SALES (WEEKLY TREND)"
+              : "MRP SALES (MONTHLY TREND)"}
           </Typography>
 
           {loading ? (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: 300 }}>
-              <Typography sx={{ fontSize: "0.85rem", color: "#94a3b8" }}>Loading...</Typography>
-            </Box>
+            <Skeleton variant="rounded" width="100%" height={300} sx={{ borderRadius: 2 }} />
           ) : dailyMrpData.length > 0 ? (
             <Box sx={{ width: "100%", height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -255,13 +267,13 @@ export default function SecondaryDailyTracking({ timeStart, timeEnd }) {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis
                     dataKey="day"
-                    tick={{ fontSize: 9, fill: "#475569", fontWeight: 600 }}
-                    interval={calculateIntervals(dailyMrpData.length).tickInterval}
+                    tick={{ fontSize: 10, fill: "#475569", fontWeight: 700 }}
+                    interval={dailyMrpData.length <= 6 ? 0 : calculateIntervals(dailyMrpData.length).tickInterval}
                     axisLine={{ stroke: "#e2e8f0" }}
                     tickLine={false}
-                    angle={-45}
-                    textAnchor="end"
-                    height={60}
+                    angle={dailyMrpData.length > 10 ? -45 : 0}
+                    textAnchor={dailyMrpData.length > 10 ? "end" : "middle"}
+                    height={40}
                   />
                   <YAxis
                     tickFormatter={(val) => `${val}M`}
@@ -336,7 +348,9 @@ export default function SecondaryDailyTracking({ timeStart, timeEnd }) {
           </Box>
 
           <Box sx={{ width: "100%", height: 320 }}>
-            {monthlyPlatformTrend.length > 0 ? (
+            {loading ? (
+              <Skeleton variant="rounded" width="100%" height={320} sx={{ borderRadius: 2 }} />
+            ) : monthlyPlatformTrend.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyPlatformTrend} margin={{ top: 25, right: 15, left: -10, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />

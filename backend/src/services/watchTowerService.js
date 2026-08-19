@@ -4561,7 +4561,7 @@ const getPlatformMetadata = async () => {
             const tableExists = await queryClickHouse("EXISTS TABLE rb_platform");
             if (tableExists && tableExists[0]?.result === 1) {
                 const visuals = await queryClickHouse(
-                    "SELECT DISTINCT pf_name, platform_description FROM rb_platform WHERE status = 1"
+                    "SELECT DISTINCT pf_name, platform_description FROM rb_platform WHERE platform_description IS NOT NULL AND platform_description != ''"
                 );
                 visuals.forEach(v => {
                     if (v.pf_name && v.platform_description) {
@@ -4579,9 +4579,20 @@ const getPlatformMetadata = async () => {
             'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg',
             'swiggy': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
             'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+            'amazon now': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
             'flipkart': 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Flipkart-logo.png',
             'instamart': '/instamart.jpeg',
             'swiggy instamart': '/instamart.jpeg',
+            'jiomart': 'https://upload.wikimedia.org/wikipedia/en/5/54/JioMart_logo.svg',
+            'meesho': 'https://upload.wikimedia.org/wikipedia/commons/3/33/Meesho_logo.png',
+            'myntra': 'https://static.vecteezy.com/system/resources/previews/067/941/729/non_2x/myntra-logo-myntra-icon-transparent-background-free-png.png',
+            'pharmeasy': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmvGD4R2shvyr2o70i_tkpo4J2fygT8Im2YAcHruh45A&s',
+            '1mg': 'https://downloadr2.apkmirror.com/wp-content/uploads/2022/01/23/61e9605e26437.png',
+            '1_mg': 'https://downloadr2.apkmirror.com/wp-content/uploads/2022/01/23/61e9605e26437.png',
+            'apollo': 'https://pbs.twimg.com/profile_images/800955664155557888/OP1uO2ZW_400x400.jpg',
+            'apollo 247': 'https://pbs.twimg.com/profile_images/800955664155557888/OP1uO2ZW_400x400.jpg',
+            'netmeds': 'https://www.haptik.ai/hs-fs/hubfs/Netmeds_240323.webp',
+            'bigbasket': 'https://upload.wikimedia.org/wikipedia/commons/2/22/Bigbasket_logo.png'
         };
 
         // 3) Merge: for each platform in rca_sku_dim, attach the image
@@ -5245,10 +5256,10 @@ const getPlatformOverview = async (filters) => {
             // Check if rb_platform exists first to avoid crash on DBs without it
             const tableExists = await queryClickHouse("EXISTS TABLE rb_platform");
             if (tableExists && tableExists[0]?.result === 1) {
-                const visuals = await queryClickHouse("SELECT DISTINCT pf_name, platform_description FROM rb_platform WHERE status = 1");
+                const visuals = await queryClickHouse("SELECT DISTINCT pf_name, platform_description FROM rb_platform WHERE platform_description IS NOT NULL AND platform_description != ''");
                 visuals.forEach(v => {
                     if (v.pf_name && v.platform_description) {
-                        platformVisualsMap.set(v.pf_name.toLowerCase(), v.platform_description);
+                        platformVisualsMap.set(v.pf_name.toLowerCase().trim(), v.platform_description);
                     }
                 });
             }
@@ -5259,7 +5270,7 @@ const getPlatformOverview = async (filters) => {
         const platformsFromDb = await queryClickHouse(`SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != ''`);
 
         const getPlatformLogo = (name) => {
-            const dbLogo = platformVisualsMap.get(name.toLowerCase());
+            const dbLogo = platformVisualsMap.get(name.toLowerCase().trim());
             if (dbLogo && dbLogo.startsWith('http')) return dbLogo;
 
             const logoMap = {
@@ -5269,9 +5280,13 @@ const getPlatformOverview = async (filters) => {
                 'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
                 'flipkart': 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Flipkart-logo.png',
                 'instamart': '/instamart.jpeg',
-                'swiggy instamart': '/instamart.jpeg'
+                'swiggy instamart': '/instamart.jpeg',
+                'jiomart': 'https://upload.wikimedia.org/wikipedia/en/5/54/JioMart_logo.svg',
+                'meesho': 'https://upload.wikimedia.org/wikipedia/commons/3/33/Meesho_logo.png',
+                'myntra': 'https://static.vecteezy.com/system/resources/previews/067/941/729/non_2x/myntra-logo-myntra-icon-transparent-background-free-png.png',
+                'pharmeasy': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmvGD4R2shvyr2o70i_tkpo4J2fygT8Im2YAcHruh45A&s'
             };
-            return logoMap[name.toLowerCase()] || 'https://cdn-icons-png.flaticon.com/512/3502/3502685.png';
+            return logoMap[name.toLowerCase().trim()] || 'https://cdn-icons-png.flaticon.com/512/3502/3502685.png';
         };
 
         const getPlatformType = (name) => {
@@ -5490,9 +5505,10 @@ const getPlatformOverview = async (filters) => {
 
     const dbNameForOverview = getCurrentDbName();
     const isDrlDb = dbNameForOverview === 'drl';
+    const buymorePlatforms = ['amazon', 'flipkart', 'jiomart', 'meesho', 'myntra', 'pharmeasy', 'shopify'];
 
     const drlExcludeBuyMoreCond = (isDrlDb)
-        ? ` AND (lower(${src.f.platform}) NOT IN ('amazon', 'flipkart') OR lower(trim(Reseller_Name)) NOT LIKE '%buy%more%' OR Reseller_Name IS NULL OR Reseller_Name = '')`
+        ? ` AND (lower(${src.f.platform}) NOT IN (${buymorePlatforms.map(p => `'${p}'`).join(', ')}) OR lower(trim(Reseller_Name)) NOT LIKE '%buy%more%' OR Reseller_Name IS NULL OR Reseller_Name = '')`
         : '';
 
     const currOfftakeCondsWithDrl = currOfftakeConds + drlExcludeBuyMoreCond;
@@ -5796,6 +5812,8 @@ const getPlatformOverview = async (filters) => {
 
     let currBuymoreMap = new Map();
     let prevBuymoreMap = new Map();
+    let currBuymoreQtyMap = new Map();
+    let prevBuymoreQtyMap = new Map();
 
     if (isDrlDb) {
         const buildBuymoreCondsForOverview = (sDate, eDate) => {
@@ -5807,7 +5825,7 @@ const getPlatformOverview = async (filters) => {
             }
             if (locationArr && locationArr.length > 0) conds.push(`lower(Location) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
             if (platformArr && platformArr.length > 0) conds.push(`lower(Platform) IN (${platformArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
-            else conds.push(`lower(Platform) IN ('amazon', 'flipkart')`);
+            else conds.push(`lower(Platform) IN (${buymorePlatforms.map(p => `'${p}'`).join(', ')})`);
 
             const validStatuses = [
                 'shiplable generated', 'pickup_complete', 'pickup pending', 'payment success',
@@ -5821,20 +5839,30 @@ const getPlatformOverview = async (filters) => {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
                 queryClickHouse(`
-                    SELECT lower(Platform) as platform, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales
+                    SELECT lower(Platform) as platform,
+                           SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                           SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
                     FROM drl.buymore_rb_pdp_olap
                     WHERE ${buildBuymoreCondsForOverview(startDate, endDate)}
                     GROUP BY platform
                 `),
                 queryClickHouse(`
-                    SELECT lower(Platform) as platform, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales
+                    SELECT lower(Platform) as platform,
+                           SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                           SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
                     FROM drl.buymore_rb_pdp_olap
                     WHERE ${buildBuymoreCondsForOverview(momStart, momEnd)}
                     GROUP BY platform
                 `)
             ]);
-            currBmRes.forEach(r => currBuymoreMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_sales || 0)));
-            prevBmRes.forEach(r => prevBuymoreMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_sales || 0)));
+            currBmRes.forEach(r => {
+                currBuymoreMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_sales || 0));
+                currBuymoreQtyMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_qty || 0));
+            });
+            prevBmRes.forEach(r => {
+                prevBuymoreMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_sales || 0));
+                prevBuymoreQtyMap.set(r.platform?.toLowerCase(), parseFloat(r.buymore_qty || 0));
+            });
         } catch (err) {
             console.error('[getPlatformOverview] Error querying buymore_rb_pdp_olap:', err);
         }
@@ -5851,10 +5879,14 @@ const getPlatformOverview = async (filters) => {
 
         let currSalesVal = parseFloat(c?.sales || 0);
         let prevSalesVal = parseFloat(pv?.sales || 0);
+        let currQtyVal = parseFloat(c?.qty || 0);
+        let prevQtyVal = parseFloat(pv?.qty || 0);
 
-        if (isDrlDb && (key === 'amazon' || key === 'flipkart')) {
+        if (isDrlDb && buymorePlatforms.includes(key)) {
             currSalesVal += (currBuymoreMap.get(key) || 0);
             prevSalesVal += (prevBuymoreMap.get(key) || 0);
+            currQtyVal += (currBuymoreQtyMap.get(key) || 0);
+            prevQtyVal += (prevBuymoreQtyMap.get(key) || 0);
         }
 
         // Calculate SOS for this platform
@@ -5876,7 +5908,7 @@ const getPlatformOverview = async (filters) => {
         bulkPlatformMap.set(p.label, {
             curr: {
                 sales: currSalesVal,
-                qty: parseFloat(c?.qty || 0),
+                qty: currQtyVal,
                 spend: parseFloat(cpmVal?.spend || 0),
                 adSales: parseFloat(cpmVal?.Ad_sales || 0),
                 clicks: parseFloat(cpmVal?.clicks || 0),
@@ -5899,7 +5931,7 @@ const getPlatformOverview = async (filters) => {
             },
             prev: {
                 sales: prevSalesVal,
-                qty: parseFloat(pv?.qty || 0),
+                qty: prevQtyVal,
                 spend: parseFloat(pvpmVal?.spend || 0),
                 adSales: parseFloat(pvpmVal?.Ad_sales || 0),
                 clicks: parseFloat(pvpmVal?.clicks || 0),
@@ -6256,7 +6288,7 @@ const getPlatformOverview = async (filters) => {
         const key = p.label.toLowerCase();
         const metrics = bulkPlatformMap.get(p.label) || { curr: {}, prev: {} };
 
-        const hasPdp = currData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && (key === 'amazon' || key === 'flipkart') && (currBuymoreMap.get(key) || 0) > 0);
+        const hasPdp = currData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && buymorePlatforms.includes(key) && (currBuymoreMap.get(key) || 0) > 0);
         const hasPm = currPmData.some(d => d.Platform && d.Platform.toLowerCase() === key);
         const hasMsCheck = currMsMap.has(key) || currMsDenomMap.has(key);
         const hasSosCheck = currSosOurMap.has(key) || currSosTotalMap.has(key);
@@ -6297,7 +6329,7 @@ const getPlatformOverview = async (filters) => {
         const asp = hasPdp ? (metrics.curr.asp ?? null) : null;
 
         // Previous period
-        const prevHasPdp = prevData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && (key === 'amazon' || key === 'flipkart') && (prevBuymoreMap.get(key) || 0) > 0);
+        const prevHasPdp = prevData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && buymorePlatforms.includes(key) && (prevBuymoreMap.get(key) || 0) > 0);
         const prevHasPm = prevPmData.some(d => d.Platform && d.Platform.toLowerCase() === key);
         const prevHasMsCheck = prevMsMap.has(key) || prevMsDenomMap.has(key);
         const prevHasSosCheck = prevSosOurMap.has(key) || prevSosTotalMap.has(key);
@@ -7984,12 +8016,13 @@ const getKpiTrends = async (filters) => {
     let includeBuyMore = true;
     const nonBuyMoreList = resellerList.filter(r => !(r.includes('buy') || r.includes('more')));
 
-    // For DRL: buymore data should ONLY be included for Amazon/Flipkart platforms, not for quick commerce
+    // For DRL: buymore data should ONLY be included for e-commerce platforms, not for quick commerce
     if (isDrlDb) {
         const quickCommPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow'];
+        const ecommPlatforms = ['amazon', 'flipkart', 'jiomart', 'meesho', 'myntra', 'pharmeasy', 'shopify'];
         const selectedPlatforms = platArr.map(p => p.toLowerCase());
         const isOnlyQuickComm = selectedPlatforms.length > 0 && selectedPlatforms.every(p => quickCommPlatforms.includes(p));
-        const hasEcomm = selectedPlatforms.length === 0 || selectedPlatforms.includes('amazon') || selectedPlatforms.includes('flipkart');
+        const hasEcomm = selectedPlatforms.length === 0 || selectedPlatforms.some(p => ecommPlatforms.includes(p));
         
         if (isOnlyQuickComm) {
             includeBuyMore = false;
