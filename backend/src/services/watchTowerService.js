@@ -8563,7 +8563,7 @@ const getKpiTrends = async (filters) => {
  * @param {string} platform - Selected platform filter
  * @param {string} brand - Selected brand filter (for cities)
  */
-const getTrendsFilterOptions = async ({ filterType, platform, brand, category, resellerName }) => {
+const getTrendsFilterOptions = async ({ filterType, platform, brand, category, resellerName, dbName: propDbName }) => {
     try {
         console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, category=${category}, resellerName=${resellerName}`);
         const src = await getWatchtowerSource();
@@ -8574,8 +8574,9 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
         const catArr = normalizeFilterArray(category);
 
         // Reseller_Name filter (DRL DB context only)
-        const dbName = getCurrentDbName();
-        const resellerArr = ((dbName === 'drl' || dbName === 'prestige') && resellerName && resellerName !== 'All' && resellerName !== 'all')
+        const effectiveDb = (propDbName || getCurrentDbName() || '').toLowerCase();
+        const isDrl = effectiveDb === 'drl';
+        const resellerArr = (isDrl && resellerName && resellerName !== 'All' && resellerName !== 'all')
             ? normalizeFilterArray(resellerName)
             : null;
 
@@ -8697,6 +8698,39 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
 
         if (filterType === 'skus') {
             // Fetch unique products - exclusive to Our SKUs (compFlag = 0)
+            const pdpCols = await getTableColumns('rb_pdp_olap');
+            const hasSapCode = columnExists(pdpCols, 'sap_code');
+
+            if (isDrl || hasSapCode) {
+                const sapCol = hasSapCode ? resolveColumn(pdpCols, 'sap_code') : "''";
+                const pCol = resolveColumn(pdpCols, 'Product', 'Product');
+                const cFlag = resolveColumn(pdpCols, 'Comp_flag', 'Comp_flag');
+                const platCol = resolveColumn(pdpCols, 'Platform', 'Platform');
+                const brandCol = resolveColumn(pdpCols, 'Brand', 'Brand');
+                const catCol = resolveColumn(pdpCols, 'Category', 'Category');
+
+                const pdpConditions = [`${pCol} IS NOT NULL`, `${pCol} != ''`, `toString(${cFlag}) = '0'`];
+                if (platArr && platArr.length > 0) {
+                    pdpConditions.push(`lower(${platCol}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+                }
+                if (brandArr && brandArr.length > 0) {
+                    pdpConditions.push(`lower(${brandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+                }
+                if (catArr && catArr.length > 0) {
+                    pdpConditions.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+                }
+                if (resellerArr && resellerArr.length > 0 && columnExists(pdpCols, 'Reseller_Name')) {
+                    pdpConditions.push(`Reseller_Name IN (${resellerArr.map(r => `'${escapeStr(r)}'`).join(',')})`);
+                }
+
+                const webPidCol = resolveColumn(pdpCols, 'Web_Pid');
+                const query = `SELECT DISTINCT ${pCol} as sku, any(${sapCol}) as sap_code, any(${webPidCol}) as web_pid FROM rb_pdp_olap WHERE ${pdpConditions.join(' AND ')} GROUP BY sku ORDER BY sku`;
+                const results = await queryClickHouse(query);
+                const skuList = results.map(s => s.sku).filter(s => s && s.trim()).sort();
+                const skuDetails = results.filter(s => s.sku && s.sku.trim()).map(s => ({ name: s.sku, sapCode: s.sap_code || null, webPid: s.web_pid || null }));
+                return { options: [...skuList], skuDetails };
+            }
+
             const conditions = [`${src.f.product} IS NOT NULL`, `${src.f.product} != ''`, `toString(${src.f.compFlag}) = '0'`];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
@@ -8709,25 +8743,11 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
             }
             addResellerCondition(conditions);
 
-            const isDrl = dbName === 'drl';
-            if (isDrl) {
-                const tableName = src.table || 'rb_pdp_olap';
-                const cols = await getTableColumns(tableName);
-                const hasSapCode = columnExists(cols, 'sap_code');
-                if (hasSapCode) {
-                    const sapCol = resolveColumn(cols, 'sap_code');
-                    const query = `SELECT DISTINCT ${src.f.product} as sku, any(${sapCol}) as sap_code FROM ${src.table} WHERE ${conditions.join(' AND ')} GROUP BY sku ORDER BY sku`;
-                    const results = await queryClickHouse(query);
-                    const skuList = results.map(s => s.sku).filter(s => s && s.trim()).sort();
-                    const skuDetails = results.filter(s => s.sku && s.sku.trim()).map(s => ({ name: s.sku, sapCode: s.sap_code || null }));
-                    return { options: [...skuList], skuDetails };
-                }
-            }
-
-            const query = `SELECT DISTINCT ${src.f.product} as sku FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY sku`;
+            const query = `SELECT DISTINCT ${src.f.product} as sku, any(${src.f.skuCode}) as web_pid FROM ${src.table} WHERE ${conditions.join(' AND ')} GROUP BY sku ORDER BY sku`;
             const results = await queryClickHouse(query);
             const skuList = results.map(s => s.sku).filter(s => s && s.trim()).sort();
-            return { options: [...skuList] };
+            const skuDetails = results.filter(s => s.sku && s.sku.trim()).map(s => ({ name: s.sku, webPid: s.web_pid || null }));
+            return { options: [...skuList], skuDetails };
         }
 
         return { options: [] };
@@ -13021,9 +13041,7 @@ const getProducts = async (filters = {}) => {
 };
 
 /**
- * DRL-only: returns [{name, sapCode}] for every product.
- * The main getProducts is intentionally left unchanged (returns plain strings)
- * so existing callers keep working. This is a separate endpoint.
+ * Returns product identifiers for every client.
  */
 const getProductsWithSap = async (filters = {}) => {
     try {
@@ -13050,16 +13068,18 @@ const getProductsWithSap = async (filters = {}) => {
             conditions.push(`${src.f.category} IN(${catArr.map(c => `'${_esc(c)}'`).join(', ')})`);
         }
 
-        // Discover sap_code column safely — fall back to empty string if absent
+        // Discover identifier columns safely so the same dropdown works for every client.
         const tableName = src.table || 'rb_pdp_olap';
         const cols = await getTableColumns(tableName);
         const hasSap = columnExists(cols, 'sap_code');
         const sapExpr = hasSap ? resolveColumn(cols, 'sap_code') : "''";
+        const webPidExpr = resolveColumn(cols, 'Web_Pid');
 
         const query = `
                         SELECT
                             ${src.f.product} AS product_name,
-                            any(${sapExpr}) AS sap_code
+                            any(${sapExpr}) AS sap_code,
+                            any(${webPidExpr}) AS web_pid
                         FROM ${src.table}
                         WHERE ${conditions.join(' AND ')}
                         GROUP BY product_name
@@ -13068,7 +13088,7 @@ const getProductsWithSap = async (filters = {}) => {
         const results = await queryClickHouse(query);
         return results
             .filter(r => r.product_name)
-            .map(r => ({ name: r.product_name, sapCode: r.sap_code || null }));
+            .map(r => ({ name: r.product_name, sapCode: r.sap_code || null, webPid: r.web_pid || null }));
     } catch (error) {
         console.error('[getProductsWithSap] Error:', error);
         return [];

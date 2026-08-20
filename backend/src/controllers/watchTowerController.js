@@ -561,9 +561,9 @@ export const getProducts = async (req, res) => {
 };
 
 /**
- * DRL-only: Get products with SAP codes for the SKU filter dropdown
+ * Get products with identifiers for the SKU filter dropdown
  * GET /api/watchtower/products-with-sap
- * Returns [{name, sapCode}] — only called by DRL clients
+ * Returns [{name, sapCode, webPid}] for all clients
  */
 export const getProductsWithSap = async (req, res) => {
     try {

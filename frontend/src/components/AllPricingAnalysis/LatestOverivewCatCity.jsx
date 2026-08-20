@@ -234,8 +234,11 @@ const LatestOverivewCatCity = ({
             try {
                 const params = new URLSearchParams();
                 
-                // Use advanced filters if set, otherwise fall back to global sidebar platform
-                const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : (globalPlatform && globalPlatform !== 'All' ? globalPlatform : null)); 
+                // Platform overview always compares every platform, regardless of
+                // the sidebar or advanced platform selection.
+                const pl = dimension === 'platform'
+                    ? 'All'
+                    : toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : (globalPlatform && globalPlatform !== 'All' ? globalPlatform : null));
                 if (pl) params.append('platform', pl);
                 
                 const br = toParam(advancedFilters.brands?.length > 0 ? advancedFilters.brands : selectedBrand); 

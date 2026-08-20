@@ -76,6 +76,7 @@ export function buildProductsQuery(params: ContentDashboardQuerySchema): string 
     SELECT
       o.product_id,
       COALESCE(s.sku_name, s.sku_title, o.title) AS title,
+      s.image_url,
       o.total_score AS score,
       o.title_score,
       o.bullet_score AS bullet_point_score,
@@ -85,10 +86,14 @@ export function buildProductsQuery(params: ContentDashboardQuerySchema): string 
       o.thumbnail_video_score AS video_score
     FROM \`${company}\`.rb_content_olap o
     LEFT JOIN (
-      SELECT web_pid, any(sku_name) as sku_name, any(sku_title) as sku_title
+      SELECT
+        LOWER(web_pid) AS pid,
+        any(sku_name) AS sku_name,
+        any(sku_title) AS sku_title,
+        anyIf(image_url, image_url != '') AS image_url
       FROM \`${company}\`.rb_sku_platform
-      GROUP BY web_pid
-    ) s ON LOWER(o.product_id) = LOWER(s.web_pid)
+      GROUP BY pid
+    ) s ON LOWER(o.product_id) = s.pid
     ${where}
     ORDER BY ${dbSortBy} ${order}
     LIMIT ${limit} OFFSET ${offset}

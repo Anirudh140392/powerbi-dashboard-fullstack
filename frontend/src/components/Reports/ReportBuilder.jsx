@@ -681,7 +681,7 @@ export default function ReportBuilder({
                             "&:hover": { background: dataMode === "aggregated" ? "linear-gradient(135deg, #4338CA, #312E81)" : "#F1F5F9" }
                           }}
                         >
-                          Aggregated Data (rb_pdp_olap)
+                          Aggregated Data
                         </Button>
                         <Button
                           variant={dataMode === "darkstore" ? "contained" : "outlined"}
@@ -694,7 +694,7 @@ export default function ReportBuilder({
                             "&:hover": { background: dataMode === "darkstore" ? "linear-gradient(135deg, #0284C7, #0369A1)" : "#F1F5F9" }
                           }}
                         >
-                          Darkstore Data (rb_pdp_week)
+                          Darkstore Data
                         </Button>
                       </Box>
                     </Box>

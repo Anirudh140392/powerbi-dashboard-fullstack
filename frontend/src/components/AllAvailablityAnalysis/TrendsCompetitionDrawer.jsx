@@ -713,6 +713,7 @@ export default function TrendsCompetitionDrawer({
     Brand: "All",
     City: "All",
     SKU: "All",
+    SKUWebPid: "All",
     ResellerName: "All",
     Msl: "All"
   });
@@ -738,15 +739,17 @@ export default function TrendsCompetitionDrawer({
 
   // --- Reseller Name filter (DRL only) ---
   const drlUser = useMemo(() => {
-    try { return JSON.parse(sessionStorage.getItem('user')); } catch { return null; }
+    try {
+      return JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || localStorage.getItem('user') || '{}');
+    } catch { return null; }
   }, []);
   const isDrl = (() => {
-    const db = drlUser?.dbName?.toLowerCase();
+    const db = (drlUser?.dbName || drlUser?.db_name || drlUser?.database || '').toLowerCase();
     return db === 'drl' || db === 'prestige';
   })();
   const isDrlUser = (() => {
-    const db = drlUser?.dbName?.toLowerCase();
-    return db === 'drl';
+    const db = (drlUser?.dbName || drlUser?.db_name || drlUser?.database || '').toLowerCase();
+    return db === 'drl' || db === 'prestige';
   })();
   const [resellerOptions, setResellerOptions] = useState([]);
   const selectedPlatformLower = (drawerFilters.Platform || '').toLowerCase();
@@ -862,6 +865,7 @@ export default function TrendsCompetitionDrawer({
       Brand: "All",
       Format: "All",
       SKU: "All",
+      SKUWebPid: "All",
       ResellerName: "All",
       Msl: "All",
     };
@@ -1071,7 +1075,22 @@ export default function TrendsCompetitionDrawer({
         });
         if (cancelled) return;
         const skus = (skusRes.data?.options || []).filter(s => s !== 'All' && s.trim()).sort();
-        const skuDetails = skusRes.data?.skuDetails || [];
+        let skuDetails = skusRes.data?.skuDetails || [];
+
+        // Fallback: fetch shared product identifiers when the trends endpoint has no details.
+        if (!skuDetails || skuDetails.length === 0) {
+          try {
+            const sapRes = await axiosInstance.get('/watchtower/products-with-sap', {
+              params: { platform: platformParam, brand: brandParam, category: categoryParam }
+            });
+            if (!cancelled && sapRes.data && Array.isArray(sapRes.data)) {
+              skuDetails = sapRes.data;
+            }
+          } catch (err) {
+            console.warn("[TrendsDrawer] Fallback products-with-sap error:", err);
+          }
+        }
+
         setFilterOptions(prev => ({ ...prev, skus, skuDetails }));
       } catch (error) {
         console.error("[TrendsDrawer] Error fetching cascaded SKUs:", error);
@@ -1079,7 +1098,7 @@ export default function TrendsCompetitionDrawer({
     };
     fetchSkus();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format, drawerFilters.ResellerName, isDrl]);
+  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format, drawerFilters.ResellerName, isDrl, isDrlUser]);
 
   const [trendError, setTrendError] = useState(null);
 
@@ -1127,6 +1146,7 @@ export default function TrendsCompetitionDrawer({
           category: toApiParam(drawerFilters.Format),
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
+          skuCode: toApiParam(drawerFilters.SKUWebPid === 'All' ? undefined : drawerFilters.SKUWebPid),
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
           msl: toApiParam(drawerFilters.Msl),
         };
@@ -1160,6 +1180,7 @@ export default function TrendsCompetitionDrawer({
           category: toApiParam(drawerFilters.Format),
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
+          skuCode: toApiParam(drawerFilters.SKUWebPid === 'All' ? undefined : drawerFilters.SKUWebPid),
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
           subCategory: selectedSubCategory === 'All' ? undefined : (Array.isArray(selectedSubCategory) ? selectedSubCategory.join(",") : selectedSubCategory),
         };
@@ -1187,6 +1208,7 @@ export default function TrendsCompetitionDrawer({
           category: toApiParam(drawerFilters.Format),
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
+          skuCode: toApiParam(drawerFilters.SKUWebPid === 'All' ? undefined : drawerFilters.SKUWebPid),
           ownBrandsOnly: 'true',
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
           msl: toApiParam(drawerFilters.Msl),
@@ -1215,6 +1237,7 @@ export default function TrendsCompetitionDrawer({
           category: toApiParam(drawerFilters.Format),
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
+          skuCode: toApiParam(drawerFilters.SKUWebPid === 'All' ? undefined : drawerFilters.SKUWebPid),
           channel: derivedChannel || undefined,
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
           msl: toApiParam(drawerFilters.Msl),
@@ -2926,7 +2949,7 @@ export default function TrendsCompetitionDrawer({
                     <TextField
                       fullWidth
                       size="small"
-                      placeholder={isDrlUser ? "Search SKUs or SAP code..." : "Search SKUs..."}
+                      placeholder={isDrlUser ? "Search SKUs, SAP code or Web PID..." : "Search SKUs or Web PID..."}
                       value={skuSearchTerm || ''}
                       onChange={(e) => setSkuSearchTerm(e.target.value)}
                       InputProps={{
@@ -2957,7 +2980,7 @@ export default function TrendsCompetitionDrawer({
                     >
                       {/* "All SKUs" option */}
                       <Box
-                        onClick={() => setDrawerFilters(prev => ({ ...prev, SKU: 'All' }))}
+                        onClick={() => setDrawerFilters(prev => ({ ...prev, SKU: 'All', SKUWebPid: 'All' }))}
                         sx={{
                           display: 'flex',
                           alignItems: 'center',
@@ -2978,20 +3001,21 @@ export default function TrendsCompetitionDrawer({
 
                       {/* Filtered SKU items */}
                       {(() => {
-                        const getSkuSapCode = (skuName) => {
-                          if (!skuName || !filterOptions.skuDetails) return null;
-                          const match = filterOptions.skuDetails.find(d => d.name?.toLowerCase() === skuName.toLowerCase());
-                          return match?.sapCode || null;
+                        const getSkuDetails = (skuName) => {
+                          if (!skuName || !filterOptions.skuDetails || !filterOptions.skuDetails.length) return null;
+                          const match = filterOptions.skuDetails.find(d => (d.name || d.product_name || '')?.toLowerCase() === skuName.toLowerCase());
+                          return match || null;
                         };
 
                         const filteredSkus = SKU_OPTIONS.filter(opt => {
                           if (!skuSearchTerm) return true;
-                          const term = skuSearchTerm.toLowerCase();
+                          const term = skuSearchTerm.toLowerCase().trim();
                           if (opt.toLowerCase().includes(term)) return true;
-                          if (isDrlUser) {
-                            const sap = getSkuSapCode(opt);
-                            if (sap && String(sap).toLowerCase().includes(term)) return true;
-                          }
+                          const details = getSkuDetails(opt);
+                          const webPid = details?.webPid || details?.web_pid;
+                          if (webPid && String(webPid).toLowerCase().includes(term)) return true;
+                          const sapCode = details?.sapCode || details?.sap_code;
+                          if (isDrlUser && sapCode && String(sapCode).toLowerCase().includes(term)) return true;
                           return false;
                         });
 
@@ -3004,14 +3028,16 @@ export default function TrendsCompetitionDrawer({
                               const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
                               const variant = parenMatch ? parenMatch[1] : '';
                               const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
-                              const sapCode = isDrlUser ? getSkuSapCode(opt) : null;
+                              const skuDetails = getSkuDetails(opt);
+                              const webPid = skuDetails?.webPid || skuDetails?.web_pid || null;
+                              const sapCode = skuDetails?.sapCode || skuDetails?.sap_code || null;
 
                               return (
                                 <Box
                                   key={opt}
                                   onClick={() => {
                                     if (drawerFilters.SKU === 'All') {
-                                      setDrawerFilters(prev => ({ ...prev, SKU: opt }));
+                                      setDrawerFilters(prev => ({ ...prev, SKU: opt, SKUWebPid: webPid || 'All' }));
                                     } else {
                                       const selected = drawerFilters.SKU.split(';;').map(s => s.trim());
                                       const exists = selected.some(s => s.toLowerCase() === opt.toLowerCase());
@@ -3021,13 +3047,18 @@ export default function TrendsCompetitionDrawer({
                                       } else {
                                         nextSelected = [...selected, opt];
                                       }
+                                      const selectedWebPids = nextSelected.map(name => {
+                                        const details = getSkuDetails(name);
+                                        return details?.webPid || details?.web_pid;
+                                      }).filter(Boolean);
                                       setDrawerFilters(prev => ({
                                         ...prev,
-                                        SKU: nextSelected.length > 0 ? nextSelected.join(';;') : 'All'
+                                        SKU: nextSelected.length > 0 ? nextSelected.join(';;') : 'All',
+                                        SKUWebPid: selectedWebPids.length > 0 ? selectedWebPids.join(',') : 'All'
                                       }));
                                     }
                                   }}
-                                  title={sapCode ? `${opt} (SAP: ${sapCode})` : opt}
+                                  title={[sapCode && `SAP: ${sapCode}`, webPid && `Web PID: ${webPid}`].filter(Boolean).join(' | ') || opt}
                                   sx={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -3056,11 +3087,15 @@ export default function TrendsCompetitionDrawer({
                                     }}>
                                       {mainName}
                                     </Typography>
-                                    {variant && (
+                                    {webPid || (isDrlUser && sapCode) ? (
+                                      <Typography sx={{ fontSize: '10px', color: '#64748B', fontWeight: 500, mt: '-1px' }}>
+                                        {isDrlUser && sapCode ? `SAP: ${sapCode}` : ''}{isDrlUser && sapCode && webPid ? ' | ' : ''}{webPid ? `Web PID: ${webPid}` : ''}
+                                      </Typography>
+                                    ) : variant ? (
                                       <Typography sx={{ fontSize: '10px', color: '#94A3B8', mt: '-1px' }}>
                                         {variant}
                                       </Typography>
-                                    )}
+                                    ) : null}
                                   </Box>
                                 </Box>
                               );

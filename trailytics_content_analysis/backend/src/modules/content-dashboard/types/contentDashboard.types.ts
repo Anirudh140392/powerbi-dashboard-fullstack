@@ -32,6 +32,7 @@ export type SortableColumn =
 export interface ContentOlapProductRow {
   product_id: string;
   title?: string;
+  image_url?: string;
   score?: number;
   title_score?: number;
   bullet_point_score?: number;
@@ -61,6 +62,7 @@ export interface ContentOlapSummaryRow {
 export interface ProductRow {
   productId: string;
   title: string;
+  imageUrl?: string | null;
   totalScore: number | null;
   titleScore: number | null;
   bulletPointScore: number | null;
