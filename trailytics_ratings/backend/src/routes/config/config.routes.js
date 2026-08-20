@@ -9,7 +9,16 @@ import {
     getAlertScopeOptions,
     getClientBrands
 } from '../../controllers/config/config.controller.js';
-import { getSkuList } from '../../controllers/misc_temp.js';
+import { getSkuListLegacy, getSkuListOlap } from '../../controllers/misc_temp.js';
+import { useOlapTable } from '../../utils/olapResolver.js';
+
+const dispatch = (legacyFn, olapFn) => (req, res, next) => {
+    const dbName =
+        req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] ||
+        (req.authUser && req.authUser.dbName) ||
+        process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || '';
+    return useOlapTable(dbName) ? olapFn(req, res, next) : legacyFn(req, res, next);
+};
 
 const router = express.Router();
 
@@ -20,7 +29,7 @@ router.get('/spec-type-mappings', getSpecTypeMappings);
 router.get('/company-config', getCompanyConfig);
 router.get('/brand-config', getBrandConfig);
 router.get('/alert-scope-options', getAlertScopeOptions);
-router.get('/sku-list', getSkuList);
+router.get('/sku-list', dispatch(getSkuListLegacy, getSkuListOlap));
 router.get('/client-brands', getClientBrands);
 
 export default router;

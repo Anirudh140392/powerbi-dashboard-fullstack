@@ -524,6 +524,7 @@ export function useExecutiveHealth(
     priceMode?: 'rp' | 'sp' | null,
     priceRange?: { min: number; max: number } | null,
     brandScope?: string | null,
+    brand?: string | null,
     sentimentCategory?: string | null,
     sku?: string | null,
     options: HookOptions = {},
@@ -550,6 +551,7 @@ export function useExecutiveHealth(
         if (brandScope === 'prestige') params.is_competitor = 'false';
         else if (brandScope === 'competition') params.is_competitor = 'true';
         else if (brandScope === 'all') params.is_competitor = 'all';
+        if (brand) params.brand = brand;
         if (sentimentCategory) params.sentiment_category = sentimentCategory;
         if (sku) params.web_pid = sku;
         
@@ -558,7 +560,7 @@ export function useExecutiveHealth(
             .then(result => { setData(result); })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [enabled, category, paretoStatus, ratingBifurcation, platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, sentimentCategory, sku]);
+    }, [enabled, category, paretoStatus, ratingBifurcation, platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, brand, sentimentCategory, sku]);
 
     return { data, loading };
 }
@@ -618,6 +620,7 @@ export function useCategoryHealth(
     priceMode?: 'rp' | 'sp' | null,
     priceRange?: { min: number; max: number } | null,
     brandScope?: string | null,
+    brand?: string | null,
     sentimentCategory?: string | null,
     category?: string | null,
     paretoStatus?: string | null,
@@ -657,7 +660,8 @@ export function useCategoryHealth(
         if (brandScope === 'prestige') params.is_competitor = 'false';
         else if (brandScope === 'competition') params.is_competitor = 'true';
         else if (brandScope === 'all') params.is_competitor = 'all';
-
+        if (brand) params.brand = brand;
+        
         if (sentimentCategory) params.sentiment_category = sentimentCategory;
         if (category) params.category = category;
         if (paretoStatus) params.pareto_status = paretoStatus;
@@ -676,7 +680,7 @@ export function useCategoryHealth(
             })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, sentimentCategory, category, paretoStatus, ratingBifurcation, sku]);
+    }, [platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, brand, sentimentCategory, category, paretoStatus, ratingBifurcation, sku]);
 
     return { data, globalMetadata, loading };
 }
@@ -748,6 +752,7 @@ export function useIssuesBreakdown(
     priceMode?: 'rp' | 'sp' | null,
     priceRange?: { min: number; max: number } | null,
     brandScope?: string | null,
+    brand?: string | null,
     sentimentCategory?: string | null,
     sku?: string | null,
     options: HookOptions = {},
@@ -774,6 +779,7 @@ export function useIssuesBreakdown(
         if (brandScope === 'prestige') params.is_competitor = 'false';
         else if (brandScope === 'competition') params.is_competitor = 'true';
         else if (brandScope === 'all') params.is_competitor = 'all';
+        if (brand) params.brand = brand;
         if (sentimentCategory) params.sentiment_category = sentimentCategory;
         if (sku) params.web_pid = sku;
         setLoading(true);
@@ -781,7 +787,7 @@ export function useIssuesBreakdown(
             .then(result => { setData(result.issues); })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [enabled, category, paretoStatus, ratingBifurcation, platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, sentimentCategory, sku]);
+    }, [enabled, category, paretoStatus, ratingBifurcation, platform, periodMonths, dateFrom, dateTo, priceMode, priceRange?.min, priceRange?.max, brandScope, brand, sentimentCategory, sku]);
 
     return { data, loading };
 }
@@ -915,6 +921,7 @@ export function useStakeholderDetail(
         is_competitor?: string | null;
         web_pid?: string | null;
         period_months?: number | null;
+        brand?: string | null;
     }
 ) {
     const [data, setData] = useState<StakeholderIssue[]>([]);
@@ -941,6 +948,7 @@ export function useStakeholderDetail(
         if (filters?.is_competitor) params.is_competitor = filters.is_competitor;
         if (filters?.web_pid) params.web_pid = filters.web_pid;
         if (filters?.period_months) params.period_months = String(filters.period_months);
+        if (filters?.brand) params.brand = filters.brand;
 
         setLoading(true);
         fetchAPI<StakeholderDetailResponse>('/stakeholder-detail', params)
@@ -950,7 +958,7 @@ export function useStakeholderDetail(
             })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [stakeholderName, filters?.category, filters?.pareto_status, filters?.rating_bifurcation, filters?.platform, filters?.date_from, filters?.date_to, filters?.price_mode, filters?.price_min, filters?.price_max, filters?.sentiment_category, filters?.is_competitor, filters?.web_pid]);
+    }, [stakeholderName, filters?.category, filters?.pareto_status, filters?.rating_bifurcation, filters?.platform, filters?.date_from, filters?.date_to, filters?.price_mode, filters?.price_min, filters?.price_max, filters?.sentiment_category, filters?.is_competitor, filters?.web_pid, filters?.brand]);
 
     return { data, uniqueSkuCount, loading };
 }
@@ -976,6 +984,8 @@ export function useSkuList(filters: {
     price_min?: number | null;
     price_max?: number | null;
     is_competitor?: string | null;
+    brand?: string | null;
+    searchQuery?: string | null;
 } = {}, options: HookOptions = {}) {
     const [data, setData] = useState<SkuListItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -992,12 +1002,15 @@ export function useSkuList(filters: {
         if (filters.price_min !== null && filters.price_min !== undefined) params.price_min = String(filters.price_min);
         if (filters.price_max !== null && filters.price_max !== undefined) params.price_max = String(filters.price_max);
         if (filters.is_competitor) params.is_competitor = filters.is_competitor;
+        if (filters.brand) params.brand = filters.brand;
+        if (filters.searchQuery) params.searchQuery = filters.searchQuery;
+        
         setLoading(true);
         fetchAPI<{ skus: SkuListItem[] }>('/sku-list', params)
             .then(result => { setData(result.skus); })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [enabled, filters.category, filters.pareto_status, filters.rating_bifurcation, filters.platform, filters.price_mode, filters.price_min, filters.price_max, filters.is_competitor]);
+    }, [enabled, filters.category, filters.pareto_status, filters.rating_bifurcation, filters.platform, filters.price_mode, filters.price_min, filters.price_max, filters.is_competitor, filters.brand, filters.searchQuery]);
 
     return { data, loading };
 }
@@ -1035,15 +1048,20 @@ export function useCompetitorBrands() {
 // ============================================================================
 // Hook: useClientBrands — sessionStorage 30 min
 // ============================================================================
-export function useClientBrands() {
+export function useClientBrands(isCompetitor?: string) {
     const [brands, setBrands] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     useEffect(() => {
-        fetchAPI<{ brands: string[] }>('/client-brands')
+        const params: Record<string, string> = {};
+        if (isCompetitor !== undefined && isCompetitor !== 'all') {
+            params.is_competitor = isCompetitor;
+        }
+
+        fetchAPI<{ brands: string[] }>('/client-brands', params)
             .then(result => { setBrands(result.brands); })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, []);
+    }, [isCompetitor]);
     return { brands, loading };
 }
 

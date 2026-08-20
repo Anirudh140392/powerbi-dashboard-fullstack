@@ -2,7 +2,7 @@
  * StakeholderSlider — Slide-in panel showing Issues → SKUs → Reviews for a stakeholder
  * Flow: Click stakeholder card → Slider with issues list → Expand issue → See SKUs → Click SKU → ReviewModal
  */
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -53,6 +53,7 @@ interface StakeholderSliderProps {
         price_min?: number | null;
         price_max?: number | null;
         is_competitor?: string | null;
+        brand?: string | null;
         sentiment_category?: string | null;
         web_pid?: string | null;
         period_months?: number | null;
@@ -60,7 +61,7 @@ interface StakeholderSliderProps {
 }
 
 const StakeholderSlider = ({ isOpen, onClose, stakeholderName, filters }: StakeholderSliderProps) => {
-    const { data: issues, uniqueSkuCount, loading } = useStakeholderDetail(isOpen ? stakeholderName : null, filters);
+    const { data: issues, loading } = useStakeholderDetail(isOpen ? stakeholderName : null, filters);
     const [expandedIssue, setExpandedIssue] = useState<string | null>(null);
     const [reviewModal, setReviewModal] = useState<{
         webPid: string; subcategory: string; productName: string; issueLabel: string;
@@ -70,7 +71,18 @@ const StakeholderSlider = ({ isOpen, onClose, stakeholderName, filters }: Stakeh
     const IconComponent = config.icon;
 
     const totalNegative = issues.reduce((s, i) => s + i.negativeCount, 0);
-    const totalSkus = uniqueSkuCount;
+
+    const totalSkus = useMemo(() => {
+        let count = 0;
+        issues.forEach(issue => {
+            issue.skus.forEach(sku => {
+                if (sku.negCount > 0) {
+                    count++;
+                }
+            });
+        });
+        return count;
+    }, [issues]);
 
     return (
         <>
@@ -171,8 +183,8 @@ const StakeholderSlider = ({ isOpen, onClose, stakeholderName, filters }: Stakeh
                 productName={reviewModal?.productName || ''}
                 issueLabel={reviewModal?.issueLabel || ''}
                 filters={{
-                    date_from: filters?.date_from,
-                    date_to: filters?.date_to,
+                    date_from: filters?.date_from || undefined,
+                    date_to: filters?.date_to || undefined,
                 }}
             />
         </>
@@ -189,7 +201,10 @@ interface IssueRowProps {
     accentColor: string;
 }
 
-const IssueRow = ({ issue, index, isExpanded, onToggle, onViewReviews }: IssueRowProps) => (
+const IssueRow = ({ issue, index, isExpanded, onToggle, onViewReviews }: IssueRowProps) => {
+    const filteredSkus = issue.skus.filter(sku => sku.negCount > 0);
+    
+    return (
     <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -222,20 +237,11 @@ const IssueRow = ({ issue, index, isExpanded, onToggle, onViewReviews }: IssueRo
                 <p className="text-base font-bold text-slate-800 dark:text-slate-100 truncate tracking-tight">{issue.label}</p>
                 <div className="flex items-center gap-3 mt-1">
                     <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                        <Package size={10} className="opacity-70" /> {issue.skuCount} SKUs
+                        <Package size={10} className="opacity-70" /> {filteredSkus.length} SKUs
                     </span>
                     <span className="text-[11px] font-medium text-slate-400">
                         {issue.totalCount.toLocaleString()} total reviews
                     </span>
-                </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 shadow-sm border border-emerald-100/50 dark:border-emerald-800/50">
-                    {((issue.positiveCount / Math.max(issue.totalCount, 1)) * 100).toFixed(0)}% pos
-                </div>
-                <div className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-red-50 dark:bg-red-900/20 text-red-600 shadow-sm border border-red-100/50 dark:border-red-800/50">
-                    {((issue.negativeCount / Math.max(issue.totalCount, 1)) * 100).toFixed(0)}% neg
                 </div>
             </div>
 
@@ -261,7 +267,7 @@ const IssueRow = ({ issue, index, isExpanded, onToggle, onViewReviews }: IssueRo
                     className="overflow-hidden border-t border-slate-100 dark:border-slate-700/30 bg-slate-50/50 dark:bg-slate-900/20"
                 >
                     <div className="p-4 space-y-2">
-                        {issue.skus.map((sku, i) => (
+                        {filteredSkus.map((sku, i) => (
                             <motion.div
                                 key={sku.web_pid}
                                 initial={{ opacity: 0, y: 10 }}
@@ -288,13 +294,9 @@ const IssueRow = ({ issue, index, isExpanded, onToggle, onViewReviews }: IssueRo
                                 <div className="flex-1 min-w-0 flex flex-col justify-center">
                                     <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{sku.product_name}</p>
                                     <div className="flex items-center gap-2.5 mt-1">
-                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 flex items-center gap-1">
-                                            <span className="w-1 h-1 rounded-full bg-emerald-500"></span> {sku.posCount} pos
-                                        </span>
                                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-50 dark:bg-red-900/20 text-red-600 flex items-center gap-1">
-                                            <span className="w-1 h-1 rounded-full bg-red-500"></span> {sku.negCount} neg
+                                            <span className="w-1 h-1 rounded-full bg-red-500"></span> {sku.negCount} negative reviews
                                         </span>
-                                        <span className="text-[10px] font-medium text-slate-400 ml-1">/ {sku.totalCount} total</span>
                                     </div>
                                 </div>
 
@@ -312,6 +314,7 @@ const IssueRow = ({ issue, index, isExpanded, onToggle, onViewReviews }: IssueRo
             )}
         </AnimatePresence>
     </motion.div>
-);
+    );
+};
 
 export default StakeholderSlider;

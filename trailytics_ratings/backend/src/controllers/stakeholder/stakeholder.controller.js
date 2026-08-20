@@ -7,7 +7,7 @@ const getTargetDb = (req) => {
 
 export const getStakeholderDetail = async (req, res) => {
     try {
-        const { stakeholder, category: filterCategory, pareto_status: filterParetoStatus, rating_bifurcation, platform, date_from, date_to, price_mode, price_min, price_max, sentiment_category, web_pid } = req.query;
+        const { stakeholder, category: filterCategory, pareto_status: filterParetoStatus, rating_bifurcation, platform, date_from, date_to, price_mode, price_min, price_max, sentiment_category, web_pid, brand } = req.query;
         if (!stakeholder) return res.status(400).json({ error: 'stakeholder param required' });
 
         const chMappingSql = `
@@ -43,6 +43,10 @@ export const getStakeholderDetail = async (req, res) => {
         if (platform && platform !== 'all') {
             queryParams.platform = platform;
             extraFilters.push(`ilike(r.platform, {platform:String})`);
+        }
+        if (brand && brand !== 'all') {
+            queryParams.brand = brand;
+            extraFilters.push(`ilike(r.brand, {brand:String})`);
         }
         if (date_from) {
             queryParams.dateFrom = date_from;

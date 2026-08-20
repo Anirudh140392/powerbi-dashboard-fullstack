@@ -11,14 +11,14 @@ export const getPlatformOptions = async (req, res) => {
         const params = { companyId: String(req.companyId) };
         let competitorFilter = '';
 
-        if (is_competitor !== undefined) {
+        if (is_competitor !== undefined && is_competitor !== 'all') {
             competitorFilter = 'AND r.is_competitor = {isCompetitor:UInt8}';
             params.isCompetitor = is_competitor === 'true' ? 1 : 0;
         }
 
         const chRes = await clickhouse.query({
             database: getTargetDb(req),
-            query: `SELECT DISTINCT platform FROM ml_reviews r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.platform != '' ORDER BY platform`,
+            query: `SELECT DISTINCT platform FROM rb_review_olap r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.platform != '' ORDER BY platform`,
             query_params: params,
             format: 'JSONEachRow'
         });
@@ -194,10 +194,18 @@ export const getAlertScopeOptions = async (req, res) => {
 
 export const getClientBrands = async (req, res) => {
     try {
+        const { is_competitor } = req.query;
         const params = { companyId: String(req.companyId) };
+        let competitorFilter = '';
+
+        if (is_competitor !== undefined && is_competitor !== 'all') {
+            competitorFilter = 'AND r.is_competitor = {isCompetitor:UInt8}';
+            params.isCompetitor = is_competitor === 'true' ? 1 : 0;
+        }
+
         const chRes = await clickhouse.query({
             database: getTargetDb(req),
-            query: `SELECT DISTINCT brand AS brand FROM ml_reviews WHERE company_id = {companyId:String} AND is_competitor = 0 AND brand != '' ORDER BY brand`,
+            query: `SELECT DISTINCT brand AS brand FROM rb_review_olap r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.brand != '' ORDER BY brand`,
             query_params: params,
             format: 'JSONEachRow'
         });

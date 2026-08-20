@@ -26,8 +26,8 @@ function calculateCategoryScore(reviews: Review[], category: string): number {
 
     if (categoryReviews.length === 0) return 0;
 
-    const positive = categoryReviews.filter(r => r.sentiment === 'Positive').length;
-    const negative = categoryReviews.filter(r => r.sentiment === 'Negative').length;
+    const positive = categoryReviews.filter(r => r.sentiment?.toLowerCase() === 'positive').length;
+    const negative = categoryReviews.filter(r => r.sentiment?.toLowerCase() === 'negative').length;
     const total = categoryReviews.length;
 
     return Math.round(((positive - negative) / total + 1) * 50);

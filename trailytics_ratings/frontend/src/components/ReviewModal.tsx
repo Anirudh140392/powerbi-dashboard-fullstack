@@ -61,7 +61,7 @@ const ReviewCard = ({ review }: { review: IssueReview }) => {
             <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                     <StarRating rating={review.rating} />
-                    {review.is_verified_purchase && (
+                    {(review.is_verified_purchase === true || (review.is_verified_purchase as any) === 1 || (review.is_verified_purchase as any) === '1' || (review.is_verified_purchase as any) === 'true') && (
                         <div className="flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded-full">
                             <ShieldCheck size={10} /> Verified
                         </div>

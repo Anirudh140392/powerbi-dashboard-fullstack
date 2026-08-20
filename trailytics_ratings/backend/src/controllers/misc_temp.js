@@ -217,7 +217,7 @@ export const getProductHealth = async (req, res) => {
     }
 };
 
-  export const getSkuList = async (req, res) => {
+  export const getSkuListLegacy = async (req, res) => {
     try {
         const { category, pareto_status, rating_bifurcation, platform, price_mode, price_min, price_max, is_competitor } = req.query;
 
@@ -237,6 +237,11 @@ export const getProductHealth = async (req, res) => {
         if (category) {
             extraFilters += ` AND ilike(trim(coalesce(nullIf(ls.category, ''), nullIf(r.category, ''), nullIf(mp.category, ''))), {category:String})`;
             queryParams.category = category;
+        }
+
+        if (req.query.searchQuery) {
+            extraFilters += ` AND (ilike(r.product_name, {searchQuery:String}) OR ilike(r.web_pid, {searchQuery:String}) OR ilike(mp.product_sku_code, {searchQuery:String}))`;
+            queryParams.searchQuery = `%${req.query.searchQuery}%`;
         }
 
         if (pareto_status) {
@@ -984,6 +989,93 @@ export const getCategoryHealth = async (req, res) => {
         });
     } catch (err) {
         console.error('Category health error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+export const getSkuListOlap = async (req, res) => {
+    try {
+        const { category, pareto_status, rating_bifurcation, platform, price_mode, price_min, price_max, is_competitor, brand } = req.query;
+
+        let extraFilters = '';
+        const queryParams = { companyId: String(req.companyId) };
+
+        if (is_competitor === 'true' || is_competitor === 'false') {
+            extraFilters += ' AND coalesce(r.is_competitor, 0) = {isCompetitor:UInt8}';
+            queryParams.isCompetitor = is_competitor === 'true' ? 1 : 0;
+        }
+
+        if (brand) {
+            extraFilters += ` AND ilike(r.brand, {brand:String})`;
+            queryParams.brand = brand;
+        }
+
+        if (platform && platform !== 'all') {
+            extraFilters += ' AND ilike(r.platform, {platform:String})';
+            queryParams.platform = platform;
+        }
+
+        if (category) {
+            extraFilters += ` AND ilike(trim(r.category), {category:String})`;
+            queryParams.category = category;
+        }
+
+        if (req.query.searchQuery) {
+            extraFilters += ` AND (ilike(r.product_name, {searchQuery:String}) OR ilike(r.web_pid, {searchQuery:String}) OR ilike(r.product_sku_code, {searchQuery:String}))`;
+            queryParams.searchQuery = `%${req.query.searchQuery}%`;
+        }
+
+        // Pareto status is not in rb_review_olap for some clients, so we ignore it if it's passed or try to use a fallback if it exists.
+        // The safest thing is to NOT filter by pareto_status if the client is fully OLAP and relies solely on rb_review_olap.
+
+        if (rating_bifurcation === 'NP') {
+            extraFilters += ` AND r.pdp_rating >= 4.2`;
+        } else if (rating_bifurcation === 'Issue') {
+            extraFilters += ` AND r.pdp_rating < 4.0`;
+        } else if (rating_bifurcation === 'NI') {
+            extraFilters += ` AND r.pdp_rating >= 4.0 AND r.pdp_rating < 4.2`;
+        }
+
+        if (price_min !== undefined && price_min !== '') {
+            const priceExpr = price_mode === 'rp' ? 'r.price_rp' : 'coalesce(r.price_sp, r.price_rp)';
+            extraFilters += ` AND ${priceExpr} >= {priceMin:Float64}`;
+            queryParams.priceMin = Number(price_min);
+        }
+
+        if (price_max !== undefined && price_max !== '') {
+            const priceExpr = price_mode === 'rp' ? 'r.price_rp' : 'coalesce(r.price_sp, r.price_rp)';
+            extraFilters += ` AND ${priceExpr} <= {priceMax:Float64}`;
+            queryParams.priceMax = Number(price_max);
+        }
+
+        const sql = `
+            SELECT
+                r.web_pid AS web_pid,
+                any(r.product_name) AS product_name,
+                any(r.pdp_rating) AS pdp_rating,
+                'Non-Pareto' AS pareto_status,
+                count() AS review_count
+            FROM rb_review_olap r
+            WHERE r.company_id = {companyId:String} ${extraFilters}
+            GROUP BY r.web_pid
+            ORDER BY review_count DESC, product_name
+        `;
+
+        const chRes = await clickhouse.query({
+            database: getTargetDb(req),
+            query: sql,
+            query_params: queryParams,
+            format: 'JSONEachRow'
+        });
+        
+        const skus = await chRes.json();
+        res.json({ skus: skus.map(r => ({
+            ...r,
+            review_count: parseInt(r.review_count || 0),
+            pdp_rating: r.pdp_rating ? parseFloat(r.pdp_rating) : null,
+        })) });
+    } catch (err) {
+        console.error('Sku list olap error:', err);
         res.status(500).json({ error: err.message });
     }
 };
