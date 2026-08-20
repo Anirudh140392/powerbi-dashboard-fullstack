@@ -1029,7 +1029,14 @@ const SkuDrillDownTable = ({
                         <img 
                           src={imgUrl} 
                           alt={row.title} 
-                          onError={(e) => { e.currentTarget.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(row.productId)}&backgroundColor=ffffff`; }}
+                          onError={(e) => { 
+                            const target = e.currentTarget;
+                            if (target.src.includes('media-amazon.com') && target.src.includes('._')) {
+                              target.src = target.src.replace(/\._.*$/, '.jpg');
+                            } else {
+                              target.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(row.productId)}&backgroundColor=ffffff`;
+                            }
+                          }}
                           className="w-full h-full object-contain mix-blend-multiply opacity-80" 
                         />
                      </div>

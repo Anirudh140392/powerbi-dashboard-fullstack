@@ -33,6 +33,7 @@ export interface ContentOlapProductRow {
   product_id: string;
   title?: string;
   image_url?: string;
+  image_url_s3?: string;
   score?: number;
   title_score?: number;
   bullet_point_score?: number;
