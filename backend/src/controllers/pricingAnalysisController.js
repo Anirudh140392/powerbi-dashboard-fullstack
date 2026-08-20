@@ -20,6 +20,8 @@ export const getEcpByCity = async (req, res) => {
             endDate: req.query.endDate,
             city: req.query.city,
             brand: req.query.brand,
+            sapCode: req.query.sapCode || req.query['sapCode[]'],
+            skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
         };
 
@@ -55,6 +57,8 @@ export const getPricingKpis = async (req, res) => {
             category: req.query.category,
             channel: req.query.channel,
             sku: req.query.sku,
+            sapCode: req.query.sapCode || req.query['sapCode[]'],
+            skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
         };
 
@@ -90,6 +94,8 @@ export const getPricingInsights = async (req, res) => {
             category: req.query.category,
             channel: req.query.channel,
             sku: req.query.sku,
+            sapCode: req.query.sapCode || req.query['sapCode[]'],
+            skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
         };
 
@@ -126,6 +132,8 @@ export const getDimensionOverview = async (req, res) => {
             channel: req.query.channel,
             dimension: req.query.dimension,
             sku: req.query.sku,
+            sapCode: req.query.sapCode || req.query['sapCode[]'],
+            skuCode: req.query.skuCode || req.query['skuCode[]'],
             msl: req.query.msl,
             grammage: req.query.grammage
         };
@@ -160,6 +168,8 @@ export const getEcpComparison = async (req, res) => {
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
             channel: req.query.channel,
+            sapCode: req.query.sapCode || req.query['sapCode[]'],
+            skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
         };
 
@@ -190,6 +200,8 @@ export const getEcpByBrand = async (req, res) => {
             location: req.query.location,
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            sapCode: req.query.sapCode || req.query['sapCode[]'],
+            skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
         };
 
@@ -224,6 +236,8 @@ export const getDiscountByCategory = async (req, res) => {
             category: req.query.category,
             format: req.query.format,
             city: req.query.city,
+            sapCode: req.query.sapCode || req.query['sapCode[]'],
+            skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
         };
 
@@ -257,6 +271,8 @@ export const getDiscountByBrand = async (req, res) => {
             platform: req.query.platform,
             brand: req.query.brand,
             city: req.query.city,
+            sapCode: req.query.sapCode || req.query['sapCode[]'],
+            skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
         };
 
@@ -320,6 +336,8 @@ export const getBrandPriceOverview = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             platform: req.query.platform,
+            sapCode: req.query.sapCode || req.query['sapCode[]'],
+            skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
         };
 
@@ -350,6 +368,8 @@ export const getBrandDiscountTrend = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             platform: req.query.platform,
+            sapCode: req.query.sapCode || req.query['sapCode[]'],
+            skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
         };
 

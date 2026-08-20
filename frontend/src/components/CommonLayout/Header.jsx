@@ -86,7 +86,17 @@ function WatchTowerFilterModal({
   locations = [], selectedLocation, setSelectedLocation,
   isBusinessOverview = false,
   msls = [], selectedMsl, setSelectedMsl,
+  sapCodes = [], selectedSapCode = "All", setSelectedSapCode,
 }) {
+  const isDrlUser = React.useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      return u?.dbName?.toLowerCase() === 'drl';
+    } catch (e) {
+      return false;
+    }
+  }, []);
+
   const hasRestrictedPlatforms = React.useMemo(() => {
     try {
       const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
@@ -109,6 +119,7 @@ function WatchTowerFilterModal({
   const [draftBrand, setDraftBrand] = React.useState(selectedBrand);
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
   const [draftMsl, setDraftMsl] = React.useState(selectedMsl);
+  const [draftSapCode, setDraftSapCode] = React.useState(selectedSapCode);
 
   // ─── Local option lists (cascaded from draft selections) ───
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
@@ -116,10 +127,18 @@ function WatchTowerFilterModal({
   const [localBrands, setLocalBrands] = React.useState(brands);
   const [localLocations, setLocalLocations] = React.useState(locations);
   const [localMsls, setLocalMsls] = React.useState(msls);
+  const [localSapCodes, setLocalSapCodes] = React.useState(sapCodes);
 
-  const availableTabs = hideChannelPlatform
+  React.useEffect(() => {
+    if (sapCodes && sapCodes.length > 0) {
+      setLocalSapCodes(sapCodes);
+    }
+  }, [sapCodes]);
+
+  const baseTabs = hideChannelPlatform
     ? FILTER_TABS.filter(t => t.key !== "channel" && t.key !== "platform")
     : FILTER_TABS;
+  const availableTabs = isDrlUser ? [...baseTabs, { key: "sapCode", label: "SAP Code", icon: Hash }] : baseTabs;
 
   // Sync drafts + local options from context every time the modal opens
   React.useEffect(() => {
@@ -130,11 +149,13 @@ function WatchTowerFilterModal({
       setDraftBrand(selectedBrand);
       setDraftLocation(selectedLocation);
       setDraftMsl(selectedMsl);
+      setDraftSapCode(selectedSapCode);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalLocations(locations);
       setLocalMsls(msls);
+      setLocalSapCodes(sapCodes);
       setActiveTab(hideChannelPlatform ? "category" : "channel");
       setSearchTerm("");
     }
@@ -219,6 +240,40 @@ function WatchTowerFilterModal({
       });
   }, [draftChannel, draftPlatform, draftCategory, draftBrand, draftLocation, open]);
 
+  // CASCADE: draftPlatform, draftCategory, draftBrand → sapCodes
+  React.useEffect(() => {
+    if (!open || !isDrlUser) return;
+
+    const params = {};
+    if (draftPlatform && draftPlatform !== "All") {
+      params.platform = Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform;
+    }
+    if (draftCategory && draftCategory !== "All") {
+      params.category = Array.isArray(draftCategory) ? draftCategory.join(",") : draftCategory;
+    }
+    if (draftBrand && draftBrand !== "All") {
+      params.brand = Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand;
+    }
+
+    axiosInstance.get("/watchtower/products-with-sap", { params })
+      .then(res => {
+        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+          const codes = [...new Set(res.data.map(p => p.sapCode || p.webPid).filter(Boolean))];
+          if (codes.length > 0) {
+            setLocalSapCodes(codes);
+            setDraftSapCode(prev => {
+              if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
+              const currList = Array.isArray(prev) ? prev : [prev];
+              const valid = currList.filter(s => codes.includes(s));
+              if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+              return valid.length === codes.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            });
+          }
+        }
+      })
+      .catch(() => { });
+  }, [draftPlatform, draftCategory, draftBrand, open, isDrlUser]);
+
   // Reset search when tab changes
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
 
@@ -230,6 +285,7 @@ function WatchTowerFilterModal({
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
     msl: { options: localMsls, value: draftMsl, onChange: setDraftMsl },
+    sapCode: { options: localSapCodes, value: draftSapCode, onChange: setDraftSapCode },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -300,6 +356,7 @@ function WatchTowerFilterModal({
     setSelectedBrand(normalize(draftBrand));
     if (setSelectedLocation) setSelectedLocation(normalize(draftLocation));
     if (setSelectedMsl) setSelectedMsl(normalize(draftMsl));
+    if (setSelectedSapCode) setSelectedSapCode(draftSapCode);
     onClose();
   };
 
@@ -318,6 +375,7 @@ function WatchTowerFilterModal({
     setDraftBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
+    setDraftSapCode("All");
     setSearchTerm("");
   };
 
@@ -1759,9 +1817,20 @@ function AvailabilityFilterModal({
   brands = [], selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
   msls = [], selectedMsl = "All", setSelectedMsl,
+  sapCodes = [], selectedSapCode = "All", setSelectedSapCode,
   hideChannel = false,
 }) {
-  const availableTabs = hideChannel ? AVAIL_FILTER_TABS.filter(t => t.key !== "channel") : AVAIL_FILTER_TABS;
+  const isDrlUser = React.useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      return u?.dbName?.toLowerCase() === 'drl';
+    } catch (e) {
+      return false;
+    }
+  }, []);
+
+  const baseTabs = hideChannel ? AVAIL_FILTER_TABS.filter(t => t.key !== "channel") : AVAIL_FILTER_TABS;
+  const availableTabs = isDrlUser ? [...baseTabs, { key: "sapCode", label: "SAP Code", icon: Hash }] : baseTabs;
   const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
@@ -1771,11 +1840,19 @@ function AvailabilityFilterModal({
   const [draftBrand, setDraftBrand] = React.useState(selectedBrand);
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
   const [draftMsl, setDraftMsl] = React.useState(selectedMsl);
+  const [draftSapCode, setDraftSapCode] = React.useState(selectedSapCode);
 
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
   const [localBrands, setLocalBrands] = React.useState(brands);
   const [localLocations, setLocalLocations] = React.useState(locations);
+  const [localSapCodes, setLocalSapCodes] = React.useState(sapCodes);
+
+  React.useEffect(() => {
+    if (sapCodes && sapCodes.length > 0) {
+      setLocalSapCodes(sapCodes);
+    }
+  }, [sapCodes]);
 
   React.useEffect(() => {
     if (open) {
@@ -1785,10 +1862,12 @@ function AvailabilityFilterModal({
       setDraftBrand(selectedBrand);
       setDraftLocation(selectedLocation);
       setDraftMsl(selectedMsl);
+      setDraftSapCode(selectedSapCode);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalLocations(locations);
+      setLocalSapCodes(sapCodes);
       setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
@@ -1909,6 +1988,40 @@ function AvailabilityFilterModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftPlatform, open]);
 
+  // CASCADE: draftPlatform, draftCategory, draftBrand → sapCodes
+  React.useEffect(() => {
+    if (!open || !isDrlUser) return;
+
+    const params = {};
+    if (draftPlatform && draftPlatform !== "All") {
+      params.platform = Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform;
+    }
+    if (draftCategory && draftCategory !== "All") {
+      params.category = Array.isArray(draftCategory) ? draftCategory.join(",") : draftCategory;
+    }
+    if (draftBrand && draftBrand !== "All") {
+      params.brand = Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand;
+    }
+
+    axiosInstance.get("/watchtower/products-with-sap", { params })
+      .then(res => {
+        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+          const codes = [...new Set(res.data.map(p => p.sapCode || p.webPid).filter(Boolean))];
+          if (codes.length > 0) {
+            setLocalSapCodes(codes);
+            setDraftSapCode(prev => {
+              if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
+              const currList = Array.isArray(prev) ? prev : [prev];
+              const valid = currList.filter(s => codes.includes(s));
+              if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+              return valid.length === codes.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            });
+          }
+        }
+      })
+      .catch(() => { });
+  }, [draftPlatform, draftCategory, draftBrand, open, isDrlUser]);
+
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
 
   const tabConfig = {
@@ -1918,6 +2031,7 @@ function AvailabilityFilterModal({
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
     msl: { options: msls.length > 0 ? msls : ["0", "1"], value: draftMsl, onChange: setDraftMsl },
+    sapCode: { options: localSapCodes, value: draftSapCode, onChange: setDraftSapCode },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -1966,6 +2080,7 @@ function AvailabilityFilterModal({
     setSelectedBrand(draftBrand);
     setSelectedLocation(draftLocation);
     setSelectedMsl(draftMsl);
+    if (setSelectedSapCode) setSelectedSapCode(draftSapCode);
     onClose();
   };
 
@@ -1980,6 +2095,7 @@ function AvailabilityFilterModal({
     setDraftBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
+    setDraftSapCode("All");
     setSearchTerm("");
   };
 
@@ -2773,9 +2889,20 @@ function PricingFilterModal({
   brands = [], selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
   msls = [], selectedMsl = "All", setSelectedMsl,
+  sapCodes = [], selectedSapCode = "All", setSelectedSapCode,
   hideChannel = false,
 }) {
-  const availableTabs = hideChannel ? PRICING_FILTER_TABS.filter(t => t.key !== "channel") : PRICING_FILTER_TABS;
+  const isDrlUser = React.useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      return u?.dbName?.toLowerCase() === 'drl';
+    } catch (e) {
+      return false;
+    }
+  }, []);
+
+  const baseTabs = hideChannel ? PRICING_FILTER_TABS.filter(t => t.key !== "channel") : PRICING_FILTER_TABS;
+  const availableTabs = isDrlUser ? [...baseTabs, { key: "sapCode", label: "SAP Code", icon: Hash }] : baseTabs;
   const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
@@ -2786,11 +2913,19 @@ function PricingFilterModal({
   const [draftBrand, setDraftBrand] = React.useState(selectedBrand);
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
   const [draftMsl, setDraftMsl] = React.useState(selectedMsl);
+  const [draftSapCode, setDraftSapCode] = React.useState(selectedSapCode);
 
   // ─── Local option lists ───
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
   const [localBrands, setLocalBrands] = React.useState(brands);
+  const [localSapCodes, setLocalSapCodes] = React.useState(sapCodes);
+
+  React.useEffect(() => {
+    if (sapCodes && sapCodes.length > 0) {
+      setLocalSapCodes(sapCodes);
+    }
+  }, [sapCodes]);
 
   React.useEffect(() => {
     if (open) {
@@ -2800,10 +2935,12 @@ function PricingFilterModal({
       setDraftBrand(selectedBrand);
       setDraftLocation(selectedLocation);
       setDraftMsl(selectedMsl);
+      setDraftSapCode(selectedSapCode);
 
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
+      setLocalSapCodes(sapCodes);
 
       setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
@@ -2872,6 +3009,40 @@ function PricingFilterModal({
       .catch(() => { });
   }, [draftPlatform, open]);
 
+  // CASCADE: draftPlatform, draftCategory, draftBrand → sapCodes
+  React.useEffect(() => {
+    if (!open || !isDrlUser) return;
+
+    const params = {};
+    if (draftPlatform && draftPlatform !== "All") {
+      params.platform = Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform;
+    }
+    if (draftCategory && draftCategory !== "All") {
+      params.category = Array.isArray(draftCategory) ? draftCategory.join(",") : draftCategory;
+    }
+    if (draftBrand && draftBrand !== "All") {
+      params.brand = Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand;
+    }
+
+    axiosInstance.get("/watchtower/products-with-sap", { params })
+      .then(res => {
+        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+          const codes = [...new Set(res.data.map(p => p.sapCode || p.webPid).filter(Boolean))];
+          if (codes.length > 0) {
+            setLocalSapCodes(codes);
+            setDraftSapCode(prev => {
+              if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
+              const currList = Array.isArray(prev) ? prev : [prev];
+              const valid = currList.filter(s => codes.includes(s));
+              if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+              return valid.length === codes.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            });
+          }
+        }
+      })
+      .catch(() => { });
+  }, [draftPlatform, draftCategory, draftBrand, open, isDrlUser]);
+
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
 
   const tabConfig = {
@@ -2881,6 +3052,7 @@ function PricingFilterModal({
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     location: { options: locations, value: draftLocation, onChange: setDraftLocation },
     msl: { options: msls.length > 0 ? msls : ["0", "1"], value: draftMsl, onChange: setDraftMsl },
+    sapCode: { options: localSapCodes, value: draftSapCode, onChange: setDraftSapCode },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -2929,6 +3101,7 @@ function PricingFilterModal({
     setSelectedBrand(draftBrand);
     setSelectedLocation(draftLocation);
     if (setSelectedMsl) setSelectedMsl(draftMsl);
+    if (setSelectedSapCode) setSelectedSapCode(draftSapCode);
     onClose();
   };
 
@@ -2943,6 +3116,7 @@ function PricingFilterModal({
     setDraftBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
+    setDraftSapCode("All");
     setSearchTerm("");
   };
 
@@ -3899,6 +4073,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     msls,
     selectedMsl,
     setSelectedMsl,
+    sapCodes,
+    selectedSapCode,
+    setSelectedSapCode,
     brands,
     selectedBrand,
     setSelectedBrand,
@@ -4457,6 +4634,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       msls={msls}
                       selectedMsl={selectedMsl}
                       setSelectedMsl={setSelectedMsl}
+                      sapCodes={sapCodes}
+                      selectedSapCode={selectedSapCode}
+                      setSelectedSapCode={setSelectedSapCode}
                     />
                   )}
 
@@ -4527,6 +4707,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       msls={msls}
                       selectedMsl={selectedMsl}
                       setSelectedMsl={setSelectedMsl}
+                      sapCodes={sapCodes}
+                      selectedSapCode={selectedSapCode}
+                      setSelectedSapCode={setSelectedSapCode}
                       hideChannel={true}
                     />
                   )}
@@ -4583,6 +4766,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       msls={msls}
                       selectedMsl={selectedMsl}
                       setSelectedMsl={setSelectedMsl}
+                      sapCodes={sapCodes}
+                      selectedSapCode={selectedSapCode}
+                      setSelectedSapCode={setSelectedSapCode}
                       hideChannel={true}
                     />
                   )}

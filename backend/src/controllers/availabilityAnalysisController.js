@@ -103,7 +103,8 @@ export const getAvailabilityOverview = async (req, res) => {
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
-            msl: req.query.msl
+            msl: req.query.msl,
+            sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]'])
         };
         console.log('\n========== AVAILABILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -149,7 +150,8 @@ export const getPlatformKpiMatrix = async (req, res) => {
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
-            msl: req.query.msl
+            msl: req.query.msl,
+            sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]'])
         };
         console.log('\n========== PLATFORM KPI MATRIX API ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
@@ -197,7 +199,8 @@ export const getStandaloneKpiMatrix = async (req, res) => {
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
-            msl: req.query.msl
+            msl: req.query.msl,
+            sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]'])
         };
         console.log('\n========== STANDALONE KPI MATRIX API (OSA + Market Share) ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
@@ -243,6 +246,7 @@ export const getOsaPercentageDetail = async (req, res) => {
             compareEndDate: req.query.compareEndDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
             msl: req.query.msl,
+            sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
             grammage: parseFilter(req.query.grammage),
             weight: parseFilter(req.query.weight),
             resellerName: parseFilter(req.query.resellerName),
@@ -290,7 +294,8 @@ export const getDOI = async (req, res) => {
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
-            msl: req.query.msl
+            msl: req.query.msl,
+            sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]'])
         };
         console.log('\n========== DOI (DAYS OF INVENTORY) API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -333,7 +338,8 @@ export const getMetroCityStockAvailability = async (req, res) => {
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
-            msl: req.query.msl
+            msl: req.query.msl,
+            sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]'])
         };
         console.log('\n========== METRO CITY STOCK AVAILABILITY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -413,7 +419,8 @@ export const getOsaDetailByCategory = async (req, res) => {
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
-            msl: req.query.msl
+            msl: req.query.msl,
+            sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]'])
         };
         console.log('\n========== OSA DETAIL BY CATEGORY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -451,6 +458,7 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             endDate: req.query.endDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
             msl: req.query.msl,
+            sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
             dimension: req.query.dimension,
             dimensionValue: req.query.dimensionValue,
             resellerName: parseFilter(req.query.resellerName)
@@ -487,6 +495,7 @@ export const getAvailabilityCompetition = async (req, res) => {
             endDate: req.query.endDate,
             ownBrandsOnly: req.query.ownBrandsOnly,
             msl: req.query.msl,
+            sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
             resellerName: parseFilter(req.query.resellerName)
         };
         console.log('\n========== AVAILABILITY COMPETITION API ==========');

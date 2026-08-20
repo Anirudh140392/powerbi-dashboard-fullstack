@@ -467,6 +467,7 @@ const PlatformOverviewNew = ({
         categories: [],
         platforms: [],
         skus: [],
+        sapCodes: [],
         skuName: '',
         skuCode: '',
         dateFrom: '',
@@ -490,6 +491,7 @@ const PlatformOverviewNew = ({
                 categories: [],
                 platforms: [],
                 skus: [],
+                sapCodes: [],
                 skuName: '',
                 skuCode: '',
                 dateFrom: '',
@@ -663,6 +665,7 @@ const PlatformOverviewNew = ({
         const reqLocation = selectedLocation === 'All' ? 'All' : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation);
 
         const reqChannel = selectedChannel === 'All' ? undefined : selectedChannel;
+        const reqSapCode = advancedFilters.sapCodes?.length > 0 ? advancedFilters.sapCodes.join(',') : '';
 
         return JSON.stringify({
             dimension,
@@ -675,11 +678,13 @@ const PlatformOverviewNew = ({
             reqEndDate,
             reqCompareStart,
             reqCompareEnd,
+            reqSapCode,
             skuPlatformFilter: dimension === 'sku' ? (skuPlatformFilter !== 'All' ? skuPlatformFilter : effectivePlatform) : undefined,
             localPlatformFilter: (dimension !== 'platform' && dimension !== 'sku') ? (localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform) : undefined,
             advancedFilters: {
                 skuName: advancedFilters.skuName,
                 skuCode: advancedFilters.skuCode,
+                sapCodes: advancedFilters.sapCodes,
                 filterLogic: advancedFilters.filterLogic,
                 msl: advancedFilters.msl
             },
@@ -695,6 +700,7 @@ const PlatformOverviewNew = ({
         setApiError(null)
         try {
             const parsed = JSON.parse(filterKey);
+            const skuCodeVal = parsed.reqSapCode || (parsed.advancedFilters.skuCode ? (Array.isArray(parsed.advancedFilters.skuCode) ? parsed.advancedFilters.skuCode.join(',') : parsed.advancedFilters.skuCode) : undefined);
             const params = {
                 platform: parsed.reqPlatform === 'All' ? undefined : parsed.reqPlatform,
                 brand: parsed.reqBrand || undefined,
@@ -706,7 +712,8 @@ const PlatformOverviewNew = ({
                 compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
                 compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
                 skuName: parsed.advancedFilters.skuName || undefined,
-                skuCode: parsed.advancedFilters.skuCode || undefined,
+                skuCode: skuCodeVal || undefined,
+                sapCode: parsed.reqSapCode || undefined,
                 filterLogic: parsed.advancedFilters.filterLogic || 'OR',
                 msl: (parsed.selectedMsl && parsed.selectedMsl !== 'All') ? (Array.isArray(parsed.selectedMsl) ? parsed.selectedMsl.join(',') : parsed.selectedMsl) : (parsed.advancedFilters.msl === '1' ? '1' : undefined)
             };
@@ -738,65 +745,39 @@ const PlatformOverviewNew = ({
 
     // Use a ref so the effect doesn't re-fire when fetchDimensionData is recreated
     const fetchDimensionDataRef = useRef(fetchDimensionData);
-    fetchDimensionDataRef.current = fetchDimensionData;
-
-    // Sync loading state with filterKey changes to prevent flicker
-    const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
-    if (prevFilterKey !== filterKey) {
-        setPrevFilterKey(filterKey);
-        setApiLoading(true);
-        setApiError(null);
-        setCurrentPage(1);
-    }
-
-    const lastFetchedKey = useRef(null);
-
     useEffect(() => {
-        // Wait for essential context data
-        if (!datesFetched || !platformsFetched) return;
+        fetchDimensionDataRef.current = fetchDimensionData
+    }, [fetchDimensionData])
 
-        if (lastFetchedKey.current === filterKey) {
-            setApiLoading(false);
-            return;
+    // Memoize stringified filter key to detect actual filter state changes
+    const [lastFetchedKey, setLastFetchedKey] = useState(null)
+
+    // Trigger API fetch when filterKey changes
+    useEffect(() => {
+        if (!selectedChannel || !selectedLocation) return
+
+        if (lastFetchedKey === filterKey) {
+            setApiLoading(false)
+            return
         }
 
-        const currentFetchId = ++fetchIdRef.current;
-
-        const debounceTimer = setTimeout(() => {
+        setApiLoading(true)
+        const currentFetchId = ++fetchIdRef.current
+        const timer = setTimeout(() => {
             if (currentFetchId !== fetchIdRef.current) {
-                setApiLoading(false);
-                return;
+                setApiLoading(false)
+                return
             }
-            lastFetchedKey.current = filterKey;
-            fetchDimensionDataRef.current(currentFetchId);
-        }, 50);
 
-        return () => clearTimeout(debounceTimer);
-    }, [filterKey, datesFetched, platformsFetched]);
+            setLastFetchedKey(filterKey)
+            fetchDimensionDataRef.current(currentFetchId)
+        }, 50)
 
-    // Fetch product/SKU options from DB for the filter dropdown
-    useEffect(() => {
-        const fetchProducts = async () => {
-            try {
-                const params = {};
-                if (globalPlatform && globalPlatform !== 'All') {
-                    params.platform = Array.isArray(globalPlatform) ? globalPlatform[0] : globalPlatform;
-                }
-                const res = await axiosInstance.get('/watchtower/products', { params });
-                if (res.data && Array.isArray(res.data)) {
-                    setProductOptions(res.data.map(p => ({ id: p, name: p })));
-                }
-            } catch (err) {
-                console.warn('[PlatformOverviewNew] Failed to fetch products for filter:', err.message);
-            }
-        };
-        if (datesFetched) {
-            fetchProducts();
-        }
-    }, [datesFetched, globalPlatform])
+        return () => clearTimeout(timer)
+    }, [filterKey, selectedChannel, selectedLocation, lastFetchedKey])
 
-    // Retry function for error state
-    const retryFetch = async () => {
+    // Manual retry handler
+    const handleRetry = async () => {
         setIsRetrying(true)
         setApiLoading(true)
         setApiError(null)
@@ -806,6 +787,7 @@ const PlatformOverviewNew = ({
         await fetchDimensionDataRef.current(currentFetchId)
         setIsRetrying(false)
     }
+    const retryFetch = handleRetry;
 
     // Handle filter apply from modal
     const handleApplyFilters = (filters) => {
@@ -840,6 +822,8 @@ const PlatformOverviewNew = ({
         advancedFilters.brands?.length > 0,
         advancedFilters.categories?.length > 0,
         advancedFilters.platforms?.length > 0,
+        advancedFilters.skus?.length > 0,
+        advancedFilters.sapCodes?.length > 0,
         advancedFilters.skuName?.length > 0,
         advancedFilters.skuCode?.length > 0,
         advancedFilters.msl === '1',

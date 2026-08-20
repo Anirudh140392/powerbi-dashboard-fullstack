@@ -581,6 +581,13 @@ async function getPricingKpis(filters = {}) {
                 whereConditions.push(mslCond);
             }
 
+            const sapCodes = parseMultiSelectFilter(filters.sapCode || filters.skuCode);
+            if (sapCodes) {
+                const pdpCols = await getTableColumns(src.table);
+                const sapCol = columnExists(pdpCols, 'sap_code') ? resolveColumn(pdpCols, 'sap_code') : (columnExists(pdpCols, 'Web_Pid') ? resolveColumn(pdpCols, 'Web_Pid') : (f.skuCode || 'sku_code'));
+                whereConditions.push(buildInClause(`p.${sapCol}`, sapCodes));
+            }
+
             const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
 
             const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
@@ -798,6 +805,13 @@ async function getPricingInsights(filters = {}) {
             const mslCond = buildMslCondition(filters.msl, `p.${f.msl || 'msl'}`);
             if (mslCond) whereConditions.push(mslCond);
 
+            const sapCodes = parseMultiSelectFilter(filters.sapCode || filters.skuCode);
+            if (sapCodes) {
+                const pdpCols = await getTableColumns(src.table);
+                const sapCol = columnExists(pdpCols, 'sap_code') ? resolveColumn(pdpCols, 'sap_code') : (columnExists(pdpCols, 'Web_Pid') ? resolveColumn(pdpCols, 'Web_Pid') : (f.skuCode || 'sku_code'));
+                whereConditions.push(buildInClause(`p.${sapCol}`, sapCodes));
+            }
+
             const whereClause = whereConditions.join(' AND ');
 
             // Comp_flag = 0 means My SKUs, 1 means Competitor
@@ -816,8 +830,8 @@ async function getPricingInsights(filters = {}) {
                 (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wNenoOsa} ELSE 0 END) / 
                  NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wDenoOsa} ELSE 0 END), 0)) * 100 AS osa_curr,
                 
-                -- Take Qty_Sold directly from rb_pdp_olap for offtakes
-                SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) ELSE 0 END) AS offtakes_curr,
+                -- Offtakes calculation: SUM(Sales)
+                SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END) AS offtakes_curr,
                 
                 (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev
             FROM ${src.table} p
@@ -881,8 +895,8 @@ async function getPricingInsights(filters = {}) {
                         (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wNenoOsa} ELSE 0 END) / 
                          NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wDenoOsa} ELSE 0 END), 0)) * 100 AS osa_curr,
                         
-                        -- Take Qty_Sold directly from rb_pdp_olap for city level offtakes
-                        SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) ELSE 0 END) AS offtakes_curr,
+                        -- Offtakes calculation: SUM(Sales)
+                        SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END) AS offtakes_curr,
 
                         (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev
                     FROM ${src.table} p
@@ -894,7 +908,7 @@ async function getPricingInsights(filters = {}) {
                       ${categories ? `AND ${src.p_prodCatSql} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
                       ${mslCond ? `AND ${mslCond}` : ''}
                     GROUP BY p.${f.product}, p.${f.platform}, p.${f.location}
-                    HAVING discount_curr IS NOT NULL AND discount_prev IS NOT NULL
+                    HAVING discount_curr IS NOT NULL
                 `;
 
                 const cityResults = await queryClickHouse(cityQuery);
@@ -1064,6 +1078,13 @@ const getDimensionOverview = async (filters = {}) => {
 
             const skus = parseSkuFilter(filters.sku);
             if (skus) whereConditions.push(buildInClause(`p.${f.product}`, skus));
+
+            const sapCodes = parseMultiSelectFilter(filters.sapCode || filters.skuCode);
+            if (sapCodes) {
+                const pdpCols = await getTableColumns(src.table);
+                const sapCol = columnExists(pdpCols, 'sap_code') ? resolveColumn(pdpCols, 'sap_code') : (columnExists(pdpCols, 'Web_Pid') ? resolveColumn(pdpCols, 'Web_Pid') : (f.skuCode || 'sku_code'));
+                whereConditions.push(buildInClause(`p.${sapCol}`, sapCodes));
+            }
 
             // ✅ Only show own brands for SKU dimension unless explicitly filtered
             if (isSku) {

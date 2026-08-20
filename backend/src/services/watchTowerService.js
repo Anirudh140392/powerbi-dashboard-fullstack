@@ -207,7 +207,8 @@ async function getWatchtowerSource(filters = {}) {
             sellingPrice: wrap(sellingPriceCol),
             sellingPriceRaw: `toFloat64OrNull(toString(${sellingPriceCol}))`,
             product: productCol,
-            skuCode: webPidCol,
+            skuCode: columnExists(cols, 'sap_code') ? r('sap_code') : webPidCol,
+            webPid: webPidCol,
             quantitySold: qtySoldCol,
             discount: `if(${wrap(mrpCol)} > 0, (${wrap(mrpCol)} - ${wrap(sellingPriceCol)}) / ${wrap(mrpCol)} * 100, 0)`,
             listingPercent: `if(toFloat64OrZero(toString(listing_percent)) > 0, toFloat64OrZero(toString(listing_percent)), (${wrap(nenoOsaCol)} / NULLIF(${wrap(denoOsaCol)}, 0)) * 100)`,
@@ -944,7 +945,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const rawPlatform = filters['platform[]'] || filters.platform;
         const rawCategory = filters['category[]'] || filters.category;
         const rawSkuName = filters['skuName[]'] || filters.skuName;
-        const rawSkuCode = filters['skuCode[]'] || filters.skuCode;
+        const rawSkuCode = filters['skuCode[]'] || filters.skuCode || filters['sapCode[]'] || filters.sapCode;
 
         // Normalize multi-value filters
         const platformArr = normalizeFilterArray(rawPlatform);
@@ -5189,7 +5190,9 @@ const getPerformanceMetrics = async (filters) => {
 const getPlatformOverview = async (filters) => {
     console.log('[getPlatformOverview] Computing OPTIMIZED platform overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, skuName, skuCode } = filters;
+    const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, skuName } = filters;
+    const rawSkuCode = filters['skuCode[]'] || filters.skuCode || filters['sapCode[]'] || filters.sapCode;
+    const skuCode = rawSkuCode;
     const channel = extractChannel(filters);
 
     // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
@@ -5401,7 +5404,7 @@ const getPlatformOverview = async (filters) => {
             }
             const skuCodeArrArr = normalizeFilterArray(skuCode);
             if (skuCodeArrArr && skuCodeArrArr.length > 0) {
-                const skuCodeConds = skuCodeArrArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+                const skuCodeConds = skuCodeArrArr.map(s => `(lower(toString(${src.f.skuCode})) LIKE lower('%${escapeStr(s)}%') OR lower(toString(${src.f.product})) LIKE lower('%${escapeStr(s)}%'))`).join(' OR ');
                 conds.push(`(${skuCodeConds})`);
             }
             const mslArr = normalizeFilterArray(filters.msl);

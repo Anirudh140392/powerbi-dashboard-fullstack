@@ -319,7 +319,7 @@ const getMapIntellectData = async (filters) => {
                 SUM(${pdpSrc.f.qty}) AS total_qty,
                 SUM(${pdpSrc.f.orders}) AS total_orders,
                 (SUM(${pdpSrc.f.neno}) / NULLIF(SUM(${pdpSrc.f.deno}), 0)) * 100 AS city_osa,
-                AVG(if(toFloat64OrZero(toString(${pdpSrc.f.listing})) > 0, toFloat64OrZero(toString(${pdpSrc.f.listing})), (${pdpSrc.f.neno} / NULLIF(${pdpSrc.f.deno}, 0)) * 100)) AS city_listing
+                AVG(toFloat64OrZero(toString(${pdpSrc.f.listing}))) AS city_listing
             FROM ${pdpSrc.table}
             WHERE ${conds}
               AND ${pdpSrc.f.location} IS NOT NULL AND ${pdpSrc.f.location} != ''

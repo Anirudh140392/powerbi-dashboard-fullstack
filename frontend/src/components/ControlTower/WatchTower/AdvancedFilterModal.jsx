@@ -14,6 +14,7 @@ import {
     Filter,
     RotateCcw,
     Calendar,
+    Hash,
 } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 
@@ -386,6 +387,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         categories: [],
         platforms: [],
         skus: [],
+        sapCodes: [],
         grammages: [],
         dateFrom: '',
         dateTo: '',
@@ -409,6 +411,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
     const [dynamicCategories, setDynamicCategories] = useState([])
     const [dynamicPlatforms, setDynamicPlatforms] = useState([])
     const [dynamicSkus, setDynamicSkus] = useState([])
+    const [dynamicSapCodes, setDynamicSapCodes] = useState([])
     const [dynamicGrammages, setDynamicGrammages] = useState([])
     const [loadingFilters, setLoadingFilters] = useState(false)
 
@@ -543,11 +546,19 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                 }
 
                 if (productsRes.status === 'fulfilled' && productsRes.value.data && Array.isArray(productsRes.value.data)) {
+                    const sapSet = new Set();
+                    const sapOpts = [];
                     const mappedSkus = productsRes.value.data.map(p => {
                         // Shared endpoint returns identifiers for every client.
-                        const productName = typeof p === 'object' ? (p.name || '') : String(p);
-                        const sapCode = typeof p === 'object' ? (p.sapCode || null) : null;
+                        const productName = typeof p === 'object' ? (p.name || p.product_name || '') : String(p);
+                        const sapCode = typeof p === 'object' ? (p.sapCode || p.sap_code || null) : null;
                         const webPid = typeof p === 'object' ? (p.webPid || p.web_pid || null) : null;
+
+                        if (sapCode && !sapSet.has(String(sapCode))) {
+                            sapSet.add(String(sapCode));
+                            sapOpts.push({ id: String(sapCode), name: String(sapCode) });
+                        }
+
                         const parentOpt = skus?.find(opt =>
                             opt.name?.toLowerCase() === productName.toLowerCase() ||
                             opt.id?.toLowerCase() === productName.toLowerCase()
@@ -555,7 +566,9 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                         if (parentOpt) return { ...parentOpt, sapCode: sapCode ?? parentOpt.sapCode ?? null, webPid: webPid ?? parentOpt.webPid ?? null };
                         return { id: productName, name: productName, sapCode, webPid };
                     }).filter(p => p.name);
-                    setDynamicSkus(mappedSkus)
+                    setDynamicSkus(mappedSkus);
+                    sapOpts.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+                    setDynamicSapCodes(sapOpts);
                 }
             } catch (err) {
                 console.error('[AdvancedFilterModal] Error fetching cascaded options:', err)
@@ -586,6 +599,26 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         platforms,
         skus
     ])
+
+    // Fallback: Populate dynamicSapCodes from dynamicSkus or skus prop if empty
+    useEffect(() => {
+        if (isDrlUser && (dynamicSkus.length > 0 || (skus && skus.length > 0)) && dynamicSapCodes.length === 0) {
+            const sapSet = new Set();
+            const sapOpts = [];
+            const sourceList = dynamicSkus.length > 0 ? dynamicSkus : (skus || []);
+            sourceList.forEach(s => {
+                const code = s.sapCode || s.sap_code;
+                if (code && !sapSet.has(String(code))) {
+                    sapSet.add(String(code));
+                    sapOpts.push({ id: String(code), name: String(code) });
+                }
+            });
+            if (sapOpts.length > 0) {
+                sapOpts.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+                setDynamicSapCodes(sapOpts);
+            }
+        }
+    }, [isDrlUser, dynamicSkus, skus, dynamicSapCodes.length]);
 
     // Fetch grammage dropdown values from dimension-overview API on every brand/category/platform/date change
     useEffect(() => {
@@ -676,6 +709,10 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                 ? filters.msl
                 : (selectedMsl || '0');
 
+            const sapCodes = (filters?.sapCodes && filters.sapCodes.length > 0)
+                ? filters.sapCodes
+                : ((filters?.sapCode && filters.sapCode.length > 0) ? (Array.isArray(filters.sapCode) ? filters.sapCode : [filters.sapCode]) : (prev.sapCodes || []));
+
             return {
                 ...prev,
                 ...(filters || {}),
@@ -683,6 +720,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                 brands,
                 platforms,
                 msl,
+                sapCodes,
             };
         });
     }, [isOpen, filters, selectedCategory, selectedBrand, globalPlatform, selectedMsl]);
@@ -708,6 +746,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             categories: [],
             platforms: [],
             skus: [],
+            sapCodes: [],
             grammages: [],
             dateFrom: '',
             dateTo: '',
@@ -732,6 +771,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             brands: localFilters.brands.map(b => typeof b === 'string' ? b.toLowerCase() : b),
             categories: localFilters.categories.map(c => typeof c === 'string' ? c.toLowerCase() : c),
             skus: localFilters.skus.map(s => typeof s === 'string' ? s.toLowerCase() : s),
+            sapCodes: localFilters.sapCodes || [],
             skuName: localFilters.skus.map(s => typeof s === 'string' ? s.toLowerCase() : s),
             skuCode: localFilters.skus
                 .map(s => dynamicSkus.find(opt => String(opt.id).toLowerCase() === String(s).toLowerCase() || String(opt.name).toLowerCase() === String(s).toLowerCase())?.webPid)
@@ -753,6 +793,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         showCategoryFilter && localFilters.categories.length > 0,
         showPlatformFilter && localFilters.platforms.length > 0,
         showSkuFilter && localFilters.skus.length > 0,
+        isDrlUser && localFilters.sapCodes && localFilters.sapCodes.length > 0,
         localFilters.msl === '1',
     ].filter(Boolean).length
 
@@ -861,6 +902,16 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 onChange={(val) => updateFilter('skus', val)}
                                                 placeholder="All Skus"
                                                 showSapCode={isDrlUser}
+                                            />
+                                        )}
+                                        {isDrlUser && (
+                                            <MultiSelectDropdown
+                                                label="SAP Code"
+                                                icon={Hash}
+                                                options={dynamicSapCodes}
+                                                selected={localFilters.sapCodes || []}
+                                                onChange={(val) => updateFilter('sapCodes', val)}
+                                                placeholder="All SAP Codes"
                                             />
                                         )}
                                         {(currentDimension === 'sku' && dynamicGrammages.length > 0) && (

@@ -31,7 +31,8 @@ export default function AvailablityAnalysis() {
     channels,
     refreshFilters,
     selectedMsl,
-    setSelectedMsl
+    setSelectedMsl,
+    selectedSapCode
   } = useContext(FilterContext);
 
   const [showTrends, setShowTrends] = useState(false);
@@ -48,6 +49,7 @@ export default function AvailablityAnalysis() {
     zones: selectedZone || "All",
     channel: selectedChannel || "Ecommerce",
     msl: selectedMsl || "All",
+    sapCode: selectedSapCode || "All",
     months: 6,
     timeStep: "Monthly",
     startDate: timeStart ? timeStart.format('YYYY-MM-DD') : dayjs().startOf('month').format('YYYY-MM-DD'),
@@ -116,6 +118,7 @@ export default function AvailablityAnalysis() {
       zones: selectedZone || prev.zones,
       channel: selectedChannel || prev.channel,
       msl: selectedMsl || prev.msl,
+      sapCode: selectedSapCode || prev.sapCode,
       startDate: timeStart ? timeStart.format('YYYY-MM-DD') : prev.startDate,
       endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : prev.endDate,
       compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
@@ -126,7 +129,7 @@ export default function AvailablityAnalysis() {
       ? (selectedMsl.includes('1') && !selectedMsl.includes('0'))
       : (selectedMsl === '1');
     setMslFilter(isMslOnly ? '1' : '0');
-  }, [platform, selectedBrand, selectedLocation, selectedCategory, selectedProductCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel, selectedMsl]);
+  }, [platform, selectedBrand, selectedLocation, selectedCategory, selectedProductCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel, selectedMsl, selectedSapCode]);
 
   // Default to Quickcomm if available, otherwise Ecommerce, if current selection is 'All'
   useEffect(() => {
@@ -237,6 +240,9 @@ export default function AvailablityAnalysis() {
 
     // Force ownBrandsOnly to match Watch Tower KPIs identically
     params.append('ownBrandsOnly', 'true');
+    if (params.has('sapCode') && !params.has('skuCode')) {
+      params.getAll('sapCode').forEach(val => params.append('skuCode', val));
+    }
 
     return params.toString();
   };
@@ -257,6 +263,9 @@ export default function AvailablityAnalysis() {
     if (!params.has('brand')) params.append('brand', 'All');
     if (!params.has('location')) params.append('location', 'All');
     params.append('ownBrandsOnly', 'true');
+    if (params.has('sapCode') && !params.has('skuCode')) {
+      params.getAll('sapCode').forEach(val => params.append('skuCode', val));
+    }
 
     // MSL filter selection logic:
     // If there is an override (from the local dropdown change), use it.
@@ -317,6 +326,9 @@ export default function AvailablityAnalysis() {
     if (!params.has('location')) params.append('location', 'All');
 
     params.append('ownBrandsOnly', 'true');
+    if (params.has('sapCode') && !params.has('skuCode')) {
+      params.getAll('sapCode').forEach(val => params.append('skuCode', val));
+    }
 
     return params.toString();
   };

@@ -103,6 +103,10 @@ export const FilterProvider = ({ children }) => {
     const [msls, setMsls] = useState([]);
     const [selectedMsl, setSelectedMsl] = useState("All");
 
+    // SAP Code filter state
+    const [sapCodes, setSapCodes] = useState([]);
+    const [selectedSapCode, setSelectedSapCode] = useState("All");
+
     // Priority Action specific filters
     const [paPriority, setPaPriority] = useState("All");
     const [paStatus, setPaStatus] = useState("All");
@@ -812,6 +816,27 @@ export const FilterProvider = ({ children }) => {
         fetchMsls();
     }, [isAuthenticated]);
 
+    // ====== FETCH SAP CODES FROM DB (on mount) ======
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        const fetchSapCodes = async () => {
+            try {
+                const res = await axiosInstance.get("/watchtower/products-with-sap");
+                if (res.data && Array.isArray(res.data)) {
+                    const codes = [...new Set(res.data.map(p => p.sapCode).filter(Boolean))];
+                    console.log("[FilterContext] Fetched SAP codes:", codes.length);
+                    setSapCodes(codes);
+                } else {
+                    setSapCodes([]);
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch SAP codes:", err.message);
+                setSapCodes([]);
+            }
+        };
+        fetchSapCodes();
+    }, [isAuthenticated]);
+
     return (
         <FilterContext.Provider value={{
             channels,
@@ -897,6 +922,10 @@ export const FilterProvider = ({ children }) => {
             setMsls,
             selectedMsl,
             setSelectedMsl,
+            sapCodes,
+            setSapCodes,
+            selectedSapCode,
+            setSelectedSapCode,
             paPriority,
             setPaPriority,
             paStatus,
