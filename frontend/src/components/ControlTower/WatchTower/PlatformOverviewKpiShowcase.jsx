@@ -2484,9 +2484,15 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
 
   const skuRows = useMemo(() => {
     return [...apiSkuData].sort((a, b) => {
-      const valA = Number(a.MarketShare?.value) || 0;
-      const valB = Number(b.MarketShare?.value) || 0;
-      return valB - valA;
+      const valA = Number(a.MarketShare?.value ?? a.marketShare?.value ?? a.MarketShare ?? a.marketShare ?? 0) || 0;
+      const valB = Number(b.MarketShare?.value ?? b.marketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0) || 0;
+      if (Math.abs(valB - valA) > 0.0001) return valB - valA;
+      const salesA = Number(a.total_sales || a.Sales?.value || a.Sales || 0) || 0;
+      const salesB = Number(b.total_sales || b.Sales?.value || b.Sales || 0) || 0;
+      if (salesB !== salesA) return salesB - salesA;
+      const osaA = Number(a.OSA?.value ?? a.OSA ?? a.osa ?? 0) || 0;
+      const osaB = Number(b.OSA?.value ?? b.OSA ?? b.osa ?? 0) || 0;
+      return osaB - osaA;
     });
   }, [apiSkuData]);
 

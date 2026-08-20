@@ -56,6 +56,8 @@ const getMsClientId = () => {
 const MS_CLIENT_ID = getMsClientId();
 const MS_TENANT_ID = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common';
 const MS_CALLBACK_URL = `${window.location.origin}/api/auth/callback/microsoft`;
+// Set to true to display Google and Microsoft SSO buttons on the login UI
+const SHOW_SSO_OPTIONS = false;
 
 const LoginPageContent = () => {
     const [email, setEmail] = useState("");
@@ -340,54 +342,57 @@ const LoginPageContent = () => {
                             </button>
                         </form>
 
-                        {/* SSO DIVIDER */}
-                        <div className="relative my-8 flex items-center justify-center">
-                            <div className="absolute inset-0 flex items-center">
-                                <div className="w-full border-t border-gray-100" />
-                            </div>
-                            <div className="relative bg-white px-4 text-xs font-bold uppercase tracking-wider text-gray-400">
-                                OR CONTINUE WITH
-                            </div>
-                        </div>
+                        {/* SSO DIVIDER & BUTTONS (Set SHOW_SSO_OPTIONS = true to re-enable on UI) */}
+                        {SHOW_SSO_OPTIONS && (
+                            <>
+                                <div className="relative my-8 flex items-center justify-center">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <div className="w-full border-t border-gray-100" />
+                                    </div>
+                                    <div className="relative bg-white px-4 text-xs font-bold uppercase tracking-wider text-gray-400">
+                                        OR CONTINUE WITH
+                                    </div>
+                                </div>
 
-                        {/* SSO BUTTONS GRID */}
-                        <div className="space-y-3">
-                            {/* GOOGLE SSO BUTTON */}
-                            <GoogleSsoButton
-                                onSuccess={async (credential) => {
-                                    setLoading(true);
-                                    setError("");
-                                    const res = await loginWithSso('google', credential);
-                                    if (res.success) {
-                                        const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
-                                        const userRole = (loggedInUser?.role || '').toLowerCase();
-                                        const isAdmin = userRole.includes('admin') || userRole.includes('super');
-                                        const redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(loggedInUser);
-                                        navigate(redirectPath, { replace: true });
-                                    } else {
-                                        setError(res.error || "Google authentication failed.");
-                                    }
-                                    setLoading(false);
-                                }}
-                                onError={(err) => setError(err || "Google sign-in was canceled or failed.")}
-                            />
+                                <div className="space-y-3">
+                                    {/* GOOGLE SSO BUTTON */}
+                                    <GoogleSsoButton
+                                        onSuccess={async (credential) => {
+                                            setLoading(true);
+                                            setError("");
+                                            const res = await loginWithSso('google', credential);
+                                            if (res.success) {
+                                                const loggedInUser = res.user || JSON.parse(sessionStorage.getItem('user') || '{}');
+                                                const userRole = (loggedInUser?.role || '').toLowerCase();
+                                                const isAdmin = userRole.includes('admin') || userRole.includes('super');
+                                                const redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(loggedInUser);
+                                                navigate(redirectPath, { replace: true });
+                                            } else {
+                                                setError(res.error || "Google authentication failed.");
+                                            }
+                                            setLoading(false);
+                                        }}
+                                        onError={(err) => setError(err || "Google sign-in was canceled or failed.")}
+                                    />
 
-                            {/* MICROSOFT SSO BUTTON */}
-                            <button
-                                type="button"
-                                onClick={handleMicrosoftLogin}
-                                disabled={loading}
-                                className="w-full h-[52px] border border-gray-200 bg-white hover:bg-gray-50/80 rounded-[18px] text-[14px] font-semibold text-gray-700 flex items-center justify-center gap-3 transition-all transform hover:-translate-y-0.5 cursor-pointer shadow-sm disabled:opacity-50"
-                            >
-                                <svg className="w-5 h-5" viewBox="0 0 23 23">
-                                    <path fill="#f35325" d="M1 1h10v10H1z" />
-                                    <path fill="#81bc06" d="M12 1h10v10H12z" />
-                                    <path fill="#05a6f0" d="M1 12h10v10H1z" />
-                                    <path fill="#ffba08" d="M12 12h10v10H12z" />
-                                </svg>
-                                <span>Sign in with Microsoft</span>
-                            </button>
-                        </div>
+                                    {/* MICROSOFT SSO BUTTON */}
+                                    <button
+                                        type="button"
+                                        onClick={handleMicrosoftLogin}
+                                        disabled={loading}
+                                        className="w-full h-[52px] border border-gray-200 bg-white hover:bg-gray-50/80 rounded-[18px] text-[14px] font-semibold text-gray-700 flex items-center justify-center gap-3 transition-all transform hover:-translate-y-0.5 cursor-pointer shadow-sm disabled:opacity-50"
+                                    >
+                                        <svg className="w-5 h-5" viewBox="0 0 23 23">
+                                            <path fill="#f35325" d="M1 1h10v10H1z" />
+                                            <path fill="#81bc06" d="M12 1h10v10H12z" />
+                                            <path fill="#05a6f0" d="M1 12h10v10H1z" />
+                                            <path fill="#ffba08" d="M12 12h10v10H12z" />
+                                        </svg>
+                                        <span>Sign in with Microsoft</span>
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </motion.div>
                 </div>
             </div>

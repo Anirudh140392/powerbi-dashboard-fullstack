@@ -178,29 +178,29 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       if (!Array.isArray(origColumns) || !Array.isArray(origRowsArray)) {
         // Fall through to mock data below
       } else {
-      // Standardize the first column to "kpi" (lowercase) which Showcase expects
-      const normalizedColumns = origColumns.map((col, idx) => idx === 0 ? "kpi" : col);
+        // Standardize the first column to "kpi" (lowercase) which Showcase expects
+        const normalizedColumns = origColumns.map((col, idx) => idx === 0 ? "kpi" : col);
 
-      // Convert array elements
-      const mappedRows = [];
-      if (Array.isArray(origRowsArray)) {
-        origRowsArray.forEach((rowData) => {
-          if (!rowData || !rowData.kpi) return;
-          const newRow = { ...rowData };
+        // Convert array elements
+        const mappedRows = [];
+        if (Array.isArray(origRowsArray)) {
+          origRowsArray.forEach((rowData) => {
+            if (!rowData || !rowData.kpi) return;
+            const newRow = { ...rowData };
 
-          // Also add trend and series objects if missing, to prevent Showcase from crashing
-          if (!newRow.trend) newRow.trend = {};
-          if (!newRow.series) newRow.series = {};
+            // Also add trend and series objects if missing, to prevent Showcase from crashing
+            if (!newRow.trend) newRow.trend = {};
+            if (!newRow.series) newRow.series = {};
 
-          mappedRows.push(newRow);
-        });
-      }
+            mappedRows.push(newRow);
+          });
+        }
 
-      // Platform KPI Matrix shows ALL platforms across the board — no column filtering
-      platformData = {
-        columns: normalizedColumns,
-        rows: mappedRows
-      };
+        // Platform KPI Matrix shows ALL platforms across the board — no column filtering
+        platformData = {
+          columns: normalizedColumns,
+          rows: mappedRows
+        };
       } // end of valid columns/rows guard
 
     }
@@ -1263,8 +1263,8 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     return { osa: osaSeries };
   }, [apiData?.kpiTrends]);
 
-  const isQuickCom = typeof selectedChannel === 'string' 
-    ? selectedChannel.toLowerCase().includes('quick') 
+  const isQuickCom = typeof selectedChannel === 'string'
+    ? selectedChannel.toLowerCase().includes('quick')
     : (Array.isArray(selectedChannel) && selectedChannel.some(c => c.toLowerCase().includes('quick')));
 
   const isEcom = typeof selectedChannel === 'string'
@@ -1298,6 +1298,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
       value: apiData.metroCity.isMetroCity === false ? "N/A" : `${Number(apiData.metroCity.stockAvailability || 0).toFixed(2)}%`,
       delta: apiData.metroCity.isMetroCity === false ? 0 : Number(apiData.metroCity.stockAvailability || 0) - Number(apiData.metroCity.prevStockAvailability || 0),
       isNotMetro: apiData.metroCity.isMetroCity === false,
+      metroCities: apiData.metroCity.metroCities || ['Ahmedabad', 'Bengaluru', 'Chennai', 'Delhi', 'Hyderabad', 'Kolkata', 'Mumbai', 'Pune'],
       trend: apiData?.kpiTrends?.timeSeries?.map(p => ({ value: (p.Osa !== null && p.Osa !== undefined) ? p.Osa : null, label: p.date || '' })) || []
     } : null;
 
@@ -1341,10 +1342,10 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     };
 
     let cards_config = [];
-    
+
     // Info tooltips for specific KPIs (shown as ℹ icon on hover)
     const KPI_INFO_TOOLTIPS = {
-      'osa': "Weighted OSA represents the average product availability within a category, factoring in each SKU’s importance (weight) alongside its individual availability percentage.",
+      'osa': "Weighted OSA represents the average product availability within a category, factoring in each SKU’s importance alongside its individual availability percentage.",
       'doi': "Days of Inventory refers to the estimated number of days the combined stock from both the backend warehouses and frontend darkstores can sustain, based on the average daily sales or consumption rate.",
       'availability': "This metric reflects stock availability exclusively across Tier 1 metro cities, providing a focused view of inventory health in high-demand urban markets."
     };
@@ -1380,8 +1381,8 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
       if (cfg.key === 'doi' || cfg.key === 'skucount') fixedDigits = 0;
 
       const absDeltaNum = Math.abs(delta);
-      const deltaFormatted = (cfg.key === 'skucount' || cfg.key === 'psl') 
-        ? formatNumber(Number(absDeltaNum.toFixed(fixedDigits))) 
+      const deltaFormatted = (cfg.key === 'skucount' || cfg.key === 'psl')
+        ? formatNumber(Number(absDeltaNum.toFixed(fixedDigits)))
         : absDeltaNum.toFixed(fixedDigits);
 
       const isCardNA = data.isNA || data.value === 'N/A';
@@ -1402,6 +1403,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         prevText: prevText,
         isNotMetro: data.isNotMetro,
         isNA: isCardNA,
+        metroCities: data.metroCities,
         infoTooltip: cfg.infoTooltip,
         loading: cfg.loading || false
       };

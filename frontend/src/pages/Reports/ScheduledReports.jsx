@@ -213,7 +213,7 @@ export default function ScheduledReports() {
             const currentFilters = { ...selectedFilters, ...overrideFilters };
             const { 
                 platform, brand, location, timePeriod, reportType, category, metrics, dimensions,
-                granularitySku, granularityGeo, granularityTime, overrideDates
+                granularitySku, granularityGeo, granularityTime, overrideDates, dataMode
             } = currentFilters;
 
             // Build params for backend API
@@ -224,6 +224,7 @@ export default function ScheduledReports() {
                 format: (category && category !== 'All Categories') ? category : undefined,
                 timePeriod: timePeriod,
                 reportType: reportType,
+                dataMode: dataMode || undefined,
                 metrics: metrics, // Send selected tags to backend
                 dimensions: dimensions, // Send active filter dimensions
                 granularityTime: granularityTime,

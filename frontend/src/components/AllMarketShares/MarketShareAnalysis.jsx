@@ -628,7 +628,7 @@ export default function MarketShareAnalysis() {
         onClose={() => setTrendsDrawer({ open: false, entity: '', dimension: '' })}
         selectedColumn={trendsDrawer.entity}
         selectedLevel={trendsDrawer.dimension}
-        showResellerFilter={false}
+        showResellerFilter={true}
       />
     </div>
   );
