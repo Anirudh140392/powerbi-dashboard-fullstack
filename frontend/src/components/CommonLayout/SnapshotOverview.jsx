@@ -659,7 +659,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                             </Box>
                         </Box>
                         <Typography sx={{ fontSize: '11px', color: '#94a3b8', mb: 1.2, leading: 1.4 }}>
-                            Tier 1 cities from <code style={{ background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: '4px', color: '#60a5fa', fontSize: '10px' }}>rb_location_darkstore</code>:
+                            Tier 1 cities
                         </Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.6, maxHeight: 180, overflowY: 'auto' }}>
                             {formattedCities.map((city) => (
@@ -785,16 +785,16 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
         if (!kpi.trendSeries) return [];
         return kpi.trendSeries.map((item, i) => {
             if (typeof item === 'object' && item !== null) {
-                return { 
-                    i, 
-                    v: (item.value === null || item.value === undefined) ? 0 : item.value, 
+                return {
+                    i,
+                    v: (item.value === null || item.value === undefined) ? 0 : item.value,
                     label: item.label,
                     isNA: item.value === null || item.value === undefined
                 };
             }
-            return { 
-                i, 
-                v: (item === null || item === undefined) ? 0 : item, 
+            return {
+                i,
+                v: (item === null || item === undefined) ? 0 : item,
                 label: `Day ${i + 1}`,
                 isNA: item === null || item === undefined
             };
@@ -922,18 +922,18 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                         );
                     })()}
                     {!isCardNA && (
-                    <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
-                        <span className={`text-xs font-bold ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100`}>
-                            {kpi.deltaLabel ? (
-                                <span>{kpi.deltaLabel}</span>
-                            ) : (
-                                <span>{deltaIcon} {Math.abs(kpi.delta || 0).toFixed(1)}%</span>
-                            )}
-                        </span>
-                        <span className="text-[11px] text-slate-400 font-medium">
-                            {kpi.prevText || "vs Previous Period"}
-                        </span>
-                    </div>
+                        <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
+                            <span className={`text-xs font-bold ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100`}>
+                                {kpi.deltaLabel ? (
+                                    <span>{kpi.deltaLabel}</span>
+                                ) : (
+                                    <span>{deltaIcon} {Math.abs(kpi.delta || 0).toFixed(1)}%</span>
+                                )}
+                            </span>
+                            <span className="text-[11px] text-slate-400 font-medium">
+                                {kpi.prevText || "vs Previous Period"}
+                            </span>
+                        </div>
                     )}
 
                     {(kpi.extra || kpi.extraChange) && (
@@ -962,7 +962,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                                     <stop offset="95%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.01} />
                                 </linearGradient>
                             </defs>
-                            <RechartsTooltip 
+                            <RechartsTooltip
                                 contentStyle={{ fontSize: '10px', padding: '4px 8px', borderRadius: '8px', minWidth: 'auto', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
                                 itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#2563EB", fontWeight: 'bold' }}
                                 labelStyle={{ fontSize: '10px', color: '#64748b', marginBottom: '2px', fontWeight: '500' }}
