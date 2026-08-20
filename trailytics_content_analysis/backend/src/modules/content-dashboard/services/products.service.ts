@@ -29,6 +29,7 @@ function mapRowToProduct(row: ContentOlapProductRow): ProductRow {
   return {
     productId: row.product_id ?? '',
     title: row.title ?? row.product_id ?? 'Unknown Product',
+    imageUrl: row.image_url || null,
     totalScore: toFloat(row.score),
     titleScore: toFloat(row.title_score),
     bulletPointScore: toFloat(row.bullet_point_score),

@@ -31,6 +31,7 @@ const API_BASE = '/api';
 interface ApiProduct {
   productId: string;
   title: string;
+  imageUrl?: string | null;
   totalScore: number | null;
   titleScore: number | null;
   bulletPointScore: number | null;
@@ -1013,9 +1014,9 @@ const SkuDrillDownTable = ({
             const wasRowExpanded = lastExpandedCell?.ri === ri;
             const topMetrics = mapToTopMetrics(row);
 
-            // Deterministic avatar image using product ID as seed or user logo
+            // Product image from backend rb_sku_platform (image_url) or fallback
             const storedUserLogo = (() => { try { const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}'); return u?.dbLogoUrl || u?.logo_url; } catch { return null; } })();
-            const imgUrl = storedUserLogo || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(row.productId)}&backgroundColor=ffffff`;
+            const imgUrl = row.imageUrl || storedUserLogo || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(row.productId)}&backgroundColor=ffffff`;
 
             return (
               <div key={ri} className={`flex flex-col bg-white transition-all duration-300 last:rounded-b-[14px] ${isRowExpanded ? 'bg-slate-50/50 shadow-inner' : 'hover:bg-slate-50/50'}`}>

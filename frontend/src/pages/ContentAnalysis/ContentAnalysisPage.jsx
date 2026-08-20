@@ -20,7 +20,7 @@ export default function ContentAnalysisPage() {
       return {};
     }
   })();
-  const userDbName = storedUser?.dbName || storedUser?.company_name || "";
+  const userDbName = storedUser?.dbName || storedUser?.company_name || "danone";
   
   // Resolve sidebar platform to a single string, since Content Analysis should only have one selected
   let sidebarPlatform = typeof platform === "string" ? platform : (Array.isArray(platform) ? platform[0] : "All");
