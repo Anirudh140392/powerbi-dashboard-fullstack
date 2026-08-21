@@ -10,7 +10,9 @@ import * as XLSX from 'xlsx';
 const checkTableExists = async (tableName) => {
     try {
         const result = await queryClickHouse(`EXISTS TABLE ${tableName}`);
-        return result && result[0] && result[0].result === 1;
+        const exists = result && result[0] && result[0].result === 1;
+        console.log(`[checkTableExists] ${tableName} -> raw: ${JSON.stringify(result?.[0])} -> exists: ${exists}`);
+        return exists;
     } catch (error) {
         console.warn(`[Reports] Table existence check failed for ${tableName}:`, error.message);
         return false;
@@ -1021,36 +1023,34 @@ export const getAvailableReportTypes = async (req, res) => {
         const cacheKey = generateCacheKey('available_report_types', {});
 
         const data = await getCachedOrCompute(cacheKey, async () => {
-            // Define report types and their required tables
+            // Define report types and their candidate tables (at least one table must exist)
+            const pdpCandidateTables = ['rb_pdp_olap', 'rb_pdp', 'rb_pdp_week', 'rca_sku_dim', 'rb_sales_olap'];
             const reportTableMap = [
-                { type: 'Business Overview', tables: ['rb_pdp_olap'] },
-                { type: 'Availability Analysis', tables: ['rb_pdp_olap'] },
+                { type: 'Business Overview', tables: pdpCandidateTables },
+                { type: 'Availability Analysis', tables: pdpCandidateTables },
                 { type: 'Visibility Analysis', tables: ['rb_kw_olap'] },
-                { type: 'Sales Data', tables: ['rb_pdp_olap'] },
-                { type: 'Pricing Analysis', tables: ['rb_pdp_olap'] },
-                { type: 'Performance Marketing', tables: ['rb_pdp_olap'] },
-                { type: 'Inventory Analysis', tables: ['rb_pdp_olap'] },
+                { type: 'Sales Data', tables: pdpCandidateTables },
+                { type: 'Pricing Analysis', tables: pdpCandidateTables },
+                { type: 'Performance Marketing', tables: pdpCandidateTables },
+                { type: 'Inventory Analysis', tables: pdpCandidateTables },
                 { type: 'Market Share', tables: ['rb_brand_ms', 'rb_ms_olap'] },  // either works
                 { type: 'Content Analysis', tables: ['tb_content_score_data'] },
-                { type: 'Category RCA', tables: ['rb_pdp_olap'] },
-                { type: 'Portfolio Analysis', tables: ['rb_pdp_olap'] },
+                { type: 'Category RCA', tables: pdpCandidateTables },
+                { type: 'Portfolio Analysis', tables: pdpCandidateTables },
             ];
 
             const results = [];
             for (const entry of reportTableMap) {
-                // For Market Share: need at least one of the tables
-                if (entry.type === 'Market Share') {
-                    const checks = await Promise.all(entry.tables.map(t => checkTableExists(t)));
-                    if (checks.some(Boolean)) results.push(entry.type);
-                } else {
-                    // For others: need all required tables
-                    const checks = await Promise.all(entry.tables.map(t => checkTableExists(t)));
-                    if (checks.every(Boolean)) results.push(entry.type);
+                // If any candidate table exists for the report type, include it
+                const checks = await Promise.all(entry.tables.map(t => checkTableExists(t)));
+                if (checks.some(Boolean)) {
+                    results.push(entry.type);
                 }
             }
             return results;
         }, CACHE_TTL.METRICS);
 
+        console.log('[getAvailableReportTypes] Returning:', JSON.stringify(data));
         res.json({ reportTypes: data });
     } catch (error) {
         console.error('[getAvailableReportTypes] Error:', error);
