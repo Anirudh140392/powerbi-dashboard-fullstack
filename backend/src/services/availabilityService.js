@@ -339,6 +339,16 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
         conditions.push(`toString(${prefix}${actualSapCol}) IN (${uniqueSapArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
     }
 
+    // Sub Brand filter (if sub_brand or subbrand column exists in DB)
+    const subBrandVal = filters.subBrand || filters.sub_brand || filters.selectedSubBrand;
+    if (subBrandVal && subBrandVal !== 'All' && subBrandVal !== 'all' && (columnExists(pdpColsMap, 'sub_brand') || columnExists(pdpColsMap, 'subbrand'))) {
+        const actualSubCol = columnExists(pdpColsMap, 'sub_brand') ? resolveColumn(pdpColsMap, 'sub_brand') : resolveColumn(pdpColsMap, 'subbrand');
+        const sbArr = (Array.isArray(subBrandVal) ? subBrandVal : String(subBrandVal).split(',')).map(s => s.trim()).filter(s => s && s !== 'All' && s !== 'all');
+        if (sbArr.length > 0) {
+            conditions.push(`toString(${prefix}${actualSubCol}) IN (${sbArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
+        }
+    }
+
     // Date/Month range
     if (dates && Array.isArray(dates) && dates.length > 0) {
         conditions.push(`${prefix}DATE IN (${dates.map(d => `'${d}'`).join(',')})`);

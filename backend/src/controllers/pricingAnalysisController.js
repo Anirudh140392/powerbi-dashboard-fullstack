@@ -20,6 +20,7 @@ export const getEcpByCity = async (req, res) => {
             endDate: req.query.endDate,
             city: req.query.city,
             brand: req.query.brand,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
@@ -54,6 +55,7 @@ export const getPricingKpis = async (req, res) => {
             platform: req.query.platform,
             location: req.query.location,
             brand: req.query.brand,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             category: req.query.category,
             channel: req.query.channel,
             sku: req.query.sku,
@@ -91,6 +93,7 @@ export const getPricingInsights = async (req, res) => {
             platform: req.query.platform,
             location: req.query.location,
             brand: req.query.brand,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             category: req.query.category,
             channel: req.query.channel,
             sku: req.query.sku,
@@ -128,6 +131,7 @@ export const getDimensionOverview = async (req, res) => {
             platform: req.query.platform,
             location: req.query.location,
             brand: req.query.brand,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             category: req.query.category,
             channel: req.query.channel,
             dimension: req.query.dimension,
@@ -168,6 +172,7 @@ export const getEcpComparison = async (req, res) => {
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate,
             channel: req.query.channel,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
@@ -200,6 +205,7 @@ export const getEcpByBrand = async (req, res) => {
             location: req.query.location,
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
@@ -233,6 +239,7 @@ export const getDiscountByCategory = async (req, res) => {
             metricType: req.query.metricType,
             platform: req.query.platform,
             brand: req.query.brand,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             category: req.query.category,
             format: req.query.format,
             city: req.query.city,
@@ -270,6 +277,7 @@ export const getDiscountByBrand = async (req, res) => {
             metricType: req.query.metricType,
             platform: req.query.platform,
             brand: req.query.brand,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             city: req.query.city,
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
@@ -306,6 +314,7 @@ export const getEcpWeekdayWeekend = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             brand: req.query.brand,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             msl: req.query.msl
         };
 
@@ -336,6 +345,7 @@ export const getBrandPriceOverview = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             platform: req.query.platform,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
@@ -368,6 +378,7 @@ export const getBrandDiscountTrend = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             platform: req.query.platform,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl
@@ -404,6 +415,7 @@ export const getDimensionTrends = async (req, res) => {
             platform: req.query.platform,
             location: req.query.location,
             brand: req.query.brand,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             category: req.query.category,
             channel: req.query.channel,
             sku: req.query.sku || req.query.skuName,
@@ -437,6 +449,7 @@ export const getPricingCompetitionTrends = async (req, res) => {
             platform: req.query.platform,
             location: req.query.location,
             brand: req.query.brand,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             category: req.query.category,
             channel: req.query.channel,
             msl: req.query.msl
@@ -467,6 +480,7 @@ export const getPricingCompetition = async (req, res) => {
             platform: req.query.platform,
             location: req.query.location,
             brand: req.query.brand,
+            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             category: req.query.category,
             channel: req.query.channel,
             msl: req.query.msl

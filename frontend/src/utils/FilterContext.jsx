@@ -107,6 +107,10 @@ export const FilterProvider = ({ children }) => {
     const [sapCodes, setSapCodes] = useState([]);
     const [selectedSapCode, setSelectedSapCode] = useState("All");
 
+    // Sub Brand filter state
+    const [subBrands, setSubBrands] = useState([]);
+    const [selectedSubBrand, setSelectedSubBrand] = useState("All");
+
     // Priority Action specific filters
     const [paPriority, setPaPriority] = useState("All");
     const [paStatus, setPaStatus] = useState("All");
@@ -837,8 +841,31 @@ export const FilterProvider = ({ children }) => {
         fetchSapCodes();
     }, [isAuthenticated]);
 
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        const fetchSubBrands = async () => {
+            try {
+                const res = await axiosInstance.get("/watchtower/sub-brands");
+                if (res.data && Array.isArray(res.data)) {
+                    console.log("[FilterContext] Fetched Sub Brands:", res.data.length);
+                    setSubBrands(res.data);
+                } else {
+                    setSubBrands([]);
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch Sub Brands:", err.message);
+                setSubBrands([]);
+            }
+        };
+        fetchSubBrands();
+    }, [isAuthenticated]);
+
     return (
         <FilterContext.Provider value={{
+            subBrands,
+            setSubBrands,
+            selectedSubBrand,
+            setSelectedSubBrand,
             channels,
             setChannels,
             selectedChannel,

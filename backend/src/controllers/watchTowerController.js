@@ -312,6 +312,7 @@ export const getKpiTrends = async (req, res) => {
             platform: req.query.platform || "All",
             location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             brand: req.query.brand || "All",
+            subBrand: req.query.subBrand || req.query.sub_brand || "All",
             category: req.query.category || "All",
             channel: req.query.channel,
             period: req.query.period,
@@ -567,11 +568,26 @@ export const getProducts = async (req, res) => {
  */
 export const getProductsWithSap = async (req, res) => {
     try {
-        const { platform, brand, category } = req.query;
-        const products = await watchTowerService.getProductsWithSap({ platform, brand, category });
+        const { platform, brand, category, subBrand, sub_brand } = req.query;
+        const products = await watchTowerService.getProductsWithSap({ platform, brand, category, subBrand: subBrand || sub_brand });
         res.json(products);
     } catch (error) {
         console.error('[getProductsWithSap] Error:', error);
+        res.json([]);
+    }
+};
+
+/**
+ * Get distinct Sub Brands from rb_pdp_olap if column exists
+ * GET /api/watchtower/sub-brands
+ */
+export const getSubBrands = async (req, res) => {
+    try {
+        const { platform, brand, category } = req.query;
+        const subBrands = await watchTowerService.getSubBrands({ platform, brand, category });
+        res.json(subBrands);
+    } catch (error) {
+        console.error('[getSubBrands] Error:', error);
         res.json([]);
     }
 };

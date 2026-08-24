@@ -152,6 +152,15 @@ export function generateCacheKey(section, filters) {
     if (signalType) key += `:sig_${normalize(signalType)}`;
     if (webPid) key += `:pid_${normalize(webPid)}`;
 
+    const sb = filters.subBrand || filters.sub_brand || filters.selectedSubBrand;
+    if (sb && sb !== 'all' && sb !== 'All') key += `:sb_${normalize(sb)}`;
+
+    const sap = filters.sapCode || filters.sapCodes || filters.sap_code || filters.skuCode;
+    if (sap && sap !== 'all' && sap !== 'All') key += `:sap_${normalize(sap)}`;
+
+    const mslVal = filters.msl;
+    if (mslVal && mslVal !== 'all' && mslVal !== 'All') key += `:msl_${normalize(mslVal)}`;
+
     // Pagination
     if (page) key += `:pg_${page}`;
     if (limit) key += `:lim_${limit}`;

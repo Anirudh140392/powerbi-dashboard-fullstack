@@ -1815,6 +1815,7 @@ function AvailabilityFilterModal({
   platforms = [], platform, setPlatform,
   categories = [], selectedCategory, setSelectedCategory,
   brands = [], selectedBrand, setSelectedBrand,
+  subBrands = [], selectedSubBrand = "All", setSelectedSubBrand,
   locations = [], selectedLocation, setSelectedLocation,
   msls = [], selectedMsl = "All", setSelectedMsl,
   sapCodes = [], selectedSapCode = "All", setSelectedSapCode,
@@ -1829,8 +1830,30 @@ function AvailabilityFilterModal({
     }
   }, []);
 
+  const [localSubBrands, setLocalSubBrands] = React.useState(subBrands);
+  React.useEffect(() => {
+    if (subBrands && subBrands.length > 0) {
+      setLocalSubBrands(subBrands);
+    }
+  }, [subBrands]);
+
+  const hasSubBrands = (localSubBrands && localSubBrands.length > 0) || (subBrands && subBrands.length > 0);
+
   const baseTabs = hideChannel ? AVAIL_FILTER_TABS.filter(t => t.key !== "channel") : AVAIL_FILTER_TABS;
-  const availableTabs = isDrlUser ? [...baseTabs, { key: "sapCode", label: "SAP Code", icon: Hash }] : baseTabs;
+  let availableTabs = [...baseTabs];
+  if (hasSubBrands) {
+    const brandIdx = availableTabs.findIndex(t => t.key === "brand");
+    const subBrandTab = { key: "subBrand", label: "Sub Brand", icon: Tag };
+    if (brandIdx !== -1) {
+      availableTabs.splice(brandIdx + 1, 0, subBrandTab);
+    } else {
+      availableTabs.push(subBrandTab);
+    }
+  }
+  if (isDrlUser) {
+    availableTabs.push({ key: "sapCode", label: "SAP Code", icon: Hash });
+  }
+
   const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
@@ -1838,6 +1861,7 @@ function AvailabilityFilterModal({
   const [draftPlatform, setDraftPlatform] = React.useState(platform);
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
   const [draftBrand, setDraftBrand] = React.useState(selectedBrand);
+  const [draftSubBrand, setDraftSubBrand] = React.useState(selectedSubBrand);
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
   const [draftMsl, setDraftMsl] = React.useState(selectedMsl);
   const [draftSapCode, setDraftSapCode] = React.useState(selectedSapCode);
@@ -1860,12 +1884,14 @@ function AvailabilityFilterModal({
       setDraftPlatform(platform);
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedBrand);
+      setDraftSubBrand(selectedSubBrand);
       setDraftLocation(selectedLocation);
       setDraftMsl(selectedMsl);
       setDraftSapCode(selectedSapCode);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
+      setLocalSubBrands(subBrands);
       setLocalLocations(locations);
       setLocalSapCodes(sapCodes);
       setActiveTab(hideChannel ? "category" : "channel");
@@ -1988,6 +2014,37 @@ function AvailabilityFilterModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftPlatform, open]);
 
+  // CASCADE: draftPlatform, draftCategory, draftBrand → subBrands
+  React.useEffect(() => {
+    if (!open) return;
+
+    const params = {};
+    if (draftPlatform && draftPlatform !== "All") {
+      params.platform = Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform;
+    }
+    if (draftCategory && draftCategory !== "All") {
+      params.category = Array.isArray(draftCategory) ? draftCategory.join(",") : draftCategory;
+    }
+    if (draftBrand && draftBrand !== "All") {
+      params.brand = Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand;
+    }
+
+    axiosInstance.get("/watchtower/sub-brands", { params })
+      .then(res => {
+        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+          setLocalSubBrands(res.data);
+          setDraftSubBrand(prev => {
+            if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
+            const currList = Array.isArray(prev) ? prev : [prev];
+            const valid = currList.filter(s => res.data.includes(s));
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+          });
+        }
+      })
+      .catch(() => { });
+  }, [draftPlatform, draftCategory, draftBrand, open]);
+
   // CASCADE: draftPlatform, draftCategory, draftBrand → sapCodes
   React.useEffect(() => {
     if (!open || !isDrlUser) return;
@@ -2001,6 +2058,9 @@ function AvailabilityFilterModal({
     }
     if (draftBrand && draftBrand !== "All") {
       params.brand = Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand;
+    }
+    if (draftSubBrand && draftSubBrand !== "All") {
+      params.subBrand = Array.isArray(draftSubBrand) ? draftSubBrand.join(",") : draftSubBrand;
     }
 
     axiosInstance.get("/watchtower/products-with-sap", { params })
@@ -2020,7 +2080,7 @@ function AvailabilityFilterModal({
         }
       })
       .catch(() => { });
-  }, [draftPlatform, draftCategory, draftBrand, open, isDrlUser]);
+  }, [draftPlatform, draftCategory, draftBrand, draftSubBrand, open, isDrlUser]);
 
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
 
@@ -2029,14 +2089,16 @@ function AvailabilityFilterModal({
     platform: { options: localPlatforms, value: draftPlatform, onChange: setDraftPlatform },
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
+    subBrand: { options: localSubBrands, value: draftSubBrand, onChange: setDraftSubBrand },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
     msl: { options: msls.length > 0 ? msls : ["0", "1"], value: draftMsl, onChange: setDraftMsl },
     sapCode: { options: localSapCodes, value: draftSapCode, onChange: setDraftSapCode },
   };
 
-  const { options, value, onChange } = tabConfig[activeTab];
+  const { options = [], value, onChange } = tabConfig[activeTab] || {};
 
   const getSelected = (v, opts) => {
+    if (!opts) return [];
     if (v === "All" || (Array.isArray(v) && v.includes("All"))) return [...opts];
     if (Array.isArray(v)) return v;
     if (!v) return [];
@@ -2044,7 +2106,7 @@ function AvailabilityFilterModal({
   };
 
   const selected = getSelected(value, options);
-  const filteredOptions = activeTab === "msl" ? options : options.filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredOptions = activeTab === "msl" ? options : (options || []).filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const toggle = (opt) => {
     let next;
@@ -2064,8 +2126,9 @@ function AvailabilityFilterModal({
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
+    if (!cfg) return 0;
     const v = cfg.value;
-    const opts = cfg.options;
+    const opts = cfg.options || [];
     if (v === "All" || (Array.isArray(v) && v.includes("All"))) return 0;
     if (Array.isArray(v) && v.length === opts.length && opts.length > 0) return 0;
     if (Array.isArray(v)) return v.length;
@@ -2078,6 +2141,7 @@ function AvailabilityFilterModal({
     setPlatform(draftPlatform);
     setSelectedCategory(draftCategory);
     setSelectedBrand(draftBrand);
+    if (setSelectedSubBrand) setSelectedSubBrand(draftSubBrand);
     setSelectedLocation(draftLocation);
     setSelectedMsl(draftMsl);
     if (setSelectedSapCode) setSelectedSapCode(draftSapCode);
@@ -2093,6 +2157,7 @@ function AvailabilityFilterModal({
     }
     setDraftCategory("All");
     setDraftBrand("All");
+    setDraftSubBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
     setDraftSapCode("All");
@@ -2887,6 +2952,7 @@ function PricingFilterModal({
   platforms = [], platform, setPlatform,
   categories = [], selectedCategory, setSelectedCategory,
   brands = [], selectedBrand, setSelectedBrand,
+  subBrands = [], selectedSubBrand = "All", setSelectedSubBrand,
   locations = [], selectedLocation, setSelectedLocation,
   msls = [], selectedMsl = "All", setSelectedMsl,
   sapCodes = [], selectedSapCode = "All", setSelectedSapCode,
@@ -2901,8 +2967,28 @@ function PricingFilterModal({
     }
   }, []);
 
+  const [draftSubBrand, setDraftSubBrand] = React.useState(selectedSubBrand);
+  const [localSubBrands, setLocalSubBrands] = React.useState(subBrands);
+
+  React.useEffect(() => {
+    if (subBrands && subBrands.length > 0) {
+      setLocalSubBrands(subBrands);
+    }
+  }, [subBrands]);
+
+  const hasSubBrands = (localSubBrands && localSubBrands.length > 0) || (subBrands && subBrands.length > 0);
+
   const baseTabs = hideChannel ? PRICING_FILTER_TABS.filter(t => t.key !== "channel") : PRICING_FILTER_TABS;
-  const availableTabs = isDrlUser ? [...baseTabs, { key: "sapCode", label: "SAP Code", icon: Hash }] : baseTabs;
+  const tabsWithSubBrand = React.useMemo(() => {
+    if (!hasSubBrands) return baseTabs;
+    const brandIdx = baseTabs.findIndex(t => t.key === "brand");
+    if (brandIdx === -1) return baseTabs;
+    const nextTabs = [...baseTabs];
+    nextTabs.splice(brandIdx + 1, 0, { key: "subBrand", label: "Sub Brand", icon: Tag });
+    return nextTabs;
+  }, [baseTabs, hasSubBrands]);
+
+  const availableTabs = isDrlUser ? [...tabsWithSubBrand, { key: "sapCode", label: "SAP Code", icon: Hash }] : tabsWithSubBrand;
   const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
@@ -2933,6 +3019,7 @@ function PricingFilterModal({
       setDraftPlatform(platform);
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedBrand);
+      setDraftSubBrand(selectedSubBrand);
       setDraftLocation(selectedLocation);
       setDraftMsl(selectedMsl);
       setDraftSapCode(selectedSapCode);
@@ -2940,6 +3027,7 @@ function PricingFilterModal({
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
+      setLocalSubBrands(subBrands);
       setLocalSapCodes(sapCodes);
 
       setActiveTab(hideChannel ? "category" : "channel");
@@ -3009,7 +3097,38 @@ function PricingFilterModal({
       .catch(() => { });
   }, [draftPlatform, open]);
 
-  // CASCADE: draftPlatform, draftCategory, draftBrand → sapCodes
+  // CASCADE: draftPlatform, draftCategory, draftBrand → subBrands
+  React.useEffect(() => {
+    if (!open) return;
+
+    const params = {};
+    if (draftPlatform && draftPlatform !== "All") {
+      params.platform = Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform;
+    }
+    if (draftCategory && draftCategory !== "All") {
+      params.category = Array.isArray(draftCategory) ? draftCategory.join(",") : draftCategory;
+    }
+    if (draftBrand && draftBrand !== "All") {
+      params.brand = Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand;
+    }
+
+    axiosInstance.get("/watchtower/sub-brands", { params })
+      .then(res => {
+        if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+          setLocalSubBrands(res.data);
+          setDraftSubBrand(prev => {
+            if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
+            const currList = Array.isArray(prev) ? prev : [prev];
+            const valid = currList.filter(s => res.data.includes(s));
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+          });
+        }
+      })
+      .catch(() => { });
+  }, [draftPlatform, draftCategory, draftBrand, open]);
+
+  // CASCADE: draftPlatform, draftCategory, draftBrand, draftSubBrand → sapCodes
   React.useEffect(() => {
     if (!open || !isDrlUser) return;
 
@@ -3022,6 +3141,9 @@ function PricingFilterModal({
     }
     if (draftBrand && draftBrand !== "All") {
       params.brand = Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand;
+    }
+    if (draftSubBrand && draftSubBrand !== "All") {
+      params.subBrand = Array.isArray(draftSubBrand) ? draftSubBrand.join(",") : draftSubBrand;
     }
 
     axiosInstance.get("/watchtower/products-with-sap", { params })
@@ -3041,7 +3163,7 @@ function PricingFilterModal({
         }
       })
       .catch(() => { });
-  }, [draftPlatform, draftCategory, draftBrand, open, isDrlUser]);
+  }, [draftPlatform, draftCategory, draftBrand, draftSubBrand, open, isDrlUser]);
 
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
 
@@ -3050,6 +3172,7 @@ function PricingFilterModal({
     platform: { options: localPlatforms, value: draftPlatform, onChange: setDraftPlatform },
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
+    subBrand: { options: localSubBrands, value: draftSubBrand, onChange: setDraftSubBrand },
     location: { options: locations, value: draftLocation, onChange: setDraftLocation },
     msl: { options: msls.length > 0 ? msls : ["0", "1"], value: draftMsl, onChange: setDraftMsl },
     sapCode: { options: localSapCodes, value: draftSapCode, onChange: setDraftSapCode },
@@ -3099,6 +3222,7 @@ function PricingFilterModal({
     setPlatform(draftPlatform);
     setSelectedCategory(draftCategory);
     setSelectedBrand(draftBrand);
+    if (setSelectedSubBrand) setSelectedSubBrand(draftSubBrand);
     setSelectedLocation(draftLocation);
     if (setSelectedMsl) setSelectedMsl(draftMsl);
     if (setSelectedSapCode) setSelectedSapCode(draftSapCode);
@@ -3114,6 +3238,7 @@ function PricingFilterModal({
     }
     setDraftCategory("All");
     setDraftBrand("All");
+    setDraftSubBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
     setDraftSapCode("All");
@@ -4067,6 +4192,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
   const [osaBrands, setOsaBrands] = React.useState([]);
 
   const {
+    subBrands,
+    selectedSubBrand,
+    setSelectedSubBrand,
     channels,
     selectedChannel,
     setSelectedChannel,
@@ -4704,6 +4832,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       brands={brands}
                       selectedBrand={selectedBrand}
                       setSelectedBrand={setSelectedBrand}
+                      subBrands={subBrands}
+                      selectedSubBrand={selectedSubBrand}
+                      setSelectedSubBrand={setSelectedSubBrand}
                       msls={msls}
                       selectedMsl={selectedMsl}
                       setSelectedMsl={setSelectedMsl}
@@ -4760,6 +4891,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       brands={brands}
                       selectedBrand={selectedBrand}
                       setSelectedBrand={setSelectedBrand}
+                      subBrands={subBrands}
+                      selectedSubBrand={selectedSubBrand}
+                      setSelectedSubBrand={setSelectedSubBrand}
                       locations={locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
