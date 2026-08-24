@@ -18,52 +18,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 
-// ========================================
-// MOCK DATA (replace with API/DB later)
-// ========================================
-const mockBrands = [
-    { id: 'amul', name: 'Amul' },
-    { id: 'mother-dairy', name: 'Mother Dairy' },
-    { id: 'vadilal', name: 'Vadilal' },
-    { id: 'havmor', name: 'Havmor' },
-    { id: 'baskin-robbins', name: 'Baskin Robbins' },
-    { id: 'london-dairy', name: 'London Dairy' },
-    { id: 'kwality-walls', name: 'Kwality Walls' },
-]
 
-const mockCategories = [
-    { id: 'cone', name: 'Cone' },
-    { id: 'cup', name: 'Cup' },
-    { id: 'stick', name: 'Stick' },
-    { id: 'tub', name: 'Tub' },
-    { id: 'bar', name: 'Bar' },
-    { id: 'family-pack', name: 'Family Pack' },
-]
-
-const mockSkus = [
-    { id: 'amul-tricone', name: 'Amul Tricone 120ml' },
-    { id: 'md-cup', name: 'Mother Dairy Vanilla Cup' },
-    { id: 'vadilal-bombay', name: 'Vadilal Bombay Kulfi' },
-    { id: 'havmor-block', name: 'Havmor Choco Block' },
-    { id: 'br-scoop', name: 'BR Gold Medal Ribbon' },
-    { id: 'london-tub', name: 'London Dairy Tiramisu' },
-]
-
-const mockCategoriesAlt = [
-    { id: 'cat1', name: 'Cookware' },
-    { id: 'cat2', name: 'Kitchen Appliances' },
-    { id: 'cat3', name: 'Home Appliances' },
-    { id: 'cat4', name: 'Lighting' },
-    { id: 'cat5', name: 'Personal Care' },
-]
-
-const mockPlatforms = [
-    { id: 'blinkit', name: 'Blinkit' },
-    { id: 'zepto', name: 'Zepto' },
-    { id: 'instamart', name: 'Swiggy Instamart' },
-    { id: 'amazon', name: 'Amazon' },
-    { id: 'flipkart', name: 'Flipkart' },
-]
 
 const kpiOptions = [
     { key: 'offtakes', label: 'Offtakes' },
@@ -417,35 +372,19 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
 
     // Synchronize initial options from props when props change
     useEffect(() => {
-        if (brands && brands.length) {
-            setDynamicBrands(brands)
-        } else {
-            setDynamicBrands(mockBrands)
-        }
+        setDynamicBrands(brands && brands.length ? brands : [])
     }, [brands])
 
     useEffect(() => {
-        if (categories && categories.length) {
-            setDynamicCategories(categories)
-        } else {
-            setDynamicCategories(mockCategories)
-        }
+        setDynamicCategories(categories && categories.length ? categories : [])
     }, [categories])
 
     useEffect(() => {
-        if (platforms && platforms.length) {
-            setDynamicPlatforms(platforms)
-        } else {
-            setDynamicPlatforms(mockPlatforms)
-        }
+        setDynamicPlatforms(platforms && platforms.length ? platforms : [])
     }, [platforms])
 
     useEffect(() => {
-        if (skus && skus.length) {
-            setDynamicSkus(skus)
-        } else {
-            setDynamicSkus([])
-        }
+        setDynamicSkus(skus && skus.length ? skus : [])
     }, [skus])
 
 
@@ -523,7 +462,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                             if (parentOpt) return parentOpt
                             return { id: b.toLowerCase().replace(/\s+/g, '_'), name: b }
                         })
-                        setDynamicBrands(mappedBrands.length ? mappedBrands : mockBrands)
+                        setDynamicBrands(mappedBrands)
                     }
 
                     if (data.categories && Array.isArray(data.categories)) {
@@ -532,7 +471,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                             if (parentOpt) return parentOpt
                             return { id: c, name: c }
                         })
-                        setDynamicCategories(mappedCategories.length ? mappedCategories : mockCategories)
+                        setDynamicCategories(mappedCategories)
                     }
 
                     if (data.platforms && Array.isArray(data.platforms)) {
@@ -541,7 +480,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                             if (parentOpt) return parentOpt
                             return { id: p.toLowerCase().replace(/\s+/g, '_'), name: p }
                         })
-                        setDynamicPlatforms(mappedPlatforms.length ? mappedPlatforms : mockPlatforms)
+                        setDynamicPlatforms(mappedPlatforms)
                     }
                 }
 

@@ -15,48 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../../lib/utils';
 import axiosInstance from '../../../api/axiosInstance';
 
-// Mock Data
-const MOCK_PLATFORMS = [
-    { id: 'instamart', name: 'Instamart', color: '#f97316' }, // Orange
-    { id: 'zepto', name: 'Zepto', color: '#d946ef' }, // Fuchsia
-    { id: 'blinkit', name: 'Blinkit', color: '#eab308' }, // Yellow
-];
 
-const MOCK_CATEGORIES = [
-    { id: 'all', name: 'All' },
-    { id: 'body_lotion', name: 'Body Lotion' },
-    { id: 'body_oil', name: 'Body Oil' },
-    { id: 'conditioner', name: 'Conditioner' },
-    { id: 'eyeliner', name: 'Eyeliner' },
-    { id: 'face_mask', name: 'Face Mask' },
-    { id: 'face_wash', name: 'Face Wash' },
-    { id: 'hair_mask', name: 'Hair Mask' },
-    { id: 'moisturizer', name: 'Moisturizer' },
-    { id: 'shampoo', name: 'Shampoo' },
-    { id: 'serum', name: 'Serum' },
-    { id: 'toner', name: 'Toner' },
-    { id: 'sunscreen', name: 'Sunscreen' },
-    { id: 'soap', name: 'Soap' },
-];
-
-const MOCK_BRANDS = [
-    { id: 'all', name: 'All' },
-    { id: '8x', name: '8X' },
-    { id: '8x_kt', name: '8X Kt' },
-    { id: 'a_ret', name: 'A Ret' },
-    { id: 'aaa', name: 'Aaa' },
-    { id: 'aclind', name: 'Aclind Bp' },
-    { id: 'acnestar', name: 'Acnestar' },
-    { id: 'beardo', name: 'Beardo' },
-    { id: 'biotique', name: 'Biotique' },
-    { id: 'cetaphil', name: 'Cetaphil' },
-    { id: 'dove', name: 'Dove' },
-    { id: 'himalaya', name: 'Himalaya' },
-    { id: 'loreal', name: "L'Oreal" },
-    { id: 'mamaearth', name: 'Mamaearth' },
-    { id: 'nivea', name: 'Nivea' },
-    { id: 'ponds', name: "Pond's" },
-];
 
 
 
