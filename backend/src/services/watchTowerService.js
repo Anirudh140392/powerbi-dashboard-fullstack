@@ -207,7 +207,8 @@ async function getWatchtowerSource(filters = {}) {
             sellingPrice: wrap(sellingPriceCol),
             sellingPriceRaw: `toFloat64OrNull(toString(${sellingPriceCol}))`,
             product: productCol,
-            skuCode: webPidCol,
+            skuCode: columnExists(cols, 'sap_code') ? r('sap_code') : webPidCol,
+            webPid: webPidCol,
             quantitySold: qtySoldCol,
             discount: `if(${wrap(mrpCol)} > 0, (${wrap(mrpCol)} - ${wrap(sellingPriceCol)}) / ${wrap(mrpCol)} * 100, 0)`,
             listingPercent: `if(toFloat64OrZero(toString(listing_percent)) > 0, toFloat64OrZero(toString(listing_percent)), (${wrap(nenoOsaCol)} / NULLIF(${wrap(denoOsaCol)}, 0)) * 100)`,
@@ -944,7 +945,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const rawPlatform = filters['platform[]'] || filters.platform;
         const rawCategory = filters['category[]'] || filters.category;
         const rawSkuName = filters['skuName[]'] || filters.skuName;
-        const rawSkuCode = filters['skuCode[]'] || filters.skuCode;
+        const rawSkuCode = filters['skuCode[]'] || filters.skuCode || filters['sapCode[]'] || filters.sapCode;
 
         // Normalize multi-value filters
         const platformArr = normalizeFilterArray(rawPlatform);
@@ -5189,7 +5190,9 @@ const getPerformanceMetrics = async (filters) => {
 const getPlatformOverview = async (filters) => {
     console.log('[getPlatformOverview] Computing OPTIMIZED platform overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, skuName, skuCode } = filters;
+    const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, skuName } = filters;
+    const rawSkuCode = filters['skuCode[]'] || filters.skuCode || filters['sapCode[]'] || filters.sapCode;
+    const skuCode = rawSkuCode;
     const channel = extractChannel(filters);
 
     // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
@@ -5401,7 +5404,7 @@ const getPlatformOverview = async (filters) => {
             }
             const skuCodeArrArr = normalizeFilterArray(skuCode);
             if (skuCodeArrArr && skuCodeArrArr.length > 0) {
-                const skuCodeConds = skuCodeArrArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+                const skuCodeConds = skuCodeArrArr.map(s => `(lower(toString(${src.f.skuCode})) LIKE lower('%${escapeStr(s)}%') OR lower(toString(${src.f.product})) LIKE lower('%${escapeStr(s)}%'))`).join(' OR ');
                 conds.push(`(${skuCodeConds})`);
             }
             const mslArr = normalizeFilterArray(filters.msl);
@@ -7878,6 +7881,8 @@ const getKpiTrends = async (filters) => {
     const locArr = normalizeFilterArray(location);
     const brandArr = normalizeFilterArray(brand);
     const platArr = normalizeFilterArray(platform);
+    const subBrandTarget = filters.subBrand || filters.sub_brand;
+    const subBrandArr = normalizeFilterArray(subBrandTarget);
 
     // Check for Tier-2/Tier-3 city selections
     const tier1Cities = [
@@ -7927,6 +7932,11 @@ const getKpiTrends = async (filters) => {
         if (brandArr && brandArr.length > 0) {
             const brandConditions = brandArr.map(b => `lower(${src.f.brand}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ');
             conds.push(`(${brandConditions})`);
+        }
+
+        if (subBrandArr && subBrandArr.length > 0 && !src.isAgg) {
+            const sbConds = subBrandArr.map(sb => `lower(sub_brand) = '${escapeStr(sb.toLowerCase())}'`).join(' OR ');
+            conds.push(`(${sbConds})`);
         }
 
         if (locArr && locArr.length > 0) conds.push(`lower(${src.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
@@ -13043,10 +13053,62 @@ const getProducts = async (filters = {}) => {
 /**
  * Returns product identifiers for every client.
  */
+/**
+ * Dynamic Sub Brand list fetching. Checks if sub_brand column exists in rb_pdp_olap table.
+ * If column does NOT exist in DB, returns empty array [].
+ * If column exists, returns distinct sub_brand values.
+ */
+const getSubBrands = async (filters = {}) => {
+    try {
+        const pdpCols = await getTableColumns('rb_pdp_olap');
+        const hasSubBrand = columnExists(pdpCols, 'sub_brand') || columnExists(pdpCols, 'subbrand');
+        if (!hasSubBrand) {
+            return [];
+        }
+        const actualSubCol = columnExists(pdpCols, 'sub_brand') ? resolveColumn(pdpCols, 'sub_brand') : resolveColumn(pdpCols, 'subbrand');
+        
+        const { platform, brand, category } = filters;
+        const conditions = [
+            `isNotNull(${actualSubCol})`,
+            `toString(${actualSubCol}) != ''`,
+            `toString(${actualSubCol}) != '0'`,
+            `Comp_flag = 0`
+        ];
+        
+        const _esc = (str) => str ? str.replace(/'/g, "''") : '';
+        const platArr = normalizeFilterArray(platform);
+        const bndArr = normalizeFilterArray(brand);
+        const catArr = normalizeFilterArray(category);
+
+        if (platArr && platArr.length > 0) {
+            conditions.push(`Platform IN (${platArr.map(p => `'${_esc(p)}'`).join(', ')})`);
+        }
+        if (bndArr && bndArr.length > 0) {
+            conditions.push(`Brand IN (${bndArr.map(b => `'${_esc(b)}'`).join(', ')})`);
+        }
+        if (catArr && catArr.length > 0) {
+            conditions.push(`Category IN (${catArr.map(c => `'${_esc(c)}'`).join(', ')})`);
+        }
+
+        const query = `
+            SELECT DISTINCT toString(${actualSubCol}) as sub_brand
+            FROM rb_pdp_olap
+            WHERE ${conditions.join(' AND ')}
+            ORDER BY sub_brand
+        `;
+        const results = await queryClickHouse(query);
+        return results.map(r => r.sub_brand).filter(Boolean);
+    } catch (error) {
+        console.error('[getSubBrands] Error:', error);
+        return [];
+    }
+};
+
 const getProductsWithSap = async (filters = {}) => {
     try {
         const src = await getWatchtowerSource();
-        const { platform, brand, category } = filters;
+        const { platform, brand, category, subBrand, sub_brand } = filters;
+        const targetSubBrand = subBrand || sub_brand;
         const conditions = [
             `${src.f.product} IS NOT NULL`,
             `${src.f.product} != ''`,
@@ -13057,6 +13119,7 @@ const getProductsWithSap = async (filters = {}) => {
         const platArr = normalizeFilterArray(platform);
         const bndArr = normalizeFilterArray(brand);
         const catArr = normalizeFilterArray(category);
+        const subArr = normalizeFilterArray(targetSubBrand);
 
         if (platArr && platArr.length > 0) {
             conditions.push(`${src.f.platform} IN(${platArr.map(p => `'${_esc(p)}'`).join(', ')})`);
@@ -13071,6 +13134,12 @@ const getProductsWithSap = async (filters = {}) => {
         // Discover identifier columns safely so the same dropdown works for every client.
         const tableName = src.table || 'rb_pdp_olap';
         const cols = await getTableColumns(tableName);
+
+        const hasSubBrandCol = columnExists(cols, 'sub_brand') || columnExists(cols, 'subbrand');
+        if (subArr && subArr.length > 0 && hasSubBrandCol) {
+            const actualSubCol = columnExists(cols, 'sub_brand') ? resolveColumn(cols, 'sub_brand') : resolveColumn(cols, 'subbrand');
+            conditions.push(`lower(trim(BOTH '\t\n ' FROM toString(${actualSubCol}))) IN (${subArr.map(s => `'${_esc(s.toLowerCase())}'`).join(', ')})`);
+        }
         const hasSap = columnExists(cols, 'sap_code');
         const sapExpr = hasSap ? resolveColumn(cols, 'sap_code') : "''";
         const webPidExpr = resolveColumn(cols, 'Web_Pid');
@@ -13322,7 +13391,8 @@ export default {
     getChannels,
     getPdpPlatforms,
     getWatchTowerCascadedFilters,
-    getMsls
+    getMsls,
+    getSubBrands
 };
 
 

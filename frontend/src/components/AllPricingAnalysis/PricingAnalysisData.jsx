@@ -1192,6 +1192,8 @@ export default function PricingAnalysisData() {
     compareEnd,
     datesInitialized,
     selectedMsl,
+    selectedSapCode,
+    selectedSubBrand,
   } = useContext(FilterContext);
 
   const [filters, setFilters] = useState({ brand: selectedBrand || 'All', range: [0, 100], format: 'All' });
@@ -1228,6 +1230,31 @@ export default function PricingAnalysisData() {
 
     if (hasMslFilter(selectedMsl)) {
       params.msl = toFilterString(selectedMsl);
+    }
+
+    const hasSapFilter = (val) => {
+      if (!val) return false;
+      if (Array.isArray(val)) {
+        return val.length > 0 && !val.includes('All') && !val.includes('all');
+      }
+      return val !== 'All' && val !== 'all';
+    };
+
+    if (hasSapFilter(selectedSapCode)) {
+      params.sapCode = toFilterString(selectedSapCode);
+      params.skuCode = toFilterString(selectedSapCode);
+    }
+
+    const hasSubBrandFilter = (val) => {
+      if (!val) return false;
+      if (Array.isArray(val)) {
+        return val.length > 0 && !val.includes('All') && !val.includes('all');
+      }
+      return val !== 'All' && val !== 'all';
+    };
+
+    if (hasSubBrandFilter(selectedSubBrand)) {
+      params.subBrand = toFilterString(selectedSubBrand);
     }
 
     return params;
@@ -1274,7 +1301,7 @@ export default function PricingAnalysisData() {
   const [discountPlatforms, setDiscountPlatforms] = useState([]); // Dynamic platforms from API
 
   // Filter Dependency Array Helper
-  const filterDeps = [globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand, filters.brand, timeStart, timeEnd, datesInitialized, selectedMsl];
+  const filterDeps = [globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand, filters.brand, timeStart, timeEnd, datesInitialized, selectedMsl, selectedSapCode, selectedSubBrand];
   const compareFilterDeps = [...filterDeps, compareStart, compareEnd];
 
   // Unified Fetcher for all segments to prevent race conditions and redundant renders

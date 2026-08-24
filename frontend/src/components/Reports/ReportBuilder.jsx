@@ -115,7 +115,7 @@ const PAGE_METRICS = [
   {
     key: "Sales Data", label: "Sales Data", icon: <TrendingUpIcon />, color: "#2563EB",
     tags: ["Overall Sales", "MTD Sales", "Prev Month MTD", "YTD Sales", "Last Year Sales", "DRR", "Projected Sales", "Revenue Share"],
-    activeInSidebar: false
+    activeInSidebar: true
   },
   {
     key: "Availability Analysis", label: "Availability Analysis", icon: <InventoryIcon />, color: "#10B981",
@@ -155,12 +155,12 @@ const PAGE_METRICS = [
   {
     key: "Category RCA", label: "Category RCA", icon: <AccountTreeIcon />, color: "#F97316",
     tags: ["Offtake Sales", "Units", "Category Share", "Cat Size"],
-    activeInSidebar: false
+    activeInSidebar: true
   },
   {
     key: "Portfolio Analysis", label: "Portfolio Analysis", icon: <ShowChartIcon />, color: "#A855F7",
     tags: ["ASP", "Volume", "Promo Volume", "Promo Volume %"],
-    activeInSidebar: false
+    activeInSidebar: true
   },
 ];
 

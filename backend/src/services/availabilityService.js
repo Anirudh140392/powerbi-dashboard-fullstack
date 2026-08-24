@@ -329,11 +329,24 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
     if (filters.sapCode) parseSap(filters.sapCode);
     if (filters.sapCodes) parseSap(filters.sapCodes);
     if (filters.sap_code) parseSap(filters.sap_code);
+    if (filters.skuCode) parseSap(filters.skuCode);
 
-    if (sapArr.length > 0 && columnExists(pdpColsMap, 'sap_code')) {
-        const actualSapCol = resolveColumn(pdpColsMap, 'sap_code', 'sap_code');
+    if (sapArr.length > 0) {
+        const actualSapCol = columnExists(pdpColsMap, 'sap_code')
+            ? resolveColumn(pdpColsMap, 'sap_code', 'sap_code')
+            : (columnExists(pdpColsMap, 'Web_Pid') ? resolveColumn(pdpColsMap, 'Web_Pid', 'Web_Pid') : 'sku_code');
         const uniqueSapArr = [...new Set(sapArr)];
         conditions.push(`toString(${prefix}${actualSapCol}) IN (${uniqueSapArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
+    }
+
+    // Sub Brand filter (if sub_brand or subbrand column exists in DB)
+    const subBrandVal = filters.subBrand || filters.sub_brand || filters.selectedSubBrand;
+    if (subBrandVal && subBrandVal !== 'All' && subBrandVal !== 'all' && (columnExists(pdpColsMap, 'sub_brand') || columnExists(pdpColsMap, 'subbrand'))) {
+        const actualSubCol = columnExists(pdpColsMap, 'sub_brand') ? resolveColumn(pdpColsMap, 'sub_brand') : resolveColumn(pdpColsMap, 'subbrand');
+        const sbArr = (Array.isArray(subBrandVal) ? subBrandVal : String(subBrandVal).split(',')).map(s => s.trim()).filter(s => s && s !== 'All' && s !== 'all');
+        if (sbArr.length > 0) {
+            conditions.push(`toString(${prefix}${actualSubCol}) IN (${sbArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
+        }
     }
 
     // Date/Month range
@@ -2039,6 +2052,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                 const rowObj = {
                     name: item.name,
                     sku: item.sku,
+                    web_pid: item.sku,
+                    webPid: item.sku,
                     brand: item.brand,
                     platform: item.platform,
                     format: item.category_name,

@@ -198,7 +198,7 @@ const normalizeLocations = (locations) => {
 const normalizeChannels = (channels) => {
     if (!channels) return null;
     return channels.map(c => {
-        if (c === "Ecommerce" || c === "E-commerce") return "QuickComm";
+        if (c === "Ecommerce" || c === "E-commerce") return "Ecommerce";
         return c;
     });
 };
@@ -222,6 +222,16 @@ const buildMslCondition = (mslValue, columnPath = 'p.msl') => {
         return `toString(${columnPath}) = '1'`;
     }
     return null;
+};
+
+const buildSubBrandCondition = (subBrandValue, pdpCols, columnPrefix = 'p.') => {
+    const subBrands = parseMultiSelectFilter(subBrandValue);
+    if (!subBrands || subBrands.length === 0) return null;
+    const hasSubCol = columnExists(pdpCols, 'sub_brand') || columnExists(pdpCols, 'subbrand');
+    if (!hasSubCol) return null;
+    const actualSubCol = columnExists(pdpCols, 'sub_brand') ? resolveColumn(pdpCols, 'sub_brand') : resolveColumn(pdpCols, 'subbrand');
+    const escaped = subBrands.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+    return `lower(trim(BOTH '\t\n ' FROM toString(${columnPrefix}${actualSubCol}))) IN (${escaped})`;
 };
 
 
@@ -295,6 +305,11 @@ async function getEcpComparison(filters = {}) {
             const mslCond = buildMslCondition(filters.msl, `p.${f.msl || 'msl'}`);
             if (mslCond) {
                 whereConditions.push(mslCond);
+            }
+
+            const subBrandCond = buildSubBrandCondition(filters.subBrand || filters.sub_brand, src.cols, 'p.');
+            if (subBrandCond) {
+                whereConditions.push(subBrandCond);
             }
 
             const whereClause = whereConditions.join(' AND ');
@@ -581,6 +596,18 @@ async function getPricingKpis(filters = {}) {
                 whereConditions.push(mslCond);
             }
 
+            const sapCodes = parseMultiSelectFilter(filters.sapCode || filters.skuCode);
+            if (sapCodes) {
+                const pdpCols = await getTableColumns(src.table);
+                const sapCol = columnExists(pdpCols, 'sap_code') ? resolveColumn(pdpCols, 'sap_code') : (columnExists(pdpCols, 'Web_Pid') ? resolveColumn(pdpCols, 'Web_Pid') : (f.skuCode || 'sku_code'));
+                whereConditions.push(buildInClause(`p.${sapCol}`, sapCodes));
+            }
+
+            const subBrandCond = buildSubBrandCondition(filters.subBrand || filters.sub_brand, src.cols, 'p.');
+            if (subBrandCond) {
+                whereConditions.push(subBrandCond);
+            }
+
             const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
 
             const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
@@ -798,6 +825,16 @@ async function getPricingInsights(filters = {}) {
             const mslCond = buildMslCondition(filters.msl, `p.${f.msl || 'msl'}`);
             if (mslCond) whereConditions.push(mslCond);
 
+            const sapCodes = parseMultiSelectFilter(filters.sapCode || filters.skuCode);
+            if (sapCodes) {
+                const pdpCols = await getTableColumns(src.table);
+                const sapCol = columnExists(pdpCols, 'sap_code') ? resolveColumn(pdpCols, 'sap_code') : (columnExists(pdpCols, 'Web_Pid') ? resolveColumn(pdpCols, 'Web_Pid') : (f.skuCode || 'sku_code'));
+                whereConditions.push(buildInClause(`p.${sapCol}`, sapCodes));
+            }
+
+            const subBrandCond = buildSubBrandCondition(filters.subBrand || filters.sub_brand, src.cols, 'p.');
+            if (subBrandCond) whereConditions.push(subBrandCond);
+
             const whereClause = whereConditions.join(' AND ');
 
             // Comp_flag = 0 means My SKUs, 1 means Competitor
@@ -816,8 +853,8 @@ async function getPricingInsights(filters = {}) {
                 (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wNenoOsa} ELSE 0 END) / 
                  NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wDenoOsa} ELSE 0 END), 0)) * 100 AS osa_curr,
                 
-                -- Take Qty_Sold directly from rb_pdp_olap for offtakes
-                SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) ELSE 0 END) AS offtakes_curr,
+                -- Offtakes calculation: SUM(Sales)
+                SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END) AS offtakes_curr,
                 
                 (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev
             FROM ${src.table} p
@@ -881,8 +918,8 @@ async function getPricingInsights(filters = {}) {
                         (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wNenoOsa} ELSE 0 END) / 
                          NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wDenoOsa} ELSE 0 END), 0)) * 100 AS osa_curr,
                         
-                        -- Take Qty_Sold directly from rb_pdp_olap for city level offtakes
-                        SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) ELSE 0 END) AS offtakes_curr,
+                        -- Offtakes calculation: SUM(Sales)
+                        SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END) AS offtakes_curr,
 
                         (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev
                     FROM ${src.table} p
@@ -894,7 +931,7 @@ async function getPricingInsights(filters = {}) {
                       ${categories ? `AND ${src.p_prodCatSql} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
                       ${mslCond ? `AND ${mslCond}` : ''}
                     GROUP BY p.${f.product}, p.${f.platform}, p.${f.location}
-                    HAVING discount_curr IS NOT NULL AND discount_prev IS NOT NULL
+                    HAVING discount_curr IS NOT NULL
                 `;
 
                 const cityResults = await queryClickHouse(cityQuery);
@@ -1065,6 +1102,13 @@ const getDimensionOverview = async (filters = {}) => {
             const skus = parseSkuFilter(filters.sku);
             if (skus) whereConditions.push(buildInClause(`p.${f.product}`, skus));
 
+            const sapCodes = parseMultiSelectFilter(filters.sapCode || filters.skuCode);
+            if (sapCodes) {
+                const pdpCols = await getTableColumns(src.table);
+                const sapCol = columnExists(pdpCols, 'sap_code') ? resolveColumn(pdpCols, 'sap_code') : (columnExists(pdpCols, 'Web_Pid') ? resolveColumn(pdpCols, 'Web_Pid') : (f.skuCode || 'sku_code'));
+                whereConditions.push(buildInClause(`p.${sapCol}`, sapCodes));
+            }
+
             // ✅ Only show own brands for SKU dimension unless explicitly filtered
             if (isSku) {
                 whereConditions.push(`p.${f.compFlag} = '0'`);
@@ -1073,6 +1117,11 @@ const getDimensionOverview = async (filters = {}) => {
             const mslCond = buildMslCondition(filters.msl, `p.${f.msl || 'msl'}`);
             if (mslCond) {
                 whereConditions.push(mslCond);
+            }
+
+            const subBrandCond = buildSubBrandCondition(filters.subBrand || filters.sub_brand, src.cols, 'p.');
+            if (subBrandCond) {
+                whereConditions.push(subBrandCond);
             }
 
             const whereClauseNoGrammage = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
@@ -1314,6 +1363,11 @@ const getDimensionTrends = async (filters = {}) => {
             whereConditions.push(mslCond);
         }
 
+        const subBrandCond = buildSubBrandCondition(filters.subBrand || filters.sub_brand, src.cols, 'p.');
+        if (subBrandCond) {
+            whereConditions.push(subBrandCond);
+        }
+
         if (dimensionValue) {
             whereConditions.push(`lower(${groupByExpr}) = lower('${escapeStr(dimensionValue)}')`);
         }
@@ -1532,6 +1586,11 @@ const getPricingCompetitionTrends = async (filters) => {
             whereConditions.push(mslCond);
         }
 
+        const subBrandCond = buildSubBrandCondition(filters.subBrand || filters.sub_brand, src.cols, 'p.');
+        if (subBrandCond) {
+            whereConditions.push(subBrandCond);
+        }
+
         const whereClause = whereConditions.join(' AND ');
 
         const query = `
@@ -1662,6 +1721,11 @@ const getPricingCompetition = async (filters) => {
         const mslCond = buildMslCondition(filters.msl, `p.${f.msl || 'msl'}`);
         if (mslCond) {
             whereConditions.push(mslCond);
+        }
+
+        const subBrandCond = buildSubBrandCondition(filters.subBrand || filters.sub_brand, src.cols, 'p.');
+        if (subBrandCond) {
+            whereConditions.push(subBrandCond);
         }
 
         const whereClause = whereConditions.join(' AND ');

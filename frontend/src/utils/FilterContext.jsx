@@ -103,6 +103,14 @@ export const FilterProvider = ({ children }) => {
     const [msls, setMsls] = useState([]);
     const [selectedMsl, setSelectedMsl] = useState("All");
 
+    // SAP Code filter state
+    const [sapCodes, setSapCodes] = useState([]);
+    const [selectedSapCode, setSelectedSapCode] = useState("All");
+
+    // Sub Brand filter state
+    const [subBrands, setSubBrands] = useState([]);
+    const [selectedSubBrand, setSelectedSubBrand] = useState("All");
+
     // Priority Action specific filters
     const [paPriority, setPaPriority] = useState("All");
     const [paStatus, setPaStatus] = useState("All");
@@ -812,8 +820,52 @@ export const FilterProvider = ({ children }) => {
         fetchMsls();
     }, [isAuthenticated]);
 
+    // ====== FETCH SAP CODES FROM DB (on mount) ======
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        const fetchSapCodes = async () => {
+            try {
+                const res = await axiosInstance.get("/watchtower/products-with-sap");
+                if (res.data && Array.isArray(res.data)) {
+                    const codes = [...new Set(res.data.map(p => p.sapCode).filter(Boolean))];
+                    console.log("[FilterContext] Fetched SAP codes:", codes.length);
+                    setSapCodes(codes);
+                } else {
+                    setSapCodes([]);
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch SAP codes:", err.message);
+                setSapCodes([]);
+            }
+        };
+        fetchSapCodes();
+    }, [isAuthenticated]);
+
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        const fetchSubBrands = async () => {
+            try {
+                const res = await axiosInstance.get("/watchtower/sub-brands");
+                if (res.data && Array.isArray(res.data)) {
+                    console.log("[FilterContext] Fetched Sub Brands:", res.data.length);
+                    setSubBrands(res.data);
+                } else {
+                    setSubBrands([]);
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch Sub Brands:", err.message);
+                setSubBrands([]);
+            }
+        };
+        fetchSubBrands();
+    }, [isAuthenticated]);
+
     return (
         <FilterContext.Provider value={{
+            subBrands,
+            setSubBrands,
+            selectedSubBrand,
+            setSelectedSubBrand,
             channels,
             setChannels,
             selectedChannel,
@@ -897,6 +949,10 @@ export const FilterProvider = ({ children }) => {
             setMsls,
             selectedMsl,
             setSelectedMsl,
+            sapCodes,
+            setSapCodes,
+            selectedSapCode,
+            setSelectedSapCode,
             paPriority,
             setPaPriority,
             paStatus,

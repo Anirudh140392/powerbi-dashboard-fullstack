@@ -226,6 +226,7 @@ const RolesPermissions = () => {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
                 email: user.email,
+                dbName: user.dbName,
                 tabPermissions: updatedTabs
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -264,6 +265,7 @@ const RolesPermissions = () => {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
                 email: user.email,
+                dbName: user.dbName,
                 tabPermissions: updatedTabs
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -306,6 +308,7 @@ const RolesPermissions = () => {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
                 email: user.email,
+                dbName: user.dbName,
                 tabPermissions: updatedTabs
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -345,6 +348,7 @@ const RolesPermissions = () => {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/db-status`, {
                 email: user.email,
+                dbName: user.dbName,
                 dbStatus: newStatus
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -584,6 +588,7 @@ const RolesPermissions = () => {
                                                                     await Promise.all(filteredByDb.map(u =>
                                                                         axios.patch(`${API_BASE}/admin/permissions/db-status`, {
                                                                             email: u.email,
+                                                                            dbName: u.dbName || selectedAllDb,
                                                                             dbStatus: newStatus
                                                                         }, { headers: { Authorization: `Bearer ${token}` } })
                                                                     ));
@@ -650,6 +655,7 @@ const RolesPermissions = () => {
                                                                                                 const updatedTabs = getCleanedTabs(u, rawTabs);
                                                                                                 return axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
                                                                                                     email: u.email,
+                                                                                                    dbName: u.dbName || selectedAllDb,
                                                                                                     tabPermissions: updatedTabs
                                                                                                 }, { headers: { Authorization: `Bearer ${token}` } });
                                                                                             }));
@@ -711,6 +717,7 @@ const RolesPermissions = () => {
                                                                                                             const updatedTabs = getCleanedTabs(u, rawTabs);
                                                                                                             return axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
                                                                                                                 email: u.email,
+                                                                                                                dbName: u.dbName || selectedAllDb,
                                                                                                                 tabPermissions: updatedTabs
                                                                                                             }, { headers: { Authorization: `Bearer ${token}` } });
                                                                                                         }));

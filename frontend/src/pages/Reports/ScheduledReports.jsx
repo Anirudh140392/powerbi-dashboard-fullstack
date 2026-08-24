@@ -199,12 +199,15 @@ export default function ScheduledReports() {
         ? availableReportTypes
         : [
             "Business Overview",
+            "Sales Data",
             "Availability Analysis",
             "Visibility Analysis",
-            "Sales Data",
             "Pricing Analysis",
             "Performance Marketing",
             "Inventory Analysis",
+            "Market Share",
+            "Category RCA",
+            "Portfolio Analysis",
         ];
 
     const handleDownload = async (overrideFilters = {}) => {
