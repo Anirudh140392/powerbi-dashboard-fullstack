@@ -138,7 +138,7 @@ function WatchTowerFilterModal({
   const baseTabs = hideChannelPlatform
     ? FILTER_TABS.filter(t => t.key !== "channel" && t.key !== "platform")
     : FILTER_TABS;
-  const availableTabs = isDrlUser ? [...baseTabs, { key: "sapCode", label: "SAP Code", icon: Hash }] : baseTabs;
+  const availableTabs = baseTabs;
 
   // Sync drafts + local options from context every time the modal opens
   React.useEffect(() => {
@@ -1850,9 +1850,7 @@ function AvailabilityFilterModal({
       availableTabs.push(subBrandTab);
     }
   }
-  if (isDrlUser) {
-    availableTabs.push({ key: "sapCode", label: "SAP Code", icon: Hash });
-  }
+
 
   const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -2988,7 +2986,7 @@ function PricingFilterModal({
     return nextTabs;
   }, [baseTabs, hasSubBrands]);
 
-  const availableTabs = isDrlUser ? [...tabsWithSubBrand, { key: "sapCode", label: "SAP Code", icon: Hash }] : tabsWithSubBrand;
+  const availableTabs = tabsWithSubBrand;
   const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
