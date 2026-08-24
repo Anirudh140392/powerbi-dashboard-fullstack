@@ -35,6 +35,17 @@ const ALERT_PRESETS = [
         severity: "Medium",
     },
     {
+        id: "ptd_perf_summary",
+        name: "Performance Summary (PTD)",
+        category: "Overall Performance",
+        metrics: ["All KPIs", "Primary Info"],
+        formula: "Period-to-Date snapshot: CP vs Previous Period (platform-wise)",
+        condition: "Daily Schedule",
+        operator: "eq",
+        defaultThreshold: "0",
+        severity: "Medium",
+    },
+    {
         id: "low_osa_bottom_city",
         name: "Low OSA Alert (Bottom % City Level)",
         category: "Inventory & On-Shelf Availability",
@@ -173,14 +184,14 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const severityDropdownRef = useRef(null);
 
     const selectedPresets = ALERT_PRESETS.filter(p => selectedPresetIds.includes(p.id));
-    const isPerformanceSummarySelected = selectedPresetIds.includes("category_perf_summary");
+    const isPerformanceSummarySelected = selectedPresetIds.includes("category_perf_summary") || selectedPresetIds.includes("ptd_perf_summary");
     // eslint-disable-next-line no-unused-vars
     const isWeeklyForced = selectedPresetIds.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id));
 
     // Sync values when editing an existing alert
     useEffect(() => {
         if (open && editingAlert) {
-            const isPerfSummary = editingAlert.alert_type === "category_perf_summary";
+            const isPerfSummary = editingAlert.alert_type === "category_perf_summary" || editingAlert.alert_type === "ptd_perf_summary";
             setAlertName(editingAlert.alert_name || editingAlert.alertName || "Untitled Custom Alert");
             setIsCustomAlertName(true);
             const initialEmailStr = editingAlert.send_email || editingAlert.email || "";
@@ -284,8 +295,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
             setFrequency("Weekly Summary");
         }
 
-        // When Performance Summary is selected, disable WhatsApp
-        if (presetId === "category_perf_summary") {
+        // When Performance Summary (any variant) is selected, disable WhatsApp
+        if (presetId === "category_perf_summary" || presetId === "ptd_perf_summary") {
             setWhatsappNotify(false);
         }
 
@@ -414,7 +425,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         setIsSubmitting(true);
         setSubmitError("");
 
-        const isPerfSummary = selectedPresetIds.includes("category_perf_summary");
+        const isPerfSummary = selectedPresetIds.includes("category_perf_summary") || selectedPresetIds.includes("ptd_perf_summary");
+        const isPtd = selectedPresetIds.includes("ptd_perf_summary");
 
         try {
             // Map form fields to the backend API schema (matches admin_master.tb_alert columns)
@@ -427,12 +439,13 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                 brands: isPerfSummary ? availableBrands : (selectedBrands.includes("All Brands") ? availableBrands : selectedBrands),
                 conditionalOperator: isPerfSummary ? "eq" : triggerOperator,
                 thresholdValue: isPerfSummary ? 0 : (parseFloat(thresholdValue) || 0),
-                benchmarkPeriod: isPerfSummary ? "Weekly Schedule" : comparisonPeriod,
-                alertFrequency: isPerfSummary ? `Weekly Summary (${scheduledDay})` : frequency,
+                benchmarkPeriod: isPtd ? "Period Schedule" : (isPerfSummary ? "Weekly Schedule" : comparisonPeriod),
+                alertFrequency: isPtd ? `Daily PTD Summary` : (isPerfSummary ? `Weekly Summary (${scheduledDay})` : frequency),
                 severityLevel: isPerfSummary ? "Medium" : severity,
                 scheduledDay: isPerfSummary ? scheduledDay : "",
                 scheduled_day: isPerfSummary ? scheduledDay : "",
             };
+
 
             let response;
             if (editingAlert && editingAlert.id) {

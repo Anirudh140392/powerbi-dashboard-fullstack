@@ -124,6 +124,7 @@ const LatestOverivewCatCity = ({
         categories: [],
         platforms: [],
         skus: [],
+        sapCodes: [],
         dateFrom: '',
         dateTo: '',
         kpis: ['discount', 'pricePerUnit', 'asp'],
@@ -143,6 +144,7 @@ const LatestOverivewCatCity = ({
                 categories: [],
                 platforms: [],
                 skus: [],
+                sapCodes: [],
                 dateFrom: '',
                 dateTo: '',
                 kpis: ['discount', 'pricePerUnit', 'asp'],
@@ -256,6 +258,9 @@ const LatestOverivewCatCity = ({
                 const sk = toParam(advancedFilters.skus?.length > 0 ? advancedFilters.skus : null);
                 if (sk) params.append('sku', sk);
 
+                const sap = toParam(advancedFilters.sapCodes?.length > 0 ? advancedFilters.sapCodes : (advancedFilters.sapCode?.length > 0 ? advancedFilters.sapCode : null));
+                if (sap) params.append('sapCode', sap);
+
                 // Grammage filter only applies to SKU dimension
                 if (dimension === 'sku') {
                     const gr = toParam(advancedFilters.grammages?.length > 0 ? advancedFilters.grammages : null);
@@ -308,7 +313,7 @@ const LatestOverivewCatCity = ({
         };
         fetchData();
         return () => { isMounted = false; };
-    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, globalPlatform, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.grammages, advancedFilters.dateFrom, advancedFilters.dateTo, advancedFilters.msl, selectedMsl]);
+    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, globalPlatform, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.sapCodes, advancedFilters.sapCode, advancedFilters.grammages, advancedFilters.dateFrom, advancedFilters.dateTo, advancedFilters.msl, selectedMsl]);
 
     // Reset pagination when dimension or filters change
     useEffect(() => {
@@ -345,6 +350,9 @@ const LatestOverivewCatCity = ({
             
             const ch = toParam(selectedChannel); 
             if (ch) params.append('channel', ch);
+
+            const sap = toParam(advancedFilters.sapCodes?.length > 0 ? advancedFilters.sapCodes : (advancedFilters.sapCode?.length > 0 ? advancedFilters.sapCode : null));
+            if (sap) params.append('sapCode', sap);
 
             // MSL filter (global takes priority, fallback to advanced filters)
             const hasMslFilter = (val) => {
@@ -419,6 +427,7 @@ const LatestOverivewCatCity = ({
         advancedFilters.categories?.length > 0,
         advancedFilters.platforms?.length > 0,
         advancedFilters.skus?.length > 0,
+        advancedFilters.sapCodes?.length > 0,
         advancedFilters.dateFrom !== '',
         advancedFilters.dateTo !== '',
         advancedFilters.msl === '1',

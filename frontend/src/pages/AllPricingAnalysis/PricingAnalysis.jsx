@@ -22,17 +22,25 @@ export default function PricingAnalysis() {
     compareStart,
     compareEnd,
     selectedChannel,
-    refreshFilters
+    refreshFilters,
+    selectedMsl,
+    setSelectedMsl,
+    selectedSapCode,
+    selectedSubBrand,
+    setSelectedSubBrand
   } = useContext(FilterContext);
 
   // Initialize filters from context
   const [filters, setFilters] = useState({
     platform: platform || "",
     brand: selectedBrand || "All",
+    subBrand: selectedSubBrand || "All",
     location: selectedLocation || "All",
     category: selectedCategory || "All",
     zones: selectedZone || "All",
     channel: selectedChannel || "Ecommerce",
+    msl: selectedMsl || "All",
+    sapCode: selectedSapCode || "All",
     months: 6,
     timeStep: "Monthly",
     startDate: timeStart ? timeStart.format('YYYY-MM-DD') : dayjs().startOf('month').format('YYYY-MM-DD'),
@@ -55,6 +63,9 @@ export default function PricingAnalysis() {
     if (newFilters.category && newFilters.category !== selectedCategory) {
       setSelectedCategory(newFilters.category);
     }
+    if (newFilters.subBrand !== undefined && newFilters.subBrand !== selectedSubBrand) {
+      setSelectedSubBrand(newFilters.subBrand);
+    }
     if (newFilters.startDate) {
       const newStart = dayjs(newFilters.startDate);
       if (!newStart.isSame(timeStart, 'day')) {
@@ -75,16 +86,19 @@ export default function PricingAnalysis() {
       ...prev,
       platform: platform || prev.platform,
       brand: selectedBrand || prev.brand,
+      subBrand: selectedSubBrand || prev.subBrand,
       location: selectedLocation || prev.location,
       category: selectedCategory || prev.category,
       zones: selectedZone || prev.zones,
       channel: selectedChannel || prev.channel,
+      msl: selectedMsl || prev.msl,
+      sapCode: selectedSapCode || prev.sapCode,
       startDate: timeStart ? timeStart.format('YYYY-MM-DD') : prev.startDate,
       endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : prev.endDate,
       compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
       compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
     }));
-  }, [platform, selectedBrand, selectedLocation, selectedCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel]);
+  }, [platform, selectedBrand, selectedSubBrand, selectedLocation, selectedCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel, selectedMsl, selectedSapCode]);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)

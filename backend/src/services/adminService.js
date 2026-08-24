@@ -441,11 +441,26 @@ export const getPermissionsUsers = async () => {
 /**
  * Update db_status for a user device (by user_id)
  */
-export const updateUserDbStatus = async (userIdOrEmail, dbStatus) => {
+export const updateUserDbStatus = async (userIdOrEmail, dbStatus, requestedDbName = null) => {
     try {
         const statusValue = dbStatus ? 'active' : 'inactive';
         const cleanIdOrEmail = userIdOrEmail.replace(/'/g, "\\'");
         const isEmail = cleanIdOrEmail.includes('@');
+
+        let resolvedDbName = requestedDbName || '';
+        if (!resolvedDbName) {
+            try {
+                const userQuery = isEmail 
+                    ? `SELECT toString(db_id) as db_id FROM tb_user WHERE lower(user_email) = lower('${cleanIdOrEmail}') LIMIT 1`
+                    : `SELECT toString(db_id) as db_id FROM tb_user WHERE toString(user_id) = '${cleanIdOrEmail}' OR lower(user_email) = lower('${cleanIdOrEmail}') LIMIT 1`;
+                const userRows = await queryAdminDB(userQuery);
+                if (userRows && userRows.length > 0 && userRows[0].db_id) {
+                    const dbRows = await queryAdminDB(`SELECT db_name FROM tb_database WHERE toString(db_id) = '${userRows[0].db_id}' LIMIT 1`);
+                    if (dbRows && dbRows.length > 0) resolvedDbName = dbRows[0].db_name;
+                }
+            } catch (_) {}
+        }
+
         const query = isEmail ? `
             ALTER TABLE tb_user 
             UPDATE db_status = '${statusValue}' 
@@ -456,7 +471,7 @@ export const updateUserDbStatus = async (userIdOrEmail, dbStatus) => {
             WHERE toString(user_id) = '${cleanIdOrEmail}' OR lower(user_email) = lower('${cleanIdOrEmail}')
         `;
         await queryAdminDB(query);
-        return { success: true };
+        return { success: true, dbName: resolvedDbName };
     } catch (error) {
         console.error(`[AdminService] updateUserDbStatus failed for ${userIdOrEmail}:`, error.message);
         throw error;
@@ -466,28 +481,38 @@ export const updateUserDbStatus = async (userIdOrEmail, dbStatus) => {
 /**
  * Update tab_permissions JSON for a user device (by user_id or email)
  */
-export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions) => {
+export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions, requestedDbName = null) => {
     try {
         const cleanIdOrEmail = userIdOrEmail.replace(/'/g, "\\'");
         const isEmail = cleanIdOrEmail.includes('@');
         const userQuery = isEmail 
-            ? `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email FROM tb_user WHERE lower(user_email) = lower('${cleanIdOrEmail}') LIMIT 1`
-            : `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email FROM tb_user WHERE toString(user_id) = '${cleanIdOrEmail}' OR lower(user_email) = lower('${cleanIdOrEmail}') LIMIT 1`;
+            ? `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email, tab_permissions FROM tb_user WHERE lower(user_email) = lower('${cleanIdOrEmail}') ORDER BY last_login DESC LIMIT 1`
+            : `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email, tab_permissions FROM tb_user WHERE toString(user_id) = '${cleanIdOrEmail}' OR lower(user_email) = lower('${cleanIdOrEmail}') ORDER BY last_login DESC LIMIT 1`;
         const userRows = await queryAdminDB(userQuery);
         
         let cleanedPermissions = { ...tabPermissions };
         let foundUserId = '';
         let foundUserEmail = isEmail ? cleanIdOrEmail : '';
+        let resolvedDbName = requestedDbName || '';
+        let existingFlatPermissions = {};
         
         if (userRows && userRows.length > 0) {
             const dbId = userRows[0].db_id;
             foundUserId = userRows[0].user_id || '';
             if (userRows[0].user_email) foundUserEmail = userRows[0].user_email;
 
+            if (userRows[0].tab_permissions && userRows[0].tab_permissions.trim()) {
+                try {
+                    existingFlatPermissions = toFlatPermissions(JSON.parse(userRows[0].tab_permissions));
+                } catch (_) {}
+            }
+
             // Fetch db_name from tb_database
             const dbRows = await queryAdminDB(`SELECT db_name FROM tb_database WHERE toString(db_id) = '${dbId}' LIMIT 1`);
             if (dbRows && dbRows.length > 0) {
                 const dbName = dbRows[0].db_name;
+                if (!resolvedDbName) resolvedDbName = dbName;
+
                 // Get active platforms for this database
                 const activePlatforms = await getAdminPlatforms(dbName);
                 const activePlatformKeys = new Set(activePlatforms.map(p => `platform_${p.toLowerCase()}`));
@@ -500,6 +525,17 @@ export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions) =>
                 });
             }
         }
+
+        // Calculate diff between existing permissions and updated permissions
+        const diffPermissions = {};
+        Object.keys(cleanedPermissions).forEach(key => {
+            if (existingFlatPermissions[key] !== cleanedPermissions[key]) {
+                diffPermissions[key] = cleanedPermissions[key];
+            }
+        });
+
+        // Use diffPermissions if any changed keys found, otherwise fallback to cleanedPermissions
+        const logDiff = Object.keys(diffPermissions).length > 0 ? diffPermissions : cleanedPermissions;
 
         const nestedPermissions = toNestedPermissions(cleanedPermissions);
         const jsonStr = JSON.stringify(nestedPermissions).replace(/'/g, "\\'");
@@ -521,7 +557,7 @@ export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions) =>
             WHERE ${whereConditions.join(' OR ')}
         `;
         await queryAdminDB(query);
-        return { success: true };
+        return { success: true, dbName: resolvedDbName, diff: logDiff };
     } catch (error) {
         console.error(`[AdminService] updateUserTabPermissions failed for ${userIdOrEmail}:`, error.message);
         throw error;

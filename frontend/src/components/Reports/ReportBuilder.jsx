@@ -114,8 +114,8 @@ const PAGE_METRICS = [
   },
   {
     key: "Sales Data", label: "Sales Data", icon: <TrendingUpIcon />, color: "#2563EB",
-    tags: ["Overall Sales", "MTD Sales", "Prev Month MTD", "YTD Sales", "Last Year Sales", "DRR", "Projected Sales", "Revenue Share"],
-    activeInSidebar: false
+    tags: ["DRR"],
+    activeInSidebar: true
   },
   {
     key: "Availability Analysis", label: "Availability Analysis", icon: <InventoryIcon />, color: "#10B981",
@@ -139,7 +139,7 @@ const PAGE_METRICS = [
   },
   {
     key: "Inventory Analysis", label: "Inventory Analysis", icon: <StoreIcon />, color: "#06B6D4",
-    tags: ["Current Inventory", "Target Inventory", "Inventory Health %", "Days on Hand"],
+    tags: ["Current Inventory", "Days on Hand"],
     activeInSidebar: true, hideForDb: ['mamaearth', 'boat']
   },
   {
@@ -154,13 +154,13 @@ const PAGE_METRICS = [
   },
   {
     key: "Category RCA", label: "Category RCA", icon: <AccountTreeIcon />, color: "#F97316",
-    tags: ["Offtake Sales", "Units", "Category Share", "Cat Size"],
-    activeInSidebar: false
+    tags: [],
+    activeInSidebar: true
   },
   {
     key: "Portfolio Analysis", label: "Portfolio Analysis", icon: <ShowChartIcon />, color: "#A855F7",
-    tags: ["ASP", "Volume", "Promo Volume", "Promo Volume %"],
-    activeInSidebar: false
+    tags: ["ASP"],
+    activeInSidebar: true
   },
 ];
 
@@ -277,14 +277,11 @@ export default function ReportBuilder({
       // 1. Hide everything if user DB status is inactive
       if (user?.dbStatus === false) return false;
 
-      // 2. DB specific exclusions exactly matching Sidebar Rules
+      // 2. DB specific exclusions matching database capability rules
       if (m.showOnlyForDb && !m.showOnlyForDb.includes(dbName)) return false;
       if (m.hideForDb && m.hideForDb.includes(dbName)) return false;
 
-      // 3. User explicit tab permissions matching Sidebar Rules
-      if (user?.tabPermissions && Object.keys(user.tabPermissions).length > 0) {
-        if (user.tabPermissions[m.label] !== undefined && user.tabPermissions[m.label] === false) return false;
-      }
+      // Note: KPI options in Scheduled Reports are available regardless of individual sidebar page visibility
       return true;
     });
 
@@ -297,7 +294,7 @@ export default function ReportBuilder({
       }));
     }
 
-    return metrics;
+    return metrics.filter(m => m.tags.length > 0);
   }, [reportTypeOptions, user, sku]);
 
   const [metricOn, setMetricOn] = useState(

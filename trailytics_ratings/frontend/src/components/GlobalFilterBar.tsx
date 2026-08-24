@@ -14,6 +14,7 @@ import { getDateRangeForPreset } from '../hooks/useGlobalFilters';
 import type { GlobalFilterState, DatePreset, PriceFilterMode, RatingBifurcation } from '../types/filterTypes';
 import { getClassificationOptions } from '../config/productClassifications';
 import { useProductCategories, useSkuList, usePriceRanges, useClientBrands } from '../hooks/useRatingsAPI';
+import { useDebounce } from '../hooks/useDebounce';
 import { getActiveBrandName } from '../utils/tenant';
 
 
@@ -123,10 +124,13 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
         }
     }, [openDropdown, filters]);
 
-    const { brands: clientBrands } = useClientBrands();
+    const { brands: clientBrands } = useClientBrands(
+        stagedFilters.brandScope === 'all' ? 'all' : stagedFilters.brandScope === 'prestige' ? 'false' : 'true'
+    );
     const availableClientBrands = clientBrands;
 
     const [skuSearch, setSkuSearch] = useState('');
+    const debouncedSkuSearch = useDebounce(skuSearch, 300);
     const [activeFilterTab, setActiveFilterTab] = useState<'general' | 'categorization' | 'skus' | 'performance'>('general');
     const shouldLoadSkus = openDropdown === 'main_filter' || openDropdown === 'sku';
     const shouldLoadPriceRanges = openDropdown === 'main_filter' || openDropdown === 'price';
@@ -154,9 +158,12 @@ const GlobalFilterBar: React.FC<GlobalFilterBarProps> = ({ filterResult, tabsNod
         price_min: stagedFilters.priceRange?.min ?? null,
         price_max: stagedFilters.priceRange?.max ?? null,
         // Honor the active scope so the SKU picker lists competitor SKUs under
-        // Competition/All (previously always Prestige-only).
         is_competitor: stagedFilters.brandScope === 'all' ? 'all' : stagedFilters.brandScope === 'prestige' ? 'false' : 'true',
+        brand: stagedFilters.brand || null,
+        searchQuery: debouncedSkuSearch || null,
     }, { enabled: shouldLoadSkus });
+
+    console.log("GlobalFilterBar serverSkusLoading:", serverSkusLoading, "serverSkus:", serverSkus?.length, "shouldLoadSkus:", shouldLoadSkus, "openDropdown:", openDropdown);
 
     const { ranges: priceRanges } = usePriceRanges({ enabled: shouldLoadPriceRanges || !!stagedFilters.priceRange });
 

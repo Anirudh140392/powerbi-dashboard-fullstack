@@ -91,6 +91,7 @@ interface ExecutiveInsightsProps {
     globalPriceMode?: 'rp' | 'sp';
     globalPriceRange?: { min: number; max: number } | null;
     globalBrandScope?: string | null;
+    globalBrand?: string | null;
     globalSentimentCategory?: string | null;
     /** Global SKU (web_pid) filter from GlobalFilterBar — drills every section down to a single SKU */
     globalSku?: string;
@@ -195,7 +196,7 @@ const SectionLoadingState: React.FC<{ label: string }> = ({ label }) => (
 // MAIN COMPONENT
 // ============================================================================
 
-const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competitorReviews = [], onCharacteristicClick, onProductClick, serverTrends, serverTrendsLoading = false, serverProductHealth, serverProductHealthLoading = false, onRequestHeavyData, onCategorySelect, externalSelectedCategory, globalParetoStatus, globalRatingBifurcation, externalClassification, globalPlatform, globalTrendPeriodMonths, globalDateFrom, globalDateTo, globalPriceMode, globalPriceRange, globalBrandScope, globalSentimentCategory, globalSku, headlineMetrics }) => {
+const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competitorReviews = [], onCharacteristicClick, onProductClick, serverTrends, serverTrendsLoading = false, serverProductHealth, serverProductHealthLoading = false, onRequestHeavyData, onCategorySelect, externalSelectedCategory, globalParetoStatus, globalRatingBifurcation, externalClassification, globalPlatform, globalTrendPeriodMonths, globalDateFrom, globalDateTo, globalPriceMode, globalPriceRange, globalBrandScope, globalBrand, globalSentimentCategory, globalSku, headlineMetrics }) => {
     const selectedPeriod = globalTrendPeriodMonths || 6;
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
     const [productHealthTab, setProductHealthTab] = useState<'declining' | 'improving'>('declining');
@@ -281,6 +282,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
         globalPriceMode,
         globalPriceRange,
         globalBrandScope,
+        globalBrand,
         globalSentimentCategory,
         currentCategory,
         globalParetoStatus || null,
@@ -298,6 +300,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
         globalPriceMode,
         globalPriceRange,
         globalBrandScope,
+        globalBrand,
         globalSentimentCategory,
         globalSku || null,
         { enabled: belowFoldDataReady },
@@ -313,6 +316,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
         globalPriceMode,
         globalPriceRange,
         globalBrandScope,
+        globalBrand,
         globalSentimentCategory,
         globalSku || null,
         { enabled: belowFoldDataReady },
@@ -329,6 +333,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
             price_max: globalPriceRange?.max,
             web_pid: globalSku || undefined,
             sentiment_category: globalSentimentCategory || undefined,
+            brand: globalBrand || undefined,
         },
         { enabled: benchmarkDataReady },
     );
@@ -444,13 +449,14 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
         if (globalBrandScope === 'prestige') filters.is_competitor = 'false';
         else if (globalBrandScope === 'competition') filters.is_competitor = 'true';
         else if (globalBrandScope === 'all') filters.is_competitor = 'all';
+        if (globalBrand) filters.brand = globalBrand;
         if (globalSentimentCategory) filters.sentiment_category = globalSentimentCategory;
         if (globalSku) filters.web_pid = globalSku;
         return filters;
     }, [
         externalSelectedCategory, globalParetoStatus, globalRatingBifurcation, globalPlatform,
         globalDateFrom, globalDateTo, globalTrendPeriodMonths, globalPriceMode, globalPriceRange,
-        globalBrandScope, globalSentimentCategory, globalSku
+        globalBrandScope, globalBrand, globalSentimentCategory, globalSku
     ]);
 
     // Competitive benchmark from real competitor data — multi-metric
@@ -2010,19 +2016,19 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                     category: currentCategory,
                     pareto_status: globalParetoStatus,
                     rating_bifurcation: globalRatingBifurcation,
-                    platform: globalPlatform,
                     date_from: globalDateFrom,
                     date_to: globalDateTo,
+                    price_mode: globalPriceMode,
+                    price_min: globalPriceRange?.min,
+                    price_max: globalPriceRange?.max,
+                    brand: globalBrand || undefined,
+                    platform: globalPlatform || undefined,
                     is_competitor: globalBrandScope === 'prestige' ? 'false' : globalBrandScope === 'competition' ? 'true' : 'all',
                     sentiment_category: globalSentimentCategory,
                     web_pid: globalSku,
                     period_months: globalTrendPeriodMonths,
-                    price_mode: globalPriceMode,
-                    price_min: globalPriceRange?.min,
-                    price_max: globalPriceRange?.max,
                 }}
             />
-
 
         </div>
     );

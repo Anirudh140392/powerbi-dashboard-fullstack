@@ -74,6 +74,25 @@ export async function resolveCompanyUuid(dbName) {
     
     try {
         const res = await clickhouse.query({
+            query: `SELECT DISTINCT company_id FROM rb_review_olap LIMIT 1`,
+            format: 'JSONEachRow',
+            clickhouse_settings: {
+                database: normalizedDb
+            }
+        });
+        const rows = await res.json();
+        if (rows.length > 0 && rows[0].company_id) {
+            const uuid = rows[0].company_id;
+            companyIdCache.set(normalizedDb, uuid);
+            console.log(`[Company UUID Resolver] Resolved company UUID from rb_review_olap for database "${normalizedDb}" -> "${uuid}"`);
+            return uuid;
+        }
+    } catch (err) {
+        // Table might not exist, proceed to fallbacks
+    }
+
+    try {
+        const res = await clickhouse.query({
             query: `SELECT DISTINCT company_id FROM product_snapshots LIMIT 1`,
             format: 'JSONEachRow',
             clickhouse_settings: {
@@ -84,7 +103,7 @@ export async function resolveCompanyUuid(dbName) {
         if (rows.length > 0 && rows[0].company_id) {
             const uuid = rows[0].company_id;
             companyIdCache.set(normalizedDb, uuid);
-            console.log(`[Company UUID Resolver] Resolved company UUID for database "${normalizedDb}" -> "${uuid}"`);
+            console.log(`[Company UUID Resolver] Resolved company UUID from product_snapshots for database "${normalizedDb}" -> "${uuid}"`);
             return uuid;
         }
     } catch (err) {

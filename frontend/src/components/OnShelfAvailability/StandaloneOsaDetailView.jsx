@@ -164,6 +164,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
             return {
                 name: row.name || row.productName || "Unknown Product",
                 sku: row.sku || "N/A",
+                web_pid: row.web_pid || row.webPid || row.sku || null,
                 brand: row.brand,
                 platform: row.platform,
                 format: row.format,

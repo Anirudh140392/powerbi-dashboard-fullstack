@@ -183,6 +183,9 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
         }> = {};
 
         relevantReviews.forEach(r => {
+            const sentimentUpper = r.sentiment?.toUpperCase();
+            if (sentimentUpper !== 'NEGATIVE') return; // ONLY SHOW NEGATIVE REVIEWS
+
             const product = r.product || 'Unknown Product';
             if (!productMap[product]) {
                 productMap[product] = {
@@ -193,21 +196,18 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
             }
 
             const entry = productMap[product];
+            // Since we filtered by NEGATIVE, total = negative
             entry.total++;
+            entry.negative++;
             entry.ratingSum += r.rating || 3;
-
-            const sentimentUpper = r.sentiment?.toUpperCase();
-            if (sentimentUpper === 'NEGATIVE') entry.negative++;
-            else if (sentimentUpper === 'POSITIVE') entry.positive++;
-            else entry.neutral++;
 
             const reviewDate = new Date(r.date);
             if (reviewDate >= sixMonthsAgo) {
                 entry.recentTotal++;
-                if (sentimentUpper === 'NEGATIVE') entry.recentNeg++;
+                entry.recentNeg++;
             } else {
                 entry.olderTotal++;
-                if (sentimentUpper === 'NEGATIVE') entry.olderNeg++;
+                entry.olderNeg++;
             }
 
             if (!entry.sampleReview && r.text && r.text.length > 10) {
@@ -216,11 +216,11 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
         });
 
         return Object.entries(productMap)
-            .filter(([, data]) => data.total >= 2)
+            .filter(([, data]) => data.negative > 0)
             .map(([product, data]): ProductSKU => {
-                const negativeRate = data.total > 0 ? (data.negative / data.total) * 100 : 0;
-                const positiveRate = data.total > 0 ? (data.positive / data.total) * 100 : 0;
-                const avgRating = data.total > 0 ? data.ratingSum / data.total : 0;
+                const negativeRate = 100; // Since all are negative now
+                const positiveRate = 0;
+                const avgRating = data.negative > 0 ? data.ratingSum / data.negative : 0;
 
                 const recentNegRate = data.recentTotal > 0 ? (data.recentNeg / data.recentTotal) * 100 : 0;
                 const olderNegRate = data.olderTotal > 0 ? (data.olderNeg / data.olderTotal) * 100 : 0;
@@ -234,7 +234,7 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
 
                 return {
                     product,
-                    total: data.total,
+                    total: data.negative, // show negative count as the exact number match
                     negative: data.negative,
                     positive: data.positive,
                     neutral: data.neutral,
@@ -367,7 +367,7 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                         {characteristic}
                                     </h2>
                                     <p className="text-sm text-slate-500 mt-1 font-medium">
-                                        Product-level analysis • {sentimentBreakdown.total.toLocaleString()} mentions
+                                        Product-level analysis • {productSkuData.length} affected SKUs
                                     </p>
                                 </div>
                                 <button
@@ -477,17 +477,6 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                                     </th>
                                                     <th
                                                         className="text-center py-3 px-3 font-semibold text-slate-600 dark:text-slate-300 cursor-pointer hover:text-indigo-600 transition-colors"
-                                                        onClick={() => handleProductSort('negRate')}
-                                                    >
-                                                        <div className="flex items-center justify-center gap-1">
-                                                            Neg % {renderSortIcon('negRate')}
-                                                        </div>
-                                                    </th>
-                                                    <th className="text-center py-3 px-3 font-semibold text-slate-600 dark:text-slate-300">
-                                                        Pos %
-                                                    </th>
-                                                    <th
-                                                        className="text-center py-3 px-3 font-semibold text-slate-600 dark:text-slate-300 cursor-pointer hover:text-indigo-600 transition-colors"
                                                         onClick={() => handleProductSort('rating')}
                                                     >
                                                         <div className="flex items-center justify-center gap-1">
@@ -528,18 +517,6 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                                                     <td className="text-center py-3 px-3">
                                                                         <span className="font-semibold text-slate-700 dark:text-slate-300">
                                                                             {sku.total}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="text-center py-3 px-3">
-                                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${sku.negativeRate > 0 ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 ring-1 ring-red-500/20' : 'bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400 ring-1 ring-slate-500/20'
-                                                                            }`}>
-                                                                            {sku.negativeRate.toFixed(0)}%
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="text-center py-3 px-3">
-                                                                        <span className={`text-xs font-medium ${sku.positiveRate > 60 ? 'text-green-600' : 'text-slate-500'
-                                                                            }`}>
-                                                                            {sku.positiveRate.toFixed(0)}%
                                                                         </span>
                                                                     </td>
                                                                     <td className="text-center py-3 px-3">

@@ -3,8 +3,8 @@ import adminClickhouse from './src/config/adminClickhouse.js';
 
 async function run() {
     try {
-        const email = 'mamaearth@trailytics.com';
-        const plainPassword = 'mamaearth@123';
+        const email = 'partner@trailytics.com';
+        const plainPassword = 'Partner@2026';
         const saltRounds = 10;
         const newHash = await bcrypt.hash(plainPassword, saltRounds);
         console.log(`Generated hash for '${plainPassword}': ${newHash}`);
@@ -17,7 +17,7 @@ async function run() {
             UPDATE password_hash = '${newHash.replace(/'/g, "\\'")}' 
             WHERE user_email = '${email}'
         `;
-        
+
         await adminClickhouse.command({ query });
         console.log("Update command sent. Waiting 3 seconds for mutation...");
         await new Promise(resolve => setTimeout(resolve, 3000));

@@ -271,7 +271,9 @@ export default function OsaDetailTableLight({
         if (!apiData?.osaDetail?.length) return [];
         return apiData.osaDetail.map(row => ({
             name: row.name || row.productName || "Unknown Product",
-            sku: row.sku || "N/A", brand: row.brand, platform: row.platform, format: row.format,
+            sku: row.sku || "N/A",
+            web_pid: row.web_pid || row.webPid || row.sku || null,
+            brand: row.brand, platform: row.platform, format: row.format,
             grammage: row.grammage || row.weight || "",
             imageUrl: row.imageUrl,
             page_url: row.page_url || null,
@@ -289,6 +291,7 @@ export default function OsaDetailTableLight({
             res = res.filter(r => 
                 r.name.toLowerCase().includes(q) || 
                 r.sku.toLowerCase().includes(q) ||
+                (r.web_pid && String(r.web_pid).toLowerCase().includes(q)) ||
                 (r.sap_code && String(r.sap_code).toLowerCase().includes(q))
             );
         }
@@ -359,13 +362,13 @@ export default function OsaDetailTableLight({
                             <div className="flex items-center gap-2">
                                 <input
                                     type="text"
-                                    placeholder="Search SAP Code, Product, SKU..."
+                                    placeholder="Search SAP Code, Web PID, Product, SKU..."
                                     value={searchSkuTerm}
                                     onChange={(e) => {
                                         setSearchSkuTerm(e.target.value);
                                         setPage(1);
                                     }}
-                                    className="h-8 w-60 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+                                    className="h-8 w-64 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
                                 />
                                 <button onClick={() => setShowFilterPanel(true)} className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 h-8 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">
                                     <SlidersHorizontal className="h-3.5 w-3.5" /><span>Filters</span>

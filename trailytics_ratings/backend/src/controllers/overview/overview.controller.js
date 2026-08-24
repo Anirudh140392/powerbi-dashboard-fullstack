@@ -1419,8 +1419,10 @@ export const getBenchmarkData = async (req, res) => {
 
 export const getCategoryHealth = async (req, res) => {
     try {
-        const { date_from, date_to, platform, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category, category, pareto_status, rating_bifurcation, web_pid } = req.query;
+        const { date_from, date_to, platform, brand, period_months, price_mode, price_min, price_max, is_competitor, sentiment_category, category, pareto_status, rating_bifurcation, web_pid } = req.query;
         const trendPeriod = parseInt(period_months) || 3;
+
+        console.log('[LEGACY] getCategoryHealth invoked with query:', req.query);
 
         const queryParams = { companyId: String(req.companyId) };
         let currentScopeFilter, growthRangeFilter, recentFilter, priorFilter;
@@ -1453,6 +1455,14 @@ export const getCategoryHealth = async (req, res) => {
         } else {
             competitorFilter = `AND coalesce(r.is_competitor, 0) = 0`;
             snapCompetitorFilter = `AND coalesce(mp.is_competitor, 0) = 0`;
+        }
+
+        let brandFilterR = '';
+        let snapBrandFilter = '';
+        if (brand && brand !== 'all') {
+            queryParams.brand = brand;
+            brandFilterR = `AND ilike(r.brand, {brand:String})`;
+            snapBrandFilter = `AND ilike(mp.brand_name, {brand:String})`;
         }
 
         if (sentiment_category && sentiment_category !== 'all') {
@@ -1559,6 +1569,7 @@ export const getCategoryHealth = async (req, res) => {
                 LEFT JOIN products mp ON mp.company_id = {companyId:String} AND mp.product_external_id = ls.web_pid AND lower(mp.platform) = lower(ls.platform)
                 WHERE coalesce(nullIf(ls.category, ''), nullIf(mp.category, '')) != ''
                   ${snapCompetitorFilter}
+                  ${snapBrandFilter}
                   ${snapPlatformFiltStr}
                   ${snapParetoFilter}
                   ${snapRatingFilter}
@@ -1577,6 +1588,7 @@ export const getCategoryHealth = async (req, res) => {
                     LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
                     WHERE r.company_id = {companyId:String}
                       ${competitorFilter}
+                      ${brandFilterR}
                       ${platformFiltStr}
                       AND coalesce(nullIf(r.category, ''), nullIf(mp.category, '')) != ''
                       ${growthRangeFilter}
@@ -1621,7 +1633,7 @@ export const getCategoryHealth = async (req, res) => {
                     countIf(r.sentiment = 'Neutral') AS neutral_count
                 FROM ml_reviews r
                 JOIN sku_category_map scm ON scm.web_pid = r.web_pid AND scm.platform_key = lower(r.platform)
-                WHERE r.company_id = {companyId:String} ${competitorFilter} ${currentScopeFilter}
+                WHERE r.company_id = {companyId:String} ${competitorFilter} ${brandFilterR} ${currentScopeFilter}
                 ${sentimentCategoryFilters.length ? 'AND ' + sentimentCategoryFilters.join(' AND ') : ''}
                 ${webPidFilterR}
                 GROUP BY scm.category
@@ -1634,7 +1646,7 @@ export const getCategoryHealth = async (req, res) => {
                     round(avgIf(r.rating, 1=1 ${priorFilter}), 2) AS prior_rating
                 FROM ml_reviews r
                 JOIN sku_category_map scm ON scm.web_pid = r.web_pid AND scm.platform_key = lower(r.platform)
-                WHERE r.company_id = {companyId:String} ${competitorFilter} ${growthRangeFilter}
+                WHERE r.company_id = {companyId:String} ${competitorFilter} ${brandFilterR} ${growthRangeFilter}
                 ${sentimentCategoryFilters.length ? 'AND ' + sentimentCategoryFilters.join(' AND ') : ''}
                 ${webPidFilterR}
                 GROUP BY scm.category
@@ -1653,7 +1665,7 @@ export const getCategoryHealth = async (req, res) => {
                     multiIf(trim(lower(mp.category)) IN ('other', 'others'), 'Others', initcap(trim(mp.category))) AS cat_name,
                     count(DISTINCT mp.product_external_id) AS catalogue_sku_count
                 FROM products mp
-                WHERE mp.company_id = {companyId:String} AND mp.platform != '' AND mp.category != '' ${snapCompetitorFilter} ${masterPlatformFiltStr} ${masterParetoFilter} ${web_pid ? 'AND mp.product_external_id = {webPid:String}' : ''}
+                WHERE mp.company_id = {companyId:String} AND mp.platform != '' AND mp.category != '' ${snapCompetitorFilter} ${snapBrandFilter} ${masterPlatformFiltStr} ${masterParetoFilter} ${web_pid ? 'AND mp.product_external_id = {webPid:String}' : ''}
                 GROUP BY cat_name
             ),
             combined_cats AS (

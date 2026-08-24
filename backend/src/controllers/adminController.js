@@ -1,6 +1,7 @@
 // src/controllers/adminController.js
 import * as adminService from '../services/adminService.js';
 import { clearPermissionsCache } from '../helper/permissionMiddleware.js';
+import { logAdminPermissionChange, readAdminLogs } from '../helper/adminLogger.js';
 
 /**
  * GET /api/admin/users
@@ -195,7 +196,7 @@ export const updateDbStatus = async (req, res) => {
             });
         }
 
-        const { userId, email, dbStatus } = req.body;
+        const { userId, email, dbStatus, dbName } = req.body;
         const targetIdentifier = userId || email;
 
         if (!targetIdentifier || typeof dbStatus !== 'boolean') {
@@ -205,11 +206,22 @@ export const updateDbStatus = async (req, res) => {
             });
         }
 
-        await adminService.updateUserDbStatus(targetIdentifier, dbStatus);
+        const updateRes = await adminService.updateUserDbStatus(targetIdentifier, dbStatus, dbName);
 
         // Clear permissions and platforms cache so changes apply instantly
         clearPermissionsCache(email);
         adminService.clearDbPlatformsCache();
+
+        // Audit log permission change
+        logAdminPermissionChange({
+            adminEmail: req.user?.email || req.user?.user_email || 'Unknown Admin',
+            adminName: req.user?.userName || req.user?.name || '',
+            adminRole: req.user?.role || 'admin',
+            targetUser: targetIdentifier,
+            targetDatabase: updateRes?.dbName || dbName || '',
+            action: 'UPDATE_DB_STATUS',
+            details: { dbStatus }
+        });
 
         return res.status(200).json({
             success: true,
@@ -237,7 +249,7 @@ export const updateTabPermissions = async (req, res) => {
             });
         }
 
-        const { userId, email, tabPermissions } = req.body;
+        const { userId, email, tabPermissions, dbName } = req.body;
         const targetIdentifier = userId || email;
 
         if (!targetIdentifier || typeof tabPermissions !== 'object') {
@@ -247,11 +259,22 @@ export const updateTabPermissions = async (req, res) => {
             });
         }
 
-        await adminService.updateUserTabPermissions(targetIdentifier, tabPermissions);
+        const updateRes = await adminService.updateUserTabPermissions(targetIdentifier, tabPermissions, dbName);
 
         // Clear permissions and platforms cache so changes apply instantly
         clearPermissionsCache(email);
         adminService.clearDbPlatformsCache();
+
+        // Audit log permission change (log only changed key-value pairs)
+        logAdminPermissionChange({
+            adminEmail: req.user?.email || req.user?.user_email || 'Unknown Admin',
+            adminName: req.user?.userName || req.user?.name || '',
+            adminRole: req.user?.role || 'admin',
+            targetUser: targetIdentifier,
+            targetDatabase: updateRes?.dbName || dbName || '',
+            action: 'UPDATE_TAB_PERMISSIONS',
+            details: updateRes?.diff || tabPermissions
+        });
 
         return res.status(200).json({
             success: true,
@@ -392,6 +415,16 @@ export const updateDatabaseInsights = async (req, res) => {
 
         // Clear permissions cache so changes take effect immediately
         clearPermissionsCache();
+
+        // Audit log permission change
+        logAdminPermissionChange({
+            adminEmail: req.user?.email || req.user?.user_email || 'Unknown Admin',
+            adminName: req.user?.userName || req.user?.name || '',
+            adminRole: req.user?.role || 'admin',
+            targetDatabase: db_id,
+            action: 'UPDATE_DATABASE_INSIGHTS_PERMISSIONS',
+            details: insights
+        });
 
         return res.status(200).json({
             success: true,
@@ -579,5 +612,35 @@ export const inviteUser = async (req, res) => {
         });
     }
 };
+
+/**
+ * GET /api/admin/permissions/logs
+ * Returns audit log records of permission updates from admin_log.log
+ */
+export const getAdminLogs = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const limit = parseInt(req.query.limit, 10) || 100;
+        const logs = readAdminLogs(limit);
+
+        return res.status(200).json({
+            success: true,
+            data: logs
+        });
+    } catch (error) {
+        console.error('[AdminController] getAdminLogs failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};
+
 
 

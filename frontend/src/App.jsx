@@ -109,7 +109,7 @@ function AppContent() {
 
             <Route path="/content-score" element={
               <ProtectedRoute>
-                <ContentAnalysisPage />
+                <ContentScoreDashboards />
               </ProtectedRoute>
             } />
 
