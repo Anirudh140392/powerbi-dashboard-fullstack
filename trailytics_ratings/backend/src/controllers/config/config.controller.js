@@ -15,7 +15,8 @@ const queryChWithFallback = async (db, queryOlap, queryMl, params) => {
         });
         return await chRes.json();
     } catch (err) {
-        if (err.message && (err.message.includes('rb_review_olap') || err.message.includes('Unknown table'))) {
+        console.warn(`[queryChWithFallback] Primary query on rb_review_olap failed for database '${db}': ${err.message}. Trying fallback query on ml_reviews...`);
+        try {
             const chRes = await clickhouse.query({
                 database: db,
                 query: queryMl,
@@ -23,8 +24,10 @@ const queryChWithFallback = async (db, queryOlap, queryMl, params) => {
                 format: 'JSONEachRow'
             });
             return await chRes.json();
+        } catch (fallbackErr) {
+            console.error(`[queryChWithFallback] Fallback query on ml_reviews also failed for database '${db}': ${fallbackErr.message}`);
+            return [];
         }
-        throw err;
     }
 };
 
