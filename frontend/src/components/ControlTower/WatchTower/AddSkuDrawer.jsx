@@ -582,7 +582,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                 {/* MSL Section */}
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between group cursor-pointer" onClick={() => toggleFilter('msl')}>
-                                        <h3 className="text-[13px] font-bold text-slate-800 tracking-tight">MSL</h3>
+                                        <h3 className="text-[13px] font-bold text-slate-800 tracking-tight">Top SKU</h3>
                                         <ChevronDown size={14} className={cn("text-slate-400 transition-transform", openFilters.msl && "rotate-180")} />
                                     </div>
                                     <AnimatePresence>

@@ -74,7 +74,7 @@ const FILTER_TABS = [
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "City", icon: MapPin },
-  { key: "msl", label: "MSL", icon: Hash },
+  { key: "msl", label: "Top SKU", icon: Hash },
 ];
 
 function WatchTowerFilterModal({
@@ -1806,7 +1806,7 @@ const AVAIL_FILTER_TABS = [
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
-  { key: "msl", label: "MSL", icon: Hash },
+  { key: "msl", label: "Top SKU", icon: Hash },
 ];
 
 function AvailabilityFilterModal({
@@ -2941,7 +2941,7 @@ const PRICING_FILTER_TABS = [
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
-  { key: "msl", label: "MSL", icon: Hash },
+  { key: "msl", label: "Top SKU", icon: Hash },
 ];
 
 function PricingFilterModal({
@@ -3857,7 +3857,7 @@ const INVENTORY_FILTER_TABS = [
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
-  { key: "msl", label: "MSL", icon: Hash },
+  { key: "msl", label: "Top SKU", icon: Hash },
 ];
 
 function InventoryFilterModal({

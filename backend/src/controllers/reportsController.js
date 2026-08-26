@@ -306,7 +306,7 @@ export const downloadReport = async (req, res) => {
 
             const darkstoreQuery = `
                 SELECT 
-                    toString(created_on) as created_on,
+                    toString(created_on) as DATE,
                     platform_name as platform,
                     brand_name as brand,
                     brand_category_name as category,

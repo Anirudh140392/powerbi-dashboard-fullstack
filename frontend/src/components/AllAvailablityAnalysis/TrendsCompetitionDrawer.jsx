@@ -2831,7 +2831,7 @@ export default function TrendsCompetitionDrawer({
           )}
           {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
             <SelectedFilterChip
-              label="MSL"
+              label="Top SKU"
               value={getMslDisplayValue(drawerFilters.Msl)}
               color={drawerFilters.Msl !== 'All' ? "#0ea5e9" : "#64748B"}
             />
@@ -2941,7 +2941,7 @@ export default function TrendsCompetitionDrawer({
                 {/* MSL dropdown */}
                 {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
                   <DrawerMultiSelect
-                    title="MSL"
+                    title="Top SKU"
                     value={getMslDisplayValue(drawerFilters.Msl)}
                     options={["Top SKUs", "All SKUs"]}
                     onChange={handleMslChange}
