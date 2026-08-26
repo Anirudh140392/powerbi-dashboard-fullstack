@@ -5343,9 +5343,9 @@ const getPlatformOverview = async (filters) => {
 
         const isAll = channelList.includes('all');
         if (!isAll && channelList.length > 0) {
-            const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart', 'meesho', 'myntra', 'shopify', 'first cry'];
             const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'dunzo', 'flipkart minutes', 'amazon now'];
             const epharmPlatforms = ['pharmeasy', 'apollo 247', 'apollo', '1_mg', '1mg', 'tata 1mg', 'netmeds', 'truemeds', 'healthkart'];
+            const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart', 'meesho', 'myntra', 'shopify', 'first cry'];
 
             const hasQuick = channelList.some(c => c.includes('quick') || c === 'quickcomm' || c === 'qcomm');
             const hasEcom = channelList.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c) || c.includes('e-com'));
@@ -5355,11 +5355,17 @@ const getPlatformOverview = async (filters) => {
             if (hasQuick || hasEcom || hasEpharm || hasModern) {
                 platformDefinitions = platformDefinitions.filter(p => {
                     const pLabel = p.label.toLowerCase();
-                    if (hasQuick && quickPlatforms.some(qp => pLabel.includes(qp))) return true;
-                    if (hasEcom && ecomPlatforms.some(ep => pLabel.includes(ep))) return true;
-                    if (hasEpharm && (epharmPlatforms.some(epp => pLabel.includes(epp) || epp.includes(pLabel)) || pLabel.includes('pharm') || pLabel.includes('meds') || pLabel.includes('1mg') || pLabel.includes('1_mg'))) return true;
-                    if (hasModern && ![...ecomPlatforms, ...quickPlatforms, ...epharmPlatforms].some(op => pLabel.includes(op))) return true;
-                    return false;
+
+                    const isQuick = quickPlatforms.some(qp => pLabel === qp || pLabel.includes(qp));
+                    if (isQuick) return hasQuick;
+
+                    const isPharm = epharmPlatforms.some(epp => pLabel === epp || pLabel.includes(epp) || epp.includes(pLabel)) || pLabel.includes('pharm') || pLabel.includes('meds') || pLabel.includes('1mg') || pLabel.includes('1_mg');
+                    if (isPharm) return hasEpharm;
+
+                    const isEcom = ecomPlatforms.some(ep => pLabel === ep || pLabel.includes(ep));
+                    if (isEcom) return hasEcom;
+
+                    return hasModern;
                 });
             }
         }
