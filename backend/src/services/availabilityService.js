@@ -80,8 +80,9 @@ export const buildPlatformChannelCond = async (platform, channel, prefix = '') =
         try {
             // Dynamically resolve valid platforms for this channel using rca_sku_dim
             // Handle variations like 'Ecom', 'Ecommerce', 'Quickcomm'
-            const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
-            const searchPattern = isEcom ? '%ecom%' : (channel.toLowerCase().includes('quick') ? '%quick%' : `%${escapeStr(channel.toLowerCase())}%`);
+            const channelStr = (Array.isArray(channel) ? channel.join(',') : String(channel)).toLowerCase();
+            const isEcom = channelStr.includes('ecom') || channelStr.includes('e-com');
+            const searchPattern = isEcom ? '%ecom%' : (channelStr.includes('quick') ? '%quick%' : `%${escapeStr(channelStr)}%`);
 
             const cols = await getTableColumns('rca_sku_dim');
             const platformCol = resolveColumn(cols, 'platform');
@@ -105,8 +106,9 @@ export const buildPlatformChannelCond = async (platform, channel, prefix = '') =
 
     // Fallback if no platforms resolved but channel is selected (prevent empty return which acts as NO filter)
     if (channel && channel !== 'All') {
-        const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
-        const searchPattern = isEcom ? '%ecom%' : (channel.toLowerCase().includes('quick') ? '%quick%' : `%${escapeStr(channel.toLowerCase())}%`);
+        const channelStr = (Array.isArray(channel) ? channel.join(',') : String(channel)).toLowerCase();
+        const isEcom = channelStr.includes('ecom') || channelStr.includes('e-com');
+        const searchPattern = isEcom ? '%ecom%' : (channelStr.includes('quick') ? '%quick%' : `%${escapeStr(channelStr)}%`);
 
         try {
             // Try identifying if rb_pdp_olap has a channel column safely

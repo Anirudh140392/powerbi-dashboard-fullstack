@@ -1,12 +1,15 @@
 import React, { useMemo, useState, useContext, createContext, useEffect, useCallback } from "react";
 import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
+import * as XLSX from "xlsx";
+import dayjs from "dayjs";
 // import PaginationFooter from "../CommonLayout/PaginationFooter"; // Removed pagination
 import {
     Filter,
     LineChart as LineChartIcon,
     BarChart3,
     SlidersHorizontal,
+    Download,
 } from "lucide-react";
 import {
     LineChart,
@@ -721,12 +724,22 @@ const KPI_KEYS = [
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows, loading, isEcom }) => {
+const BrandTable = ({ rows, loading, isEcom, onDownload }) => {
     return (
         <Card className="mt-3">
             <CardHeader className="border-b pb-2">
-                <CardTitle className="text-sm font-medium text-slate-800">
-                    Brands ({rows.length || 0})
+                <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
+                    <span>Brands ({rows.length || 0})</span>
+                    {onDownload && (
+                        <button
+                            type="button"
+                            onClick={onDownload}
+                            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+                            title="Download Competition Data"
+                        >
+                            <Download className="h-4 w-4 text-emerald-600" />
+                        </button>
+                    )}
                 </CardTitle>
             </CardHeader>
             <CardContent className="pt-3">
@@ -792,12 +805,22 @@ const BrandTable = ({ rows, loading, isEcom }) => {
     );
 };
 
-const SkuTable = ({ rows, loading, isEcom }) => {
+const SkuTable = ({ rows, loading, isEcom, onDownload }) => {
     return (
         <Card className="mt-3 border-slate-200 bg-white shadow-sm">
             <CardHeader className="border-b pb-2">
-                <CardTitle className="text-sm font-medium text-slate-800">
-                    SKUs ({rows.length || 0})
+                <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
+                    <span>SKUs ({rows.length || 0})</span>
+                    {onDownload && (
+                        <button
+                            type="button"
+                            onClick={onDownload}
+                            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+                            title="Download Competition Data"
+                        >
+                            <Download className="h-4 w-4 text-emerald-600" />
+                        </button>
+                    )}
                 </CardTitle>
             </CardHeader>
             <CardContent className="pt-3">
@@ -1282,6 +1305,66 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
         });
     }, [competitionData.skus]);
 
+    const handleDownloadCompetitionExcel = () => {
+        try {
+            const wb = XLSX.utils.book_new();
+
+            const safeFormatPercent = (val) => {
+                if (val === null || val === undefined || val === "N/A" || val === "") return "N/A";
+                const num = typeof val === "object" ? Number(val.value ?? val.val) : Number(val);
+                if (isNaN(num)) return "N/A";
+                return `${num.toFixed(1)}%`;
+            };
+
+            const safeFormatPrice = (val) => {
+                if (val === null || val === undefined || val === "N/A" || val === "") return "N/A";
+                const num = typeof val === "object" ? Number(val.value ?? val.val) : Number(val);
+                if (isNaN(num)) return "N/A";
+                return `₹${num}`;
+            };
+
+            const skuData = (skuRows || []).map(s => {
+                const row = {
+                    "SKU": s.name || s.sku_name || s.Product || s.sku || "N/A",
+                    "BRAND": s.brandName || s.brand_name || s.brand || "N/A",
+                    "OSA": safeFormatPercent(s.osa ?? s.OSA),
+                };
+                if (!isEcom) {
+                    row["LISTING %"] = safeFormatPercent(s.listing ?? s.Listing);
+                }
+                return row;
+            });
+
+            const brandData = (brandRows || []).map(b => {
+                const row = {
+                    "BRAND": b.name || b.brand_name || b.brand || "N/A",
+                    "OSA": safeFormatPercent(b.osa ?? b.OSA),
+                };
+                if (!isEcom) {
+                    row["LISTING %"] = safeFormatPercent(b.listing ?? b.Listing);
+                }
+                return row;
+            });
+
+            if (tab === "sku") {
+                const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);
+                XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+                const brandSheet = XLSX.utils.json_to_sheet(brandData.length > 0 ? brandData : [{ "BRAND": "No Brand Data" }]);
+                XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+            } else {
+                const brandSheet = XLSX.utils.json_to_sheet(brandData.length > 0 ? brandData : [{ "BRAND": "No Brand Data" }]);
+                XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+                const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);
+                XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+            }
+
+            const fileName = `${tab === "sku" ? "SKUs" : "Brands"}_Availability_Competition_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        } catch (err) {
+            console.error("[AvailabilityCompetitionKpiShowcase] Excel download error:", err);
+        }
+    };
+
     return (
         <div className="flex-col bg-slate-50 text-slate-900">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -1342,6 +1425,16 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                             <>Back to Table</>
                         )}
                     </Button>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 w-9 p-0 bg-white hover:bg-slate-100 border-slate-200 text-slate-700 flex items-center justify-center rounded-md"
+                        onClick={handleDownloadCompetitionExcel}
+                        title="Download Competition Data"
+                    >
+                        <Download className="h-4 w-4 text-emerald-600" />
+                    </Button>
                 </div>
             </div>
 
@@ -1361,7 +1454,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
 
                 <TabsContent value="brand" className="mt-3">
                     {viewMode === "table" ? (
-                        <BrandTable rows={brandRows} loading={loading} isEcom={isEcom} />
+                        <BrandTable rows={brandRows} loading={loading} isEcom={isEcom} onDownload={handleDownloadCompetitionExcel} />
                     ) : (
                         <TrendView
                             mode="brand"
@@ -1382,7 +1475,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
 
                 <TabsContent value="sku" className="mt-3">
                     {viewMode === "table" ? (
-                        <SkuTable rows={skuRows} loading={loading} isEcom={isEcom} />
+                        <SkuTable rows={skuRows} loading={loading} isEcom={isEcom} onDownload={handleDownloadCompetitionExcel} />
                     ) : (
                         <TrendView
                             mode="sku"

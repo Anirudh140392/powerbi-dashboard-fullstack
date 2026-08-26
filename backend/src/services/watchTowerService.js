@@ -342,10 +342,14 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
     if (platform && platform !== 'All') {
         const platforms = Array.isArray(platform) ? platform : (typeof platform === 'string' && platform.includes(',') ? platform.split(',') : [platform]);
         if (platforms.length === 1) {
-            conditions.push(`lower(${columnName}) = '${escapeStr(platforms[0].toLowerCase())}'`);
+            const pLower = escapeStr(platforms[0].trim().toLowerCase());
+            conditions.push(`(lower(${columnName}) = '${pLower}' OR lower(${columnName}) LIKE '%${pLower}%')`);
         } else if (platforms.length > 1) {
-            const list = platforms.map(p => `'${escapeStr(p.trim().toLowerCase())}'`).join(', ');
-            conditions.push(`lower(${columnName}) IN (${list})`);
+            const condList = platforms.map(p => {
+                const pLower = escapeStr(p.trim().toLowerCase());
+                return `(lower(${columnName}) = '${pLower}' OR lower(${columnName}) LIKE '%${pLower}%')`;
+            }).join(' OR ');
+            conditions.push(`(${condList})`);
         }
     }
 
@@ -364,8 +368,8 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
             const mappedChannels = [...new Set(channels.map(mapChannelToDbValue))];
             const list = mappedChannels.map(c => `'${escapeStr(c)}'`).join(', ');
             conditions.push(`lower(${channelColumn}) IN (${list})`);
-        } else {
-            // Fallback for tables without a channel column (by filtering on platforms)
+        } else if (!platform || platform === 'All') {
+            // Fallback for tables without a channel column (only apply when explicit platform is NOT specified)
             const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c.toLowerCase()));
             const isQuickComm = channels.some(c => c.toLowerCase().includes('quick'));
             const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(c.toLowerCase()));
@@ -373,7 +377,11 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
             const ecomPlatforms = ['amazon', 'flipkart'];
             const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'];
 
-            if (isQuickComm) {
+            if (isQuickComm && isEcom) {
+                // Both Ecom and QuickComm channels selected — include both platform lists
+                const combinedPlatforms = [...new Set([...ecomPlatforms, ...quickPlatforms])];
+                conditions.push(`lower(${columnName}) IN (${combinedPlatforms.map(p => `'${p}'`).join(', ')})`);
+            } else if (isQuickComm) {
                 conditions.push(`lower(${columnName}) IN (${quickPlatforms.map(p => `'${p}'`).join(', ')})`);
             } else if (isEcom && !isModernTrade) {
                 conditions.push(`lower(${columnName}) IN (${ecomPlatforms.map(p => `'${p}'`).join(', ')})`);
@@ -4498,9 +4506,10 @@ const getPlatforms = async (channel) => {
 
         let query;
         if (hasChannel && channel && channel !== 'All') {
-            const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
-            const isQcomm = channel.toLowerCase().includes('quick') || channel.toLowerCase().includes('qcomm');
-            const searchPattern = isEcom ? '%ecom%' : (isQcomm ? '%quick%' : `%${channel.toLowerCase().replace(/'/g, "''")}%`);
+            const channelStr = (Array.isArray(channel) ? channel.join(',') : String(channel)).toLowerCase();
+            const isEcom = channelStr.includes('ecom') || channelStr.includes('e-com');
+            const isQcomm = channelStr.includes('quick') || channelStr.includes('qcomm');
+            const searchPattern = isEcom ? '%ecom%' : (isQcomm ? '%quick%' : `%${channelStr.replace(/'/g, "''")}%`);
             query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND lower(${channelCol}) LIKE '${searchPattern}' ORDER BY platform`;
         } else {
             query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' ORDER BY platform`;
@@ -5317,20 +5326,28 @@ const getPlatformOverview = async (filters) => {
 
     // Filter platform definitions based on channel AFTER cache block
     if (channel && channel !== 'All') {
-        const channelLower = channel.toLowerCase();
-        const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart'];
-        const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'dunzo'];
+        const channelList = (Array.isArray(channel) ? channel : String(channel).split(','))
+            .map(c => String(c).trim().toLowerCase())
+            .filter(Boolean);
 
-        if (channelLower.includes('quick') || channelLower === 'quickcomm' || channelLower === 'qcomm') {
-            // Quick Commerce: show only quick commerce platforms
-            platformDefinitions = platformDefinitions.filter(p => quickPlatforms.some(qp => p.label.toLowerCase().includes(qp)));
-        } else if (['ecommerce', 'e-commerce', 'ecom'].includes(channelLower)) {
-            // E-commerce: show only marketplace/ecom platforms (NOT quick commerce)
-            platformDefinitions = platformDefinitions.filter(p => ecomPlatforms.some(ep => p.label.toLowerCase().includes(ep)));
-        } else if (['modern trades', 'moderntrade'].includes(channelLower)) {
-            // Modern Trades: exclude all ecom + quick commerce platforms
-            const allOnline = [...ecomPlatforms, ...quickPlatforms];
-            platformDefinitions = platformDefinitions.filter(p => !allOnline.some(op => p.label.toLowerCase().includes(op)));
+        const isAll = channelList.includes('all');
+        if (!isAll && channelList.length > 0) {
+            const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart'];
+            const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'dunzo'];
+
+            const hasQuick = channelList.some(c => c.includes('quick') || c === 'quickcomm' || c === 'qcomm');
+            const hasEcom = channelList.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c));
+            const hasModern = channelList.some(c => ['modern trades', 'moderntrade'].includes(c));
+
+            if (hasQuick || hasEcom || hasModern) {
+                platformDefinitions = platformDefinitions.filter(p => {
+                    const pLabel = p.label.toLowerCase();
+                    if (hasQuick && quickPlatforms.some(qp => pLabel.includes(qp))) return true;
+                    if (hasEcom && ecomPlatforms.some(ep => pLabel.includes(ep))) return true;
+                    if (hasModern && ![...ecomPlatforms, ...quickPlatforms].some(op => pLabel.includes(op))) return true;
+                    return false;
+                });
+            }
         }
     }
 
@@ -5871,14 +5888,42 @@ const getPlatformOverview = async (filters) => {
         }
     }
 
+    // Helper to find matching row in platform query results (strict then substring fallback)
+    const findPlatformRow = (arr, key) => {
+        if (!arr || !Array.isArray(arr)) return null;
+        let match = arr.find(d => d.Platform && String(d.Platform).toLowerCase() === key);
+        if (!match) {
+            match = arr.find(d => d.Platform && (String(d.Platform).toLowerCase().includes(key) || key.includes(String(d.Platform).toLowerCase())));
+        }
+        return match;
+    };
+
+    const findMapValue = (map, key) => {
+        if (!map || !(map instanceof Map)) return 0;
+        if (map.has(key)) return map.get(key);
+        for (const [mKey, val] of map.entries()) {
+            if (mKey && (mKey.includes(key) || key.includes(mKey))) return val;
+        }
+        return 0;
+    };
+
+    const hasMapKey = (map, key) => {
+        if (!map || !(map instanceof Map)) return false;
+        if (map.has(key)) return true;
+        for (const [mKey] of map.entries()) {
+            if (mKey && (mKey.includes(key) || key.includes(mKey))) return true;
+        }
+        return false;
+    };
+
     // Build bulk platform metrics map
     const bulkPlatformMap = new Map();
     platformDefinitions.forEach(p => {
         const key = p.label.toLowerCase();
-        const c = currData.find(d => d.Platform && d.Platform.toLowerCase() === key);
-        const pv = prevData.find(d => d.Platform && d.Platform.toLowerCase() === key);
-        const cpmVal = currPmData.find(d => d.Platform && d.Platform.toLowerCase() === key);
-        const pvpmVal = prevPmData.find(d => d.Platform && d.Platform.toLowerCase() === key);
+        const c = findPlatformRow(currData, key);
+        const pv = findPlatformRow(prevData, key);
+        const cpmVal = findPlatformRow(currPmData, key);
+        const pvpmVal = findPlatformRow(prevPmData, key);
 
         let currSalesVal = parseFloat(c?.sales || 0);
         let prevSalesVal = parseFloat(pv?.sales || 0);
@@ -5893,20 +5938,20 @@ const getPlatformOverview = async (filters) => {
         }
 
         // Calculate SOS for this platform
-        const currSosValue = calcSos(currSosOurMap.get(key) || 0, currSosTotalMap.get(key) || 0);
-        const prevSosValue = calcSos(prevSosOurMap.get(key) || 0, prevSosTotalMap.get(key) || 0);
+        const currSosValue = calcSos(findMapValue(currSosOurMap, key), findMapValue(currSosTotalMap, key));
+        const prevSosValue = calcSos(findMapValue(prevSosOurMap, key), findMapValue(prevSosTotalMap, key));
 
         // Calculate Ad SOV for this platform (spons_flag=1)
-        const currAdSovValue = calcSos(currAdSovOurMap.get(key) || 0, currAdSovTotalMap.get(key) || 0);
-        const prevAdSovValue = calcSos(prevAdSovOurMap.get(key) || 0, prevAdSovTotalMap.get(key) || 0);
+        const currAdSovValue = calcSos(findMapValue(currAdSovOurMap, key), findMapValue(currAdSovTotalMap, key));
+        const prevAdSovValue = calcSos(findMapValue(prevAdSovOurMap, key), findMapValue(prevAdSovTotalMap, key));
 
         // Calculate Organic SOV for this platform (spons_flag=0)
-        const currOrgSovValue = calcSos(currOrgSovOurMap.get(key) || 0, currOrgSovTotalMap.get(key) || 0);
-        const prevOrgSovValue = calcSos(prevOrgSovOurMap.get(key) || 0, prevOrgSovTotalMap.get(key) || 0);
+        const currOrgSovValue = calcSos(findMapValue(currOrgSovOurMap, key), findMapValue(currOrgSovTotalMap, key));
+        const prevOrgSovValue = calcSos(findMapValue(prevOrgSovOurMap, key), findMapValue(prevOrgSovTotalMap, key));
 
         // Get Market Share for this platform
-        const currMsValue = currMsMap.get(key) || 0;
-        const prevMsValue = prevMsMap.get(key) || 0;
+        const currMsValue = findMapValue(currMsMap, key);
+        const prevMsValue = findMapValue(prevMsMap, key);
 
         bulkPlatformMap.set(p.label, {
             curr: {
@@ -6291,10 +6336,10 @@ const getPlatformOverview = async (filters) => {
         const key = p.label.toLowerCase();
         const metrics = bulkPlatformMap.get(p.label) || { curr: {}, prev: {} };
 
-        const hasPdp = currData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && buymorePlatforms.includes(key) && (currBuymoreMap.get(key) || 0) > 0);
-        const hasPm = currPmData.some(d => d.Platform && d.Platform.toLowerCase() === key);
-        const hasMsCheck = currMsMap.has(key) || currMsDenomMap.has(key);
-        const hasSosCheck = currSosOurMap.has(key) || currSosTotalMap.has(key);
+        const hasPdp = Boolean(findPlatformRow(currData, key)) || (isDrlDb && buymorePlatforms.includes(key) && (currBuymoreMap.get(key) || 0) > 0);
+        const hasPm = Boolean(findPlatformRow(currPmData, key));
+        const hasMsCheck = hasMapKey(currMsMap, key) || hasMapKey(currMsDenomMap, key);
+        const hasSosCheck = hasMapKey(currSosOurMap, key) || hasMapKey(currSosTotalMap, key);
 
         const offtake = hasPdp ? (metrics.curr.sales || 0) : null;
         const offtakeUnits = hasPdp ? (metrics.curr.qty || 0) : null;
@@ -8372,7 +8417,8 @@ const getKpiTrends = async (filters) => {
     // [FEATURE OVERRIDE]: If platform belongs to 'Quickcomm', automatically resolve hasPm data availability flags to true
     // This allows the Trend charts to effectively process available graph lines rendering '0' values rather than nulling them entirely making them disappear off the face of the graph
     // when 'All SKUs' are selected (which implies PM metrics buttons are visible, and mapping logic applies).
-    if (channel && channel.toLowerCase() === 'quickcomm' && !usePdpForPmKpis) {
+    const channelStr = (Array.isArray(channel) ? channel.join(',') : String(channel || '')).toLowerCase();
+    if (channelStr.includes('quickcomm') && !usePdpForPmKpis) {
         hasPmAdSalesData = true;
         hasPmSpendData = true;
         hasPmOrdersData = true;

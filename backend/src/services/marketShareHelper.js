@@ -159,8 +159,8 @@ const buildPlatformChannelCondForMs = (platformFilter, channelFilter, columnName
         }
     }
 
-    // 2. Channel Filter
-    if (channelFilter && channelFilter !== 'All') {
+    // 2. Channel Filter (only apply platform fallback if explicit platform filter was not specified)
+    if (channelFilter && channelFilter !== 'All' && (!platformArr || platformArr.length === 0 || platformArr.includes('All'))) {
         const channels = Array.isArray(channelFilter)
             ? channelFilter
             : (typeof channelFilter === 'string' && channelFilter.includes(',') ? channelFilter.split(',') : [channelFilter]);
@@ -172,7 +172,10 @@ const buildPlatformChannelCondForMs = (platformFilter, channelFilter, columnName
         const ecomPlatforms = ['amazon', 'flipkart'];
         const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'];
 
-        if (isQuickComm) {
+        if (isQuickComm && isEcom) {
+            const combined = [...new Set([...ecomPlatforms, ...quickPlatforms])];
+            conditions.push(`lower(${columnName}) IN (${combined.map(p => `'${p}'`).join(', ')})`);
+        } else if (isQuickComm) {
             conditions.push(`lower(${columnName}) IN (${quickPlatforms.map(p => `'${p}'`).join(', ')})`);
         } else if (isEcom && !isModernTrade) {
             conditions.push(`lower(${columnName}) IN (${ecomPlatforms.map(p => `'${p}'`).join(', ')})`);
