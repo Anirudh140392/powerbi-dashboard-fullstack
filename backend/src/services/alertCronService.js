@@ -10,6 +10,8 @@ import { generateCategoryPerfSummaryEmailHtml } from '../utils/categoryPerfSumma
 import { buildAlertTemplateComponents, buildAlertFullText } from '../utils/whatsappTemplate.js';
 import { sendWhatsappMessage } from './whatsappService.js';
 import { getCompanyLogo, getLatestDataDate, computeDateRanges, getBrandOsaByPlatform, getImpactedSkus, getAggregateOsa } from './alertDataService.js';
+import { fetchPTDPlatformKPIs } from './ptdPerfSummaryDataService.js';
+import { generatePtdPerfSummaryEmailHtml } from '../utils/ptdPerfSummaryEmailTemplate.js';
 
 let cronIntervalId = null;
 
@@ -476,6 +478,116 @@ export const runEmailAlertsJob = async () => {
                     console.error(`[AlertCron] Performance Summary error for "${alert.alert_name}" on ${dbName}:`, perfErr.message);
                 }
                 continue; // Skip the regular alert flow for performance_summary
+            }
+
+            // ── PTD PERFORMANCE SUMMARY HANDLER ──────────────────────────────
+            // alert_type = 'ptd_perf_summary' → period-to-date digest (CP vs PP).
+            // Fires daily; deduped via last_email_sent (once per day).
+            if (alertType === 'ptd_perf_summary' || alertType.includes('ptd_perf_summary')) {
+                try {
+                    // 1. Once-per-day guard
+                    if (!sendEmail || !sendEmail.includes('@')) {
+                        console.log(`[AlertCron] PTD Summary "${alert.alert_name}" has no email. Skipping.`);
+                        continue;
+                    }
+
+                    const fmtDate = (d) => {
+                        const y = d.getFullYear();
+                        const m = String(d.getMonth() + 1).padStart(2, '0');
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        return `${y}-${m}-${dd}`;
+                    };
+                    const now = new Date();
+                    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+                    const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + istOffsetMs);
+                    const todayStr = fmtDate(istNow);
+
+                    // Optional: day-of-week schedule check (same as category_perf_summary)
+                    const scheduledDay = (alert.scheduled_day || '').trim();
+                    if (scheduledDay) {
+                        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                        const todayDayName = dayNames[istNow.getDay()];
+                        if (scheduledDay.toLowerCase() !== todayDayName.toLowerCase()) {
+                            console.log(`[AlertCron] PTD Summary "${alert.alert_name}" scheduled for ${scheduledDay}, today is ${todayDayName}. Skipping.`);
+                            continue;
+                        }
+                    }
+
+                    let alreadySentToday = false;
+                    if (alert.last_email_sent && !String(alert.last_email_sent).includes('\\N')) {
+                        const normalizedStr = String(alert.last_email_sent).replace(' ', 'T');
+                        const lastSentDate = new Date(normalizedStr);
+                        if (!isNaN(lastSentDate.getTime()) && fmtDate(lastSentDate) === todayStr) {
+                            alreadySentToday = true;
+                        }
+                    }
+                    if (alreadySentToday) {
+                        console.log(`[AlertCron] PTD Summary "${alert.alert_name}" already sent today. Skipping.`);
+                        continue;
+                    }
+
+                    // 2. Determine platforms
+                    const alertPlatforms = (Array.isArray(alert.platforms) && alert.platforms.length > 0)
+                        ? alert.platforms.filter(p => p && p !== 'All Platforms')
+                        : [];
+
+                    if (alertPlatforms.length === 0) {
+                        console.warn(`[AlertCron] PTD Summary "${alert.alert_name}" has no platforms. Skipping.`);
+                        continue;
+                    }
+
+                    // 3. Fetch PTD KPIs (period-based)
+                    console.log(`[AlertCron] 📊 PTD Summary "${alert.alert_name}" on ${dbName} | Platforms: ${alertPlatforms.join(', ')}`);
+                    const { platformCards, cpStart, cpEnd, ppStart, ppEnd } = await fetchPTDPlatformKPIs(dbName, alertPlatforms);
+
+                    if (!platformCards || platformCards.length === 0) {
+                        console.warn(`[AlertCron] PTD Summary "${alert.alert_name}": no platform data. Skipping email.`);
+                        continue;
+                    }
+
+                    // 4. Generate HTML
+                    const logoUrl = logoMap.get(alert.db_id) || '';
+                    const companyDisplayName = dbName ? (dbName.charAt(0).toUpperCase() + dbName.slice(1)) : 'Company';
+
+                    const emailHtml = generatePtdPerfSummaryEmailHtml({
+                        logoUrl,
+                        companyName: companyDisplayName,
+                        cpStart,
+                        cpEnd,
+                        ppStart,
+                        ppEnd,
+                        currency,
+                        platformCards,
+                    });
+
+                    // 5. Send email
+                    const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
+                    const mailOptions = {
+                        from: `"Trailytics Alerts" <${fromEmail}>`,
+                        to: sendEmail,
+                        subject: `📊 PTD Performance Summary: ${alert.alert_name} — ${companyDisplayName}`,
+                        text: `Hi,\n\nYour Period-To-Date Performance Summary for ${companyDisplayName} is ready.\n\nPlatforms: ${alertPlatforms.join(', ')}\nCP: ${cpStart} – ${cpEnd}\nPP: ${ppStart} – ${ppEnd}\n\nBest regards,\nTrailytics Team`,
+                        html: emailHtml,
+                    };
+
+                    try {
+                        const info = await transporter.sendMail(mailOptions);
+                        console.log(`[AlertCron] 📧 PTD Summary email sent to ${sendEmail}. Message ID: ${info.messageId}`);
+
+                        const istDateTimeStr = getISTDateTimeString();
+                        await queryAdminDB(`
+                            ALTER TABLE admin_master.tb_alert
+                            UPDATE last_email_sent = parseDateTimeBestEffort('${istDateTimeStr}')
+                            WHERE id = toUUID('${alert.id}')
+                        `);
+                        console.log(`[AlertCron] Saved last_email_sent for PTD Summary "${alert.alert_name}".`);
+                    } catch (sendErr) {
+                        console.error(`[AlertCron] Failed to send PTD Summary email to ${sendEmail}:`, sendErr.message);
+                    }
+                } catch (ptdErr) {
+                    console.error(`[AlertCron] PTD Summary error for "${alert.alert_name}" on ${dbName}:`, ptdErr.message);
+                }
+                continue; // Skip regular alert flow
             }
 
             // ── REGULAR ALERT HANDLING (condition-based) ─────────────────────

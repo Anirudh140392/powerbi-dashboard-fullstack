@@ -4,6 +4,42 @@ import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 
+const UPPERCASE_WEB_PID_TARGETS = [
+    'amazon',
+    'flipkart',
+    'flipkart minutes',
+    'fk minutes',
+    'flipkart_minutes',
+    'fk_minutes',
+    'amazon now',
+    'amazon_now',
+    'amz now',
+    'amz_now',
+    'instamart',
+    'swiggy instamart',
+    'swiggy_instamart'
+];
+
+function shouldUppercaseWebPid(platformStr) {
+    if (!platformStr) return false;
+    const lower = String(platformStr).trim().toLowerCase();
+    return UPPERCASE_WEB_PID_TARGETS.some(target => lower.includes(target) || target.includes(lower));
+}
+
+function processWebPidUppercase(row) {
+    if (!row) return row;
+    const platformVal = row.Platform || row.platform || row["Platform Name"] || row.platform_name || '';
+    if (shouldUppercaseWebPid(platformVal)) {
+        const keys = ['Web_Pid', 'Web Pid', 'web_pid', 'Web_pid'];
+        for (const key of keys) {
+            if (row[key] !== undefined && row[key] !== null) {
+                row[key] = String(row[key]).toUpperCase();
+            }
+        }
+    }
+    return row;
+}
+
 /**
  * Check if a table exists in the current ClickHouse database
  */
@@ -162,15 +198,14 @@ export const getReportBuilderOptions = async (req, res) => {
             if (!out.regions) out.regions = [];
 
             try {
-                const hasDarkstoreTable = await checkTableExists('rb_pdp_week');
-                if (hasDarkstoreTable) {
-                    const dates = await queryClickHouse('SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM rb_pdp_week');
-                    if (dates && dates[0] && dates[0].minDate) {
-                        out.darkstoreDateRange = {
-                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
-                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
-                        };
-                    }
+                const hasLocalDarkstore = await checkTableExists('rb_pdp_week');
+                const darkstoreTable = hasLocalDarkstore ? 'rb_pdp_week' : 'drl.rb_pdp_week';
+                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable}`).catch(() => null);
+                if (dates && dates[0] && dates[0].minDate) {
+                    out.darkstoreDateRange = {
+                        minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                        maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                    };
                 }
             } catch (err) {
                 console.error('[getReportBuilderOptions] Error checking darkstoreDateRange:', err);
@@ -197,6 +232,11 @@ export const downloadReport = async (req, res) => {
         const pdpCols = await getTableColumns('rb_pdp_olap');
         // Provide '0' as fallback so queries don't crash if optional columns (like DIH, Ad_Sales) are missing
         const col = (name) => resolveColumn(pdpCols, name, '0');
+
+        const resellerCol = pdpCols.has('reseller_name') ? pdpCols.get('reseller_name')
+            : pdpCols.has('reseller') ? pdpCols.get('reseller')
+            : null;
+        const resellerParam = req.query.resellerName || req.query.reseller;
 
         // Dynamically determine Category column
         let catCol = 'Product_type';
@@ -244,10 +284,11 @@ export const downloadReport = async (req, res) => {
 
         const dataMode = req.query.dataMode || 'aggregated';
 
-        // ── DARKSTORE DATA EXPORT (rb_pdp_week) for DRL ──
+        // ── DARKSTORE DATA EXPORT (rb_pdp_week) ──
         if (dataMode === 'darkstore' || reportType === 'Darkstore Data') {
             const currentDb = getCurrentDbName() || 'drl';
-            const weekTable = (currentDb === 'drl' || currentDb === 'prestige') ? `${currentDb}.rb_pdp_week` : 'drl.rb_pdp_week';
+            const hasLocalWeekTable = await checkTableExists('rb_pdp_week');
+            const weekTable = hasLocalWeekTable ? `${currentDb}.rb_pdp_week` : 'drl.rb_pdp_week';
 
             const darkstoreConds = [];
             const pCond = buildInClause('platform_name', platform);
@@ -290,7 +331,8 @@ export const downloadReport = async (req, res) => {
                 return res.status(204).send();
             }
 
-            const worksheet = XLSX.utils.json_to_sheet(rawData);
+            const processedData = rawData.map(row => processWebPidUppercase({ ...row }));
+            const worksheet = XLSX.utils.json_to_sheet(processedData);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Darkstore_Data");
 
@@ -315,6 +357,11 @@ export const downloadReport = async (req, res) => {
         const formatCond = buildInClause(catCol, format);
         if (formatCond) conditions.push(formatCond);
 
+        if (resellerCol && resellerParam) {
+            const resellerCond = buildInClause(resellerCol, resellerParam);
+            if (resellerCond) conditions.push(resellerCond);
+        }
+
         conditions.push(`toDate(${col('DATE')}) BETWEEN '${startDate}' AND '${endDate}'`);
 
         // Handle Granularity constraints
@@ -325,6 +372,12 @@ export const downloadReport = async (req, res) => {
         }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        // Standard reseller fragments for rb_pdp_olap queries
+        const resellerSelect = resellerCol ? `, ${resellerCol} as Reseller_Name` : '';
+        const resellerSelectT = resellerCol ? `, t.${resellerCol} as Reseller_Name` : '';
+        const resellerGroup = resellerCol ? `, ${resellerCol}` : '';
+        const resellerGroupT = resellerCol ? `, t.${resellerCol}` : '';
 
         // Check which optional tables exist for conditional JOINs
         const [hasKwOlap, hasLocationDarkstore] = await Promise.all([
@@ -373,7 +426,7 @@ export const downloadReport = async (req, res) => {
             query = `
                 ${sosCte}
                 SELECT 
-                    t.${col('DATE')} as DATE, t.${col('Platform')} as Platform, t.${col('Brand')} as Brand, t.${col('Location')} as City, t.${col(catCol)} as Format, t.${col('Product')} as Product${webPidSelectInAvail},
+                    t.${col('DATE')} as DATE, t.${col('Platform')} as Platform, t.${col('Brand')} as Brand, t.${col('Location')} as City, t.${col(catCol)} as Format, t.${col('Product')} as Product${resellerSelectT}${webPidSelectInAvail},
                     round(SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as OSA_Percentage,
                     round(SUM(toFloat64(t.${col('buy_box_neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as Buy_Box_Percentage,
                     round(100 - (SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage,
@@ -387,7 +440,7 @@ export const downloadReport = async (req, res) => {
                 ${sosJoin}
                 ${metroJoin}
                 ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col(catCol) : 't.' + col(match))}
-                GROUP BY t.DATE, t.Platform, t.Brand, t.Location, t.${catCol}, t.Product${webPidGroupInAvail}
+                GROUP BY t.DATE, t.Platform, t.Brand, t.Location, t.${catCol}, t.Product${resellerGroupT}${webPidGroupInAvail}
                 ORDER BY t.DATE DESC
             `;
         } else if (reportType === "Visibility Analysis") {
@@ -436,7 +489,7 @@ export const downloadReport = async (req, res) => {
             query = `
                 WITH daily_agg AS (
                     SELECT 
-                        toDate(DATE) as DATE, Platform, Brand, Location as City, ${catCol} as Format, Product,
+                        toDate(DATE) as DATE, Platform, Brand, Location as City, ${catCol} as Format, Product${resellerSelect},
                         SUM(toFloat64(Sales)) as daily_sales,
                         SUM(assumeNotNull(Qty_Sold)) as daily_orders
                     FROM rb_pdp_olap
@@ -445,17 +498,18 @@ export const downloadReport = async (req, res) => {
                     ${buildInClause('Brand', brand) ? `AND ${buildInClause('Brand', brand)}` : ''}
                     ${buildInClause('Location', city) ? `AND ${buildInClause('Location', city)}` : ''}
                     ${buildInClause(catCol, format) ? `AND ${buildInClause(catCol, format)}` : ''}
-                    GROUP BY DATE, Platform, Brand, City, Format, Product
+                    ${resellerCol && resellerParam && buildInClause(resellerCol, resellerParam) ? `AND ${buildInClause(resellerCol, resellerParam)}` : ''}
+                    GROUP BY DATE, Platform, Brand, City, Format, Product${resellerGroup}
                 ),
                 running_metrics AS (
                     SELECT 
                         *,
-                        SUM(daily_sales) OVER (PARTITION BY Platform, Brand, City, Format, Product, toStartOfMonth(DATE) ORDER BY DATE) as MTD_Sales,
-                        SUM(daily_sales) OVER (PARTITION BY Platform, Brand, City, Format, Product, toStartOfYear(DATE) ORDER BY DATE) as YTD_Sales
+                        SUM(daily_sales) OVER (PARTITION BY Platform, Brand, City, Format, Product${resellerGroup}, toStartOfMonth(DATE) ORDER BY DATE) as MTD_Sales,
+                        SUM(daily_sales) OVER (PARTITION BY Platform, Brand, City, Format, Product${resellerGroup}, toStartOfYear(DATE) ORDER BY DATE) as YTD_Sales
                     FROM daily_agg
                 )
                 SELECT 
-                    t.DATE as DATE, t.Platform as Platform, t.Brand as Brand, t.City as City, t.Format as Format, t.Product as Product,
+                    t.DATE as DATE, t.Platform as Platform, t.Brand as Brand, t.City as City, t.Format as Format, t.Product as Product${resellerSelectT},
                     round(t.daily_sales, 2) as Overall_Sales,
                     t.daily_orders as Orders,
                     round(t.daily_sales / nullIf(t.daily_orders, 0), 2) as ASP,
@@ -471,10 +525,10 @@ export const downloadReport = async (req, res) => {
                     round(t.daily_sales / nullIf(SUM(t.daily_sales) OVER (PARTITION BY t.DATE, t.Platform, t.City), 0) * 100, 2) as Revenue_Share
                 FROM running_metrics t
                 LEFT JOIN daily_agg ly ON 
-                    t.Platform = ly.Platform AND t.Brand = ly.Brand AND t.City = ly.City AND t.Format = ly.Format AND t.Product = ly.Product
+                    t.Platform = ly.Platform AND t.Brand = ly.Brand AND t.City = ly.City AND t.Format = ly.Format AND t.Product = ly.Product${resellerCol ? ` AND t.${resellerCol} = ly.${resellerCol}` : ''}
                     AND t.DATE = date_add(year, 1, ly.DATE)
                 LEFT JOIN running_metrics pm ON 
-                    t.Platform = pm.Platform AND t.Brand = pm.Brand AND t.City = pm.City AND t.Format = pm.Format AND t.Product = pm.Product
+                    t.Platform = pm.Platform AND t.Brand = pm.Brand AND t.City = pm.City AND t.Format = pm.Format AND t.Product = pm.Product${resellerCol ? ` AND t.${resellerCol} = pm.${resellerCol}` : ''}
                     AND t.DATE = date_add(month, 1, pm.DATE)
                 WHERE t.DATE BETWEEN '${startDate}' AND '${endDate}'
                 ORDER BY t.DATE DESC
@@ -557,6 +611,7 @@ export const downloadReport = async (req, res) => {
             if (hasFormat) { dimSelects.push(`t.${catCol} as Format`); dimGroups.push(`Format`); }
             if (hasProduct) { dimSelects.push(`t.${col('Product')} as Product`); dimGroups.push(`Product`); }
             if (granSku.includes('SKU')) { dimSelects.push(`t.${col('Web_Pid')} as Web_Pid`); dimGroups.push(`Web_Pid`); }
+            if (resellerCol) { dimSelects.push(`t.${resellerCol} as Reseller_Name`); dimGroups.push(`Reseller_Name`); }
 
             const dimGroupStr = dimGroups.length > 0 ? ', ' + dimGroups.join(', ') : '';
 
@@ -738,18 +793,25 @@ export const downloadReport = async (req, res) => {
         } else if (reportType === "Pricing Analysis") {
             query = `
                 SELECT 
-                    toDate(t.${col('DATE')}) as DATE, t.${col('Platform')} as Platform, t.${col('Brand')} as Brand, t.${col('Location')} as City, t.${catCol} as Format, t.${col('Product')} as Product,
+                    toDate(t.${col('DATE')}) as DATE, t.${col('Platform')} as Platform, t.${col('Brand')} as Brand, t.${col('Location')} as City, t.${catCol} as Format, t.${col('Product')} as Product${resellerSelectT},
                     round(avg(toFloat64(t.${col('Selling_Price')})), 2) as Selling_Price,
                     round(avg(toFloat64(t.${col('MRP')})), 2) as MRP,
                     round(avg((toFloat64(t.${col('MRP')}) - toFloat64(t.${col('Selling_Price')})) / nullIf(toFloat64(t.${col('MRP')}), 0) * 100), 2) as Discount_Percentage
                 FROM rb_pdp_olap t
                 ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (m) => m === 'Category' ? catCol : 't.' + col(m))}
-                GROUP BY DATE, Platform, Brand, City, Format, Product
+                GROUP BY DATE, Platform, Brand, City, Format, Product${resellerGroupT}
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Performance Marketing") {
             const hasPmOlap = await checkTableExists('rb_pm_olap');
             const pmTable = hasPmOlap ? 'rb_pm_olap' : 'rb_pdp_olap';
+            const pmCols = await getTableColumns(pmTable).catch(() => new Map());
+            const pmResellerCol = pmCols.has('reseller_name') ? pmCols.get('reseller_name')
+                : pmCols.has('reseller') ? pmCols.get('reseller')
+                : null;
+            const pmResellerSelect = pmResellerCol ? `, ${pmResellerCol} as Reseller_Name` : '';
+            const pmResellerGroup = pmResellerCol ? `, ${pmResellerCol}` : '';
+            const pmResellerSelectBase = pmResellerCol ? `, Reseller_Name` : '';
             
             const spendCol = hasPmOlap ? 'ad_spend' : 'Ad_Spend';
             const salesCol = hasPmOlap ? 'Ad_sales' : 'Ad_Sales';
@@ -760,7 +822,7 @@ export const downloadReport = async (req, res) => {
             query = `
                 WITH base_metrics AS (
                     SELECT 
-                        ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product,
+                        ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product${pmResellerSelect},
                         SUM(ifNull(toFloat64OrZero(toString(${spendCol})), 0)) as total_spend,
                         SUM(ifNull(toFloat64OrZero(toString(${salesCol})), 0)) as total_inorganic_sales,
                         SUM(ifNull(toFloat64OrZero(toString(${impCol})), 0)) as total_impressions,
@@ -768,10 +830,10 @@ export const downloadReport = async (req, res) => {
                         SUM(ifNull(toFloat64OrZero(toString(${qtyCol})), 0)) as total_orders
                     FROM ${pmTable}
                     ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col(catCol) : col(match))}
-                    GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product
+                    GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product${pmResellerGroup}
                 )
                 SELECT 
-                    DATE, Platform, Brand, City, Format, Product,
+                    DATE, Platform, Brand, City, Format, Product${pmResellerSelectBase},
                     round(total_spend, 2) as Spend,
                     round(total_inorganic_sales, 2) as Inorganic_Sales,
                     total_impressions as Impressions,
@@ -808,14 +870,14 @@ export const downloadReport = async (req, res) => {
         } else if (reportType === "Inventory Analysis") {
             query = `
                 SELECT 
-                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product,
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product${resellerSelect},
                     SUM(toFloat64(${col('Inventory')})) as Current_Inventory,
                     SUM(toFloat64(${col('MSL')})) as Target_Inventory,
                     round(SUM(toFloat64(${col('Inventory')})) / nullIf(SUM(toFloat64(${col('MSL')})), 0) * 100, 2) as Inventory_Health_Percentage,
                     round(avg(toFloat64(${col('DIH')})), 2) as Days_Inventory_on_Hand
                 FROM rb_pdp_olap
                 ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col(catCol) : col(match))}
-                GROUP BY DATE, Platform, Brand, City, Format, Product
+                GROUP BY DATE, Platform, Brand, City, Format, Product${resellerGroup}
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Category RCA") {
@@ -834,7 +896,7 @@ export const downloadReport = async (req, res) => {
         } else if (reportType === "Portfolio Analysis") {
             query = `
                 SELECT 
-                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product,
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product${resellerSelect},
                     round(SUM(toFloat64(${col('Sales')})) / nullIf(SUM(assumeNotNull(${col('Qty_Sold')})), 0), 2) as ASP,
                     round((1 - (SUM(toFloat64(${col('Sales')})) / nullIf(SUM(toFloat64(${col('MRP')}) * assumeNotNull(${col('Qty_Sold')})), 0))) * 100, 2) as Discount_Percentage,
                     SUM(assumeNotNull(${col('Qty_Sold')})) as Volume,
@@ -842,13 +904,13 @@ export const downloadReport = async (req, res) => {
                     round(Promo_Volume / nullIf(Volume, 0) * 100, 2) as Promo_Volume_Percentage
                 FROM rb_pdp_olap
                 ${whereClause.replace(/\bCategory\b/g, catCol)}
-                GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product
+                GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product${resellerGroup}
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Business Overview") {
             query = `
                 SELECT 
-                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product,
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product${resellerSelect},
                     -- Core Metrics
                     SUM(toFloat64(${col('Sales')})) as Offtake,
                     SUM(assumeNotNull(${col('Qty_Sold')})) as Units_Sold,
@@ -871,21 +933,21 @@ export const downloadReport = async (req, res) => {
                     round(avg(toFloat64(${col('Discount')})), 2) as Promo_Percentage
                 FROM rb_pdp_olap
                 ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col(catCol) : col(match))}
-                GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product
+                GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product${resellerGroup}
                 ORDER BY DATE DESC
             `;
         } else {
             // Default generic query for other report types (Category RCA, Portfolio, Play it You)
             query = `
                 SELECT 
-                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product,
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product${resellerSelect},
                     SUM(toFloat64(${col('Sales')})) as Sales,
                     SUM(assumeNotNull(${col('Qty_Sold')})) as Qty,
                     round(SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100, 2) as OSA,
                     round(avg(toFloat64(${col('DIH')})), 2) as DOI
                 FROM rb_pdp_olap
                 ${whereClause.replace(/\bCategory\b/g, catCol)}
-                GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product
+                GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product${resellerGroup}
                 ORDER BY DATE DESC
             `;
         }
@@ -974,6 +1036,8 @@ export const downloadReport = async (req, res) => {
                 if (row.Format !== undefined) newRow.Format = row.Format;
                 if (row.Product !== undefined) newRow.Product = row.Product;
                 if (row.Web_Pid !== undefined) newRow["Web Pid"] = row.Web_Pid;
+                if (row.Reseller_Name !== undefined) newRow["Reseller Name"] = row.Reseller_Name;
+                else if (row.reseller_name !== undefined) newRow["Reseller Name"] = row.reseller_name;
 
                 requestedTags.forEach(tag => {
                     const alias = TAG_MAP[tag];
@@ -984,6 +1048,9 @@ export const downloadReport = async (req, res) => {
                 return newRow;
             });
         }
+
+        // Process Web_Pid uppercase for specified platforms (Amazon, Flipkart, Flipkart Minutes, Amazon Now, Instamart)
+        finalData = finalData.map(row => processWebPidUppercase({ ...row }));
 
         // 5. Generate Excel using xlsx
         const worksheet = XLSX.utils.json_to_sheet(finalData);
@@ -1187,6 +1254,11 @@ export const downloadPdpReport = async (req, res) => {
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
         const hasPortfolio = skuPlatCols.has('portfolio');
 
+        const pdpRawCols = await getTableColumns('rb_pdp').catch(() => new Map());
+        const pdpResellerCol = pdpRawCols.has('reseller_name') ? pdpRawCols.get('reseller_name')
+            : pdpRawCols.has('reseller') ? pdpRawCols.get('reseller')
+            : null;
+
         const { platforms, locations, pincodes, brands, categories, skus, webPids, dates, startDate, endDate } = req.query;
 
         const conditions = [];
@@ -1228,6 +1300,8 @@ export const downloadPdpReport = async (req, res) => {
             joinClause = "LEFT JOIN rb_sku_platform AS sp ON (pdp.web_pid = sp.web_pid)";
         }
 
+        let selectReseller = pdpResellerCol ? `pdp.${pdpResellerCol} AS reseller_name` : "'' AS reseller_name";
+
         const query = `
             SELECT 
                 pdp.platform_name AS platform_name,
@@ -1238,6 +1312,7 @@ export const downloadPdpReport = async (req, res) => {
                 pdp.brand_category_name AS brand_category_name,
                 pdp.sku_name AS sku_name,
                 pdp.web_pid AS web_pid,
+                ${selectReseller},
                 pdp.osa_remark AS osa_remark,
                 pdp.price_rp AS price_rp,
                 pdp.price_sp AS price_sp,
@@ -1252,22 +1327,30 @@ export const downloadPdpReport = async (req, res) => {
 
         const rawData = await queryClickHouse(query);
 
-        const finalData = rawData.map(row => ({
-            "Platform Name": row.platform_name || '',
-            "Location": row.location_name || '',
-            "Pincode": row.pincode || '',
-            "Portfolio": row.portfolio || '',
-            "Brand Name": row.brand_name || '',
-            "Brand Category": row.brand_category_name || '',
-            "SKU Name": row.sku_name || '',
-            "Web Pid": row.web_pid || '',
-            "OSA Remark": row.osa_remark || '',
-            "Price RP": row.price_rp !== null && row.price_rp !== undefined ? Number(row.price_rp) : '',
-            "Price SP": row.price_sp !== null && row.price_sp !== undefined ? Number(row.price_sp) : '',
-            "Price Variation": row.price_variation !== null && row.price_variation !== undefined ? Number(row.price_variation) : '',
-            "Date": row.date || '',
-            "Year": row.year !== null && row.year !== undefined ? Number(row.year) : ''
-        }));
+        const finalData = rawData.map(row => {
+            const platformVal = row.platform_name || '';
+            let webPidVal = row.web_pid || '';
+            if (shouldUppercaseWebPid(platformVal) && webPidVal) {
+                webPidVal = String(webPidVal).toUpperCase();
+            }
+            return {
+                "Platform Name": row.platform_name || '',
+                "Location": row.location_name || '',
+                "Pincode": row.pincode || '',
+                "Portfolio": row.portfolio || '',
+                "Brand Name": row.brand_name || '',
+                "Brand Category": row.brand_category_name || '',
+                "SKU Name": row.sku_name || '',
+                "Web Pid": webPidVal,
+                "Reseller Name": row.reseller_name || '',
+                "OSA Remark": row.osa_remark || '',
+                "Price RP": row.price_rp !== null && row.price_rp !== undefined ? Number(row.price_rp) : '',
+                "Price SP": row.price_sp !== null && row.price_sp !== undefined ? Number(row.price_sp) : '',
+                "Price Variation": row.price_variation !== null && row.price_variation !== undefined ? Number(row.price_variation) : '',
+                "Date": row.date || '',
+                "Year": row.year !== null && row.year !== undefined ? Number(row.year) : ''
+            };
+        });
 
         const worksheet = XLSX.utils.json_to_sheet(finalData);
         const workbook = XLSX.utils.book_new();
@@ -1341,12 +1424,19 @@ export const previewPdpReport = async (req, res) => {
         const countResult = await queryClickHouse(countQuery);
         const totalCount = countResult && countResult[0] ? parseInt(countResult[0].total, 10) : 0;
 
+        const pdpRawCols = await getTableColumns('rb_pdp').catch(() => new Map());
+        const pdpResellerCol = pdpRawCols.has('reseller_name') ? pdpRawCols.get('reseller_name')
+            : pdpRawCols.has('reseller') ? pdpRawCols.get('reseller')
+            : null;
+
         let selectPortfolio = "'' AS portfolio";
         let joinClause = "";
         if (hasPortfolio) {
             selectPortfolio = "sp.portfolio AS portfolio";
             joinClause = "LEFT JOIN rb_sku_platform AS sp ON (pdp.web_pid = sp.web_pid)";
         }
+
+        let selectReseller = pdpResellerCol ? `pdp.${pdpResellerCol} AS reseller_name` : "'' AS reseller_name";
 
         const query = `
             SELECT 
@@ -1358,6 +1448,7 @@ export const previewPdpReport = async (req, res) => {
                 pdp.brand_category_name AS brand_category_name,
                 pdp.sku_name AS sku_name,
                 pdp.web_pid AS web_pid,
+                ${selectReseller},
                 pdp.osa_remark AS osa_remark,
                 pdp.price_rp AS price_rp,
                 pdp.price_sp AS price_sp,
@@ -1373,22 +1464,30 @@ export const previewPdpReport = async (req, res) => {
 
         const rawData = await queryClickHouse(query);
 
-        const rows = rawData.map(row => ({
-            "Platform Name": row.platform_name || '',
-            "Location": row.location_name || '',
-            "Pincode": row.pincode || '',
-            "Portfolio": row.portfolio || '',
-            "Brand Name": row.brand_name || '',
-            "Brand Category": row.brand_category_name || '',
-            "SKU Name": row.sku_name || '',
-            "Web Pid": row.web_pid || '',
-            "OSA Remark": row.osa_remark || '',
-            "Price RP": row.price_rp !== null && row.price_rp !== undefined ? Number(row.price_rp) : '',
-            "Price SP": row.price_sp !== null && row.price_sp !== undefined ? Number(row.price_sp) : '',
-            "Price Variation": row.price_variation !== null && row.price_variation !== undefined ? Number(row.price_variation) : '',
-            "Date": row.date || '',
-            "Year": row.year !== null && row.year !== undefined ? Number(row.year) : ''
-        }));
+        const rows = rawData.map(row => {
+            const platformVal = row.platform_name || '';
+            let webPidVal = row.web_pid || '';
+            if (shouldUppercaseWebPid(platformVal) && webPidVal) {
+                webPidVal = String(webPidVal).toUpperCase();
+            }
+            return {
+                "Platform Name": row.platform_name || '',
+                "Location": row.location_name || '',
+                "Pincode": row.pincode || '',
+                "Portfolio": row.portfolio || '',
+                "Brand Name": row.brand_name || '',
+                "Brand Category": row.brand_category_name || '',
+                "SKU Name": row.sku_name || '',
+                "Web Pid": webPidVal,
+                "Reseller Name": row.reseller_name || '',
+                "OSA Remark": row.osa_remark || '',
+                "Price RP": row.price_rp !== null && row.price_rp !== undefined ? Number(row.price_rp) : '',
+                "Price SP": row.price_sp !== null && row.price_sp !== undefined ? Number(row.price_sp) : '',
+                "Price Variation": row.price_variation !== null && row.price_variation !== undefined ? Number(row.price_variation) : '',
+                "Date": row.date || '',
+                "Year": row.year !== null && row.year !== undefined ? Number(row.year) : ''
+            };
+        });
 
         res.json({
             rows,

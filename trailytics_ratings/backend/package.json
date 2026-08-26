@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node src/server.js",
+    "dev": "node --watch src/server.js",
     "server": "node src/server.js",
     "auth:setup": "node scripts/setup_ratings_auth.cjs",
     "auth:seed-user": "node scripts/seed_ratings_auth_user.cjs",

@@ -66,6 +66,7 @@ const normalizeToString = (value) => {
 
 const toApiParam = (value) => {
   if (!value || value === 'All') return undefined;
+  if (value === 'None') return '__NONE__';
   return value;
 };
 
@@ -115,6 +116,8 @@ const arrayToFilter = (v) => {
  * ---------------------------------------------------------------------------
  */
 const DrawerMultiSelect = ({ title, value, options, onChange }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
   const selectedValues = useMemo(() => {
     if (!value || value === 'All' || (typeof value === 'string' && value.toLowerCase() === 'all')) return [];
     let vals = [];
@@ -125,17 +128,23 @@ const DrawerMultiSelect = ({ title, value, options, onChange }) => {
     // MUI Select won't recognize it, and will discard it when a new option is clicked.
     // So we MUST normalize the casing to match the options.
     return vals.map(v => {
-      const match = options.find(o => o.toLowerCase() === v.toLowerCase());
+      const match = options.find(o => String(o).toLowerCase() === v.toLowerCase());
       return match || v;
     });
   }, [value, options]);
 
+  const filteredOptions = useMemo(() => {
+    if (!searchQuery.trim()) return options;
+    return options.filter(opt => String(opt).toLowerCase().includes(searchQuery.toLowerCase().trim()));
+  }, [options, searchQuery]);
+
   const handleChange = (event) => {
     const val = event.target.value; // Array of selected strings
-    if (val.length === 0) {
+    const cleanVals = Array.isArray(val) ? val.filter(v => v !== '__SEARCH_INPUT__') : [];
+    if (cleanVals.length === 0) {
       onChange('All');
     } else {
-      onChange(val.join(','));
+      onChange(cleanVals.join(','));
     }
   };
 
@@ -151,6 +160,7 @@ const DrawerMultiSelect = ({ title, value, options, onChange }) => {
       displayEmpty
       value={selectedValues}
       onChange={handleChange}
+      onClose={() => setSearchQuery('')}
       renderValue={() => (
         <Box display="flex" alignItems="center" gap={0.5}>
           {isActive ? (
@@ -185,7 +195,7 @@ const DrawerMultiSelect = ({ title, value, options, onChange }) => {
             borderRadius: '12px',
             boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
             border: '1px solid #E2E8F0',
-            maxHeight: 340,
+            maxHeight: 360,
           }
         }
       }}
@@ -204,10 +214,48 @@ const DrawerMultiSelect = ({ title, value, options, onChange }) => {
         '&:hover': { backgroundColor: '#F8FAFC', borderColor: isActive ? '#3B82F6' : '#CBD5E1' }
       }}
     >
-      {options.length === 0 ? (
-        <MenuItem disabled sx={{ fontSize: '13px' }}>No options</MenuItem>
+      <Box
+        sx={{
+          p: 1,
+          position: 'sticky',
+          top: 0,
+          bgcolor: 'background.paper',
+          zIndex: 10,
+          borderBottom: '1px solid #E2E8F0'
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <TextField
+          size="small"
+          placeholder={`Search ${title}...`}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          fullWidth
+          autoFocus
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search size={14} color="#94A3B8" />
+              </InputAdornment>
+            ),
+            endAdornment: searchQuery ? (
+              <InputAdornment position="end">
+                <IconButton size="small" onClick={(e) => { e.stopPropagation(); setSearchQuery(''); }}>
+                  <X size={12} color="#94A3B8" />
+                </IconButton>
+              </InputAdornment>
+            ) : null,
+            sx: { fontSize: '12px', height: '32px', borderRadius: '8px' }
+          }}
+        />
+      </Box>
+
+      {filteredOptions.length === 0 ? (
+        <MenuItem disabled sx={{ fontSize: '13px', py: 1.5, fontStyle: 'italic', justifyContent: 'center' }}>
+          No {title.toLowerCase()} found
+        </MenuItem>
       ) : (
-        options.map((opt) => (
+        filteredOptions.map((opt) => (
           <MenuItem key={opt} value={opt} sx={{ fontSize: '13px', py: 1 }}>
             <Checkbox
               checked={selectedValues.includes(opt)}
@@ -682,7 +730,7 @@ export default function TrendsCompetitionDrawer({
     }
   }, [open, initialAudience]);
 
-  const { maxDate, platform: globalPlatform, selectedBrand: globalBrand, selectedLocation: globalLocation, selectedCategory: globalCategory, selectedSubCategory, selectedMsl } = React.useContext(FilterContext);
+  const { maxDate, platform: globalPlatform, selectedBrand: globalBrand, selectedLocation: globalLocation, selectedCategory: globalCategory, selectedSubCategory, selectedMsl, subBrands, selectedSubBrand } = React.useContext(FilterContext);
   const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
 
   const [view, setView] = useState(defaultView);
@@ -711,6 +759,7 @@ export default function TrendsCompetitionDrawer({
     Platform: "All",
     Format: "All",
     Brand: "All",
+    SubBrand: "All",
     City: "All",
     SKU: "All",
     SKUWebPid: "All",
@@ -893,6 +942,10 @@ export default function TrendsCompetitionDrawer({
     if (normGlobalCat !== 'All') {
       newFilters.Format = normGlobalCat;
     }
+    const normGlobalSubBrand = normalizeToString(selectedSubBrand);
+    if (normGlobalSubBrand !== 'All') {
+      newFilters.SubBrand = normGlobalSubBrand;
+    }
     const normGlobalMsl = normalizeToString(selectedMsl);
     if (normGlobalMsl !== 'All') {
       newFilters.Msl = normGlobalMsl;
@@ -915,7 +968,7 @@ export default function TrendsCompetitionDrawer({
 
     setDrawerFilters(newFilters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedColumn, selectedLevel, open, dynamicKey, initialPlatform, defaultView, globalPlatform, globalBrand, globalLocation, globalCategory, selectedMsl]);
+  }, [selectedColumn, selectedLevel, open, dynamicKey, initialPlatform, defaultView, globalPlatform, globalBrand, globalLocation, globalCategory, selectedMsl, selectedSubBrand]);
 
   useEffect(() => {
     prevPropsRef.current = {
@@ -939,6 +992,7 @@ export default function TrendsCompetitionDrawer({
     formats: [],
     cities: [],
     brands: [],
+    subBrands: [],
     skus: [],
     skuDetails: [],
     loading: true
@@ -957,7 +1011,8 @@ export default function TrendsCompetitionDrawer({
     return platformChannelMap[firstPlat] || '';
   }, [drawerFilters.Platform, platformChannelMap]);
 
-  // PM metrics (Spend, Conversion, ROAS, CPC) are always visible.\n  // When SKU is selected, backend sources these from rb_pdp_olap instead of rb_pm_olap.
+  // PM metrics (Spend, Conversion, ROAS, CPC) are always visible.
+  // When SKU is selected, backend sources these from rb_pdp_olap instead of rb_pm_olap.
 
   const PLATFORM_OPTIONS = filterOptions.platforms.length > 0 ? filterOptions.platforms : [
     "Blinkit",
@@ -969,6 +1024,7 @@ export default function TrendsCompetitionDrawer({
   const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : [];
   const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
   const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : (brandOptions || ["Amul", "Mother Dairy", "Nestle", "Hatsun"]);
+  const SUB_BRAND_OPTIONS = filterOptions.subBrands.length > 0 ? filterOptions.subBrands : (subBrands || []);
   const SKU_OPTIONS = filterOptions.skus.length > 0 ? filterOptions.skus : [];
 
   // ===================== FETCH FILTER OPTIONS (CASCADING) =====================
@@ -1035,6 +1091,31 @@ export default function TrendsCompetitionDrawer({
     fetchCascaded();
     return () => { cancelled = true; };
   }, [open, drawerFilters.Platform, drawerFilters.ResellerName, isDrl]);
+
+  // Effect: Fetch sub-brands when platform + category + brand changes (cascading)
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const platformParam = toApiParam(drawerFilters.Platform);
+    const categoryParam = toApiParam(drawerFilters.Format);
+    const brandParam = toApiParam(drawerFilters.Brand);
+    const fetchSubBrands = async () => {
+      try {
+        const res = await axiosInstance.get('/watchtower/sub-brands', {
+          params: { platform: platformParam, category: categoryParam, brand: brandParam }
+        });
+        if (cancelled) return;
+        if (res.data && Array.isArray(res.data)) {
+          const list = res.data.filter(s => s !== 'All' && String(s).trim()).sort();
+          setFilterOptions(prev => ({ ...prev, subBrands: list }));
+        }
+      } catch (error) {
+        console.error("[TrendsDrawer] Error fetching subBrands:", error);
+      }
+    };
+    fetchSubBrands();
+    return () => { cancelled = true; };
+  }, [open, drawerFilters.Platform, drawerFilters.Format, drawerFilters.Brand]);
 
   // Effect 3: Fetch cities when platform + brand + resellerName changes (cascading)
   useEffect(() => {
@@ -1143,6 +1224,7 @@ export default function TrendsCompetitionDrawer({
           platform: toApiParam(drawerFilters.Platform),
           location: toApiParam(drawerFilters.City !== 'All India' ? drawerFilters.City : undefined),
           brand: toApiParam(drawerFilters.Brand),
+          subBrand: toApiParam(drawerFilters.SubBrand),
           category: toApiParam(drawerFilters.Format),
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
@@ -1177,6 +1259,7 @@ export default function TrendsCompetitionDrawer({
           platform: toApiParam(drawerFilters.Platform),
           location: toApiParam(drawerFilters.City !== 'All India' ? drawerFilters.City : undefined),
           brand: toApiParam(drawerFilters.Brand),
+          subBrand: toApiParam(drawerFilters.SubBrand),
           category: toApiParam(drawerFilters.Format),
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
@@ -1205,6 +1288,7 @@ export default function TrendsCompetitionDrawer({
           platform: toApiParam(drawerFilters.Platform),
           location: toApiParam(drawerFilters.City !== 'All India' ? drawerFilters.City : undefined),
           brand: toApiParam(drawerFilters.Brand),
+          subBrand: toApiParam(drawerFilters.SubBrand),
           category: toApiParam(drawerFilters.Format),
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
@@ -1234,6 +1318,7 @@ export default function TrendsCompetitionDrawer({
           platform: toApiParam(drawerFilters.Platform),
           location: toApiParam(drawerFilters.City !== 'All India' ? drawerFilters.City : undefined),
           brand: toApiParam(drawerFilters.Brand),
+          subBrand: toApiParam(drawerFilters.SubBrand),
           category: toApiParam(drawerFilters.Format),
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
@@ -1284,6 +1369,7 @@ export default function TrendsCompetitionDrawer({
         platform: toApiParam(drawerFilters.Platform),
         location: toApiParam(drawerFilters.City),
         brand: toApiParam(drawerFilters.Brand),
+        subBrand: toApiParam(drawerFilters.SubBrand),
         category: toApiParam(drawerFilters.Format),
         sku: toApiParam(drawerFilters.SKU),
         resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
@@ -2710,6 +2796,13 @@ export default function TrendsCompetitionDrawer({
             value={drawerFilters.Brand}
             color={drawerFilters.Brand !== 'All' ? "#0ea5e9" : "#64748B"}
           />
+          {drawerFilters.SubBrand && drawerFilters.SubBrand !== 'All' && (
+            <SelectedFilterChip
+              label="Sub Brand"
+              value={drawerFilters.SubBrand}
+              color={drawerFilters.SubBrand !== 'All' ? "#0ea5e9" : "#64748B"}
+            />
+          )}
           <SelectedFilterChip
             label="City"
             value={drawerFilters.City}
@@ -2745,10 +2838,10 @@ export default function TrendsCompetitionDrawer({
           )}
 
           {/* Clear All Drawer Filters */}
-          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All' || drawerFilters.ResellerName !== 'All' || drawerFilters.Msl !== 'All') && (
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.SubBrand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All' || drawerFilters.ResellerName !== 'All' || drawerFilters.Msl !== 'All') && (
             <Button
               size="small"
-              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All", ResellerName: "All", Msl: "All" })}
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", SubBrand: "All", City: "All", SKU: "All", SKUWebPid: "All", ResellerName: "All", Msl: "All" })}
               sx={{
                 ml: 'auto',
                 fontSize: '11px',
@@ -2796,7 +2889,7 @@ export default function TrendsCompetitionDrawer({
                   value={drawerFilters.Platform}
                   options={PLATFORM_OPTIONS}
                   onChange={(v) => {
-                    setDrawerFilters(prev => ({ ...prev, Platform: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All', ResellerName: 'All' }));
+                    setDrawerFilters(prev => ({ ...prev, Platform: v, Format: 'All', Brand: 'All', SubBrand: 'All', City: 'All', SKU: 'All', ResellerName: 'All' }));
                   }}
                 />
                 <DrawerMultiSelect
@@ -2804,7 +2897,7 @@ export default function TrendsCompetitionDrawer({
                   value={drawerFilters.Format}
                   options={FORMAT_OPTIONS}
                   onChange={(v) => {
-                    setDrawerFilters(prev => ({ ...prev, Format: v, SKU: 'All' }));
+                    setDrawerFilters(prev => ({ ...prev, Format: v, SubBrand: 'All', SKU: 'All' }));
                   }}
                 />
                 <DrawerMultiSelect
@@ -2812,9 +2905,19 @@ export default function TrendsCompetitionDrawer({
                   value={drawerFilters.Brand}
                   options={BRAND_OPTIONS}
                   onChange={(v) => {
-                    setDrawerFilters(prev => ({ ...prev, Brand: v, SKU: 'All' }));
+                    setDrawerFilters(prev => ({ ...prev, Brand: v, SubBrand: 'All', SKU: 'All' }));
                   }}
                 />
+                {SUB_BRAND_OPTIONS.length > 0 && (
+                  <DrawerMultiSelect
+                    title="Sub Brand"
+                    value={drawerFilters.SubBrand}
+                    options={SUB_BRAND_OPTIONS}
+                    onChange={(v) => {
+                      setDrawerFilters(prev => ({ ...prev, SubBrand: v, SKU: 'All' }));
+                    }}
+                  />
+                )}
                 <DrawerMultiSelect
                   title="City"
                   value={drawerFilters.City}
@@ -2978,28 +3081,7 @@ export default function TrendsCompetitionDrawer({
                         '&::-webkit-scrollbar-thumb': { backgroundColor: '#CBD5E1', borderRadius: 3 },
                       }}
                     >
-                      {/* "All SKUs" option */}
-                      <Box
-                        onClick={() => setDrawerFilters(prev => ({ ...prev, SKU: 'All', SKUWebPid: 'All' }))}
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1,
-                          px: 1.5,
-                          py: 1,
-                          cursor: 'pointer',
-                          borderBottom: '1px solid #F1F5F9',
-                          backgroundColor: drawerFilters.SKU === 'All' ? '#EFF6FF' : 'transparent',
-                          '&:hover': { backgroundColor: '#F8FAFC' },
-                        }}
-                      >
-                        <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${drawerFilters.SKU === 'All' ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: drawerFilters.SKU === 'All' ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          {drawerFilters.SKU === 'All' && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
-                        </Box>
-                        <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>All SKUs</Typography>
-                      </Box>
-
-                      {/* Filtered SKU items */}
+                      {/* Filtered SKU list + "All SKUs" option */}
                       {(() => {
                         const getSkuDetails = (skuName) => {
                           if (!skuName || !filterOptions.skuDetails || !filterOptions.skuDetails.length) return null;
@@ -3019,11 +3101,80 @@ export default function TrendsCompetitionDrawer({
                           return false;
                         });
 
+                        const isSkuSelected = (opt) => {
+                          if (drawerFilters.SKU === 'All') return true;
+                          if (drawerFilters.SKU === 'None' || !drawerFilters.SKU) return false;
+                          const list = drawerFilters.SKU.split(';;').map(s => s.trim().toLowerCase());
+                          return list.includes(opt.toLowerCase());
+                        };
+
+                        const getCurrentlySelectedList = () => {
+                          if (drawerFilters.SKU === 'All') return [...SKU_OPTIONS];
+                          if (drawerFilters.SKU === 'None' || !drawerFilters.SKU) return [];
+                          return drawerFilters.SKU.split(';;').map(s => s.trim()).filter(Boolean);
+                        };
+
+                        const isAllFilteredSelected = filteredSkus.length > 0 && filteredSkus.every(opt => isSkuSelected(opt));
+
+                        const handleToggleAllFiltered = () => {
+                          const currentSelected = getCurrentlySelectedList();
+                          let nextSelected;
+                          if (isAllFilteredSelected) {
+                            // Deselect only the currently filtered SKUs
+                            const filteredLower = new Set(filteredSkus.map(s => s.toLowerCase()));
+                            nextSelected = currentSelected.filter(s => !filteredLower.has(s.toLowerCase()));
+                          } else {
+                            // Select all currently filtered SKUs
+                            const currentLower = new Set(currentSelected.map(s => s.toLowerCase()));
+                            const toAdd = filteredSkus.filter(s => !currentLower.has(s.toLowerCase()));
+                            nextSelected = [...currentSelected, ...toAdd];
+                          }
+
+                          if (nextSelected.length === 0) {
+                            setDrawerFilters(prev => ({ ...prev, SKU: 'None', SKUWebPid: 'None' }));
+                          } else if (nextSelected.length >= SKU_OPTIONS.length) {
+                            setDrawerFilters(prev => ({ ...prev, SKU: 'All', SKUWebPid: 'All' }));
+                          } else {
+                            const selectedWebPids = nextSelected.map(name => {
+                              const details = getSkuDetails(name);
+                              return details?.webPid || details?.web_pid;
+                            }).filter(Boolean);
+                            setDrawerFilters(prev => ({
+                              ...prev,
+                              SKU: nextSelected.join(';;'),
+                              SKUWebPid: selectedWebPids.length > 0 ? selectedWebPids.join(',') : 'All'
+                            }));
+                          }
+                        };
+
                         return (
                           <>
+                            {/* "All SKUs" option */}
+                            <Box
+                              onClick={handleToggleAllFiltered}
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                px: 1.5,
+                                py: 1,
+                                cursor: 'pointer',
+                                borderBottom: '1px solid #F1F5F9',
+                                backgroundColor: isAllFilteredSelected ? '#EFF6FF' : 'transparent',
+                                '&:hover': { backgroundColor: '#F8FAFC' },
+                              }}
+                            >
+                              <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${isAllFilteredSelected ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: isAllFilteredSelected ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                {isAllFilteredSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                              </Box>
+                              <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                                {skuSearchTerm ? `Select All Matching SKUs (${filteredSkus.length})` : 'All SKUs'}
+                              </Typography>
+                            </Box>
+
+                            {/* Filtered SKU items */}
                             {filteredSkus.map(opt => {
-                              const isSelected = drawerFilters.SKU !== 'All' &&
-                                drawerFilters.SKU.split(';;').map(s => s.trim().toLowerCase()).includes(opt.toLowerCase());
+                              const isSelected = isSkuSelected(opt);
                               // Truncate display: show last part in parentheses as variant hint
                               const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
                               const variant = parenMatch ? parenMatch[1] : '';
@@ -3036,24 +3187,26 @@ export default function TrendsCompetitionDrawer({
                                 <Box
                                   key={opt}
                                   onClick={() => {
-                                    if (drawerFilters.SKU === 'All') {
-                                      setDrawerFilters(prev => ({ ...prev, SKU: opt, SKUWebPid: webPid || 'All' }));
+                                    const currentSelected = getCurrentlySelectedList();
+                                    const exists = currentSelected.some(s => s.toLowerCase() === opt.toLowerCase());
+                                    let nextSelected;
+                                    if (exists) {
+                                      nextSelected = currentSelected.filter(s => s.toLowerCase() !== opt.toLowerCase());
                                     } else {
-                                      const selected = drawerFilters.SKU.split(';;').map(s => s.trim());
-                                      const exists = selected.some(s => s.toLowerCase() === opt.toLowerCase());
-                                      let nextSelected;
-                                      if (exists) {
-                                        nextSelected = selected.filter(s => s.toLowerCase() !== opt.toLowerCase());
-                                      } else {
-                                        nextSelected = [...selected, opt];
-                                      }
+                                      nextSelected = [...currentSelected, opt];
+                                    }
+                                    if (nextSelected.length === 0) {
+                                      setDrawerFilters(prev => ({ ...prev, SKU: 'None', SKUWebPid: 'None' }));
+                                    } else if (nextSelected.length >= SKU_OPTIONS.length) {
+                                      setDrawerFilters(prev => ({ ...prev, SKU: 'All', SKUWebPid: 'All' }));
+                                    } else {
                                       const selectedWebPids = nextSelected.map(name => {
                                         const details = getSkuDetails(name);
                                         return details?.webPid || details?.web_pid;
                                       }).filter(Boolean);
                                       setDrawerFilters(prev => ({
                                         ...prev,
-                                        SKU: nextSelected.length > 0 ? nextSelected.join(';;') : 'All',
+                                        SKU: nextSelected.join(';;'),
                                         SKUWebPid: selectedWebPids.length > 0 ? selectedWebPids.join(',') : 'All'
                                       }));
                                     }

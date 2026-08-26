@@ -19,8 +19,11 @@ import {
     ExternalLink,
     ArrowUp,
     ArrowDown,
-    ArrowUpDown
+    ArrowUpDown,
+    Download
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
+import dayjs from 'dayjs'
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '../../../lib/utils'
@@ -326,6 +329,50 @@ const PlatformOverviewNew = ({
         } catch (err) {
             console.error('Failed to copy', err);
         }
+    };
+
+    const handleExportToExcel = () => {
+        if (!entities || entities.length === 0) return;
+
+        const excelRows = entities.map(e => {
+            const rowObj = {};
+            const dimLabel = currentDimension?.label || 'Entity';
+            rowObj[dimLabel] = e.name || e.key || '';
+
+            selectedKpis.forEach(kpi => {
+                const label = kpiLabels[kpi.key] || kpi.label;
+                const cell = e.data?.[kpi.key];
+                const val = getFullDisplayValue(kpi.key, cell);
+                rowObj[label] = val;
+
+                if (cell?.delta?.value) {
+                    const dirSymbol = cell.delta.dir === 'up' ? '+' : '-';
+                    rowObj[`${label} (Change)`] = `${dirSymbol}${cell.delta.value}`;
+                } else {
+                    rowObj[`${label} (Change)`] = '-';
+                }
+            });
+
+            return rowObj;
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(excelRows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Platform_Overview");
+
+        const colWidths = {};
+        excelRows.forEach(row => {
+            Object.keys(row).forEach(key => {
+                const len = String(row[key] || '').length;
+                colWidths[key] = Math.max(colWidths[key] || key.length, len);
+            });
+        });
+        worksheet['!cols'] = Object.keys(colWidths).map(key => ({
+            wch: Math.min(Math.max(colWidths[key] + 3, 12), 40)
+        }));
+
+        const fileName = `Platform_Overview_${dimension}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
     };
 
     // Keep local platform filters in sync when globalPlatform changes from top global header dropdown
@@ -1084,23 +1131,16 @@ const PlatformOverviewNew = ({
                                 </span>
                             </motion.button>
 
-                            {/* Mobile-only compact filter trigger */}
+                            {/* Export Excel Download Button */}
                             <motion.button
-                                onClick={() => setIsFilterModalOpen(true)}
-                                className={cn(
-                                    'flex sm:hidden items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 border',
-                                    activeDimensionFilters > 0
-                                        ? 'bg-slate-900 text-white border-slate-900'
-                                        : 'bg-white text-slate-600 border-slate-200'
-                                )}
+                                onClick={handleExportToExcel}
+                                disabled={!entities || entities.length === 0}
+                                className="flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600 hover:text-slate-900 shadow-sm transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
+                                title="Export to Excel"
                             >
-                                <SlidersHorizontal size={12} />
-                                {activeDimensionFilters > 0 && (
-                                    <span className="bg-emerald-500 text-white text-[9px] px-1 py-0.5 rounded-full">
-                                        {activeDimensionFilters}
-                                    </span>
-                                )}
+                                <Download size={15} className="flex-shrink-0" />
                             </motion.button>
 
                             {/* Legend indicators */}

@@ -2077,78 +2077,141 @@ export default function VisibilityTrendsCompetitionDrawer({
                     '&::-webkit-scrollbar-thumb': { backgroundColor: '#CBD5E1', borderRadius: 3 },
                   }}
                 >
-                  <Box
-                    onClick={() => setDrawerFilters(prev => ({ ...prev, SKU: 'All' }))}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      px: 1.5,
-                      py: 1,
-                      cursor: 'pointer',
-                      borderBottom: '1px solid #F1F5F9',
-                      backgroundColor: drawerFilters.SKU === 'All' ? '#EFF6FF' : 'transparent',
-                      '&:hover': { backgroundColor: '#F8FAFC' },
-                    }}
-                  >
-                    <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${drawerFilters.SKU === 'All' ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: drawerFilters.SKU === 'All' ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {drawerFilters.SKU === 'All' && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
-                    </Box>
-                    <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>All SKUs</Typography>
-                  </Box>
-                  {SKU_OPTIONS
-                    .filter(opt => !skuSearchTerm || opt.toLowerCase().includes(skuSearchTerm.toLowerCase()))
-                    .map(opt => {
-                      const isSelected = drawerFilters.SKU === opt;
-                      const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
-                      const variant = parenMatch ? parenMatch[1] : '';
-                      const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
-                      return (
+                  {/* Filtered SKU list + "All SKUs" option */}
+                  {(() => {
+                    const filteredSkus = SKU_OPTIONS.filter(opt => !skuSearchTerm || opt.toLowerCase().includes(skuSearchTerm.toLowerCase()));
+
+                    const isSkuSelected = (opt) => {
+                      if (drawerFilters.SKU === 'All') return true;
+                      if (drawerFilters.SKU === 'None' || !drawerFilters.SKU) return false;
+                      const list = drawerFilters.SKU.split(';;').map(s => s.trim().toLowerCase());
+                      return list.includes(opt.toLowerCase());
+                    };
+
+                    const getCurrentlySelectedList = () => {
+                      if (drawerFilters.SKU === 'All') return [...SKU_OPTIONS];
+                      if (drawerFilters.SKU === 'None' || !drawerFilters.SKU) return [];
+                      return drawerFilters.SKU.split(';;').map(s => s.trim()).filter(Boolean);
+                    };
+
+                    const isAllFilteredSelected = filteredSkus.length > 0 && filteredSkus.every(opt => isSkuSelected(opt));
+
+                    const handleToggleAllFiltered = () => {
+                      const currentSelected = getCurrentlySelectedList();
+                      let nextSelected;
+                      if (isAllFilteredSelected) {
+                        const filteredLower = new Set(filteredSkus.map(s => s.toLowerCase()));
+                        nextSelected = currentSelected.filter(s => !filteredLower.has(s.toLowerCase()));
+                      } else {
+                        const currentLower = new Set(currentSelected.map(s => s.toLowerCase()));
+                        const toAdd = filteredSkus.filter(s => !currentLower.has(s.toLowerCase()));
+                        nextSelected = [...currentSelected, ...toAdd];
+                      }
+
+                      if (nextSelected.length === 0) {
+                        setDrawerFilters(prev => ({ ...prev, SKU: 'None', SKUWebPid: 'None' }));
+                      } else if (nextSelected.length >= SKU_OPTIONS.length) {
+                        setDrawerFilters(prev => ({ ...prev, SKU: 'All', SKUWebPid: 'All' }));
+                      } else {
+                        setDrawerFilters(prev => ({ ...prev, SKU: nextSelected.join(';;') }));
+                      }
+                    };
+
+                    return (
+                      <>
+                        {/* "All SKUs" option */}
                         <Box
-                          key={opt}
-                          onClick={() => setDrawerFilters(prev => ({ ...prev, SKU: prev.SKU === opt ? 'All' : opt }))}
-                          title={opt}
+                          onClick={handleToggleAllFiltered}
                           sx={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: 1,
                             px: 1.5,
-                            py: 0.8,
+                            py: 1,
                             cursor: 'pointer',
-                            borderBottom: '1px solid #F8FAFC',
-                            backgroundColor: isSelected ? '#EFF6FF' : 'transparent',
-                            transition: 'background 0.15s',
-                            '&:hover': { backgroundColor: isSelected ? '#DBEAFE' : '#F8FAFC' },
+                            borderBottom: '1px solid #F1F5F9',
+                            backgroundColor: isAllFilteredSelected ? '#EFF6FF' : 'transparent',
+                            '&:hover': { backgroundColor: '#F8FAFC' },
                           }}
                         >
-                          <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${isSelected ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: isSelected ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                          <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${isAllFilteredSelected ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: isAllFilteredSelected ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {isAllFilteredSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
                           </Box>
-                          <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
-                            <Typography sx={{
-                              fontSize: '12px',
-                              fontWeight: isSelected ? 600 : 400,
-                              color: isSelected ? '#1E40AF' : '#334155',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              maxWidth: 200,
-                            }}>
-                              {mainName}
-                            </Typography>
-                            {variant && (
-                              <Typography sx={{ fontSize: '10px', color: '#94A3B8', mt: '-1px' }}>
-                                {variant}
-                              </Typography>
-                            )}
-                          </Box>
+                          <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                            {skuSearchTerm ? `Select All Matching SKUs (${filteredSkus.length})` : 'All SKUs'}
+                          </Typography>
                         </Box>
-                      );
-                    })
-                  }
-                  {SKU_OPTIONS.filter(opt => !skuSearchTerm || opt.toLowerCase().includes(skuSearchTerm.toLowerCase())).length === 0 && (
-                    <Typography sx={{ p: 2, textAlign: 'center', fontSize: '12px', color: '#94A3B8' }}>No data is available</Typography>
-                  )}
+
+                        {/* Filtered SKU items */}
+                        {filteredSkus.map(opt => {
+                          const isSelected = isSkuSelected(opt);
+                          const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
+                          const variant = parenMatch ? parenMatch[1] : '';
+                          const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
+                          return (
+                            <Box
+                              key={opt}
+                              onClick={() => {
+                                const currentSelected = getCurrentlySelectedList();
+                                const exists = currentSelected.some(s => s.toLowerCase() === opt.toLowerCase());
+                                let nextSelected;
+                                if (exists) {
+                                  nextSelected = currentSelected.filter(s => s.toLowerCase() !== opt.toLowerCase());
+                                } else {
+                                  nextSelected = [...currentSelected, opt];
+                                }
+                                if (nextSelected.length === 0) {
+                                  setDrawerFilters(prev => ({ ...prev, SKU: 'None' }));
+                                } else if (nextSelected.length >= SKU_OPTIONS.length) {
+                                  setDrawerFilters(prev => ({ ...prev, SKU: 'All' }));
+                                } else {
+                                  setDrawerFilters(prev => ({ ...prev, SKU: nextSelected.join(';;') }));
+                                }
+                              }}
+                              title={opt}
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                px: 1.5,
+                                py: 0.8,
+                                cursor: 'pointer',
+                                borderBottom: '1px solid #F8FAFC',
+                                backgroundColor: isSelected ? '#EFF6FF' : 'transparent',
+                                transition: 'background 0.15s',
+                                '&:hover': { backgroundColor: isSelected ? '#DBEAFE' : '#F8FAFC' },
+                              }}
+                            >
+                              <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${isSelected ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: isSelected ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                              </Box>
+                              <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
+                                <Typography sx={{
+                                  fontSize: '12px',
+                                  fontWeight: isSelected ? 600 : 400,
+                                  color: isSelected ? '#1E40AF' : '#334155',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  maxWidth: 200,
+                                }}>
+                                  {mainName}
+                                </Typography>
+                                {variant && (
+                                  <Typography sx={{ fontSize: '10px', color: '#94A3B8', mt: '-1px' }}>
+                                    {variant}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                        {filteredSkus.length === 0 && (
+                          <Typography sx={{ p: 2, textAlign: 'center', fontSize: '12px', color: '#94A3B8' }}>No data is available</Typography>
+                        )}
+                      </>
+                    );
+                  })()}
                 </Box>
               </Box>
             </Box>

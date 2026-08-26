@@ -479,6 +479,7 @@ const Dashboard: React.FC = () => {
                                     globalPriceMode={filters.priceMode}
                                     globalPriceRange={filters.priceRange}
                                     globalBrandScope={filters.brandScope}
+                                    globalBrand={filters.brand}
                                     globalSentimentCategory={currentSentimentCategory}
                                     globalSku={apiFilters.web_pid as string | undefined}
                                     headlineMetrics={headlineMetrics}

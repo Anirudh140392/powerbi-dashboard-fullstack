@@ -114,7 +114,7 @@ const PAGE_METRICS = [
   },
   {
     key: "Sales Data", label: "Sales Data", icon: <TrendingUpIcon />, color: "#2563EB",
-    tags: ["Overall Sales", "MTD Sales", "Prev Month MTD", "YTD Sales", "Last Year Sales", "DRR", "Projected Sales", "Revenue Share"],
+    tags: ["DRR"],
     activeInSidebar: true
   },
   {
@@ -139,7 +139,7 @@ const PAGE_METRICS = [
   },
   {
     key: "Inventory Analysis", label: "Inventory Analysis", icon: <StoreIcon />, color: "#06B6D4",
-    tags: ["Current Inventory", "Target Inventory", "Inventory Health %", "Days on Hand"],
+    tags: ["Current Inventory", "Days on Hand"],
     activeInSidebar: true, hideForDb: ['mamaearth', 'boat']
   },
   {
@@ -154,12 +154,12 @@ const PAGE_METRICS = [
   },
   {
     key: "Category RCA", label: "Category RCA", icon: <AccountTreeIcon />, color: "#F97316",
-    tags: ["Offtake Sales", "Units", "Category Share", "Cat Size"],
+    tags: [],
     activeInSidebar: true
   },
   {
     key: "Portfolio Analysis", label: "Portfolio Analysis", icon: <ShowChartIcon />, color: "#A855F7",
-    tags: ["ASP", "Volume", "Promo Volume", "Promo Volume %"],
+    tags: ["ASP"],
     activeInSidebar: true
   },
 ];
@@ -277,14 +277,11 @@ export default function ReportBuilder({
       // 1. Hide everything if user DB status is inactive
       if (user?.dbStatus === false) return false;
 
-      // 2. DB specific exclusions exactly matching Sidebar Rules
+      // 2. DB specific exclusions matching database capability rules
       if (m.showOnlyForDb && !m.showOnlyForDb.includes(dbName)) return false;
       if (m.hideForDb && m.hideForDb.includes(dbName)) return false;
 
-      // 3. User explicit tab permissions matching Sidebar Rules
-      if (user?.tabPermissions && Object.keys(user.tabPermissions).length > 0) {
-        if (user.tabPermissions[m.label] !== undefined && user.tabPermissions[m.label] === false) return false;
-      }
+      // Note: KPI options in Scheduled Reports are available regardless of individual sidebar page visibility
       return true;
     });
 
@@ -297,7 +294,7 @@ export default function ReportBuilder({
       }));
     }
 
-    return metrics;
+    return metrics.filter(m => m.tags.length > 0);
   }, [reportTypeOptions, user, sku]);
 
   const [metricOn, setMetricOn] = useState(
@@ -663,53 +660,51 @@ export default function ReportBuilder({
                   <Typography variant="h6" sx={{ fontWeight: 700, color: "#1E293B", mb: 0.5 }}>Choose Metrics</Typography>
                   <Typography variant="body2" sx={{ color: "#64748B", mb: 3 }}>Select the KPIs you want to include in your export</Typography>
 
-                  {/* Data Source Toggle for DRL */}
-                  {isDrl && (
-                    <Box sx={{ mb: 3, p: 2, borderRadius: "14px", background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: "#1E293B", mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                        <StoreIcon sx={{ color: "#4F46E5", fontSize: 20 }} /> Data Source Option (DRL Only)
-                      </Typography>
-                      <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
-                        <Button
-                          variant={dataMode === "aggregated" ? "contained" : "outlined"}
-                          onClick={() => setDataMode("aggregated")}
-                          sx={{
-                            textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
-                            background: dataMode === "aggregated" ? "linear-gradient(135deg, #4F46E5, #3730A3)" : "white",
-                            color: dataMode === "aggregated" ? "white" : "#64748B",
-                            borderColor: dataMode === "aggregated" ? "#4F46E5" : "#CBD5E1",
-                            "&:hover": { background: dataMode === "aggregated" ? "linear-gradient(135deg, #4338CA, #312E81)" : "#F1F5F9" }
-                          }}
-                        >
-                          Aggregated Data
-                        </Button>
-                        <Button
-                          variant={dataMode === "darkstore" ? "contained" : "outlined"}
-                          onClick={() => setDataMode("darkstore")}
-                          sx={{
-                            textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
-                            background: dataMode === "darkstore" ? "linear-gradient(135deg, #0EA5E9, #0284C7)" : "white",
-                            color: dataMode === "darkstore" ? "white" : "#64748B",
-                            borderColor: dataMode === "darkstore" ? "#0EA5E9" : "#CBD5E1",
-                            "&:hover": { background: dataMode === "darkstore" ? "linear-gradient(135deg, #0284C7, #0369A1)" : "#F1F5F9" }
-                          }}
-                        >
-                          Darkstore Data
-                        </Button>
-                      </Box>
+                  {/* Data Source Toggle */}
+                  <Box sx={{ mb: 3, p: 2, borderRadius: "14px", background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: "#1E293B", mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                      <StoreIcon sx={{ color: "#4F46E5", fontSize: 20 }} /> Data Source Option
+                    </Typography>
+                    <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+                      <Button
+                        variant={dataMode === "aggregated" ? "contained" : "outlined"}
+                        onClick={() => setDataMode("aggregated")}
+                        sx={{
+                          textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                          background: dataMode === "aggregated" ? "linear-gradient(135deg, #4F46E5, #3730A3)" : "white",
+                          color: dataMode === "aggregated" ? "white" : "#64748B",
+                          borderColor: dataMode === "aggregated" ? "#4F46E5" : "#CBD5E1",
+                          "&:hover": { background: dataMode === "aggregated" ? "linear-gradient(135deg, #4338CA, #312E81)" : "#F1F5F9" }
+                        }}
+                      >
+                        Aggregated Data
+                      </Button>
+                      <Button
+                        variant={dataMode === "darkstore" ? "contained" : "outlined"}
+                        onClick={() => setDataMode("darkstore")}
+                        sx={{
+                          textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                          background: dataMode === "darkstore" ? "linear-gradient(135deg, #0EA5E9, #0284C7)" : "white",
+                          color: dataMode === "darkstore" ? "white" : "#64748B",
+                          borderColor: dataMode === "darkstore" ? "#0EA5E9" : "#CBD5E1",
+                          "&:hover": { background: dataMode === "darkstore" ? "linear-gradient(135deg, #0284C7, #0369A1)" : "#F1F5F9" }
+                        }}
+                      >
+                        Darkstore Data
+                      </Button>
                     </Box>
-                  )}
+                  </Box>
 
                   {dataMode === "darkstore" ? (
                     <Card elevation={0} sx={{ border: "1.5px solid #0EA5E9", borderRadius: "14px", overflow: "hidden", p: 3, background: "#F0F9FF" }}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 }}>
                         <StoreIcon sx={{ color: "#0EA5E9", fontSize: 24 }} />
                         <Typography sx={{ fontWeight: 700, color: "#0369A1", fontSize: "1.05rem" }}>
-                          Darkstore Raw Data Export (rb_pdp_week)
+                          Darkstore Raw Data Export
                         </Typography>
                       </Box>
                       <Typography variant="body2" sx={{ color: "#0284C7", mb: 2 }}>
-                        This report will export raw darkstore records from <strong>rb_pdp_week</strong> including the following 12 columns:
+                        This report will export raw darkstore records including the following 12 columns:
                       </Typography>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                         {[

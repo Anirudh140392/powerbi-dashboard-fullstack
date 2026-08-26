@@ -208,6 +208,7 @@ jobs:
           CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}
           CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}
           COMPANY_ID=${{ secrets.COMPANY_ID }}
+          OLAP_ENABLED_DBS=${{ secrets.OLAP_ENABLED_DBS || 'drl' }}
           SMTP_HOST=${{ secrets.SMTP_HOST }}
           SMTP_PORT=${{ secrets.SMTP_PORT }}
           SMTP_USER=${{ secrets.SMTP_USER }}
@@ -228,6 +229,8 @@ jobs:
           VITE_API_URL=${{ env.TARGET_VITE_API_URL }}
           VITE_RAILWAY_URL=${{ secrets.VITE_RAILWAY_URL }}
           VITE_COMPANY_ID=${{ secrets.COMPANY_ID }}
+          OLAP_ENABLED_DBS=${{ secrets.OLAP_ENABLED_DBS || 'drl' }}
+          VITE_OLAP_ENABLED_DBS=${{ secrets.VITE_OLAP_ENABLED_DBS || secrets.OLAP_ENABLED_DBS || 'drl' }}
           EOF
             mkdir -p frontend
             cat > frontend/.env << 'EOF'

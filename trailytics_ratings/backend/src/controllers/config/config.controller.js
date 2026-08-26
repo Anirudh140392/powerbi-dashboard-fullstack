@@ -2,7 +2,33 @@ import pool from '../../config/db.js';
 import clickhouse from '../../config/clickhouse.js';
 
 const getTargetDb = (req) => {
-    return (req.query.db && req.query.db.toLowerCase() === 'danone') ? 'danone' : 'loreal';
+    return req.query.db_name || req.query.db || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
+};
+
+const queryChWithFallback = async (db, queryOlap, queryMl, params) => {
+    try {
+        const chRes = await clickhouse.query({
+            database: db,
+            query: queryOlap,
+            query_params: params,
+            format: 'JSONEachRow'
+        });
+        return await chRes.json();
+    } catch (err) {
+        console.warn(`[queryChWithFallback] Primary query on rb_review_olap failed for database '${db}': ${err.message}. Trying fallback query on ml_reviews...`);
+        try {
+            const chRes = await clickhouse.query({
+                database: db,
+                query: queryMl,
+                query_params: params,
+                format: 'JSONEachRow'
+            });
+            return await chRes.json();
+        } catch (fallbackErr) {
+            console.error(`[queryChWithFallback] Fallback query on ml_reviews also failed for database '${db}': ${fallbackErr.message}`);
+            return [];
+        }
+    }
 };
 
 export const getPlatformOptions = async (req, res) => {
@@ -11,18 +37,15 @@ export const getPlatformOptions = async (req, res) => {
         const params = { companyId: String(req.companyId) };
         let competitorFilter = '';
 
-        if (is_competitor !== undefined) {
+        if (is_competitor !== undefined && is_competitor !== 'all') {
             competitorFilter = 'AND r.is_competitor = {isCompetitor:UInt8}';
             params.isCompetitor = is_competitor === 'true' ? 1 : 0;
         }
 
-        const chRes = await clickhouse.query({
-            database: getTargetDb(req),
-            query: `SELECT DISTINCT platform FROM ml_reviews r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.platform != '' ORDER BY platform`,
-            query_params: params,
-            format: 'JSONEachRow'
-        });
-        const rows = await chRes.json();
+        const olapQuery = `SELECT DISTINCT platform FROM rb_review_olap r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.platform != '' ORDER BY platform`;
+        const mlQuery = `SELECT DISTINCT platform FROM ml_reviews r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.platform != '' ORDER BY platform`;
+
+        const rows = await queryChWithFallback(getTargetDb(req), olapQuery, mlQuery, params);
 
         res.json({ platforms: rows.map(row => row.platform) });
     } catch (err) {
@@ -194,14 +217,19 @@ export const getAlertScopeOptions = async (req, res) => {
 
 export const getClientBrands = async (req, res) => {
     try {
+        const { is_competitor } = req.query;
         const params = { companyId: String(req.companyId) };
-        const chRes = await clickhouse.query({
-            database: getTargetDb(req),
-            query: `SELECT DISTINCT brand AS brand FROM ml_reviews WHERE company_id = {companyId:String} AND is_competitor = 0 AND brand != '' ORDER BY brand`,
-            query_params: params,
-            format: 'JSONEachRow'
-        });
-        const rows = await chRes.json();
+        let competitorFilter = '';
+
+        if (is_competitor !== undefined && is_competitor !== 'all') {
+            competitorFilter = 'AND r.is_competitor = {isCompetitor:UInt8}';
+            params.isCompetitor = is_competitor === 'true' ? 1 : 0;
+        }
+
+        const olapQuery = `SELECT DISTINCT brand AS brand FROM rb_review_olap r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.brand != '' ORDER BY brand`;
+        const mlQuery = `SELECT DISTINCT brand AS brand FROM ml_reviews r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.brand != '' ORDER BY brand`;
+
+        const rows = await queryChWithFallback(getTargetDb(req), olapQuery, mlQuery, params);
         res.json({ brands: rows.map(r => r.brand) });
     } catch (err) {
         console.error('Client-brands error:', err);

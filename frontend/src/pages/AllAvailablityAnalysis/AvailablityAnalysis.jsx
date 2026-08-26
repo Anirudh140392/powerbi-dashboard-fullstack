@@ -32,7 +32,8 @@ export default function AvailablityAnalysis() {
     refreshFilters,
     selectedMsl,
     setSelectedMsl,
-    selectedSapCode
+    selectedSapCode,
+    selectedSubBrand
   } = useContext(FilterContext);
 
   const [showTrends, setShowTrends] = useState(false);
@@ -43,6 +44,7 @@ export default function AvailablityAnalysis() {
   const [filters, setFilters] = useState({
     platform: platform || "",
     brand: selectedBrand || "All",
+    subBrand: selectedSubBrand || "All",
     location: selectedLocation || "All",
     category: selectedCategory || "All",
     productCategory: selectedProductCategory || "All",
@@ -89,6 +91,9 @@ export default function AvailablityAnalysis() {
     if (newFilters.msl !== undefined && newFilters.msl !== selectedMsl) {
       setSelectedMsl(newFilters.msl);
     }
+    if (newFilters.subBrand !== undefined && newFilters.subBrand !== selectedSubBrand) {
+      setSelectedSubBrand(newFilters.subBrand);
+    }
     if (newFilters.startDate) {
       const newStart = dayjs(newFilters.startDate);
       if (!newStart.isSame(timeStart, 'day')) {
@@ -112,6 +117,7 @@ export default function AvailablityAnalysis() {
       ...prev,
       platform: platform || prev.platform,
       brand: selectedBrand || prev.brand,
+      subBrand: selectedSubBrand || prev.subBrand,
       location: selectedLocation || prev.location,
       category: selectedCategory || prev.category,
       productCategory: selectedProductCategory || prev.productCategory,
@@ -129,7 +135,7 @@ export default function AvailablityAnalysis() {
       ? (selectedMsl.includes('1') && !selectedMsl.includes('0'))
       : (selectedMsl === '1');
     setMslFilter(isMslOnly ? '1' : '0');
-  }, [platform, selectedBrand, selectedLocation, selectedCategory, selectedProductCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel, selectedMsl, selectedSapCode]);
+  }, [platform, selectedBrand, selectedSubBrand, selectedLocation, selectedCategory, selectedProductCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel, selectedMsl, selectedSapCode]);
 
   // Default to Quickcomm if available, otherwise Ecommerce, if current selection is 'All'
   useEffect(() => {
@@ -522,6 +528,8 @@ export default function AvailablityAnalysis() {
     const filterKey = JSON.stringify({
       platform: filters.platform,
       brand: filters.brand,
+      subBrand: filters.subBrand,
+      sapCode: filters.sapCode,
       location: filters.location,
       category: filters.category,
       productCategory: filters.productCategory,

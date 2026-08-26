@@ -77,6 +77,7 @@ export function buildProductsQuery(params: ContentDashboardQuerySchema): string 
       o.product_id,
       COALESCE(s.sku_name, s.sku_title, o.title) AS title,
       s.image_url,
+      s.image_url_s3,
       o.total_score AS score,
       o.title_score,
       o.bullet_score AS bullet_point_score,
@@ -90,7 +91,8 @@ export function buildProductsQuery(params: ContentDashboardQuerySchema): string 
         LOWER(web_pid) AS pid,
         any(sku_name) AS sku_name,
         any(sku_title) AS sku_title,
-        anyIf(image_url, image_url != '') AS image_url
+        anyIf(image_url, image_url != '') AS image_url,
+        anyIf(image_url_s3, image_url_s3 != '') AS image_url_s3
       FROM \`${company}\`.rb_sku_platform
       GROUP BY pid
     ) s ON LOWER(o.product_id) = s.pid
