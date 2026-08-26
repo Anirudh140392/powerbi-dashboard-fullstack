@@ -4,6 +4,42 @@ import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 
+const UPPERCASE_WEB_PID_TARGETS = [
+    'amazon',
+    'flipkart',
+    'flipkart minutes',
+    'fk minutes',
+    'flipkart_minutes',
+    'fk_minutes',
+    'amazon now',
+    'amazon_now',
+    'amz now',
+    'amz_now',
+    'instamart',
+    'swiggy instamart',
+    'swiggy_instamart'
+];
+
+function shouldUppercaseWebPid(platformStr) {
+    if (!platformStr) return false;
+    const lower = String(platformStr).trim().toLowerCase();
+    return UPPERCASE_WEB_PID_TARGETS.some(target => lower.includes(target) || target.includes(lower));
+}
+
+function processWebPidUppercase(row) {
+    if (!row) return row;
+    const platformVal = row.Platform || row.platform || row["Platform Name"] || row.platform_name || '';
+    if (shouldUppercaseWebPid(platformVal)) {
+        const keys = ['Web_Pid', 'Web Pid', 'web_pid', 'Web_pid'];
+        for (const key of keys) {
+            if (row[key] !== undefined && row[key] !== null) {
+                row[key] = String(row[key]).toUpperCase();
+            }
+        }
+    }
+    return row;
+}
+
 /**
  * Check if a table exists in the current ClickHouse database
  */
@@ -162,15 +198,14 @@ export const getReportBuilderOptions = async (req, res) => {
             if (!out.regions) out.regions = [];
 
             try {
-                const hasDarkstoreTable = await checkTableExists('rb_pdp_week');
-                if (hasDarkstoreTable) {
-                    const dates = await queryClickHouse('SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM rb_pdp_week');
-                    if (dates && dates[0] && dates[0].minDate) {
-                        out.darkstoreDateRange = {
-                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
-                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
-                        };
-                    }
+                const hasLocalDarkstore = await checkTableExists('rb_pdp_week');
+                const darkstoreTable = hasLocalDarkstore ? 'rb_pdp_week' : 'drl.rb_pdp_week';
+                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable}`).catch(() => null);
+                if (dates && dates[0] && dates[0].minDate) {
+                    out.darkstoreDateRange = {
+                        minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                        maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                    };
                 }
             } catch (err) {
                 console.error('[getReportBuilderOptions] Error checking darkstoreDateRange:', err);
@@ -249,10 +284,11 @@ export const downloadReport = async (req, res) => {
 
         const dataMode = req.query.dataMode || 'aggregated';
 
-        // ── DARKSTORE DATA EXPORT (rb_pdp_week) for DRL ──
+        // ── DARKSTORE DATA EXPORT (rb_pdp_week) ──
         if (dataMode === 'darkstore' || reportType === 'Darkstore Data') {
             const currentDb = getCurrentDbName() || 'drl';
-            const weekTable = (currentDb === 'drl' || currentDb === 'prestige') ? `${currentDb}.rb_pdp_week` : 'drl.rb_pdp_week';
+            const hasLocalWeekTable = await checkTableExists('rb_pdp_week');
+            const weekTable = hasLocalWeekTable ? `${currentDb}.rb_pdp_week` : 'drl.rb_pdp_week';
 
             const darkstoreConds = [];
             const pCond = buildInClause('platform_name', platform);
@@ -270,7 +306,7 @@ export const downloadReport = async (req, res) => {
 
             const darkstoreQuery = `
                 SELECT 
-                    toString(created_on) as created_on,
+                    toString(created_on) as DATE,
                     platform_name as platform,
                     brand_name as brand,
                     brand_category_name as category,
@@ -295,7 +331,8 @@ export const downloadReport = async (req, res) => {
                 return res.status(204).send();
             }
 
-            const worksheet = XLSX.utils.json_to_sheet(rawData);
+            const processedData = rawData.map(row => processWebPidUppercase({ ...row }));
+            const worksheet = XLSX.utils.json_to_sheet(processedData);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Darkstore_Data");
 
@@ -1012,6 +1049,9 @@ export const downloadReport = async (req, res) => {
             });
         }
 
+        // Process Web_Pid uppercase for specified platforms (Amazon, Flipkart, Flipkart Minutes, Amazon Now, Instamart)
+        finalData = finalData.map(row => processWebPidUppercase({ ...row }));
+
         // 5. Generate Excel using xlsx
         const worksheet = XLSX.utils.json_to_sheet(finalData);
         const workbook = XLSX.utils.book_new();
@@ -1287,23 +1327,30 @@ export const downloadPdpReport = async (req, res) => {
 
         const rawData = await queryClickHouse(query);
 
-        const finalData = rawData.map(row => ({
-            "Platform Name": row.platform_name || '',
-            "Location": row.location_name || '',
-            "Pincode": row.pincode || '',
-            "Portfolio": row.portfolio || '',
-            "Brand Name": row.brand_name || '',
-            "Brand Category": row.brand_category_name || '',
-            "SKU Name": row.sku_name || '',
-            "Web Pid": row.web_pid || '',
-            "Reseller Name": row.reseller_name || '',
-            "OSA Remark": row.osa_remark || '',
-            "Price RP": row.price_rp !== null && row.price_rp !== undefined ? Number(row.price_rp) : '',
-            "Price SP": row.price_sp !== null && row.price_sp !== undefined ? Number(row.price_sp) : '',
-            "Price Variation": row.price_variation !== null && row.price_variation !== undefined ? Number(row.price_variation) : '',
-            "Date": row.date || '',
-            "Year": row.year !== null && row.year !== undefined ? Number(row.year) : ''
-        }));
+        const finalData = rawData.map(row => {
+            const platformVal = row.platform_name || '';
+            let webPidVal = row.web_pid || '';
+            if (shouldUppercaseWebPid(platformVal) && webPidVal) {
+                webPidVal = String(webPidVal).toUpperCase();
+            }
+            return {
+                "Platform Name": row.platform_name || '',
+                "Location": row.location_name || '',
+                "Pincode": row.pincode || '',
+                "Portfolio": row.portfolio || '',
+                "Brand Name": row.brand_name || '',
+                "Brand Category": row.brand_category_name || '',
+                "SKU Name": row.sku_name || '',
+                "Web Pid": webPidVal,
+                "Reseller Name": row.reseller_name || '',
+                "OSA Remark": row.osa_remark || '',
+                "Price RP": row.price_rp !== null && row.price_rp !== undefined ? Number(row.price_rp) : '',
+                "Price SP": row.price_sp !== null && row.price_sp !== undefined ? Number(row.price_sp) : '',
+                "Price Variation": row.price_variation !== null && row.price_variation !== undefined ? Number(row.price_variation) : '',
+                "Date": row.date || '',
+                "Year": row.year !== null && row.year !== undefined ? Number(row.year) : ''
+            };
+        });
 
         const worksheet = XLSX.utils.json_to_sheet(finalData);
         const workbook = XLSX.utils.book_new();
@@ -1417,23 +1464,30 @@ export const previewPdpReport = async (req, res) => {
 
         const rawData = await queryClickHouse(query);
 
-        const rows = rawData.map(row => ({
-            "Platform Name": row.platform_name || '',
-            "Location": row.location_name || '',
-            "Pincode": row.pincode || '',
-            "Portfolio": row.portfolio || '',
-            "Brand Name": row.brand_name || '',
-            "Brand Category": row.brand_category_name || '',
-            "SKU Name": row.sku_name || '',
-            "Web Pid": row.web_pid || '',
-            "Reseller Name": row.reseller_name || '',
-            "OSA Remark": row.osa_remark || '',
-            "Price RP": row.price_rp !== null && row.price_rp !== undefined ? Number(row.price_rp) : '',
-            "Price SP": row.price_sp !== null && row.price_sp !== undefined ? Number(row.price_sp) : '',
-            "Price Variation": row.price_variation !== null && row.price_variation !== undefined ? Number(row.price_variation) : '',
-            "Date": row.date || '',
-            "Year": row.year !== null && row.year !== undefined ? Number(row.year) : ''
-        }));
+        const rows = rawData.map(row => {
+            const platformVal = row.platform_name || '';
+            let webPidVal = row.web_pid || '';
+            if (shouldUppercaseWebPid(platformVal) && webPidVal) {
+                webPidVal = String(webPidVal).toUpperCase();
+            }
+            return {
+                "Platform Name": row.platform_name || '',
+                "Location": row.location_name || '',
+                "Pincode": row.pincode || '',
+                "Portfolio": row.portfolio || '',
+                "Brand Name": row.brand_name || '',
+                "Brand Category": row.brand_category_name || '',
+                "SKU Name": row.sku_name || '',
+                "Web Pid": webPidVal,
+                "Reseller Name": row.reseller_name || '',
+                "OSA Remark": row.osa_remark || '',
+                "Price RP": row.price_rp !== null && row.price_rp !== undefined ? Number(row.price_rp) : '',
+                "Price SP": row.price_sp !== null && row.price_sp !== undefined ? Number(row.price_sp) : '',
+                "Price Variation": row.price_variation !== null && row.price_variation !== undefined ? Number(row.price_variation) : '',
+                "Date": row.date || '',
+                "Year": row.year !== null && row.year !== undefined ? Number(row.year) : ''
+            };
+        });
 
         res.json({
             rows,

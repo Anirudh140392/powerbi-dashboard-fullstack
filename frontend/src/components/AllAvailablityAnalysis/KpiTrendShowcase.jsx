@@ -3,11 +3,14 @@ import axiosInstance from "../../api/axiosInstance";
 import { formatNumber } from "../../utils/formatters";
 import { FilterContext } from "../../utils/FilterContext";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
+import * as XLSX from "xlsx";
+import dayjs from "dayjs";
 import {
   Filter,
   LineChart as LineChartIcon,
   BarChart3,
   SlidersHorizontal,
+  Download,
 } from "lucide-react";
 import {
   LineChart,
@@ -714,7 +717,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
                     {t === "category" && "Category"}
                     {t === "brand" && "Brand"}
                     {t === "sku" && "SKU"}
-                    {t === "msl" && "MSL"}
+                    {t === "msl" && "Top SKU"}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -1275,7 +1278,7 @@ const ProgressBar = ({ value, color }) => (
   </div>
 );
 
-const BrandTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSelectionChange }) => {
+const BrandTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSelectionChange, onDownload }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const totalPages = Math.ceil(rows.length / pageSize);
@@ -1293,9 +1296,21 @@ const BrandTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSel
   return (
     <Card className="mt-3">
       <CardHeader className="border-b pb-2">
-        <CardTitle className="text-sm font-medium text-slate-800 flex justify-between">
+        <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
           <span>Brands (Top {rows.length || 0})</span>
-          {selectedIds.length > 0 && <span className="text-xs text-blue-600 font-normal">{selectedIds.length} selected for Trend</span>}
+          <div className="flex items-center gap-2">
+            {selectedIds.length > 0 && <span className="text-xs text-blue-600 font-normal">{selectedIds.length} selected for Trend</span>}
+            {onDownload && (
+              <button
+                type="button"
+                onClick={onDownload}
+                className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+                title="Download Competition Data"
+              >
+                <Download className="h-4 w-4 text-emerald-600" />
+              </button>
+            )}
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-3">
@@ -1371,7 +1386,7 @@ const BrandTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSel
   );
 };
 
-const SkuTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSelectionChange }) => {
+const SkuTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSelectionChange, onDownload }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const totalPages = Math.ceil(rows.length / pageSize);
@@ -1389,9 +1404,21 @@ const SkuTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSelec
   return (
     <Card className="mt-3 border-slate-200 bg-white shadow-sm">
       <CardHeader className="border-b pb-2">
-        <CardTitle className="text-sm font-medium text-slate-800 flex justify-between">
+        <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
           <span>SKUs (Top {rows.length || 0})</span>
-          {selectedIds.length > 0 && <span className="text-xs text-blue-600 font-normal">{selectedIds.length} selected for Trend</span>}
+          <div className="flex items-center gap-2">
+            {selectedIds.length > 0 && <span className="text-xs text-blue-600 font-normal">{selectedIds.length} selected for Trend</span>}
+            {onDownload && (
+              <button
+                type="button"
+                onClick={onDownload}
+                className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+                title="Download Competition Data"
+              >
+                <Download className="h-4 w-4 text-emerald-600" />
+              </button>
+            )}
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-3">
@@ -1944,6 +1971,79 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
     });
   }, [competitionData.skus, filters.brands, filters.skus]);
 
+  const handleDownloadCompetitionExcel = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      const safeFormatPercent = (val) => {
+        if (val === null || val === undefined || val === "N/A" || val === "") return "N/A";
+        const num = typeof val === "object" ? Number(val.value ?? val.val) : Number(val);
+        if (isNaN(num)) return "N/A";
+        return `${num.toFixed(1)}%`;
+      };
+
+      const safeFormatPrice = (val) => {
+        if (val === null || val === undefined || val === "N/A" || val === "") return "N/A";
+        const num = typeof val === "object" ? Number(val.value ?? val.val) : Number(val);
+        if (isNaN(num)) return "N/A";
+        return `₹${num}`;
+      };
+
+      const skuData = (skuRows || []).map(s => {
+        const row = {
+          "SKU": s.name || s.sku_name || s.Product || s.sku || "N/A",
+          "BRAND": s.brandName || s.brand_name || s.brand || "N/A",
+        };
+        kpiKeys.forEach(k => {
+          const rawVal = s[k.key] ?? s[k.key?.toLowerCase()];
+          if (k.label.includes("%") || k.key.toLowerCase().includes("share") || k.key.toLowerCase().includes("osa") || k.key.toLowerCase().includes("listing") || k.key.toLowerCase().includes("discount") || k.key.toLowerCase().includes("promo")) {
+            row[k.label.toUpperCase()] = safeFormatPercent(rawVal);
+          } else if (k.label.toLowerCase().includes("price") || k.key.toLowerCase().includes("asp") || k.key.toLowerCase().includes("unit")) {
+            row[k.label.toUpperCase()] = safeFormatPrice(rawVal);
+          } else {
+            row[k.label.toUpperCase()] = rawVal !== undefined && rawVal !== null ? rawVal : "N/A";
+          }
+        });
+        return row;
+      });
+
+      const brandData = (brandRows || []).map(b => {
+        const row = {
+          "BRAND": b.name || b.brand_name || b.brand || "N/A",
+        };
+        kpiKeys.forEach(k => {
+          const rawVal = b[k.key] ?? b[k.key?.toLowerCase()];
+          if (k.label.includes("%") || k.key.toLowerCase().includes("share") || k.key.toLowerCase().includes("osa") || k.key.toLowerCase().includes("listing") || k.key.toLowerCase().includes("discount") || k.key.toLowerCase().includes("promo")) {
+            row[k.label.toUpperCase()] = safeFormatPercent(rawVal);
+          } else if (k.label.toLowerCase().includes("price") || k.key.toLowerCase().includes("asp") || k.key.toLowerCase().includes("unit")) {
+            row[k.label.toUpperCase()] = safeFormatPrice(rawVal);
+          } else {
+            row[k.label.toUpperCase()] = rawVal !== undefined && rawVal !== null ? rawVal : "N/A";
+          }
+        });
+        return row;
+      });
+
+      if (tab === "sku") {
+        const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);
+        XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+        const brandSheet = XLSX.utils.json_to_sheet(brandData.length > 0 ? brandData : [{ "BRAND": "No Brand Data" }]);
+        XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+      } else {
+        const brandSheet = XLSX.utils.json_to_sheet(brandData.length > 0 ? brandData : [{ "BRAND": "No Brand Data" }]);
+        XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+        const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);
+        XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+      }
+
+      const reportLabel = dynamicKey ? String(dynamicKey).replace(/_/g, " ") : "Report";
+      const fileName = `${tab === "sku" ? "SKUs" : "Brands"}_Competition_${reportLabel.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error("[KpiTrendShowcase] Excel download error:", err);
+    }
+  };
+
   // Derived Trend List For SKUs (either selected by user or top 5 default fallback)
   const skuTrendList = useMemo(() => {
     if (selectedSkuIds.length > 0) {
@@ -2183,6 +2283,16 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
             <LineChartIcon className="mr-1.5 h-4 w-4" />
             Trend
           </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 w-9 p-0 bg-white hover:bg-slate-100 border-slate-200 text-slate-700 flex items-center justify-center rounded-md"
+            onClick={handleDownloadCompetitionExcel}
+            title="Download Competition Data"
+          >
+            <Download className="h-4 w-4 text-emerald-600" />
+          </Button>
         </div>
       </div>
 
@@ -2217,7 +2327,16 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} kpiKeys={kpiKeys} loading={loading} selectedIds={selectedBrandIds} onSelectionChange={setSelectedBrandIds} />}
+          {viewMode === "table" && (
+            <BrandTable
+              rows={brandRows}
+              kpiKeys={kpiKeys}
+              loading={loading}
+              selectedIds={selectedBrandIds}
+              onSelectionChange={setSelectedBrandIds}
+              onDownload={handleDownloadCompetitionExcel}
+            />
+          )}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
@@ -2253,7 +2372,16 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && <SkuTable rows={skuRows} kpiKeys={kpiKeys} loading={loading} selectedIds={selectedSkuIds} onSelectionChange={setSelectedSkuIds} />}
+          {viewMode === "table" && (
+            <SkuTable
+              rows={skuRows}
+              kpiKeys={kpiKeys}
+              loading={loading}
+              selectedIds={selectedSkuIds}
+              onSelectionChange={setSelectedSkuIds}
+              onDownload={handleDownloadCompetitionExcel}
+            />
+          )}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"

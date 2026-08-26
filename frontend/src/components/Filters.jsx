@@ -107,7 +107,7 @@ export default function DashboardHeadersFilters({
 
       {/* MSL */}
       <FormControl fullWidth size="small">
-        <InputLabel>MSL :</InputLabel>
+        <InputLabel>Top SKU :</InputLabel>
         <Select
           value={filters.msl}
           onChange={handleChange("msl")}
