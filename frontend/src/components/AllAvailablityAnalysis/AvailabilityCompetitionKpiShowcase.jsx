@@ -1041,7 +1041,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
                                         {t === "category" && "Category"}
                                         {t === "brand" && "Brand"}
                                         {t === "sku" && "SKU"}
-                                        {t === "msl" && "MSL"}
+                                        {t === "msl" && "Top SKU"}
                                     </TabsTrigger>
                                 ))}
                             </TabsList>

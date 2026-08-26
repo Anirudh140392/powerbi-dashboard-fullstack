@@ -708,7 +708,7 @@ export default function ReportBuilder({
                       </Typography>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                         {[
-                          "created_on", "platform", "brand", "category", "location",
+                          "DATE", "platform", "brand", "category", "location",
                           "pincode", "pincode_area", "web_pid", "sku", "pdp_page_url", "osa", "osa_remark"
                         ].map((col) => (
                           <Chip key={col} label={col} size="small" sx={{ background: "#E0F2FE", color: "#0369A1", fontWeight: 600, borderRadius: "6px", fontFamily: "'JetBrains Mono', monospace" }} />

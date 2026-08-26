@@ -864,7 +864,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             />
                                         )}
                                         <SingleSelectDropdown
-                                            label="MSL"
+                                            label="Top SKU"
                                             icon={Filter}
                                             options={[
                                                 { id: '0', name: 'All SKUs' },
@@ -872,7 +872,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                             ]}
                                             value={localFilters.msl || '0'}
                                             onChange={(val) => updateFilter('msl', val)}
-                                            placeholder="MSL Status"
+                                            placeholder="Top SKU Status"
                                         />
                                     </div>
                                 </div>

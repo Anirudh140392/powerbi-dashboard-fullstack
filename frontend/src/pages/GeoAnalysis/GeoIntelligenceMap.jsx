@@ -678,7 +678,7 @@ export default function GeoIntelligenceMap() {
 
                         {/* MSL Dropdown */}
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-                            <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>MSL</span>
+                            <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>Top SKU</span>
                             <div style={{ position: "relative" }} ref={mslRef}>
                                 <button
                                     onClick={() => setMslDropdownOpen(!mslDropdownOpen)}
