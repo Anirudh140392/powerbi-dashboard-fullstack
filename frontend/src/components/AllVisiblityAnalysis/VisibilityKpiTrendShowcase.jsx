@@ -7,7 +7,10 @@ import {
   LineChart as LineChartIcon,
   BarChart3,
   SlidersHorizontal,
+  Download,
 } from "lucide-react";
+import * as XLSX from "xlsx";
+import dayjs from "dayjs";
 import {
   LineChart,
   Line,
@@ -1516,15 +1519,25 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows }) => {
+const BrandTable = ({ rows, onDownload }) => {
   // Show only top 8 brands
   const top8Rows = rows.slice(0, 8);
 
   return (
     <Card className="mt-3">
       <CardHeader className="border-b pb-2">
-        <CardTitle className="text-sm font-medium text-slate-800">
-          Brands (Top {Math.min(rows.length, 8)})
+        <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
+          <span>Brands (Top {Math.min(rows.length, 8)})</span>
+          {onDownload && (
+            <button
+              type="button"
+              onClick={onDownload}
+              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+              title="Download Competition Data"
+            >
+              <Download className="h-4 w-4 text-emerald-600" />
+            </button>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-3">
@@ -1582,7 +1595,7 @@ const BrandTable = ({ rows }) => {
   );
 };
 
-const SkuTable = ({ rows }) => {
+const SkuTable = ({ rows, onDownload }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const totalPages = Math.ceil(rows.length / pageSize);
@@ -1591,8 +1604,18 @@ const SkuTable = ({ rows }) => {
   return (
     <Card className="mt-3 border-slate-200 bg-white shadow-sm">
       <CardHeader className="border-b pb-2">
-        <CardTitle className="text-sm font-medium text-slate-800">
-          SKUs (Top {rows.length || 0})
+        <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
+          <span>SKUs (Top {rows.length || 0})</span>
+          {onDownload && (
+            <button
+              type="button"
+              onClick={onDownload}
+              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+              title="Download Competition Data"
+            >
+              <Download className="h-4 w-4 text-emerald-600" />
+            </button>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-3">
@@ -1945,6 +1968,51 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
     return rows;
   }, [city, filters]);
 
+  const handleDownloadCompetitionExcel = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      const safeFormatPercent = (val) => {
+        if (val === null || val === undefined || val === "N/A" || val === "") return "N/A";
+        const num = typeof val === "object" ? Number(val.value ?? val.val) : Number(val);
+        if (isNaN(num)) return "N/A";
+        return `${num.toFixed(1)}%`;
+      };
+
+      const skuData = (skuRows || []).map(s => ({
+        "SKU": s.name || s.sku_name || s.Product || s.sku || "N/A",
+        "BRAND": s.brandName || s.brand_name || s.brand || "N/A",
+        "OVERALL SOS": safeFormatPercent(s.overall_sos),
+        "SPONSORED SOS": safeFormatPercent(s.sponsored_sos),
+        "ORGANIC SOS": safeFormatPercent(s.organic_sos),
+      }));
+
+      const brandData = (brandRows || []).map(b => ({
+        "BRAND": b.name || b.brand_name || b.brand || "N/A",
+        "OVERALL SOS": safeFormatPercent(b.overall_sos),
+        "SPONSORED SOS": safeFormatPercent(b.sponsored_sos),
+        "ORGANIC SOS": safeFormatPercent(b.organic_sos),
+      }));
+
+      if (tab === "sku") {
+        const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);
+        XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+        const brandSheet = XLSX.utils.json_to_sheet(brandData.length > 0 ? brandData : [{ "BRAND": "No Brand Data" }]);
+        XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+      } else {
+        const brandSheet = XLSX.utils.json_to_sheet(brandData.length > 0 ? brandData : [{ "BRAND": "No Brand Data" }]);
+        XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+        const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);
+        XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+      }
+
+      const fileName = `${tab === "sku" ? "SKUs" : "Brands"}_Visibility_Competition_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error("[VisibilityKpiTrendShowcase] Download competition error:", err);
+    }
+  };
+
   // Skeleton loader for initial load and filter changes
   if (loading) {
     return (
@@ -2073,6 +2141,16 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
             <LineChartIcon className="mr-1.5 h-4 w-4" />
             Trend
           </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 w-9 p-0 bg-white hover:bg-slate-100 border-slate-200 text-slate-700 flex items-center justify-center rounded-md"
+            onClick={handleDownloadCompetitionExcel}
+            title="Download Competition Data"
+          >
+            <Download className="h-4 w-4 text-emerald-600" />
+          </Button>
         </div>
       </div>
 
@@ -2110,7 +2188,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <BrandTable rows={brandRows} />)}
+          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <BrandTable rows={brandRows} onDownload={handleDownloadCompetitionExcel} />)}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
@@ -2134,7 +2212,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <SkuTable rows={skuRows} />)}
+          {viewMode === "table" && (isFilteredLoading ? <TableSkeleton /> : <SkuTable rows={skuRows} onDownload={handleDownloadCompetitionExcel} />)}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"

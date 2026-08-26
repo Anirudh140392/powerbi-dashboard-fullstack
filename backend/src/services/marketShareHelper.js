@@ -159,26 +159,32 @@ const buildPlatformChannelCondForMs = (platformFilter, channelFilter, columnName
         }
     }
 
-    // 2. Channel Filter
-    if (channelFilter && channelFilter !== 'All') {
+    // 2. Channel Filter (only apply platform fallback if explicit platform filter was not specified)
+    if (channelFilter && channelFilter !== 'All' && (!platformArr || platformArr.length === 0 || platformArr.includes('All'))) {
         const channels = Array.isArray(channelFilter)
             ? channelFilter
             : (typeof channelFilter === 'string' && channelFilter.includes(',') ? channelFilter.split(',') : [channelFilter]);
         
         const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c.toLowerCase()));
         const isQuickComm = channels.some(c => c.toLowerCase().includes('quick'));
+        const isEpharm = channels.some(c => c.toLowerCase().includes('epharm') || c.toLowerCase().includes('e-pharm') || c.toLowerCase().includes('pharm'));
         const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(c.toLowerCase()));
 
-        const ecomPlatforms = ['amazon', 'flipkart'];
-        const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'];
+        const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart', 'meesho', 'myntra', 'shopify', 'first cry'];
+        const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'flipkart minutes', 'amazon now'];
+        const epharmPlatforms = ['pharmeasy', 'apollo 247', 'apollo', '1_mg', '1mg', 'tata 1mg', 'netmeds', 'truemeds'];
 
-        if (isQuickComm) {
-            conditions.push(`lower(${columnName}) IN (${quickPlatforms.map(p => `'${p}'`).join(', ')})`);
-        } else if (isEcom && !isModernTrade) {
-            conditions.push(`lower(${columnName}) IN (${ecomPlatforms.map(p => `'${p}'`).join(', ')})`);
-        } else if (isModernTrade && !isEcom) {
-            const allEcomQuick = [...ecomPlatforms, ...quickPlatforms];
-            conditions.push(`lower(${columnName}) NOT IN (${allEcomQuick.map(p => `'${p}'`).join(', ')})`);
+        const activeLists = [];
+        if (isQuickComm) activeLists.push(...quickPlatforms);
+        if (isEcom) activeLists.push(...ecomPlatforms);
+        if (isEpharm) activeLists.push(...epharmPlatforms);
+
+        if (activeLists.length > 0) {
+            const combined = [...new Set(activeLists)];
+            conditions.push(`lower(${columnName}) IN (${combined.map(p => `'${p}'`).join(', ')})`);
+        } else if (isModernTrade) {
+            const allEcomQuickPharm = [...ecomPlatforms, ...quickPlatforms, ...epharmPlatforms];
+            conditions.push(`lower(${columnName}) NOT IN (${allEcomQuickPharm.map(p => `'${p}'`).join(', ')})`);
         }
     }
 

@@ -37,7 +37,9 @@ import {
   Checkbox,
   Drawer as MuiDrawer,
 } from "@mui/material";
-import { ChevronDown, X, Search, Plus, Filter, BarChart3, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, X, Search, Plus, Filter, BarChart3, SlidersHorizontal, Download } from "lucide-react";
+import * as XLSX from "xlsx";
+import dayjs from "dayjs";
 import ReactECharts from "echarts-for-react";
 import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
@@ -985,6 +987,35 @@ export default function TrendsCompetitionDrawer({
   const [kpiAvailability, setKpiAvailability] = useState(null); // { pdp, pm, kw, ms } from backend
   const [loading, setLoading] = useState(true);
   const [compLoading, setCompLoading] = useState(false);
+
+  const handleDownloadCompetition = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      if (Array.isArray(competitionData) && competitionData.length > 0) {
+        const compRows = competitionData.map((item, idx) => ({
+          "S.No": idx + 1,
+          "Brand": item.brand || item.name || item.brand_name || "N/A",
+          "OSA %": item.osa !== undefined ? `${Number(item.osa).toFixed(1)}%` : "N/A",
+          "Listing %": item.listing !== undefined ? `${Number(item.listing).toFixed(1)}%` : "N/A",
+          "Market Share %": item.marketShare !== undefined ? `${Number(item.marketShare).toFixed(1)}%` : "N/A",
+          "Assortment": item.assortment || 0,
+          "DOI": item.doi || 0,
+          "Fillrate %": item.fillrate !== undefined ? `${Number(item.fillrate).toFixed(1)}%` : "N/A",
+        }));
+        const sheet = XLSX.utils.json_to_sheet(compRows);
+        XLSX.utils.book_append_sheet(wb, sheet, "Competition Data");
+      } else {
+        const sheet = XLSX.utils.json_to_sheet([{ "Note": "Exporting competition data..." }]);
+        XLSX.utils.book_append_sheet(wb, sheet, "Competition Data");
+      }
+
+      const fileName = `Competition_Export_${selectedColumn || 'Data'}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error("[TrendsCompetitionDrawer] Download competition error:", err);
+    }
+  };
 
   // ===================== DYNAMIC FILTER OPTIONS STATE =====================
   const [filterOptions, setFilterOptions] = useState({

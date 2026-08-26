@@ -1814,8 +1814,9 @@ const getPricingPlatforms = async (channel) => {
         const src = await getPricingSource();
         const conds = [];
         if (channel && channel !== 'All') {
-            const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
-            const searchPattern = isEcom ? '%ecom%' : (channel.toLowerCase().includes('quick') ? '%quick%' : `%${channel.toLowerCase().replace(/'/g, "''")}%`);
+            const channelStr = (Array.isArray(channel) ? channel.join(',') : String(channel)).toLowerCase();
+            const isEcom = channelStr.includes('ecom') || channelStr.includes('e-com');
+            const searchPattern = isEcom ? '%ecom%' : (channelStr.includes('quick') ? '%quick%' : `%${channelStr.replace(/'/g, "''")}%`);
             conds.push(`lower(${src.f.channel || 'channel'}) LIKE '${searchPattern}'`);
         }
         conds.push(`${src.f.platform} IS NOT NULL AND ${src.f.platform} != ''`);
