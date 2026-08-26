@@ -372,22 +372,24 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
             // Fallback for tables without a channel column (only apply when explicit platform is NOT specified)
             const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c.toLowerCase()));
             const isQuickComm = channels.some(c => c.toLowerCase().includes('quick'));
+            const isEpharm = channels.some(c => c.toLowerCase().includes('epharm') || c.toLowerCase().includes('e-pharm') || c.toLowerCase().includes('pharm'));
             const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(c.toLowerCase()));
 
-            const ecomPlatforms = ['amazon', 'flipkart'];
-            const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'];
+            const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart', 'meesho', 'myntra', 'shopify', 'first cry'];
+            const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'flipkart minutes', 'amazon now'];
+            const epharmPlatforms = ['pharmeasy', 'apollo 247', 'apollo', '1_mg', '1mg', 'tata 1mg', 'netmeds', 'truemeds'];
 
-            if (isQuickComm && isEcom) {
-                // Both Ecom and QuickComm channels selected — include both platform lists
-                const combinedPlatforms = [...new Set([...ecomPlatforms, ...quickPlatforms])];
+            const activeLists = [];
+            if (isQuickComm) activeLists.push(...quickPlatforms);
+            if (isEcom) activeLists.push(...ecomPlatforms);
+            if (isEpharm) activeLists.push(...epharmPlatforms);
+
+            if (activeLists.length > 0) {
+                const combinedPlatforms = [...new Set(activeLists)];
                 conditions.push(`lower(${columnName}) IN (${combinedPlatforms.map(p => `'${p}'`).join(', ')})`);
-            } else if (isQuickComm) {
-                conditions.push(`lower(${columnName}) IN (${quickPlatforms.map(p => `'${p}'`).join(', ')})`);
-            } else if (isEcom && !isModernTrade) {
-                conditions.push(`lower(${columnName}) IN (${ecomPlatforms.map(p => `'${p}'`).join(', ')})`);
-            } else if (isModernTrade && !isEcom) {
-                const allEcomQuick = [...ecomPlatforms, ...quickPlatforms];
-                conditions.push(`lower(${columnName}) NOT IN (${allEcomQuick.map(p => `'${p}'`).join(', ')})`);
+            } else if (isModernTrade) {
+                const allEcomQuickPharm = [...ecomPlatforms, ...quickPlatforms, ...epharmPlatforms];
+                conditions.push(`lower(${columnName}) NOT IN (${allEcomQuickPharm.map(p => `'${p}'`).join(', ')})`);
             }
         }
     }
@@ -4509,8 +4511,17 @@ const getPlatforms = async (channel) => {
             const channelStr = (Array.isArray(channel) ? channel.join(',') : String(channel)).toLowerCase();
             const isEcom = channelStr.includes('ecom') || channelStr.includes('e-com');
             const isQcomm = channelStr.includes('quick') || channelStr.includes('qcomm');
-            const searchPattern = isEcom ? '%ecom%' : (isQcomm ? '%quick%' : `%${channelStr.replace(/'/g, "''")}%`);
-            query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND lower(${channelCol}) LIKE '${searchPattern}' ORDER BY platform`;
+            const isEpharm = channelStr.includes('epharm') || channelStr.includes('e-pharm') || channelStr.includes('pharm');
+
+            if (isEpharm) {
+                query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND (lower(${channelCol}) LIKE '%pharm%' OR lower(${channelCol}) LIKE '%epharm%' OR lower(${platformCol}) IN ('pharmeasy', 'apollo 247', 'apollo', '1_mg', '1mg', 'tata 1mg', 'netmeds', 'truemeds') OR lower(${platformCol}) LIKE '%pharm%' OR lower(${platformCol}) LIKE '%meds%') ORDER BY platform`;
+            } else if (isEcom) {
+                query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND lower(${channelCol}) LIKE '%ecom%' ORDER BY platform`;
+            } else if (isQcomm) {
+                query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND (lower(${channelCol}) LIKE '%quick%' OR lower(${channelCol}) LIKE '%qcomm%') ORDER BY platform`;
+            } else {
+                query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND lower(${channelCol}) LIKE '%${channelStr.replace(/'/g, "''")}%' ORDER BY platform`;
+            }
         } else {
             query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' ORDER BY platform`;
         }
@@ -5332,19 +5343,22 @@ const getPlatformOverview = async (filters) => {
 
         const isAll = channelList.includes('all');
         if (!isAll && channelList.length > 0) {
-            const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart'];
-            const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'dunzo'];
+            const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart', 'meesho', 'myntra', 'shopify', 'first cry'];
+            const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'dunzo', 'flipkart minutes', 'amazon now'];
+            const epharmPlatforms = ['pharmeasy', 'apollo 247', 'apollo', '1_mg', '1mg', 'tata 1mg', 'netmeds', 'truemeds', 'healthkart'];
 
             const hasQuick = channelList.some(c => c.includes('quick') || c === 'quickcomm' || c === 'qcomm');
-            const hasEcom = channelList.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c));
+            const hasEcom = channelList.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c) || c.includes('e-com'));
+            const hasEpharm = channelList.some(c => c.includes('epharm') || c.includes('e-pharm') || c.includes('pharm'));
             const hasModern = channelList.some(c => ['modern trades', 'moderntrade'].includes(c));
 
-            if (hasQuick || hasEcom || hasModern) {
+            if (hasQuick || hasEcom || hasEpharm || hasModern) {
                 platformDefinitions = platformDefinitions.filter(p => {
                     const pLabel = p.label.toLowerCase();
                     if (hasQuick && quickPlatforms.some(qp => pLabel.includes(qp))) return true;
                     if (hasEcom && ecomPlatforms.some(ep => pLabel.includes(ep))) return true;
-                    if (hasModern && ![...ecomPlatforms, ...quickPlatforms].some(op => pLabel.includes(op))) return true;
+                    if (hasEpharm && (epharmPlatforms.some(epp => pLabel.includes(epp) || epp.includes(pLabel)) || pLabel.includes('pharm') || pLabel.includes('meds') || pLabel.includes('1mg') || pLabel.includes('1_mg'))) return true;
+                    if (hasModern && ![...ecomPlatforms, ...quickPlatforms, ...epharmPlatforms].some(op => pLabel.includes(op))) return true;
                     return false;
                 });
             }
