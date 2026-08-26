@@ -105,17 +105,27 @@ export const connectClickHouse = async () => {
 };
 
 // Helper function to run queries - automatically uses the correct DB per request
-export const queryClickHouse = async (query, params = {}) => {
+export const queryClickHouse = async (query, params = {}, clickhouse_settings = {}) => {
     try {
         const client = getCurrentClient();
         const dbName = getCurrentDbName();
         // LOG ALL QUERIES FOR DEBUGGING
         console.log(`[ClickHouse Debug] DB: ${dbName} | Query: ${query.replace(/\s+/g, ' ')}`);
         
+        const maxMemoryUsage = process.env.CLICKHOUSE_MAX_MEMORY_USAGE
+            ? parseInt(process.env.CLICKHOUSE_MAX_MEMORY_USAGE, 10)
+            : 10737418240; // 10 GB default memory limit (increased from server 400 MB limit)
+
         const result = await client.query({
             query,
             query_params: params,
             format: 'JSONEachRow',
+            clickhouse_settings: {
+                max_memory_usage: maxMemoryUsage,
+                max_bytes_before_external_group_by: 2147483648, // 2 GB spill to disk for GROUP BY
+                max_bytes_before_external_sort: 2147483648, // 2 GB spill to disk for ORDER BY
+                ...clickhouse_settings,
+            },
         });
         const data = await result.json();
         console.log(`[ClickHouse Debug] Result: ${data.length} rows`);

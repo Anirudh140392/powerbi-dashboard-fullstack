@@ -262,7 +262,7 @@ export default function OsaDetailTableLight({
         const hasGrammageData = apiData.osaDetail.some(r => r.grammage || r.weight);
 
         const opts = [
-            { id: "msl", label: "MSL", options: [
+            { id: "msl", label: "Top SKU", options: [
                 { id: "0", label: "All SKUs" },
                 { id: "1", label: "Top SKUs" }
             ] },

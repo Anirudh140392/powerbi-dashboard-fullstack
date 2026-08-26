@@ -116,6 +116,8 @@ const arrayToFilter = (v) => {
  * ---------------------------------------------------------------------------
  */
 const DrawerMultiSelect = ({ title, value, options, onChange }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
   const selectedValues = useMemo(() => {
     if (!value || value === 'All' || (typeof value === 'string' && value.toLowerCase() === 'all')) return [];
     let vals = [];
@@ -126,17 +128,23 @@ const DrawerMultiSelect = ({ title, value, options, onChange }) => {
     // MUI Select won't recognize it, and will discard it when a new option is clicked.
     // So we MUST normalize the casing to match the options.
     return vals.map(v => {
-      const match = options.find(o => o.toLowerCase() === v.toLowerCase());
+      const match = options.find(o => String(o).toLowerCase() === v.toLowerCase());
       return match || v;
     });
   }, [value, options]);
 
+  const filteredOptions = useMemo(() => {
+    if (!searchQuery.trim()) return options;
+    return options.filter(opt => String(opt).toLowerCase().includes(searchQuery.toLowerCase().trim()));
+  }, [options, searchQuery]);
+
   const handleChange = (event) => {
     const val = event.target.value; // Array of selected strings
-    if (val.length === 0) {
+    const cleanVals = Array.isArray(val) ? val.filter(v => v !== '__SEARCH_INPUT__') : [];
+    if (cleanVals.length === 0) {
       onChange('All');
     } else {
-      onChange(val.join(','));
+      onChange(cleanVals.join(','));
     }
   };
 
@@ -152,6 +160,7 @@ const DrawerMultiSelect = ({ title, value, options, onChange }) => {
       displayEmpty
       value={selectedValues}
       onChange={handleChange}
+      onClose={() => setSearchQuery('')}
       renderValue={() => (
         <Box display="flex" alignItems="center" gap={0.5}>
           {isActive ? (
@@ -186,7 +195,7 @@ const DrawerMultiSelect = ({ title, value, options, onChange }) => {
             borderRadius: '12px',
             boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
             border: '1px solid #E2E8F0',
-            maxHeight: 340,
+            maxHeight: 360,
           }
         }
       }}
@@ -205,10 +214,48 @@ const DrawerMultiSelect = ({ title, value, options, onChange }) => {
         '&:hover': { backgroundColor: '#F8FAFC', borderColor: isActive ? '#3B82F6' : '#CBD5E1' }
       }}
     >
-      {options.length === 0 ? (
-        <MenuItem disabled sx={{ fontSize: '13px' }}>No options</MenuItem>
+      <Box
+        sx={{
+          p: 1,
+          position: 'sticky',
+          top: 0,
+          bgcolor: 'background.paper',
+          zIndex: 10,
+          borderBottom: '1px solid #E2E8F0'
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <TextField
+          size="small"
+          placeholder={`Search ${title}...`}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          fullWidth
+          autoFocus
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search size={14} color="#94A3B8" />
+              </InputAdornment>
+            ),
+            endAdornment: searchQuery ? (
+              <InputAdornment position="end">
+                <IconButton size="small" onClick={(e) => { e.stopPropagation(); setSearchQuery(''); }}>
+                  <X size={12} color="#94A3B8" />
+                </IconButton>
+              </InputAdornment>
+            ) : null,
+            sx: { fontSize: '12px', height: '32px', borderRadius: '8px' }
+          }}
+        />
+      </Box>
+
+      {filteredOptions.length === 0 ? (
+        <MenuItem disabled sx={{ fontSize: '13px', py: 1.5, fontStyle: 'italic', justifyContent: 'center' }}>
+          No {title.toLowerCase()} found
+        </MenuItem>
       ) : (
-        options.map((opt) => (
+        filteredOptions.map((opt) => (
           <MenuItem key={opt} value={opt} sx={{ fontSize: '13px', py: 1 }}>
             <Checkbox
               checked={selectedValues.includes(opt)}
@@ -2784,7 +2831,7 @@ export default function TrendsCompetitionDrawer({
           )}
           {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
             <SelectedFilterChip
-              label="MSL"
+              label="Top SKU"
               value={getMslDisplayValue(drawerFilters.Msl)}
               color={drawerFilters.Msl !== 'All' ? "#0ea5e9" : "#64748B"}
             />
@@ -2894,7 +2941,7 @@ export default function TrendsCompetitionDrawer({
                 {/* MSL dropdown */}
                 {['availability', 'pricing', 'platform_overview_tower'].includes(dynamicKey) && (
                   <DrawerMultiSelect
-                    title="MSL"
+                    title="Top SKU"
                     value={getMslDisplayValue(drawerFilters.Msl)}
                     options={["Top SKUs", "All SKUs"]}
                     onChange={handleMslChange}
