@@ -8,3 +8,4 @@ import { queryClickHouse } from './backend/src/config/clickhouse.js';
     }
     process.exit(0);
 })();
+
