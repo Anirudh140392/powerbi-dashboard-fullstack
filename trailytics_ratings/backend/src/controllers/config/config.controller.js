@@ -1,5 +1,6 @@
 import pool from '../../config/db.js';
 import clickhouse from '../../config/clickhouse.js';
+import { getOlapTableName } from '../../utils/olapResolver.js';
 
 const getTargetDb = (req) => {
     return req.query.db_name || req.query.db || req.headers['x-db-name'] || req.headers['x-database-name'] || (req.authUser && req.authUser.dbName) || process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
@@ -42,7 +43,7 @@ export const getPlatformOptions = async (req, res) => {
             params.isCompetitor = is_competitor === 'true' ? 1 : 0;
         }
 
-        const olapQuery = `SELECT DISTINCT platform FROM rb_review_olap r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.platform != '' ORDER BY platform`;
+        const olapQuery = `SELECT DISTINCT platform FROM ${getOlapTableName(getTargetDb(req))} r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.platform != '' ORDER BY platform`;
         const mlQuery = `SELECT DISTINCT platform FROM ml_reviews r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.platform != '' ORDER BY platform`;
 
         const rows = await queryChWithFallback(getTargetDb(req), olapQuery, mlQuery, params);
@@ -99,13 +100,10 @@ export const getPriceRanges = async (req, res) => {
 export const getSentimentCategories = async (req, res) => {
     try {
         const params = { companyId: String(req.companyId) };
-        const chRes = await clickhouse.query({
-            database: getTargetDb(req),
-            query: `SELECT DISTINCT sentiment_category AS category FROM ml_reviews WHERE company_id = {companyId:String} AND sentiment_category != '' ORDER BY category`,
-            query_params: params,
-            format: 'JSONEachRow'
-        });
-        const rows = await chRes.json();
+        const db = getTargetDb(req);
+        const olapQuery = `SELECT DISTINCT sentiment_category AS category FROM ${getOlapTableName(db)} WHERE company_id = {companyId:String} AND sentiment_category != '' ORDER BY category`;
+        const mlQuery = `SELECT DISTINCT sentiment_category AS category FROM ml_reviews WHERE company_id = {companyId:String} AND sentiment_category != '' ORDER BY category`;
+        const rows = await queryChWithFallback(db, olapQuery, mlQuery, params);
         res.json({ categories: rows.map(r => r.category) });
     } catch (err) {
         console.error('Sentiment-categories error:', err);
@@ -226,7 +224,7 @@ export const getClientBrands = async (req, res) => {
             params.isCompetitor = is_competitor === 'true' ? 1 : 0;
         }
 
-        const olapQuery = `SELECT DISTINCT brand AS brand FROM rb_review_olap r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.brand != '' ORDER BY brand`;
+        const olapQuery = `SELECT DISTINCT brand AS brand FROM ${getOlapTableName(getTargetDb(req))} r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.brand != '' ORDER BY brand`;
         const mlQuery = `SELECT DISTINCT brand AS brand FROM ml_reviews r WHERE r.company_id = {companyId:String} ${competitorFilter} AND r.brand != '' ORDER BY brand`;
 
         const rows = await queryChWithFallback(getTargetDb(req), olapQuery, mlQuery, params);

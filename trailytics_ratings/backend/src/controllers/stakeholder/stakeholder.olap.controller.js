@@ -13,13 +13,14 @@
 
 import pool from '../../config/db.js';
 import clickhouse from '../../config/clickhouse.js';
-
-const OLAP_TABLE = 'rb_review_olap';
+import { getOlapTableName } from '../../utils/olapResolver.js';
 
 const getTargetDb = (req) =>
     req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] ||
     (req.authUser && req.authUser.dbName) ||
     process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
+
+const getOlapTable = (req) => getOlapTableName(getTargetDb(req));
 
 const formatStakeholder = (name) => {
     if (!name) return null;
@@ -78,7 +79,7 @@ export const getStakeholderDetail = async (req, res) => {
                 round(avg(o.rating), 1) AS issue_rating,
                 count() AS total_count,
                 any(o.sentiment_display_label) AS display_label
-            FROM ${OLAP_TABLE} o
+            FROM ${getOlapTable(req)} o
             WHERE ${extraFilters.join(' AND ')}
               AND isNotNull(o.sentiment_subcategory)
               AND o.sentiment_subcategory != ''
@@ -134,7 +135,7 @@ export const getStakeholderMappings = async (req, res) => {
                 sentiment_subcategory,
                 any(stakeholder) AS stakeholder,
                 any(sentiment_display_label) AS display_label
-            FROM ${OLAP_TABLE}
+            FROM ${getOlapTable(req)}
             WHERE company_id = {companyId:String}
               AND isNotNull(sentiment_subcategory)
               AND sentiment_subcategory != ''

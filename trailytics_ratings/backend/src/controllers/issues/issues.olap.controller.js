@@ -7,13 +7,14 @@
  */
 
 import clickhouse from '../../config/clickhouse.js';
-
-const OLAP_TABLE = 'rb_review_olap';
+import { getOlapTableName } from '../../utils/olapResolver.js';
 
 const getTargetDb = (req) =>
     req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] ||
     (req.authUser && req.authUser.dbName) ||
     process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
+
+const getOlapTable = (req) => getOlapTableName(getTargetDb(req));
 
 // shared filter builder
 function buildFilters(req, alias = 'o') {
@@ -80,7 +81,7 @@ export const getIssuesBreakdown = async (req, res) => {
                 countIf(o.sentiment = 'negative') AS negative_count,
                 uniqExact(o.web_pid) AS sku_count,
                 round(avg(o.rating), 2) AS avg_rating
-            FROM ${OLAP_TABLE} o
+            FROM ${getOlapTable(req)} o
             WHERE o.company_id = {companyId:String}
               AND isNotNull(o.sentiment_subcategory) AND o.sentiment_subcategory != ''
               AND o.sentiment_subcategory != 'General_Feedback'
@@ -132,7 +133,7 @@ export const getIssueDetail = async (req, res) => {
                 count() AS review_count,
                 countIf(sentiment = 'negative') AS negative_count,
                 round(avg(rating), 2) AS avg_review_rating
-            FROM ${OLAP_TABLE}
+            FROM ${getOlapTable(req)}
             WHERE company_id = {companyId:String}
               AND sentiment_subcategory = {subcategory:String}
               ${compFilter}
@@ -203,12 +204,12 @@ export const getReviewsByIssue = async (req, res) => {
                    o.sentiment_subcategory, o.specific_issue,
                    o.ml_inferred_rating AS sentiment_score, o.quality_score,
                    o.product_name, o.pdp_rating
-            FROM ${OLAP_TABLE} o
+            FROM ${getOlapTable(req)} o
             WHERE ${whereStr}
             ${orderClause}
             LIMIT {limit:UInt32} OFFSET {offset:UInt32}
         `;
-        const countSql = `SELECT count() AS count FROM ${OLAP_TABLE} o WHERE ${whereStr}`;
+        const countSql = `SELECT count() AS count FROM ${getOlapTable(req)} o WHERE ${whereStr}`;
 
         const [chRes, chCount] = await Promise.all([
             clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' }),
@@ -238,7 +239,7 @@ export const getAsinIssues = async (req, res) => {
             SELECT product_name, argMax(pdp_rating, review_date) AS pdp_rating,
                    max(pdp_rating_count) AS rating_count,
                    argMax(star_distribution, review_date) AS star_distribution
-            FROM ${OLAP_TABLE}
+            FROM ${getOlapTable(req)}
             WHERE company_id = {companyId:String} AND web_pid = {webPid:String}
               AND coalesce(is_competitor, 0) = 0
             GROUP BY product_name
@@ -284,7 +285,7 @@ export const getAsinIssues = async (req, res) => {
                 countIf(o.sentiment = 'positive') AS positive_count,
                 round(avg(o.rating), 2) AS avg_rating,
                 round(avg(o.ml_inferred_rating), 2) AS avg_ml_rating
-            FROM ${OLAP_TABLE} o
+            FROM ${getOlapTable(req)} o
             WHERE ${whereStr}
               AND isNotNull(o.sentiment_subcategory) AND o.sentiment_subcategory != ''
               AND o.sentiment_subcategory != 'General_Feedback'
@@ -299,7 +300,7 @@ export const getAsinIssues = async (req, res) => {
                 countIf(sentiment = 'neutral') AS neutral,
                 round(avg(rating), 2) AS avg_rating,
                 round(avg(ml_inferred_rating), 2) AS avg_ml_rating
-            FROM ${OLAP_TABLE} o
+            FROM ${getOlapTable(req)} o
             WHERE ${whereStr}
         `;
 
