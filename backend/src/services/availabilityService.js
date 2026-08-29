@@ -3148,6 +3148,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
                 const osa = deno > 0 ? (neno / deno) * 100 : null;
                 const listing = parseFloat(row.avg_listing_percent) || 0;
+                const wtOsa = osa !== null ? parseFloat(((osa * listing) / 100).toFixed(2)) : 0;
 
                 // DOI = (Current Inventory / Total Sales in Period) * period_days
                 // Assuming 1M period (30 days) as default
@@ -3163,6 +3164,8 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     osaDelta: 0,
                     listing: parseFloat(listing.toFixed(1)),
                     listingDelta: 0,
+                    wtOsa: wtOsa,
+                    wt_osa: wtOsa,
                     assortment: dailyUniquePids,
                     assortmentDelta: 0,
                     doi: parseFloat(doi.toFixed(1)),
@@ -3202,6 +3205,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
                 const osa = deno > 0 ? (neno / deno) * 100 : null;
                 const listing = parseFloat(s.avg_listing_percent) || 0;
+                const wtOsa = osa !== null ? parseFloat(((osa * listing) / 100).toFixed(2)) : 0;
                 const doi = totalQtySold > 0 ? (latestInv / totalQtySold) * 30 : 0;
 
                 // PSL = (SUM(Sales) / (OSA_Percentage / 100)) - SUM(Sales)  [currency format]
@@ -3221,7 +3225,9 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     fillrate: 'Coming Soon',
                     assortment: 1,
                     psl: parseFloat(psl.toFixed(2)),
-                    listing: parseFloat(listing.toFixed(1))
+                    listing: parseFloat(listing.toFixed(1)),
+                    wtOsa: wtOsa,
+                    wt_osa: wtOsa
                 };
             });
 
