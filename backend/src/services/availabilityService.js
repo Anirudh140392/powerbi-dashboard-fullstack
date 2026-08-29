@@ -651,7 +651,8 @@ const getAbsoluteOsaOverview = async (filters) => {
                     toString(${actualWeightCol}) as grammage,
                     DATE as date,
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNeno,
-                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDeno
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDeno,
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sumSales
                 FROM rb_pdp_olap
                 WHERE ${detailWhere} AND Web_Pid IS NOT NULL AND Web_Pid != ''
                 GROUP BY Web_Pid, Product, Platform, Brand, Category, ${actualWeightCol}, DATE
@@ -674,18 +675,23 @@ const getAbsoluteOsaOverview = async (filters) => {
                         brand: row.brand,
                         format: row.format,
                         grammage: row.grammage || '',
+                        totalSales: 0,
                         dateMap: {},
                         values: new Array(31).fill(null),
                     };
                 }
                 const neno = parseFloat(row.sumNeno) || 0;
                 const deno = parseFloat(row.sumDeno) || 0;
+                const sales = parseFloat(row.sumSales) || 0;
                 // If deno > 0, this is real data (even if neno is 0, OSA is legitimately 0%)
                 // If deno = 0, there's no data for this SKU on this date
                 const osa = deno > 0 ? Math.round((neno / deno) * 100) : null;
 
+                skuMap[row.sku].totalSales += sales;
                 skuMap[row.sku].dateMap[row.date] = { osa, neno, deno };
             });
+
+            const totalAllSalesOverview = Object.values(skuMap).reduce((acc, item) => acc + (item.totalSales || 0), 0);
 
             // Calculate aggregates and fill values array
             const osaDetail = Object.values(skuMap).map(item => {
@@ -723,6 +729,7 @@ const getAbsoluteOsaOverview = async (filters) => {
                 const avgSelected = totalDenoSelected > 0 ? Math.round((totalNenoSelected / totalDenoSelected) * 100) : 0;
                 // Status based on selected period instead of 7 days to match selected dates accuracy
                 const status = avgSelected >= 85 ? "Healthy" : avgSelected >= 70 ? "Watch" : "Action";
+                const offtakeShare = totalAllSalesOverview > 0 ? parseFloat(((item.totalSales / totalAllSalesOverview) * 100).toFixed(2)) : 0;
 
                 return {
                     name: item.name,
@@ -732,6 +739,8 @@ const getAbsoluteOsaOverview = async (filters) => {
                     format: item.format,
                     grammage: item.grammage,
                     weight: item.grammage,
+                    offtakeShare,
+                    totalSales: item.totalSales,
                     values: item.values,
                     avg7,
                     avg31,
@@ -1886,7 +1895,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     DATE
                     ${selectSap},
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sum_neno,
-                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sum_deno
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sum_deno,
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sum_sales
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                   AND Product != '0'
@@ -1950,6 +1960,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
 
                 const neno = parseFloat(row.sum_neno) || 0;
                 const deno = parseFloat(row.sum_deno) || 0;
+                const sales = parseFloat(row.sum_sales) || 0;
 
                 if (!skuMap[skuId]) {
                     skuMap[skuId] = {
@@ -1961,12 +1972,15 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                         product_category_name: row.product_category_name,
                         grammage: row.grammage || '',
                         sap_code: hasSapCode ? (row.sap_code || null) : undefined,
+                        totalSales: 0,
                         days: {}, // Overall SKU daily aggregations: { date: { neno, deno } }
                         cities: {} // Nested city data: { city: { date: osa } }
                     };
                 } else if (hasSapCode && !skuMap[skuId].sap_code && row.sap_code) {
                     skuMap[skuId].sap_code = row.sap_code;
                 }
+
+                skuMap[skuId].totalSales += sales;
 
                 // Overall SKU aggregation
                 if (!skuMap[skuId].days[dateStr]) {
@@ -1987,6 +2001,9 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     skuMap[skuId].cities[cityStr][dateStr].deno += deno;
                 }
             });
+
+            // Total sales across all valid SKUs for offtakeShare calculation
+            const totalAllSales = Object.values(skuMap).reduce((acc, item) => acc + (item.totalSales || 0), 0);
 
             // Map data into final format: [{ name, sku, values: [...], avg31, status, cities: [{ name, values: [...], avg31 }] }]
             const formattedData = Object.values(skuMap).map(item => {
@@ -2051,6 +2068,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     return null;
                 }
 
+                const offtakeShare = totalAllSales > 0 ? parseFloat(((item.totalSales / totalAllSales) * 100).toFixed(2)) : 0;
+
                 const rowObj = {
                     name: item.name,
                     sku: item.sku,
@@ -2062,6 +2081,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     productCategory: item.product_category_name,
                     grammage: item.grammage,
                     weight: item.grammage,
+                    offtakeShare: offtakeShare,
+                    totalSales: item.totalSales,
                     values: skuValues,
                     avg7: avg7,
                     avg31: skuAvg31,
@@ -3127,6 +3148,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
                 const osa = deno > 0 ? (neno / deno) * 100 : null;
                 const listing = parseFloat(row.avg_listing_percent) || 0;
+                const wtOsa = osa !== null ? parseFloat(((osa * listing) / 100).toFixed(2)) : 0;
 
                 // DOI = (Current Inventory / Total Sales in Period) * period_days
                 // Assuming 1M period (30 days) as default
@@ -3142,6 +3164,8 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     osaDelta: 0,
                     listing: parseFloat(listing.toFixed(1)),
                     listingDelta: 0,
+                    wtOsa: wtOsa,
+                    wt_osa: wtOsa,
                     assortment: dailyUniquePids,
                     assortmentDelta: 0,
                     doi: parseFloat(doi.toFixed(1)),
@@ -3181,6 +3205,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
                 const osa = deno > 0 ? (neno / deno) * 100 : null;
                 const listing = parseFloat(s.avg_listing_percent) || 0;
+                const wtOsa = osa !== null ? parseFloat(((osa * listing) / 100).toFixed(2)) : 0;
                 const doi = totalQtySold > 0 ? (latestInv / totalQtySold) * 30 : 0;
 
                 // PSL = (SUM(Sales) / (OSA_Percentage / 100)) - SUM(Sales)  [currency format]
@@ -3200,7 +3225,9 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     fillrate: 'Coming Soon',
                     assortment: 1,
                     psl: parseFloat(psl.toFixed(2)),
-                    listing: parseFloat(listing.toFixed(1))
+                    listing: parseFloat(listing.toFixed(1)),
+                    wtOsa: wtOsa,
+                    wt_osa: wtOsa
                 };
             });
 

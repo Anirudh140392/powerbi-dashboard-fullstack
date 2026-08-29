@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 import clickhouse from '../config/clickhouse.js';
+import { getOlapTableName } from '../utils/olapResolver.js';
 
 const getTargetDb = (req) => {
     return (req.query.db && req.query.db.toLowerCase() === 'danone') ? 'danone' : 'loreal';
@@ -1055,7 +1056,7 @@ export const getSkuListOlap = async (req, res) => {
                 any(r.pdp_rating) AS pdp_rating,
                 'Non-Pareto' AS pareto_status,
                 count() AS review_count
-            FROM rb_review_olap r
+            FROM ${getOlapTableName(getTargetDb(req))} r
             WHERE r.company_id = {companyId:String} ${extraFilters}
             GROUP BY r.web_pid
             ORDER BY review_count DESC, product_name

@@ -750,6 +750,7 @@ const BrandTable = ({ rows, loading, isEcom, onDownload }) => {
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
                                 {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
+                                <th className="px-3 py-2 text-center">Wt OSA</th>
                             </tr>
 
                         </thead>
@@ -783,13 +784,18 @@ const BrandTable = ({ rows, loading, isEcom, onDownload }) => {
                                             </span>
                                         </td>
                                     )}
+                                    <td className="px-3 py-2 text-center text-[12px]">
+                                        <span className="font-semibold text-slate-700">
+                                            {formatKpiValue(row.wtOsa ?? row.wt_osa ?? (row.osa && row.listing ? (row.osa * row.listing) / 100 : 0))}
+                                        </span>
+                                    </td>
                                 </tr>
 
                             ))}
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={isEcom ? 2 : 3}
+                                        colSpan={isEcom ? 3 : 4}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
 
@@ -832,18 +838,19 @@ const SkuTable = ({ rows, loading, isEcom, onDownload }) => {
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
                                 {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
+                                <th className="px-3 py-2 text-center">Wt OSA</th>
                             </tr>
 
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && (
                                 <tr>
-                                    <td colSpan={4} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                                    <td colSpan={5} className="px-3 py-6 text-center text-[12px] text-slate-400">
                                         <div className="animate-pulse">Loading competition data...</div>
                                     </td>
                                 </tr>
                             )}
-                            {!loading && rows.slice(0, 8).map((row, idx) => (
+                            {!loading && rows.map((row, idx) => (
                                 <tr
                                     key={row.id}
                                     className={cn(
@@ -869,13 +876,18 @@ const SkuTable = ({ rows, loading, isEcom, onDownload }) => {
                                             </span>
                                         </td>
                                     )}
+                                    <td className="px-3 py-2 text-center text-[12px]">
+                                        <span className="font-semibold text-slate-700">
+                                            {formatKpiValue(row.wtOsa ?? row.wt_osa ?? (row.osa && row.listing ? (row.osa * row.listing) / 100 : 0))}
+                                        </span>
+                                    </td>
                                 </tr>
 
                             ))}
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={isEcom ? 3 : 4}
+                                        colSpan={isEcom ? 4 : 5}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
 
@@ -1260,27 +1272,39 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
         activeFilters.categories.length + activeFilters.brands.length + activeFilters.skus.length + (activeFilters.msl ? activeFilters.msl.length : 0);
 
     const brandRows = useMemo(() => {
-        return (competitionData.brands || []).map((b, idx) => ({
-            id: b.brand || `brand-${idx}`,
-            name: b.brand || 'Unknown',
-            osa: b.osa || 0,
-            listing: b.listing || 0,
-            doi: b.doi || 0,
-            fillrate: b.fillrate || 0,
-            assortment: b.assortment || 0,
-            psl: b.psl || 0
-        }));
+        return (competitionData.brands || []).map((b, idx) => {
+            const osa = b.osa || 0;
+            const listing = b.listing || 0;
+            const wtOsa = b.wtOsa ?? b.wt_osa ?? (osa && listing ? parseFloat(((osa * listing) / 100).toFixed(1)) : 0);
+            return {
+                id: b.brand || `brand-${idx}`,
+                name: b.brand || 'Unknown',
+                osa: osa,
+                listing: listing,
+                wtOsa: wtOsa,
+                wt_osa: wtOsa,
+                doi: b.doi || 0,
+                fillrate: b.fillrate || 0,
+                assortment: b.assortment || 0,
+                psl: b.psl || 0
+            };
+        });
     }, [competitionData.brands]);
 
     const skuRows = useMemo(() => {
         const mapped = (competitionData.skus || []).map((s, idx) => {
             const msVal = Number(s.MarketShare?.value ?? s.marketShare?.value ?? s.MarketShare ?? s.marketShare ?? 0);
+            const osa = s.osa ?? s.OSA?.value ?? 0;
+            const listing = s.listing ?? s.Listing?.value ?? 0;
+            const wtOsa = s.wtOsa ?? s.wt_osa ?? (osa && listing ? parseFloat(((osa * listing) / 100).toFixed(1)) : 0);
             return {
                 id: s.sku_name || `sku-${idx}`,
                 name: s.sku_name || 'Unknown',
                 brandName: s.brand_name || 'Unknown',
-                osa: s.osa ?? s.OSA?.value ?? 0,
-                listing: s.listing ?? s.Listing?.value ?? 0,
+                osa: osa,
+                listing: listing,
+                wtOsa: wtOsa,
+                wt_osa: wtOsa,
                 doi: s.doi || 0,
                 fillrate: s.fillrate || 0,
                 assortment: s.assortment || 0,
@@ -1332,6 +1356,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 if (!isEcom) {
                     row["LISTING %"] = safeFormatPercent(s.listing ?? s.Listing);
                 }
+                row["WT OSA"] = safeFormatPercent(s.wtOsa ?? s.wt_osa ?? (s.osa && s.listing ? (s.osa * s.listing) / 100 : 0));
                 return row;
             });
 
@@ -1343,6 +1368,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 if (!isEcom) {
                     row["LISTING %"] = safeFormatPercent(b.listing ?? b.Listing);
                 }
+                row["WT OSA"] = safeFormatPercent(b.wtOsa ?? b.wt_osa ?? (b.osa && b.listing ? (b.osa * b.listing) / 100 : 0));
                 return row;
             });
 

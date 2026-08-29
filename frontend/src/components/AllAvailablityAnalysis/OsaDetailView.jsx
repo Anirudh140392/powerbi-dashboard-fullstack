@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { SlidersHorizontal, X, ChevronRight, ChevronDown, Calendar, Layers, Clock, ExternalLink } from "lucide-react";
+import { SlidersHorizontal, X, ChevronRight, ChevronDown, Calendar, Layers, Clock, ExternalLink, PieChart } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
@@ -33,13 +33,11 @@ function monthLabel(ds) {
 
 function avgOf(values, indices) {
     if (!indices?.length) return null;
-    // Filter out null/undefined (no data) but KEEP 0 (legitimate zero OSA)
     const vals = indices.map(i => values?.[i]).filter(v => v !== null && v !== undefined);
     if (!vals.length) return null;
     return parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1));
 }
 
-/** Build month groups from sorted date strings */
 function buildMonthGroups(dates) {
     if (!dates?.length) return [];
     const groups = [];
@@ -69,7 +67,7 @@ export default function OsaDetailTableLight({
     const [sortKey, setSortKey] = useState("avgSelected");
     const [sortDir, setSortDir] = useState("desc");
     const [expandedRows, setExpandedRows] = useState(new Set());
-    const [expandedMonths, setExpandedMonths] = useState(new Set()); // which months are drilled-down
+    const [expandedMonths, setExpandedMonths] = useState(new Set());
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     const [advancedFilters, setAdvancedFilters] = useState({});
     const [tempMslFilter, setTempMslFilter] = useState(mslFilter || '0');
@@ -98,34 +96,19 @@ export default function OsaDetailTableLight({
         
         const fetchResellerOptions = async () => {
             try {
-                const token = sessionStorage.getItem('token');
-                const headers = token ? { Authorization: `Bearer ${token}` } : {};
-                
                 const queryParams = new URLSearchParams();
-                queryParams.append('filterType', 'resellerNames');
-                
-                if (advancedFilters.platform?.length) {
-                    advancedFilters.platform.forEach(p => queryParams.append('platform', p));
-                }
-                if (advancedFilters.brand?.length) {
-                    advancedFilters.brand.forEach(b => queryParams.append('brand', b));
-                }
-                if (advancedFilters.format?.length) {
-                    advancedFilters.format.forEach(c => queryParams.append('category', c));
-                }
-                if (advancedFilters.city?.length) {
-                    advancedFilters.city.forEach(ct => queryParams.append('city', ct));
-                }
+                if (advancedFilters.platform?.length) queryParams.set('platform', advancedFilters.platform.join(','));
+                if (advancedFilters.brand?.length) queryParams.set('brand', advancedFilters.brand.join(','));
+                if (advancedFilters.format?.length) queryParams.set('format', advancedFilters.format.join(','));
+                if (advancedFilters.city?.length) queryParams.set('city', advancedFilters.city.join(','));
 
-                const res = await fetch(`/api/availability-analysis/filter-options?${queryParams.toString()}`, { headers });
+                const res = await fetch(`/api/availability-analysis/drl-reseller-options?${queryParams.toString()}`);
                 if (res.ok) {
                     const data = await res.json();
-                    if (data?.options) {
-                        setResellerOptions(data.options);
-                    }
+                    setResellerOptions(data.options || []);
                 }
             } catch (err) {
-                console.error("Failed to fetch reseller options:", err);
+                console.error('[OsaDetailView] Failed to fetch reseller options:', err);
             }
         };
         fetchResellerOptions();
@@ -144,8 +127,23 @@ export default function OsaDetailTableLight({
         setTempMslFilter(mslFilter || '0');
     }, [mslFilter]);
 
-    const toggleRow = (sku) => setExpandedRows(p => { const n = new Set(p); n.has(sku) ? n.delete(sku) : n.add(sku); return n; });
-    const toggleMonth = (mk) => setExpandedMonths(p => { const n = new Set(p); n.has(mk) ? n.delete(mk) : n.add(mk); return n; });
+    const toggleRow = (sku) => {
+        setExpandedRows(prev => {
+            const next = new Set(prev);
+            if (next.has(sku)) next.delete(sku);
+            else next.add(sku);
+            return next;
+        });
+    };
+
+    const toggleMonth = (mk) => {
+        setExpandedMonths(prev => {
+            const next = new Set(prev);
+            if (next.has(mk)) next.delete(mk);
+            else next.add(mk);
+            return next;
+        });
+    };
 
     const handleSectionChange = (id, vals) => {
         if (id === 'msl') {
@@ -169,19 +167,14 @@ export default function OsaDetailTableLight({
     const dates = useMemo(() => apiData?.osaDates || [], [apiData]);
     const monthGroups = useMemo(() => buildMonthGroups(dates), [dates]);
 
-    // Month drill-downs are closed by default (expandedMonths is initialized as an empty Set)
-
-    // Build flat column list based on expansion state
     const columns = useMemo(() => {
         const cols = [];
         monthGroups.forEach(mg => {
             if (expandedMonths.has(mg.key)) {
-                // Expanded: show each day
                 mg.indices.forEach((idx, i) => {
                     cols.push({ type: 'day', label: fmtDate(mg.dates[i]), indices: [idx], monthKey: mg.key });
                 });
             } else {
-                // Collapsed: show single month aggregate
                 cols.push({ type: 'month', label: mg.label, indices: mg.indices, monthKey: mg.key });
             }
         });
@@ -195,28 +188,18 @@ export default function OsaDetailTableLight({
 
         const getMatchingRowsExcluding = (targetKey) => {
             let res = apiData.osaDetail;
-
             if (targetKey !== 'msl' && tempMslFilter === '1') {
                 res = res.filter(r => r.isTopSku || r.msl === '1' || r.topSku === true || r.top_sku === 1);
             }
-
             Object.entries(advancedFilters).forEach(([key, values]) => {
                 if (key === targetKey || !values?.length) return;
-                if (key === 'platform') {
-                    res = res.filter(r => values.includes(r.platform));
-                } else if (key === 'brand') {
-                    res = res.filter(r => values.includes(r.brand));
-                } else if (key === 'productName') {
-                    res = res.filter(r => values.includes(r.name || r.productName));
-                } else if (key === 'format') {
-                    res = res.filter(r => values.includes(r.format));
-                } else if (key === 'grammage') {
-                    res = res.filter(r => values.includes(r.grammage || r.weight));
-                } else if (key === 'city') {
-                    res = res.filter(r => r.cities?.some(c => values.includes(c.name || c)));
-                } else if (key === 'resellerName') {
-                    res = res.filter(r => r.resellerName && values.includes(r.resellerName));
-                }
+                if (key === 'platform') res = res.filter(r => values.includes(r.platform));
+                else if (key === 'brand') res = res.filter(r => values.includes(r.brand));
+                else if (key === 'productName') res = res.filter(r => values.includes(r.name || r.productName));
+                else if (key === 'format') res = res.filter(r => values.includes(r.format));
+                else if (key === 'grammage') res = res.filter(r => values.includes(r.grammage || r.weight));
+                else if (key === 'city') res = res.filter(r => r.cities?.some(c => values.includes(c.name || c)));
+                else if (key === 'resellerName') res = res.filter(r => r.resellerName && values.includes(r.resellerName));
             });
             return res;
         };
@@ -228,7 +211,6 @@ export default function OsaDetailTableLight({
         const grammageRows = getMatchingRowsExcluding('grammage');
         const cityRows = getMatchingRowsExcluding('city');
 
-        // Build product name options with SAP code included in label for searchability
         const productOptions = [...new Set(productNameRows.map(r => {
             const name = r.name || r.productName;
             const sapCode = r.sap_code;
@@ -239,11 +221,9 @@ export default function OsaDetailTableLight({
             .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
             .map(p => ({
                 id: p.name,
-                // Include SAP code in the label so it's searchable in the filter panel
                 label: p.sapCode ? `${p.name} (SAP: ${p.sapCode})` : p.name
             }));
 
-        // Only show Grammage filter if at least one row has a non-null/non-empty grammage value
         const hasGrammageData = apiData.osaDetail.some(r => r.grammage || r.weight);
 
         const opts = [
@@ -269,23 +249,36 @@ export default function OsaDetailTableLight({
 
     const baseRows = useMemo(() => {
         if (!apiData?.osaDetail?.length) return [];
-        return apiData.osaDetail.map(row => ({
-            name: row.name || row.productName || "Unknown Product",
-            sku: row.sku || "N/A",
-            web_pid: row.web_pid || row.webPid || row.sku || null,
-            brand: row.brand, platform: row.platform, format: row.format,
-            grammage: row.grammage || row.weight || "",
-            imageUrl: row.imageUrl,
-            page_url: row.page_url || null,
-            values: row.values || [], avg7: row.avg7 || 0, avg31: row.avg31 || 0,
-            avgSelected: row.avgSelected || row.avg31 || 0, status: row.status || "Healthy", cities: row.cities || [],
-            sap_code: row.sap_code || null
-        }));
+        const hasShareInApi = apiData.osaDetail.some(r => r.offtakeShare !== undefined && r.offtakeShare !== null);
+        let totalSalesAcc = 0;
+        if (!hasShareInApi) {
+            totalSalesAcc = apiData.osaDetail.reduce((acc, r) => acc + (parseFloat(r.sales || r.totalSales || r.offtake || 0) || 0), 0);
+        }
+
+        return apiData.osaDetail.map(row => {
+            let offtakeShare = row.offtakeShare;
+            if ((offtakeShare === undefined || offtakeShare === null) && totalSalesAcc > 0) {
+                const s = parseFloat(row.sales || row.totalSales || row.offtake || 0) || 0;
+                offtakeShare = parseFloat(((s / totalSalesAcc) * 100).toFixed(2));
+            }
+            return {
+                name: row.name || row.productName || "Unknown Product",
+                sku: row.sku || "N/A",
+                web_pid: row.web_pid || row.webPid || row.sku || null,
+                brand: row.brand, platform: row.platform, format: row.format,
+                grammage: row.grammage || row.weight || "",
+                imageUrl: row.imageUrl,
+                page_url: row.page_url || null,
+                offtakeShare: offtakeShare,
+                values: row.values || [], avg7: row.avg7 || 0, avg31: row.avg31 || 0,
+                avgSelected: row.avgSelected || row.avg31 || 0, status: row.status || "Healthy", cities: row.cities || [],
+                sap_code: row.sap_code || null
+            };
+        });
     }, [apiData]);
 
     const filtered = useMemo(() => {
         let res = baseRows;
-
         if (searchSkuTerm.trim()) {
             const q = searchSkuTerm.toLowerCase().trim();
             res = res.filter(r => 
@@ -295,7 +288,6 @@ export default function OsaDetailTableLight({
                 (r.sap_code && String(r.sap_code).toLowerCase().includes(q))
             );
         }
-
         Object.entries(advancedFilters).forEach(([key, values]) => {
             if (!values?.length) return;
             if (key === 'platform') res = res.filter(r => values.includes(r.platform));
@@ -334,7 +326,6 @@ export default function OsaDetailTableLight({
 
     if (loading) return <div className="p-8 text-center text-slate-500">Loading OSA Detail...</div>;
 
-    // Count visible columns per month for colSpan
     const monthColSpans = useMemo(() => {
         const spans = {};
         monthGroups.forEach(mg => {
@@ -348,7 +339,6 @@ export default function OsaDetailTableLight({
             <div className="flex flex-1 overflow-hidden">
                 <div className="flex-1 overflow-auto p-0">
                     <div className="rounded-3xl border bg-white p-4 shadow">
-                        {/* Header */}
                         <div className="mb-4 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">
@@ -381,12 +371,10 @@ export default function OsaDetailTableLight({
                             </div>
                         </div>
 
-                        {/* Table */}
                         <div className="mt-4 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
                             <div className="overflow-auto">
                                 <table className="min-w-[1200px] w-full border-separate border-spacing-0">
                                     <thead className="sticky top-0 z-10">
-                                        {/* Row 1: Month group headers */}
                                         <tr>
                                             <th className="sticky left-0 z-20 bg-slate-100 py-2.5 pl-4 pr-4 border-b border-slate-200" style={{ minWidth: 280 }} rowSpan={2}>
                                                 <div className="text-[11px] font-bold uppercase tracking-widest text-slate-800">Product / SKU</div>
@@ -414,7 +402,6 @@ export default function OsaDetailTableLight({
                                                 </th>
                                             ))}
                                         </tr>
-                                        {/* Row 2: Day-level columns (only for expanded months) */}
                                         <tr>
                                             {columns.map((col, ci) => (
                                                 col.type === 'day' ? (
@@ -428,7 +415,6 @@ export default function OsaDetailTableLight({
                                                         </div>
                                                     </th>
                                                 ) : (
-                                                    /* Collapsed month — no sub-header needed, but we need a placeholder */
                                                     <th key={ci} className="bg-slate-50 py-2 px-2 text-center border-b border-slate-200 border-l border-slate-100 cursor-pointer select-none" onClick={() => headerSort(`col_${ci}`)}>
                                                         <div className="text-[9px] font-semibold text-slate-500">AVG</div>
                                                     </th>
@@ -480,7 +466,15 @@ export default function OsaDetailTableLight({
                                                                             SAP: {r.sap_code}
                                                                         </div>
                                                                     )}
-                                                                    <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight mt-1">{r.platform}</div>
+                                                                    <div className="flex items-center gap-2 mt-1">
+                                                                        <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight">{r.platform}</div>
+                                                                        {r.offtakeShare !== undefined && r.offtakeShare !== null && (
+                                                                            <div className="flex items-center gap-1 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/50 text-sky-600 font-bold" style={{ fontSize: '9px' }} title="Offtake Share">
+                                                                                <PieChart size={10} className="text-sky-500" />
+                                                                                {r.offtakeShare}% Share
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </td>
