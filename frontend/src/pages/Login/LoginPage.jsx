@@ -21,7 +21,14 @@ import {
     Truck,
 } from "lucide-react";
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-smbn58so6ajfol9smtq0r9ksi4vedi4r.apps.googleusercontent.com";
+const getGoogleClientId = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return import.meta.env.VITE_GOOGLE_DEV_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-cse1isbmn2qp4hu1se9voboitm8t9oht.apps.googleusercontent.com";
+    }
+    return import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-smbn58so6ajfol9smtq0r9ksi4vedi4r.apps.googleusercontent.com";
+};
+const GOOGLE_CLIENT_ID = getGoogleClientId();
 
 const GoogleSsoButton = ({ onSuccess, onError }) => {
     const loginWithGoogle = useGoogleLogin({
