@@ -24,9 +24,9 @@ import {
 const getGoogleClientId = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
-        return import.meta.env.VITE_GOOGLE_DEV_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || '';
+        return import.meta.env.VITE_GOOGLE_DEV_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-cse1isbmn2qp4hu1se9voboitm8t9oht.apps.googleusercontent.com";
     }
-    return import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || import.meta.env.VITE_GOOGLE_DEV_CLIENT_ID || '';
+    return import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-smbn58so6ajfol9smtq0r9ksi4vedi4r.apps.googleusercontent.com";
 };
 const GOOGLE_CLIENT_ID = getGoogleClientId();
 
@@ -74,9 +74,9 @@ const getMsClientId = () => {
     const filterValid = (id) => (id && id !== MS_TENANT_ID ? id : '');
 
     if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
-        return filterValid(devId) || filterValid(genId) || filterValid(prodId) || '';
+        return filterValid(devId) || filterValid(genId) || filterValid(prodId) || "153c3bd5-c6f7-41a5-b11c-3334d71b5db4";
     }
-    return filterValid(prodId) || filterValid(genId) || filterValid(devId) || '';
+    return filterValid(prodId) || filterValid(genId) || filterValid(devId) || "939117e7-0daa-440f-9981-236a3c5c5ff3";
 };
 const MS_CLIENT_ID = getMsClientId();
 const MS_CALLBACK_URL = `${window.location.origin}/api/auth/callback/microsoft`;
