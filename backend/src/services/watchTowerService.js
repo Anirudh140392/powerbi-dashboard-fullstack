@@ -10391,7 +10391,6 @@ const getDarkStoreCount = async (filters = {}) => {
 
         // Build conditions
         const conds = [];
-        conds.push(`pf_id IN(4, 6, 7)`);
         conds.push(`status IN('1', '2')`);
 
         if (platform && platform !== 'All') {
