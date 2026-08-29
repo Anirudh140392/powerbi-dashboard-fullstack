@@ -284,14 +284,22 @@ export const microsoftCallback = async (req, res) => {
             return res.send(buildCallbackHtml(false, null, null, 'No authorization code received from Microsoft.'));
         }
 
-        // Determine the correct redirect_uri (must match what was sent in the authorize request)
-        const clientId = process.env.MICROSOFT_CLIENT_ID || process.env.MICROSOFT_PROD_CLIENT_ID || process.env.MICROSOFT_DEV_CLIENT_ID;
-        const clientSecret = process.env.MICROSOFT_CLIENT_SECRET || process.env.MICROSOFT_PROD_CLIENT_SECRET || process.env.MICROSOFT_DEV_CLIENT_SECRET;
-        const tenantId = process.env.MICROSOFT_TENANT_ID || process.env.MICROSOFT_PROD_TENANT_ID || process.env.MICROSOFT_DEV_TENANT_ID || 'common';
-
         const forwardedHost = req.headers['x-forwarded-host'];
         const referer = req.headers.referer || req.headers.referrer || '';
         const rawHost = forwardedHost || req.headers.host || '';
+        const isDev = referer.includes('dev.trailytics.in') || rawHost.includes('dev.trailytics.in') || rawHost.includes('localhost');
+
+        const clientId = isDev 
+            ? (process.env.MICROSOFT_DEV_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID)
+            : (process.env.MICROSOFT_PROD_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID);
+
+        const clientSecret = isDev
+            ? (process.env.MICROSOFT_DEV_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET)
+            : (process.env.MICROSOFT_PROD_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET);
+
+        const tenantId = isDev
+            ? (process.env.MICROSOFT_DEV_TENANT_ID || process.env.MICROSOFT_TENANT_ID || 'common')
+            : (process.env.MICROSOFT_PROD_TENANT_ID || process.env.MICROSOFT_TENANT_ID || 'common');
 
         let callbackUrl = process.env.MICROSOFT_CALLBACK_URL || process.env.MICROSOFT_DEV_CALLBACK_URL;
         if (referer.includes('dev.trailytics.in') || rawHost.includes('dev.trailytics.in')) {

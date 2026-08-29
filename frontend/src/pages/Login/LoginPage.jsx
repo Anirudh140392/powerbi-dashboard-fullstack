@@ -24,9 +24,9 @@ import {
 const getGoogleClientId = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
-        return import.meta.env.VITE_GOOGLE_DEV_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-cse1isbmn2qp4hu1se9voboitm8t9oht.apps.googleusercontent.com";
+        return import.meta.env.VITE_GOOGLE_DEV_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
     }
-    return import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-smbn58so6ajfol9smtq0r9ksi4vedi4r.apps.googleusercontent.com";
+    return import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 };
 const GOOGLE_CLIENT_ID = getGoogleClientId();
 
@@ -58,7 +58,11 @@ const GoogleSsoButton = ({ onSuccess, onError }) => {
 };
 // Microsoft OAuth config
 const getMsClientId = () => {
-    return import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID || import.meta.env.VITE_MICROSOFT_CLIENT_ID || "b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a";
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return import.meta.env.VITE_MICROSOFT_DEV_CLIENT_ID || import.meta.env.VITE_MICROSOFT_CLIENT_ID || '';
+    }
+    return import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID || import.meta.env.VITE_MICROSOFT_CLIENT_ID || '';
 };
 const MS_CLIENT_ID = getMsClientId();
 const MS_TENANT_ID = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common';
