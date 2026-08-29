@@ -57,7 +57,7 @@ const MS_CLIENT_ID = getMsClientId();
 const MS_TENANT_ID = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common';
 const MS_CALLBACK_URL = `${window.location.origin}/api/auth/callback/microsoft`;
 // Set to true to display Google and Microsoft SSO buttons on the login UI
-const SHOW_SSO_OPTIONS = false;
+const SHOW_SSO_OPTIONS = true;
 
 const LoginPageContent = () => {
     const [email, setEmail] = useState("");
