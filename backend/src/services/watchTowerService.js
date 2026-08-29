@@ -10375,41 +10375,32 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
 /**
  * Get Dark Store Count from rb_location_darkstore table
- * Returns count of distinct merchant_name grouped by platform based on filters
+ * Returns platform-level and city-level breakdown with total/listed/new counts.
+ * "Listed" = status='1', "New" = store_first_seen within last 30 days.
  * @param {Object} filters - { platform, location, startDate, endDate }
- * @returns {Object} - { totalCount, byPlatform: { platform: count } }
- */
-/**
- * Get Dark Store Count from rb_location_darkstore table
- * Returns count of distinct merchant_name grouped by platform based on filters
- * @param {Object} filters - { platform, location, startDate, endDate }
- * @returns {Object} - { totalCount, byPlatform: { platform: count } }
+ * @returns {Object} - { totalCount, byPlatform: [...] }
  */
 const getDarkStoreCount = async (filters = {}) => {
     try {
         console.log('[getDarkStoreCount] Fetching dark store count with filters:', filters);
 
-        const { platform, location, startDate, endDate } = filters;
+        const { platform, location } = filters;
 
         // Helper to escape strings for ClickHouse
-        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+        const esc = (str) => str ? str.replace(/'/g, "''") : '';
 
         // Build conditions
         const conds = [];
-
-        // Base conditions requested by user
         conds.push(`pf_id IN(4, 6, 7)`);
         conds.push(`status IN('1', '2')`);
 
-        // Platform filter
         if (platform && platform !== 'All') {
             const platformArr = Array.isArray(platform) ? platform : [platform];
             if (platformArr.length > 0) {
-                conds.push(`platform IN(${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                conds.push(`platform IN(${platformArr.map(p => `'${esc(p)}'`).join(', ')})`);
             }
         }
 
-        // Location filter
         if (location && location !== 'All') {
             const locationArr = Array.isArray(location) ? location : [location];
             if (locationArr.length > 0) {
@@ -10420,43 +10411,77 @@ const getDarkStoreCount = async (filters = {}) => {
 
         const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')} ` : '';
 
-        // Query for dark store count grouped by platform (refined as per user request)
-        const query = `
-        SELECT
-        pf_id,
-            platform,
-            uniq(concat(toString(pincode), merchant_name)) AS store_count
+        // ── Platform-level query ──
+        const platformQuery = `
+            SELECT
+                platform,
+                uniq(concat(toString(pincode), merchant_name)) AS total,
+                uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
+                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
+                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
             FROM rb_location_darkstore
             ${whereClause}
-            GROUP BY
-        pf_id,
-            platform
-            LIMIT 100
-            `;
+            GROUP BY platform
+            ORDER BY total DESC
+        `;
 
-        console.log('[getDarkStoreCount] Query:', query);
+        // ── City-level query ──
+        const cityQuery = `
+            SELECT
+                platform,
+                location AS city,
+                uniq(concat(toString(pincode), merchant_name)) AS total,
+                uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
+                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
+                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
+            FROM rb_location_darkstore
+            ${whereClause}
+            GROUP BY platform, location
+            ORDER BY platform, total DESC
+        `;
 
-        const results = await queryClickHouse(query);
+        console.log('[getDarkStoreCount] Platform query:', platformQuery);
+        console.log('[getDarkStoreCount] City query:', cityQuery);
 
-        // Build response
-        const byPlatform = {};
-        let totalCount = 0;
+        const [platformResults, cityResults] = await Promise.all([
+            queryClickHouse(platformQuery),
+            queryClickHouse(cityQuery)
+        ]);
 
-        results.forEach(row => {
-            const count = parseInt(row.store_count) || 0;
-            byPlatform[row.platform] = count;
-            totalCount += count;
+        // Group city rows by platform
+        const cityMap = {};
+        (cityResults || []).forEach(row => {
+            if (!cityMap[row.platform]) cityMap[row.platform] = [];
+            cityMap[row.platform].push({
+                city: row.city || 'Unknown',
+                total: parseInt(row.total) || 0,
+                listed: parseInt(row.listed) || 0,
+                newTotal: parseInt(row.new_total) || 0,
+                newListed: parseInt(row.new_listed) || 0,
+            });
         });
 
-        console.log(`[getDarkStoreCount] Total: ${totalCount}, By Platform: `, byPlatform);
+        // Build response
+        let totalCount = 0;
+        const byPlatform = (platformResults || []).map(row => {
+            const total = parseInt(row.total) || 0;
+            totalCount += total;
+            return {
+                platform: row.platform,
+                total,
+                listed: parseInt(row.listed) || 0,
+                newTotal: parseInt(row.new_total) || 0,
+                newListed: parseInt(row.new_listed) || 0,
+                cities: cityMap[row.platform] || [],
+            };
+        });
 
-        return {
-            totalCount,
-            byPlatform
-        };
+        console.log(`[getDarkStoreCount] Total: ${totalCount}, Platforms: ${byPlatform.length}`);
+
+        return { totalCount, byPlatform };
     } catch (error) {
         console.error('[getDarkStoreCount] Error:', error);
-        return { totalCount: 0, byPlatform: {} };
+        return { totalCount: 0, byPlatform: [] };
     }
 };
 
