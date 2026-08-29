@@ -63,15 +63,22 @@ const GoogleSsoButton = ({ onSuccess, onError }) => {
 };
 
 // Microsoft OAuth config
+const MS_TENANT_ID = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common';
+
 const getMsClientId = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const devId = import.meta.env.VITE_MICROSOFT_DEV_CLIENT_ID;
+    const prodId = import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID;
+    const genId = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
+
+    const filterValid = (id) => (id && id !== MS_TENANT_ID ? id : '');
+
     if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
-        return import.meta.env.VITE_MICROSOFT_DEV_CLIENT_ID || import.meta.env.VITE_MICROSOFT_CLIENT_ID || import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID || '';
+        return filterValid(devId) || filterValid(genId) || filterValid(prodId) || '';
     }
-    return import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID || import.meta.env.VITE_MICROSOFT_CLIENT_ID || import.meta.env.VITE_MICROSOFT_DEV_CLIENT_ID || '';
+    return filterValid(prodId) || filterValid(genId) || filterValid(devId) || '';
 };
 const MS_CLIENT_ID = getMsClientId();
-const MS_TENANT_ID = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common';
 const MS_CALLBACK_URL = `${window.location.origin}/api/auth/callback/microsoft`;
 // Set to true to display Google and Microsoft SSO buttons on the login UI
 const SHOW_SSO_OPTIONS = true;
@@ -137,6 +144,10 @@ const LoginPageContent = () => {
 
     const handleMicrosoftLogin = () => {
         setError("");
+        if (!MS_CLIENT_ID) {
+            setError("Microsoft SSO is not properly configured. Please set VITE_MICROSOFT_DEV_CLIENT_ID or VITE_MICROSOFT_CLIENT_ID in your environment.");
+            return;
+        }
         setLoading(true);
 
         // Build Microsoft OAuth authorize URL (Web mode — returns ?code= to backend callback)
