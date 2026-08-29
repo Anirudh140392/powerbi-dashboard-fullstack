@@ -24,13 +24,13 @@ import {
 const getGoogleClientId = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
-        return import.meta.env.VITE_GOOGLE_DEV_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+        return import.meta.env.VITE_GOOGLE_DEV_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || '';
     }
-    return import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+    return import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || import.meta.env.VITE_GOOGLE_DEV_CLIENT_ID || '';
 };
 const GOOGLE_CLIENT_ID = getGoogleClientId();
 
-const GoogleSsoButton = ({ onSuccess, onError }) => {
+const GoogleSsoButtonInner = ({ onSuccess, onError }) => {
     const loginWithGoogle = useGoogleLogin({
         onSuccess: (tokenResponse) => {
             if (tokenResponse?.access_token) {
@@ -56,13 +56,19 @@ const GoogleSsoButton = ({ onSuccess, onError }) => {
         </button>
     );
 };
+
+const GoogleSsoButton = ({ onSuccess, onError }) => {
+    if (!GOOGLE_CLIENT_ID) return null;
+    return <GoogleSsoButtonInner onSuccess={onSuccess} onError={onError} />;
+};
+
 // Microsoft OAuth config
 const getMsClientId = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
-        return import.meta.env.VITE_MICROSOFT_DEV_CLIENT_ID || import.meta.env.VITE_MICROSOFT_CLIENT_ID || '';
+        return import.meta.env.VITE_MICROSOFT_DEV_CLIENT_ID || import.meta.env.VITE_MICROSOFT_CLIENT_ID || import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID || '';
     }
-    return import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID || import.meta.env.VITE_MICROSOFT_CLIENT_ID || '';
+    return import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID || import.meta.env.VITE_MICROSOFT_CLIENT_ID || import.meta.env.VITE_MICROSOFT_DEV_CLIENT_ID || '';
 };
 const MS_CLIENT_ID = getMsClientId();
 const MS_TENANT_ID = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common';
@@ -491,6 +497,10 @@ const LoginPageContent = () => {
 };
 
 const LoginPage = () => {
+    if (!GOOGLE_CLIENT_ID) {
+        return <LoginPageContent />;
+    }
+
     return (
         <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
             <LoginPageContent />
