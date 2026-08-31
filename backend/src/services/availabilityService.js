@@ -341,7 +341,8 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
             ? resolveColumn(pdpColsMap, 'sap_code', 'sap_code')
             : (columnExists(pdpColsMap, 'Web_Pid') ? resolveColumn(pdpColsMap, 'Web_Pid', 'Web_Pid') : 'sku_code');
         const uniqueSapArr = [...new Set(sapArr)];
-        conditions.push(`toString(${prefix}${actualSapCol}) IN (${uniqueSapArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
+        const effectivePrefix = prefix || (tableAlias ? `${tableAlias}.` : 'rb_pdp_olap.');
+        conditions.push(`toString(${effectivePrefix}${actualSapCol}) IN (${uniqueSapArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
     }
 
     // Sub Brand filter (if sub_brand or subbrand column exists in DB)
