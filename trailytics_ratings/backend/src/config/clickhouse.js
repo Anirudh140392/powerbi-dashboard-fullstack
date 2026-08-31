@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { AsyncLocalStorage } from 'async_hooks';
+import { getOlapTableName } from '../utils/olapResolver.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,8 +74,9 @@ export async function resolveCompanyUuid(dbName) {
     }
     
     try {
+        const olapTable = getOlapTableName(normalizedDb);
         const res = await clickhouse.query({
-            query: `SELECT DISTINCT company_id FROM rb_review_olap LIMIT 1`,
+            query: `SELECT DISTINCT company_id FROM ${olapTable} LIMIT 1`,
             format: 'JSONEachRow',
             clickhouse_settings: {
                 database: normalizedDb
@@ -84,7 +86,7 @@ export async function resolveCompanyUuid(dbName) {
         if (rows.length > 0 && rows[0].company_id) {
             const uuid = rows[0].company_id;
             companyIdCache.set(normalizedDb, uuid);
-            console.log(`[Company UUID Resolver] Resolved company UUID from rb_review_olap for database "${normalizedDb}" -> "${uuid}"`);
+            console.log(`[Company UUID Resolver] Resolved company UUID from ${olapTable} for database "${normalizedDb}" -> "${uuid}"`);
             return uuid;
         }
     } catch (err) {

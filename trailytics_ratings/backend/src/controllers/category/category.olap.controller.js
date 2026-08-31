@@ -8,13 +8,14 @@
  */
 
 import clickhouse from '../../config/clickhouse.js';
-
-const OLAP_TABLE = 'rb_review_olap';
+import { getOlapTableName } from '../../utils/olapResolver.js';
 
 const getTargetDb = (req) =>
     req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] ||
     (req.authUser && req.authUser.dbName) ||
     process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
+
+const getOlapTable = (req) => getOlapTableName(getTargetDb(req));
 
 // ── getProductCategories ───────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ export const getProductCategories = async (req, res) => {
                 SELECT
                     multiIf(trim(lower(category)) IN ('other','others'), 'Others', initcap(trim(category))) AS category,
                     count(DISTINCT web_pid) AS count
-                FROM ${OLAP_TABLE}
+                FROM ${getOlapTable(req)}
                 WHERE ${where}
                 GROUP BY 1 ORDER BY 2 DESC
             `,
@@ -89,7 +90,7 @@ export const getProducts = async (req, res) => {
                     argMax(price_rp, review_date) AS price_rp, argMax(price_sp, review_date) AS price_sp,
                     argMax(product_sku_code, review_date) AS sku_code, argMax(product_is_active, review_date) AS is_active,
                     count() AS review_count, round(avg(rating), 2) AS user_rating, round(avg(ml_inferred_rating), 2) AS ml_rating
-                FROM ${OLAP_TABLE} p
+                FROM ${getOlapTable(req)} p
                 WHERE ${where.join(' AND ')}
                 GROUP BY web_pid, platform
             )
@@ -106,7 +107,7 @@ export const getProducts = async (req, res) => {
                     argMax(product_sku_code, review_date) AS sku_code, argMax(product_is_active, review_date) AS is_active,
                     argMax(product_image_url, review_date) AS product_image_url,
                     count() AS review_count, round(avg(rating), 2) AS user_rating, round(avg(ml_inferred_rating), 2) AS ml_rating
-                FROM ${OLAP_TABLE} p
+                FROM ${getOlapTable(req)} p
                 WHERE ${where.join(' AND ')}
                 GROUP BY web_pid, platform
             )
@@ -147,7 +148,7 @@ export const getCategories = async (req, res) => {
         }
 
         const db = getTargetDb(req);
-        const base = `FROM ${OLAP_TABLE} WHERE company_id = {companyId:String} ${competitorFilter}`;
+        const base = `FROM ${getOlapTable(req)} WHERE company_id = {companyId:String} ${competitorFilter}`;
 
         const [catRows, brandRows, platRows] = await Promise.all([
             clickhouse.query({ database: db, query: `SELECT DISTINCT multiIf(trim(lower(category)) IN ('other','others'), 'Others', initcap(trim(category))) AS category ${base} AND category != '' ORDER BY category`, query_params: params, format: 'JSONEachRow' }).then(r => r.json()),

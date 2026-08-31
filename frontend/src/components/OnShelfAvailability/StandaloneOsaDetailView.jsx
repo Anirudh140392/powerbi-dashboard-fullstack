@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { SlidersHorizontal, X, ChevronRight, ChevronDown, ExternalLink } from "lucide-react";
+import { SlidersHorizontal, X, ChevronRight, ChevronDown, ExternalLink, PieChart } from "lucide-react";
 import { KpiFilterPanel } from "../KpiFilterPanel";
 import dayjs from "dayjs";
 
@@ -42,6 +42,7 @@ function cellTone(v) {
 function SortIcon({ dir }) {
     return (
         <span className="inline-flex items-center ml-1 text-slate-400">
+            {dir === "asc" ? "▲" : dir === "desc" ? "▼" : "↕"}
         </span>
     );
 }
@@ -158,9 +159,19 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
 
     const baseRows = useMemo(() => {
         if (!apiData?.osaDetail || apiData.osaDetail.length === 0) return [];
+        const hasShareInApi = apiData.osaDetail.some(r => r.offtakeShare !== undefined && r.offtakeShare !== null);
+        let totalSalesAcc = 0;
+        if (!hasShareInApi) {
+            totalSalesAcc = apiData.osaDetail.reduce((acc, r) => acc + (parseFloat(r.sales || r.totalSales || r.offtake || 0) || 0), 0);
+        }
 
         return apiData.osaDetail.map(row => {
             const values = row.values || [];
+            let offtakeShare = row.offtakeShare;
+            if ((offtakeShare === undefined || offtakeShare === null) && totalSalesAcc > 0) {
+                const s = parseFloat(row.sales || row.totalSales || row.offtake || 0) || 0;
+                offtakeShare = parseFloat(((s / totalSalesAcc) * 100).toFixed(2));
+            }
             return {
                 name: row.name || row.productName || "Unknown Product",
                 sku: row.sku || "N/A",
@@ -169,6 +180,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                 platform: row.platform,
                 format: row.format,
                 grammage: row.grammage || row.weight || "",
+                offtakeShare: offtakeShare,
                 values: values,
                 avg7: row.avg7 || 0,
                 avg31: row.avg31 || 0,
@@ -183,8 +195,6 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
 
     const filtered = useMemo(() => {
         let res = baseRows;
-
-
 
         // Apply Advanced Filters
         Object.keys(advancedFilters).forEach(key => {
@@ -402,7 +412,15 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                                             </a>
                                                                         )}
                                                                     </div>
-                                                                    <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight mt-0.5">{r.platform}</div>
+                                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                                        <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight">{r.platform}</div>
+                                                                        {r.offtakeShare !== undefined && r.offtakeShare !== null && (
+                                                                            <div className="flex items-center gap-1 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/50 text-sky-600 font-bold" style={{ fontSize: '9px' }} title="Offtake Share">
+                                                                                <PieChart size={10} className="text-sky-500" />
+                                                                                {r.offtakeShare}% Share
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </td>

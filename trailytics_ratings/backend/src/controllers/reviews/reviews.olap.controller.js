@@ -5,13 +5,14 @@
  */
 
 import clickhouse from '../../config/clickhouse.js';
-
-const OLAP_TABLE = 'rb_review_olap';
+import { getOlapTableName } from '../../utils/olapResolver.js';
 
 const getTargetDb = (req) =>
     req.query.db_name || req.headers['x-db-name'] || req.headers['x-database-name'] ||
     (req.authUser && req.authUser.dbName) ||
     process.env.CLICKHOUSE_DATABASE || process.env.CLICKHOUSE_DB || 'prestige';
+
+const getOlapTable = (req) => getOlapTableName(getTargetDb(req));
 
 // ── getReviews ─────────────────────────────────────────────────────────────
 
@@ -75,12 +76,12 @@ export const getReviews = async (req, res) => {
                 o.price_rp, o.price_sp,
                 o.pdp_rating AS pdp_platform_rating,
                 o.pdp_rating_count AS pdp_total_rating_count
-            FROM ${OLAP_TABLE} o
+            FROM ${getOlapTable(req)} o
             WHERE ${whereStr}
             ORDER BY o.review_date DESC
             LIMIT {limit:UInt32} OFFSET {offset:UInt32}
         `;
-        const countSql = `SELECT count() AS count FROM ${OLAP_TABLE} o WHERE ${whereStr}`;
+        const countSql = `SELECT count() AS count FROM ${getOlapTable(req)} o WHERE ${whereStr}`;
 
         const db = getTargetDb(req);
         const [rowsRes, countRes] = await Promise.all([
@@ -122,8 +123,8 @@ export const searchReviews = async (req, res) => {
         const db = getTargetDb(req);
 
         const [results, countRows] = await Promise.all([
-            clickhouse.query({ database: db, query: `SELECT toString(review_id) AS id, web_pid, product_name, brand, platform, rating, review_title, review_text, review_date, initcap(sentiment) AS sentiment, specific_issue, is_competitor FROM ${OLAP_TABLE} WHERE ${whereStr} ORDER BY review_date DESC LIMIT ${lim} OFFSET ${off}`, query_params: params, format: 'JSONEachRow' }).then(r => r.json()),
-            clickhouse.query({ database: db, query: `SELECT COUNT(*) AS count FROM ${OLAP_TABLE} WHERE ${whereStr}`, query_params: params, format: 'JSONEachRow' }).then(r => r.json())
+            clickhouse.query({ database: db, query: `SELECT toString(review_id) AS id, web_pid, product_name, brand, platform, rating, review_title, review_text, review_date, initcap(sentiment) AS sentiment, specific_issue, is_competitor FROM ${getOlapTable(req)} WHERE ${whereStr} ORDER BY review_date DESC LIMIT ${lim} OFFSET ${off}`, query_params: params, format: 'JSONEachRow' }).then(r => r.json()),
+            clickhouse.query({ database: db, query: `SELECT COUNT(*) AS count FROM ${getOlapTable(req)} WHERE ${whereStr}`, query_params: params, format: 'JSONEachRow' }).then(r => r.json())
         ]);
 
         res.json({ query: q, total: parseInt(countRows[0].count), limit: lim, offset: off, results });
