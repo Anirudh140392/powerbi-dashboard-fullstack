@@ -827,8 +827,13 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 const colMap = getColumnMapping(dbName);
                 const rcaCatCol = colMap.rca_sku_dim.category;
 
+                const rcaCols = await getTableColumns('rca_sku_dim');
+                const hasStatus = columnExists(rcaCols, 'status');
+                const rcaStatusCol = hasStatus ? resolveColumn(rcaCols, 'status') : null;
+                const statusWhere = rcaStatusCol ? `WHERE ${rcaStatusCol} = 1 AND` : 'WHERE';
+
                 console.log(`[DEBUG KPI MATRIX] Format view. Fetching active categories from rca_sku_dim.${rcaCatCol}`);
-                const validCatResult = await queryClickHouse(`SELECT DISTINCT ${rcaCatCol} as category FROM rca_sku_dim WHERE status = 1 AND ${rcaCatCol} IS NOT NULL AND ${rcaCatCol} != ''`);
+                const validCatResult = await queryClickHouse(`SELECT DISTINCT ${rcaCatCol} as category FROM rca_sku_dim ${statusWhere} ${rcaCatCol} IS NOT NULL AND ${rcaCatCol} != ''`);
                 const validCategories = validCatResult.map(r => r.category).filter(Boolean);
                 if (validCategories.length > 0) {
                     additionalCategoryFilter = ` AND ${groupColumn} IN (${validCategories.map(c => `'${escapeStr(c)}'`).join(',')})`;

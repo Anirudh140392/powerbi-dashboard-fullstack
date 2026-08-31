@@ -137,11 +137,18 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
     } : null;
 
     // 3. Market Share %
-    const platformKey = (filters?.platform && filters.platform !== 'All')
-      ? filters.platform.toLowerCase()
-      : 'odd_overall';
+    const getPlatformKey = () => {
+      let plat = filters?.platform;
+      if (Array.isArray(plat)) {
+        if (plat.length === 1) plat = plat[0];
+        else return 'odd_overall';
+      }
+      if (!plat || plat === 'All' || plat === '') return 'odd_overall';
+      return String(plat).toLowerCase().trim();
+    };
 
-    const platData = marketShareData?.[platformKey];
+    const platformKey = getPlatformKey();
+    const platData = marketShareData?.[platformKey] || marketShareData?.['odd_overall'];
     const hasMsVal = platData?.mwMarketShare?.raw !== null && platData?.mwMarketShare?.raw !== undefined;
 
     const msTrendRaw = msTrendsData?.timeSeries?.map(p => ({
