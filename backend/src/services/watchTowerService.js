@@ -10386,6 +10386,17 @@ const getDarkStoreCount = async (filters = {}) => {
 
         const { platform, location } = filters;
 
+        // Determine dark store table for Business Overview Dark Store Count
+        let darkstoreTable = 'rb_location_darkstore_testing';
+        try {
+            const check = await queryClickHouse(`EXISTS TABLE rb_location_darkstore_testing`);
+            if (Number(check?.[0]?.result) !== 1) {
+                darkstoreTable = 'rb_location_darkstore';
+            }
+        } catch (e) {
+            darkstoreTable = 'rb_location_darkstore';
+        }
+
         // Helper to escape strings for ClickHouse
         const esc = (str) => str ? str.replace(/'/g, "''") : '';
 
@@ -10418,7 +10429,7 @@ const getDarkStoreCount = async (filters = {}) => {
                 uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
-            FROM rb_location_darkstore
+            FROM ${darkstoreTable}
             ${whereClause}
             GROUP BY platform
             ORDER BY total DESC
@@ -10433,7 +10444,7 @@ const getDarkStoreCount = async (filters = {}) => {
                 uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
-            FROM rb_location_darkstore
+            FROM ${darkstoreTable}
             ${whereClause}
             GROUP BY platform, location
             ORDER BY platform, total DESC
