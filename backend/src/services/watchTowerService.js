@@ -10386,6 +10386,17 @@ const getDarkStoreCount = async (filters = {}) => {
 
         const { platform, location } = filters;
 
+        // Determine dark store table for Business Overview Dark Store Count
+        let darkstoreTable = 'rb_location_darkstore_testing';
+        try {
+            const check = await queryClickHouse(`EXISTS TABLE rb_location_darkstore_testing`);
+            if (Number(check?.[0]?.result) !== 1) {
+                darkstoreTable = 'rb_location_darkstore';
+            }
+        } catch (e) {
+            darkstoreTable = 'rb_location_darkstore';
+        }
+
         // Helper to escape strings for ClickHouse
         const esc = (str) => str ? str.replace(/'/g, "''") : '';
 
@@ -10418,7 +10429,7 @@ const getDarkStoreCount = async (filters = {}) => {
                 uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
-            FROM rb_location_darkstore
+            FROM ${darkstoreTable}
             ${whereClause}
             GROUP BY platform
             ORDER BY total DESC
@@ -10433,7 +10444,7 @@ const getDarkStoreCount = async (filters = {}) => {
                 uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
-            FROM rb_location_darkstore
+            FROM ${darkstoreTable}
             ${whereClause}
             GROUP BY platform, location
             ORDER BY platform, total DESC
@@ -12083,7 +12094,9 @@ const getRcaData = async (filters = {}) => {
 const getSkuOverview = async (filters) => {
     console.log('[getSkuOverview] Computing SKU overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, skuOverviewPlatform } = filters;
+    const { months = 1, startDate: qStartDateInput, endDate: qEndDateInput, skuOverviewPlatform } = filters;
+    const qStartDate = qStartDateInput || filters.timeStart || filters.dateFrom || filters.date_from;
+    const qEndDate = qEndDateInput || filters.timeEnd || filters.dateTo || filters.date_to;
     const channel = extractChannel(filters);
 
     // Extract filter values
@@ -12258,6 +12271,7 @@ const getSkuOverview = async (filters) => {
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
                 AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount,
+                any(${src.isAgg ? 'brand' : 'Brand'}) as brand_name,
                 any(${src.isAgg ? 'sku_code' : 'Web_Pid'}) as web_pid
             FROM ${src.table}
             WHERE ${currSkuConds} AND ${src.isAgg ? 'brand' : 'Product'} IS NOT NULL AND ${src.isAgg ? 'brand' : 'Product'} != ''
@@ -12423,8 +12437,14 @@ const getSkuOverview = async (filters) => {
         }
     }
 
-    // Calculate total offtake for all returned SKUs to determine Offtake Share
-    const currTotalSkuSales = currSkuMetrics.reduce((sum, item) => sum + parseFloat(item.total_sales || 0), 0);
+    // Calculate total offtake per brand to determine Brand-level Offtake Share: (sku_sales / brand_sales) * 100
+    const brandTotalSalesMap = {};
+    currSkuMetrics.forEach(item => {
+        const bKey = String(item.brand_name || item.Product || 'unknown').toLowerCase().trim();
+        brandTotalSalesMap[bKey] = (brandTotalSalesMap[bKey] || 0) + parseFloat(item.total_sales || 0);
+    });
+
+    const overallTotalSkuSales = currSkuMetrics.reduce((sum, item) => sum + parseFloat(item.total_sales || 0), 0);
 
     const skuOverview = currSkuMetrics.map((dataRaw, idx) => {
         const skuName = (dataRaw.Product || 'Unknown').trim().replace(/\s+/g, ' ');
@@ -12527,8 +12547,9 @@ const getSkuOverview = async (filters) => {
         const prevOrgSovNum = prevOrgSovNumSkuMap.get(skuKeyLower) || 0;
         const prevOrganicSov = prevHasSosCheck ? (prevTotalOrgSovCat > 0 ? (prevOrgSovNum / prevTotalOrgSovCat) * 100 : null) : null;
 
-
-        const offtakeShare = currTotalSkuSales > 0 ? (offtake / currTotalSkuSales) * 100 : 0;
+        const bKey = String(dataRaw.brand_name || dataRaw.Product || 'unknown').toLowerCase().trim();
+        const brandTotalSales = brandTotalSalesMap[bKey] || overallTotalSkuSales || 0;
+        const offtakeShare = brandTotalSales > 0 ? (offtake / brandTotalSales) * 100 : 0;
 
         return {
             key: `sku_${idx}_${skuName.toLowerCase().replace(/\s+/g, '_').substring(0, 30)} `,
