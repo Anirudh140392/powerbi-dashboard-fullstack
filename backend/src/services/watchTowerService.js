@@ -12083,7 +12083,9 @@ const getRcaData = async (filters = {}) => {
 const getSkuOverview = async (filters) => {
     console.log('[getSkuOverview] Computing SKU overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, skuOverviewPlatform } = filters;
+    const { months = 1, startDate: qStartDateInput, endDate: qEndDateInput, skuOverviewPlatform } = filters;
+    const qStartDate = qStartDateInput || filters.timeStart || filters.dateFrom || filters.date_from;
+    const qEndDate = qEndDateInput || filters.timeEnd || filters.dateTo || filters.date_to;
     const channel = extractChannel(filters);
 
     // Extract filter values

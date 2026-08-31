@@ -253,13 +253,12 @@ export default function AvailablityAnalysis() {
     return params.toString();
   };
 
-  // Build query params for OSA Detail View — strips date/month filters
-  // so it always shows ALL months available in the DB
+  // Build query params for OSA Detail View
   const buildOsaDetailParams = (mslOverride, resellerOverride) => {
     const params = new URLSearchParams();
-    const dateKeys = new Set(['startDate', 'endDate', 'months', 'dates', 'compareStartDate', 'compareEndDate', 'msl', 'resellerName', 'resellerNames']);
+    const dateKeys = new Set(['msl', 'resellerName', 'resellerNames']);
     Object.entries(filters).forEach(([key, value]) => {
-      if (dateKeys.has(key)) return; // Skip date filters, msl, resellerName
+      if (dateKeys.has(key)) return; // Skip msl, resellerName
       if (value !== undefined && value !== null && value !== 'All' && value !== '') {
         if (Array.isArray(value)) { if (value.length > 0) value.forEach(v => params.append(key, v)); }
         else params.append(key, value);

@@ -138,6 +138,9 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
         dimension, dimensionValue
     } = filters;
 
+    startDate = startDate || filters.timeStart || filters.dateFrom || filters.date_from;
+    endDate = endDate || filters.timeEnd || filters.dateTo || filters.date_to;
+
     // Dashboard drill-down dimension overrides have been removed here.
     // The frontend (TrendsCompetitionDrawer) now fully aggregates all filters
     // (global context, selected column, and manual drawer changes) and explicitly
@@ -1875,6 +1878,12 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
     // Use database's actual latest date for the 365-day window
     // to ensure data is found even if the database is older than the system clock.
     const effectiveFilters = { ...filters };
+    if (!effectiveFilters.startDate && (filters.timeStart || filters.dateFrom)) {
+        effectiveFilters.startDate = filters.timeStart || filters.dateFrom;
+    }
+    if (!effectiveFilters.endDate && (filters.timeEnd || filters.dateTo)) {
+        effectiveFilters.endDate = filters.timeEnd || filters.dateTo;
+    }
     const hasDates = Array.isArray(effectiveFilters.dates) && effectiveFilters.dates.length > 0;
     const hasMonths = Array.isArray(effectiveFilters.months) && effectiveFilters.months.length > 0;
 
