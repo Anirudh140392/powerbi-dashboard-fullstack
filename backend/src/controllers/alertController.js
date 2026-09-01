@@ -1,5 +1,7 @@
 import { createAlert, getAlertsByDbId, deleteAlertById, updateAlertById } from '../services/alertService.js';
 import { queryAdminDB } from '../config/adminClickhouse.js';
+import { sendWhatsappMessage } from '../services/whatsappService.js';
+import { buildAlertTemplateComponents, buildAlertFullText } from '../utils/whatsappTemplate.js';
 
 /**
  * Helper to resolve the exact db_id from tb_database matching the user's current dbName.
@@ -225,6 +227,60 @@ export const updateAlertHandler = async (req, res) => {
         return res.status(500).json({
             success: false,
             error: error.message || 'Failed to update alert',
+        });
+    }
+};
+
+/**
+ * POST /api/insights/alerts/test-whatsapp
+ * Send a test WhatsApp message to verify the template and connectivity.
+ */
+export const testWhatsappAlertHandler = async (req, res) => {
+    try {
+        const { whatsappNo, templateName, templateLang, testMessage } = req.body;
+
+        if (!whatsappNo) {
+            return res.status(400).json({
+                success: false,
+                error: 'whatsappNo is required to send a test message',
+            });
+        }
+
+        const lines = [
+            { emoji: '🧪', label: 'Test Alert', detail: testMessage || 'This is a test message to verify the WhatsApp template integration.' }
+        ];
+
+        const components = buildAlertTemplateComponents({
+            recipientName: 'Test User',
+            clientName: 'Trailytics Test',
+            lines,
+            dashboardPathParam: ''
+        });
+
+        const fullText = buildAlertFullText({
+            recipientName: 'Test User',
+            clientName: 'Trailytics Test',
+            lines,
+        });
+
+        const result = await sendWhatsappMessage({
+            to: whatsappNo,
+            components,
+            text: fullText,
+            templateName,
+            templateLang
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: 'Test WhatsApp message dispatched successfully',
+            data: result,
+        });
+    } catch (error) {
+        console.error('[AlertController] testWhatsappAlert error:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to send test WhatsApp message',
         });
     }
 };

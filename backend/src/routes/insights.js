@@ -1,5 +1,5 @@
 import { getInsights, getInsightsFilters, getCorrelations, getCorrelationsTrend } from '../controllers/insightsController.js';
-import { createAlertHandler, getAlertsHandler, deleteAlertHandler, updateAlertHandler } from '../controllers/alertController.js';
+import { createAlertHandler, getAlertsHandler, deleteAlertHandler, updateAlertHandler, testWhatsappAlertHandler } from '../controllers/alertController.js';
 
 export default (app) => {
     /**
@@ -27,6 +27,7 @@ export default (app) => {
      */
 
     app.post('/api/insights/alerts', createAlertHandler);
+    app.post('/api/insights/alerts/test-whatsapp', testWhatsappAlertHandler);
     app.get('/api/insights/alerts', getAlertsHandler);
     app.put('/api/insights/alerts/:id', updateAlertHandler);
     app.delete('/api/insights/alerts/:id', deleteAlertHandler);

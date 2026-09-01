@@ -1297,6 +1297,88 @@ export const runEmailAlertsJob = async () => {
                         conditionText: `${platPrefix}Category Health • OSA: ${osa.toFixed(2)}%, Discount: ${discount.toFixed(2)}%, Ad Spend: ${formattedAdSpend}`,
                     };
                 }
+                // Rule 5: WhatsApp Test 1 (Template A)
+                else if (alertType === 'whatsapp_test_1') {
+                    isDynamicAlert = true;
+                    const dropQuery = `
+                        WITH 
+                            available_dates AS (
+                                SELECT DISTINCT DATE 
+                                FROM \`${dbName}\`.rb_pdp_olap 
+                                WHERE DATE IS NOT NULL AND Comp_flag = 0 ${pdpFilterClause}
+                                ORDER BY DATE DESC 
+                                LIMIT 2
+                            ),
+                            daily_sku_osa AS (
+                                SELECT 
+                                    Platform, Brand, Product as sku, DATE,
+                                    sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno,
+                                    sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno,
+                                    if(deno > 0, neno / deno * 100, 100) as osa
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IN (SELECT DATE FROM available_dates)
+                                  AND Comp_flag = 0
+                                  ${pdpFilterClause}
+                                  AND Product IS NOT NULL AND lower(Product) NOT IN ('other', 'others', 'null', 'undefined', '')
+                                GROUP BY Platform, Brand, sku, DATE
+                            ),
+                            dates_array AS (
+                                SELECT groupArray(DATE) as arr FROM available_dates
+                            ),
+                            sku_dates AS (
+                                SELECT 
+                                    d.Platform, d.Brand, d.sku,
+                                    maxIf(d.osa, d.DATE = (SELECT arr[1] FROM dates_array)) as osa_yesterday,
+                                    maxIf(d.osa, d.DATE = (SELECT arr[2] FROM dates_array)) as osa_db_yesterday
+                                FROM daily_sku_osa d
+                                GROUP BY d.Platform, d.Brand, d.sku
+                            )
+                        SELECT 
+                            Platform, Brand, sku, osa_yesterday, osa_db_yesterday, 
+                            round(osa_yesterday - osa_db_yesterday, 2) as delta
+                        FROM sku_dates
+                        WHERE (osa_yesterday - osa_db_yesterday) <= -${threshold}
+                        ORDER BY delta ASC
+                        LIMIT 10 BY Platform
+                    `;
+                    const drops = await queryAdminDB(dropQuery);
+                    
+                    isTriggered = drops.length > 0;
+                    
+                    metricDetails = {
+                        ruleType: 'WhatsApp Test 1 (Template A)',
+                        calculatedOSA: 'N/A',
+                        conditionText: `Daily SKU OSA Drop > ${threshold}%`,
+                    };
+
+                    if (isTriggered) {
+                        const platforms = [...new Set(drops.map(d => d.Platform))];
+                        dynamicEmailData = platforms.map(plat => {
+                            const platDrops = drops.filter(d => d.Platform === plat);
+                            return {
+                                platformName: plat,
+                                headers: ['SKU', 'Yesterday OSA', 'Day Before Yesterday OSA', 'Delta'],
+                                rows: platDrops.map(d => [
+                                    d.sku || 'Unknown', 
+                                    parseFloat(d.osa_yesterday || 0).toFixed(2) + '%', 
+                                    parseFloat(d.osa_db_yesterday || 0).toFixed(2) + '%', 
+                                    parseFloat(d.delta || 0).toFixed(2) + '%'
+                                ]),
+                                rawDrops: platDrops
+                            };
+                        });
+                    }
+                }
+                // Rule 6: WhatsApp Tests 2-4
+                else if (alertType.startsWith('whatsapp_test')) {
+                    isTriggered = true;
+                    isDynamicAlert = false;
+                    metricDetails = {
+                        ruleType: 'WhatsApp Test',
+                        calculatedOSA: 'N/A',
+                        conditionText: 'Manual / Scheduled WhatsApp Test Trigger',
+                    };
+                }
                 // Fallback default (OSA Check)
                 else {
                     const pdpQuery = `
@@ -1497,20 +1579,44 @@ export const runEmailAlertsJob = async () => {
                     const targetWhatsappNo = (whatsappNo || process.env.Whatsapp_Number || process.env.WHATSAPP_NUMBER || '8766258384').trim();
                     if (targetWhatsappNo) {
                         const whatsappFreqCheck = shouldSendBasedOnFrequency(alert.last_whatsapp_msg_sent, alert.alert_frequency);
-                        if (whatsappFreqCheck.allowed) {
+                        if (whatsappFreqCheck.allowed || alertType.startsWith('whatsapp_test')) {
                             console.log(`[AlertCron] WhatsApp frequency check passed (${whatsappFreqCheck.reason})! Dispatching WhatsApp alert to ${targetWhatsappNo}...`);
 
                             const recipientName = 'there';
 
                             // Build richer WhatsApp summary with impacted SKU info
                             let alertSummaryLines = `🔴 ${alert.alert_name} triggered for ${companyDisplayName}`;
-                            if (alert.alert_type === 'keyword_delta_sos') {
+                            if (alertType.startsWith('whatsapp_test')) {
+                                if (alertType === 'whatsapp_test_1') {
+                                    alertSummaryLines = `🔴 *WhatsApp Test 1*  🔸 *Client:* ${companyDisplayName}  🔸 *Condition:* SKU OSA Drop > ${threshold}%  🔸 *Top Impacted SKUs:*`;
+                                    if (Array.isArray(dynamicEmailData)) {
+                                        for (const p of dynamicEmailData) {
+                                            alertSummaryLines += `   📦 *${p.platformName}*`;
+                                            if (p.rawDrops) {
+                                                // Limit to top 5 to prevent exceeding 1024 character limit in WhatsApp API
+                                                for (const d of p.rawDrops.slice(0, 5)) {
+                                                    const skuName = d.sku ? (d.sku.length > 30 ? d.sku.substring(0, 27) + '...' : d.sku) : 'Unknown';
+                                                    alertSummaryLines += `   • *${skuName}* 📉 Drop: ${parseFloat(d.delta).toFixed(1)}% (${parseFloat(d.osa_db_yesterday).toFixed(1)}% -> ${parseFloat(d.osa_yesterday).toFixed(1)}%)`;
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if (alertType === 'whatsapp_test_2') {
+                                    alertSummaryLines = `🟢 WhatsApp Test 2 (Template B) successful for ${companyDisplayName}!\nThis is placeholder data for Test 2.`;
+                                } else if (alertType === 'whatsapp_test_3') {
+                                    alertSummaryLines = `🟢 WhatsApp Test 3 (Template C) successful for ${companyDisplayName}!\nThis is placeholder data for Test 3.`;
+                                } else if (alertType === 'whatsapp_test_4') {
+                                    alertSummaryLines = `🟢 WhatsApp Test 4 (Template D) successful for ${companyDisplayName}!\nThis is placeholder data for Test 4.`;
+                                } else {
+                                    alertSummaryLines = `🟢 WhatsApp integration test successful for ${companyDisplayName}!\nThis confirms your alert notification channel is working correctly.`;
+                                }
+                            } else if (alert.alert_type === 'keyword_delta_sos') {
                                 alertSummaryLines += `\nCurrent SOS: ${metricDetails.calculatedOSA} | Delta: ${metricDetails.aggDelta}%`;
                             } else {
                                 alertSummaryLines += `\nCurrent OSA: ${aggregateOsa.currentOsa}% | Previous: ${aggregateOsa.previousOsa}% | Delta: ${aggregateOsa.delta}%`;
                             }
                             
-                            if (platformData.length > 0) {
+                            if (!alertType.startsWith('whatsapp_test') && platformData.length > 0) {
                                 for (const pd of platformData) {
                                     if (pd.skus && pd.skus.length > 0) {
                                         alertSummaryLines += `\n📦 ${pd.platform} - Top impacted SKUs:`;
