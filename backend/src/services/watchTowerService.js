@@ -8726,7 +8726,8 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
             const conditions = [
                 `${catCol} IS NOT NULL`,
                 `${catCol} != ''`,
-                `${catCol} != 'Others'`
+                `${catCol} != 'Others'`,
+                `toString(${src.f.compFlag}) = '0'`
             ];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
@@ -8767,7 +8768,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
 
         if (filterType === 'cities') {
             // Fetch unique cities (Location)
-            const conditions = [`${src.f.location} IS NOT NULL`, `${src.f.location} != ''`];
+            const conditions = [`${src.f.location} IS NOT NULL`, `${src.f.location} != ''`, `toString(${src.f.compFlag}) = '0'`];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
@@ -13249,8 +13250,9 @@ const getSubBrands = async (filters = {}) => {
 const getProductsWithSap = async (filters = {}) => {
     try {
         const src = await getWatchtowerSource();
-        const { platform, brand, category, subBrand, sub_brand } = filters;
+        const { platform, brand, category, subBrand, sub_brand, sapCode, sap_code } = filters;
         const targetSubBrand = subBrand || sub_brand;
+        const targetSapCode = sapCode || sap_code;
         const conditions = [
             `${src.f.product} IS NOT NULL`,
             `${src.f.product} != ''`,
@@ -13262,6 +13264,7 @@ const getProductsWithSap = async (filters = {}) => {
         const bndArr = normalizeFilterArray(brand);
         const catArr = normalizeFilterArray(category);
         const subArr = normalizeFilterArray(targetSubBrand);
+        const sapArr = normalizeFilterArray(targetSapCode);
 
         if (platArr && platArr.length > 0) {
             conditions.push(`lower(${src.f.platform}) IN(${platArr.map(p => `'${_esc(p.toLowerCase())}'`).join(', ')})`);
@@ -13285,6 +13288,11 @@ const getProductsWithSap = async (filters = {}) => {
         const hasSap = columnExists(cols, 'sap_code');
         const sapExpr = hasSap ? resolveColumn(cols, 'sap_code') : "''";
         const webPidExpr = resolveColumn(cols, 'Web_Pid');
+
+        const rawSapCol = cols.has('sap_code') ? `${tableName}.sap_code` : (cols.has('sapcode') ? `${tableName}.sapcode` : null);
+        if (sapArr && sapArr.length > 0 && rawSapCol) {
+            conditions.push(`toString(${rawSapCol}) IN (${sapArr.map(s => `'${_esc(s)}'`).join(', ')})`);
+        }
 
         const query = `
                         SELECT
@@ -13327,7 +13335,7 @@ const getProductCategories = async (filters = {}) => {
 
 const getWatchTowerCascadedFilters = async (filters) => {
     try {
-        const { platform, category, brand, location, startDate, endDate } = filters;
+        const { platform, category, brand, location, startDate, endDate, sapCode } = filters;
         const channel = extractChannel(filters);
 
         const cols = await getTableColumns('rca_sku_dim');
@@ -13374,6 +13382,16 @@ const getWatchTowerCascadedFilters = async (filters) => {
                 const locArr = normalizeFilterArray(location);
                 if (locArr.length > 0) {
                     conds.push(`lower(${locationCol}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
+                }
+            }
+
+            // 5. SAP Code filter
+            const hasSap = columnExists(cols, 'sap_code') || columnExists(cols, 'sapcode');
+            if (excludeField !== 'sapCode' && sapCode && sapCode !== 'All') {
+                const sapArr = normalizeFilterArray(sapCode);
+                if (sapArr.length > 0 && hasSap) {
+                    const sapCol = columnExists(cols, 'sap_code') ? resolveColumn(cols, 'sap_code') : resolveColumn(cols, 'sapcode');
+                    conds.push(`toString(${sapCol}) IN (${sapArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
                 }
             }
 

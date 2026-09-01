@@ -837,32 +837,10 @@ const PlatformOverviewNew = ({
     const retryFetch = handleRetry;
 
     // Handle filter apply from modal
+    // Handle filter apply from modal (segment-specific filter)
     const handleApplyFilters = (filters) => {
         setAdvancedFilters(filters);
         setGlanceKpis(filters.kpis);
-
-        // Synchronize back to global FilterContext so top blue filter button stays in 2-way sync
-        if (filters.categories && filters.categories.length > 0) {
-            setSelectedCategory(filters.categories.length === 1 ? filters.categories[0] : filters.categories);
-        } else if (filters.categories && filters.categories.length === 0) {
-            setSelectedCategory('All');
-        }
-
-        if (filters.brands && filters.brands.length > 0) {
-            setSelectedBrand(filters.brands.length === 1 ? filters.brands[0] : filters.brands);
-        } else if (filters.brands && filters.brands.length === 0) {
-            setSelectedBrand('All');
-        }
-
-        if (filters.platforms && filters.platforms.length > 0) {
-            setPlatform(filters.platforms.length === 1 ? filters.platforms[0] : filters.platforms);
-        } else if (filters.platforms && filters.platforms.length === 0) {
-            setPlatform('All');
-        }
-
-        if (filters.msl !== undefined && setSelectedMsl) {
-            setSelectedMsl(filters.msl);
-        }
     };
     // Count active dimension filters
     const activeDimensionFilters = [
