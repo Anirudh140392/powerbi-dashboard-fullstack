@@ -88,7 +88,8 @@ export default function OsaDetailTableLight({
         advancedFilters.platform,
         advancedFilters.brand,
         advancedFilters.format,
-        advancedFilters.city
+        advancedFilters.city,
+        advancedFilters.sapCode
     ]);
 
     useEffect(() => {
@@ -200,6 +201,7 @@ export default function OsaDetailTableLight({
                 else if (key === 'grammage') res = res.filter(r => values.includes(r.grammage || r.weight));
                 else if (key === 'city') res = res.filter(r => r.cities?.some(c => values.includes(c.name || c)));
                 else if (key === 'resellerName') res = res.filter(r => r.resellerName && values.includes(r.resellerName));
+                else if (key === 'sapCode') res = res.filter(r => (r.sap_code || r.sapCode) && values.includes(String(r.sap_code || r.sapCode)));
             });
             return res;
         };
@@ -210,10 +212,11 @@ export default function OsaDetailTableLight({
         const formatRows = getMatchingRowsExcluding('format');
         const grammageRows = getMatchingRowsExcluding('grammage');
         const cityRows = getMatchingRowsExcluding('city');
+        const sapCodeRows = isDrlClient ? getMatchingRowsExcluding('sapCode') : [];
 
         const productOptions = [...new Set(productNameRows.map(r => {
             const name = r.name || r.productName;
-            const sapCode = r.sap_code;
+            const sapCode = r.sap_code || r.sapCode;
             return JSON.stringify({ name, sapCode });
         }))]
             .map(json => JSON.parse(json))
@@ -223,6 +226,13 @@ export default function OsaDetailTableLight({
                 id: p.name,
                 label: p.sapCode ? `${p.name} (SAP: ${p.sapCode})` : p.name
             }));
+
+        const sapCodeOptions = [...new Set(sapCodeRows.map(r => {
+            const code = r.sap_code || r.sapCode;
+            return code ? String(code).trim() : null;
+        }).filter(code => code && code !== 'null' && code !== 'undefined'))]
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+            .map(code => ({ id: code, label: code }));
 
         const hasGrammageData = apiData.osaDetail.some(r => r.grammage || r.weight);
 
@@ -238,6 +248,9 @@ export default function OsaDetailTableLight({
             ...(hasGrammageData ? [{ id: "grammage", label: "Grammage", options: mk([...new Set(grammageRows.map(r => r.grammage || r.weight).filter(Boolean))].sort()) }] : []),
             { id: "city", label: "City", options: mk([...new Set(cityRows.flatMap(r => r.cities?.map(c => c.name || c) || []).filter(Boolean))].sort()) },
         ];
+        if (isDrlClient) {
+            opts.push({ id: "sapCode", label: "SAP Code", options: sapCodeOptions });
+        }
         if (isDrlClient && resellerOptions.length > 0) {
             const resellerRows = getMatchingRowsExcluding('resellerName');
             const availableResellerSet = new Set(resellerRows.map(r => r.resellerName).filter(Boolean));
@@ -272,7 +285,7 @@ export default function OsaDetailTableLight({
                 offtakeShare: offtakeShare,
                 values: row.values || [], avg7: row.avg7 || 0, avg31: row.avg31 || 0,
                 avgSelected: row.avgSelected || row.avg31 || 0, status: row.status || "Healthy", cities: row.cities || [],
-                sap_code: row.sap_code || null
+                sap_code: row.sap_code || row.sapCode || null
             };
         });
     }, [apiData]);
@@ -299,6 +312,8 @@ export default function OsaDetailTableLight({
                 res = res.filter(r => r.cities?.some(c => values.includes(c.name)));
                 res = res.map(r => ({ ...r, cities: r.cities.filter(c => values.includes(c.name)) }));
             }
+            else if (key === 'resellerName') res = res.filter(r => r.resellerName && values.includes(r.resellerName));
+            else if (key === 'sapCode') res = res.filter(r => (r.sap_code || r.sapCode) && values.includes(String(r.sap_code || r.sapCode)));
         });
         return res;
     }, [baseRows, advancedFilters, searchSkuTerm]);

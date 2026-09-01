@@ -115,6 +115,8 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                     res = res.filter(r => values.includes(r.grammage || r.weight));
                 } else if (key === 'city') {
                     res = res.filter(r => r.cities?.some(c => values.includes(c.name || c)));
+                } else if (key === 'sapCode') {
+                    res = res.filter(r => (r.sap_code || r.sapCode) && values.includes(String(r.sap_code || r.sapCode)));
                 }
             });
             return res;
@@ -126,13 +128,14 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
         const formatRows = getMatchingRowsExcluding('format');
         const grammageRows = getMatchingRowsExcluding('grammage');
         const cityRows = getMatchingRowsExcluding('city');
+        const sapCodeRows = isDrlClient ? getMatchingRowsExcluding('sapCode') : [];
 
         // Build product name options - include SAP code for DRL client only
         let productOptions;
         if (isDrlClient) {
             productOptions = [...new Set(productNameRows.map(r => {
                 const name = r.name || r.productName;
-                const sapCode = r.sap_code;
+                const sapCode = r.sap_code || r.sapCode;
                 return JSON.stringify({ name, sapCode });
             }))]
                 .map(json => JSON.parse(json))
@@ -147,7 +150,14 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
             productOptions = mk([...new Set(productNameRows.map(r => r.name || r.productName).filter(Boolean))].sort());
         }
 
-        return [
+        const sapCodeOptions = [...new Set(sapCodeRows.map(r => {
+            const code = r.sap_code || r.sapCode;
+            return code ? String(code).trim() : null;
+        }).filter(code => code && code !== 'null' && code !== 'undefined'))]
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+            .map(code => ({ id: code, label: code }));
+
+        const opts = [
             { id: "platform", label: "Platform", options: mk([...new Set(platformRows.map(r => r.platform).filter(Boolean))].sort()) },
             { id: "brand", label: "Brand", options: mk([...new Set(brandRows.map(r => r.brand).filter(Boolean))].sort()) },
             { id: "productName", label: "Product Name", options: productOptions },
@@ -155,6 +165,12 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
             { id: "grammage", label: "Grammage", options: mk([...new Set(grammageRows.map(r => r.grammage || r.weight).filter(Boolean))].sort()) },
             { id: "city", label: "City", options: mk([...new Set(cityRows.flatMap(r => r.cities?.map(c => c.name || c) || []).filter(Boolean))].sort()) },
         ];
+
+        if (isDrlClient) {
+            opts.push({ id: "sapCode", label: "SAP Code", options: sapCodeOptions });
+        }
+
+        return opts;
     }, [apiData, advancedFilters, isDrlClient]);
 
     const baseRows = useMemo(() => {
@@ -187,7 +203,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                 status: row.status || "Healthy",
                 page_url: row.page_url || null,
                 cities: row.cities || [],
-                sap_code: row.sap_code || null
+                sap_code: row.sap_code || row.sapCode || null
             };
         });
     }, [apiData]);
@@ -218,6 +234,8 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                         ...r,
                         cities: r.cities.filter(c => values.includes(c.name))
                     }));
+                } else if (key === 'sapCode') {
+                    res = res.filter(r => (r.sap_code || r.sapCode) && values.includes(String(r.sap_code || r.sapCode)));
                 }
             }
         });
