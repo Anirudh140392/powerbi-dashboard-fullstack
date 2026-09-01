@@ -138,6 +138,9 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
         dimension, dimensionValue
     } = filters;
 
+    startDate = startDate || filters.timeStart || filters.dateFrom || filters.date_from;
+    endDate = endDate || filters.timeEnd || filters.dateTo || filters.date_to;
+
     // Dashboard drill-down dimension overrides have been removed here.
     // The frontend (TrendsCompetitionDrawer) now fully aggregates all filters
     // (global context, selected column, and manual drawer changes) and explicitly
@@ -338,7 +341,8 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
             ? resolveColumn(pdpColsMap, 'sap_code', 'sap_code')
             : (columnExists(pdpColsMap, 'Web_Pid') ? resolveColumn(pdpColsMap, 'Web_Pid', 'Web_Pid') : 'sku_code');
         const uniqueSapArr = [...new Set(sapArr)];
-        conditions.push(`toString(${prefix}${actualSapCol}) IN (${uniqueSapArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
+        const effectivePrefix = prefix || (tableAlias ? `${tableAlias}.` : 'rb_pdp_olap.');
+        conditions.push(`toString(${effectivePrefix}${actualSapCol}) IN (${uniqueSapArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
     }
 
     // Sub Brand filter (if sub_brand or subbrand column exists in DB)
@@ -691,7 +695,15 @@ const getAbsoluteOsaOverview = async (filters) => {
                 skuMap[row.sku].dateMap[row.date] = { osa, neno, deno };
             });
 
-            const totalAllSalesOverview = Object.values(skuMap).reduce((acc, item) => acc + (item.totalSales || 0), 0);
+            // Calculate Brand Total Sales for Offtake Share calculation (sku_sales / brand_sales * 100)
+            const brandSalesMapOverview = {};
+            const overallBrandSalesMapOverview = {};
+            Object.values(skuMap).forEach(item => {
+                const bKeyFull = `${(item.brand || '').toLowerCase().trim()}::${(item.format || '').toLowerCase().trim()}::${(item.platform || '').toLowerCase().trim()}`;
+                const bKeyBrand = (item.brand || '').toLowerCase().trim();
+                brandSalesMapOverview[bKeyFull] = (brandSalesMapOverview[bKeyFull] || 0) + (item.totalSales || 0);
+                overallBrandSalesMapOverview[bKeyBrand] = (overallBrandSalesMapOverview[bKeyBrand] || 0) + (item.totalSales || 0);
+            });
 
             // Calculate aggregates and fill values array
             const osaDetail = Object.values(skuMap).map(item => {
@@ -729,7 +741,10 @@ const getAbsoluteOsaOverview = async (filters) => {
                 const avgSelected = totalDenoSelected > 0 ? Math.round((totalNenoSelected / totalDenoSelected) * 100) : 0;
                 // Status based on selected period instead of 7 days to match selected dates accuracy
                 const status = avgSelected >= 85 ? "Healthy" : avgSelected >= 70 ? "Watch" : "Action";
-                const offtakeShare = totalAllSalesOverview > 0 ? parseFloat(((item.totalSales / totalAllSalesOverview) * 100).toFixed(2)) : 0;
+                const bKeyFull = `${(item.brand || '').toLowerCase().trim()}::${(item.format || '').toLowerCase().trim()}::${(item.platform || '').toLowerCase().trim()}`;
+                const bKeyBrand = (item.brand || '').toLowerCase().trim();
+                const brandTotalSales = brandSalesMapOverview[bKeyFull] || overallBrandSalesMapOverview[bKeyBrand] || 0;
+                const offtakeShare = brandTotalSales > 0 ? parseFloat(((item.totalSales / brandTotalSales) * 100).toFixed(2)) : 0;
 
                 return {
                     name: item.name,
@@ -827,8 +842,13 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 const colMap = getColumnMapping(dbName);
                 const rcaCatCol = colMap.rca_sku_dim.category;
 
+                const rcaCols = await getTableColumns('rca_sku_dim');
+                const hasStatus = columnExists(rcaCols, 'status');
+                const rcaStatusCol = hasStatus ? resolveColumn(rcaCols, 'status') : null;
+                const statusWhere = rcaStatusCol ? `WHERE ${rcaStatusCol} = 1 AND` : 'WHERE';
+
                 console.log(`[DEBUG KPI MATRIX] Format view. Fetching active categories from rca_sku_dim.${rcaCatCol}`);
-                const validCatResult = await queryClickHouse(`SELECT DISTINCT ${rcaCatCol} as category FROM rca_sku_dim WHERE status = 1 AND ${rcaCatCol} IS NOT NULL AND ${rcaCatCol} != ''`);
+                const validCatResult = await queryClickHouse(`SELECT DISTINCT ${rcaCatCol} as category FROM rca_sku_dim ${statusWhere} ${rcaCatCol} IS NOT NULL AND ${rcaCatCol} != ''`);
                 const validCategories = validCatResult.map(r => r.category).filter(Boolean);
                 if (validCategories.length > 0) {
                     additionalCategoryFilter = ` AND ${groupColumn} IN (${validCategories.map(c => `'${escapeStr(c)}'`).join(',')})`;
@@ -1864,6 +1884,12 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
     // Use database's actual latest date for the 365-day window
     // to ensure data is found even if the database is older than the system clock.
     const effectiveFilters = { ...filters };
+    if (!effectiveFilters.startDate && (filters.timeStart || filters.dateFrom)) {
+        effectiveFilters.startDate = filters.timeStart || filters.dateFrom;
+    }
+    if (!effectiveFilters.endDate && (filters.timeEnd || filters.dateTo)) {
+        effectiveFilters.endDate = filters.timeEnd || filters.dateTo;
+    }
     const hasDates = Array.isArray(effectiveFilters.dates) && effectiveFilters.dates.length > 0;
     const hasMonths = Array.isArray(effectiveFilters.months) && effectiveFilters.months.length > 0;
 
@@ -2002,8 +2028,17 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                 }
             });
 
-            // Total sales across all valid SKUs for offtakeShare calculation
-            const totalAllSales = Object.values(skuMap).reduce((acc, item) => acc + (item.totalSales || 0), 0);
+            // Calculate Brand Total Sales for Offtake Share calculation (sku_sales / brand_sales * 100)
+            const brandSalesMap = {};
+            const overallBrandSalesMap = {};
+
+            Object.values(skuMap).forEach(item => {
+                const bKeyFull = `${(item.brand || '').toLowerCase().trim()}::${(item.category_name || '').toLowerCase().trim()}::${(item.platform || '').toLowerCase().trim()}`;
+                const bKeyBrand = (item.brand || '').toLowerCase().trim();
+
+                brandSalesMap[bKeyFull] = (brandSalesMap[bKeyFull] || 0) + (item.totalSales || 0);
+                overallBrandSalesMap[bKeyBrand] = (overallBrandSalesMap[bKeyBrand] || 0) + (item.totalSales || 0);
+            });
 
             // Map data into final format: [{ name, sku, values: [...], avg31, status, cities: [{ name, values: [...], avg31 }] }]
             const formattedData = Object.values(skuMap).map(item => {
@@ -2068,7 +2103,11 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     return null;
                 }
 
-                const offtakeShare = totalAllSales > 0 ? parseFloat(((item.totalSales / totalAllSales) * 100).toFixed(2)) : 0;
+                const bKeyFull = `${(item.brand || '').toLowerCase().trim()}::${(item.category_name || '').toLowerCase().trim()}::${(item.platform || '').toLowerCase().trim()}`;
+                const bKeyBrand = (item.brand || '').toLowerCase().trim();
+                const brandTotalSales = brandSalesMap[bKeyFull] || overallBrandSalesMap[bKeyBrand] || 0;
+
+                const offtakeShare = brandTotalSales > 0 ? parseFloat(((item.totalSales / brandTotalSales) * 100).toFixed(2)) : 0;
 
                 const rowObj = {
                     name: item.name,

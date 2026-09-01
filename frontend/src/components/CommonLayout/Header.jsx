@@ -1808,6 +1808,7 @@ const AVAIL_FILTER_TABS = [
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
   { key: "msl", label: "Top SKU", icon: Hash },
+  { key: "sapCode", label: "SAP Code", icon: Hash },
 ];
 
 function AvailabilityFilterModal({
@@ -2943,6 +2944,7 @@ const PRICING_FILTER_TABS = [
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
   { key: "msl", label: "Top SKU", icon: Hash },
+  { key: "sapCode", label: "SAP Code", icon: Hash },
 ];
 
 function PricingFilterModal({
@@ -4737,6 +4739,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
                           if (selectedMsl !== "All" && !(Array.isArray(selectedMsl) && selectedMsl.includes("All"))) count++;
+                          if (selectedSapCode !== "All" && !(Array.isArray(selectedSapCode) && selectedSapCode.includes("All"))) count++;
                         } else if (title === "Visibility Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedKeywordType !== "All" && !(Array.isArray(selectedKeywordType) && selectedKeywordType.includes("All"))) count++;
@@ -4746,6 +4749,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
                           if (selectedMsl !== "All" && !(Array.isArray(selectedMsl) && selectedMsl.includes("All"))) count++;
+                          if (selectedSapCode !== "All" && !(Array.isArray(selectedSapCode) && selectedSapCode.includes("All"))) count++;
                         } else if (title === "Performance Marketing" || title === "Content Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;

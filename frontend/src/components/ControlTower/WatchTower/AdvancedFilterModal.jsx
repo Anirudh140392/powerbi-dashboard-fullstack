@@ -425,6 +425,10 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                     ? localFilters.categories
                     : (selectedCategory && selectedCategory !== 'All' ? [selectedCategory] : []);
 
+                const activeSapCodes = localFilters.sapCodes && localFilters.sapCodes.length > 0
+                    ? localFilters.sapCodes
+                    : [];
+
                 const startDate = localFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : undefined);
                 const endDate = localFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined);
 
@@ -434,6 +438,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                     platform: cleanParam(activePlatforms),
                     brand: cleanParam(activeBrands),
                     category: cleanParam(activeCategories),
+                    sapCode: cleanParam(activeSapCodes),
                     startDate,
                     endDate
                 }
@@ -446,7 +451,8 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                         params: {
                             platform: params.platform,
                             brand: params.brand,
-                            category: params.category
+                            category: params.category,
+                            sapCode: params.sapCode
                         }
                     })
                 ])
@@ -485,9 +491,11 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                 }
 
                 if (productsRes.status === 'fulfilled' && productsRes.value.data && Array.isArray(productsRes.value.data)) {
+                    const allProducts = productsRes.value.data;
+
                     const sapSet = new Set();
-                    const sapOpts = [];
-                    const mappedSkus = productsRes.value.data.map(p => {
+                    const rawSapOpts = [];
+                    const rawSkus = allProducts.map(p => {
                         // Shared endpoint returns identifiers for every client.
                         const productName = typeof p === 'object' ? (p.name || p.product_name || '') : String(p);
                         const sapCode = typeof p === 'object' ? (p.sapCode || p.sap_code || null) : null;
@@ -495,7 +503,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
 
                         if (sapCode && !sapSet.has(String(sapCode))) {
                             sapSet.add(String(sapCode));
-                            sapOpts.push({ id: String(sapCode), name: String(sapCode) });
+                            rawSapOpts.push({ id: String(sapCode), name: String(sapCode) });
                         }
 
                         const parentOpt = skus?.find(opt =>
@@ -505,9 +513,28 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                         if (parentOpt) return { ...parentOpt, sapCode: sapCode ?? parentOpt.sapCode ?? null, webPid: webPid ?? parentOpt.webPid ?? null };
                         return { id: productName, name: productName, sapCode, webPid };
                     }).filter(p => p.name);
-                    setDynamicSkus(mappedSkus);
-                    sapOpts.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-                    setDynamicSapCodes(sapOpts);
+
+                    rawSapOpts.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+                    // Bidirectional cross-filtering between SKUs and SAP Codes
+                    const selectedSapSet = new Set((localFilters.sapCodes || []).map(s => String(s).toLowerCase().trim()));
+                    const filteredSkus = (selectedSapSet.size > 0)
+                        ? rawSkus.filter(s => s.sapCode && selectedSapSet.has(String(s.sapCode).toLowerCase().trim()))
+                        : rawSkus;
+
+                    const selectedSkuSet = new Set((localFilters.skus || []).map(s => String(s).toLowerCase().trim()));
+                    const filteredSapOpts = (selectedSkuSet.size > 0)
+                        ? rawSapOpts.filter(opt => {
+                            return rawSkus.some(s =>
+                                s.sapCode &&
+                                String(s.sapCode).toLowerCase().trim() === String(opt.id).toLowerCase().trim() &&
+                                (selectedSkuSet.has(String(s.id).toLowerCase().trim()) || selectedSkuSet.has(String(s.name).toLowerCase().trim()))
+                            );
+                        })
+                        : rawSapOpts;
+
+                    setDynamicSkus(filteredSkus);
+                    setDynamicSapCodes(filteredSapOpts);
                 }
             } catch (err) {
                 console.error('[AdvancedFilterModal] Error fetching cascaded options:', err)
@@ -526,6 +553,8 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         localFilters.brands,
         localFilters.categories,
         localFilters.platforms,
+        localFilters.sapCodes,
+        localFilters.skus,
         localFilters.dateFrom,
         localFilters.dateTo,
         selectedChannel,

@@ -5856,6 +5856,7 @@ const getPlatformOverview = async (filters) => {
     let prevBuymoreQtyMap = new Map();
 
     if (isDrlDb) {
+        const buymorePlatforms = ['amazon', 'pharmeasy', 'nykaa', 'myntra', 'jiomart', 'shopify', 'meesho', 'flipkart'];
         const buildBuymoreCondsForOverview = (sDate, eDate) => {
             const conds = [`toDate(DATE) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
             if (rawCategory && rawCategory !== 'All') conds.push(`lower(trim(BOTH '\t\n ' FROM category)) = '${escapeStr(rawCategory.toLowerCase())}'`);
@@ -5864,8 +5865,16 @@ const getPlatformOverview = async (filters) => {
                 conds.push(`(${brandConditions})`);
             }
             if (locationArr && locationArr.length > 0) conds.push(`lower(Location) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
-            if (platformArr && platformArr.length > 0) conds.push(`lower(Platform) IN (${platformArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
-            else conds.push(`lower(Platform) IN (${buymorePlatforms.map(p => `'${p}'`).join(', ')})`);
+            if (platformArr && platformArr.length > 0) {
+                const filteredPlats = platformArr.map(p => p.toLowerCase()).filter(p => buymorePlatforms.includes(p));
+                if (filteredPlats.length > 0) {
+                    conds.push(`lower(Platform) IN (${filteredPlats.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                } else {
+                    conds.push(`lower(Platform) IN ('__none__')`);
+                }
+            } else {
+                conds.push(`lower(Platform) IN (${buymorePlatforms.map(p => `'${p}'`).join(', ')})`);
+            }
 
             const validStatuses = [
                 'shiplable generated', 'pickup_complete', 'pickup pending', 'payment success',
@@ -8091,17 +8100,14 @@ const getKpiTrends = async (filters) => {
     let includeBuyMore = true;
     const nonBuyMoreList = resellerList.filter(r => !(r.includes('buy') || r.includes('more')));
 
-    // For DRL: buymore data should ONLY be included for e-commerce platforms, not for quick commerce
+    // For DRL: buymore data should ONLY be included for the 8 specified platforms:
+    // amazon, pharmeasy, nykaa, myntra, jiomart, shopify, meesho, flipkart
+    const buymorePlatforms = ['amazon', 'pharmeasy', 'nykaa', 'myntra', 'jiomart', 'shopify', 'meesho', 'flipkart'];
+
     if (isDrlDb) {
-        const quickCommPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow'];
-        const ecommPlatforms = ['amazon', 'flipkart', 'jiomart', 'meesho', 'myntra', 'pharmeasy', 'shopify'];
         const selectedPlatforms = platArr.map(p => p.toLowerCase());
-        const isOnlyQuickComm = selectedPlatforms.length > 0 && selectedPlatforms.every(p => quickCommPlatforms.includes(p));
-        const hasEcomm = selectedPlatforms.length === 0 || selectedPlatforms.some(p => ecommPlatforms.includes(p));
-        
-        if (isOnlyQuickComm) {
-            includeBuyMore = false;
-        } else if (!hasEcomm) {
+        const hasBuymorePlat = selectedPlatforms.length === 0 || selectedPlatforms.includes('all') || selectedPlatforms.some(p => buymorePlatforms.includes(p));
+        if (!hasBuymorePlat) {
             includeBuyMore = false;
         }
     }
@@ -8194,9 +8200,18 @@ const getKpiTrends = async (filters) => {
                     conds.push(`(${brandConditions})`);
                 }
                 if (locArr && locArr.length > 0) conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
-                if (platArr && platArr.length > 0) conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
 
-                // Enforce 11 specific Status values for buymore_rb_pdp_olap
+                // Enforce platform filtering: only the 8 specified platforms from buymore_rb_pdp_olap
+                const selectedPlatforms = platArr.map(p => p.toLowerCase());
+                let targetPlats = buymorePlatforms;
+                if (selectedPlatforms.length > 0 && !selectedPlatforms.includes('all')) {
+                    targetPlats = selectedPlatforms.filter(p => buymorePlatforms.includes(p));
+                }
+                if (targetPlats.length > 0) {
+                    conds.push(`lower(Platform) IN (${targetPlats.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                }
+
+                // Enforce 13 specific Status values for buymore_rb_pdp_olap
                 const validStatuses = [
                     'shiplable generated',
                     'pickup_complete',
@@ -8639,14 +8654,15 @@ const getKpiTrends = async (filters) => {
  * @param {string} platform - Selected platform filter
  * @param {string} brand - Selected brand filter (for cities)
  */
-const getTrendsFilterOptions = async ({ filterType, platform, brand, category, resellerName, dbName: propDbName }) => {
+const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, category, resellerName, dbName: propDbName }) => {
     try {
-        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, category=${category}, resellerName=${resellerName}`);
+        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, subBrand=${subBrand}, category=${category}, resellerName=${resellerName}`);
         const src = await getWatchtowerSource();
 
         // Normalize arrays for multi-select support
         const platArr = normalizeFilterArray(platform);
         const brandArr = normalizeFilterArray(brand);
+        const subBrandArr = normalizeFilterArray(subBrand);
         const catArr = normalizeFilterArray(category);
 
         // Reseller_Name filter (DRL DB context only)
@@ -8725,10 +8741,17 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
             const conditions = [
                 `${catCol} IS NOT NULL`,
                 `${catCol} != ''`,
-                `${catCol} != 'Others'`
+                `${catCol} != 'Others'`,
+                `toString(${src.f.compFlag}) = '0'`
             ];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+            }
+            if (brandArr && brandArr.length > 0) {
+                conditions.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+            }
+            if (subBrandArr && subBrandArr.length > 0) {
+                conditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
             }
             addResellerCondition(conditions);
 
@@ -8744,6 +8767,12 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
+            if (catArr && catArr.length > 0) {
+                conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+            }
+            if (subBrandArr && subBrandArr.length > 0) {
+                conditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
+            }
             addResellerCondition(conditions);
 
             const query = `SELECT DISTINCT ${src.f.brand} as brand FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY brand`;
@@ -8754,12 +8783,15 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
 
         if (filterType === 'cities') {
             // Fetch unique cities (Location)
-            const conditions = [`${src.f.location} IS NOT NULL`, `${src.f.location} != ''`];
+            const conditions = [`${src.f.location} IS NOT NULL`, `${src.f.location} != ''`, `toString(${src.f.compFlag}) = '0'`];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
             if (brandArr && brandArr.length > 0) {
-                conditions.push(`${src.f.brand} IN (${brandArr.map(b => `'${escapeStr(b)}'`).join(',')})`);
+                conditions.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+            }
+            if (subBrandArr && subBrandArr.length > 0) {
+                conditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
             }
             if (catArr && catArr.length > 0) {
                 conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
@@ -8792,6 +8824,9 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
                 if (brandArr && brandArr.length > 0) {
                     pdpConditions.push(`lower(${brandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
                 }
+                if (subBrandArr && subBrandArr.length > 0 && columnExists(pdpCols, 'sub_brand')) {
+                    pdpConditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
+                }
                 if (catArr && catArr.length > 0) {
                     pdpConditions.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
                 }
@@ -8813,6 +8848,9 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
             }
             if (brandArr && brandArr.length > 0) {
                 conditions.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+            }
+            if (subBrandArr && subBrandArr.length > 0) {
+                conditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
             }
             if (catArr && catArr.length > 0) {
                 conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
@@ -10386,6 +10424,17 @@ const getDarkStoreCount = async (filters = {}) => {
 
         const { platform, location } = filters;
 
+        // Determine dark store table for Business Overview Dark Store Count
+        let darkstoreTable = 'rb_location_darkstore_testing';
+        try {
+            const check = await queryClickHouse(`EXISTS TABLE rb_location_darkstore_testing`);
+            if (Number(check?.[0]?.result) !== 1) {
+                darkstoreTable = 'rb_location_darkstore';
+            }
+        } catch (e) {
+            darkstoreTable = 'rb_location_darkstore';
+        }
+
         // Helper to escape strings for ClickHouse
         const esc = (str) => str ? str.replace(/'/g, "''") : '';
 
@@ -10418,7 +10467,7 @@ const getDarkStoreCount = async (filters = {}) => {
                 uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
-            FROM rb_location_darkstore
+            FROM ${darkstoreTable}
             ${whereClause}
             GROUP BY platform
             ORDER BY total DESC
@@ -10433,7 +10482,7 @@ const getDarkStoreCount = async (filters = {}) => {
                 uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
-            FROM rb_location_darkstore
+            FROM ${darkstoreTable}
             ${whereClause}
             GROUP BY platform, location
             ORDER BY platform, total DESC
@@ -12083,7 +12132,9 @@ const getRcaData = async (filters = {}) => {
 const getSkuOverview = async (filters) => {
     console.log('[getSkuOverview] Computing SKU overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, skuOverviewPlatform } = filters;
+    const { months = 1, startDate: qStartDateInput, endDate: qEndDateInput, skuOverviewPlatform } = filters;
+    const qStartDate = qStartDateInput || filters.timeStart || filters.dateFrom || filters.date_from;
+    const qEndDate = qEndDateInput || filters.timeEnd || filters.dateTo || filters.date_to;
     const channel = extractChannel(filters);
 
     // Extract filter values
@@ -12258,6 +12309,7 @@ const getSkuOverview = async (filters) => {
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
                 AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount,
+                any(${src.isAgg ? 'brand' : 'Brand'}) as brand_name,
                 any(${src.isAgg ? 'sku_code' : 'Web_Pid'}) as web_pid
             FROM ${src.table}
             WHERE ${currSkuConds} AND ${src.isAgg ? 'brand' : 'Product'} IS NOT NULL AND ${src.isAgg ? 'brand' : 'Product'} != ''
@@ -12423,8 +12475,14 @@ const getSkuOverview = async (filters) => {
         }
     }
 
-    // Calculate total offtake for all returned SKUs to determine Offtake Share
-    const currTotalSkuSales = currSkuMetrics.reduce((sum, item) => sum + parseFloat(item.total_sales || 0), 0);
+    // Calculate total offtake per brand to determine Brand-level Offtake Share: (sku_sales / brand_sales) * 100
+    const brandTotalSalesMap = {};
+    currSkuMetrics.forEach(item => {
+        const bKey = String(item.brand_name || item.Product || 'unknown').toLowerCase().trim();
+        brandTotalSalesMap[bKey] = (brandTotalSalesMap[bKey] || 0) + parseFloat(item.total_sales || 0);
+    });
+
+    const overallTotalSkuSales = currSkuMetrics.reduce((sum, item) => sum + parseFloat(item.total_sales || 0), 0);
 
     const skuOverview = currSkuMetrics.map((dataRaw, idx) => {
         const skuName = (dataRaw.Product || 'Unknown').trim().replace(/\s+/g, ' ');
@@ -12527,8 +12585,9 @@ const getSkuOverview = async (filters) => {
         const prevOrgSovNum = prevOrgSovNumSkuMap.get(skuKeyLower) || 0;
         const prevOrganicSov = prevHasSosCheck ? (prevTotalOrgSovCat > 0 ? (prevOrgSovNum / prevTotalOrgSovCat) * 100 : null) : null;
 
-
-        const offtakeShare = currTotalSkuSales > 0 ? (offtake / currTotalSkuSales) * 100 : 0;
+        const bKey = String(dataRaw.brand_name || dataRaw.Product || 'unknown').toLowerCase().trim();
+        const brandTotalSales = brandTotalSalesMap[bKey] || overallTotalSkuSales || 0;
+        const offtakeShare = brandTotalSales > 0 ? (offtake / brandTotalSales) * 100 : 0;
 
         return {
             key: `sku_${idx}_${skuName.toLowerCase().replace(/\s+/g, '_').substring(0, 30)} `,
@@ -13150,34 +13209,43 @@ const getProducts = async (filters = {}) => {
  */
 const getSubBrands = async (filters = {}) => {
     try {
+        const { platform, brand, category, resellerName, dbName: propDbName } = filters;
         const pdpCols = await getTableColumns('rb_pdp_olap');
         const hasSubBrand = columnExists(pdpCols, 'sub_brand') || columnExists(pdpCols, 'subbrand');
         if (!hasSubBrand) {
             return [];
         }
         const actualSubCol = columnExists(pdpCols, 'sub_brand') ? resolveColumn(pdpCols, 'sub_brand') : resolveColumn(pdpCols, 'subbrand');
-        
-        const { platform, brand, category } = filters;
+        const catCol = columnExists(pdpCols, 'Category') ? resolveColumn(pdpCols, 'Category') : (columnExists(pdpCols, 'Product_Category') ? resolveColumn(pdpCols, 'Product_Category') : 'Category');
+
         const conditions = [
             `isNotNull(${actualSubCol})`,
             `toString(${actualSubCol}) != ''`,
             `toString(${actualSubCol}) != '0'`,
-            `Comp_flag = 0`
+            `toString(Comp_flag) = '0'`
         ];
-        
+
         const _esc = (str) => str ? str.replace(/'/g, "''") : '';
         const platArr = normalizeFilterArray(platform);
         const bndArr = normalizeFilterArray(brand);
         const catArr = normalizeFilterArray(category);
 
+        const effectiveDb = (propDbName || getCurrentDbName() || '').toLowerCase();
+        const resellerArr = ((effectiveDb === 'drl' || effectiveDb === 'prestige') && resellerName && resellerName !== 'All' && resellerName !== 'all')
+            ? normalizeFilterArray(resellerName)
+            : null;
+
         if (platArr && platArr.length > 0) {
-            conditions.push(`Platform IN (${platArr.map(p => `'${_esc(p)}'`).join(', ')})`);
+            conditions.push(`lower(Platform) IN (${platArr.map(p => `'${_esc(p.toLowerCase())}'`).join(', ')})`);
         }
         if (bndArr && bndArr.length > 0) {
-            conditions.push(`Brand IN (${bndArr.map(b => `'${_esc(b)}'`).join(', ')})`);
+            conditions.push(`lower(Brand) IN (${bndArr.map(b => `'${_esc(b.toLowerCase())}'`).join(', ')})`);
         }
         if (catArr && catArr.length > 0) {
-            conditions.push(`Category IN (${catArr.map(c => `'${_esc(c)}'`).join(', ')})`);
+            conditions.push(`lower(${catCol}) IN (${catArr.map(c => `'${_esc(c.toLowerCase())}'`).join(', ')})`);
+        }
+        if (resellerArr && resellerArr.length > 0 && columnExists(pdpCols, 'Reseller_Name')) {
+            conditions.push(`Reseller_Name IN (${resellerArr.map(r => `'${_esc(r)}'`).join(', ')})`);
         }
 
         const query = `
@@ -13197,8 +13265,9 @@ const getSubBrands = async (filters = {}) => {
 const getProductsWithSap = async (filters = {}) => {
     try {
         const src = await getWatchtowerSource();
-        const { platform, brand, category, subBrand, sub_brand } = filters;
+        const { platform, brand, category, subBrand, sub_brand, sapCode, sap_code } = filters;
         const targetSubBrand = subBrand || sub_brand;
+        const targetSapCode = sapCode || sap_code;
         const conditions = [
             `${src.f.product} IS NOT NULL`,
             `${src.f.product} != ''`,
@@ -13210,15 +13279,16 @@ const getProductsWithSap = async (filters = {}) => {
         const bndArr = normalizeFilterArray(brand);
         const catArr = normalizeFilterArray(category);
         const subArr = normalizeFilterArray(targetSubBrand);
+        const sapArr = normalizeFilterArray(targetSapCode);
 
         if (platArr && platArr.length > 0) {
-            conditions.push(`${src.f.platform} IN(${platArr.map(p => `'${_esc(p)}'`).join(', ')})`);
+            conditions.push(`lower(${src.f.platform}) IN(${platArr.map(p => `'${_esc(p.toLowerCase())}'`).join(', ')})`);
         }
         if (bndArr && bndArr.length > 0) {
-            conditions.push(`${src.f.brand} IN(${bndArr.map(b => `'${_esc(b)}'`).join(', ')})`);
+            conditions.push(`lower(${src.f.brand}) IN(${bndArr.map(b => `'${_esc(b.toLowerCase())}'`).join(', ')})`);
         }
         if (catArr && catArr.length > 0) {
-            conditions.push(`${src.f.category} IN(${catArr.map(c => `'${_esc(c)}'`).join(', ')})`);
+            conditions.push(`lower(${src.f.category}) IN(${catArr.map(c => `'${_esc(c.toLowerCase())}'`).join(', ')})`);
         }
 
         // Discover identifier columns safely so the same dropdown works for every client.
@@ -13233,6 +13303,11 @@ const getProductsWithSap = async (filters = {}) => {
         const hasSap = columnExists(cols, 'sap_code');
         const sapExpr = hasSap ? resolveColumn(cols, 'sap_code') : "''";
         const webPidExpr = resolveColumn(cols, 'Web_Pid');
+
+        const rawSapCol = cols.has('sap_code') ? `${tableName}.sap_code` : (cols.has('sapcode') ? `${tableName}.sapcode` : null);
+        if (sapArr && sapArr.length > 0 && rawSapCol) {
+            conditions.push(`toString(${rawSapCol}) IN (${sapArr.map(s => `'${_esc(s)}'`).join(', ')})`);
+        }
 
         const query = `
                         SELECT
@@ -13275,7 +13350,7 @@ const getProductCategories = async (filters = {}) => {
 
 const getWatchTowerCascadedFilters = async (filters) => {
     try {
-        const { platform, category, brand, location, startDate, endDate } = filters;
+        const { platform, category, brand, location, startDate, endDate, sapCode } = filters;
         const channel = extractChannel(filters);
 
         const cols = await getTableColumns('rca_sku_dim');
@@ -13322,6 +13397,16 @@ const getWatchTowerCascadedFilters = async (filters) => {
                 const locArr = normalizeFilterArray(location);
                 if (locArr.length > 0) {
                     conds.push(`lower(${locationCol}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
+                }
+            }
+
+            // 5. SAP Code filter
+            const hasSap = columnExists(cols, 'sap_code') || columnExists(cols, 'sapcode');
+            if (excludeField !== 'sapCode' && sapCode && sapCode !== 'All') {
+                const sapArr = normalizeFilterArray(sapCode);
+                if (sapArr.length > 0 && hasSap) {
+                    const sapCol = columnExists(cols, 'sap_code') ? resolveColumn(cols, 'sap_code') : resolveColumn(cols, 'sapcode');
+                    conds.push(`toString(${sapCol}) IN (${sapArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
                 }
             }
 

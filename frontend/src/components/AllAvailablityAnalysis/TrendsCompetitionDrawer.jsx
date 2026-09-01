@@ -744,6 +744,8 @@ export default function TrendsCompetitionDrawer({
   const [search, setSearch] = useState("");
   const [isMoreFiltersOpen, setIsMoreFiltersOpen] = useState(false);
   const [skuSearchTerm, setSkuSearchTerm] = useState("");
+  const [sapPopoverAnchor, setSapPopoverAnchor] = useState(null);
+  const [sapSearchTerm, setSapSearchTerm] = useState("");
   const [periodMode, setPeriodMode] = useState("primary");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -765,6 +767,7 @@ export default function TrendsCompetitionDrawer({
     City: "All",
     SKU: "All",
     SKUWebPid: "All",
+    SapCode: "All",
     ResellerName: "All",
     Msl: "All"
   });
@@ -1054,9 +1057,22 @@ export default function TrendsCompetitionDrawer({
   ];
   const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : [];
   const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
-  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : (brandOptions || ["Amul", "Mother Dairy", "Nestle", "Hatsun"]);
+  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : (brandOptions || []);
   const SUB_BRAND_OPTIONS = filterOptions.subBrands.length > 0 ? filterOptions.subBrands : (subBrands || []);
   const SKU_OPTIONS = filterOptions.skus.length > 0 ? filterOptions.skus : [];
+
+  // Derive unique SAP Code options for DRL users
+  const sapCodeOptions = useMemo(() => {
+    if (!filterOptions.skuDetails || !filterOptions.skuDetails.length) return [];
+    const set = new Set();
+    filterOptions.skuDetails.forEach(d => {
+      const code = d.sapCode || d.sap_code;
+      if (code && String(code).trim() !== '' && String(code).trim() !== 'null' && String(code).trim() !== 'undefined') {
+        set.add(String(code).trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [filterOptions.skuDetails]);
 
   // ===================== FETCH FILTER OPTIONS (CASCADING) =====================
   const TIER_1_CITIES = useMemo(() => [
@@ -1094,21 +1110,24 @@ export default function TrendsCompetitionDrawer({
     return () => { cancelled = true; };
   }, [open]);
 
-  // Effect 2: Fetch categories + brands when platform + resellerName changes (cascading)
+  // Effect 2: Fetch categories + brands when platform + category + brand + subBrand + resellerName changes (cascading)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const platformParam = toApiParam(drawerFilters.Platform);
+    const categoryParam = toApiParam(drawerFilters.Format);
+    const brandParam = toApiParam(drawerFilters.Brand);
+    const subBrandParam = toApiParam(drawerFilters.SubBrand);
     const resellerParam = isDrl ? toApiParam(drawerFilters.ResellerName) : undefined;
     const fetchCascaded = async () => {
       try {
-        console.log("[TrendsDrawer] Cascading: fetching categories/brands for platform:", platformParam || 'All', "resellerName:", resellerParam || 'All');
+        console.log("[TrendsDrawer] Cascading: fetching categories/brands for platform:", platformParam || 'All', "category:", categoryParam || 'All', "brand:", brandParam || 'All', "subBrand:", subBrandParam || 'All', "resellerName:", resellerParam || 'All');
         const [formatsRes, brandsRes] = await Promise.all([
           axiosInstance.get('/watchtower/trends-filter-options', {
-            params: { filterType: 'categories', platform: platformParam, resellerName: resellerParam }
+            params: { filterType: 'categories', platform: platformParam, brand: brandParam, subBrand: subBrandParam, resellerName: resellerParam }
           }),
           axiosInstance.get('/watchtower/trends-filter-options', {
-            params: { filterType: 'brands', platform: platformParam, resellerName: resellerParam }
+            params: { filterType: 'brands', platform: platformParam, category: categoryParam, subBrand: subBrandParam, resellerName: resellerParam }
           }),
         ]);
         if (cancelled) return;
@@ -1121,24 +1140,33 @@ export default function TrendsCompetitionDrawer({
     };
     fetchCascaded();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.ResellerName, isDrl]);
+  }, [open, drawerFilters.Platform, drawerFilters.Format, drawerFilters.Brand, drawerFilters.SubBrand, drawerFilters.ResellerName, isDrl]);
 
-  // Effect: Fetch sub-brands when platform + category + brand changes (cascading)
+  // Effect: Fetch sub-brands when platform + category + brand + resellerName changes (cascading)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const platformParam = toApiParam(drawerFilters.Platform);
     const categoryParam = toApiParam(drawerFilters.Format);
     const brandParam = toApiParam(drawerFilters.Brand);
+    const resellerParam = isDrl ? toApiParam(drawerFilters.ResellerName) : undefined;
     const fetchSubBrands = async () => {
       try {
         const res = await axiosInstance.get('/watchtower/sub-brands', {
-          params: { platform: platformParam, category: categoryParam, brand: brandParam }
+          params: { platform: platformParam, category: categoryParam, brand: brandParam, resellerName: resellerParam }
         });
         if (cancelled) return;
         if (res.data && Array.isArray(res.data)) {
           const list = res.data.filter(s => s !== 'All' && String(s).trim()).sort();
           setFilterOptions(prev => ({ ...prev, subBrands: list }));
+
+          // Validate current SubBrand selection
+          setDrawerFilters(prev => {
+            if (prev.SubBrand && prev.SubBrand !== 'All' && list.length > 0 && !list.some(s => s.toLowerCase() === prev.SubBrand.toLowerCase())) {
+              return { ...prev, SubBrand: 'All' };
+            }
+            return prev;
+          });
         }
       } catch (error) {
         console.error("[TrendsDrawer] Error fetching subBrands:", error);
@@ -1146,19 +1174,21 @@ export default function TrendsCompetitionDrawer({
     };
     fetchSubBrands();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.Format, drawerFilters.Brand]);
+  }, [open, drawerFilters.Platform, drawerFilters.Format, drawerFilters.Brand, drawerFilters.ResellerName, isDrl]);
 
-  // Effect 3: Fetch cities when platform + brand + resellerName changes (cascading)
+  // Effect 3: Fetch cities when platform + brand + category + subBrand + resellerName changes (cascading)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const platformParam = toApiParam(drawerFilters.Platform);
     const brandParam = toApiParam(drawerFilters.Brand);
+    const categoryParam = toApiParam(drawerFilters.Format);
+    const subBrandParam = toApiParam(drawerFilters.SubBrand);
     const resellerParam = isDrl ? toApiParam(drawerFilters.ResellerName) : undefined;
     const fetchCities = async () => {
       try {
         const citiesRes = await axiosInstance.get('/watchtower/trends-filter-options', {
-          params: { filterType: 'cities', platform: platformParam, brand: brandParam, resellerName: resellerParam }
+          params: { filterType: 'cities', platform: platformParam, brand: brandParam, category: categoryParam, subBrand: subBrandParam, resellerName: resellerParam }
         });
         if (cancelled) return;
         const cities = (citiesRes.data?.options || [])
@@ -1170,20 +1200,21 @@ export default function TrendsCompetitionDrawer({
     };
     fetchCities();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.ResellerName, isDrl]);
+  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format, drawerFilters.SubBrand, drawerFilters.ResellerName, isDrl]);
 
-  // Effect 4: Fetch SKUs when platform + brand + category + resellerName changes (cascading)
+  // Effect 4: Fetch SKUs when platform + brand + category + subBrand + resellerName changes (cascading)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const platformParam = toApiParam(drawerFilters.Platform);
     const brandParam = toApiParam(drawerFilters.Brand);
     const categoryParam = toApiParam(drawerFilters.Format);
+    const subBrandParam = toApiParam(drawerFilters.SubBrand);
     const resellerParam = isDrl ? toApiParam(drawerFilters.ResellerName) : undefined;
     const fetchSkus = async () => {
       try {
         const skusRes = await axiosInstance.get('/watchtower/trends-filter-options', {
-          params: { filterType: 'skus', platform: platformParam, brand: brandParam, category: categoryParam, resellerName: resellerParam }
+          params: { filterType: 'skus', platform: platformParam, brand: brandParam, category: categoryParam, subBrand: subBrandParam, resellerName: resellerParam }
         });
         if (cancelled) return;
         const skus = (skusRes.data?.options || []).filter(s => s !== 'All' && s.trim()).sort();
@@ -1193,7 +1224,7 @@ export default function TrendsCompetitionDrawer({
         if (!skuDetails || skuDetails.length === 0) {
           try {
             const sapRes = await axiosInstance.get('/watchtower/products-with-sap', {
-              params: { platform: platformParam, brand: brandParam, category: categoryParam }
+              params: { platform: platformParam, brand: brandParam, category: categoryParam, subBrand: subBrandParam }
             });
             if (!cancelled && sapRes.data && Array.isArray(sapRes.data)) {
               skuDetails = sapRes.data;
@@ -1210,7 +1241,7 @@ export default function TrendsCompetitionDrawer({
     };
     fetchSkus();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format, drawerFilters.ResellerName, isDrl, isDrlUser]);
+  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format, drawerFilters.SubBrand, drawerFilters.ResellerName, isDrl, isDrlUser]);
 
   const [trendError, setTrendError] = useState(null);
 
@@ -1354,6 +1385,7 @@ export default function TrendsCompetitionDrawer({
           sku: toApiParam(drawerFilters.SKU),
           skuName: toApiParam(drawerFilters.SKU),
           skuCode: toApiParam(drawerFilters.SKUWebPid === 'All' ? undefined : drawerFilters.SKUWebPid),
+          sapCode: (isDrlUser && drawerFilters.SapCode && drawerFilters.SapCode !== 'All') ? toApiParam(drawerFilters.SapCode) : undefined,
           channel: derivedChannel || undefined,
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
           msl: toApiParam(drawerFilters.Msl),
@@ -3077,6 +3109,163 @@ export default function TrendsCompetitionDrawer({
 
                 <Box display="flex" flexDirection="column" gap={3} flex={1}>
 
+                  {/* SAP Code Filter Dropdown with Search Bar (DRL DB Dashboard only) */}
+                  {isDrlUser && (
+                    <Box mb={1}>
+                      <Typography variant="body2" fontWeight={600} mb={1} color="#475569">
+                        SAP Code
+                      </Typography>
+                      
+                      {/* Trigger Box */}
+                      <Box
+                        onClick={(e) => setSapPopoverAnchor(e.currentTarget)}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          px: 1.5,
+                          py: 1,
+                          border: '1px solid #E2E8F0',
+                          borderRadius: 2,
+                          backgroundColor: '#F8FAFC',
+                          cursor: 'pointer',
+                          '&:hover': { borderColor: '#CBD5E1', backgroundColor: '#F1F5F9' }
+                        }}
+                      >
+                        <Typography sx={{ fontSize: '13px', fontWeight: 500, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {drawerFilters.SapCode === 'All' || !drawerFilters.SapCode
+                            ? `All SAP Codes (${sapCodeOptions.length})`
+                            : drawerFilters.SapCode}
+                        </Typography>
+                        <ChevronDown size={16} color="#64748B" />
+                      </Box>
+
+                      {/* Searchable Popover Dropdown */}
+                      <Popover
+                        open={Boolean(sapPopoverAnchor)}
+                        anchorEl={sapPopoverAnchor}
+                        onClose={() => {
+                          setSapPopoverAnchor(null);
+                          setSapSearchTerm('');
+                        }}
+                        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                        PaperProps={{
+                          style: {
+                            width: 252,
+                            padding: 8,
+                            borderRadius: 8,
+                            boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+                          }
+                        }}
+                      >
+                        {/* Search Input Bar */}
+                        <TextField
+                          autoFocus
+                          fullWidth
+                          size="small"
+                          placeholder="Search SAP Code..."
+                          value={sapSearchTerm}
+                          onChange={(e) => setSapSearchTerm(e.target.value)}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <Search size={14} color="#94A3B8" />
+                              </InputAdornment>
+                            ),
+                          }}
+                          sx={{
+                            mb: 1,
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: 1.5,
+                              fontSize: '12px',
+                            }
+                          }}
+                        />
+
+                        {/* Scrollable list of filtered SAP Codes */}
+                        <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
+                          {/* All SAP Codes Option */}
+                          {(!sapSearchTerm || 'all'.includes(sapSearchTerm.toLowerCase())) && (
+                            <Box
+                              onClick={() => {
+                                setDrawerFilters(prev => ({
+                                  ...prev,
+                                  SapCode: 'All',
+                                  SKU: 'All',
+                                  SKUWebPid: 'All'
+                                }));
+                                setSapPopoverAnchor(null);
+                                setSapSearchTerm('');
+                              }}
+                              sx={{
+                                px: 1.5,
+                                py: 0.8,
+                                borderRadius: 1,
+                                cursor: 'pointer',
+                                fontWeight: (drawerFilters.SapCode === 'All' || !drawerFilters.SapCode) ? 600 : 400,
+                                backgroundColor: (drawerFilters.SapCode === 'All' || !drawerFilters.SapCode) ? '#EFF6FF' : 'transparent',
+                                color: (drawerFilters.SapCode === 'All' || !drawerFilters.SapCode) ? '#1D4ED8' : '#334155',
+                                fontSize: '13px',
+                                '&:hover': { backgroundColor: '#F1F5F9' }
+                              }}
+                            >
+                              All SAP Codes ({sapCodeOptions.length})
+                            </Box>
+                          )}
+
+                          {/* Filtered SAP Code items */}
+                          {sapCodeOptions
+                            .filter(code => code.toLowerCase().includes(sapSearchTerm.toLowerCase().trim()))
+                            .map(code => {
+                              const isSelected = drawerFilters.SapCode === code;
+                              return (
+                                <Box
+                                  key={code}
+                                  onClick={() => {
+                                    const matching = (filterOptions.skuDetails || []).filter(d => {
+                                      const c = d.sapCode || d.sap_code;
+                                      return String(c).trim() === String(code).trim();
+                                    });
+                                    const matchingNames = matching.map(d => d.name || d.product_name).filter(Boolean);
+                                    const matchingPids = matching.map(d => d.webPid || d.web_pid).filter(Boolean);
+
+                                    setDrawerFilters(prev => ({
+                                      ...prev,
+                                      SapCode: code,
+                                      SKU: matchingNames.length > 0 ? matchingNames.join(';;') : 'All',
+                                      SKUWebPid: matchingPids.length > 0 ? matchingPids.join(',') : 'All'
+                                    }));
+                                    setSapPopoverAnchor(null);
+                                    setSapSearchTerm('');
+                                  }}
+                                  sx={{
+                                    px: 1.5,
+                                    py: 0.8,
+                                    borderRadius: 1,
+                                    cursor: 'pointer',
+                                    fontSize: '13px',
+                                    fontWeight: isSelected ? 600 : 400,
+                                    backgroundColor: isSelected ? '#EFF6FF' : 'transparent',
+                                    color: isSelected ? '#1D4ED8' : '#334155',
+                                    '&:hover': { backgroundColor: '#F1F5F9' }
+                                  }}
+                                >
+                                  {code}
+                                </Box>
+                              );
+                            })}
+
+                          {sapCodeOptions.filter(code => code.toLowerCase().includes(sapSearchTerm.toLowerCase().trim())).length === 0 && (
+                            <Typography sx={{ p: 1.5, textAlign: 'center', fontSize: '12px', color: '#94A3B8' }}>
+                              No SAP Code found
+                            </Typography>
+                          )}
+                        </Box>
+                      </Popover>
+                    </Box>
+                  )}
+
                   <Box>
                     <Typography variant="body2" fontWeight={600} mb={1} color="#475569">SKU</Typography>
                     {/* Search input */}
@@ -3121,13 +3310,18 @@ export default function TrendsCompetitionDrawer({
                         };
 
                         const filteredSkus = SKU_OPTIONS.filter(opt => {
+                          const details = getSkuDetails(opt);
+                          const sapCode = details?.sapCode || details?.sap_code;
+                          if (isDrlUser && drawerFilters.SapCode && drawerFilters.SapCode !== 'All') {
+                            if (!sapCode || String(sapCode).trim() !== String(drawerFilters.SapCode).trim()) {
+                              return false;
+                            }
+                          }
                           if (!skuSearchTerm) return true;
                           const term = skuSearchTerm.toLowerCase().trim();
                           if (opt.toLowerCase().includes(term)) return true;
-                          const details = getSkuDetails(opt);
                           const webPid = details?.webPid || details?.web_pid;
                           if (webPid && String(webPid).toLowerCase().includes(term)) return true;
-                          const sapCode = details?.sapCode || details?.sap_code;
                           if (isDrlUser && sapCode && String(sapCode).toLowerCase().includes(term)) return true;
                           return false;
                         });
