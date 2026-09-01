@@ -10440,7 +10440,6 @@ const getDarkStoreCount = async (filters = {}) => {
 
         // Build conditions
         const conds = [];
-        conds.push(`status IN('1', '2')`);
 
         if (platform && platform !== 'All') {
             const platformArr = Array.isArray(platform) ? platform : [platform];
@@ -10464,9 +10463,9 @@ const getDarkStoreCount = async (filters = {}) => {
             SELECT
                 platform,
                 uniq(concat(toString(pincode), merchant_name)) AS total,
-                uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
+                uniq(concat(toString(pincode), merchant_name)) AS listed,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
-                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
+                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_listed
             FROM ${darkstoreTable}
             ${whereClause}
             GROUP BY platform
@@ -10479,9 +10478,9 @@ const getDarkStoreCount = async (filters = {}) => {
                 platform,
                 location AS city,
                 uniq(concat(toString(pincode), merchant_name)) AS total,
-                uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
+                uniq(concat(toString(pincode), merchant_name)) AS listed,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
-                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
+                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_listed
             FROM ${darkstoreTable}
             ${whereClause}
             GROUP BY platform, location
