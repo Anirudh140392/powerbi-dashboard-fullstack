@@ -1057,7 +1057,7 @@ export default function TrendsCompetitionDrawer({
   ];
   const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : [];
   const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
-  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : (brandOptions || ["Amul", "Mother Dairy", "Nestle", "Hatsun"]);
+  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : (brandOptions || []);
   const SUB_BRAND_OPTIONS = filterOptions.subBrands.length > 0 ? filterOptions.subBrands : (subBrands || []);
   const SKU_OPTIONS = filterOptions.skus.length > 0 ? filterOptions.skus : [];
 
@@ -1110,21 +1110,24 @@ export default function TrendsCompetitionDrawer({
     return () => { cancelled = true; };
   }, [open]);
 
-  // Effect 2: Fetch categories + brands when platform + resellerName changes (cascading)
+  // Effect 2: Fetch categories + brands when platform + category + brand + subBrand + resellerName changes (cascading)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const platformParam = toApiParam(drawerFilters.Platform);
+    const categoryParam = toApiParam(drawerFilters.Format);
+    const brandParam = toApiParam(drawerFilters.Brand);
+    const subBrandParam = toApiParam(drawerFilters.SubBrand);
     const resellerParam = isDrl ? toApiParam(drawerFilters.ResellerName) : undefined;
     const fetchCascaded = async () => {
       try {
-        console.log("[TrendsDrawer] Cascading: fetching categories/brands for platform:", platformParam || 'All', "resellerName:", resellerParam || 'All');
+        console.log("[TrendsDrawer] Cascading: fetching categories/brands for platform:", platformParam || 'All', "category:", categoryParam || 'All', "brand:", brandParam || 'All', "subBrand:", subBrandParam || 'All', "resellerName:", resellerParam || 'All');
         const [formatsRes, brandsRes] = await Promise.all([
           axiosInstance.get('/watchtower/trends-filter-options', {
-            params: { filterType: 'categories', platform: platformParam, resellerName: resellerParam }
+            params: { filterType: 'categories', platform: platformParam, brand: brandParam, subBrand: subBrandParam, resellerName: resellerParam }
           }),
           axiosInstance.get('/watchtower/trends-filter-options', {
-            params: { filterType: 'brands', platform: platformParam, resellerName: resellerParam }
+            params: { filterType: 'brands', platform: platformParam, category: categoryParam, subBrand: subBrandParam, resellerName: resellerParam }
           }),
         ]);
         if (cancelled) return;
@@ -1137,24 +1140,33 @@ export default function TrendsCompetitionDrawer({
     };
     fetchCascaded();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.ResellerName, isDrl]);
+  }, [open, drawerFilters.Platform, drawerFilters.Format, drawerFilters.Brand, drawerFilters.SubBrand, drawerFilters.ResellerName, isDrl]);
 
-  // Effect: Fetch sub-brands when platform + category + brand changes (cascading)
+  // Effect: Fetch sub-brands when platform + category + brand + resellerName changes (cascading)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const platformParam = toApiParam(drawerFilters.Platform);
     const categoryParam = toApiParam(drawerFilters.Format);
     const brandParam = toApiParam(drawerFilters.Brand);
+    const resellerParam = isDrl ? toApiParam(drawerFilters.ResellerName) : undefined;
     const fetchSubBrands = async () => {
       try {
         const res = await axiosInstance.get('/watchtower/sub-brands', {
-          params: { platform: platformParam, category: categoryParam, brand: brandParam }
+          params: { platform: platformParam, category: categoryParam, brand: brandParam, resellerName: resellerParam }
         });
         if (cancelled) return;
         if (res.data && Array.isArray(res.data)) {
           const list = res.data.filter(s => s !== 'All' && String(s).trim()).sort();
           setFilterOptions(prev => ({ ...prev, subBrands: list }));
+
+          // Validate current SubBrand selection
+          setDrawerFilters(prev => {
+            if (prev.SubBrand && prev.SubBrand !== 'All' && list.length > 0 && !list.some(s => s.toLowerCase() === prev.SubBrand.toLowerCase())) {
+              return { ...prev, SubBrand: 'All' };
+            }
+            return prev;
+          });
         }
       } catch (error) {
         console.error("[TrendsDrawer] Error fetching subBrands:", error);
@@ -1162,19 +1174,21 @@ export default function TrendsCompetitionDrawer({
     };
     fetchSubBrands();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.Format, drawerFilters.Brand]);
+  }, [open, drawerFilters.Platform, drawerFilters.Format, drawerFilters.Brand, drawerFilters.ResellerName, isDrl]);
 
-  // Effect 3: Fetch cities when platform + brand + resellerName changes (cascading)
+  // Effect 3: Fetch cities when platform + brand + category + subBrand + resellerName changes (cascading)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const platformParam = toApiParam(drawerFilters.Platform);
     const brandParam = toApiParam(drawerFilters.Brand);
+    const categoryParam = toApiParam(drawerFilters.Format);
+    const subBrandParam = toApiParam(drawerFilters.SubBrand);
     const resellerParam = isDrl ? toApiParam(drawerFilters.ResellerName) : undefined;
     const fetchCities = async () => {
       try {
         const citiesRes = await axiosInstance.get('/watchtower/trends-filter-options', {
-          params: { filterType: 'cities', platform: platformParam, brand: brandParam, resellerName: resellerParam }
+          params: { filterType: 'cities', platform: platformParam, brand: brandParam, category: categoryParam, subBrand: subBrandParam, resellerName: resellerParam }
         });
         if (cancelled) return;
         const cities = (citiesRes.data?.options || [])
@@ -1186,20 +1200,21 @@ export default function TrendsCompetitionDrawer({
     };
     fetchCities();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.ResellerName, isDrl]);
+  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format, drawerFilters.SubBrand, drawerFilters.ResellerName, isDrl]);
 
-  // Effect 4: Fetch SKUs when platform + brand + category + resellerName changes (cascading)
+  // Effect 4: Fetch SKUs when platform + brand + category + subBrand + resellerName changes (cascading)
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const platformParam = toApiParam(drawerFilters.Platform);
     const brandParam = toApiParam(drawerFilters.Brand);
     const categoryParam = toApiParam(drawerFilters.Format);
+    const subBrandParam = toApiParam(drawerFilters.SubBrand);
     const resellerParam = isDrl ? toApiParam(drawerFilters.ResellerName) : undefined;
     const fetchSkus = async () => {
       try {
         const skusRes = await axiosInstance.get('/watchtower/trends-filter-options', {
-          params: { filterType: 'skus', platform: platformParam, brand: brandParam, category: categoryParam, resellerName: resellerParam }
+          params: { filterType: 'skus', platform: platformParam, brand: brandParam, category: categoryParam, subBrand: subBrandParam, resellerName: resellerParam }
         });
         if (cancelled) return;
         const skus = (skusRes.data?.options || []).filter(s => s !== 'All' && s.trim()).sort();
@@ -1209,7 +1224,7 @@ export default function TrendsCompetitionDrawer({
         if (!skuDetails || skuDetails.length === 0) {
           try {
             const sapRes = await axiosInstance.get('/watchtower/products-with-sap', {
-              params: { platform: platformParam, brand: brandParam, category: categoryParam }
+              params: { platform: platformParam, brand: brandParam, category: categoryParam, subBrand: subBrandParam }
             });
             if (!cancelled && sapRes.data && Array.isArray(sapRes.data)) {
               skuDetails = sapRes.data;
@@ -1226,7 +1241,7 @@ export default function TrendsCompetitionDrawer({
     };
     fetchSkus();
     return () => { cancelled = true; };
-  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format, drawerFilters.ResellerName, isDrl, isDrlUser]);
+  }, [open, drawerFilters.Platform, drawerFilters.Brand, drawerFilters.Format, drawerFilters.SubBrand, drawerFilters.ResellerName, isDrl, isDrlUser]);
 
   const [trendError, setTrendError] = useState(null);
 

@@ -8639,14 +8639,15 @@ const getKpiTrends = async (filters) => {
  * @param {string} platform - Selected platform filter
  * @param {string} brand - Selected brand filter (for cities)
  */
-const getTrendsFilterOptions = async ({ filterType, platform, brand, category, resellerName, dbName: propDbName }) => {
+const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, category, resellerName, dbName: propDbName }) => {
     try {
-        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, category=${category}, resellerName=${resellerName}`);
+        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, subBrand=${subBrand}, category=${category}, resellerName=${resellerName}`);
         const src = await getWatchtowerSource();
 
         // Normalize arrays for multi-select support
         const platArr = normalizeFilterArray(platform);
         const brandArr = normalizeFilterArray(brand);
+        const subBrandArr = normalizeFilterArray(subBrand);
         const catArr = normalizeFilterArray(category);
 
         // Reseller_Name filter (DRL DB context only)
@@ -8725,10 +8726,17 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
             const conditions = [
                 `${catCol} IS NOT NULL`,
                 `${catCol} != ''`,
-                `${catCol} != 'Others'`
+                `${catCol} != 'Others'`,
+                `toString(${src.f.compFlag}) = '0'`
             ];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+            }
+            if (brandArr && brandArr.length > 0) {
+                conditions.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+            }
+            if (subBrandArr && subBrandArr.length > 0) {
+                conditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
             }
             addResellerCondition(conditions);
 
@@ -8744,6 +8752,12 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
+            if (catArr && catArr.length > 0) {
+                conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+            }
+            if (subBrandArr && subBrandArr.length > 0) {
+                conditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
+            }
             addResellerCondition(conditions);
 
             const query = `SELECT DISTINCT ${src.f.brand} as brand FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY brand`;
@@ -8754,12 +8768,15 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
 
         if (filterType === 'cities') {
             // Fetch unique cities (Location)
-            const conditions = [`${src.f.location} IS NOT NULL`, `${src.f.location} != ''`];
+            const conditions = [`${src.f.location} IS NOT NULL`, `${src.f.location} != ''`, `toString(${src.f.compFlag}) = '0'`];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
             if (brandArr && brandArr.length > 0) {
-                conditions.push(`${src.f.brand} IN (${brandArr.map(b => `'${escapeStr(b)}'`).join(',')})`);
+                conditions.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+            }
+            if (subBrandArr && subBrandArr.length > 0) {
+                conditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
             }
             if (catArr && catArr.length > 0) {
                 conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
@@ -8792,6 +8809,9 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
                 if (brandArr && brandArr.length > 0) {
                     pdpConditions.push(`lower(${brandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
                 }
+                if (subBrandArr && subBrandArr.length > 0 && columnExists(pdpCols, 'sub_brand')) {
+                    pdpConditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
+                }
                 if (catArr && catArr.length > 0) {
                     pdpConditions.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
                 }
@@ -8813,6 +8833,9 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, category, r
             }
             if (brandArr && brandArr.length > 0) {
                 conditions.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+            }
+            if (subBrandArr && subBrandArr.length > 0) {
+                conditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
             }
             if (catArr && catArr.length > 0) {
                 conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
@@ -13171,34 +13194,43 @@ const getProducts = async (filters = {}) => {
  */
 const getSubBrands = async (filters = {}) => {
     try {
+        const { platform, brand, category, resellerName, dbName: propDbName } = filters;
         const pdpCols = await getTableColumns('rb_pdp_olap');
         const hasSubBrand = columnExists(pdpCols, 'sub_brand') || columnExists(pdpCols, 'subbrand');
         if (!hasSubBrand) {
             return [];
         }
         const actualSubCol = columnExists(pdpCols, 'sub_brand') ? resolveColumn(pdpCols, 'sub_brand') : resolveColumn(pdpCols, 'subbrand');
-        
-        const { platform, brand, category } = filters;
+        const catCol = columnExists(pdpCols, 'Category') ? resolveColumn(pdpCols, 'Category') : (columnExists(pdpCols, 'Product_Category') ? resolveColumn(pdpCols, 'Product_Category') : 'Category');
+
         const conditions = [
             `isNotNull(${actualSubCol})`,
             `toString(${actualSubCol}) != ''`,
             `toString(${actualSubCol}) != '0'`,
-            `Comp_flag = 0`
+            `toString(Comp_flag) = '0'`
         ];
-        
+
         const _esc = (str) => str ? str.replace(/'/g, "''") : '';
         const platArr = normalizeFilterArray(platform);
         const bndArr = normalizeFilterArray(brand);
         const catArr = normalizeFilterArray(category);
 
+        const effectiveDb = (propDbName || getCurrentDbName() || '').toLowerCase();
+        const resellerArr = ((effectiveDb === 'drl' || effectiveDb === 'prestige') && resellerName && resellerName !== 'All' && resellerName !== 'all')
+            ? normalizeFilterArray(resellerName)
+            : null;
+
         if (platArr && platArr.length > 0) {
-            conditions.push(`Platform IN (${platArr.map(p => `'${_esc(p)}'`).join(', ')})`);
+            conditions.push(`lower(Platform) IN (${platArr.map(p => `'${_esc(p.toLowerCase())}'`).join(', ')})`);
         }
         if (bndArr && bndArr.length > 0) {
-            conditions.push(`Brand IN (${bndArr.map(b => `'${_esc(b)}'`).join(', ')})`);
+            conditions.push(`lower(Brand) IN (${bndArr.map(b => `'${_esc(b.toLowerCase())}'`).join(', ')})`);
         }
         if (catArr && catArr.length > 0) {
-            conditions.push(`Category IN (${catArr.map(c => `'${_esc(c)}'`).join(', ')})`);
+            conditions.push(`lower(${catCol}) IN (${catArr.map(c => `'${_esc(c.toLowerCase())}'`).join(', ')})`);
+        }
+        if (resellerArr && resellerArr.length > 0 && columnExists(pdpCols, 'Reseller_Name')) {
+            conditions.push(`Reseller_Name IN (${resellerArr.map(r => `'${_esc(r)}'`).join(', ')})`);
         }
 
         const query = `
@@ -13218,8 +13250,9 @@ const getSubBrands = async (filters = {}) => {
 const getProductsWithSap = async (filters = {}) => {
     try {
         const src = await getWatchtowerSource();
-        const { platform, brand, category, subBrand, sub_brand } = filters;
+        const { platform, brand, category, subBrand, sub_brand, sapCode, sap_code } = filters;
         const targetSubBrand = subBrand || sub_brand;
+        const targetSapCode = sapCode || sap_code;
         const conditions = [
             `${src.f.product} IS NOT NULL`,
             `${src.f.product} != ''`,
@@ -13231,15 +13264,16 @@ const getProductsWithSap = async (filters = {}) => {
         const bndArr = normalizeFilterArray(brand);
         const catArr = normalizeFilterArray(category);
         const subArr = normalizeFilterArray(targetSubBrand);
+        const sapArr = normalizeFilterArray(targetSapCode);
 
         if (platArr && platArr.length > 0) {
-            conditions.push(`${src.f.platform} IN(${platArr.map(p => `'${_esc(p)}'`).join(', ')})`);
+            conditions.push(`lower(${src.f.platform}) IN(${platArr.map(p => `'${_esc(p.toLowerCase())}'`).join(', ')})`);
         }
         if (bndArr && bndArr.length > 0) {
-            conditions.push(`${src.f.brand} IN(${bndArr.map(b => `'${_esc(b)}'`).join(', ')})`);
+            conditions.push(`lower(${src.f.brand}) IN(${bndArr.map(b => `'${_esc(b.toLowerCase())}'`).join(', ')})`);
         }
         if (catArr && catArr.length > 0) {
-            conditions.push(`${src.f.category} IN(${catArr.map(c => `'${_esc(c)}'`).join(', ')})`);
+            conditions.push(`lower(${src.f.category}) IN(${catArr.map(c => `'${_esc(c.toLowerCase())}'`).join(', ')})`);
         }
 
         // Discover identifier columns safely so the same dropdown works for every client.
@@ -13254,6 +13288,11 @@ const getProductsWithSap = async (filters = {}) => {
         const hasSap = columnExists(cols, 'sap_code');
         const sapExpr = hasSap ? resolveColumn(cols, 'sap_code') : "''";
         const webPidExpr = resolveColumn(cols, 'Web_Pid');
+
+        const rawSapCol = cols.has('sap_code') ? `${tableName}.sap_code` : (cols.has('sapcode') ? `${tableName}.sapcode` : null);
+        if (sapArr && sapArr.length > 0 && rawSapCol) {
+            conditions.push(`toString(${rawSapCol}) IN (${sapArr.map(s => `'${_esc(s)}'`).join(', ')})`);
+        }
 
         const query = `
                         SELECT
@@ -13296,7 +13335,7 @@ const getProductCategories = async (filters = {}) => {
 
 const getWatchTowerCascadedFilters = async (filters) => {
     try {
-        const { platform, category, brand, location, startDate, endDate } = filters;
+        const { platform, category, brand, location, startDate, endDate, sapCode } = filters;
         const channel = extractChannel(filters);
 
         const cols = await getTableColumns('rca_sku_dim');
@@ -13343,6 +13382,16 @@ const getWatchTowerCascadedFilters = async (filters) => {
                 const locArr = normalizeFilterArray(location);
                 if (locArr.length > 0) {
                     conds.push(`lower(${locationCol}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
+                }
+            }
+
+            // 5. SAP Code filter
+            const hasSap = columnExists(cols, 'sap_code') || columnExists(cols, 'sapcode');
+            if (excludeField !== 'sapCode' && sapCode && sapCode !== 'All') {
+                const sapArr = normalizeFilterArray(sapCode);
+                if (sapArr.length > 0 && hasSap) {
+                    const sapCol = columnExists(cols, 'sap_code') ? resolveColumn(cols, 'sap_code') : resolveColumn(cols, 'sapcode');
+                    conds.push(`toString(${sapCol}) IN (${sapArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
                 }
             }
 
