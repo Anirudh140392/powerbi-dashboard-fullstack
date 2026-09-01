@@ -5856,6 +5856,7 @@ const getPlatformOverview = async (filters) => {
     let prevBuymoreQtyMap = new Map();
 
     if (isDrlDb) {
+        const buymorePlatforms = ['amazon', 'pharmeasy', 'nykaa', 'myntra', 'jiomart', 'shopify', 'meesho', 'flipkart'];
         const buildBuymoreCondsForOverview = (sDate, eDate) => {
             const conds = [`toDate(DATE) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
             if (rawCategory && rawCategory !== 'All') conds.push(`lower(trim(BOTH '\t\n ' FROM category)) = '${escapeStr(rawCategory.toLowerCase())}'`);
@@ -5864,8 +5865,16 @@ const getPlatformOverview = async (filters) => {
                 conds.push(`(${brandConditions})`);
             }
             if (locationArr && locationArr.length > 0) conds.push(`lower(Location) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
-            if (platformArr && platformArr.length > 0) conds.push(`lower(Platform) IN (${platformArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
-            else conds.push(`lower(Platform) IN (${buymorePlatforms.map(p => `'${p}'`).join(', ')})`);
+            if (platformArr && platformArr.length > 0) {
+                const filteredPlats = platformArr.map(p => p.toLowerCase()).filter(p => buymorePlatforms.includes(p));
+                if (filteredPlats.length > 0) {
+                    conds.push(`lower(Platform) IN (${filteredPlats.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                } else {
+                    conds.push(`lower(Platform) IN ('__none__')`);
+                }
+            } else {
+                conds.push(`lower(Platform) IN (${buymorePlatforms.map(p => `'${p}'`).join(', ')})`);
+            }
 
             const validStatuses = [
                 'shiplable generated', 'pickup_complete', 'pickup pending', 'payment success',
@@ -8091,17 +8100,14 @@ const getKpiTrends = async (filters) => {
     let includeBuyMore = true;
     const nonBuyMoreList = resellerList.filter(r => !(r.includes('buy') || r.includes('more')));
 
-    // For DRL: buymore data should ONLY be included for e-commerce platforms, not for quick commerce
+    // For DRL: buymore data should ONLY be included for the 8 specified platforms:
+    // amazon, pharmeasy, nykaa, myntra, jiomart, shopify, meesho, flipkart
+    const buymorePlatforms = ['amazon', 'pharmeasy', 'nykaa', 'myntra', 'jiomart', 'shopify', 'meesho', 'flipkart'];
+
     if (isDrlDb) {
-        const quickCommPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy', 'bbnow'];
-        const ecommPlatforms = ['amazon', 'flipkart', 'jiomart', 'meesho', 'myntra', 'pharmeasy', 'shopify'];
         const selectedPlatforms = platArr.map(p => p.toLowerCase());
-        const isOnlyQuickComm = selectedPlatforms.length > 0 && selectedPlatforms.every(p => quickCommPlatforms.includes(p));
-        const hasEcomm = selectedPlatforms.length === 0 || selectedPlatforms.some(p => ecommPlatforms.includes(p));
-        
-        if (isOnlyQuickComm) {
-            includeBuyMore = false;
-        } else if (!hasEcomm) {
+        const hasBuymorePlat = selectedPlatforms.length === 0 || selectedPlatforms.includes('all') || selectedPlatforms.some(p => buymorePlatforms.includes(p));
+        if (!hasBuymorePlat) {
             includeBuyMore = false;
         }
     }
@@ -8194,9 +8200,18 @@ const getKpiTrends = async (filters) => {
                     conds.push(`(${brandConditions})`);
                 }
                 if (locArr && locArr.length > 0) conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
-                if (platArr && platArr.length > 0) conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
 
-                // Enforce 11 specific Status values for buymore_rb_pdp_olap
+                // Enforce platform filtering: only the 8 specified platforms from buymore_rb_pdp_olap
+                const selectedPlatforms = platArr.map(p => p.toLowerCase());
+                let targetPlats = buymorePlatforms;
+                if (selectedPlatforms.length > 0 && !selectedPlatforms.includes('all')) {
+                    targetPlats = selectedPlatforms.filter(p => buymorePlatforms.includes(p));
+                }
+                if (targetPlats.length > 0) {
+                    conds.push(`lower(Platform) IN (${targetPlats.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                }
+
+                // Enforce 13 specific Status values for buymore_rb_pdp_olap
                 const validStatuses = [
                     'shiplable generated',
                     'pickup_complete',
@@ -10425,7 +10440,6 @@ const getDarkStoreCount = async (filters = {}) => {
 
         // Build conditions
         const conds = [];
-        conds.push(`status IN('1', '2')`);
 
         if (platform && platform !== 'All') {
             const platformArr = Array.isArray(platform) ? platform : [platform];
@@ -10449,9 +10463,9 @@ const getDarkStoreCount = async (filters = {}) => {
             SELECT
                 platform,
                 uniq(concat(toString(pincode), merchant_name)) AS total,
-                uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
+                uniq(concat(toString(pincode), merchant_name)) AS listed,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
-                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
+                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_listed
             FROM ${darkstoreTable}
             ${whereClause}
             GROUP BY platform
@@ -10464,9 +10478,9 @@ const getDarkStoreCount = async (filters = {}) => {
                 platform,
                 location AS city,
                 uniq(concat(toString(pincode), merchant_name)) AS total,
-                uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
+                uniq(concat(toString(pincode), merchant_name)) AS listed,
                 uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
-                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
+                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_listed
             FROM ${darkstoreTable}
             ${whereClause}
             GROUP BY platform, location

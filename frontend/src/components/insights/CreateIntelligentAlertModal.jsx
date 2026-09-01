@@ -78,6 +78,50 @@ const ALERT_PRESETS = [
         defaultThreshold: "10",
         severity: "Medium",
     },
+    {
+        id: "whatsapp_test_1",
+        name: "WhatsApp Test 1 (Template A)",
+        category: "Testing & Diagnostics",
+        metrics: ["Connectivity"],
+        formula: "Tests WhatsApp template integration 1",
+        condition: "Manual / Scheduled Trigger",
+        operator: "eq",
+        defaultThreshold: "10",
+        severity: "Low",
+    },
+    {
+        id: "whatsapp_test_2",
+        name: "WhatsApp Test 2 (Template B)",
+        category: "Testing & Diagnostics",
+        metrics: ["Connectivity"],
+        formula: "Tests WhatsApp template integration 2",
+        condition: "Manual / Scheduled Trigger",
+        operator: "eq",
+        defaultThreshold: "10",
+        severity: "Low",
+    },
+    {
+        id: "whatsapp_test_3",
+        name: "WhatsApp Test 3 (Template C)",
+        category: "Testing & Diagnostics",
+        metrics: ["Connectivity"],
+        formula: "Tests WhatsApp template integration 3",
+        condition: "Manual / Scheduled Trigger",
+        operator: "eq",
+        defaultThreshold: "10",
+        severity: "Low",
+    },
+    {
+        id: "whatsapp_test_4",
+        name: "WhatsApp Test 4 (Template D)",
+        category: "Testing & Diagnostics",
+        metrics: ["Connectivity"],
+        formula: "Tests WhatsApp template integration 4",
+        condition: "Manual / Scheduled Trigger",
+        operator: "eq",
+        defaultThreshold: "10",
+        severity: "Low",
+    },
 ];
 
 // Helper to format platform names cleanly
@@ -185,6 +229,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
 
     const selectedPresets = ALERT_PRESETS.filter(p => selectedPresetIds.includes(p.id));
     const isPerformanceSummarySelected = selectedPresetIds.includes("category_perf_summary") || selectedPresetIds.includes("ptd_perf_summary");
+    const isWhatsAppTestSelected = selectedPresetIds.some(id => id.startsWith("whatsapp_test"));
     // eslint-disable-next-line no-unused-vars
     const isWeeklyForced = selectedPresetIds.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id));
 
@@ -192,14 +237,15 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     useEffect(() => {
         if (open && editingAlert) {
             const isPerfSummary = editingAlert.alert_type === "category_perf_summary" || editingAlert.alert_type === "ptd_perf_summary";
+            const isWhatsappTest = editingAlert.alert_type && editingAlert.alert_type.startsWith("whatsapp_test");
             setAlertName(editingAlert.alert_name || editingAlert.alertName || "Untitled Custom Alert");
             setIsCustomAlertName(true);
             const initialEmailStr = editingAlert.send_email || editingAlert.email || "";
             setEmailAddresses(initialEmailStr ? initialEmailStr.split(',').map(e => e.trim()).filter(Boolean) : []);
             setEmailInput("");
             setEmailNotify(!!(editingAlert.send_email || editingAlert.email));
-            setWhatsappNumber(isPerfSummary ? "" : (editingAlert.whatsapp_no || editingAlert.phone || ""));
-            setWhatsappNotify(isPerfSummary ? false : !!(editingAlert.whatsapp_no || editingAlert.phone));
+            setWhatsappNumber(!isWhatsappTest ? "" : (editingAlert.whatsapp_no || editingAlert.phone || ""));
+            setWhatsappNotify(!isWhatsappTest ? false : !!(editingAlert.whatsapp_no || editingAlert.phone));
             if (Array.isArray(editingAlert.platforms) && editingAlert.platforms.length > 0) {
                 setSelectedPlatforms(editingAlert.platforms);
             }
@@ -295,9 +341,15 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
             setFrequency("Weekly Summary");
         }
 
-        // When Performance Summary (any variant) is selected, disable WhatsApp
-        if (presetId === "category_perf_summary" || presetId === "ptd_perf_summary") {
+        // When any alert other than a WhatsApp Test is selected, disable WhatsApp
+        if (!presetId.startsWith("whatsapp_test")) {
             setWhatsappNotify(false);
+            setWhatsappNumber("");
+        } else {
+            // For whatsapp alerts
+            setFrequency("Daily Digest");
+            setComparisonPeriod("vs Yesterday");
+            setEmailNotify(false);
         }
 
         const activePresets = ALERT_PRESETS.filter(p => updated.includes(p.id));
@@ -434,7 +486,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                 alertName: alertName || "Untitled Custom Alert",
                 alertType: selectedPresetIds.join(','),
                 sendEmail: emailNotify ? emailAddresses.join(",") : "",
-                whatsappNo: isPerfSummary ? "" : (whatsappNotify ? (whatsappNumber || "") : ""),
+                whatsappNo: !isWhatsAppTestSelected ? "" : (whatsappNotify ? (whatsappNumber || "") : ""),
                 platforms: selectedPlatforms.includes("All Platforms") ? availablePlatforms : selectedPlatforms,
                 brands: isPerfSummary ? availableBrands : (selectedBrands.includes("All Brands") ? availableBrands : selectedBrands),
                 conditionalOperator: isPerfSummary ? "eq" : triggerOperator,
@@ -980,7 +1032,12 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: (emailNotify || whatsappNotify) ? "14px" : "0" }}>
                                 {/* Email Alert Card */}
                                 <div
-                                    onClick={() => setEmailNotify((prev) => !prev)}
+                                    onClick={() => {
+                                        if (!isWhatsAppTestSelected) {
+                                            setEmailNotify((prev) => !prev);
+                                        }
+                                    }}
+                                    title={isWhatsAppTestSelected ? "Email alerts are disabled for WhatsApp Tests" : ""}
                                     style={{
                                         display: "flex",
                                         alignItems: "center",
@@ -988,8 +1045,9 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                         padding: "14px 16px",
                                         borderRadius: "12px",
                                         border: emailNotify ? "2px solid #0047FF" : "1.5px solid #e2e8f0",
-                                        background: emailNotify ? "#f0f5ff" : "#ffffff",
-                                        cursor: "pointer",
+                                        background: isWhatsAppTestSelected ? "#f8fafc" : (emailNotify ? "#f0f5ff" : "#ffffff"),
+                                        cursor: isWhatsAppTestSelected ? "not-allowed" : "pointer",
+                                        opacity: isWhatsAppTestSelected ? 0.55 : 1,
                                         boxShadow: emailNotify ? "0 4px 12px rgba(0, 71, 255, 0.08)" : "0 1px 3px rgba(0, 0, 0, 0.02)",
                                         transition: "all 0.18s ease",
                                     }}
@@ -1036,7 +1094,9 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                 {/* WhatsApp Card */}
                                 <div
                                     onClick={() => {
-                                        // Disabled
+                                        if (isWhatsAppTestSelected) {
+                                            setWhatsappNotify((prev) => !prev);
+                                        }
                                     }}
                                     style={{
                                         display: "flex",
@@ -1044,14 +1104,14 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                         justifyContent: "space-between",
                                         padding: "14px 16px",
                                         borderRadius: "12px",
-                                        border: "1.5px solid #e2e8f0",
-                                        background: "#f8fafc",
-                                        cursor: "not-allowed",
-                                        opacity: 0.55,
-                                        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.02)",
+                                        border: whatsappNotify ? "2px solid #25D366" : "1.5px solid #e2e8f0",
+                                        background: !isWhatsAppTestSelected ? "#f8fafc" : (whatsappNotify ? "#f0fdf4" : "#ffffff"),
+                                        cursor: !isWhatsAppTestSelected ? "not-allowed" : "pointer",
+                                        opacity: !isWhatsAppTestSelected ? 0.55 : 1,
+                                        boxShadow: whatsappNotify ? "0 4px 12px rgba(37, 211, 102, 0.12)" : "0 1px 3px rgba(0, 0, 0, 0.02)",
                                         transition: "all 0.18s ease",
                                     }}
-                                    title="WhatsApp alerts are currently disabled"
+                                    title={!isWhatsAppTestSelected ? "WhatsApp alerts are only enabled for WhatsApp Test" : "Enable WhatsApp Alerts"}
                                 >
                                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                                         <div
@@ -1059,21 +1119,21 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                 width: 36,
                                                 height: 36,
                                                 borderRadius: "8px",
-                                                background: "#94a3b8",
+                                                background: !isWhatsAppTestSelected ? "#94a3b8" : "#25D366",
                                                 display: "flex",
                                                 alignItems: "center",
                                                 justifyContent: "center",
-                                                boxShadow: "none",
+                                                boxShadow: !isWhatsAppTestSelected ? "none" : "0 2px 6px rgba(37, 211, 102, 0.3)",
                                             }}
                                         >
                                             <MessageSquare size={18} color="#ffffff" />
                                         </div>
                                         <div>
-                                            <span style={{ display: "block", fontSize: "13.5px", fontWeight: 700, color: "#94a3b8" }}>
-                                                WhatsApp
+                                            <span style={{ display: "block", fontSize: "13.5px", fontWeight: 700, color: !isWhatsAppTestSelected ? "#94a3b8" : "#0f172a" }}>
+                                                WhatsApp Alert
                                             </span>
-                                            <span style={{ fontSize: "11px", color: "#94a3b8" }}>
-                                                Currently disabled
+                                            <span style={{ fontSize: "11px", color: "#64748b" }}>
+                                                {!isWhatsAppTestSelected ? "Currently disabled" : "Instant direct messages"}
                                             </span>
                                         </div>
                                     </div>
@@ -1083,20 +1143,21 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                             width: 20,
                                             height: 20,
                                             borderRadius: "6px",
-                                            background: "#ffffff",
-                                            border: "1.5px solid #cbd5e1",
+                                            background: whatsappNotify ? "#25D366" : "#ffffff",
+                                            border: whatsappNotify ? "none" : "1.5px solid #cbd5e1",
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "center",
                                             transition: "all 0.15s ease",
                                         }}
                                     >
+                                        {whatsappNotify && <Check size={14} color="#ffffff" strokeWidth={3} />}
                                     </div>
                                 </div>
                             </div>
 
                             {/* Dynamic Channel Input Fields */}
-                            {emailNotify && (
+                            {(emailNotify || whatsappNotify) && (
                                 <motion.div
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: "auto" }}
@@ -1196,6 +1257,46 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                     style={{
                                                         flex: 1,
                                                         minWidth: "120px",
+                                                        height: "30px",
+                                                        border: "none",
+                                                        outline: "none",
+                                                        background: "transparent",
+                                                        fontSize: "13px",
+                                                        color: "#0f172a",
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    {whatsappNotify && (
+                                        <div>
+                                            <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
+                                                WHATSAPP NUMBER
+                                            </label>
+                                            <div
+                                                className="form-input-focus"
+                                                style={{
+                                                    width: "100%",
+                                                    height: "40px",
+                                                    padding: "4px 14px 4px 36px",
+                                                    borderRadius: "10px",
+                                                    border: "1px solid #cbd5e1",
+                                                    background: "#fff",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    position: "relative",
+                                                    boxSizing: "border-box",
+                                                }}
+                                            >
+                                                <Phone size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#64748b" }} />
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g., 919876543210 (Country code + Number)"
+                                                    value={whatsappNumber}
+                                                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                                                    style={{
+                                                        width: "100%",
                                                         height: "30px",
                                                         border: "none",
                                                         outline: "none",
@@ -1434,6 +1535,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                                 }}
                                             >
                                                 <option value="vs L4W Avg">vs L4W Avg</option>
+                                                <option value="vs Yesterday">vs Yesterday</option>
                                             </select>
                                             <ChevronDown size={14} style={{ position: "absolute", right: 8, bottom: 12, color: "#64748b", pointerEvents: "none" }} />
                                         </div>
