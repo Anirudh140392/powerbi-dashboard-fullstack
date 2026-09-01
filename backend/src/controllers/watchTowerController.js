@@ -338,10 +338,10 @@ export const getKpiTrends = async (req, res) => {
  */
 export const getTrendsFilterOptions = async (req, res) => {
     try {
-        const { filterType, platform, brand, category, resellerName } = req.query;
+        const { filterType, platform, brand, subBrand, category, resellerName } = req.query;
         const dbName = req.user?.dbName?.toLowerCase();
-        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand, category, resellerName, dbName });
-        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand, category, resellerName, dbName });
+        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand, subBrand, category, resellerName, dbName });
+        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand, subBrand, category, resellerName, dbName });
         res.json(data);
     } catch (error) {
         console.error('[getTrendsFilterOptions] Error:', error);
@@ -583,8 +583,9 @@ export const getProductsWithSap = async (req, res) => {
  */
 export const getSubBrands = async (req, res) => {
     try {
-        const { platform, brand, category } = req.query;
-        const subBrands = await watchTowerService.getSubBrands({ platform, brand, category });
+        const { platform, brand, category, resellerName } = req.query;
+        const dbName = req.user?.dbName?.toLowerCase();
+        const subBrands = await watchTowerService.getSubBrands({ platform, brand, category, resellerName, dbName });
         res.json(subBrands);
     } catch (error) {
         console.error('[getSubBrands] Error:', error);
