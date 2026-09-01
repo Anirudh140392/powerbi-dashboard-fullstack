@@ -21,9 +21,16 @@ import {
     Truck,
 } from "lucide-react";
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-smbn58so6ajfol9smtq0r9ksi4vedi4r.apps.googleusercontent.com";
+const getGoogleClientId = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return import.meta.env.VITE_GOOGLE_DEV_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-cse1isbmn2qp4hu1se9voboitm8t9oht.apps.googleusercontent.com";
+    }
+    return import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-smbn58so6ajfol9smtq0r9ksi4vedi4r.apps.googleusercontent.com";
+};
+const GOOGLE_CLIENT_ID = getGoogleClientId();
 
-const GoogleSsoButton = ({ onSuccess, onError }) => {
+const GoogleSsoButtonInner = ({ onSuccess, onError }) => {
     const loginWithGoogle = useGoogleLogin({
         onSuccess: (tokenResponse) => {
             if (tokenResponse?.access_token) {
@@ -49,15 +56,32 @@ const GoogleSsoButton = ({ onSuccess, onError }) => {
         </button>
     );
 };
+
+const GoogleSsoButton = ({ onSuccess, onError }) => {
+    if (!GOOGLE_CLIENT_ID) return null;
+    return <GoogleSsoButtonInner onSuccess={onSuccess} onError={onError} />;
+};
+
 // Microsoft OAuth config
+const MS_TENANT_ID = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common';
+
 const getMsClientId = () => {
-    return import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID || import.meta.env.VITE_MICROSOFT_CLIENT_ID || "b50e2cd2-ee2d-4b60-ab85-dc4ce039da6a";
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const devId = import.meta.env.VITE_MICROSOFT_DEV_CLIENT_ID;
+    const prodId = import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID;
+    const genId = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
+
+    const filterValid = (id) => (id && id !== MS_TENANT_ID ? id : '');
+
+    if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return filterValid(devId) || filterValid(genId) || filterValid(prodId) || "153c3bd5-c6f7-41a5-b11c-3334d71b5db4";
+    }
+    return filterValid(prodId) || filterValid(genId) || filterValid(devId) || "939117e7-0daa-440f-9981-236a3c5c5ff3";
 };
 const MS_CLIENT_ID = getMsClientId();
-const MS_TENANT_ID = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common';
 const MS_CALLBACK_URL = `${window.location.origin}/api/auth/callback/microsoft`;
 // Set to true to display Google and Microsoft SSO buttons on the login UI
-const SHOW_SSO_OPTIONS = false;
+const SHOW_SSO_OPTIONS = true;
 
 const LoginPageContent = () => {
     const [email, setEmail] = useState("");
@@ -120,6 +144,10 @@ const LoginPageContent = () => {
 
     const handleMicrosoftLogin = () => {
         setError("");
+        if (!MS_CLIENT_ID) {
+            setError("Microsoft SSO is not properly configured. Please set VITE_MICROSOFT_DEV_CLIENT_ID or VITE_MICROSOFT_CLIENT_ID in your environment.");
+            return;
+        }
         setLoading(true);
 
         // Build Microsoft OAuth authorize URL (Web mode — returns ?code= to backend callback)
@@ -480,6 +508,10 @@ const LoginPageContent = () => {
 };
 
 const LoginPage = () => {
+    if (!GOOGLE_CLIENT_ID) {
+        return <LoginPageContent />;
+    }
+
     return (
         <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
             <LoginPageContent />

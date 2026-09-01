@@ -1,12 +1,15 @@
 import React, { useMemo, useState, useContext, createContext, useEffect, useCallback } from "react";
 import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
+import * as XLSX from "xlsx";
+import dayjs from "dayjs";
 // import PaginationFooter from "../CommonLayout/PaginationFooter"; // Removed pagination
 import {
     Filter,
     LineChart as LineChartIcon,
     BarChart3,
     SlidersHorizontal,
+    Download,
 } from "lucide-react";
 import {
     LineChart,
@@ -721,12 +724,22 @@ const KPI_KEYS = [
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows, loading, isEcom }) => {
+const BrandTable = ({ rows, loading, isEcom, onDownload }) => {
     return (
         <Card className="mt-3">
             <CardHeader className="border-b pb-2">
-                <CardTitle className="text-sm font-medium text-slate-800">
-                    Brands ({rows.length || 0})
+                <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
+                    <span>Brands ({rows.length || 0})</span>
+                    {onDownload && (
+                        <button
+                            type="button"
+                            onClick={onDownload}
+                            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+                            title="Download Competition Data"
+                        >
+                            <Download className="h-4 w-4 text-emerald-600" />
+                        </button>
+                    )}
                 </CardTitle>
             </CardHeader>
             <CardContent className="pt-3">
@@ -737,6 +750,7 @@ const BrandTable = ({ rows, loading, isEcom }) => {
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
                                 {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
+                                <th className="px-3 py-2 text-center">Wt OSA</th>
                             </tr>
 
                         </thead>
@@ -770,13 +784,18 @@ const BrandTable = ({ rows, loading, isEcom }) => {
                                             </span>
                                         </td>
                                     )}
+                                    <td className="px-3 py-2 text-center text-[12px]">
+                                        <span className="font-semibold text-slate-700">
+                                            {formatKpiValue(row.wtOsa ?? row.wt_osa ?? (row.osa && row.listing ? (row.osa * row.listing) / 100 : 0))}
+                                        </span>
+                                    </td>
                                 </tr>
 
                             ))}
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={isEcom ? 2 : 3}
+                                        colSpan={isEcom ? 3 : 4}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
 
@@ -792,12 +811,22 @@ const BrandTable = ({ rows, loading, isEcom }) => {
     );
 };
 
-const SkuTable = ({ rows, loading, isEcom }) => {
+const SkuTable = ({ rows, loading, isEcom, onDownload }) => {
     return (
         <Card className="mt-3 border-slate-200 bg-white shadow-sm">
             <CardHeader className="border-b pb-2">
-                <CardTitle className="text-sm font-medium text-slate-800">
-                    SKUs ({rows.length || 0})
+                <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
+                    <span>SKUs ({rows.length || 0})</span>
+                    {onDownload && (
+                        <button
+                            type="button"
+                            onClick={onDownload}
+                            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+                            title="Download Competition Data"
+                        >
+                            <Download className="h-4 w-4 text-emerald-600" />
+                        </button>
+                    )}
                 </CardTitle>
             </CardHeader>
             <CardContent className="pt-3">
@@ -809,18 +838,19 @@ const SkuTable = ({ rows, loading, isEcom }) => {
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
                                 {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
+                                <th className="px-3 py-2 text-center">Wt OSA</th>
                             </tr>
 
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && (
                                 <tr>
-                                    <td colSpan={4} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                                    <td colSpan={5} className="px-3 py-6 text-center text-[12px] text-slate-400">
                                         <div className="animate-pulse">Loading competition data...</div>
                                     </td>
                                 </tr>
                             )}
-                            {!loading && rows.slice(0, 8).map((row, idx) => (
+                            {!loading && rows.map((row, idx) => (
                                 <tr
                                     key={row.id}
                                     className={cn(
@@ -846,13 +876,18 @@ const SkuTable = ({ rows, loading, isEcom }) => {
                                             </span>
                                         </td>
                                     )}
+                                    <td className="px-3 py-2 text-center text-[12px]">
+                                        <span className="font-semibold text-slate-700">
+                                            {formatKpiValue(row.wtOsa ?? row.wt_osa ?? (row.osa && row.listing ? (row.osa * row.listing) / 100 : 0))}
+                                        </span>
+                                    </td>
                                 </tr>
 
                             ))}
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={isEcom ? 3 : 4}
+                                        colSpan={isEcom ? 4 : 5}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
 
@@ -1237,27 +1272,39 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
         activeFilters.categories.length + activeFilters.brands.length + activeFilters.skus.length + (activeFilters.msl ? activeFilters.msl.length : 0);
 
     const brandRows = useMemo(() => {
-        return (competitionData.brands || []).map((b, idx) => ({
-            id: b.brand || `brand-${idx}`,
-            name: b.brand || 'Unknown',
-            osa: b.osa || 0,
-            listing: b.listing || 0,
-            doi: b.doi || 0,
-            fillrate: b.fillrate || 0,
-            assortment: b.assortment || 0,
-            psl: b.psl || 0
-        }));
+        return (competitionData.brands || []).map((b, idx) => {
+            const osa = b.osa || 0;
+            const listing = b.listing || 0;
+            const wtOsa = b.wtOsa ?? b.wt_osa ?? (osa && listing ? parseFloat(((osa * listing) / 100).toFixed(1)) : 0);
+            return {
+                id: b.brand || `brand-${idx}`,
+                name: b.brand || 'Unknown',
+                osa: osa,
+                listing: listing,
+                wtOsa: wtOsa,
+                wt_osa: wtOsa,
+                doi: b.doi || 0,
+                fillrate: b.fillrate || 0,
+                assortment: b.assortment || 0,
+                psl: b.psl || 0
+            };
+        });
     }, [competitionData.brands]);
 
     const skuRows = useMemo(() => {
         const mapped = (competitionData.skus || []).map((s, idx) => {
             const msVal = Number(s.MarketShare?.value ?? s.marketShare?.value ?? s.MarketShare ?? s.marketShare ?? 0);
+            const osa = s.osa ?? s.OSA?.value ?? 0;
+            const listing = s.listing ?? s.Listing?.value ?? 0;
+            const wtOsa = s.wtOsa ?? s.wt_osa ?? (osa && listing ? parseFloat(((osa * listing) / 100).toFixed(1)) : 0);
             return {
                 id: s.sku_name || `sku-${idx}`,
                 name: s.sku_name || 'Unknown',
                 brandName: s.brand_name || 'Unknown',
-                osa: s.osa ?? s.OSA?.value ?? 0,
-                listing: s.listing ?? s.Listing?.value ?? 0,
+                osa: osa,
+                listing: listing,
+                wtOsa: wtOsa,
+                wt_osa: wtOsa,
                 doi: s.doi || 0,
                 fillrate: s.fillrate || 0,
                 assortment: s.assortment || 0,
@@ -1281,6 +1328,68 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
             return osaB - osaA;
         });
     }, [competitionData.skus]);
+
+    const handleDownloadCompetitionExcel = () => {
+        try {
+            const wb = XLSX.utils.book_new();
+
+            const safeFormatPercent = (val) => {
+                if (val === null || val === undefined || val === "N/A" || val === "") return "N/A";
+                const num = typeof val === "object" ? Number(val.value ?? val.val) : Number(val);
+                if (isNaN(num)) return "N/A";
+                return `${num.toFixed(1)}%`;
+            };
+
+            const safeFormatPrice = (val) => {
+                if (val === null || val === undefined || val === "N/A" || val === "") return "N/A";
+                const num = typeof val === "object" ? Number(val.value ?? val.val) : Number(val);
+                if (isNaN(num)) return "N/A";
+                return `₹${num}`;
+            };
+
+            const skuData = (skuRows || []).map(s => {
+                const row = {
+                    "SKU": s.name || s.sku_name || s.Product || s.sku || "N/A",
+                    "BRAND": s.brandName || s.brand_name || s.brand || "N/A",
+                    "OSA": safeFormatPercent(s.osa ?? s.OSA),
+                };
+                if (!isEcom) {
+                    row["LISTING %"] = safeFormatPercent(s.listing ?? s.Listing);
+                }
+                row["WT OSA"] = safeFormatPercent(s.wtOsa ?? s.wt_osa ?? (s.osa && s.listing ? (s.osa * s.listing) / 100 : 0));
+                return row;
+            });
+
+            const brandData = (brandRows || []).map(b => {
+                const row = {
+                    "BRAND": b.name || b.brand_name || b.brand || "N/A",
+                    "OSA": safeFormatPercent(b.osa ?? b.OSA),
+                };
+                if (!isEcom) {
+                    row["LISTING %"] = safeFormatPercent(b.listing ?? b.Listing);
+                }
+                row["WT OSA"] = safeFormatPercent(b.wtOsa ?? b.wt_osa ?? (b.osa && b.listing ? (b.osa * b.listing) / 100 : 0));
+                return row;
+            });
+
+            if (tab === "sku") {
+                const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);
+                XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+                const brandSheet = XLSX.utils.json_to_sheet(brandData.length > 0 ? brandData : [{ "BRAND": "No Brand Data" }]);
+                XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+            } else {
+                const brandSheet = XLSX.utils.json_to_sheet(brandData.length > 0 ? brandData : [{ "BRAND": "No Brand Data" }]);
+                XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+                const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);
+                XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+            }
+
+            const fileName = `${tab === "sku" ? "SKUs" : "Brands"}_Availability_Competition_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        } catch (err) {
+            console.error("[AvailabilityCompetitionKpiShowcase] Excel download error:", err);
+        }
+    };
 
     return (
         <div className="flex-col bg-slate-50 text-slate-900">
@@ -1342,6 +1451,16 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                             <>Back to Table</>
                         )}
                     </Button>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 w-9 p-0 bg-white hover:bg-slate-100 border-slate-200 text-slate-700 flex items-center justify-center rounded-md"
+                        onClick={handleDownloadCompetitionExcel}
+                        title="Download Competition Data"
+                    >
+                        <Download className="h-4 w-4 text-emerald-600" />
+                    </Button>
                 </div>
             </div>
 
@@ -1361,7 +1480,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
 
                 <TabsContent value="brand" className="mt-3">
                     {viewMode === "table" ? (
-                        <BrandTable rows={brandRows} loading={loading} isEcom={isEcom} />
+                        <BrandTable rows={brandRows} loading={loading} isEcom={isEcom} onDownload={handleDownloadCompetitionExcel} />
                     ) : (
                         <TrendView
                             mode="brand"
@@ -1382,7 +1501,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
 
                 <TabsContent value="sku" className="mt-3">
                     {viewMode === "table" ? (
-                        <SkuTable rows={skuRows} loading={loading} isEcom={isEcom} />
+                        <SkuTable rows={skuRows} loading={loading} isEcom={isEcom} onDownload={handleDownloadCompetitionExcel} />
                     ) : (
                         <TrendView
                             mode="sku"

@@ -4544,8 +4544,8 @@ class VisibilityService {
 
                 // Build channel condition (case-insensitive to handle both 'Ecommerce'/'ecommerce' across DBs)
                 if (filters.channel && filters.channel !== 'All') {
-                    const ch = filters.channel.toLowerCase();
-                    if (['ecommerce', 'e-commerce', 'ecom'].includes(ch)) {
+                    const ch = (Array.isArray(filters.channel) ? filters.channel.join(',') : String(filters.channel)).toLowerCase();
+                    if (['ecommerce', 'e-commerce', 'ecom'].some(e => ch.includes(e))) {
                         filterConditions.push(`lower(${channelCol}) = 'ecommerce'`);
                     } else if (ch.includes('quick')) {
                         filterConditions.push(`lower(${channelCol}) = 'quickcomm'`);
@@ -4681,8 +4681,8 @@ class VisibilityService {
                 // Build CTE filter clause for rb_pdp_olap
                 let pdpFilterConditions = ['1=1'];
                 if (filters.channel && filters.channel !== 'All') {
-                    const ch = filters.channel.toLowerCase();
-                    if (['ecommerce', 'e-commerce', 'ecom'].includes(ch)) {
+                    const ch = (Array.isArray(filters.channel) ? filters.channel.join(',') : String(filters.channel)).toLowerCase();
+                    if (['ecommerce', 'e-commerce', 'ecom'].some(e => ch.includes(e))) {
                         pdpFilterConditions.push(`lower(${channelCol}) = 'ecommerce'`);
                     } else if (ch.includes('quick')) {
                         pdpFilterConditions.push(`lower(${channelCol}) = 'quickcomm'`);
@@ -4837,8 +4837,8 @@ class VisibilityService {
                 // Build filters for rb_pdp_olap
                 let filterConditions = ['1=1'];
                 if (filters.channel && filters.channel !== 'All') {
-                    const ch = filters.channel.toLowerCase();
-                    if (['ecommerce', 'e-commerce', 'ecom'].includes(ch)) {
+                    const ch = (Array.isArray(filters.channel) ? filters.channel.join(',') : String(filters.channel)).toLowerCase();
+                    if (['ecommerce', 'e-commerce', 'ecom'].some(e => ch.includes(e))) {
                         filterConditions.push(`lower(${channelCol}) = 'ecommerce'`);
                     } else if (ch.includes('quick')) {
                         filterConditions.push(`lower(${channelCol}) = 'quickcomm'`);
@@ -4890,8 +4890,8 @@ class VisibilityService {
                 // Build CTE filter clause for rb_pdp_olap
                 let pdpFilterConditions = ['1=1'];
                 if (filters.channel && filters.channel !== 'All') {
-                    const ch = filters.channel.toLowerCase();
-                    if (['ecommerce', 'e-commerce', 'ecom'].includes(ch)) {
+                    const ch = (Array.isArray(filters.channel) ? filters.channel.join(',') : String(filters.channel)).toLowerCase();
+                    if (['ecommerce', 'e-commerce', 'ecom'].some(e => ch.includes(e))) {
                         pdpFilterConditions.push(`lower(${channelCol}) = 'ecommerce'`);
                     } else if (ch.includes('quick')) {
                         pdpFilterConditions.push(`lower(${channelCol}) = 'quickcomm'`);

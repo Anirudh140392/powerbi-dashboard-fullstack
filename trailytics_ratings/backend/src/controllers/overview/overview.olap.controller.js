@@ -16,10 +16,9 @@
  */
 
 import clickhouse from '../../config/clickhouse.js';
+import { getOlapTableName } from '../../utils/olapResolver.js';
 
 // ── helpers ────────────────────────────────────────────────────────────────
-
-const OLAP_TABLE = 'rb_review_olap';
 
 const getTargetDb = (req) =>
     req.query.db_name ||
@@ -29,6 +28,8 @@ const getTargetDb = (req) =>
     process.env.CLICKHOUSE_DATABASE ||
     process.env.CLICKHOUSE_DB ||
     'prestige';
+
+const getOlapTable = (req) => getOlapTableName(getTargetDb(req));
 
 /**
  * Build base WHERE conditions for the OLAP table from request query params.
@@ -121,7 +122,7 @@ export const getSummary = async (req, res) => {
                 toString(countIf(sentiment = 'positive')) AS positive_count,
                 toString(countIf(sentiment = 'negative')) AS negative_count,
                 toString(countIf(sentiment = 'neutral')) AS neutral_count
-            FROM ${OLAP_TABLE} o
+            FROM ${getOlapTable(req)} o
             WHERE ${whereClause}
         `;
         const reviewRes = await clickhouse.query({ database: db, query: reviewSql, query_params: queryParams, format: 'JSONEachRow' });
@@ -133,7 +134,7 @@ export const getSummary = async (req, res) => {
         const pdpSql = `
             WITH latest_by_product AS (
                 SELECT web_pid, platform, pdp_rating, pdp_rating_count
-                FROM ${OLAP_TABLE} o
+                FROM ${getOlapTable(req)} o
                 WHERE ${whereClause} AND isNotNull(pdp_rating)
                 ORDER BY review_date DESC
                 LIMIT 1 BY web_pid, lower(platform)
@@ -230,7 +231,7 @@ export const getTrends = async (req, res) => {
                     REPLACE(coalesce(nullIf(o.sentiment_subcategory, ''), nullIf(o.sentiment_category, ''), 'General'), '_', ' ') AS characteristic,
                     CASE WHEN ${recentPeriodFilter} THEN 'recent' WHEN ${priorPeriodFilter} THEN 'prior' ELSE NULL END AS period,
                     o.sentiment
-                FROM ${OLAP_TABLE} o
+                FROM ${getOlapTable(req)} o
                 WHERE o.company_id = {companyId:String} AND isNotNull(o.review_date) AND ${combinedWindowFilter} ${extraWhere}
             ),
             aggregated AS (
@@ -314,7 +315,7 @@ export const getTimeline = async (req, res) => {
                 countIf(o.sentiment = 'negative') AS negative,
                 countIf(o.sentiment = 'neutral') AS neutral,
                 round(avg(o.rating), 2) AS avg_rating
-            FROM ${OLAP_TABLE} o
+            FROM ${getOlapTable(req)} o
             WHERE o.company_id = {companyId:String} AND isNotNull(o.review_date)
               ${extraWhere}
             GROUP BY month, category
@@ -363,7 +364,7 @@ export const getRatingTrend = async (req, res) => {
                 count() AS review_count,
                 round(avg(price_rp), 2) AS price_rp,
                 round(avg(price_sp), 2) AS price_sp
-            FROM ${OLAP_TABLE}
+            FROM ${getOlapTable(req)}
             WHERE company_id = {companyId:String}
               AND web_pid = {webPid:String}
               ${platformClause}
@@ -459,7 +460,7 @@ export const getExecutiveHealth = async (req, res) => {
                     argMax(product_name, review_date) AS product_name,
                     argMax(product_category, review_date) AS category,
                     argMax(star_distribution, review_date) AS star_distribution
-                FROM ${OLAP_TABLE} o
+                FROM ${getOlapTable(req)} o
                 WHERE ${baseWhere} ${competitorFilter}
                   AND ${reviewScopeFilter}
                 GROUP BY web_pid, platform
@@ -475,7 +476,7 @@ export const getExecutiveHealth = async (req, res) => {
                     countIf(${recentReviewFilter}) AS recent_review_count,
                     countIf(${priorReviewFilter}) AS older_review_count,
                     maxIf(o.review_date, ${primaryReviewFilter}) AS latest_review_date
-                FROM ${OLAP_TABLE} o
+                FROM ${getOlapTable(req)} o
                 WHERE ${baseWhere} ${competitorFilter}
                   AND ${reviewScopeFilter}
                 GROUP BY o.web_pid
@@ -633,7 +634,7 @@ export const getRatingMismatch = async (req, res) => {
                    o.sentiment, o.sentiment_category, o.review_title,
                    substring(o.review_text, 1, 300) AS review_text, o.review_date,
                    o.product_category AS category
-              FROM ${OLAP_TABLE} o
+              FROM ${getOlapTable(req)} o
              WHERE ${[...baseWhere, dirClause].join(' AND ')}
              ORDER BY abs(o.rating - o.ml_inferred_rating) DESC, o.review_date DESC
              LIMIT {limit:Int32}
@@ -644,7 +645,7 @@ export const getRatingMismatch = async (req, res) => {
         const sumSql = `
             SELECT countIf((o.rating - o.ml_inferred_rating) >= {minGap:Float64}) AS star_high_text_low,
                    countIf((o.ml_inferred_rating - o.rating) >= {minGap:Float64}) AS star_low_text_high
-              FROM ${OLAP_TABLE} o
+              FROM ${getOlapTable(req)} o
              WHERE ${baseWhere.join(' AND ')}
         `;
         const sumRes = await clickhouse.query({ database: getTargetDb(req), query: sumSql, query_params: queryParams, format: 'JSONEachRow' });
@@ -679,7 +680,7 @@ export const getReviewTimeline = async (req, res) => {
             query: `
                 SELECT review_id AS id, rating, sentiment, review_date, review_title, review_text,
                        specific_issue, sentiment_category, platform
-                  FROM ${OLAP_TABLE}
+                  FROM ${getOlapTable(req)}
                  WHERE ${where.join(' AND ')}
                  ORDER BY review_date ASC
                  LIMIT {limit:Int32}
@@ -724,7 +725,7 @@ export const getPriceVariance = async (req, res) => {
                        coalesce(o.price_sp, o.price_rp) AS effective_price, o.price_rp AS mrp
                 FROM (
                     SELECT brand, is_competitor, product_category, price_sp, price_rp
-                    FROM ${OLAP_TABLE} o
+                    FROM ${getOlapTable(req)} o
                     WHERE ${where.join(' AND ')}
                     LIMIT 1 BY web_pid, lower(platform)
                 ) o
@@ -812,7 +813,7 @@ export const getProductHealth = async (req, res) => {
                     countIf(${recentPeriodFilter} AND o.sentiment = 'negative') AS recent_neg,
                     countIf(${priorPeriodFilter}) AS older_total,
                     countIf(${priorPeriodFilter} AND o.sentiment = 'negative') AS older_neg
-                FROM ${OLAP_TABLE} o
+                FROM ${getOlapTable(req)} o
                 WHERE ${where.join(' AND ')}
                 GROUP BY substring(o.product_name, 1, 80)
                 HAVING count() >= 10
@@ -858,7 +859,7 @@ export const getProductHealth = async (req, res) => {
                        substring(toString(o.review_date), 1, 7) AS month,
                        round(avg(o.rating), 2) AS avg_rating,
                        count() AS count
-                FROM ${OLAP_TABLE} o
+                FROM ${getOlapTable(req)} o
                 WHERE ${mWhere.join(' AND ')}
                 GROUP BY product, month
                 ORDER BY product, month
@@ -920,7 +921,7 @@ export const getBenchmarkData = async (req, res) => {
             skuCondition = `AND (
                 (coalesce(o.is_competitor, 0) = 0 AND o.web_pid = {webPid:String})
                 OR (coalesce(o.is_competitor, 0) = 1 AND o.product_category IN (
-                    SELECT product_category FROM ${OLAP_TABLE}
+                    SELECT product_category FROM ${getOlapTable(req)}
                     WHERE company_id = {companyId:String} AND web_pid = {webPid:String}
                     LIMIT 1
                 ))
@@ -936,7 +937,7 @@ export const getBenchmarkData = async (req, res) => {
                     o.rating AS rev_rating, o.ml_inferred_rating AS rev_ml_rating, o.sentiment AS rev_sentiment,
                     o.web_pid AS rev_web_pid, o.platform AS rev_platform,
                     o.pdp_rating AS pdp_rating, o.pdp_rating_count AS rating_count
-                FROM ${OLAP_TABLE} o
+                FROM ${getOlapTable(req)} o
                 WHERE ${conditions.join(' AND ')}
                 ${skuCondition}
             ),
@@ -1073,7 +1074,7 @@ export const getCategoryHealth = async (req, res) => {
                 round(avgIf(rating, ${priorDateFilter}), 2) AS prior_rating,
                 toUInt64(sum(toUInt64(coalesce(pdp_rating_count, 0)))) AS total_ratings,
                 round(sum(pdp_rating * toUInt64(coalesce(pdp_rating_count, 0))) / nullIf(sum(toUInt64(coalesce(pdp_rating_count, 0))), 0), 2) AS avg_platform_rating
-            FROM ${OLAP_TABLE}
+            FROM ${getOlapTable(req)}
             WHERE ${baseWhere}
               AND category != ''
               AND ${combinedDateFilter}
@@ -1157,7 +1158,7 @@ export const getStarDistribution = async (req, res) => {
                 SELECT * FROM (
                     SELECT web_pid, platform, star_distribution, product_category AS category, brand,
                            coalesce(o.is_competitor, 0) AS is_competitor
-                    FROM ${OLAP_TABLE} o
+                    FROM ${getOlapTable(req)} o
                     WHERE ${conditions.join(' AND ')}
                     ORDER BY review_date DESC
                 ) LIMIT 1 BY web_pid, lower(platform)

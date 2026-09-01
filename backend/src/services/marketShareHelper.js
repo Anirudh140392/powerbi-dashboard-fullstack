@@ -159,26 +159,32 @@ const buildPlatformChannelCondForMs = (platformFilter, channelFilter, columnName
         }
     }
 
-    // 2. Channel Filter
-    if (channelFilter && channelFilter !== 'All') {
+    // 2. Channel Filter (only apply platform fallback if explicit platform filter was not specified)
+    if (channelFilter && channelFilter !== 'All' && (!platformArr || platformArr.length === 0 || platformArr.includes('All'))) {
         const channels = Array.isArray(channelFilter)
             ? channelFilter
             : (typeof channelFilter === 'string' && channelFilter.includes(',') ? channelFilter.split(',') : [channelFilter]);
         
         const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c.toLowerCase()));
         const isQuickComm = channels.some(c => c.toLowerCase().includes('quick'));
+        const isEpharm = channels.some(c => c.toLowerCase().includes('epharm') || c.toLowerCase().includes('e-pharm') || c.toLowerCase().includes('pharm'));
         const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(c.toLowerCase()));
 
-        const ecomPlatforms = ['amazon', 'flipkart'];
-        const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'];
+        const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart', 'meesho', 'myntra', 'shopify', 'first cry'];
+        const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'flipkart minutes', 'amazon now'];
+        const epharmPlatforms = ['pharmeasy', 'apollo 247', 'apollo', '1_mg', '1mg', 'tata 1mg', 'netmeds', 'truemeds'];
 
-        if (isQuickComm) {
-            conditions.push(`lower(${columnName}) IN (${quickPlatforms.map(p => `'${p}'`).join(', ')})`);
-        } else if (isEcom && !isModernTrade) {
-            conditions.push(`lower(${columnName}) IN (${ecomPlatforms.map(p => `'${p}'`).join(', ')})`);
-        } else if (isModernTrade && !isEcom) {
-            const allEcomQuick = [...ecomPlatforms, ...quickPlatforms];
-            conditions.push(`lower(${columnName}) NOT IN (${allEcomQuick.map(p => `'${p}'`).join(', ')})`);
+        const activeLists = [];
+        if (isQuickComm) activeLists.push(...quickPlatforms);
+        if (isEcom) activeLists.push(...ecomPlatforms);
+        if (isEpharm) activeLists.push(...epharmPlatforms);
+
+        if (activeLists.length > 0) {
+            const combined = [...new Set(activeLists)];
+            conditions.push(`lower(${columnName}) IN (${combined.map(p => `'${p}'`).join(', ')})`);
+        } else if (isModernTrade) {
+            const allEcomQuickPharm = [...ecomPlatforms, ...quickPlatforms, ...epharmPlatforms];
+            conditions.push(`lower(${columnName}) NOT IN (${allEcomQuickPharm.map(p => `'${p}'`).join(', ')})`);
         }
     }
 
@@ -1251,7 +1257,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
         const brandArr = normalizeFilterArray(brandFilter);
         let brandCond = '';
         if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
-            brandCond = `AND group_brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`;
+            brandCond = `AND lower(${isMamaearth ? 'ms.group_brand' : 'group_brand'}) IN (${brandArr.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
@@ -1270,12 +1276,16 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             prevEndStr = prevEnd.format('YYYY-MM-DD');
         }
 
-        const baseCond = `
+        const baseCondNoBrand = `
             ${platformCond}
             ${locationCond}
             ${categoryCond}
-            ${brandCond}
             AND ${isMamaearth ? 'ms.category' : 'category'} IS NOT NULL AND ${isMamaearth ? 'ms.category' : 'category'} != ''
+        `;
+
+        const baseCond = `
+            ${baseCondNoBrand}
+            ${brandCond}
         `;
 
         // 1. Get distinct categories for the dropdown
@@ -1283,7 +1293,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             SELECT DISTINCT ${isMamaearth ? 'ms.category' : 'category'} as sub_category
             FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
             WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${startStr}' AND '${endStr}'
-            ${baseCond}
+            ${baseCondNoBrand}
             AND ${isMamaearth ? 'ms.category' : 'category'} IS NOT NULL AND ${isMamaearth ? 'ms.category' : 'category'} != ''
             ORDER BY sub_category
         `;
@@ -1551,7 +1561,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
 
         let brandCond = '';
         if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
-            brandCond = `AND ms.group_brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`;
+            brandCond = `AND lower(ms.group_brand) IN (${brandArr.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
@@ -1569,7 +1579,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
             prevEndStr = prevEnd.format('YYYY-MM-DD');
         }
 
-        const baseCond = `${locationCond} ${categoryCond} ${brandCond}`;
+        const baseCond = `${locationCond} ${categoryCond}`;
 
         // Dynamic "Our Brands" query (comp_flag = 0)
         const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
@@ -1580,7 +1590,11 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
         }
         const marsFilter = `lower(ms.group_brand) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
 
-        // Category Size = SUM(sales) per platform
+        const selectedBrandFilter = (brandArr && brandArr.length > 0 && !brandArr.includes('All'))
+            ? `lower(ms.group_brand) IN (${brandArr.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`
+            : marsFilter;
+
+        // Category Size = SUM(sales) per platform (total sales across all brands)
         const buildCatSizeQuery = (s, e) => `
             SELECT ms.platform as platform,
                    SUM(toFloat64OrZero(toString(ms.sales))) as category_size
@@ -1593,8 +1607,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
             GROUP BY ms.platform
         `;
 
-        // MW Market Share = SUM(mars_sales) / SUM(total_sales) * 100 per platform
-        // We run two queries: mw_sales and total_sales per platform
+        // MW Market Share = SUM(mw_sales) / SUM(category_size) * 100 per platform
         const buildMwSalesQuery = (s, e) => `
             SELECT ms.platform as platform,
                    SUM(toFloat64OrZero(toString(ms.sales))) as mw_sales
@@ -1603,7 +1616,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
             WHERE toDate(ms.created_on) BETWEEN '${s}' AND '${e}'
             ${baseCond}
             ${subCat.where}
-            AND ${marsFilter}
+            AND ${selectedBrandFilter}
             AND ms.platform IS NOT NULL AND ms.platform != ''
             GROUP BY ms.platform
         `;
@@ -1762,9 +1775,12 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
         const allMwSalesDelta = calcDelta(allMwSalesCurr, allMwSalesPrev);
 
         // MW Market Share overall = total_mw_sales / total_cat_size * 100
-        const allMwMsCurr = allCatCurr > 0 ? (allMwSalesCurr / allCatCurr) * 100 : 0;
-        const allMwMsPrev = allCatPrev > 0 ? (allMwSalesPrev / allCatPrev) * 100 : 0;
-        const allMwMsDelta = calcDelta(allMwMsCurr, allMwMsPrev);
+        const hasCurrCatData = catSizeCurr.length > 0 && allCatCurr > 0;
+        const hasPrevCatData = catSizePrev.length > 0 && allCatPrev > 0;
+
+        const allMwMsCurr = hasCurrCatData ? (allMwSalesCurr / allCatCurr) * 100 : null;
+        const allMwMsPrev = hasPrevCatData ? (allMwSalesPrev / allCatPrev) * 100 : null;
+        const allMwMsDelta = (allMwMsCurr !== null && allMwMsPrev !== null) ? calcDelta(allMwMsCurr, allMwMsPrev) : null;
 
         // ML overall: brand with highest total sales across all platforms
         const brandSalesMap = {};
@@ -1782,9 +1798,9 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
         const allMlSalesDelta = calcDelta(allMlSalesCurr, allMlSalesPrev);
 
         // ML market share overall = ml_sales / cat_size * 100
-        const allMlMsCurr = allCatCurr > 0 ? (allMlSalesCurr / allCatCurr) * 100 : 0;
-        const allMlMsPrev = allCatPrev > 0 ? (allMlSalesPrev / allCatPrev) * 100 : 0;
-        const allMlMsDelta = calcDelta(allMlMsCurr, allMlMsPrev);
+        const allMlMsCurr = hasCurrCatData ? (allMlSalesCurr / allCatCurr) * 100 : null;
+        const allMlMsPrev = hasPrevCatData ? (allMlSalesPrev / allCatPrev) * 100 : null;
+        const allMlMsDelta = (allMlMsCurr !== null && allMlMsPrev !== null) ? calcDelta(allMlMsCurr, allMlMsPrev) : null;
 
         result['odd_overall'] = {
             categorySize: {
@@ -1794,8 +1810,8 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
             },
             mwMarketShare: {
                 raw: allMwMsCurr,
-                value: `${allMwMsCurr.toFixed(2)}%`,
-                delta: { value: `${allMwMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allMwMsDelta.deltaPct)}% (${allMwMsDelta.prevVal.toFixed(2)}%)`, dir: allMwMsDelta.deltaPct >= 0 ? 'up' : 'down' }
+                value: allMwMsCurr !== null ? `${allMwMsCurr.toFixed(2)}%` : 'N/A',
+                delta: allMwMsDelta ? { value: `${allMwMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allMwMsDelta.deltaPct)}% (${allMwMsDelta.prevVal.toFixed(2)}%)`, dir: allMwMsDelta.deltaPct >= 0 ? 'up' : 'down' } : null
             },
             mwSales: {
                 raw: allMwSalesCurr,
@@ -1804,8 +1820,8 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
             },
             mlMarketShare: {
                 raw: allMlMsCurr,
-                value: `${allMlMsCurr.toFixed(2)}%`,
-                delta: { value: `${allMlMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allMlMsDelta.deltaPct)}% (${allMlMsDelta.prevVal.toFixed(2)}%)`, dir: allMlMsDelta.deltaPct >= 0 ? 'up' : 'down' }
+                value: allMlMsCurr !== null ? `${allMlMsCurr.toFixed(2)}%` : 'N/A',
+                delta: allMlMsDelta ? { value: `${allMlMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allMlMsDelta.deltaPct)}% (${allMlMsDelta.prevVal.toFixed(2)}%)`, dir: allMlMsDelta.deltaPct >= 0 ? 'up' : 'down' } : null
             },
             mlSales: {
                 raw: allMlSalesCurr,

@@ -36,7 +36,8 @@ import {
   ListItemIcon,
   Checkbox,
 } from "@mui/material";
-import { ChevronDown, X, Search, Plus, Filter, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, X, Search, Plus, Filter, SlidersHorizontal, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import ReactECharts from "echarts-for-react";
@@ -856,6 +857,36 @@ export default function VisibilityTrendsCompetitionDrawer({
   const [loading, setLoading] = useState(true);
   const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
   const [competitionLoading, setCompetitionLoading] = useState(true);
+
+  const handleDownloadCompetition = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      const brandRows = (competitionData.brands || []).map(b => ({
+        "Brand Name": b.name || b.brand_name || "N/A",
+        "Overall SOS %": typeof b.overall_sos === "number" ? `${b.overall_sos.toFixed(1)}%` : (b.overall_sos || "0%"),
+        "Sponsored SOS %": typeof b.sponsored_sos === "number" ? `${b.sponsored_sos.toFixed(1)}%` : (b.sponsored_sos || "0%"),
+        "Organic SOS %": typeof b.organic_sos === "number" ? `${b.organic_sos.toFixed(1)}%` : (b.organic_sos || "0%"),
+      }));
+      const brandSheet = XLSX.utils.json_to_sheet(brandRows);
+      XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+
+      const skuRows = (competitionData.skus || []).map(s => ({
+        "SKU Name": s.name || s.sku_name || "N/A",
+        "Brand Name": s.brandName || s.brand_name || "N/A",
+        "Overall SOS %": typeof s.overall_sos === "number" ? `${s.overall_sos.toFixed(1)}%` : (s.overall_sos || "0%"),
+        "Sponsored SOS %": typeof s.sponsored_sos === "number" ? `${s.sponsored_sos.toFixed(1)}%` : (s.sponsored_sos || "0%"),
+        "Organic SOS %": typeof s.organic_sos === "number" ? `${s.organic_sos.toFixed(1)}%` : (s.organic_sos || "0%"),
+      }));
+      const skuSheet = XLSX.utils.json_to_sheet(skuRows);
+      XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+
+      const fileName = `Visibility_Competition_Data_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error("[VisibilityTrendsCompetitionDrawer] Download competition error:", err);
+    }
+  };
 
   // ===================== DYNAMIC FILTER OPTIONS STATE =====================
   const [filterOptions, setFilterOptions] = useState({

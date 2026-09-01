@@ -5,7 +5,7 @@ import { queryClickHouse, getCurrentDbName } from './src/config/clickhouse.js';
 async function check() {
     try {
         console.log("=== ClickHouse OLAP Integrity Check ===");
-        
+
         // 1. Primary OLAP Check
         console.log("\n--- Primary OLAP (rb_primary_olap) ---");
         const primaryMeta = await queryClickHouse(`
@@ -39,3 +39,4 @@ async function check() {
     }
 }
 check();
+

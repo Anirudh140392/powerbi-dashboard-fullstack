@@ -342,10 +342,14 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
     if (platform && platform !== 'All') {
         const platforms = Array.isArray(platform) ? platform : (typeof platform === 'string' && platform.includes(',') ? platform.split(',') : [platform]);
         if (platforms.length === 1) {
-            conditions.push(`lower(${columnName}) = '${escapeStr(platforms[0].toLowerCase())}'`);
+            const pLower = escapeStr(platforms[0].trim().toLowerCase());
+            conditions.push(`(lower(${columnName}) = '${pLower}' OR lower(${columnName}) LIKE '%${pLower}%')`);
         } else if (platforms.length > 1) {
-            const list = platforms.map(p => `'${escapeStr(p.trim().toLowerCase())}'`).join(', ');
-            conditions.push(`lower(${columnName}) IN (${list})`);
+            const condList = platforms.map(p => {
+                const pLower = escapeStr(p.trim().toLowerCase());
+                return `(lower(${columnName}) = '${pLower}' OR lower(${columnName}) LIKE '%${pLower}%')`;
+            }).join(' OR ');
+            conditions.push(`(${condList})`);
         }
     }
 
@@ -364,22 +368,28 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
             const mappedChannels = [...new Set(channels.map(mapChannelToDbValue))];
             const list = mappedChannels.map(c => `'${escapeStr(c)}'`).join(', ');
             conditions.push(`lower(${channelColumn}) IN (${list})`);
-        } else {
-            // Fallback for tables without a channel column (by filtering on platforms)
+        } else if (!platform || platform === 'All') {
+            // Fallback for tables without a channel column (only apply when explicit platform is NOT specified)
             const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c.toLowerCase()));
             const isQuickComm = channels.some(c => c.toLowerCase().includes('quick'));
+            const isEpharm = channels.some(c => c.toLowerCase().includes('epharm') || c.toLowerCase().includes('e-pharm') || c.toLowerCase().includes('pharm'));
             const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(c.toLowerCase()));
 
-            const ecomPlatforms = ['amazon', 'flipkart'];
-            const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'];
+            const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart', 'meesho', 'myntra', 'shopify', 'first cry'];
+            const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'flipkart minutes', 'amazon now'];
+            const epharmPlatforms = ['pharmeasy', 'apollo 247', 'apollo', '1_mg', '1mg', 'tata 1mg', 'netmeds', 'truemeds'];
 
-            if (isQuickComm) {
-                conditions.push(`lower(${columnName}) IN (${quickPlatforms.map(p => `'${p}'`).join(', ')})`);
-            } else if (isEcom && !isModernTrade) {
-                conditions.push(`lower(${columnName}) IN (${ecomPlatforms.map(p => `'${p}'`).join(', ')})`);
-            } else if (isModernTrade && !isEcom) {
-                const allEcomQuick = [...ecomPlatforms, ...quickPlatforms];
-                conditions.push(`lower(${columnName}) NOT IN (${allEcomQuick.map(p => `'${p}'`).join(', ')})`);
+            const activeLists = [];
+            if (isQuickComm) activeLists.push(...quickPlatforms);
+            if (isEcom) activeLists.push(...ecomPlatforms);
+            if (isEpharm) activeLists.push(...epharmPlatforms);
+
+            if (activeLists.length > 0) {
+                const combinedPlatforms = [...new Set(activeLists)];
+                conditions.push(`lower(${columnName}) IN (${combinedPlatforms.map(p => `'${p}'`).join(', ')})`);
+            } else if (isModernTrade) {
+                const allEcomQuickPharm = [...ecomPlatforms, ...quickPlatforms, ...epharmPlatforms];
+                conditions.push(`lower(${columnName}) NOT IN (${allEcomQuickPharm.map(p => `'${p}'`).join(', ')})`);
             }
         }
     }
@@ -4498,10 +4508,20 @@ const getPlatforms = async (channel) => {
 
         let query;
         if (hasChannel && channel && channel !== 'All') {
-            const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
-            const isQcomm = channel.toLowerCase().includes('quick') || channel.toLowerCase().includes('qcomm');
-            const searchPattern = isEcom ? '%ecom%' : (isQcomm ? '%quick%' : `%${channel.toLowerCase().replace(/'/g, "''")}%`);
-            query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND lower(${channelCol}) LIKE '${searchPattern}' ORDER BY platform`;
+            const channelStr = (Array.isArray(channel) ? channel.join(',') : String(channel)).toLowerCase();
+            const isEcom = channelStr.includes('ecom') || channelStr.includes('e-com');
+            const isQcomm = channelStr.includes('quick') || channelStr.includes('qcomm');
+            const isEpharm = channelStr.includes('epharm') || channelStr.includes('e-pharm') || channelStr.includes('pharm');
+
+            if (isEpharm) {
+                query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND (lower(${channelCol}) LIKE '%pharm%' OR lower(${channelCol}) LIKE '%epharm%' OR lower(${platformCol}) IN ('pharmeasy', 'apollo 247', 'apollo', '1_mg', '1mg', 'tata 1mg', 'netmeds', 'truemeds') OR lower(${platformCol}) LIKE '%pharm%' OR lower(${platformCol}) LIKE '%meds%') ORDER BY platform`;
+            } else if (isEcom) {
+                query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND lower(${channelCol}) LIKE '%ecom%' ORDER BY platform`;
+            } else if (isQcomm) {
+                query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND (lower(${channelCol}) LIKE '%quick%' OR lower(${channelCol}) LIKE '%qcomm%') ORDER BY platform`;
+            } else {
+                query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND lower(${channelCol}) LIKE '%${channelStr.replace(/'/g, "''")}%' ORDER BY platform`;
+            }
         } else {
             query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' ORDER BY platform`;
         }
@@ -5317,20 +5337,37 @@ const getPlatformOverview = async (filters) => {
 
     // Filter platform definitions based on channel AFTER cache block
     if (channel && channel !== 'All') {
-        const channelLower = channel.toLowerCase();
-        const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart'];
-        const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'dunzo'];
+        const channelList = (Array.isArray(channel) ? channel : String(channel).split(','))
+            .map(c => String(c).trim().toLowerCase())
+            .filter(Boolean);
 
-        if (channelLower.includes('quick') || channelLower === 'quickcomm' || channelLower === 'qcomm') {
-            // Quick Commerce: show only quick commerce platforms
-            platformDefinitions = platformDefinitions.filter(p => quickPlatforms.some(qp => p.label.toLowerCase().includes(qp)));
-        } else if (['ecommerce', 'e-commerce', 'ecom'].includes(channelLower)) {
-            // E-commerce: show only marketplace/ecom platforms (NOT quick commerce)
-            platformDefinitions = platformDefinitions.filter(p => ecomPlatforms.some(ep => p.label.toLowerCase().includes(ep)));
-        } else if (['modern trades', 'moderntrade'].includes(channelLower)) {
-            // Modern Trades: exclude all ecom + quick commerce platforms
-            const allOnline = [...ecomPlatforms, ...quickPlatforms];
-            platformDefinitions = platformDefinitions.filter(p => !allOnline.some(op => p.label.toLowerCase().includes(op)));
+        const isAll = channelList.includes('all');
+        if (!isAll && channelList.length > 0) {
+            const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'dunzo', 'flipkart minutes', 'amazon now'];
+            const epharmPlatforms = ['pharmeasy', 'apollo 247', 'apollo', '1_mg', '1mg', 'tata 1mg', 'netmeds', 'truemeds', 'healthkart'];
+            const ecomPlatforms = ['amazon', 'flipkart', 'bigbasket', 'jiomart', 'meesho', 'myntra', 'shopify', 'first cry'];
+
+            const hasQuick = channelList.some(c => c.includes('quick') || c === 'quickcomm' || c === 'qcomm');
+            const hasEcom = channelList.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c) || c.includes('e-com'));
+            const hasEpharm = channelList.some(c => c.includes('epharm') || c.includes('e-pharm') || c.includes('pharm'));
+            const hasModern = channelList.some(c => ['modern trades', 'moderntrade'].includes(c));
+
+            if (hasQuick || hasEcom || hasEpharm || hasModern) {
+                platformDefinitions = platformDefinitions.filter(p => {
+                    const pLabel = p.label.toLowerCase();
+
+                    const isQuick = quickPlatforms.some(qp => pLabel === qp || pLabel.includes(qp));
+                    if (isQuick) return hasQuick;
+
+                    const isPharm = epharmPlatforms.some(epp => pLabel === epp || pLabel.includes(epp) || epp.includes(pLabel)) || pLabel.includes('pharm') || pLabel.includes('meds') || pLabel.includes('1mg') || pLabel.includes('1_mg');
+                    if (isPharm) return hasEpharm;
+
+                    const isEcom = ecomPlatforms.some(ep => pLabel === ep || pLabel.includes(ep));
+                    if (isEcom) return hasEcom;
+
+                    return hasModern;
+                });
+            }
         }
     }
 
@@ -5871,14 +5908,42 @@ const getPlatformOverview = async (filters) => {
         }
     }
 
+    // Helper to find matching row in platform query results (strict then substring fallback)
+    const findPlatformRow = (arr, key) => {
+        if (!arr || !Array.isArray(arr)) return null;
+        let match = arr.find(d => d.Platform && String(d.Platform).toLowerCase() === key);
+        if (!match) {
+            match = arr.find(d => d.Platform && (String(d.Platform).toLowerCase().includes(key) || key.includes(String(d.Platform).toLowerCase())));
+        }
+        return match;
+    };
+
+    const findMapValue = (map, key) => {
+        if (!map || !(map instanceof Map)) return 0;
+        if (map.has(key)) return map.get(key);
+        for (const [mKey, val] of map.entries()) {
+            if (mKey && (mKey.includes(key) || key.includes(mKey))) return val;
+        }
+        return 0;
+    };
+
+    const hasMapKey = (map, key) => {
+        if (!map || !(map instanceof Map)) return false;
+        if (map.has(key)) return true;
+        for (const [mKey] of map.entries()) {
+            if (mKey && (mKey.includes(key) || key.includes(mKey))) return true;
+        }
+        return false;
+    };
+
     // Build bulk platform metrics map
     const bulkPlatformMap = new Map();
     platformDefinitions.forEach(p => {
         const key = p.label.toLowerCase();
-        const c = currData.find(d => d.Platform && d.Platform.toLowerCase() === key);
-        const pv = prevData.find(d => d.Platform && d.Platform.toLowerCase() === key);
-        const cpmVal = currPmData.find(d => d.Platform && d.Platform.toLowerCase() === key);
-        const pvpmVal = prevPmData.find(d => d.Platform && d.Platform.toLowerCase() === key);
+        const c = findPlatformRow(currData, key);
+        const pv = findPlatformRow(prevData, key);
+        const cpmVal = findPlatformRow(currPmData, key);
+        const pvpmVal = findPlatformRow(prevPmData, key);
 
         let currSalesVal = parseFloat(c?.sales || 0);
         let prevSalesVal = parseFloat(pv?.sales || 0);
@@ -5893,20 +5958,20 @@ const getPlatformOverview = async (filters) => {
         }
 
         // Calculate SOS for this platform
-        const currSosValue = calcSos(currSosOurMap.get(key) || 0, currSosTotalMap.get(key) || 0);
-        const prevSosValue = calcSos(prevSosOurMap.get(key) || 0, prevSosTotalMap.get(key) || 0);
+        const currSosValue = calcSos(findMapValue(currSosOurMap, key), findMapValue(currSosTotalMap, key));
+        const prevSosValue = calcSos(findMapValue(prevSosOurMap, key), findMapValue(prevSosTotalMap, key));
 
         // Calculate Ad SOV for this platform (spons_flag=1)
-        const currAdSovValue = calcSos(currAdSovOurMap.get(key) || 0, currAdSovTotalMap.get(key) || 0);
-        const prevAdSovValue = calcSos(prevAdSovOurMap.get(key) || 0, prevAdSovTotalMap.get(key) || 0);
+        const currAdSovValue = calcSos(findMapValue(currAdSovOurMap, key), findMapValue(currAdSovTotalMap, key));
+        const prevAdSovValue = calcSos(findMapValue(prevAdSovOurMap, key), findMapValue(prevAdSovTotalMap, key));
 
         // Calculate Organic SOV for this platform (spons_flag=0)
-        const currOrgSovValue = calcSos(currOrgSovOurMap.get(key) || 0, currOrgSovTotalMap.get(key) || 0);
-        const prevOrgSovValue = calcSos(prevOrgSovOurMap.get(key) || 0, prevOrgSovTotalMap.get(key) || 0);
+        const currOrgSovValue = calcSos(findMapValue(currOrgSovOurMap, key), findMapValue(currOrgSovTotalMap, key));
+        const prevOrgSovValue = calcSos(findMapValue(prevOrgSovOurMap, key), findMapValue(prevOrgSovTotalMap, key));
 
         // Get Market Share for this platform
-        const currMsValue = currMsMap.get(key) || 0;
-        const prevMsValue = prevMsMap.get(key) || 0;
+        const currMsValue = findMapValue(currMsMap, key);
+        const prevMsValue = findMapValue(prevMsMap, key);
 
         bulkPlatformMap.set(p.label, {
             curr: {
@@ -6291,10 +6356,10 @@ const getPlatformOverview = async (filters) => {
         const key = p.label.toLowerCase();
         const metrics = bulkPlatformMap.get(p.label) || { curr: {}, prev: {} };
 
-        const hasPdp = currData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && buymorePlatforms.includes(key) && (currBuymoreMap.get(key) || 0) > 0);
-        const hasPm = currPmData.some(d => d.Platform && d.Platform.toLowerCase() === key);
-        const hasMsCheck = currMsMap.has(key) || currMsDenomMap.has(key);
-        const hasSosCheck = currSosOurMap.has(key) || currSosTotalMap.has(key);
+        const hasPdp = Boolean(findPlatformRow(currData, key)) || (isDrlDb && buymorePlatforms.includes(key) && (currBuymoreMap.get(key) || 0) > 0);
+        const hasPm = Boolean(findPlatformRow(currPmData, key));
+        const hasMsCheck = hasMapKey(currMsMap, key) || hasMapKey(currMsDenomMap, key);
+        const hasSosCheck = hasMapKey(currSosOurMap, key) || hasMapKey(currSosTotalMap, key);
 
         const offtake = hasPdp ? (metrics.curr.sales || 0) : null;
         const offtakeUnits = hasPdp ? (metrics.curr.qty || 0) : null;
@@ -8372,7 +8437,8 @@ const getKpiTrends = async (filters) => {
     // [FEATURE OVERRIDE]: If platform belongs to 'Quickcomm', automatically resolve hasPm data availability flags to true
     // This allows the Trend charts to effectively process available graph lines rendering '0' values rather than nulling them entirely making them disappear off the face of the graph
     // when 'All SKUs' are selected (which implies PM metrics buttons are visible, and mapping logic applies).
-    if (channel && channel.toLowerCase() === 'quickcomm' && !usePdpForPmKpis) {
+    const channelStr = (Array.isArray(channel) ? channel.join(',') : String(channel || '')).toLowerCase();
+    if (channelStr.includes('quickcomm') && !usePdpForPmKpis) {
         hasPmAdSalesData = true;
         hasPmSpendData = true;
         hasPmOrdersData = true;
@@ -10309,41 +10375,42 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
 /**
  * Get Dark Store Count from rb_location_darkstore table
- * Returns count of distinct merchant_name grouped by platform based on filters
+ * Returns platform-level and city-level breakdown with total/listed/new counts.
+ * "Listed" = status='1', "New" = store_first_seen within last 30 days.
  * @param {Object} filters - { platform, location, startDate, endDate }
- * @returns {Object} - { totalCount, byPlatform: { platform: count } }
- */
-/**
- * Get Dark Store Count from rb_location_darkstore table
- * Returns count of distinct merchant_name grouped by platform based on filters
- * @param {Object} filters - { platform, location, startDate, endDate }
- * @returns {Object} - { totalCount, byPlatform: { platform: count } }
+ * @returns {Object} - { totalCount, byPlatform: [...] }
  */
 const getDarkStoreCount = async (filters = {}) => {
     try {
         console.log('[getDarkStoreCount] Fetching dark store count with filters:', filters);
 
-        const { platform, location, startDate, endDate } = filters;
+        const { platform, location } = filters;
+
+        // Determine dark store table for Business Overview Dark Store Count
+        let darkstoreTable = 'rb_location_darkstore_testing';
+        try {
+            const check = await queryClickHouse(`EXISTS TABLE rb_location_darkstore_testing`);
+            if (Number(check?.[0]?.result) !== 1) {
+                darkstoreTable = 'rb_location_darkstore';
+            }
+        } catch (e) {
+            darkstoreTable = 'rb_location_darkstore';
+        }
 
         // Helper to escape strings for ClickHouse
-        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+        const esc = (str) => str ? str.replace(/'/g, "''") : '';
 
         // Build conditions
         const conds = [];
-
-        // Base conditions requested by user
-        conds.push(`pf_id IN(4, 6, 7)`);
         conds.push(`status IN('1', '2')`);
 
-        // Platform filter
         if (platform && platform !== 'All') {
             const platformArr = Array.isArray(platform) ? platform : [platform];
             if (platformArr.length > 0) {
-                conds.push(`platform IN(${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                conds.push(`platform IN(${platformArr.map(p => `'${esc(p)}'`).join(', ')})`);
             }
         }
 
-        // Location filter
         if (location && location !== 'All') {
             const locationArr = Array.isArray(location) ? location : [location];
             if (locationArr.length > 0) {
@@ -10354,43 +10421,77 @@ const getDarkStoreCount = async (filters = {}) => {
 
         const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')} ` : '';
 
-        // Query for dark store count grouped by platform (refined as per user request)
-        const query = `
-        SELECT
-        pf_id,
-            platform,
-            uniq(concat(toString(pincode), merchant_name)) AS store_count
-            FROM rb_location_darkstore
+        // ── Platform-level query ──
+        const platformQuery = `
+            SELECT
+                platform,
+                uniq(concat(toString(pincode), merchant_name)) AS total,
+                uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
+                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
+                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
+            FROM ${darkstoreTable}
             ${whereClause}
-            GROUP BY
-        pf_id,
-            platform
-            LIMIT 100
-            `;
+            GROUP BY platform
+            ORDER BY total DESC
+        `;
 
-        console.log('[getDarkStoreCount] Query:', query);
+        // ── City-level query ──
+        const cityQuery = `
+            SELECT
+                platform,
+                location AS city,
+                uniq(concat(toString(pincode), merchant_name)) AS total,
+                uniqIf(concat(toString(pincode), merchant_name), toString(status) = '1') AS listed,
+                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
+                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30 AND toString(status) = '1') AS new_listed
+            FROM ${darkstoreTable}
+            ${whereClause}
+            GROUP BY platform, location
+            ORDER BY platform, total DESC
+        `;
 
-        const results = await queryClickHouse(query);
+        console.log('[getDarkStoreCount] Platform query:', platformQuery);
+        console.log('[getDarkStoreCount] City query:', cityQuery);
 
-        // Build response
-        const byPlatform = {};
-        let totalCount = 0;
+        const [platformResults, cityResults] = await Promise.all([
+            queryClickHouse(platformQuery),
+            queryClickHouse(cityQuery)
+        ]);
 
-        results.forEach(row => {
-            const count = parseInt(row.store_count) || 0;
-            byPlatform[row.platform] = count;
-            totalCount += count;
+        // Group city rows by platform
+        const cityMap = {};
+        (cityResults || []).forEach(row => {
+            if (!cityMap[row.platform]) cityMap[row.platform] = [];
+            cityMap[row.platform].push({
+                city: row.city || 'Unknown',
+                total: parseInt(row.total) || 0,
+                listed: parseInt(row.listed) || 0,
+                newTotal: parseInt(row.new_total) || 0,
+                newListed: parseInt(row.new_listed) || 0,
+            });
         });
 
-        console.log(`[getDarkStoreCount] Total: ${totalCount}, By Platform: `, byPlatform);
+        // Build response
+        let totalCount = 0;
+        const byPlatform = (platformResults || []).map(row => {
+            const total = parseInt(row.total) || 0;
+            totalCount += total;
+            return {
+                platform: row.platform,
+                total,
+                listed: parseInt(row.listed) || 0,
+                newTotal: parseInt(row.new_total) || 0,
+                newListed: parseInt(row.new_listed) || 0,
+                cities: cityMap[row.platform] || [],
+            };
+        });
 
-        return {
-            totalCount,
-            byPlatform
-        };
+        console.log(`[getDarkStoreCount] Total: ${totalCount}, Platforms: ${byPlatform.length}`);
+
+        return { totalCount, byPlatform };
     } catch (error) {
         console.error('[getDarkStoreCount] Error:', error);
-        return { totalCount: 0, byPlatform: {} };
+        return { totalCount: 0, byPlatform: [] };
     }
 };
 
@@ -11993,7 +12094,9 @@ const getRcaData = async (filters = {}) => {
 const getSkuOverview = async (filters) => {
     console.log('[getSkuOverview] Computing SKU overview data...');
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, skuOverviewPlatform } = filters;
+    const { months = 1, startDate: qStartDateInput, endDate: qEndDateInput, skuOverviewPlatform } = filters;
+    const qStartDate = qStartDateInput || filters.timeStart || filters.dateFrom || filters.date_from;
+    const qEndDate = qEndDateInput || filters.timeEnd || filters.dateTo || filters.date_to;
     const channel = extractChannel(filters);
 
     // Extract filter values
@@ -12168,6 +12271,7 @@ const getSkuOverview = async (filters) => {
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
                 AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount,
+                any(${src.isAgg ? 'brand' : 'Brand'}) as brand_name,
                 any(${src.isAgg ? 'sku_code' : 'Web_Pid'}) as web_pid
             FROM ${src.table}
             WHERE ${currSkuConds} AND ${src.isAgg ? 'brand' : 'Product'} IS NOT NULL AND ${src.isAgg ? 'brand' : 'Product'} != ''
@@ -12333,8 +12437,14 @@ const getSkuOverview = async (filters) => {
         }
     }
 
-    // Calculate total offtake for all returned SKUs to determine Offtake Share
-    const currTotalSkuSales = currSkuMetrics.reduce((sum, item) => sum + parseFloat(item.total_sales || 0), 0);
+    // Calculate total offtake per brand to determine Brand-level Offtake Share: (sku_sales / brand_sales) * 100
+    const brandTotalSalesMap = {};
+    currSkuMetrics.forEach(item => {
+        const bKey = String(item.brand_name || item.Product || 'unknown').toLowerCase().trim();
+        brandTotalSalesMap[bKey] = (brandTotalSalesMap[bKey] || 0) + parseFloat(item.total_sales || 0);
+    });
+
+    const overallTotalSkuSales = currSkuMetrics.reduce((sum, item) => sum + parseFloat(item.total_sales || 0), 0);
 
     const skuOverview = currSkuMetrics.map((dataRaw, idx) => {
         const skuName = (dataRaw.Product || 'Unknown').trim().replace(/\s+/g, ' ');
@@ -12437,8 +12547,9 @@ const getSkuOverview = async (filters) => {
         const prevOrgSovNum = prevOrgSovNumSkuMap.get(skuKeyLower) || 0;
         const prevOrganicSov = prevHasSosCheck ? (prevTotalOrgSovCat > 0 ? (prevOrgSovNum / prevTotalOrgSovCat) * 100 : null) : null;
 
-
-        const offtakeShare = currTotalSkuSales > 0 ? (offtake / currTotalSkuSales) * 100 : 0;
+        const bKey = String(dataRaw.brand_name || dataRaw.Product || 'unknown').toLowerCase().trim();
+        const brandTotalSales = brandTotalSalesMap[bKey] || overallTotalSkuSales || 0;
+        const offtakeShare = brandTotalSales > 0 ? (offtake / brandTotalSales) * 100 : 0;
 
         return {
             key: `sku_${idx}_${skuName.toLowerCase().replace(/\s+/g, '_').substring(0, 30)} `,

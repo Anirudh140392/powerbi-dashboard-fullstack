@@ -80,8 +80,9 @@ export const buildPlatformChannelCond = async (platform, channel, prefix = '') =
         try {
             // Dynamically resolve valid platforms for this channel using rca_sku_dim
             // Handle variations like 'Ecom', 'Ecommerce', 'Quickcomm'
-            const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
-            const searchPattern = isEcom ? '%ecom%' : (channel.toLowerCase().includes('quick') ? '%quick%' : `%${escapeStr(channel.toLowerCase())}%`);
+            const channelStr = (Array.isArray(channel) ? channel.join(',') : String(channel)).toLowerCase();
+            const isEcom = channelStr.includes('ecom') || channelStr.includes('e-com');
+            const searchPattern = isEcom ? '%ecom%' : (channelStr.includes('quick') ? '%quick%' : `%${escapeStr(channelStr)}%`);
 
             const cols = await getTableColumns('rca_sku_dim');
             const platformCol = resolveColumn(cols, 'platform');
@@ -105,8 +106,9 @@ export const buildPlatformChannelCond = async (platform, channel, prefix = '') =
 
     // Fallback if no platforms resolved but channel is selected (prevent empty return which acts as NO filter)
     if (channel && channel !== 'All') {
-        const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
-        const searchPattern = isEcom ? '%ecom%' : (channel.toLowerCase().includes('quick') ? '%quick%' : `%${escapeStr(channel.toLowerCase())}%`);
+        const channelStr = (Array.isArray(channel) ? channel.join(',') : String(channel)).toLowerCase();
+        const isEcom = channelStr.includes('ecom') || channelStr.includes('e-com');
+        const searchPattern = isEcom ? '%ecom%' : (channelStr.includes('quick') ? '%quick%' : `%${escapeStr(channelStr)}%`);
 
         try {
             // Try identifying if rb_pdp_olap has a channel column safely
@@ -135,6 +137,9 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
         cities, categories, formats, zones, metroFlags, pincodes, productCategory, sku, skus, ownBrandsOnly,
         dimension, dimensionValue
     } = filters;
+
+    startDate = startDate || filters.timeStart || filters.dateFrom || filters.date_from;
+    endDate = endDate || filters.timeEnd || filters.dateTo || filters.date_to;
 
     // Dashboard drill-down dimension overrides have been removed here.
     // The frontend (TrendsCompetitionDrawer) now fully aggregates all filters
@@ -336,7 +341,8 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
             ? resolveColumn(pdpColsMap, 'sap_code', 'sap_code')
             : (columnExists(pdpColsMap, 'Web_Pid') ? resolveColumn(pdpColsMap, 'Web_Pid', 'Web_Pid') : 'sku_code');
         const uniqueSapArr = [...new Set(sapArr)];
-        conditions.push(`toString(${prefix}${actualSapCol}) IN (${uniqueSapArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
+        const effectivePrefix = prefix || (tableAlias ? `${tableAlias}.` : 'rb_pdp_olap.');
+        conditions.push(`toString(${effectivePrefix}${actualSapCol}) IN (${uniqueSapArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
     }
 
     // Sub Brand filter (if sub_brand or subbrand column exists in DB)
@@ -649,7 +655,8 @@ const getAbsoluteOsaOverview = async (filters) => {
                     toString(${actualWeightCol}) as grammage,
                     DATE as date,
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNeno,
-                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDeno
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDeno,
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sumSales
                 FROM rb_pdp_olap
                 WHERE ${detailWhere} AND Web_Pid IS NOT NULL AND Web_Pid != ''
                 GROUP BY Web_Pid, Product, Platform, Brand, Category, ${actualWeightCol}, DATE
@@ -672,17 +679,30 @@ const getAbsoluteOsaOverview = async (filters) => {
                         brand: row.brand,
                         format: row.format,
                         grammage: row.grammage || '',
+                        totalSales: 0,
                         dateMap: {},
                         values: new Array(31).fill(null),
                     };
                 }
                 const neno = parseFloat(row.sumNeno) || 0;
                 const deno = parseFloat(row.sumDeno) || 0;
+                const sales = parseFloat(row.sumSales) || 0;
                 // If deno > 0, this is real data (even if neno is 0, OSA is legitimately 0%)
                 // If deno = 0, there's no data for this SKU on this date
                 const osa = deno > 0 ? Math.round((neno / deno) * 100) : null;
 
+                skuMap[row.sku].totalSales += sales;
                 skuMap[row.sku].dateMap[row.date] = { osa, neno, deno };
+            });
+
+            // Calculate Brand Total Sales for Offtake Share calculation (sku_sales / brand_sales * 100)
+            const brandSalesMapOverview = {};
+            const overallBrandSalesMapOverview = {};
+            Object.values(skuMap).forEach(item => {
+                const bKeyFull = `${(item.brand || '').toLowerCase().trim()}::${(item.format || '').toLowerCase().trim()}::${(item.platform || '').toLowerCase().trim()}`;
+                const bKeyBrand = (item.brand || '').toLowerCase().trim();
+                brandSalesMapOverview[bKeyFull] = (brandSalesMapOverview[bKeyFull] || 0) + (item.totalSales || 0);
+                overallBrandSalesMapOverview[bKeyBrand] = (overallBrandSalesMapOverview[bKeyBrand] || 0) + (item.totalSales || 0);
             });
 
             // Calculate aggregates and fill values array
@@ -721,6 +741,10 @@ const getAbsoluteOsaOverview = async (filters) => {
                 const avgSelected = totalDenoSelected > 0 ? Math.round((totalNenoSelected / totalDenoSelected) * 100) : 0;
                 // Status based on selected period instead of 7 days to match selected dates accuracy
                 const status = avgSelected >= 85 ? "Healthy" : avgSelected >= 70 ? "Watch" : "Action";
+                const bKeyFull = `${(item.brand || '').toLowerCase().trim()}::${(item.format || '').toLowerCase().trim()}::${(item.platform || '').toLowerCase().trim()}`;
+                const bKeyBrand = (item.brand || '').toLowerCase().trim();
+                const brandTotalSales = brandSalesMapOverview[bKeyFull] || overallBrandSalesMapOverview[bKeyBrand] || 0;
+                const offtakeShare = brandTotalSales > 0 ? parseFloat(((item.totalSales / brandTotalSales) * 100).toFixed(2)) : 0;
 
                 return {
                     name: item.name,
@@ -730,6 +754,8 @@ const getAbsoluteOsaOverview = async (filters) => {
                     format: item.format,
                     grammage: item.grammage,
                     weight: item.grammage,
+                    offtakeShare,
+                    totalSales: item.totalSales,
                     values: item.values,
                     avg7,
                     avg31,
@@ -816,8 +842,13 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 const colMap = getColumnMapping(dbName);
                 const rcaCatCol = colMap.rca_sku_dim.category;
 
+                const rcaCols = await getTableColumns('rca_sku_dim');
+                const hasStatus = columnExists(rcaCols, 'status');
+                const rcaStatusCol = hasStatus ? resolveColumn(rcaCols, 'status') : null;
+                const statusWhere = rcaStatusCol ? `WHERE ${rcaStatusCol} = 1 AND` : 'WHERE';
+
                 console.log(`[DEBUG KPI MATRIX] Format view. Fetching active categories from rca_sku_dim.${rcaCatCol}`);
-                const validCatResult = await queryClickHouse(`SELECT DISTINCT ${rcaCatCol} as category FROM rca_sku_dim WHERE status = 1 AND ${rcaCatCol} IS NOT NULL AND ${rcaCatCol} != ''`);
+                const validCatResult = await queryClickHouse(`SELECT DISTINCT ${rcaCatCol} as category FROM rca_sku_dim ${statusWhere} ${rcaCatCol} IS NOT NULL AND ${rcaCatCol} != ''`);
                 const validCategories = validCatResult.map(r => r.category).filter(Boolean);
                 if (validCategories.length > 0) {
                     additionalCategoryFilter = ` AND ${groupColumn} IN (${validCategories.map(c => `'${escapeStr(c)}'`).join(',')})`;
@@ -1853,6 +1884,12 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
     // Use database's actual latest date for the 365-day window
     // to ensure data is found even if the database is older than the system clock.
     const effectiveFilters = { ...filters };
+    if (!effectiveFilters.startDate && (filters.timeStart || filters.dateFrom)) {
+        effectiveFilters.startDate = filters.timeStart || filters.dateFrom;
+    }
+    if (!effectiveFilters.endDate && (filters.timeEnd || filters.dateTo)) {
+        effectiveFilters.endDate = filters.timeEnd || filters.dateTo;
+    }
     const hasDates = Array.isArray(effectiveFilters.dates) && effectiveFilters.dates.length > 0;
     const hasMonths = Array.isArray(effectiveFilters.months) && effectiveFilters.months.length > 0;
 
@@ -1884,7 +1921,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     DATE
                     ${selectSap},
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sum_neno,
-                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sum_deno
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sum_deno,
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sum_sales
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                   AND Product != '0'
@@ -1948,6 +1986,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
 
                 const neno = parseFloat(row.sum_neno) || 0;
                 const deno = parseFloat(row.sum_deno) || 0;
+                const sales = parseFloat(row.sum_sales) || 0;
 
                 if (!skuMap[skuId]) {
                     skuMap[skuId] = {
@@ -1959,12 +1998,15 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                         product_category_name: row.product_category_name,
                         grammage: row.grammage || '',
                         sap_code: hasSapCode ? (row.sap_code || null) : undefined,
+                        totalSales: 0,
                         days: {}, // Overall SKU daily aggregations: { date: { neno, deno } }
                         cities: {} // Nested city data: { city: { date: osa } }
                     };
                 } else if (hasSapCode && !skuMap[skuId].sap_code && row.sap_code) {
                     skuMap[skuId].sap_code = row.sap_code;
                 }
+
+                skuMap[skuId].totalSales += sales;
 
                 // Overall SKU aggregation
                 if (!skuMap[skuId].days[dateStr]) {
@@ -1984,6 +2026,18 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     skuMap[skuId].cities[cityStr][dateStr].neno += neno;
                     skuMap[skuId].cities[cityStr][dateStr].deno += deno;
                 }
+            });
+
+            // Calculate Brand Total Sales for Offtake Share calculation (sku_sales / brand_sales * 100)
+            const brandSalesMap = {};
+            const overallBrandSalesMap = {};
+
+            Object.values(skuMap).forEach(item => {
+                const bKeyFull = `${(item.brand || '').toLowerCase().trim()}::${(item.category_name || '').toLowerCase().trim()}::${(item.platform || '').toLowerCase().trim()}`;
+                const bKeyBrand = (item.brand || '').toLowerCase().trim();
+
+                brandSalesMap[bKeyFull] = (brandSalesMap[bKeyFull] || 0) + (item.totalSales || 0);
+                overallBrandSalesMap[bKeyBrand] = (overallBrandSalesMap[bKeyBrand] || 0) + (item.totalSales || 0);
             });
 
             // Map data into final format: [{ name, sku, values: [...], avg31, status, cities: [{ name, values: [...], avg31 }] }]
@@ -2049,6 +2103,12 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     return null;
                 }
 
+                const bKeyFull = `${(item.brand || '').toLowerCase().trim()}::${(item.category_name || '').toLowerCase().trim()}::${(item.platform || '').toLowerCase().trim()}`;
+                const bKeyBrand = (item.brand || '').toLowerCase().trim();
+                const brandTotalSales = brandSalesMap[bKeyFull] || overallBrandSalesMap[bKeyBrand] || 0;
+
+                const offtakeShare = brandTotalSales > 0 ? parseFloat(((item.totalSales / brandTotalSales) * 100).toFixed(2)) : 0;
+
                 const rowObj = {
                     name: item.name,
                     sku: item.sku,
@@ -2060,6 +2120,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     productCategory: item.product_category_name,
                     grammage: item.grammage,
                     weight: item.grammage,
+                    offtakeShare: offtakeShare,
+                    totalSales: item.totalSales,
                     values: skuValues,
                     avg7: avg7,
                     avg31: skuAvg31,
@@ -3125,6 +3187,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
                 const osa = deno > 0 ? (neno / deno) * 100 : null;
                 const listing = parseFloat(row.avg_listing_percent) || 0;
+                const wtOsa = osa !== null ? parseFloat(((osa * listing) / 100).toFixed(2)) : 0;
 
                 // DOI = (Current Inventory / Total Sales in Period) * period_days
                 // Assuming 1M period (30 days) as default
@@ -3140,6 +3203,8 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     osaDelta: 0,
                     listing: parseFloat(listing.toFixed(1)),
                     listingDelta: 0,
+                    wtOsa: wtOsa,
+                    wt_osa: wtOsa,
                     assortment: dailyUniquePids,
                     assortmentDelta: 0,
                     doi: parseFloat(doi.toFixed(1)),
@@ -3179,6 +3244,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
                 const osa = deno > 0 ? (neno / deno) * 100 : null;
                 const listing = parseFloat(s.avg_listing_percent) || 0;
+                const wtOsa = osa !== null ? parseFloat(((osa * listing) / 100).toFixed(2)) : 0;
                 const doi = totalQtySold > 0 ? (latestInv / totalQtySold) * 30 : 0;
 
                 // PSL = (SUM(Sales) / (OSA_Percentage / 100)) - SUM(Sales)  [currency format]
@@ -3198,7 +3264,9 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     fillrate: 'Coming Soon',
                     assortment: 1,
                     psl: parseFloat(psl.toFixed(2)),
-                    listing: parseFloat(listing.toFixed(1))
+                    listing: parseFloat(listing.toFixed(1)),
+                    wtOsa: wtOsa,
+                    wt_osa: wtOsa
                 };
             });
 

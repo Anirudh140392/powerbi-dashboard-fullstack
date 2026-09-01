@@ -8,7 +8,9 @@ import {
     BarChart3,
     SlidersHorizontal,
     Info,
+    Download,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import {
     LineChart,
     Line,
@@ -1226,7 +1228,7 @@ const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city,
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows, loading }) => {
+const BrandTable = ({ rows, loading, onDownload }) => {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
 
@@ -1236,7 +1238,19 @@ const BrandTable = ({ rows, loading }) => {
     return (
         <Card className="mt-3">
             <CardHeader className="border-b pb-2">
-                <CardTitle className="text-sm font-medium text-slate-800">Brands (Top {rows.length || 0})</CardTitle>
+                <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
+                    <span>Brands (Top {rows.length || 0})</span>
+                    {onDownload && (
+                        <button
+                            type="button"
+                            onClick={onDownload}
+                            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+                            title="Download Competition Data"
+                        >
+                            <Download className="h-4 w-4 text-emerald-600" />
+                        </button>
+                    )}
+                </CardTitle>
             </CardHeader>
             <CardContent className="pt-3">
                 <div className="max-h-[380px] overflow-auto rounded-md border text-slate-900">
@@ -1277,7 +1291,7 @@ const BrandTable = ({ rows, loading }) => {
     );
 };
 
-const SkuTable = ({ rows, loading }) => {
+const SkuTable = ({ rows, loading, onDownload }) => {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
 
@@ -1287,7 +1301,19 @@ const SkuTable = ({ rows, loading }) => {
     return (
         <Card className="mt-3">
             <CardHeader className="border-b pb-2">
-                <CardTitle className="text-sm font-medium text-slate-800">SKUs (Top {rows.length || 0})</CardTitle>
+                <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
+                    <span>SKUs (Top {rows.length || 0})</span>
+                    {onDownload && (
+                        <button
+                            type="button"
+                            onClick={onDownload}
+                            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+                            title="Download Competition Data"
+                        >
+                            <Download className="h-4 w-4 text-emerald-600" />
+                        </button>
+                    )}
+                </CardTitle>
             </CardHeader>
             <CardContent className="pt-3">
                 <div className="max-h-[380px] overflow-auto rounded-md border text-slate-900">
@@ -1480,6 +1506,51 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
         return rows;
     }, [apiSkuData, filters.brands, filters.skus]);
 
+    const handleDownloadCompetitionExcel = () => {
+        try {
+            const wb = XLSX.utils.book_new();
+
+            const safeFormatPercent = (val) => {
+                if (val === null || val === undefined || val === "N/A" || val === "") return "N/A";
+                const num = typeof val === "object" ? Number(val.value ?? val.val) : Number(val);
+                if (isNaN(num)) return "N/A";
+                return `${num.toFixed(1)}%`;
+            };
+
+            const skuData = (skuRows || []).map(s => ({
+                "SKU": s.name || s.sku_name || s.Product || s.sku || "N/A",
+                "BRAND": s.brandName || s.brand_name || s.brand || "N/A",
+                "OVERALL SOS": safeFormatPercent(s.overall_sos),
+                "SPONSORED SOS": safeFormatPercent(s.sponsored_sos),
+                "ORGANIC SOS": safeFormatPercent(s.organic_sos),
+            }));
+
+            const brandData = (brandRows || []).map(b => ({
+                "BRAND": b.name || b.brand_name || b.brand || "N/A",
+                "OVERALL SOS": safeFormatPercent(b.overall_sos),
+                "SPONSORED SOS": safeFormatPercent(b.sponsored_sos),
+                "ORGANIC SOS": safeFormatPercent(b.organic_sos),
+            }));
+
+            if (tab === "sku") {
+                const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);
+                XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+                const brandSheet = XLSX.utils.json_to_sheet(brandData.length > 0 ? brandData : [{ "BRAND": "No Brand Data" }]);
+                XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+            } else {
+                const brandSheet = XLSX.utils.json_to_sheet(brandData.length > 0 ? brandData : [{ "BRAND": "No Brand Data" }]);
+                XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+                const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);
+                XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+            }
+
+            const fileName = `${tab === "sku" ? "SKUs" : "Brands"}_Visibility_Competition_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        } catch (err) {
+            console.error("[VisibilityPlatformOverviewKpiShowcase] Excel download error:", err);
+        }
+    };
+
     const allPossibleIds = useMemo(() => {
         if (tab === "brand") {
             const rows = brandRows || [];
@@ -1579,6 +1650,16 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                     <Button size="sm" className="bg-blue-600 text-white hover:bg-blue-700" onClick={() => setViewMode("trend")}>
                         <LineChartIcon className="mr-1.5 h-4 w-4" /> Trend
                     </Button>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 w-9 p-0 bg-white hover:bg-slate-100 border-slate-200 text-slate-700 flex items-center justify-center rounded-md"
+                        onClick={handleDownloadCompetitionExcel}
+                        title="Download Competition Data"
+                    >
+                        <Download className="h-4 w-4 text-emerald-600" />
+                    </Button>
                 </div>
             </div>
 
@@ -1595,13 +1676,13 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 </div>
 
                 <TabsContent value="brand" className="mt-3">
-                    {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} />}
+                    {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} onDownload={handleDownloadCompetitionExcel} />}
                     {viewMode === "trend" && <TrendView mode="brand" visibleIds={visibleIds} setVisibleIds={setVisibleIds} allPossibleIds={allPossibleIds} city={city} onBackToTable={() => setViewMode("table")} onSwitchToKpi={() => setViewMode("kpi")} apiTrendData={apiTrendData} trendLoading={trendLoading} />}
                     {viewMode === "kpi" && <KpiCompareView mode="brand" visibleIds={visibleIds} setVisibleIds={setVisibleIds} allPossibleIds={allPossibleIds} city={city} onBackToTrend={() => setViewMode("trend")} apiTrendData={apiTrendData} trendLoading={trendLoading} />}
                 </TabsContent>
 
                 <TabsContent value="sku" className="mt-3">
-                    {viewMode === "table" && <SkuTable rows={skuRows} loading={apiLoading} />}
+                    {viewMode === "table" && <SkuTable rows={skuRows} loading={apiLoading} onDownload={handleDownloadCompetitionExcel} />}
                     {viewMode === "trend" && <TrendView mode="sku" visibleIds={visibleIds} setVisibleIds={setVisibleIds} allPossibleIds={allPossibleIds} city={city} onBackToTable={() => setViewMode("table")} onSwitchToKpi={() => setViewMode("kpi")} apiTrendData={apiTrendData} trendLoading={trendLoading} />}
                     {viewMode === "kpi" && <KpiCompareView mode="sku" visibleIds={visibleIds} setVisibleIds={setVisibleIds} allPossibleIds={allPossibleIds} city={city} onBackToTrend={() => setViewMode("trend")} apiTrendData={apiTrendData} trendLoading={trendLoading} />}
                 </TabsContent>

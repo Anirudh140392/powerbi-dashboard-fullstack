@@ -29,12 +29,13 @@ import { AppThemeContext } from "../../utils/ThemeContext";
 import { FilterContext } from "../../utils/FilterContext";
 import DateRangeComparePicker from "./DateRangeComparePicker";
 
-import { ChevronDown, ChevronUp, Search, SlidersHorizontal, X, Layers, Monitor, LayoutGrid, Tag, MapPin, Hash, Type, Info, ListFilter, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronUp, Search, SlidersHorizontal, X, Layers, Monitor, LayoutGrid, Tag, MapPin, Hash, Type, Info, ListFilter, RotateCcw, Store } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CustomHeaderDropdown from "./CustomHeaderDropdown";
 import axiosInstance from "../../api/axiosInstance";
 import { useSocket } from "../../utils/SocketContext";
 import dayjs from "dayjs";
+import DarkStoreCountModal from "../ControlTower/WatchTower/DarkStoreCountModal";
 
 // Route → ClickHouse table for max date lookup
 const ROUTE_TABLE_MAP = {
@@ -1807,6 +1808,7 @@ const AVAIL_FILTER_TABS = [
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
   { key: "msl", label: "Top SKU", icon: Hash },
+  { key: "sapCode", label: "SAP Code", icon: Hash },
 ];
 
 function AvailabilityFilterModal({
@@ -2942,6 +2944,7 @@ const PRICING_FILTER_TABS = [
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
   { key: "msl", label: "Top SKU", icon: Hash },
+  { key: "sapCode", label: "SAP Code", icon: Hash },
 ];
 
 function PricingFilterModal({
@@ -4187,7 +4190,24 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
   const [inventoryFilterModalOpen, setInventoryFilterModalOpen] = React.useState(false);
   const [osaFilterModalOpen, setOsaFilterModalOpen] = React.useState(false);
   const [priorityActionFilterModalOpen, setPriorityActionFilterModalOpen] = React.useState(false);
+  const [darkStoreModalOpen, setDarkStoreModalOpen] = React.useState(false);
+  const [darkStoreTotalCount, setDarkStoreTotalCount] = React.useState(null);
   const [osaBrands, setOsaBrands] = React.useState([]);
+
+  React.useEffect(() => {
+    if (title === "Business Overview") {
+      axiosInstance
+        .get("/watchtower/dark-store-count")
+        .then((res) => {
+          if (res.data && typeof res.data.totalCount === "number") {
+            setDarkStoreTotalCount(res.data.totalCount);
+          }
+        })
+        .catch((err) => {
+          console.error("[Header] Error fetching dark store count:", err);
+        });
+    }
+  }, [title]);
 
   const {
     subBrands,
@@ -4493,12 +4513,48 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
 
               {title && (
                 <Box sx={{ display: "flex", flexDirection: "column" }}>
-                  <Typography
-                    fontWeight="600"
-                    sx={{ whiteSpace: "nowrap", lineHeight: 1.2, fontSize: { xs: "0.9rem", sm: "1.0rem" }, color: "#1e3a5f" }}
-                  >
-                    {title}
-                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                    <Typography
+                      fontWeight="600"
+                      sx={{ whiteSpace: "nowrap", lineHeight: 1.2, fontSize: { xs: "0.9rem", sm: "1.0rem" }, color: "#1e3a5f" }}
+                    >
+                      {title}
+                    </Typography>
+                    {title === "Business Overview" && (
+                      <Box
+                        onClick={() => setDarkStoreModalOpen(true)}
+                        sx={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 0.6,
+                          px: 1.2,
+                          py: 0.3,
+                          borderRadius: "20px",
+                          bgcolor: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          color: "#2563eb",
+                          fontSize: "0.72rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          userSelect: "none",
+                          "&:hover": {
+                            bgcolor: "#dbeafe",
+                            borderColor: "#93c5fd",
+                            boxShadow: "0 2px 6px rgba(37,99,235,0.12)",
+                          },
+                        }}
+                      >
+                        <Store size={13} strokeWidth={2.2} />
+                        <span>
+                          Dark Store Count
+                          {darkStoreTotalCount !== null
+                            ? `: ${darkStoreTotalCount.toLocaleString("en-IN")}`
+                            : ""}
+                        </span>
+                      </Box>
+                    )}
+                  </Box>
                   <Typography
                     sx={{
                       fontSize: "0.7rem",
@@ -4683,6 +4739,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
                           if (selectedMsl !== "All" && !(Array.isArray(selectedMsl) && selectedMsl.includes("All"))) count++;
+                          if (selectedSapCode !== "All" && !(Array.isArray(selectedSapCode) && selectedSapCode.includes("All"))) count++;
                         } else if (title === "Visibility Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedKeywordType !== "All" && !(Array.isArray(selectedKeywordType) && selectedKeywordType.includes("All"))) count++;
@@ -4692,6 +4749,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
                           if (selectedMsl !== "All" && !(Array.isArray(selectedMsl) && selectedMsl.includes("All"))) count++;
+                          if (selectedSapCode !== "All" && !(Array.isArray(selectedSapCode) && selectedSapCode.includes("All"))) count++;
                         } else if (title === "Performance Marketing" || title === "Content Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
@@ -4734,6 +4792,15 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       })()}
                     </Button>
                   </Box>
+
+                  {/* DARK STORE COUNT MODAL */}
+                  {title === "Business Overview" && (
+                    <DarkStoreCountModal
+                      open={darkStoreModalOpen}
+                      onClose={() => setDarkStoreModalOpen(false)}
+                      onDataFetched={setDarkStoreTotalCount}
+                    />
+                  )}
 
                   {/* WATCH TOWER FILTER MODAL */}
                   {(title === "Business Overview" || title === "Insights") && (
