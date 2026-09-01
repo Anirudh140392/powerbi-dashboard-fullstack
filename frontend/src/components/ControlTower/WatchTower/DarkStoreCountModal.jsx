@@ -17,7 +17,7 @@ import axiosInstance from "../../../api/axiosInstance";
 /**
  * DarkStoreCountModal
  * Shows dark store counts grouped by platform with expandable city rows.
- * Columns: Total Dark Stores (Total | Listed)
+ * Columns: Platform, Total Dark Stores
  */
 export default function DarkStoreCountModal({ open, onClose, onDataFetched }) {
   const [data, setData] = useState(null);
@@ -58,14 +58,12 @@ export default function DarkStoreCountModal({ open, onClose, onDataFetched }) {
         Platform: pf.platform,
         City: "All Cities (Total)",
         "Total Dark Stores": pf.total,
-        "Listed Dark Stores": pf.listed,
       });
       (pf.cities || []).forEach((c) => {
         excelRows.push({
           Platform: pf.platform,
           City: c.city,
           "Total Dark Stores": c.total,
-          "Listed Dark Stores": c.listed,
         });
       });
     });
@@ -202,44 +200,40 @@ export default function DarkStoreCountModal({ open, onClose, onDataFetched }) {
               }}
             >
               <thead>
-                {/* Group header row */}
                 <tr>
                   <th
                     style={{
                       ...thStyle,
-                      borderBottom: "1px solid #e2e8f0",
+                      borderBottom: "2px solid #e2e8f0",
                       textAlign: "left",
                       fontSize: "0.75rem",
                       fontWeight: 700,
                       color: "#475569",
                     }}
-                    rowSpan={2}
                   >
                     Platform
                   </th>
                   <th
                     style={{
-                      ...thGroupStyle,
+                      ...thStyle,
+                      borderBottom: "2px solid #e2e8f0",
+                      textAlign: "center",
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      color: "#4338ca",
                       background:
                         "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
-                      color: "#4338ca",
                     }}
-                    colSpan={2}
                   >
                     Total Dark Stores
                   </th>
-                </tr>
-                {/* Sub header row */}
-                <tr>
-                  <th style={{ ...thSubStyle, color: "#4338ca" }}>Total</th>
-                  <th style={{ ...thSubStyle, color: "#4338ca" }}>Listed</th>
                 </tr>
               </thead>
               <tbody>
                 {platforms.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={3}
+                      colSpan={2}
                       style={{
                         textAlign: "center",
                         padding: "32px 16px",
@@ -311,11 +305,6 @@ export default function DarkStoreCountModal({ open, onClose, onDataFetched }) {
                             {fmt(pf.total)}
                           </span>
                         </td>
-                        <td style={tdNumStyle}>
-                          <span style={{ fontWeight: 600, color: "#475569" }}>
-                            {fmt(pf.listed)}
-                          </span>
-                        </td>
                       </tr>
 
                       {/* City rows (collapsible) */}
@@ -368,13 +357,6 @@ export default function DarkStoreCountModal({ open, onClose, onDataFetched }) {
                                 {fmt(city.total)}
                               </span>
                             </td>
-                            <td style={tdCityNumStyle}>
-                              <span
-                                style={{ fontWeight: 500, color: "#64748b" }}
-                              >
-                                {fmt(city.listed)}
-                              </span>
-                            </td>
                           </tr>
                         ))}
                     </React.Fragment>
@@ -397,24 +379,6 @@ const thStyle = {
   textTransform: "uppercase",
   letterSpacing: "0.05em",
   whiteSpace: "nowrap",
-};
-
-const thGroupStyle = {
-  padding: "8px 16px",
-  fontSize: "0.7rem",
-  fontWeight: 700,
-  textAlign: "center",
-  letterSpacing: "0.03em",
-  borderBottom: "1px solid #e2e8f0",
-};
-
-const thSubStyle = {
-  padding: "6px 16px",
-  fontSize: "0.68rem",
-  fontWeight: 600,
-  textAlign: "center",
-  borderBottom: "2px solid #e2e8f0",
-  backgroundColor: "#fafbfc",
 };
 
 const tdPlatformStyle = {
