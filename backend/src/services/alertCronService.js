@@ -1297,8 +1297,8 @@ export const runEmailAlertsJob = async () => {
                         conditionText: `${platPrefix}Category Health • OSA: ${osa.toFixed(2)}%, Discount: ${discount.toFixed(2)}%, Ad Spend: ${formattedAdSpend}`,
                     };
                 }
-                // Rule 5: WhatsApp Test 1 (Template A)
-                else if (alertType === 'whatsapp_test_1') {
+                // Rule 5: Low OSA – Product Level | vs Previous Day
+                else if (alertType === 'low_osa_product') {
                     isDynamicAlert = true;
                     const dropQuery = `
                         WITH 
@@ -1346,17 +1346,53 @@ export const runEmailAlertsJob = async () => {
                     isTriggered = drops.length > 0;
                     
                     metricDetails = {
-                        ruleType: 'WhatsApp Test 1 (Template A)',
+                        ruleType: 'Low OSA – Product Level | vs Previous Day',
                         calculatedOSA: 'N/A',
                         conditionText: `Daily SKU OSA Drop > ${threshold}%`,
                     };
 
                     if (isTriggered) {
                         const platforms = [...new Set(drops.map(d => d.Platform))];
+
+                        // ── Overall OSA per platform for the latest date ──────
+                        // Aggregate neno/deno across ALL SKUs for each platform
+                        // on the most recent date to get a single platform OSA %.
+                        const platListStr = platforms.map(p => `'${p.replace(/'/g, "\\'")}'`).join(',');
+                        const overallOsaQuery = `
+                            WITH latest_date AS (
+                                SELECT MAX(DATE) AS d
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IS NOT NULL AND Comp_flag = 0 ${pdpFilterClause}
+                            )
+                            SELECT
+                                Platform,
+                                round(
+                                    sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) /
+                                    nullIf(sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0) * 100,
+                                1) AS overall_osa
+                            FROM \`${dbName}\`.rb_pdp_olap
+                            WHERE DATE = (SELECT d FROM latest_date)
+                              AND Comp_flag = 0
+                              AND Platform IN (${platListStr})
+                              ${pdpFilterClause}
+                            GROUP BY Platform
+                        `;
+                        let overallOsaMap = {};
+                        try {
+                            const overallRows = await queryAdminDB(overallOsaQuery);
+                            overallRows.forEach(r => {
+                                overallOsaMap[r.Platform] = parseFloat(r.overall_osa || 0).toFixed(1) + '%';
+                            });
+                        } catch (osaErr) {
+                            console.warn(`[AlertCron] Overall OSA query failed for ${dbName}:`, osaErr.message);
+                        }
+                        // ─────────────────────────────────────────────────────
+
                         dynamicEmailData = platforms.map(plat => {
                             const platDrops = drops.filter(d => d.Platform === plat);
                             return {
                                 platformName: plat,
+                                overallOsa: overallOsaMap[plat] || null,
                                 headers: ['SKU', 'Yesterday OSA', 'Day Before Yesterday OSA', 'Delta'],
                                 rows: platDrops.map(d => [
                                     d.sku || 'Unknown', 
@@ -1579,64 +1615,109 @@ export const runEmailAlertsJob = async () => {
                     const targetWhatsappNo = (whatsappNo || process.env.Whatsapp_Number || process.env.WHATSAPP_NUMBER || '8766258384').trim();
                     if (targetWhatsappNo) {
                         const whatsappFreqCheck = shouldSendBasedOnFrequency(alert.last_whatsapp_msg_sent, alert.alert_frequency);
-                        if (whatsappFreqCheck.allowed || alertType.startsWith('whatsapp_test')) {
+                        if (whatsappFreqCheck.allowed) {
                             console.log(`[AlertCron] WhatsApp frequency check passed (${whatsappFreqCheck.reason})! Dispatching WhatsApp alert to ${targetWhatsappNo}...`);
 
                             const recipientName = 'there';
 
-                            // Build richer WhatsApp summary with impacted SKU info
-                            let alertSummaryLines = `🔴 ${alert.alert_name} triggered for ${companyDisplayName}`;
-                            if (alertType.startsWith('whatsapp_test')) {
-                                if (alertType === 'whatsapp_test_1') {
-                                    alertSummaryLines = `🔴 *WhatsApp Test 1*  🔸 *Client:* ${companyDisplayName}  🔸 *Condition:* SKU OSA Drop > ${threshold}%  🔸 *Top Impacted SKUs:*`;
-                                    if (Array.isArray(dynamicEmailData)) {
-                                        for (const p of dynamicEmailData) {
-                                            alertSummaryLines += `   📦 *${p.platformName}*`;
-                                            if (p.rawDrops) {
-                                                // Limit to top 5 to prevent exceeding 1024 character limit in WhatsApp API
-                                                for (const d of p.rawDrops.slice(0, 5)) {
-                                                    const skuName = d.sku ? (d.sku.length > 30 ? d.sku.substring(0, 27) + '...' : d.sku) : 'Unknown';
-                                                    alertSummaryLines += `   • *${skuName}* 📉 Drop: ${parseFloat(d.delta).toFixed(1)}% (${parseFloat(d.osa_db_yesterday).toFixed(1)}% -> ${parseFloat(d.osa_yesterday).toFixed(1)}%)`;
-                                                }
-                                            }
-                                        }
+                            // ── Build structured AlertEntry[] for Template A {{3}} ──────────────
+                            // Production-confirmed: \r renders as a line break on WhatsApp clients.
+                            // buildAlertBodyParam() uses \r (via LS constant) as the separator.
+                            // waAlerts carries structured data → buildAlertBodyParam() → {{3}}.
+                            // waLines is only used for test_2/3/4 which have no structured data.
+                            let waAlerts = null;   // AlertEntry[]  – used when available
+                            let waLines  = null;   // string        – legacy fallback
+
+                            if (alertType === 'low_osa_product' || alertType.startsWith('whatsapp_test')) {
+                                if (alertType === 'low_osa_product') {
+                                    // ── low_osa_product: structured AlertEntry[] with OSA metrics ──
+                                    const opSym1 = formatOperatorSymbol(alert.conditional_operator);
+                                    const thresholdStr1 = (alert.threshold_value !== undefined && alert.threshold_value !== null)
+                                        ? `${opSym1} ${threshold}%`.trim()
+                                        : null;
+
+                                    if (Array.isArray(dynamicEmailData) && dynamicEmailData.length > 0) {
+                                        waAlerts = dynamicEmailData.map((p) => {
+                                            // Each SKU line: name | Curr: X% | Prev: Y% | Δ: Z%
+                                            const skuLines = Array.isArray(p.rawDrops)
+                                                ? p.rawDrops.slice(0, 5).map(d => {
+                                                    const name     = (d.sku || 'Unknown').trim();
+                                                    const curr     = parseFloat(d.osa_yesterday   || 0).toFixed(1);
+                                                    const prev     = parseFloat(d.osa_db_yesterday || 0).toFixed(1);
+                                                    const delta    = parseFloat(d.delta           || 0);
+                                                    const absDelta = Math.abs(delta).toFixed(1);
+                                                    const trend    = delta < 0 ? '🔻' : '🔺';
+                                                    // \r inside the string is preserved by sanitizeSegment and
+                                                    // renders as a real line break on WhatsApp clients.
+                                                    return `${name}\r  OSA dropped from ${prev}% to ${curr}% (${trend} ${absDelta}%)`;
+                                                })
+                                                : [];
+                                            return {
+                                                title:      alert.alert_name || 'Alert',
+                                                platform:   p.platformName  || null,
+                                                threshold:  thresholdStr1   || null,
+                                                overallOsa: p.overallOsa    || null,
+                                                skus:       skuLines,
+                                            };
+                                        });
+                                    } else {
+                                        waAlerts = [{
+                                            title:     alert.alert_name || 'Alert',
+                                            platform:  null,
+                                            threshold: thresholdStr1 || null,
+                                            skus:      [],
+                                        }];
                                     }
                                 } else if (alertType === 'whatsapp_test_2') {
-                                    alertSummaryLines = `🟢 WhatsApp Test 2 (Template B) successful for ${companyDisplayName}!\nThis is placeholder data for Test 2.`;
+                                    waLines = `WhatsApp Test 2 (Template B) successful for ${companyDisplayName}! Placeholder data for Test 2.`;
                                 } else if (alertType === 'whatsapp_test_3') {
-                                    alertSummaryLines = `🟢 WhatsApp Test 3 (Template C) successful for ${companyDisplayName}!\nThis is placeholder data for Test 3.`;
+                                    waLines = `WhatsApp Test 3 (Template C) successful for ${companyDisplayName}! Placeholder data for Test 3.`;
                                 } else if (alertType === 'whatsapp_test_4') {
-                                    alertSummaryLines = `🟢 WhatsApp Test 4 (Template D) successful for ${companyDisplayName}!\nThis is placeholder data for Test 4.`;
+                                    waLines = `WhatsApp Test 4 (Template D) successful for ${companyDisplayName}! Placeholder data for Test 4.`;
                                 } else {
-                                    alertSummaryLines = `🟢 WhatsApp integration test successful for ${companyDisplayName}!\nThis confirms your alert notification channel is working correctly.`;
+                                    waLines = `WhatsApp integration test successful for ${companyDisplayName}! Alert notification channel is working correctly.`;
                                 }
-                            } else if (alert.alert_type === 'keyword_delta_sos') {
-                                alertSummaryLines += `\nCurrent SOS: ${metricDetails.calculatedOSA} | Delta: ${metricDetails.aggDelta}%`;
                             } else {
-                                alertSummaryLines += `\nCurrent OSA: ${aggregateOsa.currentOsa}% | Previous: ${aggregateOsa.previousOsa}% | Delta: ${aggregateOsa.delta}%`;
-                            }
-                            
-                            if (!alertType.startsWith('whatsapp_test') && platformData.length > 0) {
-                                for (const pd of platformData) {
-                                    if (pd.skus && pd.skus.length > 0) {
-                                        alertSummaryLines += `\n📦 ${pd.platform} - Top impacted SKUs:`;
-                                        for (const sku of pd.skus.slice(0, 3)) {
-                                            alertSummaryLines += `\n  • ${sku.skuName} (OSA: ${sku.currentOsa}%)`;
-                                        }
-                                    }
+                                // ── Production path: build structured AlertEntry[] ────────────
+                                const opSym = formatOperatorSymbol(alert.conditional_operator);
+                                const thresholdStr = (alert.threshold_value !== undefined && alert.threshold_value !== null)
+                                    ? `${opSym} ${threshold}%`.trim()
+                                    : null;
+
+                                if (platformData.length > 0) {
+                                    waAlerts = platformData.map((pd) => {
+                                        const skuNames = Array.isArray(pd.skus)
+                                            ? pd.skus.map(s => s.skuName || s.sku_name || 'Unknown')
+                                            : [];
+                                        return {
+                                            title:     alert.alert_name || metricDetails.ruleType || 'Alert',
+                                            platform:  pd.platform || null,
+                                            threshold: thresholdStr || null,
+                                            skus:      skuNames,
+                                        };
+                                    });
+                                } else {
+                                    waAlerts = [{
+                                        title:     alert.alert_name || metricDetails.ruleType || 'Alert',
+                                        platform:  null,
+                                        threshold: thresholdStr || null,
+                                        skus:      [],
+                                    }];
                                 }
                             }
 
                             const components = buildAlertTemplateComponents({
                                 recipientName,
                                 clientName: companyDisplayName,
-                                lines: alertSummaryLines,
+                                alerts:     waAlerts,
+                                lines:      waLines,
                                 dashboardPathParam: '',
                             });
                             const fullText = buildAlertFullText({
                                 recipientName,
                                 clientName: companyDisplayName,
-                                lines: alertSummaryLines,
+                                alerts:     waAlerts,
+                                lines:      waLines,
                             });
 
                             try {
@@ -1689,10 +1770,6 @@ export const initAlertCron = () => {
         });
     }, INTERVAL_MS);
 
-    // Run once immediately on start for developer verification
-    runEmailAlertsJob().catch(err => {
-        console.error('[AlertCron] Immediate execution failed:', err.message);
-    });
 };
 
 /**

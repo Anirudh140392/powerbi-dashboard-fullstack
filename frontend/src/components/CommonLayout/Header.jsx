@@ -4350,6 +4350,8 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     setSelectedRank("Top 10");
     setVisibilityMode("sos");
     if (setSelectedSubCategory) setSelectedSubCategory("All");
+    if (setSelectedSubBrand) setSelectedSubBrand("All");
+    if (setSelectedSapCode) setSelectedSapCode("All");
 
     // Also reset Channel and Platform to "All" (or defaults if restricted)
     setSelectedChannel("All");
@@ -4368,6 +4370,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
         ...prev,
         brand: undefined,
         category: undefined,
+        subBrand: undefined,
         platform: hasRestrictedPlatforms ? platforms.filter(p => p !== 'All') : "All",
         channel: "All",
       }));
@@ -4382,7 +4385,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
   }, [
     setSelectedCategory, setSelectedBrand,
     setSelectedLocation, setSelectedMsl, setSelectedKeyword, setSelectedKeywordType,
-    setSelectedRank, setVisibilityMode, setSelectedSubCategory,
+    setSelectedRank, setVisibilityMode, setSelectedSubCategory, setSelectedSubBrand, setSelectedSapCode,
     setSelectedChannel, setPlatform, hasRestrictedPlatforms, platforms,
     setPaPriority, setPaStatus, setPaPlatform, setPaBrand, setPaCity,
     onFiltersChange, setUserSetDate, setComparisonLabel,

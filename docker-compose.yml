@@ -24,11 +24,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
-          cpus: '1.5'
+          memory: 8G
+          cpus: '4.0'
         reservations:
-          memory: 1G
-          cpus: '0.5'
+          memory: 2G
+          cpus: '1.0'
 
   # ─── Ratings Backend API Service (port 3001) ───
   ratings_backend:
@@ -49,11 +49,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: '1'
+          memory: 3G
+          cpus: '2.0'
         reservations:
-          memory: 512M
-          cpus: '0.25'
+          memory: 1G
+          cpus: '1'
 
   # ─── Content Analysis Backend API Service (port 8000) ───
   content_backend:
@@ -74,11 +74,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: '1'
+          memory: 3G
+          cpus: '2.0'
         reservations:
-          memory: 512M
-          cpus: '0.25'
+          memory: 1G
+          cpus: '1'
 
   # ─── Frontend UI Service (port 9500 → exposed as 9400) ───
   # Build context is the monorepo root because the frontend
@@ -100,8 +100,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1400M
-          cpus: '1'
+          memory: 2G
+          cpus: '2.0'
         reservations:
           memory: 512M
           cpus: '0.5'
