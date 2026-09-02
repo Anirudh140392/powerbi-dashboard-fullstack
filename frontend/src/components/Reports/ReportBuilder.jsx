@@ -590,43 +590,92 @@ export default function ReportBuilder({
                   <Typography variant="h6" sx={{ fontWeight: 700, color: "#1E293B", mb: 0.5 }}>Set Granularity</Typography>
                   <Typography variant="body2" sx={{ color: "#64748B", mb: 3 }}>Define how data is grouped across SKU, geography, and time</Typography>
 
-                  <Grid container spacing={3} sx={{ mb: 3 }}>
-                    {[
-                      { label: "SKU Level", opts: SKU_OPTS, val: sku, set: setSku, color: "#4F46E5" },
-                      { label: "Geography", opts: GEO_OPTS, val: geo, set: setGeo, color: "#10B981" },
-                      { label: "Time", opts: TIME_OPTS, val: time, set: setTime, color: "#F59E0B" },
-                    ].map(g => (
-                      <Grid item xs={12} sm={4} key={g.label}>
-                        <Typography component="div" sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#94A3B8", mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                          {g.label}
-                          <Box sx={{ flex: 1, height: "1px", background: "#E2E8F0" }} />
+                  {/* Data Source Toggle */}
+                  <Box sx={{ mb: 3, p: 2, borderRadius: "14px", background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: "#1E293B", mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                      <StoreIcon sx={{ color: "#4F46E5", fontSize: 20 }} /> Data Source Option
+                    </Typography>
+                    <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+                      <Button
+                        variant={dataMode === "aggregated" ? "contained" : "outlined"}
+                        onClick={() => setDataMode("aggregated")}
+                        sx={{
+                          textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                          background: dataMode === "aggregated" ? "linear-gradient(135deg, #4F46E5, #3730A3)" : "white",
+                          color: dataMode === "aggregated" ? "white" : "#64748B",
+                          borderColor: dataMode === "aggregated" ? "#4F46E5" : "#CBD5E1",
+                          "&:hover": { background: dataMode === "aggregated" ? "linear-gradient(135deg, #4338CA, #312E81)" : "#F1F5F9" }
+                        }}
+                      >
+                        Aggregated Data
+                      </Button>
+                      <Button
+                        variant={dataMode === "darkstore" ? "contained" : "outlined"}
+                        onClick={() => setDataMode("darkstore")}
+                        sx={{
+                          textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                          background: dataMode === "darkstore" ? "linear-gradient(135deg, #0EA5E9, #0284C7)" : "white",
+                          color: dataMode === "darkstore" ? "white" : "#64748B",
+                          borderColor: dataMode === "darkstore" ? "#0EA5E9" : "#CBD5E1",
+                          "&:hover": { background: dataMode === "darkstore" ? "linear-gradient(135deg, #0284C7, #0369A1)" : "#F1F5F9" }
+                        }}
+                      >
+                        Darkstore Data
+                      </Button>
+                    </Box>
+                  </Box>
+
+                  {dataMode === "darkstore" ? (
+                    <Box sx={{ mb: 3, p: 2.5, borderRadius: "14px", background: "#F0F9FF", border: "1.5px solid #0EA5E9" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
+                        <StoreIcon sx={{ color: "#0EA5E9", fontSize: 22 }} />
+                        <Typography sx={{ fontWeight: 700, color: "#0369A1", fontSize: "0.95rem" }}>
+                          Raw Darkstore Data Export
                         </Typography>
-                        {g.opts.map(o => {
-                          const isSel = g.val === o;
-                          return (
-                            <Box
-                              key={o}
-                              onClick={() => g.set(o)}
-                              sx={{
-                                display: "flex", alignItems: "center", gap: 1, p: "10px 14px", mb: 0.8,
-                                borderRadius: "10px", cursor: "pointer", fontSize: 13, fontWeight: isSel ? 600 : 400,
-                                border: "1.5px solid", transition: "all 0.15s",
-                                borderColor: isSel ? g.color : "#E2E8F0",
-                                background: isSel ? `${g.color}08` : "transparent",
-                                color: isSel ? g.color : "#64748B",
-                                "&:hover": { borderColor: isSel ? g.color : "#CBD5E1", background: isSel ? `${g.color}08` : "#F8FAFC" },
-                              }}
-                            >
-                              <Box sx={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${isSel ? g.color : "#CBD5E1"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                {isSel && <Box sx={{ width: 7, height: 7, borderRadius: "50%", background: g.color }} />}
+                      </Box>
+                      <Typography variant="body2" sx={{ color: "#0284C7" }}>
+                        Granularity grouping options (SKU Level, Geography, Time) are omitted for Darkstore Data because raw unaggregated darkstore records are exported.
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Grid container spacing={3} sx={{ mb: 3 }}>
+                      {[
+                        { label: "SKU Level", opts: SKU_OPTS, val: sku, set: setSku, color: "#4F46E5" },
+                        { label: "Geography", opts: GEO_OPTS, val: geo, set: setGeo, color: "#10B981" },
+                        { label: "Time", opts: TIME_OPTS, val: time, set: setTime, color: "#F59E0B" },
+                      ].map(g => (
+                        <Grid item xs={12} sm={4} key={g.label}>
+                          <Typography component="div" sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#94A3B8", mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                            {g.label}
+                            <Box sx={{ flex: 1, height: "1px", background: "#E2E8F0" }} />
+                          </Typography>
+                          {g.opts.map(o => {
+                            const isSel = g.val === o;
+                            return (
+                              <Box
+                                key={o}
+                                onClick={() => g.set(o)}
+                                sx={{
+                                  display: "flex", alignItems: "center", gap: 1, p: "10px 14px", mb: 0.8,
+                                  borderRadius: "10px", cursor: "pointer", fontSize: 13, fontWeight: isSel ? 600 : 400,
+                                  border: "1.5px solid", transition: "all 0.15s",
+                                  borderColor: isSel ? g.color : "#E2E8F0",
+                                  background: isSel ? `${g.color}08` : "transparent",
+                                  color: isSel ? g.color : "#64748B",
+                                  "&:hover": { borderColor: isSel ? g.color : "#CBD5E1", background: isSel ? `${g.color}08` : "#F8FAFC" },
+                                }}
+                              >
+                                <Box sx={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${isSel ? g.color : "#CBD5E1"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                  {isSel && <Box sx={{ width: 7, height: 7, borderRadius: "50%", background: g.color }} />}
+                                </Box>
+                                {o}
                               </Box>
-                              {o}
-                            </Box>
-                          );
-                        })}
-                      </Grid>
-                    ))}
-                  </Grid>
+                            );
+                          })}
+                        </Grid>
+                      ))}
+                    </Grid>
+                  )}
 
                   <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#94A3B8", mb: 1.5, mt: 1 }}>Date Range</Typography>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 3, flexWrap: "wrap" }}>
@@ -818,9 +867,13 @@ export default function ReportBuilder({
               <Box sx={{ mb: 2 }}>
                 <Typography sx={{ fontSize: 10, color: "#94A3B8", mb: 0.8, fontFamily: "'JetBrains Mono', monospace" }}>// granularity</Typography>
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                  {[sku, geo, time].map(v => (
-                    <Chip key={v} label={v} size="small" sx={{ borderRadius: "100px", fontSize: 11, height: 24, border: "1px solid #E2E8F0", background: "#F8FAFC", color: "#64748B" }} />
-                  ))}
+                  {dataMode === "darkstore" ? (
+                    <Chip label="Raw Darkstore Data" size="small" sx={{ borderRadius: "100px", fontSize: 11, height: 24, border: "1px solid #0EA5E933", background: "#E0F2FE", color: "#0369A1", fontWeight: 600 }} />
+                  ) : (
+                    [sku, geo, time].map(v => (
+                      <Chip key={v} label={v} size="small" sx={{ borderRadius: "100px", fontSize: 11, height: 24, border: "1px solid #E2E8F0", background: "#F8FAFC", color: "#64748B" }} />
+                    ))
+                  )}
                 </Box>
               </Box>
 

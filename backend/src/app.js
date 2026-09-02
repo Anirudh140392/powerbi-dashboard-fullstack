@@ -198,9 +198,14 @@ import { initKamAlertCron } from './services/kamAlertCronService.js';
 initAlertCron();
 initKamAlertCron();
 
-// Extend server timeout to 10 minutes (600,000ms) for large report downloads
-server.timeout = 10 * 60 * 1000;
-server.keepAliveTimeout = 10 * 60 * 1000;
+// Process Error Handling for Auto-Restart Safety
+process.on('uncaughtException', (err) => {
+    console.error('🔥 [UNCAUGHT EXCEPTION] Process crashing:', err);
+    process.exit(1); // Exit code 1 triggers Docker container restart immediately
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('🔥 [UNHANDLED REJECTION] Reason:', reason);
+});
 
 export default app; // ESM export
-// restart trigger 11
