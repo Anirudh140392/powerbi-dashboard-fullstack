@@ -14,7 +14,6 @@ const clickhouse = createClient({
 });
 
 
-
 async function inspect() {
     try {
         console.log("Connecting to ClickHouse...");
