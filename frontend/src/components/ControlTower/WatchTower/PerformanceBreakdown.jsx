@@ -456,6 +456,7 @@ export function AggregatedViewTable() {
             
             if (filters.category?.length > 0 && !filters.category.includes("All")) params.set("category", filters.category.join(","));
             if (filters.brand && filters.brand !== "All") params.set("brand", Array.isArray(filters.brand) ? filters.brand.join(",") : filters.brand);
+            if (filters.subBrand && filters.subBrand !== "All") params.set("subBrand", Array.isArray(filters.subBrand) ? filters.subBrand.join(",") : filters.subBrand);
             if (filters.location?.length > 0 && !filters.location.includes("All")) params.set("location", filters.location.join(","));
 
             // Pass the global context dates if they exist

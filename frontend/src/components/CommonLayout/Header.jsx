@@ -88,6 +88,7 @@ function WatchTowerFilterModal({
   isBusinessOverview = false,
   msls = [], selectedMsl, setSelectedMsl,
   sapCodes = [], selectedSapCode = "All", setSelectedSapCode,
+  subBrands = [], selectedSubBrand = "All", setSelectedSubBrand,
 }) {
   const isDrlUser = React.useMemo(() => {
     try {
@@ -121,6 +122,7 @@ function WatchTowerFilterModal({
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
   const [draftMsl, setDraftMsl] = React.useState(selectedMsl);
   const [draftSapCode, setDraftSapCode] = React.useState(selectedSapCode);
+  const [draftSubBrand, setDraftSubBrand] = React.useState(selectedSubBrand);
 
   // ─── Local option lists (cascaded from draft selections) ───
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
@@ -129,6 +131,7 @@ function WatchTowerFilterModal({
   const [localLocations, setLocalLocations] = React.useState(locations);
   const [localMsls, setLocalMsls] = React.useState(msls);
   const [localSapCodes, setLocalSapCodes] = React.useState(sapCodes);
+  const [localSubBrands, setLocalSubBrands] = React.useState(subBrands);
 
   React.useEffect(() => {
     if (sapCodes && sapCodes.length > 0) {
@@ -136,10 +139,30 @@ function WatchTowerFilterModal({
     }
   }, [sapCodes]);
 
-  const baseTabs = hideChannelPlatform
-    ? FILTER_TABS.filter(t => t.key !== "channel" && t.key !== "platform")
-    : FILTER_TABS;
-  const availableTabs = baseTabs;
+  React.useEffect(() => {
+    if (subBrands && subBrands.length > 0) {
+      setLocalSubBrands(subBrands);
+    }
+  }, [subBrands]);
+
+  const availableTabs = React.useMemo(() => {
+    const tabs = [
+      { key: "channel", label: "Channel", icon: Layers },
+      { key: "platform", label: "Platform", icon: Monitor },
+      { key: "category", label: "Category", icon: LayoutGrid },
+      { key: "brand", label: "Brand", icon: Tag },
+    ];
+    if (localSubBrands && localSubBrands.length > 0) {
+      tabs.push({ key: "subBrand", label: "Sub Brand", icon: Tag });
+    }
+    tabs.push({ key: "location", label: "City", icon: MapPin });
+    tabs.push({ key: "msl", label: "Top SKU", icon: Hash });
+
+    if (hideChannelPlatform) {
+      return tabs.filter(t => t.key !== "channel" && t.key !== "platform");
+    }
+    return tabs;
+  }, [hideChannelPlatform, localSubBrands]);
 
   // Sync drafts + local options from context every time the modal opens
   React.useEffect(() => {
@@ -151,12 +174,14 @@ function WatchTowerFilterModal({
       setDraftLocation(selectedLocation);
       setDraftMsl(selectedMsl);
       setDraftSapCode(selectedSapCode);
+      setDraftSubBrand(selectedSubBrand);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalLocations(locations);
       setLocalMsls(msls);
       setLocalSapCodes(sapCodes);
+      setLocalSubBrands(subBrands);
       setActiveTab(hideChannelPlatform ? "category" : "channel");
       setSearchTerm("");
     }
@@ -178,7 +203,8 @@ function WatchTowerFilterModal({
       platform: getParam(draftPlatform),
       category: getParam(draftCategory),
       brand: getParam(draftBrand),
-      location: getParam(draftLocation)
+      location: getParam(draftLocation),
+      subBrand: getParam(draftSubBrand)
     };
 
     axiosInstance.get("/watchtower/cascaded-filters", { params })
@@ -234,12 +260,16 @@ function WatchTowerFilterModal({
               return JSON.stringify(prev) === JSON.stringify(newValue) ? prev : newValue;
             });
           }
+
+          if (res.data.subBrands && Array.isArray(res.data.subBrands)) {
+            setLocalSubBrands(res.data.subBrands);
+          }
         }
       })
       .catch((err) => {
         console.error("Failed to fetch cascaded filters:", err);
       });
-  }, [draftChannel, draftPlatform, draftCategory, draftBrand, draftLocation, open]);
+  }, [draftChannel, draftPlatform, draftCategory, draftBrand, draftLocation, draftSubBrand, open]);
 
   // CASCADE: draftPlatform, draftCategory, draftBrand → sapCodes
   React.useEffect(() => {
@@ -284,12 +314,13 @@ function WatchTowerFilterModal({
     platform: { options: localPlatforms.filter(p => p !== 'All'), value: draftPlatform, onChange: setDraftPlatform },
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
+    subBrand: { options: localSubBrands, value: draftSubBrand, onChange: setDraftSubBrand },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
     msl: { options: localMsls, value: draftMsl, onChange: setDraftMsl },
     sapCode: { options: localSapCodes, value: draftSapCode, onChange: setDraftSapCode },
   };
 
-  const { options, value, onChange } = tabConfig[activeTab];
+  const { options, value, onChange } = tabConfig[activeTab] || { options: [], value: "All", onChange: () => {} };
 
   // normalise value → array (mapping lowercase values to options casing)
   const getSelected = (v, opts) => {
@@ -328,6 +359,7 @@ function WatchTowerFilterModal({
   // count selected for a given filter key (draft-based)
   const countFor = (key) => {
     const cfg = tabConfig[key];
+    if (!cfg) return 0;
     const v = cfg.value;
     const opts = cfg.options;
     if (v === "All" || (Array.isArray(v) && v.includes("All"))) return 0;
@@ -358,6 +390,7 @@ function WatchTowerFilterModal({
     if (setSelectedLocation) setSelectedLocation(normalize(draftLocation));
     if (setSelectedMsl) setSelectedMsl(normalize(draftMsl));
     if (setSelectedSapCode) setSelectedSapCode(draftSapCode);
+    if (setSelectedSubBrand) setSelectedSubBrand(normalize(draftSubBrand));
     onClose();
   };
 
@@ -377,6 +410,7 @@ function WatchTowerFilterModal({
     setDraftLocation("All");
     setDraftMsl("All");
     setDraftSapCode("All");
+    setDraftSubBrand("All");
     setSearchTerm("");
   };
 
@@ -4210,9 +4244,6 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
   }, [title]);
 
   const {
-    subBrands,
-    selectedSubBrand,
-    setSelectedSubBrand,
     channels,
     selectedChannel,
     setSelectedChannel,
@@ -4222,6 +4253,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     sapCodes,
     selectedSapCode,
     setSelectedSapCode,
+    subBrands,
+    selectedSubBrand,
+    setSelectedSubBrand,
     brands,
     selectedBrand,
     setSelectedBrand,
@@ -4830,6 +4864,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       sapCodes={sapCodes}
                       selectedSapCode={selectedSapCode}
                       setSelectedSapCode={setSelectedSapCode}
+                      subBrands={subBrands}
+                      selectedSubBrand={selectedSubBrand}
+                      setSelectedSubBrand={setSelectedSubBrand}
                     />
                   )}
 
