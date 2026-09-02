@@ -202,7 +202,8 @@ export default function WatchTower() {
     channels,
     refreshFilters,
     refreshDates,
-    selectedMsl
+    selectedMsl,
+    selectedSubBrand
   } = filterContext;
 
   const hasRestrictedPlatforms = useMemo(() => {
@@ -570,14 +571,15 @@ export default function WatchTower() {
       category: selectedCategory,
       keyword: selectedKeyword,
       location: selectedLocation,
+      subBrand: selectedSubBrand,
       startDate: timeStart ? timeStart.format("YYYY-MM-DD") : null,
       endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : null,
       compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : null,
       compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : null,
     }));
-  }, [selectedCategory, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
+  }, [selectedCategory, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation, selectedSubBrand]);
 
-  const categoryFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${categoryPlatform}-${selectedMsl}`;
+  const categoryFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${categoryPlatform}-${selectedMsl}-${selectedSubBrand}`;
 
   // Fetch platforms from rb_pdp_olap for Category Performance dropdown
   useEffect(() => {
@@ -593,7 +595,7 @@ export default function WatchTower() {
   }, []);
 
   // Sync loading state with filter changes to prevent one-frame flicker
-  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${selectedChannel}-${selectedMsl}`;
+  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${selectedChannel}-${selectedMsl}-${selectedSubBrand}`;
   const [prevFilterKey, setPrevFilterKey] = useState(currentFilterKey);
   const lastFetchedOverviewKey = useRef(null);
 
@@ -640,6 +642,7 @@ export default function WatchTower() {
         compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
         compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
         msl: selectedMsl === "All" ? undefined : (Array.isArray(selectedMsl) ? selectedMsl.join(",") : selectedMsl),
+        subBrand: selectedSubBrand === "All" ? undefined : (Array.isArray(selectedSubBrand) ? selectedSubBrand.join(",") : selectedSubBrand),
       };
 
       // 1. Fetch fast overview data
@@ -709,6 +712,7 @@ export default function WatchTower() {
         compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
         compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
         msl: selectedMsl === "All" ? undefined : (Array.isArray(selectedMsl) ? selectedMsl.join(",") : selectedMsl),
+        subBrand: selectedSubBrand === "All" ? undefined : (Array.isArray(selectedSubBrand) ? selectedSubBrand.join(",") : selectedSubBrand),
       };
 
       axiosInstance.get("/watchtower/category-overview", { params })
@@ -737,8 +741,9 @@ export default function WatchTower() {
     channel: selectedChannel || undefined,
     category: filters.category ? [filters.category].flat() : [],
     brand: selectedBrand || undefined,
+    subBrand: selectedSubBrand || undefined,
     location: filters.location ? [filters.location].flat() : [],
-  }), [filters.platform, filters.startDate, filters.endDate, selectedChannel, filters.category, selectedBrand, filters.location]);
+  }), [filters.platform, filters.startDate, filters.endDate, selectedChannel, filters.category, selectedBrand, selectedSubBrand, filters.location]);
 
   // Retry handler for error overlay — bumps fetchIdRef to trigger the effect
   const retryFetch = useCallback(() => {

@@ -270,7 +270,8 @@ const PlatformOverviewNew = ({
         datesFetched,
         platformsFetched,
         selectedMsl,
-        setSelectedMsl
+        setSelectedMsl,
+        selectedSubBrand
     } = useContext(FilterContext);
 
     const kpis = [
@@ -550,114 +551,40 @@ const PlatformOverviewNew = ({
         }
     }, [globalPlatform, selectedBrand, selectedCategory, selectedLocation, defaultKpiKeys]);
 
-    // Re-sync glanceKpis when dimension changes or channel/platform changes
+    // Update glanceKpis when defaultKpiKeys change
     useEffect(() => {
-        const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
-        const allowBuyBox = isBuyBoxPlatform(activePlat);
+        setGlanceKpis(defaultKpiKeys);
+    }, [defaultKpiKeys]);
 
+    // Keep glanceKpis in sync with dimension switch & platform changes
+    useEffect(() => {
         if (dimension === 'sku') {
             setGlanceKpis(prev => {
-                let next = prev.filter(k => {
-                    if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
-                    // CPM never shown at SKU level
-                    if (k === 'cpm') return false;
-                    if (!allowBuyBox && k === 'buyBoxPct') return false;
-                    // Spend/Conversion/CPC are ecom-only at SKU level
-                    if (isSkuQcom && SKU_ECOM_ONLY_KPIS.includes(k)) return false;
-                    return true;
-                });
-                // Ensure ecom-only KPIs are added back when switching to ecom/All
-                if (!isSkuQcom) {
-                    SKU_ECOM_ONLY_KPIS.forEach(k => {
-                        if (!next.includes(k)) next.push(k);
-                    });
+                let next = prev.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'cpm');
+                if (isSkuQcom) {
+                    next = next.filter(k => isPidilite && k === 'cpc' ? true : !SKU_ECOM_ONLY_KPIS.includes(k));
                 }
                 return next;
             });
         } else if (dimension === 'brand') {
             setGlanceKpis(prev => {
-                let next = prev.filter(k => k !== 'categorySize' && k !== 'marketShare');
+                let next = prev.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'buyBoxPct');
                 if (!next.includes('spend')) next.push('spend');
                 if (!next.includes('conversion')) next.push('conversion');
                 if (isEcom) {
                     next = next.filter(k => k !== 'cpm');
-                    if (allowBuyBox) {
-                        if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
-                    } else {
-                        next = next.filter(k => k !== 'buyBoxPct');
-                    }
-                    if (!next.includes('deliveryTime')) next.push('deliveryTime');
                     if (!next.includes('cpc')) next.push('cpc');
                 } else if (isQuick) {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && (isPidilite ? true : k !== 'cpc'));
+                    next = next.filter(k => k !== 'deliveryTime' && (isPidilite ? true : k !== 'cpc'));
                     if (!next.includes('cpm')) next.push('cpm');
                     if (isPidilite && !next.includes('cpc')) next.push('cpc');
                 } else {
                     next = next.filter(k => k !== 'deliveryTime');
-                    if (allowBuyBox) {
+                    if (isBuyBoxPlatform(activePlatformFilter)) {
                         if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
                     } else {
                         next = next.filter(k => k !== 'buyBoxPct');
                     }
-                    if (!next.includes('cpc')) next.push('cpc');
-                    if (!next.includes('cpm')) next.push('cpm');
-                }
-                return next;
-            });
-        } else if (dimension === 'platform') {
-            setGlanceKpis(prev => {
-                let next = prev.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime');
-                if (!next.includes('categorySize')) next.push('categorySize');
-                if (!next.includes('spend')) next.push('spend');
-                if (!next.includes('conversion')) next.push('conversion');
-                if (!next.includes('marketShare')) next.push('marketShare');
-                if (isEcom) {
-                    next = next.filter(k => k !== 'cpm');
-                    if (!next.includes('cpc')) next.push('cpc');
-                } else if (isQuick) {
-                    if (!isPidilite) next = next.filter(k => k !== 'cpc');
-                    else if (!next.includes('cpc')) next.push('cpc');
-                    if (!next.includes('cpm')) next.push('cpm');
-                } else {
-                    if (!next.includes('cpc')) next.push('cpc');
-                    if (!next.includes('cpm')) next.push('cpm');
-                }
-                return next;
-            });
-        } else {
-            // month, category
-            setGlanceKpis(prev => {
-                let next = [...prev];
-                if (isEcom) {
-                    next = next.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpm');
-                    if (!next.includes('spend')) next.push('spend');
-                    if (!next.includes('conversion')) next.push('conversion');
-                    if (allowBuyBox) {
-                        if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
-                    } else {
-                        next = next.filter(k => k !== 'buyBoxPct');
-                    }
-                    if (!next.includes('deliveryTime')) next.push('deliveryTime');
-                    if (!next.includes('cpc')) next.push('cpc');
-                } else if (isQuick) {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && (isPidilite ? true : k !== 'cpc'));
-                    if (!next.includes('categorySize')) next.push('categorySize');
-                    if (!next.includes('spend')) next.push('spend');
-                    if (!next.includes('conversion')) next.push('conversion');
-                    if (!next.includes('marketShare')) next.push('marketShare');
-                    if (!next.includes('cpm')) next.push('cpm');
-                    if (isPidilite && !next.includes('cpc')) next.push('cpc');
-                } else {
-                    next = next.filter(k => k !== 'deliveryTime');
-                    if (allowBuyBox) {
-                        if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
-                    } else {
-                        next = next.filter(k => k !== 'buyBoxPct');
-                    }
-                    if (!next.includes('categorySize')) next.push('categorySize');
-                    if (!next.includes('spend')) next.push('spend');
-                    if (!next.includes('conversion')) next.push('conversion');
-                    if (!next.includes('marketShare')) next.push('marketShare');
                     if (!next.includes('cpc')) next.push('cpc');
                     if (!next.includes('cpm')) next.push('cpm');
                 }
@@ -713,6 +640,7 @@ const PlatformOverviewNew = ({
 
         const reqChannel = selectedChannel === 'All' ? undefined : selectedChannel;
         const reqSapCode = advancedFilters.sapCodes?.length > 0 ? advancedFilters.sapCodes.join(',') : '';
+        const reqSubBrand = selectedSubBrand === 'All' ? 'All' : (Array.isArray(selectedSubBrand) ? selectedSubBrand.join(',') : selectedSubBrand);
 
         return JSON.stringify({
             dimension,
@@ -721,6 +649,7 @@ const PlatformOverviewNew = ({
             reqCategory,
             reqLocation,
             reqChannel,
+            reqSubBrand,
             reqStartDate,
             reqEndDate,
             reqCompareStart,
@@ -735,9 +664,10 @@ const PlatformOverviewNew = ({
                 filterLogic: advancedFilters.filterLogic,
                 msl: advancedFilters.msl
             },
-            selectedMsl
+            selectedMsl,
+            selectedSubBrand
         });
-    }, [dimension, effectivePlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter, selectedMsl]);
+    }, [dimension, effectivePlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter, selectedMsl, selectedSubBrand]);
 
     // Fetch data from backend API when filters change (stable version)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
@@ -754,6 +684,7 @@ const PlatformOverviewNew = ({
                 category: parsed.reqCategory === 'All' ? undefined : parsed.reqCategory,
                 channel: parsed.reqChannel || undefined,
                 location: parsed.reqLocation === 'All' ? undefined : parsed.reqLocation,
+                subBrand: parsed.reqSubBrand === 'All' ? undefined : parsed.reqSubBrand,
                 startDate: parsed.reqStartDate || undefined,
                 endDate: parsed.reqEndDate || undefined,
                 compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
