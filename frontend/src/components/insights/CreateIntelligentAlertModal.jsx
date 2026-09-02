@@ -79,8 +79,8 @@ const ALERT_PRESETS = [
         severity: "Medium",
     },
     {
-        id: "whatsapp_test_1",
-        name: "WhatsApp Test 1 (Template A)",
+        id: "low_osa_product",
+        name: "Low OSA – Product Level | vs Previous Day",
         category: "Testing & Diagnostics",
         metrics: ["Connectivity"],
         formula: "Tests WhatsApp template integration 1",
@@ -229,9 +229,16 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
 
     const selectedPresets = ALERT_PRESETS.filter(p => selectedPresetIds.includes(p.id));
     const isPerformanceSummarySelected = selectedPresetIds.includes("category_perf_summary") || selectedPresetIds.includes("ptd_perf_summary");
-    const isWhatsAppTestSelected = selectedPresetIds.some(id => id.startsWith("whatsapp_test"));
+    const isWhatsAppTestSelected = selectedPresetIds.some(id => id.startsWith("whatsapp_test") || id === "low_osa_product");
     // eslint-disable-next-line no-unused-vars
     const isWeeklyForced = selectedPresetIds.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id));
+
+    // Force email off when alert type is WhatsApp-only (e.g. low_osa_product)
+    useEffect(() => {
+        if (isWhatsAppTestSelected) {
+            setEmailNotify(false);
+        }
+    }, [isWhatsAppTestSelected]);
 
     // Sync values when editing an existing alert
     useEffect(() => {
@@ -1044,11 +1051,11 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                         justifyContent: "space-between",
                                         padding: "14px 16px",
                                         borderRadius: "12px",
-                                        border: emailNotify ? "2px solid #0047FF" : "1.5px solid #e2e8f0",
+                                        border: isWhatsAppTestSelected ? "1.5px solid #e2e8f0" : (emailNotify ? "2px solid #0047FF" : "1.5px solid #e2e8f0"),
                                         background: isWhatsAppTestSelected ? "#f8fafc" : (emailNotify ? "#f0f5ff" : "#ffffff"),
                                         cursor: isWhatsAppTestSelected ? "not-allowed" : "pointer",
-                                        opacity: isWhatsAppTestSelected ? 0.55 : 1,
-                                        boxShadow: emailNotify ? "0 4px 12px rgba(0, 71, 255, 0.08)" : "0 1px 3px rgba(0, 0, 0, 0.02)",
+                                        opacity: isWhatsAppTestSelected ? 0.45 : 1,
+                                        boxShadow: (!isWhatsAppTestSelected && emailNotify) ? "0 4px 12px rgba(0, 71, 255, 0.08)" : "0 1px 3px rgba(0, 0, 0, 0.02)",
                                         transition: "all 0.18s ease",
                                     }}
                                 >
@@ -1088,7 +1095,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                             transition: "all 0.15s ease",
                                         }}
                                     >
-                                        {emailNotify && <Check size={14} color="#ffffff" strokeWidth={3} />}
+                                        {(!isWhatsAppTestSelected && emailNotify) && <Check size={14} color="#ffffff" strokeWidth={3} />}
                                     </div>
                                 </div>
                                 {/* WhatsApp Card */}
@@ -1164,7 +1171,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                     exit={{ opacity: 0, height: 0 }}
                                     style={{ display: "grid", gridTemplateColumns: "1fr", gap: "14px" }}
                                 >
-                                    {emailNotify && (
+                                    {emailNotify && !isWhatsAppTestSelected && (
                                         <div>
                                             <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
                                                 EMAIL ADDRESS
@@ -1348,12 +1355,14 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                             }}
                                         >
                                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px" }}>
-                                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                                    <Sliders size={14} color="#0047FF" />
-                                                    <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>
-                                                        Metric(s) Required:
-                                                    </span>
-                                                </div>
+                                                {!isWhatsAppTestSelected && (
+                                                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                                        <Sliders size={14} color="#0047FF" />
+                                                        <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>
+                                                            Metric(s) Required:
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                                                     {Array.from(new Set(selectedPresets.flatMap(p => p.metrics))).map(m => (
                                                         <span
@@ -1510,7 +1519,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                             />
                                         </div>
 
-                                        {/* Comparison Period */}
+                                        {/* Comparison Period — hidden for low_osa_product (hardcoded vs Previous Day) */}
+                                        {!isWhatsAppTestSelected && (
                                         <div style={{ position: "relative" }}>
                                             <label style={{ display: "block", fontSize: "10px", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "4px" }}>
                                                 BENCHMARK PERIOD
@@ -1539,13 +1549,14 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
                                             </select>
                                             <ChevronDown size={14} style={{ position: "absolute", right: 8, bottom: 12, color: "#64748b", pointerEvents: "none" }} />
                                         </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         )}
 
                         {/* Section 5: Frequency & Severity (Hidden for Performance Summary) */}
-                        {!isPerformanceSummarySelected && (
+                        {!isPerformanceSummarySelected && !isWhatsAppTestSelected && (
                             <div>
                                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
                                     <div style={{ width: "4px", height: "16px", borderRadius: "2px", background: "#0047FF" }} />
