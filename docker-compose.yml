@@ -20,8 +20,11 @@ services:
       - REDIS_DEFAULT_TTL=${REDIS_DEFAULT_TTL:-2000}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    restart: unless-stopped
+    restart: always
     deploy:
+      restart_policy:
+        condition: any
+        delay: 3s
       resources:
         limits:
           memory: 8G
@@ -45,8 +48,11 @@ services:
       - API_PORT=3001
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    restart: unless-stopped
+    restart: always
     deploy:
+      restart_policy:
+        condition: any
+        delay: 3s
       resources:
         limits:
           memory: 3G
@@ -70,8 +76,11 @@ services:
       - PORT_COTENT=8000
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    restart: unless-stopped
+    restart: always
     deploy:
+      restart_policy:
+        condition: any
+        delay: 3s
       resources:
         limits:
           memory: 3G
@@ -96,8 +105,11 @@ services:
       - backend_multiple
       - ratings_backend
       - content_backend
-    restart: unless-stopped
+    restart: always
     deploy:
+      restart_policy:
+        condition: any
+        delay: 3s
       resources:
         limits:
           memory: 2G
