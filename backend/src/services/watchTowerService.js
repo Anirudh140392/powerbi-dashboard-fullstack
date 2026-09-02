@@ -107,8 +107,10 @@ async function getAggTableStatus() {
  */
 async function getWatchtowerSource(filters = {}) {
     const mslArr = normalizeFilterArray(filters.msl);
+    const subBrandArr = normalizeFilterArray(filters.subBrand || filters.sub_brand);
     const hasMslFilter = mslArr && mslArr.length > 0;
-    const useAgg = hasMslFilter ? false : await getAggTableStatus();
+    const hasSubBrandFilter = subBrandArr && subBrandArr.length > 0;
+    const useAgg = (hasMslFilter || hasSubBrandFilter) ? false : await getAggTableStatus();
     if (useAgg) {
         // Agg table has known, controlled column names — no dynamic resolution needed
         const aggCols = await getTableColumns(AGG_TABLE_NAME);
@@ -147,7 +149,8 @@ async function getWatchtowerSource(filters = {}) {
                 listingPercent: r('avg_listing_percent'),
                 channel: r('channel'),
                 deliveryDays: columnExists(aggCols, 'delivery_days') ? r('delivery_days') : null,
-                msl: null
+                msl: null,
+                subBrand: null
             }
         };
     }
@@ -214,7 +217,8 @@ async function getWatchtowerSource(filters = {}) {
             listingPercent: `if(toFloat64OrZero(toString(listing_percent)) > 0, toFloat64OrZero(toString(listing_percent)), (${wrap(nenoOsaCol)} / NULLIF(${wrap(denoOsaCol)}, 0)) * 100)`,
             channel: columnExists(cols, 'channel') ? r('channel') : null,
             deliveryDays: columnExists(cols, 'delivery_date') ? DELIVERY_TIME_SQL(r('delivery_date'), dateCol) : null,
-            msl: cols.rawColumns?.has('msl') ? 'msl' : r('MSL')
+            msl: cols.rawColumns?.has('msl') ? 'msl' : r('MSL'),
+            subBrand: columnExists(cols, 'sub_brand') ? r('sub_brand') : (columnExists(cols, 'subbrand') ? r('subbrand') : null)
         }
     };
 }
@@ -245,7 +249,8 @@ async function getPmSource() {
             product: columnExists(cols, 'product') ? r('product') : "'Unknown'",
             skuCode: columnExists(cols, 'sku_code') ? r('sku_code') : "'Unknown'",
             date: r('DATE'),
-            channel: columnExists(cols, 'channel') ? r('channel') : null
+            channel: columnExists(cols, 'channel') ? r('channel') : null,
+            subBrand: columnExists(cols, 'sub_brand') ? r('sub_brand') : (columnExists(cols, 'subbrand') ? r('subbrand') : null)
         }
     };
 }
@@ -956,6 +961,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const rawCategory = filters['category[]'] || filters.category;
         const rawSkuName = filters['skuName[]'] || filters.skuName;
         const rawSkuCode = filters['skuCode[]'] || filters.skuCode || filters['sapCode[]'] || filters.sapCode;
+        const rawSubBrand = filters['subBrand[]'] || filters.subBrand || filters['sub_brand[]'] || filters.sub_brand;
 
         // Normalize multi-value filters
         const platformArr = normalizeFilterArray(rawPlatform);
@@ -964,6 +970,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const categoryArr = normalizeFilterArray(rawCategory);
         const skuNameArr = normalizeFilterArray(rawSkuName);
         const skuCodeArr = normalizeFilterArray(rawSkuCode);
+        const subBrandArr = normalizeFilterArray(rawSubBrand);
 
         // For backward compatibility, keep single/normalized values for string comparisons or passed to sub-functions
         const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
@@ -1127,6 +1134,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStrMain(m)}'`).join(' OR ');
                     conditions.push(`(${mslConds})`);
                 }
+                // Sub Brand filter
+                if (subBrandArr && subBrandArr.length > 0) {
+                    const subCol = src.f.subBrand || 'sub_brand';
+                    const subConds = subBrandArr.map(s => `lower(${subCol}) = '${escapeStrMain(s.toLowerCase())}'`).join(' OR ');
+                    if (subConds) conditions.push(`(${subConds})`);
+                }
             }
             return conditions.join(' AND ');
         };
@@ -1206,6 +1219,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (mslArr && mslArr.length > 0) {
                     const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
                     conditions.push(`(${mslConds})`);
+                }
+                // Sub Brand filter
+                if (subBrandArr && subBrandArr.length > 0) {
+                    const subCol = src.f.subBrand || 'sub_brand';
+                    const subConds = subBrandArr.map(s => `lower(${subCol}) = '${escapeStr(s.toLowerCase())}'`).join(' OR ');
+                    conditions.push(`(${subConds})`);
                 }
             }
 
@@ -1480,6 +1499,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             const locCond = buildLocationQueryCond(locationArr, platforms, locCol, pmSrc.f.platform);
                             if (locCond) conditions.push(locCond);
                         }
+
+                        if (subBrandArr && subBrandArr.length > 0 && pmSrc.f.subBrand) {
+                            const subConds = subBrandArr.map(s => `'${escapeStr(s).toLowerCase()}'`).join(',');
+                            conditions.push(`lower(${pmSrc.f.subBrand}) IN (${subConds})`);
+                        }
                     } else {
                         // Filter for Our Brands Only (Enforce comp_flag=0 if All brands or specific brands selected)
                         const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
@@ -1532,6 +1556,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             if (mslArr && mslArr.length > 0) {
                                 const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
                                 conditions.push(`(${mslConds})`);
+                            }
+                            if (subBrandArr && subBrandArr.length > 0) {
+                                const subCol = src.f.subBrand || 'sub_brand';
+                                const subConds = subBrandArr.map(s => `lower(${subCol}) = '${escapeStr(s.toLowerCase())}'`).join(' OR ');
+                                conditions.push(`(${subConds})`);
                             }
                         }
                     }
@@ -5220,12 +5249,14 @@ const getPlatformOverview = async (filters) => {
     const rawLocation = filters['location[]'] || filters.location;
     const rawCategory = filters['category[]'] || filters.category;
     const rawPlatform = filters['platform[]'] || filters.platform;
+    const rawSubBrand = filters['subBrand[]'] || filters.subBrand || filters['sub_brand[]'] || filters.sub_brand;
 
     // Normalize multi-value filters using the core helper
     const brandArr = normalizeFilterArray(rawBrand);
     const locationArr = normalizeFilterArray(rawLocation);
     const categoryArr = normalizeFilterArray(rawCategory);
     const platformArr = normalizeFilterArray(rawPlatform);
+    const subBrandArr = normalizeFilterArray(rawSubBrand);
 
     // Keep single values for backward compatibility and specific use cases
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
@@ -5449,6 +5480,11 @@ const getPlatformOverview = async (filters) => {
                 const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
                 conds.push(`(${mslConds})`);
             }
+            if (!src.isAgg && subBrandArr && subBrandArr.length > 0) {
+                const subCol = src.f.subBrand || 'sub_brand';
+                const subConds = subBrandArr.map(s => `lower(${subCol}) = '${escapeStr(s.toLowerCase())}'`).join(' OR ');
+                conds.push(`(${subConds})`);
+            }
         }
 
         return conds.join(' AND ');
@@ -5477,6 +5513,10 @@ const getPlatformOverview = async (filters) => {
         const platformCol = pmSrc.f.platform;
         const platformCond = buildPlatformChannelCond((platformArr && platformArr.length > 0) ? platformArr : 'All', channel, platformCol);
         if (platformCond) conds.push(platformCond);
+        if (subBrandArr && subBrandArr.length > 0 && pmSrc.f.subBrand) {
+            const subConds = subBrandArr.map(s => `'${escapeStr(s).toLowerCase()}'`).join(',');
+            conds.push(`lower(${pmSrc.f.subBrand}) IN (${subConds})`);
+        }
         return conds.join(' AND ');
     };
 
@@ -6494,11 +6534,13 @@ const getMonthOverview = async (filters) => {
     const rawCategory = filters['category[]'] || filters.category;
     const rawBrand = filters['brand[]'] || filters.brand;
     const rawLocation = filters['location[]'] || filters.location;
+    const rawSubBrand = filters['subBrand[]'] || filters.subBrand || filters['sub_brand[]'] || filters.sub_brand;
 
     // Normalize multi-value filters
     const brandArr = normalizeFilterArray(rawBrand);
     const locationArr = normalizeFilterArray(rawLocation);
     const categoryArr = normalizeFilterArray(rawCategory);
+    const subBrandArr = normalizeFilterArray(rawSubBrand);
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
 
@@ -6565,6 +6607,10 @@ const getMonthOverview = async (filters) => {
             const catCol = src.f.category;
             conds.push(`${catCol} IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
+        if (!src.isAgg && subBrandArr && subBrandArr.length > 0) {
+            const subCol = src.f.subBrand || 'sub_brand';
+            conds.push(`(${subBrandArr.map(s => `lower(${subCol}) = '${escapeStr(s.toLowerCase())}'`).join(' OR ')})`);
+        }
         // Advanced SKU Search Filters
         const skuArr = normalizeFilterArray(skuName);
         if (skuArr && skuArr.length > 0) {
@@ -6607,6 +6653,9 @@ const getMonthOverview = async (filters) => {
         if (platformCond) conds.push(platformCond);
         if (brandArr && brandArr.length > 0) {
             conds.push(`lower(${pmSrc.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b).toLowerCase()}'`).join(', ')})`);
+        }
+        if (subBrandArr && subBrandArr.length > 0 && pmSrc.f.subBrand) {
+            conds.push(`lower(${pmSrc.f.subBrand}) IN (${subBrandArr.map(s => `'${escapeStr(s).toLowerCase()}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`lower(${pmSrc.f.category}) IN (${categoryArr.map(c => `'${escapeStr(c).toLowerCase()}'`).join(', ')})`);
@@ -6914,11 +6963,13 @@ const getCategoryOverview = async (filters) => {
     const rawBrand = filters['brand[]'] || filters.brand;
     const rawLocation = filters['location[]'] || filters.location;
     const rawCategory = filters['category[]'] || filters.category;
+    const rawSubBrand = filters['subBrand[]'] || filters.subBrand || filters['sub_brand[]'] || filters.sub_brand;
 
     // Normalize multi-value filters
     const brandArr = normalizeFilterArray(rawBrand)?.map(b => b.toLowerCase());
     const locationArr = normalizeFilterArray(rawLocation);
     const categoryArr = normalizeFilterArray(rawCategory)?.map(c => c.toLowerCase());
+    const subBrandArr = normalizeFilterArray(rawSubBrand);
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
     // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
@@ -7003,6 +7054,11 @@ const getCategoryOverview = async (filters) => {
                 const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
                 conds.push(`(${mslConds})`);
             }
+            if (!src.isAgg && subBrandArr && subBrandArr.length > 0) {
+                const subCol = src.f.subBrand || 'sub_brand';
+                const subConds = subBrandArr.map(s => `lower(${subCol}) = '${escapeStr(s.toLowerCase())}'`).join(' OR ');
+                conds.push(`(${subConds})`);
+            }
         }
 
         return conds.join(' AND ');
@@ -7051,6 +7107,10 @@ const getCategoryOverview = async (filters) => {
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`lower(${pmSrc.f.category}) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+        }
+        if (subBrandArr && subBrandArr.length > 0 && pmSrc.f.subBrand) {
+            const subConds = subBrandArr.map(s => `'${escapeStr(s).toLowerCase()}'`).join(',');
+            conds.push(`lower(${pmSrc.f.subBrand}) IN (${subConds})`);
         }
         return conds.join(' AND ');
     };
@@ -7400,10 +7460,12 @@ const getBrandsOverview = async (filters) => {
     // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
     const rawBrand = filters['brand[]'] || filters.brand;
     const rawLocation = filters['location[]'] || filters.location;
+    const rawSubBrand = filters['subBrand[]'] || filters.subBrand || filters['sub_brand[]'] || filters.sub_brand;
 
     // Normalize multi-value filters
     const brandArr = normalizeFilterArray(rawBrand)?.map(b => b.toLowerCase());
     const locationArr = normalizeFilterArray(rawLocation);
+    const subBrandArr = normalizeFilterArray(rawSubBrand);
     const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
     // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
@@ -7483,6 +7545,11 @@ const getBrandsOverview = async (filters) => {
                 const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
                 conds.push(`(${mslConds})`);
             }
+            if (!src.isAgg && subBrandArr && subBrandArr.length > 0) {
+                const subCol = src.f.subBrand || 'sub_brand';
+                const subConds = subBrandArr.map(s => `lower(${subCol}) = '${escapeStr(s.toLowerCase())}'`).join(' OR ');
+                conds.push(`(${subConds})`);
+            }
         }
 
         return conds.join(' AND ');
@@ -7496,6 +7563,10 @@ const getBrandsOverview = async (filters) => {
         const categoryArr = normalizeFilterArray(boCategory);
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`lower(${pmSrc.f.category}) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+        }
+        if (subBrandArr && subBrandArr.length > 0 && pmSrc.f.subBrand) {
+            const subConds = subBrandArr.map(s => `'${escapeStr(s).toLowerCase()}'`).join(',');
+            conds.push(`lower(${pmSrc.f.subBrand}) IN (${subConds})`);
         }
         if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && locationArr && locationArr.length > 0) {
             const locCond = buildLocationQueryCond(locationArr, boPlatform, pmSrc.f.location, pmSrc.f.platform);
@@ -7995,6 +8066,7 @@ const getKpiTrends = async (filters) => {
                 conds.push(`lower(trim(BOTH '\t\n ' FROM ${catCol})) = '${escapeStr(val.toLowerCase())}'`);
             }
             else if (dimKey === 'brand') conds.push(`lower(${src.f.brand}) = '${escapeStr(val.toLowerCase())}'`);
+            else if (dimKey === 'sub_brand' || dimKey === 'subbrand' || dimKey === 'sub brand') conds.push(`lower(sub_brand) = '${escapeStr(val.toLowerCase())}'`);
             else if (dimKey === 'city' || dimKey === 'location') conds.push(`lower(${src.f.location}) = '${escapeStr(val.toLowerCase())}'`);
         }
 
@@ -8057,6 +8129,9 @@ const getKpiTrends = async (filters) => {
             if (dimKey === 'platform') conds.push(`lower(${pmSrc.f.platform}) = '${escapeStr(val.toLowerCase())}'`);
             else if (dimKey === 'category' || dimKey === 'format') conds.push(`lower(${pmSrc.f.category}) = '${escapeStr(val.toLowerCase())}'`);
             else if (dimKey === 'brand') conds.push(`lower(${pmSrc.f.brand}) = '${escapeStr(val.toLowerCase())}'`);
+            else if (dimKey === 'sub_brand' || dimKey === 'subbrand' || dimKey === 'sub brand') {
+                if (pmSrc.f.subBrand) conds.push(`lower(${pmSrc.f.subBrand}) = '${escapeStr(val.toLowerCase())}'`);
+            }
             else if ((dimKey === 'city' || dimKey === 'location') && pmSrc.f.location && pmSrc.f.location !== "'Unknown'") conds.push(`lower(${pmSrc.f.location}) = '${escapeStr(val.toLowerCase())}'`);
         }
 
@@ -8067,6 +8142,11 @@ const getKpiTrends = async (filters) => {
             conds.push(`(${brandConditions})`);
         }
 
+        if (subBrandArr && subBrandArr.length > 0 && pmSrc.f.subBrand) {
+            const sbConds = subBrandArr.map(sb => `lower(${pmSrc.f.subBrand}) = '${escapeStr(sb.toLowerCase())}'`).join(' OR ');
+            conds.push(`(${sbConds})`);
+        }
+
         if (pmSrc.f.location && pmSrc.f.location !== "'Unknown'" && locArr && locArr.length > 0) conds.push(`lower(${pmSrc.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
 
         if (platArr && platArr.length > 0) {
@@ -8074,14 +8154,6 @@ const getKpiTrends = async (filters) => {
         } else {
             const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform, false, pmSrc.f.channel);
             if (platformCond) conds.push(platformCond);
-        }
-
-        // Enforce "Our Brands" only for PM metrics if no specific brand is selected
-        if (!brandArr || brandArr.length === 0 || brandArr.includes('All')) {
-            if (validBrandNames && validBrandNames.length > 0) {
-                const brandList = validBrandNames.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
-                conds.push(`lower(${pmSrc.f.brand}) IN (${brandList})`);
-            }
         }
 
         return conds.join(' AND ');
@@ -12140,11 +12212,13 @@ const getSkuOverview = async (filters) => {
     const rawBrand = filters['brand[]'] || filters.brand;
     const rawLocation = filters['location[]'] || filters.location;
     const rawCategory = filters['category[]'] || filters.category;
+    const rawSubBrand = filters['subBrand[]'] || filters.subBrand || filters['sub_brand[]'] || filters.sub_brand;
 
     // Normalize multi-value filters
     const brandArr = normalizeFilterArray(rawBrand);
     const locationArr = normalizeFilterArray(rawLocation);
     const categoryArr = normalizeFilterArray(rawCategory);
+    const subBrandArr = normalizeFilterArray(rawSubBrand);
     const skuPlatform = skuOverviewPlatform || filters.platform || 'All';
 
     // Check if any selected location is NOT one of the 11 Tier-1 cities (case-insensitive)
@@ -12226,6 +12300,10 @@ const getSkuOverview = async (filters) => {
             if (mslArr && mslArr.length > 0) {
                 const mslConds = mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ');
                 conds.push(`(${mslConds})`);
+            }
+            if (!src.isAgg && subBrandArr && subBrandArr.length > 0) {
+                const subCol = src.f.subBrand || 'sub_brand';
+                conds.push(`(${subBrandArr.map(s => `lower(${subCol}) = '${escapeStr(s.toLowerCase())}'`).join(' OR ')})`);
             }
         }
 
@@ -12620,10 +12698,12 @@ const getCityOverview = async (filters) => {
     // Extract filter values
     const rawBrand = filters['brand[]'] || filters.brand;
     const rawCategory = filters['category[]'] || filters.category;
+    const rawSubBrand = filters['subBrand[]'] || filters.subBrand || filters['sub_brand[]'] || filters.sub_brand;
 
     // Normalize multi-value filters
     const brandArr = normalizeFilterArray(rawBrand);
     const categoryArr = normalizeFilterArray(rawCategory);
+    const subBrandArr = normalizeFilterArray(rawSubBrand);
     const cityPlatform = cityOverviewPlatform || filters.platform || 'All';
 
     const monthsBack = parseInt(months, 10) || 1;
@@ -12664,6 +12744,10 @@ const getCityOverview = async (filters) => {
         const catCol = src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL;
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`${catCol} IN(${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+        }
+        if (!src.isAgg && subBrandArr && subBrandArr.length > 0) {
+            const subCol = src.f.subBrand || 'sub_brand';
+            conds.push(`(${subBrandArr.map(s => `lower(${subCol}) = '${escapeStr(s.toLowerCase())}'`).join(' OR ')})`);
         }
 
         // Advanced SKU Search Filters (Only supported on raw table)
@@ -12945,6 +13029,11 @@ const getPerformanceBreakdownData = async (filters) => {
             const brands = filters.brand.includes(',') ? filters.brand.split(',').map(b => b.trim()) : [filters.brand];
             extraClauses += ` AND lower(${pmSrc.f.brand}) IN(${brands.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`;
         }
+        const rawSubBrand = filters.subBrand || filters.sub_brand;
+        if (rawSubBrand && rawSubBrand !== 'All' && pmSrc.f.subBrand) {
+            const subBrands = Array.isArray(rawSubBrand) ? rawSubBrand : (rawSubBrand.includes(',') ? rawSubBrand.split(',').map(b => b.trim()) : [rawSubBrand]);
+            extraClauses += ` AND lower(${pmSrc.f.subBrand}) IN(${subBrands.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`;
+        }
         if (filters.category && filters.category !== 'All') {
             const cats = filters.category.includes(',') ? filters.category.split(',').map(c => c.trim()) : [filters.category];
             extraClauses += ` AND lower(${pmSrc.f.category}) IN(${cats.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`;
@@ -13210,8 +13299,10 @@ const getSubBrands = async (filters = {}) => {
     try {
         const { platform, brand, category, resellerName, dbName: propDbName } = filters;
         const pdpCols = await getTableColumns('rb_pdp_olap');
-        const hasSubBrand = columnExists(pdpCols, 'sub_brand') || columnExists(pdpCols, 'subbrand');
-        if (!hasSubBrand) {
+        const pmCols = await getTableColumns('rb_pm_olap');
+        const hasPdpSub = columnExists(pdpCols, 'sub_brand') || columnExists(pdpCols, 'subbrand');
+        const hasPmSub = columnExists(pmCols, 'sub_brand') || columnExists(pmCols, 'subbrand');
+        if (!hasPdpSub || !hasPmSub) {
             return [];
         }
         const actualSubCol = columnExists(pdpCols, 'sub_brand') ? resolveColumn(pdpCols, 'sub_brand') : resolveColumn(pdpCols, 'subbrand');
@@ -13478,13 +13569,14 @@ const getWatchTowerCascadedFilters = async (filters) => {
             }
         };
 
-        const [channelsList, platformsList, categoriesList, brandsList, locationsList, grammagesList] = await Promise.all([
+        const [channelsList, platformsList, categoriesList, brandsList, locationsList, grammagesList, subBrandsList] = await Promise.all([
             runQuery('channel', channelCol),
             runQuery('platform', platformCol),
             runQuery('category', categoryCol),
             runQuery('brand', brandCol),
             runQuery('location', locationCol),
-            runGrammageQuery()
+            runGrammageQuery(),
+            getSubBrands(filters)
         ]);
 
         return {
@@ -13493,7 +13585,8 @@ const getWatchTowerCascadedFilters = async (filters) => {
             categories: categoriesList,
             brands: brandsList,
             locations: locationsList,
-            grammages: grammagesList
+            grammages: grammagesList,
+            subBrands: subBrandsList
         };
     } catch (error) {
         console.error("Error in getWatchTowerCascadedFilters:", error);
@@ -13503,7 +13596,8 @@ const getWatchTowerCascadedFilters = async (filters) => {
             categories: [],
             brands: [],
             locations: [],
-            grammages: []
+            grammages: [],
+            subBrands: []
         };
     }
 };
