@@ -514,6 +514,7 @@ const PlatformOverviewNew = ({
         brands: [],
         categories: [],
         platforms: [],
+        subBrands: [],
         skus: [],
         sapCodes: [],
         skuName: '',
@@ -532,12 +533,15 @@ const PlatformOverviewNew = ({
         const isGlobalBrandReset = selectedBrand === "All";
         const isGlobalCategoryReset = selectedCategory === "All";
         const isGlobalLocationReset = selectedLocation === "All";
+        const isGlobalSubBrandReset = selectedSubBrand === "All" || (Array.isArray(selectedSubBrand) && selectedSubBrand.includes("All")) || !selectedSubBrand;
 
-        if (isGlobalPlatformReset && isGlobalBrandReset && isGlobalCategoryReset && isGlobalLocationReset) {
-            setAdvancedFilters({
+        if (isGlobalPlatformReset && isGlobalBrandReset && isGlobalCategoryReset && isGlobalLocationReset && isGlobalSubBrandReset) {
+            setAdvancedFilters(prev => ({
+                ...prev,
                 brands: [],
                 categories: [],
                 platforms: [],
+                subBrands: [],
                 skus: [],
                 sapCodes: [],
                 skuName: '',
@@ -545,11 +549,10 @@ const PlatformOverviewNew = ({
                 dateFrom: '',
                 dateTo: '',
                 msl: '0',
-                kpis: defaultKpiKeys,
                 filterLogic: 'OR',
-            });
+            }));
         }
-    }, [globalPlatform, selectedBrand, selectedCategory, selectedLocation, defaultKpiKeys]);
+    }, [globalPlatform, selectedBrand, selectedCategory, selectedLocation, selectedSubBrand]);
 
     // Update glanceKpis when defaultKpiKeys change
     useEffect(() => {
@@ -640,7 +643,9 @@ const PlatformOverviewNew = ({
 
         const reqChannel = selectedChannel === 'All' ? undefined : selectedChannel;
         const reqSapCode = advancedFilters.sapCodes?.length > 0 ? advancedFilters.sapCodes.join(',') : '';
-        const reqSubBrand = selectedSubBrand === 'All' ? 'All' : (Array.isArray(selectedSubBrand) ? selectedSubBrand.join(',') : selectedSubBrand);
+        const reqSubBrand = advancedFilters.subBrands?.length > 0
+            ? advancedFilters.subBrands.join(',')
+            : (selectedSubBrand === 'All' ? 'All' : (Array.isArray(selectedSubBrand) ? selectedSubBrand.join(',') : selectedSubBrand));
 
         return JSON.stringify({
             dimension,
@@ -658,6 +663,7 @@ const PlatformOverviewNew = ({
             skuPlatformFilter: dimension === 'sku' ? (skuPlatformFilter !== 'All' ? skuPlatformFilter : effectivePlatform) : undefined,
             localPlatformFilter: (dimension !== 'platform' && dimension !== 'sku') ? (localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform) : undefined,
             advancedFilters: {
+                subBrands: advancedFilters.subBrands,
                 skuName: advancedFilters.skuName,
                 skuCode: advancedFilters.skuCode,
                 sapCodes: advancedFilters.sapCodes,
@@ -778,6 +784,7 @@ const PlatformOverviewNew = ({
         advancedFilters.brands?.length > 0,
         advancedFilters.categories?.length > 0,
         advancedFilters.platforms?.length > 0,
+        advancedFilters.subBrands?.length > 0,
         advancedFilters.skus?.length > 0,
         advancedFilters.sapCodes?.length > 0,
         advancedFilters.skuName?.length > 0,

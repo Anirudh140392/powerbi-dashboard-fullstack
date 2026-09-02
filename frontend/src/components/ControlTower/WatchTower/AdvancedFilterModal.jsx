@@ -341,6 +341,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         brands: [],
         categories: [],
         platforms: [],
+        subBrands: [],
         skus: [],
         sapCodes: [],
         grammages: [],
@@ -359,12 +360,13 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         filterLogic: 'OR',
     })
 
-    const { maxDate, selectedChannel, selectedLocation, platform: globalPlatform, selectedBrand, selectedCategory, selectedMsl, timeStart, timeEnd } = useContext(FilterContext)
+    const { maxDate, selectedChannel, selectedLocation, platform: globalPlatform, selectedBrand, selectedCategory, selectedMsl, selectedSubBrand, subBrands: subBrandsContext, timeStart, timeEnd } = useContext(FilterContext)
     const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate])
 
     const [dynamicBrands, setDynamicBrands] = useState([])
     const [dynamicCategories, setDynamicCategories] = useState([])
     const [dynamicPlatforms, setDynamicPlatforms] = useState([])
+    const [dynamicSubBrands, setDynamicSubBrands] = useState([])
     const [dynamicSkus, setDynamicSkus] = useState([])
     const [dynamicSapCodes, setDynamicSapCodes] = useState([])
     const [dynamicGrammages, setDynamicGrammages] = useState([])
@@ -382,6 +384,12 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
     useEffect(() => {
         setDynamicPlatforms(platforms && platforms.length ? platforms : [])
     }, [platforms])
+
+    useEffect(() => {
+        if (subBrandsContext && subBrandsContext.length > 0) {
+            setDynamicSubBrands(subBrandsContext.map(s => typeof s === 'object' ? s : { id: String(s).toLowerCase(), name: String(s) }))
+        }
+    }, [subBrandsContext])
 
     useEffect(() => {
         setDynamicSkus(skus && skus.length ? skus : [])
@@ -425,6 +433,10 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                     ? localFilters.categories
                     : (selectedCategory && selectedCategory !== 'All' ? [selectedCategory] : []);
 
+                const activeSubBrands = localFilters.subBrands && localFilters.subBrands.length > 0
+                    ? localFilters.subBrands
+                    : (selectedSubBrand && selectedSubBrand !== 'All' ? (Array.isArray(selectedSubBrand) ? selectedSubBrand : [selectedSubBrand]) : []);
+
                 const activeSapCodes = localFilters.sapCodes && localFilters.sapCodes.length > 0
                     ? localFilters.sapCodes
                     : [];
@@ -438,6 +450,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                     platform: cleanParam(activePlatforms),
                     brand: cleanParam(activeBrands),
                     category: cleanParam(activeCategories),
+                    subBrand: cleanParam(activeSubBrands),
                     sapCode: cleanParam(activeSapCodes),
                     startDate,
                     endDate
@@ -487,6 +500,11 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                             return { id: p.toLowerCase().replace(/\s+/g, '_'), name: p }
                         })
                         setDynamicPlatforms(mappedPlatforms)
+                    }
+
+                    if (data.subBrands && Array.isArray(data.subBrands)) {
+                        const mappedSubBrands = data.subBrands.map(s => ({ id: String(s).toLowerCase(), name: String(s) }))
+                        setDynamicSubBrands(mappedSubBrands)
                     }
                 }
 
@@ -673,6 +691,10 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                 ? filters.platforms
                 : normalizeArr(globalPlatform);
 
+            const subBrands = (filters?.subBrands && filters.subBrands.length > 0)
+                ? filters.subBrands
+                : normalizeArr(selectedSubBrand);
+
             const msl = (filters?.msl !== undefined && filters.msl !== '0')
                 ? filters.msl
                 : (selectedMsl || '0');
@@ -687,6 +709,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                 categories,
                 brands,
                 platforms,
+                subBrands,
                 msl,
                 sapCodes,
             };
@@ -713,6 +736,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             brands: [],
             categories: [],
             platforms: [],
+            subBrands: [],
             skus: [],
             sapCodes: [],
             grammages: [],
@@ -738,6 +762,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             platforms: localFilters.platforms.map(p => typeof p === 'string' ? p.toLowerCase() : p),
             brands: localFilters.brands.map(b => typeof b === 'string' ? b.toLowerCase() : b),
             categories: localFilters.categories.map(c => typeof c === 'string' ? c.toLowerCase() : c),
+            subBrands: (localFilters.subBrands || []).map(s => typeof s === 'string' ? s.toLowerCase() : s),
             skus: localFilters.skus.map(s => typeof s === 'string' ? s.toLowerCase() : s),
             sapCodes: localFilters.sapCodes || [],
             skuName: localFilters.skus.map(s => typeof s === 'string' ? s.toLowerCase() : s),
@@ -754,10 +779,14 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
     const showPlatformFilter = currentDimension !== 'platform'
     const showBrandFilter = currentDimension !== 'brand'
     const showCategoryFilter = currentDimension !== 'category'
+    const showSubBrandFilter = currentDimension !== 'sub_brand'
     const showSkuFilter = currentDimension !== 'sku'
+
+    const subBrandsAvailable = (subBrandsContext && subBrandsContext.length > 0) || (dynamicSubBrands && dynamicSubBrands.length > 0)
 
     const activeFilterCount = [
         showBrandFilter && localFilters.brands.length > 0,
+        showSubBrandFilter && subBrandsAvailable && localFilters.subBrands && localFilters.subBrands.length > 0,
         showCategoryFilter && localFilters.categories.length > 0,
         showPlatformFilter && localFilters.platforms.length > 0,
         showSkuFilter && localFilters.skus.length > 0,
@@ -839,6 +868,16 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 selected={localFilters.brands}
                                                 onChange={(val) => updateFilter('brands', val)}
                                                 placeholder="All Brands"
+                                            />
+                                        )}
+                                        {showSubBrandFilter && subBrandsAvailable && (
+                                            <MultiSelectDropdown
+                                                label="Sub Brand"
+                                                icon={Tag}
+                                                options={dynamicSubBrands.length > 0 ? dynamicSubBrands : (subBrandsContext || []).map(s => ({ id: String(s).toLowerCase(), name: String(s) }))}
+                                                selected={localFilters.subBrands || []}
+                                                onChange={(val) => updateFilter('subBrands', val)}
+                                                placeholder="All Sub Brands"
                                             />
                                         )}
                                         {showCategoryFilter && (
