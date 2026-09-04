@@ -166,131 +166,122 @@ ${rows.join('')}
 
 /**
  * Build the insight narrative block for a platform.
- * Derives 3-5 data-driven sentences from aggregated KPI data.
+ * Max 3 concise narrative lines derived from aggregated KPI data.
+ *
+ * Line 1 — GMV direction + ad spend context (one breath)
+ * Line 2 — Discount driver: volume-led vs discount-led call
+ * Line 3 — Category leader + SOS signal
  */
 const buildPlatformInsights = (categoryCards) => {
     if (!categoryCards || categoryCards.length === 0) return '';
 
     const r1 = (v) => parseFloat(parseFloat(v).toFixed(1));
+    const sign = (v) => v >= 0 ? '+' : '';
 
-    // ── 1. Aggregate totals for the platform ──────────────────────
+    // ── 1. Aggregate platform totals ───────────────────────────────
     let totalCwGmv = 0, totalPwGmv = 0;
     let totalCwUnits = 0, totalPwUnits = 0;
     let totalCwAdSpend = 0, totalPwAdSpend = 0;
 
     for (const card of categoryCards) {
         const k = card.kpis;
-        totalCwGmv    += k.gmv.current;
-        totalPwGmv    += k.gmv.previous;
-        totalCwUnits  += k.qtySold.current;
-        totalPwUnits  += k.qtySold.previous;
+        totalCwGmv     += k.gmv.current;
+        totalPwGmv     += k.gmv.previous;
+        totalCwUnits   += k.qtySold.current;
+        totalPwUnits   += k.qtySold.previous;
         totalCwAdSpend += k.adSpend.current;
         totalPwAdSpend += k.adSpend.previous;
     }
 
-    const gmvDelta    = totalPwGmv   > 0 ? r1(((totalCwGmv - totalPwGmv) / totalPwGmv) * 100)       : 0;
-    const unitsDelta  = totalPwUnits > 0 ? r1(((totalCwUnits - totalPwUnits) / totalPwUnits) * 100)   : 0;
-    const adDelta     = totalPwAdSpend > 0 ? r1(((totalCwAdSpend - totalPwAdSpend) / totalPwAdSpend) * 100) : 0;
+    const gmvDelta   = totalPwGmv      > 0 ? r1(((totalCwGmv - totalPwGmv) / totalPwGmv) * 100)               : 0;
+    const unitsDelta = totalPwUnits    > 0 ? r1(((totalCwUnits - totalPwUnits) / totalPwUnits) * 100)           : 0;
+    const adDelta    = totalPwAdSpend  > 0 ? r1(((totalCwAdSpend - totalPwAdSpend) / totalPwAdSpend) * 100)     : 0;
 
-    // ── 2. Per-category analysis ──────────────────────────────────
-    // Sort by absolute GMV delta desc for best/worst
+    // ── 2. Per-category signals ────────────────────────────────────
+    // Best category by GMV % delta
     const sorted = [...categoryCards].sort((a, b) => {
-        const da = a.kpis.gmv.previous > 0 ? ((a.kpis.gmv.current - a.kpis.gmv.previous) / a.kpis.gmv.previous) : 0;
-        const db = b.kpis.gmv.previous > 0 ? ((b.kpis.gmv.current - b.kpis.gmv.previous) / b.kpis.gmv.previous) : 0;
+        const da = a.kpis.gmv.previous > 0 ? (a.kpis.gmv.current - a.kpis.gmv.previous) / a.kpis.gmv.previous : 0;
+        const db = b.kpis.gmv.previous > 0 ? (b.kpis.gmv.current - b.kpis.gmv.previous) / b.kpis.gmv.previous : 0;
         return db - da;
     });
+    const bestCat = sorted[0];
 
-    const bestCat  = sorted[0];
-    const worstCat = sorted[sorted.length - 1];
-
-    // Discount direction — average across categories
+    // Average discount delta (volume-led vs discount-led signal)
     const discDeltas = categoryCards.map(c => c.kpis.discounting.delta);
-    const avgDiscDelta = discDeltas.length > 0 ? r1(discDeltas.reduce((s, v) => s + v, 0) / discDeltas.length) : 0;
+    const avgDiscDelta = discDeltas.length > 0
+        ? r1(discDeltas.reduce((s, v) => s + v, 0) / discDeltas.length)
+        : 0;
 
-    // TACoS direction — find highest and lowest TACoS cats
-    const tacosRanked = [...categoryCards].sort((a, b) => a.kpis.tacos.current - b.kpis.tacos.current);
-    const highTacosCat = tacosRanked[tacosRanked.length - 1];
-    const lowTacosCat  = tacosRanked[0];
-
-    // SOS leader
     const sosSorted = [...categoryCards].sort((a, b) => b.kpis.sos.current - a.kpis.sos.current);
     const sosLeader = sosSorted[0];
 
-    // ── 3. Compose sentences ──────────────────────────────────────
+    // ── 3. Compose 2 concise Raksha Bandhan-contextualised lines ──
     const sentences = [];
 
-    // GMV & units headline
-    const gmvDir   = gmvDelta  >= 0 ? 'up' : 'down';
-    const unitDir  = unitsDelta >= 0 ? 'up' : 'down';
-    const gmvAbs   = Math.abs(gmvDelta).toFixed(1);
-    const unitAbs  = Math.abs(unitsDelta).toFixed(1);
-    sentences.push(
-        `Overall GMV was <strong>${gmvDir} ${gmvAbs}% WoW</strong>, ` +
-        `driven by a ${unitAbs}% ${unitDir} in units sold.`
-    );
+    // fmt(delta) → always produces '+X.X' or '-X.X'
+    const fmt = (v) => `${v >= 0 ? '+' : ''}${r1(v).toFixed(1)}`;
 
-    // Discount sentence
-    if (Math.abs(avgDiscDelta) >= 0.1) {
-        const discDir = avgDiscDelta > 0 ? 'increased' : 'decreased';
+    const gmvAbs  = Math.abs(gmvDelta).toFixed(1);
+    const unitFmt = fmt(unitsDelta);                        // e.g. +22.3 or -31.0
+    const adAbs   = Math.abs(adDelta).toFixed(1);
+    const adWord  = adDelta >= 0 ? 'also rose' : 'declined';
+
+    // — Line 1: GMV + units + ad spend, Raksha Bandhan as the cause —
+    if (gmvDelta >= 0) {
         sentences.push(
-            `Average weighted discount <strong>${discDir} by ${Math.abs(avgDiscDelta).toFixed(1)}pp</strong> vs prior week.`
+            `Sales <strong>grew ${gmvAbs}% WoW</strong> (units ${unitFmt}%), fuelled by <strong>Raksha Bandhan</strong> demand; ` +
+            `ad spend ${adWord} <strong>${adAbs}%</strong> to capture the festive window.`
         );
     } else {
-        sentences.push('Discount levels remained broadly stable WoW.');
+        sentences.push(
+            `Sales <strong>fell ${gmvAbs}% WoW</strong> (units ${unitFmt}%) as <strong>Raksha Bandhan</strong> demand tapered off; ` +
+            `ad spend ${adWord} <strong>${adAbs}%</strong> in the post-festival week.`
+        );
     }
 
-    // Best & worst category
-    if (bestCat && worstCat && bestCat.categoryName !== worstCat.categoryName) {
-        const bestDelta  = r1(bestCat.kpis.gmv.delta);
-        const worstDelta = r1(worstCat.kpis.gmv.delta);
-        const bestDir  = bestDelta  >= 0 ? '+' : '';
-        const worstDir = worstDelta >= 0 ? '+' : '';
-        sentences.push(
-            `<strong>${escapeHtml(bestCat.categoryName)}</strong> led GMV growth (${bestDir}${bestDelta.toFixed(1)}% WoW); ` +
-            `<strong>${escapeHtml(worstCat.categoryName)}</strong> lagged (${worstDir}${worstDelta.toFixed(1)}% WoW).`
-        );
-    } else if (bestCat) {
+    // — Line 2: Category leader + discount driver + SOS signal —
+    if (bestCat) {
         const bestDelta = r1(bestCat.kpis.gmv.delta);
-        const bestDir = bestDelta >= 0 ? '+' : '';
-        sentences.push(`<strong>${escapeHtml(bestCat.categoryName)}</strong> drove GMV this week (${bestDir}${bestDelta.toFixed(1)}% WoW).`);
-    }
+        const discAbs   = Math.abs(avgDiscDelta).toFixed(1);
 
-    // TACoS efficiency
-    if (highTacosCat && lowTacosCat && highTacosCat.categoryName !== lowTacosCat.categoryName) {
+        // Discount context suffix
+        const discSuffix = Math.abs(avgDiscDelta) < 0.2
+            ? ', with discounts held flat'
+            : avgDiscDelta > 0
+                ? `, on the back of a ${discAbs}pp discount increase`
+                : `, even as discounts pulled back ${discAbs}pp`;
+
+        // SOS suffix
+        let sosSuffix = '';
+        if (sosLeader && r1(sosLeader.kpis.sos.current) > 0) {
+            const sosDelta  = r1(sosLeader.kpis.sos.delta);
+            const sosChange = Math.abs(sosDelta) >= 0.1
+                ? ` (${fmt(sosDelta)}pp)`
+                : '';
+            sosSuffix = sosLeader.categoryName === bestCat.categoryName
+                ? ` and commanded the highest SOS at <strong>${r1(sosLeader.kpis.sos.current).toFixed(1)}%${sosChange}</strong>`
+                : `; <strong>${escapeHtml(sosLeader.categoryName)}</strong> led SOS at <strong>${r1(sosLeader.kpis.sos.current).toFixed(1)}%${sosChange}</strong>`;
+        }
+
         sentences.push(
-            `Ad efficiency: <strong>${escapeHtml(lowTacosCat.categoryName)}</strong> had the lowest TACoS ` +
-            `(${r1(lowTacosCat.kpis.tacos.current).toFixed(1)}%), while ` +
-            `<strong>${escapeHtml(highTacosCat.categoryName)}</strong> had the highest ` +
-            `(${r1(highTacosCat.kpis.tacos.current).toFixed(1)}%).`
-        );
-    } else if (highTacosCat) {
-        sentences.push(`TACoS was ${r1(highTacosCat.kpis.tacos.current).toFixed(1)}% this week.`);
-    }
-
-    // SOS leader
-    if (sosLeader && r1(sosLeader.kpis.sos.current) > 0) {
-        const sosDelta  = r1(sosLeader.kpis.sos.delta);
-        const sosChange = Math.abs(sosDelta) >= 0.1
-            ? ` (${sosDelta >= 0 ? '+' : ''}${sosDelta.toFixed(1)}pp WoW)`
-            : '';
-        sentences.push(
-            `<strong>${escapeHtml(sosLeader.categoryName)}</strong> held the strongest share of search ` +
-            `at ${r1(sosLeader.kpis.sos.current).toFixed(1)}%${sosChange}.`
+            `<strong>${escapeHtml(bestCat.categoryName)}</strong> was the strongest growth engine ` +
+            `(${fmt(bestDelta)}% GMV WoW)` +
+            `${discSuffix}${sosSuffix} during this Raksha Bandhan period.`
         );
     }
 
-    // ── 4. Render HTML ────────────────────────────────────────────
+    // ── 4. Render HTML ─────────────────────────────────────────────
     const bulletHtml = sentences
-        .map(s => `<tr><td style="padding:3px 0; font-family:Arial,Helvetica,sans-serif; font-size:11px; color:#16224A; line-height:1.55;">&bull;&nbsp;${s}</td></tr>`)
+        .map(s => `<tr><td style="padding:4px 0; font-family:Arial,Helvetica,sans-serif; font-size:11px; color:#16224A; line-height:1.6;">&bull;&nbsp;${s}</td></tr>`)
         .join('\n');
 
     return `
 <!-- Platform Insights -->
 <tr>
-<td style="padding:13px 17px 10px 17px; background-color:#F7F9FF; border-top:1px solid #DCE9FE; border-bottom:1px solid #DCE9FE;">
+<td style="padding:12px 17px 11px 17px; background-color:#F7F9FF; border-top:1px solid #DCE9FE; border-bottom:2px solid #DCE9FE;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr>
-<td style="padding-bottom:7px; font-family:Arial,Helvetica,sans-serif; font-size:9px; font-weight:bold; letter-spacing:.5px; text-transform:uppercase; color:#2F5FEA;">Platform Insights</td>
+<td style="padding-bottom:6px; font-family:Arial,Helvetica,sans-serif; font-size:9px; font-weight:bold; letter-spacing:.6px; text-transform:uppercase; color:#2F5FEA;">Platform Insights</td>
 </tr>
 ${bulletHtml}
 </table>
