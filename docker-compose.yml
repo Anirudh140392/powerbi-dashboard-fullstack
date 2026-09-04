@@ -1,0 +1,91 @@
+services:
+  # ─── Main Backend API Service (port 5000) ───
+  backend_multiple:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend_multiple
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - REDIS_HOST=${REDIS_HOST:-host.docker.internal}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_ENABLED=${REDIS_ENABLED:-false}
+      - REDIS_DEFAULT_TTL=${REDIS_DEFAULT_TTL:-2000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: always
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 3s
+
+  # ─── Ratings Backend API Service (port 3001) ───
+  ratings_backend:
+    build:
+      context: ./trailytics_ratings/backend
+      dockerfile: Dockerfile
+    container_name: ratings_backend
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./trailytics_ratings/backend/.env
+    environment:
+      - NODE_ENV=production
+      - API_PORT=3001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: always
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 3s
+
+  # ─── Content Analysis Backend API Service (port 8000) ───
+  content_backend:
+    build:
+      context: ./trailytics_content_analysis/backend
+      dockerfile: Dockerfile
+    container_name: content_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./trailytics_content_analysis/backend/.env
+    environment:
+      - NODE_ENV=production
+      - PORT_COTENT=8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: always
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 3s
+
+  # ─── Frontend UI Service (port 9500 → exposed as 9400) ───
+  # Build context is the monorepo root because the frontend
+  # imports source files directly from:
+  #   trailytics_ratings/frontend/src/
+  #   trailytics_content_analysis/frontend/src/
+  frontend_multiple:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: frontend_multiple
+    ports:
+      - "9400:9500"
+    depends_on:
+      - backend_multiple
+      - ratings_backend
+      - content_backend
+    restart: always
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 3s
