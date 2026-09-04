@@ -1405,7 +1405,249 @@ export const runEmailAlertsJob = async () => {
                         });
                     }
                 }
-                // Rule 6: WhatsApp Tests 2-4
+                // Rule 6: Low OSA – City Level | vs Previous Day
+                else if (alertType === 'low_osa_city') {
+                    isDynamicAlert = true;
+                    const dropQuery = `
+                        WITH 
+                            available_dates AS (
+                                SELECT DISTINCT DATE 
+                                FROM \`${dbName}\`.rb_pdp_olap 
+                                WHERE DATE IS NOT NULL AND Comp_flag = 0 ${pdpFilterClause}
+                                ORDER BY DATE DESC 
+                                LIMIT 2
+                            ),
+                            daily_city_osa AS (
+                                SELECT 
+                                    Platform, Brand, Location as city, DATE,
+                                    sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno,
+                                    sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno,
+                                    if(deno > 0, neno / deno * 100, 100) as osa
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IN (SELECT DATE FROM available_dates)
+                                  AND Comp_flag = 0
+                                  ${pdpFilterClause}
+                                  AND Location IS NOT NULL AND lower(Location) NOT IN ('other', 'others', 'null', 'undefined', '')
+                                GROUP BY Platform, Brand, city, DATE
+                            ),
+                            dates_array AS (
+                                SELECT groupArray(DATE) as arr FROM available_dates
+                            ),
+                            city_dates AS (
+                                SELECT 
+                                    d.Platform, d.Brand, d.city,
+                                    maxIf(d.osa, d.DATE = (SELECT arr[1] FROM dates_array)) as osa_yesterday,
+                                    maxIf(d.osa, d.DATE = (SELECT arr[2] FROM dates_array)) as osa_db_yesterday
+                                FROM daily_city_osa d
+                                GROUP BY d.Platform, d.Brand, d.city
+                            )
+                        SELECT 
+                            Platform, Brand, city, osa_yesterday, osa_db_yesterday, 
+                            round(osa_yesterday - osa_db_yesterday, 2) as delta
+                        FROM city_dates
+                        WHERE (osa_yesterday - osa_db_yesterday) <= -${threshold}
+                        ORDER BY delta ASC
+                        LIMIT 10 BY Platform
+                    `;
+                    const drops = await queryAdminDB(dropQuery);
+                    
+                    isTriggered = drops.length > 0;
+                    
+                    metricDetails = {
+                        ruleType: 'Low OSA – City Level | vs Previous Day',
+                        calculatedOSA: 'N/A',
+                        conditionText: `Daily City OSA Drop > ${threshold}%`,
+                    };
+
+                    if (isTriggered) {
+                        const platforms = [...new Set(drops.map(d => d.Platform))];
+
+                        // ── Overall OSA per platform for the latest date ──────
+                        const platListStr = platforms.map(p => `'${p.replace(/'/g, "\\'")}'`).join(',');
+                        const overallOsaQuery = `
+                            WITH latest_date AS (
+                                SELECT MAX(DATE) AS d
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IS NOT NULL AND Comp_flag = 0 ${pdpFilterClause}
+                            )
+                            SELECT
+                                Platform,
+                                round(
+                                    sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) /
+                                    nullIf(sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0) * 100,
+                                1) AS overall_osa
+                            FROM \`${dbName}\`.rb_pdp_olap
+                            WHERE DATE = (SELECT d FROM latest_date)
+                              AND Comp_flag = 0
+                              AND Platform IN (${platListStr})
+                              ${pdpFilterClause}
+                            GROUP BY Platform
+                        `;
+                        let overallOsaMap = {};
+                        try {
+                            const overallRows = await queryAdminDB(overallOsaQuery);
+                            overallRows.forEach(r => {
+                                overallOsaMap[r.Platform] = parseFloat(r.overall_osa || 0).toFixed(1) + '%';
+                            });
+                        } catch (osaErr) {
+                            console.warn(`[AlertCron] Overall OSA query failed for ${dbName}:`, osaErr.message);
+                        }
+                        // ─────────────────────────────────────────────────────
+
+                        dynamicEmailData = platforms.map(plat => {
+                            const platDrops = drops.filter(d => d.Platform === plat);
+                            return {
+                                platformName: plat,
+                                overallOsa: overallOsaMap[plat] || null,
+                                headers: ['City', 'Yesterday OSA', 'Day Before Yesterday OSA', 'Delta'],
+                                rows: platDrops.map(d => [
+                                    d.city || 'Unknown', 
+                                    parseFloat(d.osa_yesterday || 0).toFixed(2) + '%', 
+                                    parseFloat(d.osa_db_yesterday || 0).toFixed(2) + '%', 
+                                    parseFloat(d.delta || 0).toFixed(2) + '%'
+                                ]),
+                                rawDrops: platDrops
+                            };
+                        });
+                    }
+                }
+                // Rule 7: Low Offtake – Product Level | vs L30 Days AVG
+                else if (alertType === 'low_offtake_product') {
+                    isDynamicAlert = true;
+                    const sqlOp = alert.conditional_operator === 'lt' ? '<' : 
+                                  alert.conditional_operator === 'lte' ? '<=' : 
+                                  alert.conditional_operator === 'gt' ? '>' : 
+                                  alert.conditional_operator === 'gte' ? '>=' : '=';
+
+                    const dropQuery = `
+                        WITH 
+                            current_date_cte AS (
+                                SELECT MAX(DATE) AS current_date
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IS NOT NULL AND Comp_flag = 0 ${pdpFilterClause}
+                            ),
+                            daily_offtake AS (
+                                SELECT
+                                    Platform, Brand, Product as sku, Web_Pid, DATE,
+                                    SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0) * ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) AS Daily_Offtake
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE >= subtractDays((SELECT current_date FROM current_date_cte), 30)
+                                  AND DATE <= (SELECT current_date FROM current_date_cte)
+                                  AND Comp_flag = 0
+                                  ${pdpFilterClause}
+                                  AND Product IS NOT NULL AND lower(Product) NOT IN ('other', 'others', 'null', 'undefined', '')
+                                GROUP BY Platform, Brand, sku, Web_Pid, DATE
+                            ),
+                            product_metrics AS (
+                                SELECT
+                                    Platform, Brand, sku, Web_Pid,
+
+                                    MAX(
+                                        CASE
+                                            WHEN DATE = (SELECT current_date FROM current_date_cte)
+                                            THEN Daily_Offtake
+                                        END
+                                    ) AS current_offtake,
+
+                                    AVG(
+                                        CASE
+                                            WHEN DATE < (SELECT current_date FROM current_date_cte)
+                                            THEN Daily_Offtake
+                                        END
+                                    ) AS l30_avg_offtake
+
+                                FROM daily_offtake
+                                GROUP BY Platform, Brand, sku, Web_Pid
+                            )
+                        SELECT
+                            Platform, Brand, sku, Web_Pid,
+                            current_offtake,
+                            l30_avg_offtake,
+                            
+                            ROUND(
+                                (
+                                    (current_offtake - l30_avg_offtake)
+                                    / NULLIF(l30_avg_offtake, 0)
+                                ) * 100,
+                                2
+                            ) AS delta,
+                            
+                            ROUND(
+                                (
+                                    (l30_avg_offtake - current_offtake)
+                                    / NULLIF(l30_avg_offtake, 0)
+                                ) * 100,
+                                2
+                            ) AS drop_percent
+
+                        FROM product_metrics
+                        WHERE current_offtake IS NOT NULL
+                          AND l30_avg_offtake IS NOT NULL
+                          AND l30_avg_offtake > 0
+                          AND ROUND(((l30_avg_offtake - current_offtake) / NULLIF(l30_avg_offtake, 0)) * 100, 2) ${sqlOp} ${threshold}
+                        ORDER BY delta ASC
+                        LIMIT 10 BY Platform
+                    `;
+                    const drops = await queryAdminDB(dropQuery);
+                    
+                    isTriggered = drops.length > 0;
+                    
+                    metricDetails = {
+                        ruleType: 'Low Offtake – Product Level | vs L30 Days AVG',
+                        calculatedOSA: 'N/A', // Not used for this dynamic alert
+                        conditionText: `Current Offtake Drop > ${threshold}% vs L30 Avg`,
+                    };
+
+                    if (isTriggered) {
+                        const platforms = [...new Set(drops.map(d => d.Platform))];
+
+                        // Overall Offtake query for the platform
+                        const platListStr = platforms.map(p => `'${p.replace(/'/g, "\\'")}'`).join(',');
+                        const overallQuery = `
+                            WITH current_date_cte AS (
+                                SELECT MAX(DATE) AS max_date
+                                FROM \`${dbName}\`.rb_pdp_olap
+                                WHERE DATE IS NOT NULL AND Comp_flag = 0 ${pdpFilterClause}
+                            )
+                            SELECT
+                                Platform,
+                                sum(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0) * ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) AS overall_offtake
+                            FROM \`${dbName}\`.rb_pdp_olap
+                            WHERE DATE = (SELECT max_date FROM current_date_cte)
+                              AND Comp_flag = 0
+                              AND Platform IN (${platListStr})
+                              ${pdpFilterClause}
+                            GROUP BY Platform
+                        `;
+                        let overallOsaMap = {};
+                        try {
+                            const overallRows = await queryAdminDB(overallQuery);
+                            overallRows.forEach(r => {
+                                overallOsaMap[r.Platform] = `₹${parseFloat(r.overall_offtake || 0).toLocaleString('en-IN', {maximumFractionDigits:2})}`;
+                            });
+                        } catch (err) {
+                            console.warn(`[AlertCron] Overall Offtake query failed for ${dbName}:`, err.message);
+                        }
+
+                        dynamicEmailData = platforms.map(plat => {
+                            const platDrops = drops.filter(d => d.Platform === plat);
+                            return {
+                                platformName: plat,
+                                overallOsa: overallOsaMap[plat] || null,
+                                overallLabel: 'Overall Offtake',
+                                headers: ['Product', 'Current Offtake', 'L30 Avg Offtake', 'Delta'],
+                                rows: platDrops.map(d => [
+                                    d.sku || 'Unknown', 
+                                    `₹${parseFloat(d.current_offtake || 0).toLocaleString('en-IN', {maximumFractionDigits:2})}`, 
+                                    `₹${parseFloat(d.l30_avg_offtake || 0).toLocaleString('en-IN', {maximumFractionDigits:2})}`, 
+                                    parseFloat(d.delta || 0).toFixed(2) + '%'
+                                ]),
+                                rawDrops: platDrops
+                            };
+                        });
+                    }
+                }
+                // Rule 8: WhatsApp Tests 2-4
                 else if (alertType.startsWith('whatsapp_test')) {
                     isTriggered = true;
                     isDynamicAlert = false;
@@ -1628,7 +1870,7 @@ export const runEmailAlertsJob = async () => {
                             let waAlerts = null;   // AlertEntry[]  – used when available
                             let waLines  = null;   // string        – legacy fallback
 
-                            if (alertType === 'low_osa_product' || alertType.startsWith('whatsapp_test')) {
+                            if (alertType === 'low_osa_product' || alertType === 'low_osa_city' || alertType === 'low_offtake_product' || alertType.startsWith('whatsapp_test')) {
                                 if (alertType === 'low_osa_product') {
                                     // ── low_osa_product: structured AlertEntry[] with OSA metrics ──
                                     const opSym1 = formatOperatorSymbol(alert.conditional_operator);
@@ -1668,8 +1910,82 @@ export const runEmailAlertsJob = async () => {
                                             skus:      [],
                                         }];
                                     }
-                                } else if (alertType === 'whatsapp_test_2') {
-                                    waLines = `WhatsApp Test 2 (Template B) successful for ${companyDisplayName}! Placeholder data for Test 2.`;
+                                } else if (alertType === 'low_osa_city') {
+                                    const opSym1 = formatOperatorSymbol(alert.conditional_operator);
+                                    const thresholdStr1 = (alert.threshold_value !== undefined && alert.threshold_value !== null)
+                                        ? `${opSym1} ${threshold}%`.trim()
+                                        : null;
+
+                                    if (Array.isArray(dynamicEmailData) && dynamicEmailData.length > 0) {
+                                        waAlerts = dynamicEmailData.map((p) => {
+                                            const cityLines = Array.isArray(p.rawDrops)
+                                                ? p.rawDrops.slice(0, 5).map(d => {
+                                                    const name     = (d.city || 'Unknown').trim();
+                                                    const curr     = parseFloat(d.osa_yesterday   || 0).toFixed(1);
+                                                    const prev     = parseFloat(d.osa_db_yesterday || 0).toFixed(1);
+                                                    const delta    = parseFloat(d.delta           || 0);
+                                                    const absDelta = Math.abs(delta).toFixed(1);
+                                                    const trend    = delta < 0 ? '🔻' : '🔺';
+                                                    return `${name}\r  OSA dropped from ${prev}% to ${curr}% (${trend} ${absDelta}%)`;
+                                                })
+                                                : [];
+                                            return {
+                                                title:      alert.alert_name || 'Alert',
+                                                platform:   p.platformName  || null,
+                                                threshold:  thresholdStr1   || null,
+                                                overallOsa: p.overallOsa    || null,
+                                                impactedItemName: 'City',
+                                                skus:       cityLines,
+                                            };
+                                        });
+                                    } else {
+                                        waAlerts = [{
+                                            title:     alert.alert_name || 'Alert',
+                                            platform:  null,
+                                            threshold: thresholdStr1 || null,
+                                            impactedItemName: 'City',
+                                            skus:      [],
+                                        }];
+                                    }
+                                } else if (alertType === 'low_offtake_product') {
+                                    const opSym1 = formatOperatorSymbol(alert.conditional_operator);
+                                    const thresholdStr1 = (alert.threshold_value !== undefined && alert.threshold_value !== null)
+                                        ? `${opSym1} ${threshold}%`.trim()
+                                        : null;
+
+                                    if (Array.isArray(dynamicEmailData) && dynamicEmailData.length > 0) {
+                                        waAlerts = dynamicEmailData.map((p) => {
+                                            const offtakeLines = Array.isArray(p.rawDrops)
+                                                ? p.rawDrops.slice(0, 5).map(d => {
+                                                    const name     = (d.sku || 'Unknown').trim();
+                                                    const curr     = `₹${parseFloat(d.current_offtake || 0).toLocaleString('en-IN', {maximumFractionDigits:2})}`;
+                                                    const prev     = `₹${parseFloat(d.l30_avg_offtake || 0).toLocaleString('en-IN', {maximumFractionDigits:2})}`;
+                                                    const delta    = parseFloat(d.delta           || 0);
+                                                    const absDelta = Math.abs(delta).toFixed(1);
+                                                    const trend    = delta < 0 ? '🔻' : '🔺';
+                                                    return `${name}\r  Offtake dropped from ${prev} to ${curr} (${trend} ${absDelta}%)`;
+                                                })
+                                                : [];
+                                            return {
+                                                title:      alert.alert_name || 'Alert',
+                                                platform:   p.platformName  || null,
+                                                threshold:  thresholdStr1   || null,
+                                                overallOsa: p.overallOsa    || null,
+                                                overallLabel: 'Overall Offtake',
+                                                impactedItemName: 'Product',
+                                                skus:       offtakeLines,
+                                            };
+                                        });
+                                    } else {
+                                        waAlerts = [{
+                                            title:     alert.alert_name || 'Alert',
+                                            platform:  null,
+                                            threshold: thresholdStr1 || null,
+                                            overallLabel: 'Overall Offtake',
+                                            impactedItemName: 'Product',
+                                            skus:      [],
+                                        }];
+                                    }
                                 } else if (alertType === 'whatsapp_test_3') {
                                     waLines = `WhatsApp Test 3 (Template C) successful for ${companyDisplayName}! Placeholder data for Test 3.`;
                                 } else if (alertType === 'whatsapp_test_4') {

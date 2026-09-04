@@ -101,22 +101,27 @@ export const buildAlertBodyParam = (alerts) => {
         const threshold = sanitizeSegment(entry.threshold);
         if (threshold) lines.push(`Threshold: ${threshold}`);
 
-        // Overall OSA — only when data is present
+        // Overall Metric — only when data is present
         const overallOsa = sanitizeSegment(entry.overallOsa);
-        if (overallOsa) lines.push(`Overall OSA: ${overallOsa}`);
+        if (overallOsa) {
+            const overallLabel = sanitizeSegment(entry.overallLabel) || 'Overall OSA';
+            lines.push(`${overallLabel}: ${overallOsa}`);
+        }
 
         // Blank line between the header block and the SKU section
         lines.push('');
 
         // SKU list
         const skuList = Array.isArray(entry.skus) ? entry.skus.filter(Boolean) : [];
+        const itemName = entry.impactedItemName || 'SKU';
+        const itemNamePlural = itemName === 'City' ? 'Cities' : itemName + 's';
         if (skuList.length === 0) {
-            lines.push('No impacted SKUs.');
+            lines.push(`No impacted ${itemNamePlural}.`);
         } else {
             const count = skuList.length;
-            const label = count === 1 ? '1 Impacted SKU:' : `${count} Impacted SKUs:`;
+            const label = count === 1 ? `1 Impacted ${itemName}:` : `${count} Impacted ${itemNamePlural}:`;
             lines.push(label);
-            // Each SKU on its own line, prefixed with bullet
+            // Each item on its own line, prefixed with bullet
             skuList.forEach((s) => lines.push(`\u2022 ${sanitizeSegment(String(s))}`) );
         }
 
@@ -156,16 +161,22 @@ export const buildAlertBodyText = (alerts) => {
         if (threshold) lines.push(`Threshold: ${threshold}`);
 
         const overallOsa = (entry.overallOsa || '').trim();
-        if (overallOsa) lines.push(`Overall OSA: ${overallOsa}`);
+        if (overallOsa) {
+            const overallLabel = (entry.overallLabel || 'Overall OSA').trim();
+            lines.push(`${overallLabel}: ${overallOsa}`);
+        }
 
         lines.push(''); // blank line before SKU count
 
         const skuList = Array.isArray(entry.skus) ? entry.skus.filter(Boolean) : [];
+        const itemName = entry.impactedItemName || 'SKU';
+        const itemNamePlural = itemName === 'City' ? 'Cities' : itemName + 's';
+        
         if (skuList.length === 0) {
-            lines.push('No impacted SKUs.');
+            lines.push(`No impacted ${itemNamePlural}.`);
         } else {
             const count = skuList.length;
-            const label = count === 1 ? '1 Impacted SKU:' : `${count} Impacted SKUs:`;
+            const label = count === 1 ? `1 Impacted ${itemName}:` : `${count} Impacted ${itemNamePlural}:`;
             lines.push(label);
             skuList.forEach((s) => lines.push(String(s).trim()));
         }

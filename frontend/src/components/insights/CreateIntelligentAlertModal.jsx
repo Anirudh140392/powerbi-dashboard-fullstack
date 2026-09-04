@@ -90,8 +90,8 @@ const ALERT_PRESETS = [
         severity: "Low",
     },
     {
-        id: "whatsapp_test_2",
-        name: "WhatsApp Test 2 (Template B)",
+        id: "low_osa_city",
+        name: "Low OSA – City Level | vs Previous Day",
         category: "Testing & Diagnostics",
         metrics: ["Connectivity"],
         formula: "Tests WhatsApp template integration 2",
@@ -101,15 +101,15 @@ const ALERT_PRESETS = [
         severity: "Low",
     },
     {
-        id: "whatsapp_test_3",
-        name: "WhatsApp Test 3 (Template C)",
-        category: "Testing & Diagnostics",
-        metrics: ["Connectivity"],
-        formula: "Tests WhatsApp template integration 3",
-        condition: "Manual / Scheduled Trigger",
-        operator: "eq",
+        id: "low_offtake_product",
+        name: "Low Offtake – Product Level | vs L30 Days AVG",
+        category: "Inventory & On-Shelf Availability",
+        metrics: ["Offtake Drop"],
+        formula: "Current Offtake vs L30 Avg",
+        condition: "Current Offtake drops below threshold compared to L30 Avg",
+        operator: "gt",
         defaultThreshold: "10",
-        severity: "Low",
+        severity: "High",
     },
     {
         id: "whatsapp_test_4",
@@ -229,7 +229,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
 
     const selectedPresets = ALERT_PRESETS.filter(p => selectedPresetIds.includes(p.id));
     const isPerformanceSummarySelected = selectedPresetIds.includes("category_perf_summary") || selectedPresetIds.includes("ptd_perf_summary");
-    const isWhatsAppTestSelected = selectedPresetIds.some(id => id.startsWith("whatsapp_test") || id === "low_osa_product");
+    const isWhatsAppTestSelected = selectedPresetIds.some(id => id.startsWith("whatsapp_test") || id === "low_osa_product" || id === "low_osa_city" || id === "low_offtake_product");
     // eslint-disable-next-line no-unused-vars
     const isWeeklyForced = selectedPresetIds.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id));
 
