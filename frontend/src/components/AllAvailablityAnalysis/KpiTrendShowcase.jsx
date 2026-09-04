@@ -1076,6 +1076,12 @@ const KPI_KEYS = [
     unit: "%",
   },
   {
+    key: "OfftakeShare",
+    label: "Offtake Share %",
+    color: "#0EA5E9",
+    unit: "%",
+  },
+  {
     key: "Psl",
     label: "PSL",
     color: "#8B5CF6",
@@ -1119,6 +1125,12 @@ const MARKET_SHARE_KPI_KEYS = [
     key: "MarketShare",
     label: "MARKET SHARE%",
     color: "#14B8A6",
+    unit: "%",
+  },
+  {
+    key: "OfftakeShare",
+    label: "Offtake Share %",
+    color: "#0EA5E9",
     unit: "%",
   },
   {
@@ -1864,9 +1876,10 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
       const assortmentVal = getVal(b.Assortment?.value, b.assortment?.value, b.Assortment, b.assortment);
       const catShareVal = getVal(b.CategoryShare?.value, b.categoryShare?.value, b.CategoryShare, b.categoryShare);
       const mktShareVal = getVal(b.MarketShare?.value, b.marketShare?.value, b.MarketShare, b.marketShare);
+      const offtakeShareVal = getVal(b.OfftakeShare?.value, b.offtakeShare?.value, b.OfftakeShare, b.offtake_share) ?? catShareVal;
       return {
-        id: b.brand_name || `brand-${idx}`,
-        name: b.brand_name || 'Unknown',
+        id: b.brand_name || b.name || `brand-${idx}`,
+        name: b.brand_name || b.name || 'Unknown',
         // lowercase keys (legacy)
         osa: osaVal, osaDelta: b.OSA?.delta ?? b.osa?.delta ?? 0,
         sos: sosVal, sosDelta: b.SOS?.delta ?? b.sos?.delta ?? 0,
@@ -1875,12 +1888,14 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         assortment: assortmentVal,
         categoryShare: catShareVal, categoryShareDelta: b.CategoryShare?.delta ?? b.categoryShare?.delta ?? 0,
         marketShare: mktShareVal, marketShareDelta: b.MarketShare?.delta ?? b.marketShare?.delta ?? 0,
+        offtakeShare: offtakeShareVal, offtakeShareDelta: b.OfftakeShare?.delta ?? b.offtakeShare?.delta ?? 0,
         // TitleCase keys — these MUST match KPI_KEYS[].key for table rendering
         Osa: osaVal,
         Listing: listingVal,
         Assortment: assortmentVal,
         MarketShare: mktShareVal,
         CategoryShare: catShareVal,
+        OfftakeShare: offtakeShareVal,
         // Formatting fields for display components
         CategorySize: b.CategorySize?.value ?? b.CategorySize ?? 0,
         Sales: b.Sales?.value ?? b.Sales ?? 0,
@@ -1928,6 +1943,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
       const assortmentVal = getVal(s.Assortment?.value, s.assortment?.value, s.Assortment, s.assortment);
       const catShareVal = getVal(s.CategoryShare?.value, s.categoryShare?.value, s.CategoryShare, s.categoryShare);
       const mktShareVal = getVal(s.MarketShare?.value, s.marketShare?.value, s.MarketShare, s.marketShare);
+      const offtakeShareVal = getVal(s.OfftakeShare?.value, s.offtakeShare?.value, s.OfftakeShare, s.offtake_share) ?? catShareVal;
       return {
         id: s.sku_name || `sku-${idx}`,
         name: s.sku_name || 'Unknown',
@@ -1940,12 +1956,14 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         assortment: assortmentVal,
         categoryShare: catShareVal, categoryShareDelta: s.CategoryShare?.delta ?? s.categoryShare?.delta ?? 0,
         marketShare: mktShareVal, marketShareDelta: s.MarketShare?.delta ?? s.marketShare?.delta ?? 0,
+        offtakeShare: offtakeShareVal, offtakeShareDelta: s.OfftakeShare?.delta ?? s.offtakeShare?.delta ?? 0,
         // TitleCase keys — these MUST match KPI_KEYS[].key for table rendering
         Osa: osaVal,
         Listing: listingVal,
         Assortment: assortmentVal,
         MarketShare: mktShareVal,
         CategoryShare: catShareVal,
+        OfftakeShare: offtakeShareVal,
         // Formatting fields for display components
         CategorySize: s.CategorySize?.value ?? s.CategorySize ?? 0,
         Sales: s.Sales?.value ?? s.Sales ?? 0,
