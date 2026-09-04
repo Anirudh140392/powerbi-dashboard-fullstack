@@ -790,7 +790,7 @@ export const runEmailAlertsJob = async () => {
                             ),
                             weekly_product_stats AS (
                                 SELECT
-                                    Platform, Web_Pid, any(Product) AS Product, any(msl) AS msl,
+                                    Platform, Web_Pid, any(Product) AS ProductName, any(msl) AS msl,
                                     subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
                                     sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
                                     sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
@@ -801,12 +801,12 @@ export const runEmailAlertsJob = async () => {
                             ),
                             weekly_osa AS (
                                 SELECT
-                                    Platform, Web_Pid, Product, msl, week_start,
+                                    Platform, Web_Pid, ProductName, msl, week_start,
                                     if(deno > 0, neno / deno * 100, 100) AS osa
                                 FROM weekly_product_stats
                             ),
                             current_week AS (
-                                SELECT w.Platform, w.Web_Pid, w.Product, w.msl, w.osa
+                                SELECT w.Platform, w.Web_Pid, w.ProductName, w.msl, w.osa
                                 FROM weekly_osa w
                                 CROSS JOIN week_boundaries b
                                 WHERE w.week_start = b.current_week_start
@@ -821,7 +821,7 @@ export const runEmailAlertsJob = async () => {
                             ),
                             product_metrics AS (
                                 SELECT
-                                    c.Platform, c.Web_Pid, c.Product, c.msl, c.osa, l.l4w_avg, c.osa - l.l4w_avg AS delta
+                                    c.Platform, c.Web_Pid, c.ProductName, c.msl, c.osa, l.l4w_avg, c.osa - l.l4w_avg AS delta
                                 FROM current_week c
                                 LEFT JOIN l4w l ON c.Platform = l.Platform AND c.Web_Pid = l.Web_Pid
                             ),
@@ -831,7 +831,7 @@ export const runEmailAlertsJob = async () => {
                                 GROUP BY Platform
                             )
                         SELECT
-                            m.Platform, m.Web_Pid, m.Product, m.msl, m.osa, m.l4w_avg, m.delta
+                            m.Platform, m.Web_Pid, m.ProductName AS Product, m.msl, m.osa, m.l4w_avg, m.delta
                         FROM product_metrics m
                         INNER JOIN bottom_threshold t ON m.Platform = t.Platform
                         WHERE m.osa <= t.threshold AND m.osa > 0
