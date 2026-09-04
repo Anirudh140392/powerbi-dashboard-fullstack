@@ -803,7 +803,7 @@ const PlatformOverviewNew = ({
         setApiLoading(true)
         setApiError(null)
         // Reset lastFetchedKey so the effect will re-trigger the fetch
-        lastFetchedKey.current = null;
+        setLastFetchedKey(null);
         const currentFetchId = ++fetchIdRef.current;
         await fetchDimensionDataRef.current(currentFetchId)
         setIsRetrying(false)
