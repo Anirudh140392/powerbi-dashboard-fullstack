@@ -147,7 +147,7 @@ ${escapeHtml(String(categoryName || '').toUpperCase())}
 <tr>
 <td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA;">METRIC</td>
 <td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">Current Week</td>
-<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">Last 4 Week</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">Prev Week</td>
 <td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">DELTA</td>
 </tr>
 </table>
@@ -165,6 +165,140 @@ ${rows.join('')}
 };
 
 /**
+ * Build the insight narrative block for a platform.
+ * Derives 3-5 data-driven sentences from aggregated KPI data.
+ */
+const buildPlatformInsights = (categoryCards) => {
+    if (!categoryCards || categoryCards.length === 0) return '';
+
+    const r1 = (v) => parseFloat(parseFloat(v).toFixed(1));
+
+    // ── 1. Aggregate totals for the platform ──────────────────────
+    let totalCwGmv = 0, totalPwGmv = 0;
+    let totalCwUnits = 0, totalPwUnits = 0;
+    let totalCwAdSpend = 0, totalPwAdSpend = 0;
+
+    for (const card of categoryCards) {
+        const k = card.kpis;
+        totalCwGmv    += k.gmv.current;
+        totalPwGmv    += k.gmv.previous;
+        totalCwUnits  += k.qtySold.current;
+        totalPwUnits  += k.qtySold.previous;
+        totalCwAdSpend += k.adSpend.current;
+        totalPwAdSpend += k.adSpend.previous;
+    }
+
+    const gmvDelta    = totalPwGmv   > 0 ? r1(((totalCwGmv - totalPwGmv) / totalPwGmv) * 100)       : 0;
+    const unitsDelta  = totalPwUnits > 0 ? r1(((totalCwUnits - totalPwUnits) / totalPwUnits) * 100)   : 0;
+    const adDelta     = totalPwAdSpend > 0 ? r1(((totalCwAdSpend - totalPwAdSpend) / totalPwAdSpend) * 100) : 0;
+
+    // ── 2. Per-category analysis ──────────────────────────────────
+    // Sort by absolute GMV delta desc for best/worst
+    const sorted = [...categoryCards].sort((a, b) => {
+        const da = a.kpis.gmv.previous > 0 ? ((a.kpis.gmv.current - a.kpis.gmv.previous) / a.kpis.gmv.previous) : 0;
+        const db = b.kpis.gmv.previous > 0 ? ((b.kpis.gmv.current - b.kpis.gmv.previous) / b.kpis.gmv.previous) : 0;
+        return db - da;
+    });
+
+    const bestCat  = sorted[0];
+    const worstCat = sorted[sorted.length - 1];
+
+    // Discount direction — average across categories
+    const discDeltas = categoryCards.map(c => c.kpis.discounting.delta);
+    const avgDiscDelta = discDeltas.length > 0 ? r1(discDeltas.reduce((s, v) => s + v, 0) / discDeltas.length) : 0;
+
+    // TACoS direction — find highest and lowest TACoS cats
+    const tacosRanked = [...categoryCards].sort((a, b) => a.kpis.tacos.current - b.kpis.tacos.current);
+    const highTacosCat = tacosRanked[tacosRanked.length - 1];
+    const lowTacosCat  = tacosRanked[0];
+
+    // SOS leader
+    const sosSorted = [...categoryCards].sort((a, b) => b.kpis.sos.current - a.kpis.sos.current);
+    const sosLeader = sosSorted[0];
+
+    // ── 3. Compose sentences ──────────────────────────────────────
+    const sentences = [];
+
+    // GMV & units headline
+    const gmvDir   = gmvDelta  >= 0 ? 'up' : 'down';
+    const unitDir  = unitsDelta >= 0 ? 'up' : 'down';
+    const gmvAbs   = Math.abs(gmvDelta).toFixed(1);
+    const unitAbs  = Math.abs(unitsDelta).toFixed(1);
+    sentences.push(
+        `Overall GMV was <strong>${gmvDir} ${gmvAbs}% WoW</strong>, ` +
+        `driven by a ${unitAbs}% ${unitDir} in units sold.`
+    );
+
+    // Discount sentence
+    if (Math.abs(avgDiscDelta) >= 0.1) {
+        const discDir = avgDiscDelta > 0 ? 'increased' : 'decreased';
+        sentences.push(
+            `Average weighted discount <strong>${discDir} by ${Math.abs(avgDiscDelta).toFixed(1)}pp</strong> vs prior week.`
+        );
+    } else {
+        sentences.push('Discount levels remained broadly stable WoW.');
+    }
+
+    // Best & worst category
+    if (bestCat && worstCat && bestCat.categoryName !== worstCat.categoryName) {
+        const bestDelta  = r1(bestCat.kpis.gmv.delta);
+        const worstDelta = r1(worstCat.kpis.gmv.delta);
+        const bestDir  = bestDelta  >= 0 ? '+' : '';
+        const worstDir = worstDelta >= 0 ? '+' : '';
+        sentences.push(
+            `<strong>${escapeHtml(bestCat.categoryName)}</strong> led GMV growth (${bestDir}${bestDelta.toFixed(1)}% WoW); ` +
+            `<strong>${escapeHtml(worstCat.categoryName)}</strong> lagged (${worstDir}${worstDelta.toFixed(1)}% WoW).`
+        );
+    } else if (bestCat) {
+        const bestDelta = r1(bestCat.kpis.gmv.delta);
+        const bestDir = bestDelta >= 0 ? '+' : '';
+        sentences.push(`<strong>${escapeHtml(bestCat.categoryName)}</strong> drove GMV this week (${bestDir}${bestDelta.toFixed(1)}% WoW).`);
+    }
+
+    // TACoS efficiency
+    if (highTacosCat && lowTacosCat && highTacosCat.categoryName !== lowTacosCat.categoryName) {
+        sentences.push(
+            `Ad efficiency: <strong>${escapeHtml(lowTacosCat.categoryName)}</strong> had the lowest TACoS ` +
+            `(${r1(lowTacosCat.kpis.tacos.current).toFixed(1)}%), while ` +
+            `<strong>${escapeHtml(highTacosCat.categoryName)}</strong> had the highest ` +
+            `(${r1(highTacosCat.kpis.tacos.current).toFixed(1)}%).`
+        );
+    } else if (highTacosCat) {
+        sentences.push(`TACoS was ${r1(highTacosCat.kpis.tacos.current).toFixed(1)}% this week.`);
+    }
+
+    // SOS leader
+    if (sosLeader && r1(sosLeader.kpis.sos.current) > 0) {
+        const sosDelta  = r1(sosLeader.kpis.sos.delta);
+        const sosChange = Math.abs(sosDelta) >= 0.1
+            ? ` (${sosDelta >= 0 ? '+' : ''}${sosDelta.toFixed(1)}pp WoW)`
+            : '';
+        sentences.push(
+            `<strong>${escapeHtml(sosLeader.categoryName)}</strong> held the strongest share of search ` +
+            `at ${r1(sosLeader.kpis.sos.current).toFixed(1)}%${sosChange}.`
+        );
+    }
+
+    // ── 4. Render HTML ────────────────────────────────────────────
+    const bulletHtml = sentences
+        .map(s => `<tr><td style="padding:3px 0; font-family:Arial,Helvetica,sans-serif; font-size:11px; color:#16224A; line-height:1.55;">&bull;&nbsp;${s}</td></tr>`)
+        .join('\n');
+
+    return `
+<!-- Platform Insights -->
+<tr>
+<td style="padding:13px 17px 10px 17px; background-color:#F7F9FF; border-top:1px solid #DCE9FE; border-bottom:1px solid #DCE9FE;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="padding-bottom:7px; font-family:Arial,Helvetica,sans-serif; font-size:9px; font-weight:bold; letter-spacing:.5px; text-transform:uppercase; color:#2F5FEA;">Platform Insights</td>
+</tr>
+${bulletHtml}
+</table>
+</td>
+</tr>`;
+};
+
+/**
  * Build a platform card with all its categories.
  */
 const buildPlatformSection = (platformName, categoryCards, currency = '₹') => {
@@ -172,6 +306,8 @@ const buildPlatformSection = (platformName, categoryCards, currency = '₹') => 
     for (const card of categoryCards) {
         categoriesHtml += buildCategoryTable(card.categoryName, card.kpis, currency);
     }
+
+    const insightsHtml = buildPlatformInsights(categoryCards);
 
     return `
 <!-- PLATFORM: ${escapeHtml(platformName)} -->
@@ -185,6 +321,8 @@ const buildPlatformSection = (platformName, categoryCards, currency = '₹') => 
 ${escapeHtml(platformName)}
 </td>
 </tr>
+
+${insightsHtml}
 
 <!-- Category tables -->
 ${categoriesHtml}
@@ -293,7 +431,7 @@ ${logoHtml}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr>
 <td valign="middle" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#5C6B94;">
-Weekly snapshot &middot; CW as of ${currentDisplay} vs L4W Avg (${previousDisplay})
+Weekly snapshot &middot; CW as of ${currentDisplay} vs PW (${previousDisplay})
 </td>
 <td valign="middle" align="right">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right" style="background-color:#EAF0FF; border-radius:999px;">
