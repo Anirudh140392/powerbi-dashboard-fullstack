@@ -9038,15 +9038,39 @@ const getCompetitionData = async (filters = {}) => {
         const validBrandNames = validBrandsResult.map(b => b.brand_name).filter(Boolean);
         console.log(`[getCompetitionData] Valid brands (comp_flag=0): ${validBrandNames.length}`);
 
+        // 🔹 Calculate date range for rb_ms_olap (Market Share & Offtake Share)
+        let msEndDate = (filters.startDate && filters.endDate) ? dayjs(filters.endDate) : null;
+        let msStartDate = (filters.startDate && filters.endDate) ? dayjs(filters.startDate) : null;
+
+        if (!msEndDate || !msStartDate) {
+            const maxMsCond = (platArr && platArr.length > 0)
+                ? `WHERE sales IS NOT NULL AND sales > 0 AND lower(platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`
+                : `WHERE sales IS NOT NULL AND sales > 0`;
+            const maxMsResult = await queryClickHouse(`SELECT max(toDate(created_on)) as max_date FROM rb_ms_olap ${maxMsCond}`);
+            const rawMaxMs = maxMsResult[0]?.max_date;
+            if (rawMaxMs && dayjs(rawMaxMs).isValid()) {
+                msEndDate = dayjs(rawMaxMs);
+            } else {
+                msEndDate = dayjs();
+            }
+            msStartDate = msEndDate.clone().subtract(days, 'days');
+        }
+
+        const msMomStartDate = msStartDate.clone().subtract(days, 'days');
+        const msMomEndDate = msStartDate.clone().subtract(1, 'day');
+
         // Build Market Share conditions for rb_brand_ms
-        const buildMsConds = (includeBrandFilter = false) => {
-            const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+        const buildMsConds = (startDt = msStartDate, endDt = msEndDate, includeBrandFilter = false) => {
+            const conds = [`toDate(created_on) BETWEEN '${startDt.format('YYYY-MM-DD')}' AND '${endDt.format('YYYY-MM-DD')}'`];
             conds.push(`sales IS NOT NULL`);
             if (platArr && platArr.length > 0) {
                 conds.push(`lower(platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
             }
             if (locArr && locArr.length > 0) {
                 conds.push(`lower(location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            }
+            if (catArr && catArr.length > 0) {
+                conds.push(`lower(category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
             }
             if (includeBrandFilter && validBrandNames.length > 0) {
                 const brandList = validBrandNames.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
@@ -9056,8 +9080,8 @@ const getCompetitionData = async (filters = {}) => {
         };
 
         // Build Category Share conditions for rb_brand_ms (category-level)
-        const buildCategoryConds = (includeBrandFilter = false) => {
-            const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+        const buildCategoryConds = (startDt = msStartDate, endDt = msEndDate, includeBrandFilter = false) => {
+            const conds = [`toDate(created_on) BETWEEN '${startDt.format('YYYY-MM-DD')}' AND '${endDt.format('YYYY-MM-DD')}'`];
             conds.push(`sales IS NOT NULL`);
             if (platArr && platArr.length > 0) {
                 conds.push(`lower(platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
@@ -9155,13 +9179,13 @@ const getCompetitionData = async (filters = {}) => {
             queryClickHouse(`
                 SELECT SUM(toFloat64OrZero(toString(sales))) as total_cat_sales
                 FROM rb_ms_olap
-                WHERE ${buildCategoryConds(false)}
+                WHERE ${buildCategoryConds(msStartDate, msEndDate, false)}
             `),
             // Query 7: Our brands category sales from rb_ms_olap (Category Share numerator)
             queryClickHouse(`
                 SELECT SUM(toFloat64OrZero(toString(sales))) as our_cat_sales
                 FROM rb_ms_olap
-                WHERE ${buildCategoryConds(true)}
+                WHERE ${buildCategoryConds(msStartDate, msEndDate, true)}
             `),
             // Query 8: SOS Deno (Overall) from rb_kw_olap - Current Period
             queryClickHouse(`
@@ -9259,8 +9283,8 @@ const getCompetitionData = async (filters = {}) => {
         const msBrandFilter = competitorBrands.length > 0 ? competitorBrands : validBrandNamesForNum;
 
         // Use centralized Market Share helper for consistent AVG(nation_level_market_share) logic
-        const msMapCurr = await getMarketShareByBrand(startDate, endDate, platform, category, msBrandFilter, location, channel);
-        const msMapPrev = await getMarketShareByBrand(momStartDate, momEndDate, platform, category, msBrandFilter, location, channel);
+        const msMapCurr = await getMarketShareByBrand(msStartDate, msEndDate, platform, category, msBrandFilter, location, channel);
+        const msMapPrev = await getMarketShareByBrand(msMomStartDate, msMomEndDate, platform, category, msBrandFilter, location, channel);
 
         const brandSalesMap = new Map();
         const brandSalesMapPrev = new Map();
@@ -9274,13 +9298,13 @@ const getCompetitionData = async (filters = {}) => {
             queryClickHouse(`
                 SELECT group_brand as brand, SUM(toFloat64OrZero(toString(sales))) as brand_sales
                 FROM rb_ms_olap
-                WHERE ${buildMsConds(false)}
+                WHERE ${buildMsConds(msStartDate, msEndDate, false)}
                 GROUP BY group_brand
             `),
             queryClickHouse(`
                 SELECT group_brand as brand, SUM(toFloat64OrZero(toString(sales))) as brand_sales
                 FROM rb_ms_olap
-                WHERE ${buildMsConds(false).replace(startDate.format('YYYY-MM-DD'), momStartDate.format('YYYY-MM-DD')).replace(endDate.format('YYYY-MM-DD'), momEndDate.format('YYYY-MM-DD'))}
+                WHERE ${buildMsConds(msMomStartDate, msMomEndDate, false)}
                 GROUP BY group_brand
             `)
         ]);
@@ -9289,12 +9313,17 @@ const getCompetitionData = async (filters = {}) => {
 
         // Query per-category sales from rb_ms_olap for Category Share calculation
         // This gets total sales and our brands' sales per category
-        const baseMsConds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `sales IS NOT NULL`];
+        const baseMsConds = [`toDate(created_on) BETWEEN '${msStartDate.format('YYYY-MM-DD')}' AND '${msEndDate.format('YYYY-MM-DD')}'`, `sales IS NOT NULL`];
         const msPlatArr = normalizeFilterArray(platform);
-        if (msPlatArr && msPlatArr.length > 0) baseMsConds.push(`platform IN(${msPlatArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+        if (msPlatArr && msPlatArr.length > 0) baseMsConds.push(`lower(platform) IN (${msPlatArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
 
         const msLocArr = normalizeFilterArray(location);
-        if (msLocArr && msLocArr.length > 0) baseMsConds.push(`location IN(${msLocArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+        if (msLocArr && msLocArr.length > 0) baseMsConds.push(`lower(location) IN (${msLocArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+
+        const msCatArr = normalizeFilterArray(category);
+        if (msCatArr && msCatArr.length > 0) baseMsConds.push(`lower(category) IN (${msCatArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+
+        const baseMsCondsPrev = baseMsConds.map(c => c.replace(msStartDate.format('YYYY-MM-DD'), msMomStartDate.format('YYYY-MM-DD')).replace(msEndDate.format('YYYY-MM-DD'), msMomEndDate.format('YYYY-MM-DD')));
 
         const [categorySalesQuery, categoryOurBrandsSalesQuery, categorySalesQueryPrev, categoryOurBrandsSalesQueryPrev] = await Promise.all([
             // Total sales per category
@@ -9316,14 +9345,14 @@ const getCompetitionData = async (filters = {}) => {
             queryClickHouse(`
                 SELECT category, SUM(toFloat64OrZero(toString(sales))) as total_cat_sales
                 FROM rb_ms_olap
-                WHERE ${baseMsConds.join(' AND ').replace(startDate.format('YYYY-MM-DD'), momStartDate.format('YYYY-MM-DD')).replace(endDate.format('YYYY-MM-DD'), momEndDate.format('YYYY-MM-DD'))} AND category IS NOT NULL AND category != ''
+                WHERE ${baseMsCondsPrev.join(' AND ')} AND category IS NOT NULL AND category != ''
                 GROUP BY category
             `),
             // Prev our brands' sales per category
             validBrandNames.length > 0 ? queryClickHouse(`
                 SELECT category, SUM(toFloat64OrZero(toString(sales))) as our_cat_sales
                 FROM rb_ms_olap
-                WHERE ${baseMsConds.join(' AND ').replace(startDate.format('YYYY-MM-DD'), momStartDate.format('YYYY-MM-DD')).replace(endDate.format('YYYY-MM-DD'), momEndDate.format('YYYY-MM-DD'))} AND category IS NOT NULL AND category != ''
+                WHERE ${baseMsCondsPrev.join(' AND ')} AND category IS NOT NULL AND category != ''
                     AND group_brand IN(${validBrandNames.map(b => `'${escapeStr(b)}'`).join(', ')})
                 GROUP BY category
             `) : Promise.resolve([])
@@ -9358,7 +9387,7 @@ const getCompetitionData = async (filters = {}) => {
             queryClickHouse(`
                 SELECT item_name, any(category) as category, SUM(toFloat64OrZero(toString(sales))) as sku_sales
                 FROM rb_ms_olap
-                WHERE ${baseMsConds.join(' AND ').replace(startDate.format('YYYY-MM-DD'), momStartDate.format('YYYY-MM-DD')).replace(endDate.format('YYYY-MM-DD'), momEndDate.format('YYYY-MM-DD'))} AND item_name IS NOT NULL AND item_name != ''
+                WHERE ${baseMsCondsPrev.join(' AND ')} AND item_name IS NOT NULL AND item_name != ''
                 GROUP BY item_name
             `)
         ]);
@@ -9392,7 +9421,7 @@ const getCompetitionData = async (filters = {}) => {
             queryClickHouse(`
                 SELECT category as sub_category, SUM(toFloat64OrZero(toString(sales))) as total_sub_cat_sales
                 FROM rb_ms_olap
-                WHERE ${baseMsConds.join(' AND ').replace(startDate.format('YYYY-MM-DD'), momStartDate.format('YYYY-MM-DD')).replace(endDate.format('YYYY-MM-DD'), momEndDate.format('YYYY-MM-DD'))} AND category IS NOT NULL AND category != ''
+                WHERE ${baseMsCondsPrev.join(' AND ')} AND category IS NOT NULL AND category != ''
                 GROUP BY category
             `)
         ]);
@@ -9478,11 +9507,20 @@ const getCompetitionData = async (filters = {}) => {
 
             // Category Share: Individual brand's share in its specific category
             const lowerBrandCat = brandCategory.toLowerCase();
-            const categoryTotalSales = categoryTotalSalesMap.get(lowerBrandCat) || 0;
-            const categoryShare = hasMsData ? (categoryTotalSales > 0 ? (brandSales / categoryTotalSales) * 100 : 0) : null;
-            const categoryTotalSalesPrev = categoryTotalSalesMapPrev.get(lowerBrandCat) || 0;
-            const categorySharePrev = categoryTotalSalesPrev > 0 ? (brandSalesPrev / categoryTotalSalesPrev) * 100 : 0;
+            let categoryTotalSales = categoryTotalSalesMap.get(lowerBrandCat) || 0;
+            if (categoryTotalSales === 0) {
+                categoryTotalSales = Array.from(categoryTotalSalesMap.values()).reduce((sum, v) => sum + v, 0);
+            }
+            let categoryTotalSalesPrev = categoryTotalSalesMapPrev.get(lowerBrandCat) || 0;
+            if (categoryTotalSalesPrev === 0) {
+                categoryTotalSalesPrev = Array.from(categoryTotalSalesMapPrev.values()).reduce((sum, v) => sum + v, 0);
+            }
+            const categoryShare = (categoryTotalSales > 0 && brandSales > 0) ? (brandSales / categoryTotalSales) * 100 : (marketShare !== null ? marketShare : null);
+            const categorySharePrev = (categoryTotalSalesPrev > 0 && brandSalesPrev > 0) ? (brandSalesPrev / categoryTotalSalesPrev) * 100 : (marketSharePrev !== null ? marketSharePrev : 0);
             const categoryShareDelta = categoryShare === null ? null : calcChange(categoryShare, categorySharePrev);
+
+            const offtakeShare = categoryShare;
+            const offtakeShareDelta = categoryShareDelta;
 
             // Listing Percent
             const listingPercent = parseFloat(brand.avg_listing_percent || 0);
@@ -9504,6 +9542,8 @@ const getCompetitionData = async (filters = {}) => {
                 Price: { value: parseFloat(avgSellingPrice.toFixed(0)), delta: parseFloat(aspDelta.toFixed(2)) },
                 CategoryShare: { value: categoryShare === null ? null : parseFloat(categoryShare.toFixed(2)), delta: categoryShareDelta === null ? null : parseFloat(categoryShareDelta.toFixed(2)) },
                 MarketShare: { value: marketShare === null ? null : parseFloat(marketShare.toFixed(2)), delta: marketShareDelta === null ? null : parseFloat(marketShareDelta.toFixed(2)) },
+                OfftakeShare: { value: offtakeShare === null ? null : parseFloat(offtakeShare.toFixed(2)), delta: offtakeShareDelta === null ? null : parseFloat(offtakeShareDelta.toFixed(2)) },
+                offtake_share: offtakeShare === null ? null : parseFloat(offtakeShare.toFixed(2)),
                 ListingPercent: { value: parseFloat(listingPercent.toFixed(2)), delta: parseFloat(listingPercentDelta.toFixed(2)) },
                 Assortment: { value: parseInt(brand.assortment || 0), delta: 0 },
                 Listing: { value: parseFloat(listingPercent.toFixed(2)), delta: parseFloat(listingPercentDelta.toFixed(2)) }
@@ -9680,6 +9720,12 @@ const getCompetitionData = async (filters = {}) => {
             const categorySharePrev = skuCategoryTotalSalesPrev > 0 ? (skuBrandSalesPrev / skuCategoryTotalSalesPrev) * 100 : 0;
             const categoryShareDelta = categoryShare === null ? null : calcChange(categoryShare, categorySharePrev);
 
+            // SKU Offtake Share: SKU sales in rb_ms_olap / Total Category Sales in rb_ms_olap * 100
+            const skuOfftakeShare = (skuMsCurr !== null && skuMsCurr > 0) ? skuMsCurr : ((skuCategoryTotalSales > 0 && totalSkuSalesVal > 0) ? (totalSkuSalesVal / skuCategoryTotalSales) * 100 : 0);
+            const prevSkuSalesVal = parseFloat(prevSku.total_sales || 0);
+            const skuOfftakeSharePrev = (skuMsPrev !== null && skuMsPrev > 0) ? skuMsPrev : ((skuCategoryTotalSalesPrev > 0 && prevSkuSalesVal > 0) ? (prevSkuSalesVal / skuCategoryTotalSalesPrev) * 100 : 0);
+            const skuOfftakeShareDelta = calcChange(skuOfftakeShare, skuOfftakeSharePrev);
+
             // Listing Percent
             const skuListingPercent = parseFloat(sku.avg_listing_percent || 0);
             const prevSkuListingPercent = parseFloat(prevSku.avg_listing_percent || 0);
@@ -9695,6 +9741,8 @@ const getCompetitionData = async (filters = {}) => {
                 Price: { value: parseFloat(avgPrice.toFixed(0)), delta: parseFloat(priceDelta.toFixed(2)) },
                 CategoryShare: { value: categoryShare === null ? null : parseFloat(categoryShare.toFixed(2)), delta: categoryShareDelta === null ? null : parseFloat(categoryShareDelta.toFixed(2)) },
                 MarketShare: { value: marketShare === null ? null : parseFloat(marketShare.toFixed(2)), delta: marketShareDelta === null ? null : parseFloat(marketShareDelta.toFixed(2)) },
+                OfftakeShare: { value: parseFloat(skuOfftakeShare.toFixed(2)), delta: parseFloat(skuOfftakeShareDelta.toFixed(2)) },
+                offtake_share: parseFloat(skuOfftakeShare.toFixed(2)),
                 'Promo-My': { value: parseFloat((sku.avg_discount || 0).toFixed(2)), delta: calcChange(sku.avg_discount || 0, prevSku.avg_discount || 0) },
                 'PromoMy': { value: parseFloat((sku.avg_discount || 0).toFixed(2)), delta: calcChange(sku.avg_discount || 0, prevSku.avg_discount || 0) },
                 ListingPercent: { value: parseFloat(skuListingPercent.toFixed(2)), delta: parseFloat(skuListingPercentDelta.toFixed(2)) }
