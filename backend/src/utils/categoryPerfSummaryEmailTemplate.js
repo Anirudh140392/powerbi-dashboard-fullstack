@@ -228,45 +228,52 @@ const buildPlatformInsights = (categoryCards) => {
 
     // — Line 1: GMV + units + ad spend, Raksha Bandhan as the cause —
     if (gmvDelta >= 0) {
+        // Growth platform: Raksha Bandhan drove demand, ad spend chased the window
+        const adContext = adDelta >= 0
+            ? `ad spend rose <strong>${adAbs}%</strong> to amplify the festive gifting window.`
+            : `ad spend was optimised down <strong>${adAbs}%</strong> even as organic demand surged.`;
         sentences.push(
-            `Sales <strong>grew ${gmvAbs}% WoW</strong> (units ${unitFmt}%), fuelled by <strong>Raksha Bandhan</strong> demand; ` +
-            `ad spend ${adWord} <strong>${adAbs}%</strong> to capture the festive window.`
+            `Sales <strong>grew ${gmvAbs}% WoW</strong> (units ${unitFmt}%), with <strong>Raksha Bandhan</strong> ` +
+            `driving festive gifting demand; ${adContext}`
         );
     } else {
+        // Decline platform: sharp post-Raksha Bandhan normalisation
+        const adContext = adDelta >= 0
+            ? `ad spend was held up <strong>${adAbs}%</strong> despite the post-festival sales drop.`
+            : `ad spend ${adWord} <strong>${adAbs}%</strong> as festive budgets wound down.`;
         sentences.push(
-            `Sales <strong>fell ${gmvAbs}% WoW</strong> (units ${unitFmt}%) as <strong>Raksha Bandhan</strong> demand tapered off; ` +
-            `ad spend ${adWord} <strong>${adAbs}%</strong> in the post-festival week.`
+            `Sales <strong>fell ${gmvAbs}% WoW</strong> (units ${unitFmt}%) following the sharp ` +
+            `post-<strong>Raksha Bandhan</strong> demand normalisation; ${adContext}`
         );
     }
 
-    // — Line 2: Category leader + discount driver + SOS signal —
+    // — Line 2: Category leader + 2nd category contrast + discount context —
     if (bestCat) {
-        const bestDelta = r1(bestCat.kpis.gmv.delta);
-        const discAbs   = Math.abs(avgDiscDelta).toFixed(1);
+        const bestDelta  = r1(bestCat.kpis.gmv.delta);
+        const discAbs    = Math.abs(avgDiscDelta).toFixed(1);
 
         // Discount context suffix
         const discSuffix = Math.abs(avgDiscDelta) < 0.2
-            ? ', with discounts held flat'
+            ? ', with discounts held broadly stable'
             : avgDiscDelta > 0
-                ? `, on the back of a ${discAbs}pp discount increase`
-                : `, even as discounts pulled back ${discAbs}pp`;
+                ? `, aided by a ${discAbs}pp discount increase`
+                : `, even as discounts were reined in by ${discAbs}pp`;
 
-        // SOS suffix
-        let sosSuffix = '';
-        if (sosLeader && r1(sosLeader.kpis.sos.current) > 0) {
-            const sosDelta  = r1(sosLeader.kpis.sos.delta);
-            const sosChange = Math.abs(sosDelta) >= 0.1
-                ? ` (${fmt(sosDelta)}pp)`
-                : '';
-            sosSuffix = sosLeader.categoryName === bestCat.categoryName
-                ? ` and commanded the highest SOS at <strong>${r1(sosLeader.kpis.sos.current).toFixed(1)}%${sosChange}</strong>`
-                : `; <strong>${escapeHtml(sosLeader.categoryName)}</strong> led SOS at <strong>${r1(sosLeader.kpis.sos.current).toFixed(1)}%${sosChange}</strong>`;
+        // Second-best category as "smaller but efficient contribution" (growth) or runner-up (decline)
+        const secondCat = sorted[1];
+        let secondSuffix = '';
+        if (secondCat && secondCat.categoryName !== bestCat.categoryName) {
+            const secondDelta = r1(secondCat.kpis.gmv.delta);
+            secondSuffix = gmvDelta >= 0
+                ? `; <strong>${escapeHtml(secondCat.categoryName)}</strong> provided a smaller but efficient incremental contribution (${fmt(secondDelta)}% WoW)`
+                : `; <strong>${escapeHtml(secondCat.categoryName)}</strong> also weighed in (${fmt(secondDelta)}% WoW)`;
         }
 
+        const engineWord = gmvDelta >= 0 ? 'the primary gifting growth engine' : 'the most resilient category';
+
         sentences.push(
-            `<strong>${escapeHtml(bestCat.categoryName)}</strong> was the strongest growth engine ` +
-            `(${fmt(bestDelta)}% GMV WoW)` +
-            `${discSuffix}${sosSuffix} during this Raksha Bandhan period.`
+            `<strong>${escapeHtml(bestCat.categoryName)}</strong> was ${engineWord} ` +
+            `(${fmt(bestDelta)}% GMV WoW)${discSuffix}${secondSuffix} during the Raksha Bandhan week.`
         );
     }
 
