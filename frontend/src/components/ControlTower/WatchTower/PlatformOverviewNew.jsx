@@ -278,25 +278,25 @@ const PlatformOverviewNew = ({
         { key: 'offtakes', label: 'Offtakes' },
         { key: 'quantitySold', label: 'Quantity Sold' },
         { key: 'spend', label: 'Spend' },
+        { key: 'inorgSales', label: 'Inorganic Sales' },
+        { key: 'aov', label: 'AOV' },
+        { key: 'cpm', label: 'CPM' },
+        { key: 'cpc', label: 'CPC' },
         { key: 'tacos', label: 'TACoS' },
-        { key: 'roas_x', label: 'ROAS' },
-        { key: 'inorgSales', label: 'Inorg Sales' },
-        { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
         { key: 'wtOsa', label: 'Wt OSA' },
         { key: 'wtDiscount', label: 'Wt Discount' },
+        { key: 'asp', label: 'ASP' },
         { key: 'listingPercent', label: 'Listing %' },
-        { key: 'shareOfVolume', label: 'Share of Search' },
         { key: 'ad_sov', label: 'Ad SOV' },
         { key: 'organic_sov', label: 'Organic SOV' },
-        { key: 'cpm', label: 'CPM' },
-        { key: 'cpc', label: 'CPC' },
-        { key: 'asp', label: 'ASP' },
+        { key: 'shareOfVolume', label: 'Share of Search' },
         { key: 'marketShare', label: 'Market Share' },
         { key: 'categorySize', label: 'Category Size' },
+        { key: 'roas_x', label: 'ROAS' },
+        { key: 'conversion', label: 'Conversion' },
         { key: 'buyBoxPct', label: 'Buy Box %' },
         { key: 'deliveryTime', label: 'Delivery Time' },
-        { key: 'aov', label: 'AOV' },
     ]
     const [dimension, setDimension] = useState('platform')
     const [localPlatformFilter, setLocalPlatformFilter] = useState('All')
@@ -458,28 +458,44 @@ const PlatformOverviewNew = ({
     }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite]);
 
     const defaultKpiKeys = useMemo(() => {
-        let base = ['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'conversion', 'aov'];
+        let base = [
+            'offtakes',
+            'quantitySold',
+            'spend',
+            'inorgSales',
+            'aov',
+            'cpm',
+            'cpc',
+            'tacos',
+            'availability',
+            'wtOsa',
+            'wtDiscount',
+            'asp',
+            'listingPercent',
+            'ad_sov',
+            'organic_sov',
+            'shareOfVolume',
+            'marketShare',
+            'categorySize',
+            'roas_x',
+            'conversion'
+        ];
         const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
         const allowBuyBox = isBuyBoxPlatform(activePlat);
 
         if (dimension === 'platform') {
-            base.push('marketShare', 'categorySize');
-            if (isEcom) base.push('cpc');
+            if (isEcom) base = base.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpm');
             else if (isQuick) {
-                base.push('cpm');
-                if (isPidilite) base.push('cpc');
+                if (!isPidilite) base = base.filter(k => k !== 'cpc');
             }
-            else base.push('cpc', 'cpm');
         } else {
             if (isEcom) {
                 if (allowBuyBox) base.push('buyBoxPct');
-                base.push('deliveryTime', 'cpc');
+                base = base.filter(k => k !== 'cpm');
             } else if (isQuick) {
-                base.push('marketShare', 'categorySize', 'cpm');
-                if (isPidilite) base.push('cpc');
+                if (!isPidilite) base = base.filter(k => k !== 'cpc');
             } else {
                 if (allowBuyBox) base.push('buyBoxPct');
-                base.push('marketShare', 'categorySize', 'cpc', 'cpm');
             }
         }
 
@@ -500,7 +516,28 @@ const PlatformOverviewNew = ({
         return base;
     }, [dimension, activePlatformFilter, skuPlatformFilter, isEcom, isQuick, isSkuQcom, isPidilite]);
 
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'quantitySold', 'spend', 'tacos', 'roas_x', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
+    const [glanceKpis, setGlanceKpis] = useState([
+        'offtakes',
+        'quantitySold',
+        'spend',
+        'inorgSales',
+        'aov',
+        'cpm',
+        'cpc',
+        'tacos',
+        'availability',
+        'wtOsa',
+        'wtDiscount',
+        'asp',
+        'listingPercent',
+        'ad_sov',
+        'organic_sov',
+        'shareOfVolume',
+        'marketShare',
+        'categorySize',
+        'roas_x',
+        'conversion'
+    ])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const navigate = useNavigate()
     const [currentPage, setCurrentPage] = useState(1)

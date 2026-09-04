@@ -20,15 +20,11 @@ services:
       - REDIS_DEFAULT_TTL=${REDIS_DEFAULT_TTL:-2000}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    restart: unless-stopped
+    restart: always
     deploy:
-      resources:
-        limits:
-          memory: 4G
-          cpus: '1.5'
-        reservations:
-          memory: 1G
-          cpus: '0.5'
+      restart_policy:
+        condition: any
+        delay: 3s
 
   # ─── Ratings Backend API Service (port 3001) ───
   ratings_backend:
@@ -45,15 +41,11 @@ services:
       - API_PORT=3001
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    restart: unless-stopped
+    restart: always
     deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '1'
-        reservations:
-          memory: 512M
-          cpus: '0.25'
+      restart_policy:
+        condition: any
+        delay: 3s
 
   # ─── Content Analysis Backend API Service (port 8000) ───
   content_backend:
@@ -70,15 +62,11 @@ services:
       - PORT_COTENT=8000
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    restart: unless-stopped
+    restart: always
     deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '1'
-        reservations:
-          memory: 512M
-          cpus: '0.25'
+      restart_policy:
+        condition: any
+        delay: 3s
 
   # ─── Frontend UI Service (port 9500 → exposed as 9400) ───
   # Build context is the monorepo root because the frontend
@@ -96,12 +84,8 @@ services:
       - backend_multiple
       - ratings_backend
       - content_backend
-    restart: unless-stopped
+    restart: always
     deploy:
-      resources:
-        limits:
-          memory: 1400M
-          cpus: '1'
-        reservations:
-          memory: 512M
-          cpus: '0.5'
+      restart_policy:
+        condition: any
+        delay: 3s
