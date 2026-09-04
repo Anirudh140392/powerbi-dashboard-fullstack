@@ -336,7 +336,6 @@ export async function loginUser(email, password, deviceInfo = {}) {
         userName: user.user_name,
         dbName: dbName,
         dbId: resolvedDbId,
-        dbLogoUrl: dbLogoUrl,
         role: userRole,
         dbStatus: dbStatusBool,
         companyId,

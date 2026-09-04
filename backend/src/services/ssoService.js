@@ -317,7 +317,6 @@ export async function authenticateSsoUser(ssoPayload, deviceInfo = {}) {
             dbName: userPayload.dbName,
             dbId: userPayload.dbId,
             company_id: userPayload.company_id,
-            dbLogoUrl: userPayload.dbLogoUrl,
         },
         JWT_SECRET,
     );
