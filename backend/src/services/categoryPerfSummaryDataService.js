@@ -21,7 +21,7 @@ const CATEGORY_EXPR = `if(Category IS NOT NULL AND trim(Category) != '' AND trim
 // PDP KPIs: Offtake Units, Offtake GMV, Weighted Discount, OSA
 // CW = latest completed Sun-Sat week, L4W = prior 4 weeks avg
 // ─────────────────────────────────────────────────────────────
-const getPdpKPIsByCategory = async (dbName, platform, brands, cwStart) => {
+const getPdpKPIsByCategory = async (dbName, platform, brands, cwStart, isRolling = false) => {
     const brandClause = buildBrandClause(brands);
     const platClause = `AND lower(Platform) = '${esc(platform.trim().toLowerCase())}'`;
 
@@ -33,7 +33,7 @@ const getPdpKPIsByCategory = async (dbName, platform, brands, cwStart) => {
             weekly_cat AS (
                 SELECT
                     ${CATEGORY_EXPR} AS cat,
-                    subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
+                    ${isRolling ? `if(DATE >= b.cw_start, 'cw', 'l4w')` : `subtractDays(DATE, toDayOfWeek(DATE) % 7)`} AS week_start,
                     SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS qty,
                     SUM(ifNull(toFloat64OrZero(toString(Selling_Price)), 0) * ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS gmv,
                     SUM((ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) * ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS disc_num,
@@ -55,13 +55,13 @@ const getPdpKPIsByCategory = async (dbName, platform, brands, cwStart) => {
                 SELECT w.*
                 FROM weekly_cat w
                 CROSS JOIN week_boundaries b
-                WHERE w.week_start = b.cw_start
+                WHERE w.week_start = ${isRolling ? `'cw'` : `b.cw_start`}
             ),
             l4w AS (
                 SELECT
                     w.cat,
-                    avg(w.qty) AS qty,
-                    avg(w.gmv) AS gmv,
+                    ${isRolling ? `sum(w.qty)/4` : `avg(w.qty)`} AS qty,
+                    ${isRolling ? `sum(w.gmv)/4` : `avg(w.gmv)`} AS gmv,
                     -- For weighted metrics, we sum across all 4 weeks then compute ratio
                     sum(w.disc_num) AS disc_num,
                     sum(w.disc_den) AS disc_den,
@@ -69,8 +69,7 @@ const getPdpKPIsByCategory = async (dbName, platform, brands, cwStart) => {
                     sum(w.osa_den) AS osa_den
                 FROM weekly_cat w
                 CROSS JOIN week_boundaries b
-                WHERE w.week_start >= b.cw_start - INTERVAL 28 DAY
-                  AND w.week_start < b.cw_start
+                WHERE ${isRolling ? `w.week_start = 'l4w'` : `w.week_start >= b.cw_start - INTERVAL 28 DAY AND w.week_start < b.cw_start`}
                 GROUP BY w.cat
             )
         SELECT
@@ -105,7 +104,7 @@ const getPdpKPIsByCategory = async (dbName, platform, brands, cwStart) => {
 // Ad Spend & TACoS from rb_pm_olap
 // TACoS = Ad Spend / GMV * 100 (needs GMV from PDP)
 // ─────────────────────────────────────────────────────────────
-const getAdSpendByCategory = async (dbName, platform, brands, cwStart) => {
+const getAdSpendByCategory = async (dbName, platform, brands, cwStart, isRolling = false) => {
     const brandClause = buildBrandClause(brands);
     // rb_pm_olap uses lowercase 'platform' and 'brand'
     let pmPlatClause = '';
@@ -128,7 +127,7 @@ const getAdSpendByCategory = async (dbName, platform, brands, cwStart) => {
             weekly_cat AS (
                 SELECT
                     if(${catCol} IS NOT NULL AND trim(${catCol}) != '' AND trim(${catCol}) != '0' AND trim(${catCol}) != '-', trim(${catCol}), 'Uncategorized') AS cat,
-                    subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
+                    ${isRolling ? `if(DATE >= b.cw_start, 'cw', 'l4w')` : `subtractDays(DATE, toDayOfWeek(DATE) % 7)`} AS week_start,
                     SUM(ifNull(toFloat64OrZero(toString(ad_spend)), 0)) AS spend
                 FROM \`${dbName}\`.rb_pm_olap
                 CROSS JOIN week_boundaries b
@@ -144,16 +143,15 @@ const getAdSpendByCategory = async (dbName, platform, brands, cwStart) => {
                 SELECT w.*
                 FROM weekly_cat w
                 CROSS JOIN week_boundaries b
-                WHERE w.week_start = b.cw_start
+                WHERE w.week_start = ${isRolling ? `'cw'` : `b.cw_start`}
             ),
             l4w AS (
                 SELECT
                     w.cat,
-                    avg(w.spend) AS spend
+                    ${isRolling ? `sum(w.spend)/4` : `avg(w.spend)`} AS spend
                 FROM weekly_cat w
                 CROSS JOIN week_boundaries b
-                WHERE w.week_start >= b.cw_start - INTERVAL 28 DAY
-                  AND w.week_start < b.cw_start
+                WHERE ${isRolling ? `w.week_start = 'l4w'` : `w.week_start >= b.cw_start - INTERVAL 28 DAY AND w.week_start < b.cw_start`}
                 GROUP BY w.cat
             )
         SELECT
@@ -194,7 +192,7 @@ const getAdSpendByCategory = async (dbName, platform, brands, cwStart) => {
 // ─────────────────────────────────────────────────────────────
 // SOS from rb_kw_olap
 // ─────────────────────────────────────────────────────────────
-const getSOSByCategory = async (dbName, platform, cwStart) => {
+const getSOSByCategory = async (dbName, platform, cwStart, isRolling = false) => {
     const platClause = `AND lower(platform_name) = '${esc(platform.trim().toLowerCase())}'`;
 
     // Try keyword_category first, fallback to category
@@ -206,7 +204,7 @@ const getSOSByCategory = async (dbName, platform, cwStart) => {
             weekly_cat AS (
                 SELECT
                     ${catCol} AS cat,
-                    subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
+                    ${isRolling ? `if(DATE >= b.cw_start, 'cw', 'l4w')` : `subtractDays(DATE, toDayOfWeek(DATE) % 7)`} AS week_start,
                     ROUND(sumIf(overall, flag = 1) * 100.0 / nullIf(sum(overall), 0), 2) AS sos
                 FROM \`${dbName}\`.rb_kw_olap
                 CROSS JOIN week_boundaries b
@@ -221,7 +219,7 @@ const getSOSByCategory = async (dbName, platform, cwStart) => {
                 SELECT w.*
                 FROM weekly_cat w
                 CROSS JOIN week_boundaries b
-                WHERE w.week_start = b.cw_start
+                WHERE w.week_start = ${isRolling ? `'cw'` : `b.cw_start`}
             ),
             l4w AS (
                 SELECT
@@ -229,8 +227,7 @@ const getSOSByCategory = async (dbName, platform, cwStart) => {
                     avg(w.sos) AS sos
                 FROM weekly_cat w
                 CROSS JOIN week_boundaries b
-                WHERE w.week_start >= b.cw_start - INTERVAL 28 DAY
-                  AND w.week_start < b.cw_start
+                WHERE ${isRolling ? `w.week_start = 'l4w'` : `w.week_start >= b.cw_start - INTERVAL 28 DAY AND w.week_start < b.cw_start`}
                 GROUP BY w.cat
             )
         SELECT
@@ -281,7 +278,7 @@ const getSOSByCategory = async (dbName, platform, cwStart) => {
 // ─────────────────────────────────────────────────────────────
 // Get the CW date range for display (e.g. "3 Aug – 9 Aug 2026")
 // ─────────────────────────────────────────────────────────────
-export const getCWDateRange = async (dbName, platform, tableName = 'rb_pdp_olap') => {
+export const getCWDateRange = async (dbName, platform, tableName = 'rb_pdp_olap', isRolling = false) => {
     let platClause = '';
     if (platform) {
         const platCol = tableName === 'rb_kw_olap' ? 'platform_name' : 'Platform';
@@ -298,10 +295,10 @@ export const getCWDateRange = async (dbName, platform, tableName = 'rb_pdp_olap'
                 WHERE DATE IS NOT NULL ${platClause} ${compClause}
             )
             SELECT
-                subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS cw_start,
-                subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) + INTERVAL 6 DAY AS cw_end,
-                subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) - INTERVAL 28 DAY AS l4w_start,
-                subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) - INTERVAL 1 DAY AS l4w_end
+                ${isRolling ? 'max_date - INTERVAL 6 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7)'} AS cw_start,
+                ${isRolling ? 'max_date' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) + INTERVAL 6 DAY'} AS cw_end,
+                ${isRolling ? 'max_date - INTERVAL 34 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) - INTERVAL 28 DAY'} AS l4w_start,
+                ${isRolling ? 'max_date - INTERVAL 7 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) - INTERVAL 1 DAY'} AS l4w_end
             FROM latest_date
         `);
         if (rows.length > 0) {
@@ -321,11 +318,11 @@ export const getCWDateRange = async (dbName, platform, tableName = 'rb_pdp_olap'
 // ─────────────────────────────────────────────────────────────
 // Orchestrator: fetch all 6 KPIs for a single platform, by category
 // ─────────────────────────────────────────────────────────────
-export const fetchAllPlatformCategoryKPIs = async (dbName, platform, brands) => {
-    console.log(`[CatPerfSummary] Fetching CW/L4W KPIs for ${platform} on ${dbName}`);
+export const fetchAllPlatformCategoryKPIs = async (dbName, platform, brands, isRolling = false) => {
+    console.log(`[CatPerfSummary] Fetching CW/L4W KPIs for ${platform} on ${dbName} (Rolling: ${isRolling})`);
 
     // Centralize date boundary logic so all KPIs align
-    const dateRange = await getCWDateRange(dbName, platform);
+    const dateRange = await getCWDateRange(dbName, platform, 'rb_pdp_olap', isRolling);
     if (!dateRange.cwStart) {
         console.warn(`[CatPerfSummary] No valid data found for ${platform} to establish date boundaries.`);
         return [];
@@ -333,9 +330,9 @@ export const fetchAllPlatformCategoryKPIs = async (dbName, platform, brands) => 
     const { cwStart } = dateRange;
 
     const [pdpData, adSpendData, sosData] = await Promise.all([
-        getPdpKPIsByCategory(dbName, platform, brands, cwStart),
-        getAdSpendByCategory(dbName, platform, brands, cwStart),
-        getSOSByCategory(dbName, platform, cwStart),
+        getPdpKPIsByCategory(dbName, platform, brands, cwStart, isRolling),
+        getAdSpendByCategory(dbName, platform, brands, cwStart, isRolling),
+        getSOSByCategory(dbName, platform, cwStart, isRolling),
     ]);
 
     const normalizeCat = (cat) => cat ? cat.trim().toUpperCase() : 'UNCATEGORIZED';

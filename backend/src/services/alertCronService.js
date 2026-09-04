@@ -407,7 +407,8 @@ export const runEmailAlertsJob = async () => {
                     }
 
                     // 4. Get CW date range for display (uses same Sun-Sat logic as other alerts)
-                    const dateRange = await getCWDateRange(dbName, alertPlatforms[0]);
+                    const isRolling = alertType.endsWith('_weekly');
+                    const dateRange = await getCWDateRange(dbName, alertPlatforms[0], 'rb_pdp_olap', isRolling);
                     console.log(`[AlertCron] 📊 Performance Summary "${alert.alert_name}" on ${dbName} | CW: ${dateRange.cwStart} – ${dateRange.cwEnd} | L4W: ${dateRange.l4wStart} – ${dateRange.l4wEnd}`);
 
                     // 5. Fetch KPIs per platform per category (CW/L4W computed inside data service)
@@ -415,7 +416,7 @@ export const runEmailAlertsJob = async () => {
                     for (const plat of alertPlatforms) {
                         try {
                             const categoryData = await fetchAllPlatformCategoryKPIs(
-                                dbName, plat, alert.brands
+                                dbName, plat, alert.brands, isRolling
                             );
                             for (const catData of categoryData) {
                                 platformCategoryCards.push({
@@ -629,8 +630,9 @@ export const runEmailAlertsJob = async () => {
                     };
                 }
                 // Rule 1b: Low OSA Alert (Bottom % City Level)
-                else if (alertType === 'low_osa_bottom_city') {
+                else if (alertType === 'low_osa_bottom_city' || alertType === 'low_osa_bottom_city_weekly') {
                     isDynamicAlert = true;
+                    const isRolling = alertType.endsWith('_weekly');
                     const pct = (threshold / 100).toFixed(2);
                     const pdpQuery = `
                         WITH
@@ -642,19 +644,20 @@ export const runEmailAlertsJob = async () => {
                             week_boundaries AS (
                                 SELECT
                                     max_date,
-                                    subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS current_week_start
+                                    ${isRolling ? 'max_date - INTERVAL 6 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7)'} AS current_week_start
                                 FROM latest_date
                             ),
                             weekly_city_stats AS (
                                 SELECT
                                     Platform, Location AS City,
-                                    subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
+                                    ${isRolling ? 'if(DATE >= (SELECT current_week_start FROM week_boundaries LIMIT 1), \'cw\', \'l4w\')' : 'subtractDays(DATE, toDayOfWeek(DATE) % 7)'} AS week_start,
                                     sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
                                     sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno,
                                     sum(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS sales
                                 FROM \`${dbName}\`.rb_pdp_olap
                                 WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                                   AND Location IS NOT NULL AND lower(Location) NOT IN ('other', 'others', 'null', 'undefined', '')
+                                  ${isRolling ? 'AND DATE >= (SELECT current_week_start FROM week_boundaries LIMIT 1) - INTERVAL 28 DAY' : ''}
                                 GROUP BY Platform, City, week_start
                             ),
                             weekly_osa AS (
@@ -667,15 +670,14 @@ export const runEmailAlertsJob = async () => {
                                 SELECT w.Platform, w.City, w.osa
                                 FROM weekly_osa w
                                 CROSS JOIN week_boundaries b
-                                WHERE w.week_start = b.current_week_start
+                                WHERE w.week_start = ${isRolling ? '\'cw\'' : 'b.current_week_start'}
                             ),
                             l4w_city AS (
-                                SELECT w.Platform, w.City, avg(w.osa) AS l4w_avg, sum(w.sales) AS l4w_sales
+                                SELECT w.Platform, w.City, ${isRolling ? 'w.osa' : 'avg(w.osa)'} AS l4w_avg, sum(w.sales) AS l4w_sales
                                 FROM weekly_osa w
                                 CROSS JOIN week_boundaries b
-                                WHERE w.week_start >= b.current_week_start - INTERVAL 28 DAY
-                                  AND w.week_start < b.current_week_start
-                                GROUP BY w.Platform, w.City
+                                WHERE ${isRolling ? 'w.week_start = \'l4w\'' : 'w.week_start >= b.current_week_start - INTERVAL 28 DAY AND w.week_start < b.current_week_start'}
+                                GROUP BY w.Platform, w.City, w.osa
                             ),
                             city_metrics AS (
                                 SELECT
@@ -712,16 +714,17 @@ export const runEmailAlertsJob = async () => {
                                 WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                             ),
                             week_boundaries AS (
-                                SELECT max_date, subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS current_week_start
+                                SELECT max_date, ${isRolling ? 'max_date - INTERVAL 6 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7)'} AS current_week_start
                                 FROM latest_date
                             ),
                             weekly_stats AS (
                                 SELECT
-                                    subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
+                                    ${isRolling ? 'if(DATE >= (SELECT current_week_start FROM week_boundaries LIMIT 1), \'cw\', \'l4w\')' : 'subtractDays(DATE, toDayOfWeek(DATE) % 7)'} AS week_start,
                                     sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
                                     sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
                                 FROM \`${dbName}\`.rb_pdp_olap
                                 WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                                  ${isRolling ? 'AND DATE >= (SELECT current_week_start FROM week_boundaries LIMIT 1) - INTERVAL 28 DAY' : ''}
                                 GROUP BY week_start
                             ),
                             weekly_osa AS (
@@ -729,8 +732,8 @@ export const runEmailAlertsJob = async () => {
                                 FROM weekly_stats
                             )
                         SELECT
-                            (SELECT osa FROM weekly_osa CROSS JOIN week_boundaries WHERE week_start = current_week_start) AS cw_osa,
-                            (SELECT avg(osa) FROM weekly_osa CROSS JOIN week_boundaries WHERE week_start >= current_week_start - INTERVAL 28 DAY AND week_start < current_week_start) AS l4w_osa
+                            (SELECT osa FROM weekly_osa CROSS JOIN week_boundaries WHERE week_start = ${isRolling ? '\'cw\'' : 'current_week_start'}) AS cw_osa,
+                            (SELECT ${isRolling ? 'osa' : 'avg(osa)'} FROM weekly_osa CROSS JOIN week_boundaries WHERE ${isRolling ? 'week_start = \'l4w\'' : 'week_start >= current_week_start - INTERVAL 28 DAY AND week_start < current_week_start'}) AS l4w_osa
                     `;
                     const [pdpStats, aggStats] = await Promise.all([
                         queryAdminDB(pdpQuery),
@@ -772,8 +775,9 @@ export const runEmailAlertsJob = async () => {
                     }
                 }
                 // Rule 1c: Low OSA Alert (Bottom % Product Level)
-                else if (alertType === 'low_osa_bottom_product') {
+                else if (alertType === 'low_osa_bottom_product' || alertType === 'low_osa_bottom_product_weekly') {
                     isDynamicAlert = true;
+                    const isRolling = alertType.endsWith('_weekly');
                     const pct = (threshold / 100).toFixed(2);
                     const pdpQuery = `
                         WITH
@@ -785,23 +789,24 @@ export const runEmailAlertsJob = async () => {
                             week_boundaries AS (
                                 SELECT
                                     max_date,
-                                    subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS current_week_start
+                                    ${isRolling ? 'max_date - INTERVAL 6 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7)'} AS current_week_start
                                 FROM latest_date
                             ),
                             weekly_product_stats AS (
                                 SELECT
-                                    Platform, Web_Pid, any(Product) AS Product, any(msl) AS msl,
-                                    subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
+                                    Platform, Web_Pid, any(Product) AS sku_name, any(msl) AS is_msl,
+                                    ${isRolling ? 'if(DATE >= (SELECT current_week_start FROM week_boundaries LIMIT 1), \'cw\', \'l4w\')' : 'subtractDays(DATE, toDayOfWeek(DATE) % 7)'} AS week_start,
                                     sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
                                     sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
                                 FROM \`${dbName}\`.rb_pdp_olap
                                 WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                                   AND Product IS NOT NULL AND lower(Product) NOT IN ('other', 'others', 'null', 'undefined', '')
+                                  ${isRolling ? 'AND DATE >= (SELECT current_week_start FROM week_boundaries LIMIT 1) - INTERVAL 28 DAY' : ''}
                                 GROUP BY Platform, Web_Pid, week_start
                             ),
                             weekly_osa AS (
                                 SELECT
-                                    Platform, Web_Pid, Product, msl, week_start,
+                                    Platform, Web_Pid, sku_name AS Product, is_msl AS msl, week_start,
                                     if(deno > 0, neno / deno * 100, 100) AS osa
                                 FROM weekly_product_stats
                             ),
@@ -809,21 +814,20 @@ export const runEmailAlertsJob = async () => {
                                 SELECT w.Platform, w.Web_Pid, w.Product, w.msl, w.osa
                                 FROM weekly_osa w
                                 CROSS JOIN week_boundaries b
-                                WHERE w.week_start = b.current_week_start
+                                WHERE w.week_start = ${isRolling ? '\'cw\'' : 'b.current_week_start'}
                             ),
-                            l4w AS (
-                                SELECT w.Platform, w.Web_Pid, avg(w.osa) AS l4w_avg
+                            l4w_product AS (
+                                SELECT w.Platform, w.Web_Pid, ${isRolling ? 'w.osa' : 'avg(w.osa)'} AS l4w_avg
                                 FROM weekly_osa w
                                 CROSS JOIN week_boundaries b
-                                WHERE w.week_start >= b.current_week_start - INTERVAL 28 DAY
-                                  AND w.week_start < b.current_week_start
-                                GROUP BY w.Platform, w.Web_Pid
+                                WHERE ${isRolling ? 'w.week_start = \'l4w\'' : 'w.week_start >= b.current_week_start - INTERVAL 28 DAY AND w.week_start < b.current_week_start'}
+                                GROUP BY w.Platform, w.Web_Pid, w.osa
                             ),
                             product_metrics AS (
                                 SELECT
                                     c.Platform, c.Web_Pid, c.Product, c.msl, c.osa, l.l4w_avg, c.osa - l.l4w_avg AS delta
                                 FROM current_week c
-                                LEFT JOIN l4w l ON c.Platform = l.Platform AND c.Web_Pid = l.Web_Pid
+                                LEFT JOIN l4w_product l ON c.Platform = l.Platform AND c.Web_Pid = l.Web_Pid
                             ),
                             bottom_threshold AS (
                                 SELECT Platform, quantile(${pct})(osa) AS threshold
@@ -846,16 +850,17 @@ export const runEmailAlertsJob = async () => {
                                 WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
                             ),
                             week_boundaries AS (
-                                SELECT max_date, subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) AS current_week_start
+                                SELECT max_date, ${isRolling ? 'max_date - INTERVAL 6 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7)'} AS current_week_start
                                 FROM latest_date
                             ),
                             weekly_stats AS (
                                 SELECT
-                                    subtractDays(DATE, toDayOfWeek(DATE) % 7) AS week_start,
+                                    ${isRolling ? 'if(DATE >= (SELECT current_week_start FROM week_boundaries LIMIT 1), \'cw\', \'l4w\')' : 'subtractDays(DATE, toDayOfWeek(DATE) % 7)'} AS week_start,
                                     sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) AS neno,
                                     sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS deno
                                 FROM \`${dbName}\`.rb_pdp_olap
                                 WHERE DATE IS NOT NULL ${pdpFilterClause} AND Comp_flag = 0
+                                  ${isRolling ? 'AND DATE >= (SELECT current_week_start FROM week_boundaries LIMIT 1) - INTERVAL 28 DAY' : ''}
                                 GROUP BY week_start
                             ),
                             weekly_osa AS (
@@ -863,8 +868,8 @@ export const runEmailAlertsJob = async () => {
                                 FROM weekly_stats
                             )
                         SELECT
-                            (SELECT osa FROM weekly_osa CROSS JOIN week_boundaries WHERE week_start = current_week_start) AS cw_osa,
-                            (SELECT avg(osa) FROM weekly_osa CROSS JOIN week_boundaries WHERE week_start >= current_week_start - INTERVAL 28 DAY AND week_start < current_week_start) AS l4w_osa
+                            (SELECT osa FROM weekly_osa CROSS JOIN week_boundaries WHERE week_start = ${isRolling ? '\'cw\'' : 'current_week_start'}) AS cw_osa,
+                            (SELECT ${isRolling ? 'osa' : 'avg(osa)'} FROM weekly_osa CROSS JOIN week_boundaries WHERE ${isRolling ? 'week_start = \'l4w\'' : 'week_start >= current_week_start - INTERVAL 28 DAY AND week_start < current_week_start'}) AS l4w_osa
                     `;
                     const [pdpStats, aggStats] = await Promise.all([
                         queryAdminDB(pdpQuery),
@@ -912,8 +917,9 @@ export const runEmailAlertsJob = async () => {
                     }
                 }
                 // Rule 1d: Keyword Delta SOS Alert
-                else if (alertType === 'keyword_delta_sos') {
+                else if (alertType === 'keyword_delta_sos' || alertType === 'keyword_delta_sos_weekly') {
                     isDynamicAlert = true;
+                    const isRolling = alertType.endsWith('_weekly');
                     const kwQuery = `
                         WITH
                             -- Dynamic Delta threshold
@@ -930,11 +936,7 @@ export const runEmailAlertsJob = async () => {
                                 SELECT
                                     max_date,
 
-                                    -- Latest completed Sunday-Saturday week
-                                    subtractDays(
-                                        max_date,
-                                        toDayOfWeek(max_date) % 7 + 7
-                                    ) AS current_week_start
+                                    ${isRolling ? 'max_date - INTERVAL 6 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7)'} AS current_week_start
 
                                 FROM latest_date
                             ),
@@ -965,7 +967,7 @@ export const runEmailAlertsJob = async () => {
 
                                 WHERE
                                     DATE >= b.current_week_start
-                                    AND DATE < b.current_week_start + INTERVAL 7 DAY
+                                    AND DATE <= ${isRolling ? 'b.max_date' : 'b.current_week_start + INTERVAL 6 DAY'}
                                     ${kwFilterClause}
                                     AND keyword IS NOT NULL AND lower(keyword) NOT IN ('other', 'others', 'null', 'undefined', '')
 
@@ -1794,7 +1796,8 @@ export const runEmailAlertsJob = async () => {
                                 if (isDynamicAlert) {
                                     const platForDate = alertPlatforms.length > 0 ? alertPlatforms[0] : '';
                                     const tableName = alert.alert_type === 'keyword_delta_sos' ? 'rb_kw_olap' : 'rb_pdp_olap';
-                                    const cwDateRange = await getCWDateRange(dbName, platForDate, tableName);
+                                    const isRolling = alert.alert_type.endsWith('_weekly');
+                                    const cwDateRange = await getCWDateRange(dbName, platForDate, tableName, isRolling);
                                     if (cwDateRange && cwDateRange.cwStart) {
                                         finalCwStart = cwDateRange.cwStart;
                                         finalCwEnd = cwDateRange.cwEnd;

@@ -1,11 +1,11 @@
 import { queryAdminDB } from './src/config/adminClickhouse.js';
+
 async function test() {
     try {
-        const rows = await queryAdminDB("SELECT order_qty, confirmed_qty, nv, gsv, net_price, unit_of_measure, units_in_case FROM mars.po_primary_sales WHERE order_qty > confirmed_qty AND confirmed_qty > 0 LIMIT 2");
+        const rows = await queryAdminDB("SELECT * FROM admin_master.tb_alert ORDER BY alert_id DESC LIMIT 5");
         console.log(rows);
-    } catch(e) {
+    } catch (e) {
         console.error(e);
     }
-    process.exit(0);
 }
 test();

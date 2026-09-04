@@ -79,6 +79,50 @@ const ALERT_PRESETS = [
         severity: "Medium",
     },
     {
+        id: "category_perf_summary_weekly",
+        name: "Performance Summary (Category) | Weekly",
+        category: "Overall Performance",
+        metrics: ["All KPIs"],
+        formula: "Weekly performance snapshot across all KPIs",
+        condition: "Weekly Schedule",
+        operator: "eq",
+        defaultThreshold: "0",
+        severity: "Medium",
+    },
+    {
+        id: "low_osa_bottom_city_weekly",
+        name: "Low OSA Alert (Bottom % City Level) | Weekly",
+        category: "Inventory & On-Shelf Availability",
+        metrics: ["Bottom %", "City"],
+        formula: "Bottom N% cities by OSA score",
+        condition: "City falls in bottom threshold %",
+        operator: "lt",
+        defaultThreshold: "20",
+        severity: "High",
+    },
+    {
+        id: "low_osa_bottom_product_weekly",
+        name: "Low OSA Alert (Bottom % Product Level) | Weekly",
+        category: "Inventory & On-Shelf Availability",
+        metrics: ["Bottom %", "Product"],
+        formula: "Bottom N% products by OSA score",
+        condition: "Product falls in bottom threshold %",
+        operator: "lt",
+        defaultThreshold: "20",
+        severity: "High",
+    },
+    {
+        id: "keyword_delta_sos_weekly",
+        name: "Keyword Delta SOS Exceeds Threshold | Weekly",
+        category: "Share of Search",
+        metrics: ["Delta", "Keyword"],
+        formula: "Delta SOS > N",
+        condition: "Keyword Delta SOS exceeds threshold",
+        operator: "gt",
+        defaultThreshold: "10",
+        severity: "Medium",
+    },
+    {
         id: "low_osa_product",
         name: "Low OSA – Product Level | vs Previous Day",
         category: "Testing & Diagnostics",
@@ -228,10 +272,10 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
     const severityDropdownRef = useRef(null);
 
     const selectedPresets = ALERT_PRESETS.filter(p => selectedPresetIds.includes(p.id));
-    const isPerformanceSummarySelected = selectedPresetIds.includes("category_perf_summary") || selectedPresetIds.includes("ptd_perf_summary");
+    const isPerformanceSummarySelected = selectedPresetIds.some(id => id.includes("category_perf_summary") || id.includes("ptd_perf_summary"));
     const isWhatsAppTestSelected = selectedPresetIds.some(id => id.startsWith("whatsapp_test") || id === "low_osa_product" || id === "low_osa_city" || id === "low_offtake_product");
     // eslint-disable-next-line no-unused-vars
-    const isWeeklyForced = selectedPresetIds.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id));
+    const isWeeklyForced = selectedPresetIds.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].some(base => id.includes(base)));
 
     // Force email off when alert type is WhatsApp-only (e.g. low_osa_product)
     useEffect(() => {
@@ -240,10 +284,9 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         }
     }, [isWhatsAppTestSelected]);
 
-    // Sync values when editing an existing alert
     useEffect(() => {
         if (open && editingAlert) {
-            const isPerfSummary = editingAlert.alert_type === "category_perf_summary" || editingAlert.alert_type === "ptd_perf_summary";
+            const isPerfSummary = editingAlert.alert_type?.includes("category_perf_summary") || editingAlert.alert_type?.includes("ptd_perf_summary");
             const isWhatsappTest = editingAlert.alert_type && editingAlert.alert_type.startsWith("whatsapp_test");
             setAlertName(editingAlert.alert_name || editingAlert.alertName || "Untitled Custom Alert");
             setIsCustomAlertName(true);
@@ -344,7 +387,7 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         setSelectedPresetIds(updated);
 
         // When a weekly-forced alert is selected, set frequency
-        if (updated.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].includes(id))) {
+        if (updated.some(id => ["low_osa_bottom_city", "low_osa_bottom_product", "keyword_delta_sos"].some(base => id.includes(base)))) {
             setFrequency("Weekly Summary");
         }
 
@@ -484,8 +527,8 @@ export default function CreateIntelligentAlertModal({ open, onClose, onSaveAlert
         setIsSubmitting(true);
         setSubmitError("");
 
-        const isPerfSummary = selectedPresetIds.includes("category_perf_summary") || selectedPresetIds.includes("ptd_perf_summary");
-        const isPtd = selectedPresetIds.includes("ptd_perf_summary");
+        const isPerfSummary = selectedPresetIds.some(id => id.includes("category_perf_summary") || id.includes("ptd_perf_summary"));
+        const isPtd = selectedPresetIds.some(id => id.includes("ptd_perf_summary"));
 
         try {
             // Map form fields to the backend API schema (matches admin_master.tb_alert columns)
