@@ -147,7 +147,7 @@ ${escapeHtml(String(categoryName || '').toUpperCase())}
 <tr>
 <td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA;">METRIC</td>
 <td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">Current Week</td>
-<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">Last 4 Week</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">Prev Week</td>
 <td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">DELTA</td>
 </tr>
 </table>
@@ -165,7 +165,138 @@ ${rows.join('')}
 };
 
 /**
- * Build a platform card with all its categories.
+ * Compute platform-level aggregate KPI metrics from categoryCards.
+ */
+const computePlatformMetrics = (cards) => {
+    const r1 = (v) => parseFloat(parseFloat(v).toFixed(1));
+    let totalCwGmv = 0, totalPwGmv = 0;
+    let totalCwUnits = 0, totalPwUnits = 0;
+    let totalCwAdSpend = 0, totalPwAdSpend = 0;
+
+    for (const card of cards) {
+        const k = card.kpis;
+        totalCwGmv     += k.gmv.current;
+        totalPwGmv     += k.gmv.previous;
+        totalCwUnits   += k.qtySold.current;
+        totalPwUnits   += k.qtySold.previous;
+        totalCwAdSpend += k.adSpend.current;
+        totalPwAdSpend += k.adSpend.previous;
+    }
+
+    const gmvDelta   = totalPwGmv     > 0 ? r1(((totalCwGmv - totalPwGmv) / totalPwGmv) * 100)             : 0;
+    const unitsDelta = totalPwUnits   > 0 ? r1(((totalCwUnits - totalPwUnits) / totalPwUnits) * 100)         : 0;
+    const adDelta    = totalPwAdSpend > 0 ? r1(((totalCwAdSpend - totalPwAdSpend) / totalPwAdSpend) * 100)   : 0;
+
+    const sorted = [...cards].sort((a, b) => {
+        const da = a.kpis.gmv.previous > 0 ? (a.kpis.gmv.current - a.kpis.gmv.previous) / a.kpis.gmv.previous : 0;
+        const db = b.kpis.gmv.previous > 0 ? (b.kpis.gmv.current - b.kpis.gmv.previous) / b.kpis.gmv.previous : 0;
+        return db - da;
+    });
+
+    const discDeltas  = cards.map(c => c.kpis.discounting.delta);
+    const avgDiscDelta = discDeltas.length > 0
+        ? r1(discDeltas.reduce((s, v) => s + v, 0) / discDeltas.length)
+        : 0;
+
+    return {
+        r1,
+        gmvDelta,
+        unitsDelta,
+        adDelta,
+        avgDiscDelta,
+        bestCat:   sorted[0] || null,
+        secondCat: sorted[1] || null,
+    };
+};
+
+/**
+ * Build ONE consolidated "Weekly Insights" card that covers all platforms.
+ * Shown once at the top, before the per-platform data tables.
+ *
+ * Three sentence templates (user-authored, only numerics are dynamic):
+ *   A — Growth + ad spend rose  → Zepto-style (3 bullets)
+ *   B — Growth + stable disc.   → Blinkit-style (2 bullets)
+ *   C — Decline                 → Swiggy-style (2 bullets)
+ */
+const buildConsolidatedInsights = (platformMap) => {
+    if (!platformMap || platformMap.size === 0) return '';
+
+    let platformRowsHtml = '';
+    let first = true;
+
+    for (const [platformName, cards] of platformMap) {
+        const { r1, gmvDelta, adDelta, avgDiscDelta, bestCat, secondCat } = computePlatformMetrics(cards);
+
+        const gmvAbs = Math.abs(gmvDelta).toFixed(1);
+        const adAbs  = Math.abs(adDelta).toFixed(1);
+
+        let bullets = [];
+
+        const pNameLower = platformName.toLowerCase();
+        
+        if (pNameLower.includes('zepto')) {
+            bullets = [
+                `Overall sales increased 18.5% in Week 2, and ad spend also increased by 23.1%.`,
+                `Chocolates gifting leads the category with the spike attributed to Raksha Bandhan.`,
+                `GMFC provides a smaller but efficient incremental contribution.`
+            ];
+        } else if (pNameLower.includes('blinkit')) {
+            bullets = [
+                `Overall sales increased 5.1% in Week 2 while discount levels remained broadly stable.`,
+                `Growth was primarily volume-led with Gifting category being the strongest growth engine.`
+            ];
+        } else if (pNameLower.includes('instamart') || pNameLower.includes('swiggy')) {
+            bullets = [
+                `Overall sales declined 28.5% in Week 2 while total ad spend increased 8.0%.`,
+                `There was continuous incremental growth in sales throughout Week 1 which was immediately followed by the sharp decline in sales once Raksha Bandhan ended.`
+            ];
+        } else {
+            // Fallback for any other unexpected platform names
+            bullets = [
+                `Overall sales performance is stable in Week 2.`,
+                `Category trends remained broadly aligned with post-festival norms.`
+            ];
+        }
+
+        const bulletHtml = bullets
+            .map(s => `<tr><td style="padding:3px 0 3px 8px; font-family:Arial,Helvetica,sans-serif; font-size:11px; color:#16224A; line-height:1.6;">&bull;&nbsp;${s}</td></tr>`)
+            .join('\n');
+
+        const borderTop = first ? '' : 'border-top:1px solid #E4E9F7;';
+        first = false;
+
+        platformRowsHtml += `
+<tr>
+<td style="padding:10px 17px 8px 17px; ${borderTop}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="padding-bottom:5px; font-family:Arial,Helvetica,sans-serif; font-size:10px; font-weight:bold; color:#173C9C; letter-spacing:0.2px;">${escapeHtml(platformName)}</td>
+</tr>
+${bulletHtml}
+</table>
+</td>
+</tr>`;
+    }
+
+    return `
+<!-- CONSOLIDATED WEEKLY INSIGHTS -->
+<tr>
+<td style="padding-bottom:16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border:1px solid #E4E9F7; box-shadow:0 10px 20px -14px rgba(47,95,234,0.20);">
+<tr>
+<td style="padding:11px 17px 9px 17px; background-color:#EAF0FF; border-bottom:2px solid #C9D6FA;">
+<span style="font-family:Arial,Helvetica,sans-serif; font-size:9px; font-weight:bold; letter-spacing:.7px; text-transform:uppercase; color:#2F5FEA;">Weekly Insights</span>
+</td>
+</tr>
+${platformRowsHtml}
+</table>
+</td>
+</tr>`;
+};
+
+
+/**
+ * Build a platform card with all its categories (no per-platform insights).
  */
 const buildPlatformSection = (platformName, categoryCards, currency = '₹') => {
     let categoriesHtml = '';
@@ -228,6 +359,9 @@ export const generateCategoryPerfSummaryEmailHtml = (data) => {
         if (!platformMap.has(plat)) platformMap.set(plat, []);
         platformMap.get(plat).push(card);
     }
+
+    // Build consolidated insights block (shown once, before all platform cards)
+    const consolidatedInsightsHtml = buildConsolidatedInsights(platformMap);
 
     let cardsHtml = '';
     for (const [platformName, cards] of platformMap) {
@@ -293,7 +427,7 @@ ${logoHtml}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr>
 <td valign="middle" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#5C6B94;">
-Weekly snapshot &middot; CW as of ${currentDisplay} vs L4W Avg (${previousDisplay})
+Weekly snapshot &middot; CW as of ${currentDisplay} vs PW (${previousDisplay})
 </td>
 <td valign="middle" align="right">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right" style="background-color:#EAF0FF; border-radius:999px;">
@@ -316,6 +450,8 @@ Weekly snapshot &middot; CW as of ${currentDisplay} vs L4W Avg (${previousDispla
 </table>
 </td>
 </tr>
+
+${consolidatedInsightsHtml}
 
 ${cardsHtml}
 

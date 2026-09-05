@@ -1,6 +1,6 @@
 // src/services/categoryPerfSummaryDataService.js
 // Data-fetching layer for Performance Summary alert email.
-// Uses CW (latest completed Sunday–Saturday week) vs L4W (prior 4 weeks average).
+// Uses CW (latest completed Sunday–Saturday week) vs PW (Previous Week).
 // KPIs: Offtake Units, Offtake GMV, Weighted Discount, OSA, Ad Spend & TACoS, SOS.
 
 import { queryAdminDB } from '../config/adminClickhouse.js';
@@ -33,7 +33,7 @@ const getPdpKPIsByCategory = async (dbName, platform, brands, cwStart, isRolling
             weekly_cat AS (
                 SELECT
                     ${CATEGORY_EXPR} AS cat,
-                    ${isRolling ? `if(DATE >= b.cw_start, 'cw', 'l4w')` : `subtractDays(DATE, toDayOfWeek(DATE) % 7)`} AS week_start,
+                    ${isRolling ? `if(DATE >= b.cw_start, 'cw', 'pw')` : `subtractDays(DATE, toDayOfWeek(DATE) % 7)`} AS week_start,
                     SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS qty,
                     SUM(ifNull(toFloat64OrZero(toString(Selling_Price)), 0) * ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS gmv,
                     SUM((ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) * ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS disc_num,
@@ -42,7 +42,7 @@ const getPdpKPIsByCategory = async (dbName, platform, brands, cwStart, isRolling
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) AS osa_den
                 FROM \`${dbName}\`.rb_pdp_olap
                 CROSS JOIN week_boundaries b
-                WHERE DATE >= b.cw_start - INTERVAL 28 DAY
+                WHERE DATE >= b.cw_start - INTERVAL 14 DAY
                   AND DATE < b.cw_start + INTERVAL 7 DAY
                   ${platClause}
                   AND (Comp_flag = 0 OR Comp_flag IS NULL)
@@ -57,33 +57,33 @@ const getPdpKPIsByCategory = async (dbName, platform, brands, cwStart, isRolling
                 CROSS JOIN week_boundaries b
                 WHERE w.week_start = ${isRolling ? `'cw'` : `b.cw_start`}
             ),
-            l4w AS (
+            pw AS (
                 SELECT
                     w.cat,
-                    ${isRolling ? `sum(w.qty)/4` : `avg(w.qty)`} AS qty,
-                    ${isRolling ? `sum(w.gmv)/4` : `avg(w.gmv)`} AS gmv,
-                    -- For weighted metrics, we sum across all 4 weeks then compute ratio
-                    sum(w.disc_num) AS disc_num,
-                    sum(w.disc_den) AS disc_den,
-                    sum(w.osa_num) AS osa_num,
-                    sum(w.osa_den) AS osa_den
+                    w.qty AS qty,
+                    w.gmv AS gmv,
+                    -- For weighted metrics, we sum the single prior week then compute ratio
+                    w.disc_num AS disc_num,
+                    w.disc_den AS disc_den,
+                    w.osa_num AS osa_num,
+                    w.osa_den AS osa_den
                 FROM weekly_cat w
                 CROSS JOIN week_boundaries b
-                WHERE ${isRolling ? `w.week_start = 'l4w'` : `w.week_start >= b.cw_start - INTERVAL 28 DAY AND w.week_start < b.cw_start`}
-                GROUP BY w.cat
+                WHERE ${isRolling ? `w.week_start = 'pw'` : `w.week_start = b.cw_start - INTERVAL 7 DAY`}
+                GROUP BY w.cat, w.qty, w.gmv, w.disc_num, w.disc_den, w.osa_num, w.osa_den
             )
         SELECT
-            coalesce(c.cat, l.cat) AS CategoryName,
+            coalesce(c.cat, p.cat) AS CategoryName,
             ifNull(c.qty, 0) AS cw_qty,
             ifNull(c.gmv, 0) AS cw_gmv,
             if(c.disc_den > 0, ROUND(c.disc_num / c.disc_den * 100, 2), 0) AS cw_disc,
             if(c.osa_den > 0, ROUND(c.osa_num / c.osa_den * 100, 2), 0) AS cw_osa,
-            ifNull(l.qty, 0) AS l4w_qty,
-            ifNull(l.gmv, 0) AS l4w_gmv,
-            if(l.disc_den > 0, ROUND(l.disc_num / l.disc_den * 100, 2), 0) AS l4w_disc,
-            if(l.osa_den > 0, ROUND(l.osa_num / l.osa_den * 100, 2), 0) AS l4w_osa
+            ifNull(p.qty, 0) AS pw_qty,
+            ifNull(p.gmv, 0) AS pw_gmv,
+            if(p.disc_den > 0, ROUND(p.disc_num / p.disc_den * 100, 2), 0) AS pw_disc,
+            if(p.osa_den > 0, ROUND(p.osa_num / p.osa_den * 100, 2), 0) AS pw_osa
         FROM cw c
-        FULL OUTER JOIN l4w l ON c.cat = l.cat
+        FULL OUTER JOIN pw p ON c.cat = p.cat
     `;
 
     const rows = await queryAdminDB(query);
@@ -91,10 +91,10 @@ const getPdpKPIsByCategory = async (dbName, platform, brands, cwStart, isRolling
     for (const row of rows) {
         const cat = row.CategoryName || 'Uncategorized';
         result[cat] = {
-            qtySold: { current: parseFloat(row.cw_qty) || 0, previous: parseFloat(row.l4w_qty) || 0 },
-            gmv: { current: parseFloat(row.cw_gmv) || 0, previous: parseFloat(row.l4w_gmv) || 0 },
-            discounting: { current: parseFloat(row.cw_disc) || 0, previous: parseFloat(row.l4w_disc) || 0 },
-            osa: { current: parseFloat(row.cw_osa) || 0, previous: parseFloat(row.l4w_osa) || 0 },
+            qtySold: { current: parseFloat(row.cw_qty) || 0, previous: parseFloat(row.pw_qty) || 0 },
+            gmv: { current: parseFloat(row.cw_gmv) || 0, previous: parseFloat(row.pw_gmv) || 0 },
+            discounting: { current: parseFloat(row.cw_disc) || 0, previous: parseFloat(row.pw_disc) || 0 },
+            osa: { current: parseFloat(row.cw_osa) || 0, previous: parseFloat(row.pw_osa) || 0 },
         };
     }
     return result;
@@ -127,11 +127,11 @@ const getAdSpendByCategory = async (dbName, platform, brands, cwStart, isRolling
             weekly_cat AS (
                 SELECT
                     if(${catCol} IS NOT NULL AND trim(${catCol}) != '' AND trim(${catCol}) != '0' AND trim(${catCol}) != '-', trim(${catCol}), 'Uncategorized') AS cat,
-                    ${isRolling ? `if(DATE >= b.cw_start, 'cw', 'l4w')` : `subtractDays(DATE, toDayOfWeek(DATE) % 7)`} AS week_start,
+                    ${isRolling ? `if(DATE >= b.cw_start, 'cw', 'pw')` : `subtractDays(DATE, toDayOfWeek(DATE) % 7)`} AS week_start,
                     SUM(ifNull(toFloat64OrZero(toString(ad_spend)), 0)) AS spend
                 FROM \`${dbName}\`.rb_pm_olap
                 CROSS JOIN week_boundaries b
-                WHERE DATE >= b.cw_start - INTERVAL 28 DAY
+                WHERE DATE >= b.cw_start - INTERVAL 14 DAY
                   AND DATE < b.cw_start + INTERVAL 7 DAY
                   ${pmPlatClause}
                   AND ${catCol} IS NOT NULL AND trim(${catCol}) != '' AND trim(${catCol}) != '0' AND trim(${catCol}) != '-'
@@ -145,21 +145,21 @@ const getAdSpendByCategory = async (dbName, platform, brands, cwStart, isRolling
                 CROSS JOIN week_boundaries b
                 WHERE w.week_start = ${isRolling ? `'cw'` : `b.cw_start`}
             ),
-            l4w AS (
+            pw AS (
                 SELECT
                     w.cat,
-                    ${isRolling ? `sum(w.spend)/4` : `avg(w.spend)`} AS spend
+                    w.spend AS spend
                 FROM weekly_cat w
                 CROSS JOIN week_boundaries b
-                WHERE ${isRolling ? `w.week_start = 'l4w'` : `w.week_start >= b.cw_start - INTERVAL 28 DAY AND w.week_start < b.cw_start`}
-                GROUP BY w.cat
+                WHERE ${isRolling ? `w.week_start = 'pw'` : `w.week_start = b.cw_start - INTERVAL 7 DAY`}
+                GROUP BY w.cat, w.spend
             )
         SELECT
-            coalesce(c.cat, l.cat) AS CategoryName,
+            coalesce(c.cat, p.cat) AS CategoryName,
             ifNull(c.spend, 0) AS cw_spend,
-            ifNull(l.spend, 0) AS l4w_spend
+            ifNull(p.spend, 0) AS pw_spend
         FROM cw c
-        FULL OUTER JOIN l4w l ON c.cat = l.cat
+        FULL OUTER JOIN pw p ON c.cat = p.cat
     `;
 
     const parseAdRows = (rows) => {
@@ -168,7 +168,7 @@ const getAdSpendByCategory = async (dbName, platform, brands, cwStart, isRolling
             const cat = row.CategoryName || 'Uncategorized';
             result[cat] = {
                 current: parseFloat(row.cw_spend) || 0,
-                previous: parseFloat(row.l4w_spend) || 0,
+                previous: parseFloat(row.pw_spend) || 0,
             };
         }
         return result;
@@ -204,11 +204,11 @@ const getSOSByCategory = async (dbName, platform, cwStart, isRolling = false) =>
             weekly_cat AS (
                 SELECT
                     ${catCol} AS cat,
-                    ${isRolling ? `if(DATE >= b.cw_start, 'cw', 'l4w')` : `subtractDays(DATE, toDayOfWeek(DATE) % 7)`} AS week_start,
+                    ${isRolling ? `if(DATE >= b.cw_start, 'cw', 'pw')` : `subtractDays(DATE, toDayOfWeek(DATE) % 7)`} AS week_start,
                     ROUND(sumIf(overall, flag = 1) * 100.0 / nullIf(sum(overall), 0), 2) AS sos
                 FROM \`${dbName}\`.rb_kw_olap
                 CROSS JOIN week_boundaries b
-                WHERE DATE >= b.cw_start - INTERVAL 28 DAY
+                WHERE DATE >= b.cw_start - INTERVAL 14 DAY
                   AND DATE < b.cw_start + INTERVAL 7 DAY
                   ${platClause}
                   AND ${catCol} IS NOT NULL AND trim(${catCol}) != '' AND trim(${catCol}) != '0' AND trim(${catCol}) != '-'
@@ -221,21 +221,21 @@ const getSOSByCategory = async (dbName, platform, cwStart, isRolling = false) =>
                 CROSS JOIN week_boundaries b
                 WHERE w.week_start = ${isRolling ? `'cw'` : `b.cw_start`}
             ),
-            l4w AS (
+            pw AS (
                 SELECT
                     w.cat,
-                    avg(w.sos) AS sos
+                    w.sos AS sos
                 FROM weekly_cat w
                 CROSS JOIN week_boundaries b
-                WHERE ${isRolling ? `w.week_start = 'l4w'` : `w.week_start >= b.cw_start - INTERVAL 28 DAY AND w.week_start < b.cw_start`}
-                GROUP BY w.cat
+                WHERE ${isRolling ? `w.week_start = 'pw'` : `w.week_start = b.cw_start - INTERVAL 7 DAY`}
+                GROUP BY w.cat, w.sos
             )
         SELECT
-            coalesce(c.cat, l.cat) AS CategoryName,
+            coalesce(c.cat, p.cat) AS CategoryName,
             ifNull(c.sos, 0) AS cw_sos,
-            ifNull(l.sos, 0) AS l4w_sos
+            ifNull(p.sos, 0) AS pw_sos
         FROM cw c
-        FULL OUTER JOIN l4w l ON c.cat = l.cat
+        FULL OUTER JOIN pw p ON c.cat = p.cat
     `;
 
     const parseRows = (rows) => {
@@ -244,7 +244,7 @@ const getSOSByCategory = async (dbName, platform, cwStart, isRolling = false) =>
             if (row.CategoryName) {
                 result[row.CategoryName] = {
                     current: parseFloat(row.cw_sos) || 0,
-                    previous: parseFloat(row.l4w_sos) || 0,
+                    previous: parseFloat(row.pw_sos) || 0,
                 };
             }
         }
@@ -276,7 +276,8 @@ const getSOSByCategory = async (dbName, platform, cwStart, isRolling = false) =>
 };
 
 // ─────────────────────────────────────────────────────────────
-// Get the CW date range for display (e.g. "3 Aug – 9 Aug 2026")
+// Get the CW and PW (Previous Week) date range for display
+// CW = latest completed Sun-Sat week, PW = the single week immediately before CW
 // ─────────────────────────────────────────────────────────────
 export const getCWDateRange = async (dbName, platform, tableName = 'rb_pdp_olap', isRolling = false) => {
     let platClause = '';
@@ -297,29 +298,32 @@ export const getCWDateRange = async (dbName, platform, tableName = 'rb_pdp_olap'
             SELECT
                 ${isRolling ? 'max_date - INTERVAL 6 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7)'} AS cw_start,
                 ${isRolling ? 'max_date' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) + INTERVAL 6 DAY'} AS cw_end,
-                ${isRolling ? 'max_date - INTERVAL 34 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) - INTERVAL 28 DAY'} AS l4w_start,
-                ${isRolling ? 'max_date - INTERVAL 7 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) - INTERVAL 1 DAY'} AS l4w_end
+                ${isRolling ? 'max_date - INTERVAL 13 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) - INTERVAL 7 DAY'} AS pw_start,
+                ${isRolling ? 'max_date - INTERVAL 7 DAY' : 'subtractDays(max_date, toDayOfWeek(max_date) % 7 + 7) - INTERVAL 1 DAY'} AS pw_end
             FROM latest_date
         `);
         if (rows.length > 0) {
             return {
                 cwStart: String(rows[0].cw_start).slice(0, 10),
                 cwEnd: String(rows[0].cw_end).slice(0, 10),
-                l4wStart: String(rows[0].l4w_start).slice(0, 10),
-                l4wEnd: String(rows[0].l4w_end).slice(0, 10),
+                pwStart: String(rows[0].pw_start).slice(0, 10),
+                pwEnd: String(rows[0].pw_end).slice(0, 10),
+                // Keep l4w aliases for backward compatibility
+                l4wStart: String(rows[0].pw_start).slice(0, 10),
+                l4wEnd: String(rows[0].pw_end).slice(0, 10),
             };
         }
     } catch (err) {
         console.warn('[CatPerfSummary] getCWDateRange failed:', err.message);
     }
-    return { cwStart: '', cwEnd: '', l4wStart: '', l4wEnd: '' };
+    return { cwStart: '', cwEnd: '', pwStart: '', pwEnd: '', l4wStart: '', l4wEnd: '' };
 };
 
 // ─────────────────────────────────────────────────────────────
 // Orchestrator: fetch all 6 KPIs for a single platform, by category
 // ─────────────────────────────────────────────────────────────
 export const fetchAllPlatformCategoryKPIs = async (dbName, platform, brands, isRolling = false) => {
-    console.log(`[CatPerfSummary] Fetching CW/L4W KPIs for ${platform} on ${dbName} (Rolling: ${isRolling})`);
+    console.log(`[CatPerfSummary] Fetching CW/PW KPIs for ${platform} on ${dbName} (Rolling: ${isRolling})`);
 
     // Centralize date boundary logic so all KPIs align
     const dateRange = await getCWDateRange(dbName, platform, 'rb_pdp_olap', isRolling);
