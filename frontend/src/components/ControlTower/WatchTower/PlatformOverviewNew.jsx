@@ -235,6 +235,9 @@ const parseKpiValue = (cell) => {
     return val;
 };
 
+// KPIs sourced from rb_pm_olap (Paid Media marketing metrics)
+const PM_KPIS = ['spend', 'inorgSales', 'roas_x', 'tacos', 'conversion', 'cpm', 'cpc', 'ad_sov'];
+
 // Dimension → API endpoint mapping
 const DIMENSION_API_MAP = {
     platform: '/watchtower/platform-overview',
@@ -242,6 +245,7 @@ const DIMENSION_API_MAP = {
     month: '/watchtower/month-overview',
     category: '/watchtower/category-overview',
     sku: '/watchtower/sku-overview',
+    location: '/watchtower/city-overview',
 }
 
 // Color palette for dynamically created entities
@@ -440,6 +444,9 @@ const PlatformOverviewNew = ({
             baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime');
         }
 
+        if (dimension === 'location') {
+            return baseKpis.filter(k => !PM_KPIS.includes(k.key) && k.key !== 'shareOfVolume' && k.key !== 'organic_sov');
+        }
         if (dimension === 'sku') {
             return baseKpis.filter(k => {
                 if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov') return false;
@@ -482,6 +489,10 @@ const PlatformOverviewNew = ({
         ];
         const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
         const allowBuyBox = isBuyBoxPlatform(activePlat);
+
+        if (dimension === 'location') {
+            return base.filter(k => !PM_KPIS.includes(k) && k !== 'shareOfVolume' && k !== 'organic_sov');
+        }
 
         if (dimension === 'platform') {
             if (isEcom) base = base.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpm');
@@ -598,7 +609,9 @@ const PlatformOverviewNew = ({
 
     // Keep glanceKpis in sync with dimension switch & platform changes
     useEffect(() => {
-        if (dimension === 'sku') {
+        if (dimension === 'location') {
+            setGlanceKpis(prev => prev.filter(k => !PM_KPIS.includes(k) && k !== 'shareOfVolume' && k !== 'organic_sov'));
+        } else if (dimension === 'sku') {
             setGlanceKpis(prev => {
                 let next = prev.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'cpm');
                 if (isSkuQcom) {
@@ -639,9 +652,10 @@ const PlatformOverviewNew = ({
     const dimensionMeta = {
         platform: { label: 'Platform', icon: Monitor },
         brand: { label: 'Brand', icon: Tag },
-        month: { label: 'Month', icon: Calendar },
         category: { label: 'Category', icon: Grid3X3 },
         sku: { label: 'SKU', icon: Package },
+        month: { label: 'Month', icon: Calendar },
+        location: { label: 'Location', icon: MapPin },
     }
 
     // Known platform logos for enriching API data

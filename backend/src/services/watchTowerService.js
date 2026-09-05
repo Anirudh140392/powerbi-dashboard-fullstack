@@ -9749,8 +9749,11 @@ const getCompetitionData = async (filters = {}) => {
             };
         });
 
-        // Sort by Market Share descending (highest to lowest), falling back to total_sales, then OSA
+        // Sort by Offtake Share descending (highest to lowest), falling back to Market Share, total_sales, then OSA
         skuMetrics.sort((a, b) => {
+            const offtakeA = Number(a.OfftakeShare?.value ?? a.OfftakeShare ?? a.offtake_share ?? a.CategoryShare?.value ?? a.CategoryShare) || 0;
+            const offtakeB = Number(b.OfftakeShare?.value ?? b.OfftakeShare ?? b.offtake_share ?? b.CategoryShare?.value ?? b.CategoryShare) || 0;
+            if (Math.abs(offtakeB - offtakeA) > 0.0001) return offtakeB - offtakeA;
             const msA = Number(a.MarketShare?.value ?? a.MarketShare) || 0;
             const msB = Number(b.MarketShare?.value ?? b.MarketShare) || 0;
             if (Math.abs(msB - msA) > 0.0001) return msB - msA;
@@ -12747,11 +12750,13 @@ const getCityOverview = async (filters) => {
     const rawBrand = filters['brand[]'] || filters.brand;
     const rawCategory = filters['category[]'] || filters.category;
     const rawSubBrand = filters['subBrand[]'] || filters.subBrand || filters['sub_brand[]'] || filters.sub_brand;
+    const rawLocation = filters['location[]'] || filters.location;
 
     // Normalize multi-value filters
     const brandArr = normalizeFilterArray(rawBrand);
     const categoryArr = normalizeFilterArray(rawCategory);
     const subBrandArr = normalizeFilterArray(rawSubBrand);
+    const locationArr = normalizeFilterArray(rawLocation);
     const cityPlatform = cityOverviewPlatform || filters.platform || 'All';
 
     const monthsBack = parseInt(months, 10) || 1;
@@ -12871,7 +12876,10 @@ const getCityOverview = async (filters) => {
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as my_mrp_val,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as comp_mrp_val,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales,
+                AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
+                AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
             FROM ${src.table}
             WHERE ${currCityConds} AND ${src.isAgg ? 'location' : 'Location'} IS NOT NULL AND ${src.isAgg ? 'location' : 'Location'} != ''
             GROUP BY Location
@@ -12892,7 +12900,10 @@ const getCityOverview = async (filters) => {
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as my_mrp_val,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as comp_mrp_val,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales,
+                AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
+                AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
             FROM ${src.table}
             WHERE ${prevCityConds} AND ${src.isAgg ? 'location' : 'Location'} IS NOT NULL AND ${src.isAgg ? 'location' : 'Location'} != ''
             GROUP BY Location
@@ -12948,6 +12959,31 @@ const getCityOverview = async (filters) => {
     const currCityCatSizeMap = new Map(currCityCatSize.map(d => [d.location?.toLowerCase(), parseFloat(d.cat_size || 0)]));
     const prevCityCatSizeMap = new Map(prevCityCatSize.map(d => [d.location?.toLowerCase(), parseFloat(d.cat_size || 0)]));
 
+    // Fetch official Tier 1 cities from rb_location_darkstore
+    let tier1CitiesSet = new Set([
+        'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+    ]);
+    try {
+        const darkstoreCheck = await queryClickHouse(`EXISTS TABLE rb_location_darkstore`);
+        if (darkstoreCheck?.[0]?.result === 1) {
+            const tier1Res = await queryClickHouse(`
+                SELECT DISTINCT lower(trim(location)) as location 
+                FROM rb_location_darkstore 
+                WHERE (lower(trim(tier)) = 'tier 1' OR tier LIKE '%Tier 1%') 
+                  AND location IS NOT NULL AND location != ''
+            `);
+            if (tier1Res && tier1Res.length > 0) {
+                const dbTier1Cities = tier1Res.map(r => r.location.toLowerCase().trim()).filter(Boolean);
+                if (dbTier1Cities.length > 0) {
+                    tier1CitiesSet = new Set(dbTier1Cities);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('[getCityOverview] Could not query rb_location_darkstore for Tier 1 cities, using default list:', err.message);
+    }
+
     const cityOverview = currCityMetrics.map(data => {
         const cityName = data.Location || 'Unknown';
         const prevData = prevCityMap.get(cityName) || {};
@@ -12981,12 +13017,28 @@ const getCityOverview = async (filters) => {
         const cpm = hasPm ? (impressions > 0 ? (spend / impressions) * 1000 : null) : null;
         const cpc = hasPm ? (clicks > 0 ? spend / clicks : null) : null;
 
+        const asp = (data.avg_asp !== null && data.avg_asp !== undefined && !isNaN(data.avg_asp) && parseFloat(data.avg_asp) > 0)
+            ? parseFloat(data.avg_asp)
+            : (offtakeUnits > 0 ? (offtake / offtakeUnits) : null);
+
+        const aov = (orders && orders > 0) ? (offtake / orders) : (offtakeUnits > 0 ? (offtake / offtakeUnits) : null);
+
+        const listingPercent = (data.avg_listing_percent !== null && data.avg_listing_percent !== undefined && !isNaN(data.avg_listing_percent))
+            ? parseFloat(data.avg_listing_percent)
+            : (deno > 0 ? 100 : null);
+
         const promoMyBrand = hasPdp ? (parseFloat(data.my_mrp_val || 0) > 0
             ? ((parseFloat(data.my_mrp_val) - parseFloat(data.my_actual_sales)) / parseFloat(data.my_mrp_val)) * 100
             : null) : null;
         const promoCompete = hasPdp ? (parseFloat(data.comp_mrp_val || 0) > 0
             ? ((parseFloat(data.comp_mrp_val) - parseFloat(data.comp_actual_sales)) / parseFloat(data.comp_mrp_val)) * 100
             : null) : null;
+
+        const wtDiscount = (data.my_wt_discount !== null && data.my_wt_discount !== undefined && !isNaN(data.my_wt_discount))
+            ? parseFloat(data.my_wt_discount)
+            : promoMyBrand;
+
+        const wtOsa = availability !== null ? (listingPercent !== null ? (availability * listingPercent) / 100 : availability) : null;
 
         // Previous Metrics
         const prevOfftake = prevHasPdp ? parseFloat(prevData.total_sales || 0) : null;
@@ -13005,6 +13057,16 @@ const getCityOverview = async (filters) => {
         const prevCpm = prevHasPm ? (prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : null) : null;
         const prevCpc = prevHasPm ? (prevClicks > 0 ? prevSpend / prevClicks : null) : null;
 
+        const prevAsp = (prevData.avg_asp !== null && prevData.avg_asp !== undefined && !isNaN(prevData.avg_asp) && parseFloat(prevData.avg_asp) > 0)
+            ? parseFloat(prevData.avg_asp)
+            : (prevOfftakeUnits > 0 ? (prevOfftake / prevOfftakeUnits) : null);
+
+        const prevAov = (prevOrders && prevOrders > 0) ? (prevOfftake / prevOrders) : (prevOfftakeUnits > 0 ? (prevOfftake / prevOfftakeUnits) : null);
+
+        const prevListingPercent = (prevData.avg_listing_percent !== null && prevData.avg_listing_percent !== undefined && !isNaN(prevData.avg_listing_percent))
+            ? parseFloat(prevData.avg_listing_percent)
+            : (prevDeno > 0 ? 100 : null);
+
         const prevPromoMyBrand = prevHasPdp ? (parseFloat(prevData.my_mrp_val || 0) > 0
             ? ((parseFloat(prevData.my_mrp_val) - parseFloat(prevData.my_actual_sales)) / parseFloat(prevData.my_mrp_val)) * 100
             : null) : null;
@@ -13012,14 +13074,16 @@ const getCityOverview = async (filters) => {
             ? ((parseFloat(prevData.comp_mrp_val) - parseFloat(prevData.comp_actual_sales)) / parseFloat(prevData.comp_mrp_val)) * 100
             : null) : null;
 
+        const prevWtDiscount = (prevData.my_wt_discount !== null && prevData.my_wt_discount !== undefined && !isNaN(prevData.my_wt_discount))
+            ? parseFloat(prevData.my_wt_discount)
+            : prevPromoMyBrand;
+
+        const prevWtOsa = prevAvailability !== null ? (prevListingPercent !== null ? (prevAvailability * prevListingPercent) / 100 : prevAvailability) : null;
+
         const currCityMarket = currMsMap.get(cityName.toLowerCase()) || 0;
         const prevCityMarket = prevMsMap.get(cityName.toLowerCase()) || 0;
-        const tier1Cities = [
-            'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
-            'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
-        ];
         const lowerCityName = cityName ? cityName.toLowerCase().trim() : '';
-        const isCityTier1 = tier1Cities.includes(lowerCityName);
+        const isCityTier1 = tier1CitiesSet.has(lowerCityName);
         const marketShare = (isCityTier1 && hasMsCheck) ? (currCityMarket > 0 ? (offtake / currCityMarket) * 100 : null) : null;
         const prevMarketShare = (isCityTier1 && prevHasMsCheck) ? (prevCityMarket > 0 ? (prevOfftake / prevCityMarket) * 100 : null) : null;
 
@@ -13029,20 +13093,20 @@ const getCityOverview = async (filters) => {
             type: "Location",
             logo: "https://cdn-icons-png.flaticon.com/512/535/535239.png",
             columns: generateKpiColumns({
-                offtake, availability, sos: null, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, promoMyBrand, promoCompete, categorySize: hasMsCheck ? (currCityCatSizeMap.get(cityName.toLowerCase()) || null) : null,
-                prevOfftake, prevAvailability, prevSos: null, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevHasMsCheck ? (prevCityCatSizeMap.get(cityName.toLowerCase()) || null) : null,
+                offtake, availability, wtOsa, listingPercent, sos: null, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? (currCityCatSizeMap.get(cityName.toLowerCase()) || null) : null,
+                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos: null, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? (prevCityCatSizeMap.get(cityName.toLowerCase()) || null) : null,
                 offtakeUnits, inorgUnits: orders, prevOfftakeUnits, prevInorgUnits: prevOrders
             })
         };
     });
 
-    // Ensure 'Other' or 'Unknown' appear at the end
+    // Ensure 'Other' or 'Unknown' appear at the end, and filter strictly for Tier 1 cities
     const sortedCityOverview = [
         ...cityOverview.filter(c => c.label.toLowerCase() !== 'other' && c.label.toLowerCase() !== 'unknown'),
         ...cityOverview.filter(c => c.label.toLowerCase() === 'other' || c.label.toLowerCase() === 'unknown')
-    ];
+    ].filter(c => tier1CitiesSet.has(c.label.toLowerCase().trim()));
 
-    console.log(`[getCityOverview] Returning ${sortedCityOverview.length} cities`);
+    console.log(`[getCityOverview] Returning ${sortedCityOverview.length} Tier 1 cities`);
     return sortedCityOverview;
 };
 

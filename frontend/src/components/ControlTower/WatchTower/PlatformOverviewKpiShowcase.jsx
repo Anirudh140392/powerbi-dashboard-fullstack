@@ -5,6 +5,7 @@ import {
   BarChart3,
   SlidersHorizontal,
   Download,
+  ArrowRight,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
@@ -2066,7 +2067,7 @@ const formatLargeNumber = (value) => {
   return value.toFixed(2);
 };
 
-const BrandTable = ({ rows, loading, onTrendClick, onDownload }) => {
+const BrandTable = ({ rows, loading, onTrendClick, onDownload, onBrandSelect }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -2098,13 +2099,12 @@ const BrandTable = ({ rows, loading, onTrendClick, onDownload }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-center w-[18%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[13%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[13%]">SOS</th>
-                <th className="px-3 py-2 text-center w-[14%]">Price</th>
-                <th className="px-3 py-2 text-center w-[14%]">Promo-My %</th>
-                <th className="px-3 py-2 text-center w-[14%]">Mkt Share</th>
-                <th className="px-3 py-2 text-center w-[14%]">Offtake Share %</th>
+                <th className="px-3 py-2 text-left w-[25%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[15%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[15%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[15%]">Price</th>
+                <th className="px-3 py-2 text-center w-[15%]">Promo-My %</th>
+                <th className="px-3 py-2 text-center w-[15%]">Mkt Share</th>
               </tr>
             </thead>
 
@@ -2116,47 +2116,61 @@ const BrandTable = ({ rows, loading, onTrendClick, onDownload }) => {
                   <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                 </tr>
               ))}
-              {!loading && paginatedRows.map((row, idx) => (
-                <tr
-                  key={row.id || `brand-${idx}`}
-                  className={cn(
-                    "hover:bg-slate-50",
-                    idx % 2 === 1 && "bg-slate-50/60"
-                  )}
-                >
-                  <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
-                    {row.name || row.brand_name || row.brand}
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
-                    <KpiCell data={row.OSA} suffix="%" />
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
-                    <KpiCell data={row.SOS} format={2} suffix="%" />
-                  </td>
-
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
-                    <KpiCell data={row.Price} format={0} prefix="₹" isInverse={true} />
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
-                    <KpiCell data={row['Promo-My'] || row.PromoMy} suffix="%" />
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900 border-r border-slate-100">
-                    <KpiCell data={row.MarketShare} suffix="%" />
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900 border-x border-slate-100 font-medium">
-                    <KpiCell data={row.OfftakeShare || row.CategoryShare} suffix="%" />
-                  </td>
-                </tr>
-              ))}
+              {!loading && paginatedRows.map((row, idx) => {
+                const brandName = row.name || row.brand_name || row.brand;
+                return (
+                  <tr
+                    key={row.id || `brand-${idx}`}
+                    className={cn(
+                      "hover:bg-slate-50",
+                      idx % 2 === 1 && "bg-slate-50/60"
+                    )}
+                  >
+                    <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span className="truncate" title={brandName}>{brandName}</span>
+                        {onBrandSelect && brandName && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onBrandSelect(brandName);
+                            }}
+                            className="px-2 py-0.5 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600 rounded transition-all duration-150 flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
+                            title={`View SKUs for ${brandName}`}
+                          >
+                            <span>SKUs</span>
+                            <ArrowRight className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
+                      <KpiCell data={row.OSA} suffix="%" />
+                    </td>
+                    <td className="px-3 py-2 text-right text-slate-900">
+                      <KpiCell data={row.SOS} format={2} suffix="%" />
+                    </td>
+                    <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
+                      <KpiCell data={row.Price} format={0} prefix="₹" isInverse={true} />
+                    </td>
+                    <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
+                      <KpiCell data={row['Promo-My'] || row.PromoMy} suffix="%" />
+                    </td>
+                    <td className="px-3 py-2 text-right text-slate-900 border-x border-slate-100 font-medium">
+                      <KpiCell data={row.MarketShare} suffix="%" />
+                    </td>
+                  </tr>
+                );
+              })}
 
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -2517,12 +2531,23 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
 
   const skuRows = useMemo(() => {
     return [...apiSkuData].sort((a, b) => {
-      const valA = Number(a.MarketShare?.value ?? a.marketShare?.value ?? a.MarketShare ?? a.marketShare ?? 0) || 0;
-      const valB = Number(b.MarketShare?.value ?? b.marketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0) || 0;
-      if (Math.abs(valB - valA) > 0.0001) return valB - valA;
+      const getOfftakeVal = (item) => {
+        const raw = item?.OfftakeShare?.value ?? item?.OfftakeShare ?? item?.offtake_share ?? item?.CategoryShare?.value ?? item?.CategoryShare ?? 0;
+        const num = Number(raw);
+        return isNaN(num) ? 0 : num;
+      };
+      const offtakeA = getOfftakeVal(a);
+      const offtakeB = getOfftakeVal(b);
+      if (Math.abs(offtakeB - offtakeA) > 0.0001) return offtakeB - offtakeA;
+
+      const msA = Number(a.MarketShare?.value ?? a.marketShare?.value ?? a.MarketShare ?? a.marketShare ?? 0) || 0;
+      const msB = Number(b.MarketShare?.value ?? b.marketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0) || 0;
+      if (Math.abs(msB - msA) > 0.0001) return msB - msA;
+
       const salesA = Number(a.total_sales || a.Sales?.value || a.Sales || 0) || 0;
       const salesB = Number(b.total_sales || b.Sales?.value || b.Sales || 0) || 0;
       if (salesB !== salesA) return salesB - salesA;
+
       const osaA = Number(a.OSA?.value ?? a.OSA ?? a.osa ?? 0) || 0;
       const osaB = Number(b.OSA?.value ?? b.OSA ?? b.osa ?? 0) || 0;
       return osaB - osaA;
@@ -2585,6 +2610,15 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
       console.error("[PlatformOverviewKpiShowcase] Download competition error:", err);
     }
   };
+
+  const handleBrandSelect = useCallback((brandName) => {
+    if (!brandName) return;
+    setFilters((prev) => ({
+      ...prev,
+      brands: [brandName],
+    }));
+    setTab("sku");
+  }, []);
 
   return (
     <div className="flex-col bg-slate-50 text-slate-900">
@@ -2653,6 +2687,9 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
         onValueChange={(v) => {
           setTab(v);
           setViewMode("table"); // reset view when switching tab
+          if (v === "brand") {
+            setFilters((prev) => ({ ...prev, brands: [] }));
+          }
         }}
         className="w-full"
       >
@@ -2678,7 +2715,15 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} onTrendClick={onTrendClick} onDownload={handleDownloadCompetitionExcel} />}
+          {viewMode === "table" && (
+            <BrandTable
+              rows={brandRows}
+              loading={apiLoading}
+              onTrendClick={onTrendClick}
+              onDownload={handleDownloadCompetitionExcel}
+              onBrandSelect={handleBrandSelect}
+            />
+          )}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"

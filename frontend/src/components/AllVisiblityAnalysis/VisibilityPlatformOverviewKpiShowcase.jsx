@@ -9,6 +9,7 @@ import {
     SlidersHorizontal,
     Info,
     Download,
+    ArrowRight,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -1228,7 +1229,7 @@ const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city,
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows, loading, onDownload }) => {
+const BrandTable = ({ rows, loading, onDownload, onBrandSelect }) => {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
 
@@ -1271,14 +1272,35 @@ const BrandTable = ({ rows, loading, onDownload }) => {
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                 </tr>
-                            )) : paginatedRows.map((row, idx) => (
-                                <tr key={row.id} className={cn("hover:bg-slate-50", idx % 2 === 1 && "bg-slate-50/60")}>
-                                    <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">{row.name}</td>
-                                    <td className="px-3 py-2 text-right text-slate-900 font-medium">{formatKpiValue(row.overall_sos)}</td>
-                                    <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.sponsored_sos)}</td>
-                                    <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.organic_sos)}</td>
-                                </tr>
-                            ))}
+                            )) : paginatedRows.map((row, idx) => {
+                                const brandName = row.name || row.brand_name || row.brand;
+                                return (
+                                    <tr key={row.id || `brand-${idx}`} className={cn("hover:bg-slate-50", idx % 2 === 1 && "bg-slate-50/60")}>
+                                        <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
+                                            <div className="flex items-center justify-between gap-1.5">
+                                                <span className="truncate" title={brandName}>{brandName}</span>
+                                                {onBrandSelect && brandName && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onBrandSelect(brandName);
+                                                        }}
+                                                        className="px-2 py-0.5 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600 rounded transition-all duration-150 flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
+                                                        title={`View SKUs for ${brandName}`}
+                                                    >
+                                                        <span>SKUs</span>
+                                                        <ArrowRight className="h-3 w-3" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-slate-900 font-medium">{formatKpiValue(row.overall_sos)}</td>
+                                        <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.sponsored_sos)}</td>
+                                        <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.organic_sos)}</td>
+                                    </tr>
+                                );
+                            })}
                             {!loading && rows.length === 0 && (
                                 <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">No data is available</td></tr>
                             )}
@@ -1623,6 +1645,15 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
 
 
 
+    const handleBrandSelect = useCallback((brandName) => {
+        if (!brandName) return;
+        setFilters((prev) => ({
+            ...prev,
+            brands: [brandName],
+        }));
+        setTab("sku");
+    }, []);
+
     return (
         <div className="flex-col bg-slate-50 text-slate-900">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -1663,7 +1694,17 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 </div>
             </div>
 
-            <Tabs value={tab} onValueChange={(v) => { setTab(v); setViewMode("table"); }} className="w-full">
+            <Tabs
+                value={tab}
+                onValueChange={(v) => {
+                    setTab(v);
+                    setViewMode("table");
+                    if (v === "brand") {
+                        setFilters((prev) => ({ ...prev, brands: [] }));
+                    }
+                }}
+                className="w-full"
+            >
                 <div className="flex items-center justify-between gap-3">
                     <TabsList className="bg-slate-100">
                         <TabsTrigger value="brand" className="px-4">Brands</TabsTrigger>
@@ -1676,7 +1717,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 </div>
 
                 <TabsContent value="brand" className="mt-3">
-                    {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} onDownload={handleDownloadCompetitionExcel} />}
+                    {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} onDownload={handleDownloadCompetitionExcel} onBrandSelect={handleBrandSelect} />}
                     {viewMode === "trend" && <TrendView mode="brand" visibleIds={visibleIds} setVisibleIds={setVisibleIds} allPossibleIds={allPossibleIds} city={city} onBackToTable={() => setViewMode("table")} onSwitchToKpi={() => setViewMode("kpi")} apiTrendData={apiTrendData} trendLoading={trendLoading} />}
                     {viewMode === "kpi" && <KpiCompareView mode="brand" visibleIds={visibleIds} setVisibleIds={setVisibleIds} allPossibleIds={allPossibleIds} city={city} onBackToTrend={() => setViewMode("trend")} apiTrendData={apiTrendData} trendLoading={trendLoading} />}
                 </TabsContent>
