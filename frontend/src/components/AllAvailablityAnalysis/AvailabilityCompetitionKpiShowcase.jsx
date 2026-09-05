@@ -1,0 +1,1578 @@
+import React, { useMemo, useState, useContext, createContext, useEffect, useCallback } from "react";
+import { FilterContext } from "../../utils/FilterContext";
+import axiosInstance from "../../api/axiosInstance";
+import * as XLSX from "xlsx";
+import dayjs from "dayjs";
+// import PaginationFooter from "../CommonLayout/PaginationFooter"; // Removed pagination
+import {
+    Filter,
+    LineChart as LineChartIcon,
+    BarChart3,
+    SlidersHorizontal,
+    Download,
+    ArrowRight,
+} from "lucide-react";
+import {
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    Tooltip,
+    Legend,
+    ResponsiveContainer,
+    CartesianGrid,
+} from "recharts";
+import { Box } from "@mui/material";
+
+/* -------------------------------------------------------------------------- */
+/*                               Utility helper                               */
+/* -------------------------------------------------------------------------- */
+
+function cn(...classes) {
+    return classes.filter(Boolean).join(" ");
+}
+
+const getLocalMslFromGlobal = (selectedMsl) => {
+    if (!selectedMsl || selectedMsl === 'All' || selectedMsl === 'all') {
+        return [];
+    }
+    const arrayVal = Array.isArray(selectedMsl) ? selectedMsl : String(selectedMsl).split(',');
+    return arrayVal
+        .map(v => v === '1' ? 'Top SKUs' : (v === '0' ? 'All SKUs' : v))
+        .filter(v => v === 'Top SKUs' || v === 'All SKUs');
+};
+
+const getApiMslFromLocal = (localMsl, globalMsl) => {
+    if (localMsl && localMsl.length > 0) {
+        return localMsl
+            .map(v => (v === 'Top SKUs' || v.includes('1')) ? '1' : (v === 'All SKUs' ? 'All' : v))
+            .join(',');
+    }
+    return globalMsl && globalMsl !== 'All' ? globalMsl : undefined;
+};
+
+const formatKpiValue = (value, unit = "%") => {
+    if (value === null || value === undefined || value === "" || value === "N/A") {
+        return "N/A";
+    }
+    const num = parseFloat(value);
+    if (isNaN(num)) return "N/A";
+    return `${num.toFixed(1)}${unit}`;
+};
+
+/* -------------------------------------------------------------------------- */
+/*                           Small UI components (local)                      */
+/* -------------------------------------------------------------------------- */
+
+/* Card */
+
+const Card = ({ className, children }) => (
+    <div
+        className={cn(
+            "rounded-lg border border-slate-200 bg-white shadow-sm",
+            className
+        )}
+    >
+        {children}
+    </div>
+);
+
+const CardHeader = ({ className, children }) => (
+    <div className={cn("px-4 py-3", className)}>{children}</div>
+);
+
+const CardTitle = ({ className, children }) => (
+    <h2 className={cn("font-semibold text-slate-900", className)}>{children}</h2>
+);
+
+const CardContent = ({ className, children }) => (
+    <div className={cn("px-4 py-3", className)}>{children}</div>
+);
+
+/* Button */
+
+const Button = ({
+    className,
+    variant = "solid",
+    size = "md",
+    children,
+    ...props
+}) => {
+    const base =
+        "inline-flex items-center justify-center rounded-md text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-400 disabled:opacity-50 disabled:cursor-not-allowed";
+
+    const variants = {
+        solid: "bg-blue-600 text-white hover:bg-blue-700",
+        outline:
+            "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50",
+        ghost: "text-slate-700 hover:bg-slate-100",
+    };
+
+    const sizes = {
+        sm: "h-8 px-3 text-xs",
+        md: "h-9 px-4",
+        lg: "h-10 px-5 text-base",
+    };
+
+    return (
+        <button
+            className={cn(base, variants[variant], sizes[size], className)}
+            {...props}
+        >
+            {children}
+        </button>
+    );
+};
+
+/* Badge */
+
+const Badge = ({ className, children }) => (
+    <span
+        className={cn(
+            "inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-700",
+            className
+        )}
+    >
+        {children}
+    </span>
+);
+
+/* Separator */
+
+const Separator = ({ orientation = "horizontal", className }) => {
+    const base = orientation === "vertical" ? "h-full w-px" : "h-px w-full";
+    return <div className={cn("bg-slate-200", base, className)} />;
+};
+
+/* Input */
+
+const Input = ({ className, ...props }) => (
+    <input
+        className={cn(
+            "h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500",
+            className
+        )}
+        {...props}
+    />
+);
+
+/* Checkbox */
+
+const Checkbox = ({ checked, onCheckedChange, className }) => (
+    <input
+        type="checkbox"
+        className={cn(
+            "h-4 w-4 rounded border border-slate-300 text-blue-600 focus:ring-blue-500",
+            className
+        )}
+        checked={checked}
+        onChange={(e) => onCheckedChange?.(e.target.checked)}
+    />
+);
+
+/* ScrollArea */
+
+const ScrollArea = ({ className, children }) => (
+    <div className={cn("overflow-auto", className)}>{children}</div>
+);
+
+/* Dialog */
+
+const Dialog = ({ open, onOpenChange, children }) => {
+    if (!open) return null;
+    return (
+        <div
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/40"
+            onClick={() => onOpenChange?.(false)}
+        >
+            <div
+                className="relative w-full max-w-3xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {children}
+            </div>
+        </div>
+    );
+};
+
+const DialogContent = ({ className, children }) => (
+    <div
+        className={cn(
+            "rounded-lg bg-white shadow-xl border border-slate-200",
+            className
+        )}
+    >
+        {children}
+    </div>
+);
+
+const DialogHeader = ({ className, children }) => (
+    <div className={cn(className)}>{children}</div>
+);
+
+const DialogFooter = ({ className, children }) => (
+    <div className={cn("flex justify-end gap-2", className)}>{children}</div>
+);
+
+const DialogTitle = ({ className, children }) => (
+    <h3 className={cn("text-base font-semibold text-slate-900", className)}>
+        {children}
+    </h3>
+);
+
+/* Tabs */
+
+const TabsContext = createContext(null);
+
+const Tabs = ({ value, onValueChange, className, children }) => (
+    <TabsContext.Provider value={{ value, onValueChange }}>
+        <div className={className}>{children}</div>
+    </TabsContext.Provider>
+);
+
+const TabsList = ({ className, children }) => (
+    <div className={cn("inline-flex rounded-md bg-slate-100 p-1", className)}>
+        {children}
+    </div>
+);
+
+const TabsTrigger = ({ value, className, children }) => {
+    const ctx = useContext(TabsContext);
+    const active = ctx?.value === value;
+
+    return (
+        <button
+            type="button"
+            onClick={() => ctx?.onValueChange?.(value)}
+            className={cn(
+                "px-3 py-1.5 text-sm rounded-md font-medium transition",
+                active
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:bg-slate-200",
+                className
+            )}
+        >
+            {children}
+        </button>
+    );
+};
+
+const TabsContent = ({ value, className, children }) => {
+    const ctx = useContext(TabsContext);
+    if (ctx?.value !== value) return null;
+    return <div className={className}>{children}</div>;
+};
+
+/* Select */
+
+const SelectContext = createContext(null);
+
+const Select = ({ value, onValueChange, children }) => {
+    const [open, setOpen] = useState(false);
+    return (
+        <SelectContext.Provider value={{ value, onValueChange, open, setOpen }}>
+            <div className="relative inline-block">{children}</div>
+        </SelectContext.Provider>
+    );
+};
+
+const SelectTrigger = ({ className, children }) => {
+    const ctx = useContext(SelectContext);
+    return (
+        <button
+            type="button"
+            onClick={() => ctx?.setOpen(!ctx.open)}
+            className={cn(
+                "flex h-9 w-40 items-center justify-between rounded-md border border-slate-300 bg-white px-2 text-sm shadow-sm hover:bg-slate-50",
+                className
+            )}
+        >
+            {children}
+            <span className="ml-2 text-xs text-slate-500">▾</span>
+        </button>
+    );
+};
+
+const SelectValue = ({ placeholder }) => {
+    const ctx = useContext(SelectContext);
+    const { value } = ctx || {};
+    return (
+        <span className={cn("truncate", !value && "text-slate-400")}>
+            {value || placeholder}
+        </span>
+    );
+};
+
+const SelectContent = ({ className, children }) => {
+    const ctx = useContext(SelectContext);
+    if (!ctx?.open) return null;
+
+    return (
+        <div
+            className={cn(
+                "absolute z-50 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg",
+                className
+            )}
+        >
+            <div className="max-h-60 overflow-auto py-1">{children}</div>
+        </div>
+    );
+};
+
+const SelectItem = ({ value, children }) => {
+    const ctx = useContext(SelectContext);
+    const selected = ctx?.value === value;
+
+    return (
+        <div
+            role="button"
+            className={cn(
+                "cursor-pointer px-3 py-1.5 text-sm hover:bg-slate-100",
+                selected && "bg-slate-100 font-medium"
+            )}
+            onClick={() => {
+                ctx?.onValueChange?.(value);
+                ctx?.setOpen(false);
+            }}
+        >
+            {children}
+        </div>
+    );
+};
+
+/* -------------------------------------------------------------------------- */
+/*                                Trend View                                  */
+/* -------------------------------------------------------------------------- */
+const MetricChip = ({ label, color, active, onClick }) => {
+    return (
+        <Box
+            onClick={onClick}
+            sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.8,
+                px: 1.5,
+                py: 0.6,
+                borderRadius: "999px",
+                cursor: "pointer",
+                border: `1px solid ${active ? color : "#E5E7EB"}`,
+                backgroundColor: active ? `${color}20` : "white",
+                color: active ? color : "#0f172a",
+                fontSize: "12px",
+                fontWeight: 600,
+                userSelect: "none",
+                transition: "all 0.15s ease",
+            }}
+        >
+            <Box
+                sx={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 3,
+                    border: `2px solid ${active ? color : "#CBD5E1"}`,
+                    backgroundColor: active ? color : "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "white",
+                    fontSize: 10,
+                    lineHeight: 1,
+                }}
+            >
+                {active && "✓"}
+            </Box>
+
+            {label}
+        </Box>
+    );
+};
+
+const TrendView = ({ mode, filters, city, platform, channel, period, globalFilters, brandRows, skuRows, onBackToTable, isEcom, timeStep }) => {
+    const isBrandMode = mode === "brand";
+    const { selectedMsl } = useContext(FilterContext);
+
+    // Also include any filter-selected SKUs/brands not already in the top rows
+    const allPossibleIds = useMemo(() => {
+        if (isBrandMode) {
+            const rows = brandRows || [];
+            const ids = rows.map((r) => r.id || r.name);
+            // Add filter-selected brands not already in the list
+            if (filters.brands && filters.brands.length > 0) {
+                filters.brands.forEach(b => { if (!ids.includes(b)) ids.push(b); });
+            }
+            return ids;
+        }
+        const rows = skuRows || [];
+        const ids = rows.map((r) => r.id || r.name);
+        // Add filter-selected SKUs not already in the list
+        if (filters.skus && filters.skus.length > 0) {
+            filters.skus.forEach(s => { if (!ids.includes(s)) ids.push(s); });
+        }
+        return ids;
+    }, [isBrandMode, brandRows, skuRows, filters.brands, filters.skus]);
+
+    const [visibleIds, setVisibleIds] = useState([]);
+    const [overflowOpen, setOverflowOpen] = useState(false);
+
+    useEffect(() => {
+        setVisibleIds(allPossibleIds.slice(0, 5));
+    }, [allPossibleIds]);
+
+    const [apiTrendData, setApiTrendData] = useState(null);
+    const [trendLoading, setTrendLoading] = useState(false);
+    const [trendError, setTrendError] = useState(null);
+
+    const [activeMetric, setActiveMetric] = useState("Osa");
+
+    useEffect(() => {
+        if (isEcom && activeMetric === 'Listing') {
+            setActiveMetric('Osa');
+        }
+    }, [isEcom, activeMetric]);
+
+    const metricMeta = KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
+
+    const fetchTrendData = useCallback(async () => {
+        if (visibleIds.length === 0) {
+            setApiTrendData(null);
+            return;
+        }
+        setTrendLoading(true);
+        setTrendError(null);
+        try {
+            const cleanCity = (!city || city === 'Select All' || city === 'select all' || city === 'All India' || city === 'All') ? 'All' : city;
+            const params = {
+                platform: platform || 'All',
+                channel: channel || 'All',
+                location: cleanCity,
+                category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
+                period: period || '1M',
+                startDate: globalFilters?.startDate,
+                endDate: globalFilters?.endDate,
+                timeStep: timeStep || 'Daily',
+                msl: getApiMslFromLocal(filters.msl, selectedMsl)
+            };
+
+            let endpoint = '';
+            if (isBrandMode) {
+                params.brands = visibleIds.join(',');
+                endpoint = '/availability-analysis/competition-brand-trends';
+            } else {
+                params.skus = visibleIds.join(',');
+                endpoint = '/availability-analysis/competition-sku-trends';
+            }
+
+            const response = await axiosInstance.post(endpoint, params);
+            setApiTrendData(response.data);
+        } catch (err) {
+            console.error("Error fetching trend data", err);
+            setTrendError(err.message || "Failed to load trend data");
+        } finally {
+            setTrendLoading(false);
+        }
+    }, [visibleIds, city, platform, channel, isBrandMode, filters.categories, filters.msl, selectedMsl, period, globalFilters?.startDate, globalFilters?.endDate, timeStep]);
+
+    useEffect(() => {
+        fetchTrendData();
+    }, [fetchTrendData]);
+
+    const chartData = useMemo(() => {
+        if (!apiTrendData) return [];
+        const dates = apiTrendData.dates || [];
+        const metricData = apiTrendData[activeMetric.toLowerCase()] || {};
+
+        return dates.map((date, idx) => {
+            const row = { date };
+            visibleIds.forEach(id => {
+                row[id] = metricData[id] ? metricData[id][idx] : null;
+            });
+            return row;
+        });
+    }, [apiTrendData, activeMetric, visibleIds]);
+
+    const formatValue = (v) => {
+        if (v === null || v === undefined) return 'N/A';
+        if (metricMeta.unit) return `${Number(v).toFixed(1)}${metricMeta.unit}`;
+        if (metricMeta.prefix) return `${metricMeta.prefix}${Number(v).toFixed(1)}`;
+        if (metricMeta.suffix) return `${Number(v).toFixed(1)}${metricMeta.suffix}`;
+        return Number(v).toFixed(1);
+    };
+
+    const truncateName = (name, length = 25) => {
+        if (!name) return '';
+        return name.length > length ? name.substring(0, length) + '...' : name;
+    };
+
+    return (
+        <Card className="mt-4">
+            <CardHeader className="flex flex-col gap-4 border-b pb-4">
+                <div className="flex items-center justify-between w-full">
+                    <Box display="flex" gap={1} flexWrap="wrap">
+                        {KPI_KEYS
+                            .filter(m => !(isEcom && m.key === 'Listing'))
+                            .map((m) => (
+                                <MetricChip
+                                    key={m.key}
+                                    label={m.label}
+                                    color={m.color}
+                                    active={activeMetric === m.key}
+                                    onClick={() => setActiveMetric(m.key)}
+                                />
+                            ))}
+                    </Box>
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" onClick={onBackToTable}>
+                            Back to list
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                        Select {isBrandMode ? 'Brands' : 'SKUs'} to Plot ({city})
+                    </div>
+                    <Box display="flex" gap={1} flexWrap="wrap">
+                        {(() => {
+                            const maxInline = 5;
+                            const inlineIds = allPossibleIds.slice(0, maxInline);
+                            const overflowIds = allPossibleIds.slice(maxInline);
+
+                            return (
+                                <>
+                                    {inlineIds.map((id, idx) => {
+                                        const name = truncateName(id, 35);
+                                        const active = visibleIds.includes(id);
+                                        const color = CHART_COLORS[idx % CHART_COLORS.length];
+                                        return (
+                                            <Box
+                                                key={id}
+                                                onClick={() => setVisibleIds(prev => {
+                                                    if (prev.includes(id)) return prev.filter(x => x !== id);
+                                                    if (prev.length >= 10) return prev; // Max 10 limit
+                                                    return [...prev, id];
+                                                })}
+                                                sx={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 1,
+                                                    px: 1.5,
+                                                    py: 0.5,
+                                                    borderRadius: "6px",
+                                                    cursor: "pointer",
+                                                    fontSize: "12px",
+                                                    fontWeight: 500,
+                                                    border: "1px solid",
+                                                    borderColor: active ? color : "#E2E8F0",
+                                                    backgroundColor: active ? `${color}10` : "transparent",
+                                                    color: active ? color : "#64748B",
+                                                    transition: "all 0.2s",
+                                                    maxWidth: "200px"
+                                                }}
+                                            >
+                                                <div style={{ minWidth: 8, height: 8, borderRadius: "50%", backgroundColor: color }} />
+                                                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={id}>{name}</span>
+                                                {active && <span style={{ fontSize: "10px" }}>✓</span>}
+                                            </Box>
+                                        )
+                                    })}
+
+                                    {overflowIds.length > 0 && (
+                                        <>
+                                            <Box
+                                                onClick={() => setOverflowOpen(true)}
+                                                sx={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 1,
+                                                    px: 2,
+                                                    py: 0.5,
+                                                    borderRadius: "6px",
+                                                    cursor: "pointer",
+                                                    fontSize: "12px",
+                                                    fontWeight: 600,
+                                                    border: "1px dashed #E2E8F0",
+                                                    backgroundColor: "#F8FAFC",
+                                                    color: "#475569",
+                                                }}
+                                            >
+                                                +{overflowIds.length} more
+                                            </Box>
+
+                                            <Dialog open={overflowOpen} onOpenChange={(v) => !v && setOverflowOpen(false)}>
+                                                <DialogContent className="max-w-md p-4 bg-white z-[60]">
+                                                    <DialogHeader className="mb-2">
+                                                        <DialogTitle>Select more {isBrandMode ? 'Brands' : 'SKUs'}</DialogTitle>
+                                                    </DialogHeader>
+                                                    <div style={{ maxHeight: 320, overflow: 'auto' }}>
+                                                        {overflowIds.map((id, idx) => {
+                                                            const name = id;
+                                                            const active = visibleIds.includes(id);
+                                                            const color = CHART_COLORS[(idx + maxInline) % CHART_COLORS.length];
+                                                            return (
+                                                                <div
+                                                                    key={id}
+                                                                    onClick={() => {
+                                                                        setVisibleIds(prev => {
+                                                                            if (prev.includes(id)) return prev.filter(x => x !== id);
+                                                                            if (prev.length >= 10) return prev; // Max 10 limit
+                                                                            return [...prev, id];
+                                                                        });
+                                                                    }}
+                                                                    className="p-2 rounded-md mb-2 cursor-pointer"
+                                                                    style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #E6EEF8', background: active ? `${color}10` : 'white' }}
+                                                                >
+                                                                    <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color }} />
+                                                                    <div style={{ flex: 1, fontSize: '13px' }}>{name}</div>
+                                                                    {active && <div style={{ fontSize: 12 }}>✓</div>}
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
+
+                                                    <DialogFooter className="mt-4">
+                                                        <Button variant="outline" onClick={() => setOverflowOpen(false)}>Close</Button>
+                                                    </DialogFooter>
+                                                </DialogContent>
+                                            </Dialog>
+                                        </>
+                                    )}
+                                </>
+                            )
+                        })()}
+                    </Box>
+                </div>
+            </CardHeader>
+
+            <CardContent className="pt-4">
+                <div className="h-[350px] w-full">
+                    {trendLoading ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                            <div className="animate-pulse flex items-end gap-4 px-8 pb-8 w-full h-[300px]">
+                                <div className="w-1/6 bg-slate-200/50 h-[40%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[70%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[50%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[80%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[60%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[90%] rounded-t-sm" />
+                            </div>
+                        </div>
+                    ) : trendError ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-500">
+                            <p>{trendError}</p>
+                            <Button variant="outline" size="sm" className="mt-2" onClick={fetchTrendData}>Retry</Button>
+                        </div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData} margin={{ bottom: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="date" fontSize={11} tickLine={false} dy={6} />
+                                <YAxis
+                                    tickLine={false}
+                                    fontSize={11}
+                                    tickFormatter={formatValue}
+                                />
+                                <Tooltip 
+                                    formatter={(value, name) => [formatValue(value), truncateName(name, 40)]}
+                                />
+                                <Legend 
+                                    formatter={(value) => truncateName(value, 20)}
+                                    wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                                />
+
+                                {visibleIds.map((id, idx) => {
+                                    const colorIndex = allPossibleIds.indexOf(id);
+                                    const color = CHART_COLORS[(colorIndex === -1 ? idx : colorIndex) % CHART_COLORS.length];
+                                    return (
+                                        <Line
+                                            key={id}
+                                            type="monotone"
+                                            dataKey={id}
+                                            name={id}
+                                            dot={{ r: 3, strokeWidth: 1 }}
+                                            activeDot={{ r: 5 }}
+                                            stroke={color}
+                                            strokeWidth={2}
+                                        />
+                                    );
+                                })}
+                            </LineChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+const CHART_COLORS = ["#F97316", "#8B5CF6", "#22C55E", "#3B82F6", "#EC4899", "#EAB308"];
+
+const KPI_KEYS = [
+    {
+        key: "Osa",
+        label: "OSA",
+        color: "#F97316",
+        unit: "%",
+    },
+    {
+        key: "Listing",
+        label: "Listing %",
+        color: "#0EA5E9",
+        unit: "%",
+    },
+];
+
+/* -------------------------------------------------------------------------- */
+/*                                 Tables                                     */
+/* -------------------------------------------------------------------------- */
+
+const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
+    return (
+        <Card className="mt-3">
+            <CardHeader className="border-b pb-2">
+                <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
+                    <span>Brands ({rows.length || 0})</span>
+                    {onDownload && (
+                        <button
+                            type="button"
+                            onClick={onDownload}
+                            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+                            title="Download Competition Data"
+                        >
+                            <Download className="h-4 w-4 text-emerald-600" />
+                        </button>
+                    )}
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-3">
+                <div className="max-h-[500px] overflow-auto rounded-md border">
+                    <table className="min-w-full divide-y divide-slate-200 text-xs">
+                        <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 shadow-sm">
+                            <tr>
+                                <th className="px-3 py-2 text-left">Brand</th>
+                                <th className="px-3 py-2 text-center">OSA</th>
+                                {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
+                                <th className="px-3 py-2 text-center">Wt OSA</th>
+                            </tr>
+
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                            {loading && Array.from({ length: 5 }).map((_, idx) => (
+                                <tr key={`skeleton-${idx}`} className="animate-pulse">
+                                    <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
+                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                                </tr>
+                            ))}
+                            {!loading && rows.map((row, idx) => (
+                                <tr
+                                    key={row.id}
+                                    className={cn(
+                                        "hover:bg-slate-50",
+                                        idx % 2 === 1 && "bg-slate-50/60"
+                                    )}
+                                >
+                                    <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
+                                        <div className="flex items-center justify-between gap-1.5">
+                                            <span className="truncate" title={row.name}>{row.name}</span>
+                                            {onBrandSelect && row.name && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onBrandSelect(row.name);
+                                                    }}
+                                                    className="px-2 py-0.5 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600 rounded transition-all duration-150 flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
+                                                    title={`View SKUs for ${row.name}`}
+                                                >
+                                                    <span>SKUs</span>
+                                                    <ArrowRight className="h-3 w-3" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-[12px]">
+                                        <span className="font-semibold text-slate-700">
+                                            {formatKpiValue(row.osa)}
+                                        </span>
+                                    </td>
+                                    {!isEcom && (
+                                        <td className="px-3 py-2 text-center text-[12px]">
+                                            <span className="font-semibold text-slate-700">
+                                                {formatKpiValue(row.listing)}
+                                            </span>
+                                        </td>
+                                    )}
+                                    <td className="px-3 py-2 text-center text-[12px]">
+                                        <span className="font-semibold text-slate-700">
+                                            {formatKpiValue(row.wtOsa ?? row.wt_osa ?? (row.osa && row.listing ? (row.osa * row.listing) / 100 : 0))}
+                                        </span>
+                                    </td>
+                                </tr>
+
+                            ))}
+                            {!loading && rows.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={isEcom ? 3 : 4}
+                                        className="px-3 py-6 text-center text-[12px] text-slate-400"
+                                    >
+
+                                        No brands matching current filters.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+const SkuTable = ({ rows, loading, isEcom, onDownload }) => {
+    return (
+        <Card className="mt-3 border-slate-200 bg-white shadow-sm">
+            <CardHeader className="border-b pb-2">
+                <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
+                    <span>SKUs ({rows.length || 0})</span>
+                    {onDownload && (
+                        <button
+                            type="button"
+                            onClick={onDownload}
+                            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+                            title="Download Competition Data"
+                        >
+                            <Download className="h-4 w-4 text-emerald-600" />
+                        </button>
+                    )}
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-3">
+                <div className="max-h-[500px] overflow-auto rounded-md border">
+                    <table className="min-w-full divide-y divide-slate-200 text-xs">
+                        <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 shadow-sm">
+                            <tr>
+                                <th className="px-3 py-2 text-left">SKU</th>
+                                <th className="px-3 py-2 text-left">Brand</th>
+                                <th className="px-3 py-2 text-center">OSA</th>
+                                {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
+                                <th className="px-3 py-2 text-center">Wt OSA</th>
+                            </tr>
+
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                            {loading && (
+                                <tr>
+                                    <td colSpan={5} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                                        <div className="animate-pulse">Loading competition data...</div>
+                                    </td>
+                                </tr>
+                            )}
+                            {!loading && rows.map((row, idx) => (
+                                <tr
+                                    key={row.id}
+                                    className={cn(
+                                        "hover:bg-slate-50",
+                                        idx % 2 === 1 && "bg-slate-50/60"
+                                    )}
+                                >
+                                    <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
+                                        {row.name}
+                                    </td>
+                                    <td className="whitespace-nowrap px-3 py-2 text-left text-[12px] text-slate-700">
+                                        {row.brandName}
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-[12px]">
+                                        <span className="font-semibold text-slate-700">
+                                            {formatKpiValue(row.osa)}
+                                        </span>
+                                    </td>
+                                    {!isEcom && (
+                                        <td className="px-3 py-2 text-center text-[12px]">
+                                            <span className="font-semibold text-slate-700">
+                                                {formatKpiValue(row.listing)}
+                                            </span>
+                                        </td>
+                                    )}
+                                    <td className="px-3 py-2 text-center text-[12px]">
+                                        <span className="font-semibold text-slate-700">
+                                            {formatKpiValue(row.wtOsa ?? row.wt_osa ?? (row.osa && row.listing ? (row.osa * row.listing) / 100 : 0))}
+                                        </span>
+                                    </td>
+                                </tr>
+
+                            ))}
+                            {!loading && rows.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={isEcom ? 4 : 5}
+                                        className="px-3 py-6 text-center text-[12px] text-slate-400"
+                                    >
+
+                                        No SKUs matching current filters.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+/* -------------------------------------------------------------------------- */
+/*                             Filter Dialog                                  */
+/* -------------------------------------------------------------------------- */
+
+const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location, channel }) => {
+    const [activeTab, setActiveTab] = useState(
+        mode === "brand" ? "category" : "sku"
+    );
+    const [search, setSearch] = useState("");
+
+    const [localValue, setLocalValue] = useState(() => ({
+        categories: value.categories || [],
+        brands: value.brands || [],
+        skus: value.skus || [],
+        msl: value.msl || []
+    }));
+
+    useEffect(() => {
+        if (open) {
+            setLocalValue({
+                categories: value.categories || [],
+                brands: value.brands || [],
+                skus: value.skus || [],
+                msl: value.msl || []
+            });
+        }
+    }, [open, value]);
+
+    const [filterOptions, setFilterOptions] = useState({
+        categories: [],
+        brands: [],
+        skus: [],
+        loading: false,
+        error: null
+    });
+
+    useEffect(() => {
+        if (!open) return;
+
+        const fetchFilterOptions = async () => {
+            setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
+
+            try {
+                const params = new URLSearchParams();
+                if (platform) params.append('platform', platform);
+                if (channel) params.append('channel', channel);
+                if (location) params.append('location', location === 'All India' ? 'All' : location);
+                if (localValue.categories.length > 0) {
+                    params.append('category', localValue.categories.join(','));
+                }
+                if (localValue.brands.length > 0) {
+                    params.append('brand', localValue.brands.join(','));
+                }
+
+                const response = await axiosInstance.get(`/availability-analysis/competition-filter-options?${params.toString()}`);
+
+                if (response.data) {
+                    setFilterOptions({
+                        categories: (response.data.categories || []).filter(c => c && c !== 'All'),
+                        brands: (response.data.brands || []).filter(b => b && b !== 'All'),
+                        skus: (response.data.skus || []).filter(s => s && s !== 'All'),
+                        loading: false,
+                        error: null
+                    });
+                }
+            } catch (error) {
+                console.error('[FilterDialog] Error:', error);
+                setFilterOptions(prev => ({
+                    ...prev,
+                    loading: false,
+                    error: 'Failed to load filter options'
+                }));
+            }
+        };
+
+        fetchFilterOptions();
+    }, [open, localValue.categories, localValue.brands, platform, location]);
+
+    const getListForTab = () => {
+        if (activeTab === "category") return filterOptions.categories;
+        if (activeTab === "brand") return filterOptions.brands;
+        if (activeTab === "sku") return filterOptions.skus;
+        if (activeTab === "msl") return ["Top SKUs", "All SKUs"];
+        return [];
+    };
+
+    const list = useMemo(() => {
+        const base = getListForTab() || [];
+        return base.filter((item) =>
+            item.toLowerCase().includes(search.toLowerCase())
+        );
+    }, [activeTab, search, filterOptions]);
+
+    const currentKey =
+        activeTab === "category"
+            ? "categories"
+            : activeTab === "brand"
+                ? "brands"
+                : activeTab === "sku"
+                    ? "skus"
+                    : "msl";
+
+    const handleToggle = (type, item) => {
+        const current = new Set(localValue[type] || []);
+        if (current.has(item)) current.delete(item);
+        else current.add(item);
+
+        const next = { ...localValue, [type]: Array.from(current) };
+
+        if (type === "categories") {
+            next.brands = [];
+            next.skus = [];
+        } else if (type === "brands") {
+            next.skus = [];
+        }
+
+        setLocalValue(next);
+    };
+
+    const handleSelectAll = (type, items) => {
+        const currentList = localValue[type] || [];
+        const allSelected =
+            items.length > 0 && items.every((i) => currentList.includes(i));
+
+        const next = { ...localValue, [type]: allSelected ? [] : items.slice() };
+
+        if (type === "categories") {
+            next.brands = [];
+            next.skus = [];
+        } else if (type === "brands") {
+            next.skus = [];
+        }
+
+        setLocalValue(next);
+    };
+
+    const allItemsForCurrentTab = getListForTab();
+    const allSelectedForCurrentTab =
+        allItemsForCurrentTab.length > 0 &&
+        allItemsForCurrentTab.every((i) => (localValue[currentKey] || []).includes(i));
+
+    const handleApply = () => {
+        onChange(localValue);
+        onClose();
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+            <DialogContent className="max-w-4xl gap-0 p-0">
+                <DialogHeader className="border-b px-6 py-4">
+                    <DialogTitle className="text-lg font-semibold">Filters</DialogTitle>
+                </DialogHeader>
+
+                <div className="flex min-h-[360px]">
+                    <div className="flex w-56 flex-col border-r bg-slate-50/80 px-4 py-4">
+                        <div className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Filters
+                        </div>
+                        <Tabs
+                            value={activeTab}
+                            onValueChange={setActiveTab}
+                            className="flex-1"
+                        >
+                            <TabsList className="flex flex-col items-stretch gap-1 bg-transparent p-0">
+                                {["category", "brand", "sku", "msl"].map((t) => (
+                                    <TabsTrigger
+                                        key={t}
+                                        value={t}
+                                        className="justify-start rounded-lg px-3 py-2 text-sm font-medium"
+                                    >
+                                        {t === "category" && "Category"}
+                                        {t === "brand" && "Brand"}
+                                        {t === "sku" && "SKU"}
+                                        {t === "msl" && "Top SKU"}
+                                    </TabsTrigger>
+                                ))}
+                            </TabsList>
+                        </Tabs>
+                    </div>
+
+                    <div className="flex-1 min-w-0 px-6 py-4">
+                        <div className="flex items-center justify-between gap-4">
+                            <Input
+                                placeholder="Search"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="max-w-sm bg-slate-50"
+                            />
+                            <button
+                                className="text-sm font-medium text-blue-600 hover:underline"
+                                onClick={() =>
+                                    handleSelectAll(currentKey, allItemsForCurrentTab)
+                                }
+                            >
+                                {allSelectedForCurrentTab ? "Clear all" : "Select all"}
+                            </button>
+                        </div>
+
+                        <ScrollArea className="mt-4 h-64 rounded-md border bg-slate-50/60">
+                            <div className="space-y-1 p-3">
+                                {filterOptions.loading && activeTab !== "msl" && (
+                                    <div className="px-3 py-8 text-center text-xs text-slate-400">
+                                        <div className="animate-pulse">Loading filter options...</div>
+                                    </div>
+                                )}
+                                {filterOptions.error && activeTab !== "msl" && (
+                                    <div className="px-3 py-8 text-center text-xs text-red-400">
+                                        {filterOptions.error}
+                                    </div>
+                                )}
+                                {(!filterOptions.loading || activeTab === "msl") && !filterOptions.error && list.map((item) => (
+                                    <label
+                                        key={item}
+                                        className="flex w-full cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
+                                    >
+                                        <Checkbox
+                                            className="flex-shrink-0"
+                                            checked={(localValue[currentKey] || []).includes(item)}
+                                            onCheckedChange={() => handleToggle(currentKey, item)}
+                                        />
+                                        <span className="flex-1 truncate" title={item}>{item}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    </div>
+                </div>
+
+                <DialogFooter className="border-t px-6 py-3">
+                    <Button variant="outline" onClick={onClose}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleApply}>Apply</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+/* -------------------------------------------------------------------------- */
+/*                             Main Component                                 */
+/* -------------------------------------------------------------------------- */
+
+export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, period, timeStep, drawerFilters, setDrawerFilters }) => {
+    const isEcom = platform?.toLowerCase() === "amazon" || platform?.toLowerCase() === "flipkart";
+    const [tab, setTab] = useState("brand");
+
+    const { selectedChannel, selectedMsl } = useContext(FilterContext);
+    const [city, setCity] = useState("Select All");
+    const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+    const [filters, setFilters] = useState({
+        categories: [],
+        brands: [],
+        skus: [],
+        msl: [],
+    });
+    const [viewMode, setViewMode] = useState("table");
+
+    const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
+    const [trendData, setTrendData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [availableCities, setAvailableCities] = useState(["Select All"]);
+
+    // Derive active filters and city (controlled vs uncontrolled pattern)
+    const activeFilters = useMemo(() => {
+        if (drawerFilters) {
+            return {
+                categories: drawerFilters.Format === 'All' ? [] : drawerFilters.Format.split(',').filter(Boolean),
+                brands: drawerFilters.Brand === 'All' ? [] : drawerFilters.Brand.split(',').filter(Boolean),
+                skus: drawerFilters.SKU === 'All' ? [] : drawerFilters.SKU.split(',').filter(Boolean),
+                msl: getLocalMslFromGlobal(drawerFilters.Msl)
+            };
+        }
+        return filters;
+    }, [drawerFilters, filters]);
+
+    const activeCity = useMemo(() => {
+        if (drawerFilters) {
+            return (drawerFilters.City === 'All' || drawerFilters.City === 'All India') ? 'Select All' : drawerFilters.City;
+        }
+        return city;
+    }, [drawerFilters, city]);
+
+    const handleFilterChange = useCallback((newFilters) => {
+        if (setDrawerFilters) {
+            const localFormat = newFilters.categories.length > 0 ? newFilters.categories.join(',') : 'All';
+            const localBrand = newFilters.brands.length > 0 ? newFilters.brands.join(',') : 'All';
+            const localSku = newFilters.skus.length > 0 ? newFilters.skus.join(',') : 'All';
+            const rawMsl = newFilters.msl && newFilters.msl.length > 0 ? newFilters.msl.map(v => v.includes('(1)') ? '1' : (v.includes('(0)') ? '0' : v)).join(',') : 'All';
+            setDrawerFilters(prev => ({
+                ...prev,
+                Format: localFormat,
+                Brand: localBrand,
+                SKU: localSku,
+                Msl: rawMsl
+            }));
+        } else {
+            setFilters(newFilters);
+        }
+    }, [setDrawerFilters]);
+
+    const handleCityChange = useCallback((newCity) => {
+        if (setDrawerFilters) {
+            setDrawerFilters(prev => ({
+                ...prev,
+                City: (newCity === 'All India' || newCity === 'Select All' || newCity === 'All') ? 'All' : newCity
+            }));
+        } else {
+            setCity(newCity);
+        }
+    }, [setDrawerFilters]);
+
+    // Fetch dynamic city options
+    useEffect(() => {
+        const fetchCities = async () => {
+            try {
+                const response = await axiosInstance.get('/availability-analysis/competition-filter-options', {
+                    params: { 
+                        platform: platform || 'All',
+                        channel: selectedChannel || 'All'
+                    }
+                });
+                if (response.data && response.data.locations) {
+                    const rawLocs = response.data.locations || [];
+                    const cleanLocs = rawLocs.filter(c => c !== 'Select All' && c !== 'All' && c !== 'All India');
+                    setAvailableCities(['Select All', ...cleanLocs]);
+                }
+            } catch (error) {
+                console.error('[AvailabilityCompetitionKpiShowcase] Error fetching cities:', error);
+            }
+        };
+        fetchCities();
+    }, [platform]);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            const cleanCity = (!activeCity || activeCity === 'Select All' || activeCity === 'select all' || activeCity === 'All India' || activeCity === 'All') ? 'All' : activeCity;
+            try {
+                const params = {
+                    platform: platform || 'All',
+                    channel: selectedChannel || 'All',
+                    location: cleanCity,
+                    category: activeFilters.categories.length > 0 ? activeFilters.categories.join(',') : 'All',
+                    brand: activeFilters.brands.length > 0 ? activeFilters.brands.join(',') : 'All',
+                    sku: activeFilters.skus.length > 0 ? activeFilters.skus.join(',') : 'All',
+                    period: period || '1M',
+                    startDate: globalFilters?.startDate,
+                    endDate: globalFilters?.endDate,
+                    msl: getApiMslFromLocal(activeFilters.msl, selectedMsl)
+                };
+
+                const response = await axiosInstance.get('/availability-analysis/competition', { params });
+                if (response.data) {
+                    setCompetitionData(response.data);
+                }
+            } catch (error) {
+                console.error('[AvailabilityCompetitionKpiShowcase] Error:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [activeCity, activeFilters, platform, viewMode, tab, globalFilters?.startDate, globalFilters?.endDate, period, selectedMsl]);
+
+    const selectionCount =
+        activeFilters.categories.length + activeFilters.brands.length + activeFilters.skus.length + (activeFilters.msl ? activeFilters.msl.length : 0);
+
+    const brandRows = useMemo(() => {
+        return (competitionData.brands || []).map((b, idx) => {
+            const osa = b.osa || 0;
+            const listing = b.listing || 0;
+            const wtOsa = b.wtOsa ?? b.wt_osa ?? (osa && listing ? parseFloat(((osa * listing) / 100).toFixed(1)) : 0);
+            return {
+                id: b.brand || `brand-${idx}`,
+                name: b.brand || 'Unknown',
+                osa: osa,
+                listing: listing,
+                wtOsa: wtOsa,
+                wt_osa: wtOsa,
+                doi: b.doi || 0,
+                fillrate: b.fillrate || 0,
+                assortment: b.assortment || 0,
+                psl: b.psl || 0
+            };
+        });
+    }, [competitionData.brands]);
+
+    const skuRows = useMemo(() => {
+        const mapped = (competitionData.skus || []).map((s, idx) => {
+            const msVal = Number(s.MarketShare?.value ?? s.marketShare?.value ?? s.MarketShare ?? s.marketShare ?? 0);
+            const osa = s.osa ?? s.OSA?.value ?? 0;
+            const listing = s.listing ?? s.Listing?.value ?? 0;
+            const wtOsa = s.wtOsa ?? s.wt_osa ?? (osa && listing ? parseFloat(((osa * listing) / 100).toFixed(1)) : 0);
+            return {
+                id: s.sku_name || `sku-${idx}`,
+                name: s.sku_name || 'Unknown',
+                brandName: s.brand_name || 'Unknown',
+                osa: osa,
+                listing: listing,
+                wtOsa: wtOsa,
+                wt_osa: wtOsa,
+                doi: s.doi || 0,
+                fillrate: s.fillrate || 0,
+                assortment: s.assortment || 0,
+                psl: s.psl || 0,
+                MarketShare: msVal,
+                marketShare: msVal,
+                total_sales: s.total_sales || s.Sales?.value || s.Sales || 0,
+                ...s
+            };
+        });
+
+        return mapped.sort((a, b) => {
+            const getOfftakeVal = (item) => {
+                const raw = item?.OfftakeShare?.value ?? item?.OfftakeShare ?? item?.offtake_share ?? item?.CategoryShare?.value ?? item?.CategoryShare ?? 0;
+                const num = Number(raw);
+                return isNaN(num) ? 0 : num;
+            };
+            const offtakeA = getOfftakeVal(a);
+            const offtakeB = getOfftakeVal(b);
+            if (Math.abs(offtakeB - offtakeA) > 0.0001) return offtakeB - offtakeA;
+
+            const msA = Number(a.MarketShare?.value ?? a.marketShare?.value ?? a.MarketShare ?? a.marketShare ?? 0) || 0;
+            const msB = Number(b.MarketShare?.value ?? b.marketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0) || 0;
+            if (Math.abs(msB - msA) > 0.0001) return msB - msA;
+
+            const salesA = Number(a.total_sales || 0);
+            const salesB = Number(b.total_sales || 0);
+            if (salesB !== salesA) return salesB - salesA;
+
+            const osaA = Number(a.osa ?? 0) || 0;
+            const osaB = Number(b.osa ?? 0) || 0;
+            return osaB - osaA;
+        });
+    }, [competitionData.skus]);
+
+    const handleDownloadCompetitionExcel = () => {
+        try {
+            const wb = XLSX.utils.book_new();
+
+            const safeFormatPercent = (val) => {
+                if (val === null || val === undefined || val === "N/A" || val === "") return "N/A";
+                const num = typeof val === "object" ? Number(val.value ?? val.val) : Number(val);
+                if (isNaN(num)) return "N/A";
+                return `${num.toFixed(1)}%`;
+            };
+
+            const safeFormatPrice = (val) => {
+                if (val === null || val === undefined || val === "N/A" || val === "") return "N/A";
+                const num = typeof val === "object" ? Number(val.value ?? val.val) : Number(val);
+                if (isNaN(num)) return "N/A";
+                return `₹${num}`;
+            };
+
+            const skuData = (skuRows || []).map(s => {
+                const row = {
+                    "SKU": s.name || s.sku_name || s.Product || s.sku || "N/A",
+                    "BRAND": s.brandName || s.brand_name || s.brand || "N/A",
+                    "OSA": safeFormatPercent(s.osa ?? s.OSA),
+                };
+                if (!isEcom) {
+                    row["LISTING %"] = safeFormatPercent(s.listing ?? s.Listing);
+                }
+                row["WT OSA"] = safeFormatPercent(s.wtOsa ?? s.wt_osa ?? (s.osa && s.listing ? (s.osa * s.listing) / 100 : 0));
+                return row;
+            });
+
+            const brandData = (brandRows || []).map(b => {
+                const row = {
+                    "BRAND": b.name || b.brand_name || b.brand || "N/A",
+                    "OSA": safeFormatPercent(b.osa ?? b.OSA),
+                };
+                if (!isEcom) {
+                    row["LISTING %"] = safeFormatPercent(b.listing ?? b.Listing);
+                }
+                row["WT OSA"] = safeFormatPercent(b.wtOsa ?? b.wt_osa ?? (b.osa && b.listing ? (b.osa * b.listing) / 100 : 0));
+                return row;
+            });
+
+            if (tab === "sku") {
+                const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);
+                XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+                const brandSheet = XLSX.utils.json_to_sheet(brandData.length > 0 ? brandData : [{ "BRAND": "No Brand Data" }]);
+                XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+            } else {
+                const brandSheet = XLSX.utils.json_to_sheet(brandData.length > 0 ? brandData : [{ "BRAND": "No Brand Data" }]);
+                XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+                const skuSheet = XLSX.utils.json_to_sheet(skuData.length > 0 ? skuData : [{ "SKU": "No SKU Data" }]);
+                XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+            }
+
+            const fileName = `${tab === "sku" ? "SKUs" : "Brands"}_Availability_Competition_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        } catch (err) {
+            console.error("[AvailabilityCompetitionKpiShowcase] Excel download error:", err);
+        }
+    };
+
+    const handleBrandSelect = useCallback((brandName) => {
+        if (!brandName) return;
+        setFilters((prev) => ({
+            ...prev,
+            brands: [brandName],
+        }));
+        setTab("sku");
+    }, []);
+
+    return (
+        <div className="flex-col bg-slate-50 text-slate-900">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                        {activeFilters.categories.length > 0 ? (
+                            activeFilters.categories.map((c) => (
+                                <Badge key={c} className="bg-blue-50 text-blue-700 border-blue-100">{c}</Badge>
+                            ))
+                        ) : (
+                            <Badge className="bg-slate-100 text-slate-600 border-slate-200">All Categories</Badge>
+                        )}
+                        {activeFilters.brands.map((b) => (
+                            <Badge key={b} className="bg-indigo-50 text-indigo-700 border-indigo-100">{b}</Badge>
+                        ))}
+                        {activeFilters.msl && activeFilters.msl.map((m) => (
+                            <Badge key={m} className="bg-emerald-50 text-emerald-700 border-emerald-100">{m}</Badge>
+                        ))}
+                    </div>
+                    <h1 className="text-lg font-semibold text-slate-900">Competition List</h1>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <Select value={activeCity} onValueChange={handleCityChange}>
+                        <SelectTrigger className="h-9 w-40 bg-white">
+                            <SelectValue placeholder="Select city" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {availableCities.map((c) => (
+                                <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="relative bg-white"
+                        onClick={() => setFilterDialogOpen(true)}
+                    >
+                        <Filter className="mr-1.5 h-4 w-4" />
+                        Filters
+                        {selectionCount > 0 && (
+                            <Badge className="ml-2 h-5 min-w-[20px] justify-center rounded-full bg-blue-600 text-[11px] text-white">
+                                {selectionCount}
+                            </Badge>
+                        )}
+                    </Button>
+
+                    <Button
+                        size="sm"
+                        className="bg-blue-600 text-white hover:bg-blue-700"
+                        onClick={() => setViewMode(viewMode === 'table' ? 'trend' : 'table')}
+                    >
+                        {viewMode === 'table' ? (
+                            <><LineChartIcon className="mr-1.5 h-4 w-4" /> Trend</>
+                        ) : (
+                            <>Back to Table</>
+                        )}
+                    </Button>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 w-9 p-0 bg-white hover:bg-slate-100 border-slate-200 text-slate-700 flex items-center justify-center rounded-md"
+                        onClick={handleDownloadCompetitionExcel}
+                        title="Download Competition Data"
+                    >
+                        <Download className="h-4 w-4 text-emerald-600" />
+                    </Button>
+                </div>
+            </div>
+
+            <Tabs
+                value={tab}
+                onValueChange={(v) => {
+                    setTab(v);
+                    if (v === "brand") {
+                        setFilters((prev) => ({ ...prev, brands: [] }));
+                    }
+                }}
+                className="w-full"
+            >
+                <div className="flex items-center justify-between gap-3">
+                    <TabsList className="bg-slate-100">
+                        <TabsTrigger value="brand" className="px-4">Brands</TabsTrigger>
+                        <TabsTrigger value="sku" className="px-4">SKUs</TabsTrigger>
+                    </TabsList>
+                </div>
+
+                <TabsContent value="brand" className="mt-3">
+                    {viewMode === "table" ? (
+                        <BrandTable rows={brandRows} loading={loading} isEcom={isEcom} onDownload={handleDownloadCompetitionExcel} onBrandSelect={handleBrandSelect} />
+                    ) : (
+                        <TrendView
+                            mode="brand"
+                            filters={activeFilters}
+                            city={activeCity}
+                            platform={platform}
+                            channel={selectedChannel}
+                            period={period}
+                            globalFilters={globalFilters}
+                            brandRows={brandRows}
+                            skuRows={skuRows}
+                            onBackToTable={() => setViewMode("table")}
+                            isEcom={isEcom}
+                            timeStep={timeStep}
+                        />
+                    )}
+                </TabsContent>
+
+                <TabsContent value="sku" className="mt-3">
+                    {viewMode === "table" ? (
+                        <SkuTable rows={skuRows} loading={loading} isEcom={isEcom} onDownload={handleDownloadCompetitionExcel} />
+                    ) : (
+                        <TrendView
+                            mode="sku"
+                            filters={activeFilters}
+                            city={activeCity}
+                            platform={platform}
+                            channel={selectedChannel}
+                            period={period}
+                            globalFilters={globalFilters}
+                            brandRows={brandRows}
+                            skuRows={skuRows}
+                            onBackToTable={() => setViewMode("table")}
+                            isEcom={isEcom}
+                            timeStep={timeStep}
+                        />
+                    )}
+                </TabsContent>
+            </Tabs>
+
+            <FilterDialog
+                open={filterDialogOpen}
+                onClose={() => setFilterDialogOpen(false)}
+                mode={tab}
+                value={activeFilters}
+                onChange={handleFilterChange}
+                platform={platform}
+                channel={selectedChannel}
+                location={activeCity}
+            />
+        </div>
+    );
+};
+
+export default AvailabilityCompetitionKpiShowcase;

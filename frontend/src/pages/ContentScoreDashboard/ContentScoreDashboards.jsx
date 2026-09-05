@@ -1,12 +1,24 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import ContentScoreAnalysis from "../../components/ContentScoreDashboard/ContentScoreAnalysis";
+import { FilterContext } from "../../utils/FilterContext";
 
 export default function ContentScoreDashboards() {
+  const { refreshFilters, setContentFilterMode, platform } = useContext(FilterContext);
+
+  // Activate content-specific filter mode on mount, deactivate on unmount
+  useEffect(() => {
+    setContentFilterMode(true);
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+    return () => setContentFilterMode(false);
+  }, [setContentFilterMode, refreshFilters]);
+
   const [showTrends, setShowTrends] = useState(false);
 
   const [filters, setFilters] = useState({
-    platform: "Blinkit",
+    platform: platform || "",
     months: 6,
     timeStep: "Monthly",
   });
@@ -14,8 +26,13 @@ export default function ContentScoreDashboards() {
   const [trendParams, setTrendParams] = useState({
     months: 6,
     timeStep: "Monthly",
-    platform: "Blinkit",
+    platform: platform || "",
   });
+
+  useEffect(() => {
+    setFilters(prev => ({ ...prev, platform: platform || prev.platform }));
+    setTrendParams(prev => ({ ...prev, platform: platform || prev.platform }));
+  }, [platform]);
 
   const [trendData, setTrendData] = useState({
     timeSeries: [],
@@ -62,7 +79,7 @@ export default function ContentScoreDashboards() {
 
     setTrendParams((prev) => ({
       ...prev,
-      platform: card.name ?? "Blinkit",
+      platform: card.name ?? filters.platform ?? platform ?? "",
     }));
 
     setShowTrends(true);
@@ -76,7 +93,7 @@ export default function ContentScoreDashboards() {
         filters={filters}
         onFiltersChange={setFilters}
       >
-<ContentScoreAnalysis/>
+        <ContentScoreAnalysis />
       </CommonContainer>
     </>
   );

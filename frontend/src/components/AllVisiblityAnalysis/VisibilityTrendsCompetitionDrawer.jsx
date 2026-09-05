@@ -1,0 +1,2287 @@
+// TrendsCompetitionDrawer.jsx
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useLayoutEffect,
+  useContext,
+} from "react";
+import {
+  Box,
+  Typography,
+  IconButton,
+  Button,
+  Chip,
+  ToggleButtonGroup,
+  ToggleButton,
+  TextField,
+  InputAdornment,
+  Paper,
+  Tabs,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Select,
+  MenuItem,
+  Skeleton,
+  Popover,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Checkbox,
+} from "@mui/material";
+import { ChevronDown, X, Search, Plus, Filter, SlidersHorizontal, Download } from "lucide-react";
+import * as XLSX from "xlsx";
+import dayjs from "dayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import ReactECharts from "echarts-for-react";
+import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
+import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
+import VisibilityPlatformOverviewKpiShowcase from "./VisibilityPlatformOverviewKpiShowcase";
+import axiosInstance from "../../api/axiosInstance";
+import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
+
+/**
+ * ---------------------------------------------------------------------------
+ * FILTER DROPDOWN COMPONENT
+ * ---------------------------------------------------------------------------
+ */
+const FilterDropdown = ({ title, value, options, onChange, searchable = true }) => {
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [search, setSearch] = useState("");
+
+  const handleClick = (e) => setAnchorEl(e.currentTarget);
+  const handleClose = () => {
+    setAnchorEl(null);
+    setSearch("");
+  };
+
+  const filteredOptions = searchable
+    ? options.filter(o => o.toLowerCase().includes(search.toLowerCase()))
+    : options;
+
+  const isActive = value && value !== "All";
+
+  return (
+    <>
+      <Button
+        onClick={handleClick}
+        endIcon={<ChevronDown size={14} color={isActive ? "#1D4ED8" : "#94A3B8"} />}
+        sx={{
+          borderRadius: "999px",
+          border: "1px solid",
+          borderColor: isActive ? "#3B82F6" : "#E2E8F0",
+          backgroundColor: isActive ? "#EFF6FF" : "white",
+          color: "#0F172A",
+          textTransform: "none",
+          fontSize: "13px",
+          fontWeight: 600,
+          px: 1.5,
+          py: 0.5,
+          minHeight: 32,
+          "&:hover": {
+            backgroundColor: "#F8FAFC",
+            borderColor: isActive ? "#3B82F6" : "#CBD5E1",
+          }
+        }}
+      >
+        {isActive ? (
+          <Box display="flex" alignItems="center" gap={0.5}>
+            {value}
+            <Box
+              component="span"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange("All");
+              }}
+              sx={{ display: 'flex', alignItems: 'center', ml: 0.5, color: '#94A3B8', '&:hover': { color: '#ef4444' } }}
+            >
+              <X size={14} />
+            </Box>
+          </Box>
+        ) : (
+          <Typography sx={{ color: "#64748B", fontSize: "13px", fontWeight: 500 }}>
+            {title}
+          </Typography>
+        )}
+      </Button>
+      <Popover
+        open={Boolean(anchorEl)}
+        anchorEl={anchorEl}
+        onClose={handleClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        PaperProps={{
+          sx: { mt: 1, borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', minWidth: 220, maxHeight: 320 }
+        }}
+      >
+        {searchable && (
+          <Box p={1} sx={{ position: 'sticky', top: 0, bgcolor: 'white', zIndex: 1, borderBottom: '1px solid #F1F5F9' }}>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder={`Search ${title.toLowerCase()}...`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search size={14} color="#94A3B8" />
+                  </InputAdornment>
+                ),
+                sx: { fontSize: '13px', borderRadius: '6px', '& fieldset': { borderColor: '#E2E8F0' } }
+              }}
+            />
+          </Box>
+        )}
+        <List sx={{ p: 0 }}>
+          {filteredOptions.length === 0 ? (
+            <MenuItem disabled sx={{ fontSize: '13px', py: 1.5 }}>No data is available</MenuItem>
+          ) : (
+            filteredOptions.map((opt) => (
+              <MenuItem
+                key={opt}
+                onClick={() => {
+                  onChange(opt);
+                  handleClose();
+                }}
+                sx={{
+                  fontSize: '13px',
+                  py: 0.75,
+                  backgroundColor: value === opt ? "#F8FAFC" : "transparent"
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 32 }}>
+                  <Checkbox
+                    checked={value === opt}
+                    icon={<Box sx={{ width: 14, height: 14, borderRadius: '4px', border: '1.5px solid #CBD5E1' }} />}
+                    checkedIcon={<Box sx={{ width: 14, height: 14, borderRadius: '4px', bgcolor: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={10} color="white" style={{ transform: 'rotate(45deg)' }} /></Box>}
+                    sx={{ p: 0 }}
+                  />
+                </ListItemIcon>
+                <ListItemText primary={opt} primaryTypographyProps={{ fontSize: '13px', fontWeight: value === opt ? 600 : 400 }} />
+              </MenuItem>
+            ))
+          )}
+        </List>
+      </Popover>
+    </>
+  );
+};
+
+/**
+ * ---------------------------------------------------------------------------
+ * JSON DATA (mocked but realistic, drives the whole UI)
+ * ---------------------------------------------------------------------------
+ */
+
+// brand colors for SKU pills
+const BRAND_COLORS = {
+  Colgate: "#EF4444",
+  Sensodyne: "#8B5CF6",
+  Dabur: "#22C55E",
+  Pepsodent: "#0EA5E9",
+  Closeup: "#F97316",
+};
+
+const RANK_OPTIONS = ["Top 10", "Top 20", "Top 30", "Top 40"];
+
+// base compare-SKU X axis + base trend (we'll offset per SKU)
+const COMPARE_X = [
+  "01 Sep",
+  "02 Sep",
+  "03 Sep",
+  "04 Sep",
+  "05 Sep",
+  "06 Sep",
+  "07 Sep",
+  "08 Sep",
+  "09 Sep",
+  "10 Sep",
+];
+
+const BASE_COMPARE_TRENDS = {
+  Osa: [100, 100, 100, 99, 99, 98, 98, 97, 97, 96],
+  Doi: [80, 81, 79, 80, 79, 78, 78, 77, 76, 77],
+  Fillrate: [92, 92, 91, 91, 90, 90, 89, 89, 88, 88],
+  Assortment: [55, 55, 54, 54, 53, 53, 52, 52, 51, 51],
+};
+
+function makeSkuTrend(osaOffset, doiOffset, fillOffset, assOffset) {
+  return {
+    Osa: BASE_COMPARE_TRENDS.Osa.map((v) => v + osaOffset),
+    Doi: BASE_COMPARE_TRENDS.Doi.map((v) => v + doiOffset),
+    Fillrate: BASE_COMPARE_TRENDS.Fillrate.map((v) => v + fillOffset),
+    Assortment: BASE_COMPARE_TRENDS.Assortment.map((v) => v + assOffset),
+  };
+}
+
+const DASHBOARD_DATA = {
+  trends: {
+    context: {
+      level: "MRP",
+      audience: "All",
+    },
+
+    rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
+    defaultRange: "1M",
+
+    timeSteps: ["Daily", "Weekly", "Monthly"],
+    defaultTimeStep: "Daily",
+
+    // ⭐ Your New KPI Set
+    metrics: [
+      {
+        id: "overall_sos",
+        label: "Overall SOS",
+        color: "#F97316",
+        axis: "left",
+        default: true,
+        unit: "%",
+      },
+      {
+        id: "sponsored_sos",
+        label: "Sponsored SOS",
+        color: "#7C3AED",
+        axis: "left",
+        default: true,
+        unit: "%",
+      },
+      {
+        id: "organic_sos",
+        label: "Organic SOS",
+        color: "#6366F1",
+        axis: "left",
+        default: false,
+        unit: "%",
+      },
+      {
+        id: "offtake",
+        label: "Offtake",
+        color: "#10B981",
+        axis: "right",
+        default: false,
+        prefix: "₹",
+      },
+      {
+        id: "search_rank",
+        label: "Search Rank",
+        color: "#EAB308",
+        axis: "right",
+        default: false,
+        prefix: "#",
+      },
+    ],
+
+    // ⭐ All trend points now contain SOS metrics instead of old KPIs
+    points: [
+      {
+        date: "06 Sep'25",
+        overall_sos: 57,
+        sponsored_sos: 41,
+        organic_sos: 72,
+        display_sos: 65,
+      },
+      {
+        date: "07 Sep'25",
+        overall_sos: 54,
+        sponsored_sos: 42,
+        organic_sos: 70,
+        display_sos: 66,
+      },
+      {
+        date: "08 Sep'25",
+        overall_sos: 53,
+        sponsored_sos: 40,
+        organic_sos: 69,
+        display_sos: 64,
+      },
+      {
+        date: "09 Sep'25",
+        overall_sos: 53,
+        sponsored_sos: 39,
+        organic_sos: 68,
+        display_sos: 63,
+      },
+      {
+        date: "10 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 37,
+        organic_sos: 66,
+        display_sos: 62,
+      },
+      {
+        date: "11 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 36,
+        organic_sos: 67,
+        display_sos: 62,
+      },
+      {
+        date: "12 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 35,
+        organic_sos: 68,
+        display_sos: 61,
+      },
+      {
+        date: "13 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 34,
+        organic_sos: 69,
+        display_sos: 60,
+      },
+      {
+        date: "14 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 33,
+        organic_sos: 70,
+        display_sos: 60,
+      },
+      {
+        date: "15 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 32,
+        organic_sos: 70,
+        display_sos: 59,
+      },
+      {
+        date: "16 Sep'25",
+        overall_sos: 52,
+        sponsored_sos: 32,
+        organic_sos: 69,
+        display_sos: 59,
+      },
+      {
+        date: "17 Sep'25",
+        overall_sos: 51,
+        sponsored_sos: 31,
+        organic_sos: 68,
+        display_sos: 58,
+      },
+      {
+        date: "18 Sep'25",
+        overall_sos: 51,
+        sponsored_sos: 31,
+        organic_sos: 67,
+        display_sos: 58,
+      },
+      {
+        date: "19 Sep'25",
+        overall_sos: 51,
+        sponsored_sos: 32,
+        organic_sos: 66,
+        display_sos: 57,
+      },
+      {
+        date: "20 Sep'25",
+        overall_sos: 56,
+        sponsored_sos: 50,
+        organic_sos: 75,
+        display_sos: 68,
+      },
+      {
+        date: "21 Sep'25",
+        overall_sos: 50,
+        sponsored_sos: 34,
+        organic_sos: 67,
+        display_sos: 55,
+      },
+      {
+        date: "22 Sep'25",
+        overall_sos: 49,
+        sponsored_sos: 33,
+        organic_sos: 66,
+        display_sos: 54,
+      },
+      {
+        date: "23 Sep'25",
+        overall_sos: 48,
+        sponsored_sos: 32,
+        organic_sos: 65,
+        display_sos: 54,
+      },
+      {
+        date: "24 Sep'25",
+        overall_sos: 47,
+        sponsored_sos: 31,
+        organic_sos: 64,
+        display_sos: 53,
+      },
+      {
+        date: "25 Sep'25",
+        overall_sos: 46,
+        sponsored_sos: 30,
+        organic_sos: 63,
+        display_sos: 52,
+      },
+      {
+        date: "26 Sep'25",
+        overall_sos: 45,
+        sponsored_sos: 30,
+        organic_sos: 62,
+        display_sos: 52,
+      },
+      {
+        date: "27 Sep'25",
+        overall_sos: 44,
+        sponsored_sos: 31,
+        organic_sos: 63,
+        display_sos: 51,
+      },
+      {
+        date: "28 Sep'25",
+        overall_sos: 44,
+        sponsored_sos: 31,
+        organic_sos: 62,
+        display_sos: 51,
+      },
+      {
+        date: "29 Sep'25",
+        overall_sos: 43,
+        sponsored_sos: 32,
+        organic_sos: 61,
+        display_sos: 50,
+      },
+      {
+        date: "30 Sep'25",
+        overall_sos: 43,
+        sponsored_sos: 34,
+        organic_sos: 60,
+        display_sos: 49,
+      },
+      {
+        date: "01 Oct'25",
+        overall_sos: 44,
+        sponsored_sos: 36,
+        organic_sos: 61,
+        display_sos: 50,
+      },
+      {
+        date: "02 Oct'25",
+        overall_sos: 45,
+        sponsored_sos: 37,
+        organic_sos: 62,
+        display_sos: 51,
+      },
+      {
+        date: "03 Oct'25",
+        overall_sos: 46,
+        sponsored_sos: 39,
+        organic_sos: 63,
+        display_sos: 52,
+      },
+      {
+        date: "04 Oct'25",
+        overall_sos: 46,
+        sponsored_sos: 40,
+        organic_sos: 65,
+        display_sos: 53,
+      },
+    ],
+  },
+
+  // ⭐ UPDATED Compare SKUs using NEW KPIs
+  compareSkus: {
+    context: { level: "MRP" },
+    rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
+    defaultRange: "1M",
+    timeSteps: ["Daily", "Weekly", "Monthly"],
+    defaultTimeStep: "Daily",
+
+    metrics: [
+      {
+        id: "overall_sos",
+        label: "Overall SOS",
+        color: "#F97316",
+        default: true,
+      },
+      {
+        id: "sponsored_sos",
+        label: "Sponsored SOS",
+        color: "#7C3AED",
+        default: true,
+      },
+      {
+        id: "organic_sos",
+        label: "Organic SOS",
+        color: "#6366F1",
+        default: false,
+      },
+    ],
+
+    x: COMPARE_X,
+
+    trendsBySku: {
+      1: makeSkuTrend(0, 0, 0, 0),
+      2: makeSkuTrend(-2, -1, -1, 0),
+      3: makeSkuTrend(-3, -2, -2, -1),
+      4: makeSkuTrend(-4, -3, -3, -1),
+      5: makeSkuTrend(+2, +3, +2, +2),
+      6: makeSkuTrend(+1, +2, +1, +1),
+      7: makeSkuTrend(-1, -2, -1, -1),
+      8: makeSkuTrend(+3, +1, +2, +1),
+    },
+  },
+
+  // ⭐ COMPETITION VIEW UPDATED TO NEW KPIs
+  competition: {
+    context: { level: "MRP", region: "All × Chennai" },
+
+    tabs: ["Brands", "SKUs"],
+
+    periodToggle: {
+      primary: "MTD",
+      compare: "Previous Month",
+    },
+
+    columns: [
+      { id: "brand", label: "Brand", type: "text" },
+      { id: "overall_sos", label: "Overall SOS", type: "metric" },
+      { id: "sponsored_sos", label: "Sponsored SOS", type: "metric" },
+      { id: "organic_sos", label: "Organic SOS", type: "metric" },
+    ],
+
+    brands: [
+      {
+        brand: "Colgate",
+        overall_sos: { value: 32.9, delta: -4.5 },
+        sponsored_sos: { value: 74.6, delta: -16.3 },
+        organic_sos: { value: 20.0, delta: -8.5 },
+        display_sos: { value: 18.8, delta: 0.4 },
+      },
+      {
+        brand: "Sensodyne",
+        overall_sos: { value: 19.6, delta: 2.2 },
+        sponsored_sos: { value: 94.2, delta: 3.9 },
+        organic_sos: { value: 19.3, delta: 2.7 },
+        display_sos: { value: 18.5, delta: -3.1 },
+      },
+    ],
+
+    skus: [
+      {
+        brand: "Colgate Strong Teeth 100g",
+        overall_sos: { value: 8.2, delta: -1.0 },
+        sponsored_sos: { value: 76.1, delta: -8.0 },
+        organic_sos: { value: 4.5, delta: -0.9 },
+        display_sos: { value: 3.2, delta: 0.2 },
+      },
+    ],
+  },
+};
+
+/**
+ * ---------------------------------------------------------------------------
+ * HELPERS
+ * ---------------------------------------------------------------------------
+ */
+
+const MONTH_MAP = {
+  Jan: 0,
+  Feb: 1,
+  Mar: 2,
+  Apr: 3,
+  May: 4,
+  Jun: 5,
+  Jul: 6,
+  Aug: 7,
+  Sep: 8,
+  Oct: 9,
+  Nov: 10,
+  Dec: 11,
+};
+
+const RANGE_TO_DAYS = {
+  "1M": 30,
+  "3M": 90,
+  "6M": 180,
+  "1Y": 365,
+};
+
+const parseTrendDate = (label) => {
+  try {
+    const [dayStr, monthYear] = label.split(" ");
+    const day = parseInt(dayStr, 10);
+    const [monthStr, yearStr] = monthYear.split("'");
+    const month = MONTH_MAP[monthStr];
+    const year = 2000 + parseInt(yearStr, 10);
+    return new Date(year, month, day);
+  } catch {
+    return new Date();
+  }
+};
+
+const PillToggleGroup = ({ value, onChange, options }) => (
+  <ToggleButtonGroup
+    exclusive
+    value={value}
+    onChange={(_, val) => val && onChange(val)}
+    sx={{
+      backgroundColor: "#F3F4F6",
+      borderRadius: "999px",
+      p: "2px",
+      width: { xs: "100%", sm: "auto" },
+      display: "flex",
+      "& .MuiToggleButton-root": {
+        textTransform: "none",
+        border: "none",
+        px: { xs: 1.5, sm: 2.5 },
+        py: 0.5,
+        flex: { xs: 1, sm: "initial" },
+        borderRadius: "999px",
+        "&.Mui-selected": {
+          backgroundColor: "#ffffff",
+          boxShadow: "0 1px 3px rgba(15,23,42,0.15)",
+        },
+      },
+    }}
+  >
+    {options.map((opt) => (
+      <ToggleButton key={opt} value={opt}>
+        <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>{opt}</Typography>
+      </ToggleButton>
+    ))}
+  </ToggleButtonGroup>
+);
+
+const MetricChip = ({ label, color, active, onClick, disabled }) => {
+  return (
+    <Box
+      onClick={disabled ? undefined : onClick}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0.8,
+        px: 1.5,
+        py: 0.6,
+        borderRadius: "999px",
+        cursor: disabled ? "not-allowed" : "pointer",
+        border: `1px solid ${disabled ? "#E5E7EB" : (active ? color : "#E5E7EB")}`,
+        backgroundColor: disabled ? "#F3F4F6" : (active ? `${color}20` : "white"),
+        color: disabled ? "#9CA3AF" : (active ? color : "#0f172a"),
+        fontSize: "12px",
+        fontWeight: 600,
+        userSelect: "none",
+        transition: "all 0.15s ease",
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      {/* CHECKBOX ICON */}
+      <Box
+        sx={{
+          width: 14,
+          height: 14,
+          borderRadius: 3,
+          border: `2px solid ${disabled ? "#D1D5DB" : (active ? color : "#CBD5E1")}`,
+          backgroundColor: disabled ? "transparent" : (active ? color : "transparent"),
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "white",
+          fontSize: 10,
+          lineHeight: 1,
+        }}
+      >
+        {active && !disabled && "✓"}
+      </Box>
+
+      {label}
+    </Box>
+  );
+};
+
+const SelectedFilterChip = ({ label, value, color = "#3B82F6" }) => (
+  <Box
+    sx={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 1,
+      px: 1.5,
+      py: 0.5,
+      borderRadius: "999px",
+      border: "1px solid #E2E8F0",
+      backgroundColor: "#F8FAFC",
+      fontSize: "12px",
+      fontWeight: 500,
+    }}
+  >
+    <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600 }}>
+      {label}:
+    </Typography>
+    <Typography variant="caption" sx={{ color: color, fontWeight: 700 }}>
+      {value}
+    </Typography>
+  </Box>
+);
+
+/**
+ * ---------------------------------------------------------------------------
+ * MAIN COMPONENT
+ * ---------------------------------------------------------------------------
+ */
+
+export default function VisibilityTrendsCompetitionDrawer({
+  dynamicKey,
+  open = true,
+  onClose = () => { },
+  selectedColumn,
+  initialAudience,
+}) {
+  const { user } = useAuth();
+  const isSugarUser = user?.dbName === 'sugar';
+
+  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedChannel, selectedKeywordType, selectedKeyword, selectedRank, compareStart, compareEnd } = useContext(FilterContext);
+
+  const [view, setView] = useState(isSugarUser ? "Trends" : "Trends"); // Default to Trends
+  const [allTrendMeta, allSetTrendMeta] = useState({
+    context: {
+      audience: "Platform", // default value
+    },
+  });
+
+  useEffect(() => {
+    if (isSugarUser && view === "Competition") {
+      setView("Trends");
+    }
+  }, [isSugarUser, view]);
+  useLayoutEffect(() => {
+    if (open) {
+      const audienceToSet = initialAudience || "Platform";
+      allSetTrendMeta((prev) => ({
+        ...prev,
+        context: { ...prev.context, audience: audienceToSet },
+      }));
+      setShowPlatformPills(true);
+    }
+  }, [open, initialAudience]);
+  const [range, setRange] = useState(DASHBOARD_DATA.trends.defaultRange);
+  const [timeStep, setTimeStep] = useState(
+    DASHBOARD_DATA.trends.defaultTimeStep
+  );
+  const [activeMetrics, setActiveMetrics] = useState(
+    DASHBOARD_DATA.trends.metrics.filter((m) => m.default).map((m) => m.id)
+  );
+  const [compTab, setCompTab] = useState("Brands");
+  const [search, setSearch] = useState("");
+  const [periodMode, setPeriodMode] = useState("primary");
+  const [isMoreFiltersOpen, setIsMoreFiltersOpen] = useState(false);
+  const [skuSearchTerm, setSkuSearchTerm] = useState("");
+  const [keywordSearchTerm, setKeywordSearchTerm] = useState("");
+
+  const [customStartDate, setCustomStartDate] = useState(dayjs().subtract(1, 'month'));
+  const [customEndDate, setCustomEndDate] = useState(dayjs());
+
+  const [addSkuOpen, setAddSkuOpen] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
+  const [showPlatformPills, setShowPlatformPills] = useState(false);
+
+  // Dynamic rank options fetched from DB (max position)
+  const [rankOptions, setRankOptions] = useState(["Top 10", "Top 20", "Top 30", "Top 40"]);
+
+  // Drawer-specific filters for the Effective Filters bar
+  const [drawerFilters, setDrawerFilters] = useState({
+    Platform: globalPlatform || "All",
+    Format: selectedCategory || "All",
+    Brand: selectedBrand || "All",
+    City: selectedLocation || "All",
+    SKU: "All",
+    Keyword_Type: selectedKeywordType || "All",
+    Keyword: selectedKeyword || "All",
+    rank: selectedRank || "All"
+  });
+
+  // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
+  useEffect(() => {
+    if (selectedColumn && open) {
+      setSelectedPlatform(selectedColumn);
+
+      // Initialize ONLY the current audience type filter
+      const currentAudience = initialAudience || allTrendMeta.context.audience;
+      setDrawerFilters(prev => ({
+        ...prev,
+        [currentAudience]: selectedColumn
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedColumn, open]); // Removed allTrendMeta.context.audience
+
+  // Sync selectedPlatform with drawerFilters.Platform for Competition tab
+  useEffect(() => {
+    if (drawerFilters.Platform !== 'All') {
+      setSelectedPlatform(drawerFilters.Platform);
+    }
+  }, [drawerFilters.Platform]);
+
+  const platformRef = useRef(null);
+
+  // close on outside click
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (platformRef.current && !platformRef.current.contains(e.target)) {
+        setShowPlatformPills(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
+  const [compareInitialized, setCompareInitialized] = useState(false);
+
+  const trendMeta = DASHBOARD_DATA.trends;
+  const compMeta = DASHBOARD_DATA.competition;
+  const compareMeta = DASHBOARD_DATA.compareSkus;
+
+  // ⭐ Auto-select first SKU + only Osa when opening Compare SKUs first time
+  useEffect(() => {
+    if (view === "compare skus" && !compareInitialized) {
+      const firstSku = SKU_DATA && SKU_DATA.length > 0 ? SKU_DATA[0] : null;
+      if (firstSku) {
+        setSelectedCompareSkus([firstSku]);
+      }
+      setActiveMetrics(["overall_sos"]);
+      setCompareInitialized(true);
+    }
+  }, [view, compareInitialized]);
+
+  // ===================== API STATE =====================
+  const [chartData, setChartData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
+  const [competitionLoading, setCompetitionLoading] = useState(true);
+
+  const handleDownloadCompetition = () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      const brandRows = (competitionData.brands || []).map(b => ({
+        "Brand Name": b.name || b.brand_name || "N/A",
+        "Overall SOS %": typeof b.overall_sos === "number" ? `${b.overall_sos.toFixed(1)}%` : (b.overall_sos || "0%"),
+        "Sponsored SOS %": typeof b.sponsored_sos === "number" ? `${b.sponsored_sos.toFixed(1)}%` : (b.sponsored_sos || "0%"),
+        "Organic SOS %": typeof b.organic_sos === "number" ? `${b.organic_sos.toFixed(1)}%` : (b.organic_sos || "0%"),
+      }));
+      const brandSheet = XLSX.utils.json_to_sheet(brandRows);
+      XLSX.utils.book_append_sheet(wb, brandSheet, "Brands Competition");
+
+      const skuRows = (competitionData.skus || []).map(s => ({
+        "SKU Name": s.name || s.sku_name || "N/A",
+        "Brand Name": s.brandName || s.brand_name || "N/A",
+        "Overall SOS %": typeof s.overall_sos === "number" ? `${s.overall_sos.toFixed(1)}%` : (s.overall_sos || "0%"),
+        "Sponsored SOS %": typeof s.sponsored_sos === "number" ? `${s.sponsored_sos.toFixed(1)}%` : (s.sponsored_sos || "0%"),
+        "Organic SOS %": typeof s.organic_sos === "number" ? `${s.organic_sos.toFixed(1)}%` : (s.organic_sos || "0%"),
+      }));
+      const skuSheet = XLSX.utils.json_to_sheet(skuRows);
+      XLSX.utils.book_append_sheet(wb, skuSheet, "SKUs Competition");
+
+      const fileName = `Visibility_Competition_Data_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      console.error("[VisibilityTrendsCompetitionDrawer] Download competition error:", err);
+    }
+  };
+
+  // ===================== DYNAMIC FILTER OPTIONS STATE =====================
+  const [filterOptions, setFilterOptions] = useState({
+    platforms: [],
+    formats: [],
+    cities: [],
+    brands: [],
+    skus: [],
+    keywordTypes: [],
+    keywords: [],
+    loading: true
+  });
+
+  // ===================== FETCH FILTER OPTIONS =====================
+  useEffect(() => {
+    if (!open) return;
+
+    const fetchFilterOptions = async () => {
+      try {
+        console.log("[VisibilityTrendsDrawer] Fetching filter options with", drawerFilters);
+
+        // Build params for each filter type, respecting all other currently selected filters
+        const getBaseParams = (excludeType) => {
+          const p = { channel: selectedChannel || 'All' };
+          if (excludeType !== 'platform' && drawerFilters.Platform !== 'All') p.platform = drawerFilters.Platform;
+          if (excludeType !== 'format' && drawerFilters.Format !== 'All') p.format = drawerFilters.Format;
+          if (excludeType !== 'city' && drawerFilters.City !== 'All' && drawerFilters.City !== 'All India') {
+            p.city = Array.isArray(drawerFilters.City) ? drawerFilters.City.join(',') : drawerFilters.City;
+          }
+          if (excludeType !== 'brand' && drawerFilters.Brand !== 'All') p.brand = drawerFilters.Brand;
+          if (excludeType !== 'keywordType' && drawerFilters.Keyword_Type !== 'All') p.keywordType = drawerFilters.Keyword_Type;
+          if (excludeType !== 'keyword' && drawerFilters.Keyword !== 'All') p.keyword = drawerFilters.Keyword;
+          if (excludeType !== 'sku' && drawerFilters.SKU !== 'All') p.sku = drawerFilters.SKU;
+          return p;
+        };
+
+        const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes, keywordTypesRes, keywordsRes, maxPosRes] = await Promise.all([
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'platforms', ...getBaseParams('platform') } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'formats', ...getBaseParams('format') } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'cities', ...getBaseParams('city') } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands', ...getBaseParams('brand'), ownBrandsOnly: true } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'skus', ...getBaseParams('sku'), ownBrandsOnly: true } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'keywordTypes', ...getBaseParams('keywordType') } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'keywords', ...getBaseParams('keyword'), ownBrandsOnly: true } }),
+          axiosInstance.get('/visibility-analysis/max-position').catch(err => {
+            console.error('[VisibilityTrendsDrawer] Error fetching max-position:', err);
+            return { data: { maxPos: 40 } };
+          })
+        ]);
+
+        const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
+        const formats = (formatsRes.data?.options || []).filter(f => f !== 'All');
+        const brands = (brandsRes.data?.options || []).filter(b => b !== 'All');
+        const skus = (skusRes.data?.options || []).filter(s => s !== 'All');
+        const keywordTypes = (keywordTypesRes.data?.options || []).filter(k => k !== 'All');
+        const keywords = (keywordsRes.data?.options || []).filter(k => k !== 'All');
+
+        const TIER_1_CITIES = [
+          "Ahmedabad",
+          "Bangalore",
+          "Chennai",
+          "Delhi",
+          "Hyderabad",
+          "Kolkata",
+          "Mumbai",
+          "Lucknow",
+          "Gurugram",
+          "Chandigarh",
+          "Faridabad",
+          "Pune"
+        ];
+        const defaultCities = (citiesRes.data?.options || [])
+          .filter(c => c !== 'All' && c !== 'All India')
+          .filter(c => TIER_1_CITIES.some(t => c.toLowerCase().includes(t.toLowerCase())));
+        const cities = ["All India", ...defaultCities];
+
+        console.log("[VisibilityTrendsDrawer] Filter options fetched:", { platforms: platforms.length, formats: formats.length, cities: cities.length, brands: brands.length, skus: skus.length, keywordTypes: keywordTypes.length, keywords: keywords.length });
+
+        setFilterOptions({
+          platforms: platforms.length > 0 ? platforms : ["Blinkit", "Zepto", "Instamart"],
+          formats: formats.length > 0 ? formats : ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"],
+          cities: cities.length > 0 ? cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"],
+          brands: brands.length > 0 ? brands : [],
+          skus: skus.length > 0 ? skus : [],
+          keywordTypes: keywordTypes.length > 0 ? keywordTypes : ["Branded", "Generic", "Competition"],
+          keywords: keywords.length > 0 ? keywords : [],
+          loading: false
+        });
+
+        // Dynamic rank options based on max position from DB
+        const maxPos = maxPosRes?.data?.maxPos;
+        if (typeof maxPos === 'number' && maxPos > 0) {
+          let ranks = ["Top 10"];
+          if (maxPos > 10) ranks.push("Top 20");
+          if (maxPos > 20) ranks.push("Top 30");
+          if (maxPos > 30) ranks.push("Top 40");
+          setRankOptions(ranks);
+
+          // Validate current rank selection against new options
+          if (drawerFilters.rank && drawerFilters.rank !== "All" && !ranks.includes(drawerFilters.rank)) {
+            setDrawerFilters(prev => ({ ...prev, rank: ranks[ranks.length - 1] }));
+          }
+        }
+
+        // Set default selected platform to first available
+        if (platforms.length > 0) {
+          setSelectedPlatform(platforms[0]);
+        }
+      } catch (error) {
+        console.error("[VisibilityTrendsDrawer] Error fetching filter options:", error);
+        setFilterOptions({
+          platforms: ["Blinkit", "Zepto", "Instamart"],
+          formats: ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"],
+          cities: ["Delhi", "Mumbai", "Bangalore", "Chennai"],
+          brands: [],
+          skus: [],
+          keywordTypes: ["Branded", "Generic", "Competition"],
+          keywords: [],
+          loading: false
+        });
+      }
+    };
+
+    fetchFilterOptions();
+  }, [
+    open,
+    selectedChannel,
+    drawerFilters.Platform,
+    drawerFilters.Format,
+    drawerFilters.City,
+    drawerFilters.Brand,
+    drawerFilters.Keyword_Type,
+    drawerFilters.Keyword,
+    drawerFilters.SKU
+  ]);
+
+  // ===================== FETCH TREND DATA =====================
+  useEffect(() => {
+    if (view !== "Trends" || !open) return;
+
+    let cancelled = false;
+    const fetchTrendData = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          period: range,
+          timeStep: timeStep,
+          startDate: range === "Custom" && customStartDate ? customStartDate.format("YYYY-MM-DD") : undefined,
+          endDate: range === "Custom" && customEndDate ? customEndDate.format("YYYY-MM-DD") : undefined,
+          platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
+          format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India')
+            ? (Array.isArray(drawerFilters.City) ? drawerFilters.City.join(',').toLowerCase() : drawerFilters.City.toLowerCase())
+            : undefined,
+          brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
+          sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          keywordType: drawerFilters.Keyword_Type !== 'All' ? drawerFilters.Keyword_Type : undefined,
+          keyword: drawerFilters.Keyword !== 'All' ? drawerFilters.Keyword : undefined,
+          channel: selectedChannel || 'All',
+          rank: drawerFilters.rank || 'All',
+          compareStartDate: compareStart ? dayjs(compareStart).format('YYYY-MM-DD') : undefined,
+          compareEndDate: compareEnd ? dayjs(compareEnd).format('YYYY-MM-DD') : undefined
+        };
+
+        // Determine which pivot filter to apply based on the selected audience
+        // Wait, drawerFilters already reflects the audience because it is synced in useEffect!
+        // So we just send drawerFilters directly.
+
+        console.log("[VisibilityTrendsDrawer] Fetching trend data:", params);
+        const response = await axiosInstance.get('/visibility-analysis/kpi-trends', { params });
+
+        if (cancelled) return;
+
+        if (response.data?.timeSeries?.length > 0) {
+          console.log("[VisibilityTrendsDrawer] Received", response.data.timeSeries.length, "points");
+          setChartData(response.data.timeSeries);
+        } else {
+          console.log("[VisibilityTrendsDrawer] No data, using hardcoded fallback");
+          setChartData([]);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[VisibilityTrendsDrawer] Error fetching trends:", error);
+          setChartData([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    // Small delay to avoid blocking main UI
+    const timeoutId = setTimeout(fetchTrendData, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters, selectedChannel, customStartDate, customEndDate, compareStart, compareEnd]);
+
+  // Clear offtake if keyword filter applied, clear search_rank if keyword filter NOT applied
+  useEffect(() => {
+    const isNotAll = (val) => {
+      if (!val) return false;
+      if (Array.isArray(val)) {
+        if (val.length === 0) return false;
+        return !val.some(v => String(v).toLowerCase() === 'all');
+      }
+      return String(val).toLowerCase() !== 'all';
+    };
+
+    const hasKeywordFilter = isNotAll(drawerFilters.Keyword) || isNotAll(drawerFilters.Keyword_Type);
+
+    if (hasKeywordFilter) {
+      setActiveMetrics(prev => prev.filter(m => m !== "offtake"));
+    } else {
+      setActiveMetrics(prev => prev.filter(m => m !== "search_rank"));
+    }
+  }, [drawerFilters.Keyword, drawerFilters.Keyword_Type]);
+
+  // ===================== FETCH COMPETITION DATA =====================
+  // Fetch competition data when drawer opens (not just when Competition view is selected)
+  // This ensures data is ready when user clicks Competition tab
+  // IMPORTANT: Use selectedColumn (from main page filter click) NOT selectedPlatform (internal dropdown)
+  useEffect(() => {
+    // Wait for filter options to finish loading to avoid race conditions
+    if (!open || filterOptions.loading) return;
+
+    let cancelled = false;
+    const fetchCompetitionData = async () => {
+      console.log("[VisibilityTrendsDrawer] Starting fetchCompetitionData...");
+      setCompetitionLoading(true);
+      try {
+        const params = {
+          period: '1M',
+          platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
+          format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India')
+            ? (Array.isArray(drawerFilters.City) ? drawerFilters.City.join(',').toLowerCase() : drawerFilters.City.toLowerCase())
+            : undefined,
+          brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
+          sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          channel: selectedChannel || 'All',
+          rank: drawerFilters.Rank || 'All',
+          compareStartDate: compareStart ? dayjs(compareStart).format('YYYY-MM-DD') : undefined,
+          compareEndDate: compareEnd ? dayjs(compareEnd).format('YYYY-MM-DD') : undefined
+        };
+
+        console.log("[VisibilityTrendsDrawer] Fetching competition data with params:", params);
+        const response = await axiosInstance.get('/visibility-analysis/competition', { params });
+
+        if (cancelled) {
+          console.log("[VisibilityTrendsDrawer] Request was cancelled, not setting state");
+          return;
+        }
+
+        console.log("[VisibilityTrendsDrawer] API response received:", response.status);
+
+        if (response.data) {
+          console.log("[VisibilityTrendsDrawer] Received", response.data.brands?.length, "brands");
+          setCompetitionData({
+            brands: response.data.brands || [],
+            skus: response.data.skus || []
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("[VisibilityTrendsDrawer] Error fetching competition:", error);
+        }
+      } finally {
+        if (!cancelled) setCompetitionLoading(false);
+      }
+    };
+
+    // Add debounce delay to avoid duplicate calls when multiple dependencies change rapidly
+    const timeoutId = setTimeout(fetchCompetitionData, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [selectedColumn, open, filterOptions.loading, drawerFilters, selectedChannel, compareStart, compareEnd]);
+
+  const trendPoints = useMemo(() => {
+    const enriched = trendMeta.points.map((p) => ({
+      ...p,
+      _dateObj: parseTrendDate(p.date),
+    }));
+    const sorted = [...enriched].sort(
+      (a, b) => a._dateObj.getTime() - b._dateObj.getTime()
+    );
+
+    if (range === "Custom" || !RANGE_TO_DAYS[range]) {
+      return sorted.map(({ _dateObj, ...rest }) => rest);
+    }
+
+    const maxDate = sorted[sorted.length - 1]?._dateObj;
+    if (!maxDate) return sorted.map(({ _dateObj, ...rest }) => rest);
+
+    const days = RANGE_TO_DAYS[range];
+    const filtered = sorted.filter((p) => {
+      const diffMs = maxDate.getTime() - p._dateObj.getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      return diffDays <= days;
+    });
+
+    return filtered.map(({ _dateObj, ...rest }) => rest);
+  }, [trendMeta, range]);
+
+  const trendOption = useMemo(() => {
+    // Only use fetched API data. If empty, UI will show 'No data is available'
+    const dataSource = chartData;
+    const xData = dataSource.map((p) => p.date);
+
+    // Determine which metrics go on which axis:
+    // Left (index 0): All SOS KPIs (percentage %)
+    // Right (index 1): Offtake (₹) and Search Rank
+    const RIGHT_AXIS_METRICS = ['offtake', 'search_rank'];
+
+    const series = trendMeta.metrics
+      .filter((m) => activeMetrics.includes(m.id))
+      .map((m) => ({
+        name: m.label,
+        type: "line",
+        smooth: true,
+        symbol: "circle",
+        symbolSize: 6,
+        showSymbol: true,
+        yAxisIndex: RIGHT_AXIS_METRICS.includes(m.id) ? 1 : 0,
+        lineStyle: { width: 2 },
+        emphasis: { focus: "series" },
+        data: dataSource.map((p) => p[m.id] ?? null),
+        itemStyle: { color: m.color },
+      }));
+
+    // Check if any right-axis metric is active to determine right axis formatting
+    const hasOfftakeActive = activeMetrics.includes('offtake');
+
+    return {
+      grid: { left: 60, right: 80, top: 32, bottom: 40 },
+      tooltip: {
+        trigger: "axis",
+        formatter: (params) => {
+          let tooltipHtml = `<div style="font-weight:bold;margin-bottom:4px;">${params[0].name}</div>`;
+          params.forEach((param) => {
+            let val = param.value;
+            let displayVal = 'N/A';
+
+            if (val !== null && val !== undefined && val !== 0 && val !== "0") {
+              if (param.seriesName === "Offtake") {
+                displayVal = '₹' + Number(val).toLocaleString('en-IN');
+              } else if (param.seriesName === "Category Share") {
+                displayVal = Number(val).toFixed(2) + '%';
+              } else if (param.seriesName === "Search Rank") {
+                displayVal = Math.round(Number(val));
+              } else {
+                displayVal = Number(val).toFixed(2) + '%';
+              }
+            }
+
+            tooltipHtml += `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${param.color};margin-right:4px;"></span>${param.seriesName}</span>
+              <span style="font-weight:600">${displayVal}</span>
+            </div>`;
+          });
+          return tooltipHtml;
+        }
+      },
+      xAxis: {
+        type: "category",
+        data: xData,
+        boundaryGap: false,
+        axisLine: { lineStyle: { color: "#E5E7EB" } },
+        axisLabel: { fontSize: 11 },
+      },
+      yAxis: [
+        {
+          // Left axis: SOS percentages
+          type: "value",
+          position: "left",
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { lineStyle: { color: "#F3F4F6" } },
+          axisLabel: {
+            formatter: '{value}%',
+            fontSize: 11,
+          },
+        },
+        {
+          // Right axis: Offtake (₹) / Category Share
+          type: "value",
+          position: "right",
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          axisLabel: {
+            fontSize: 11,
+            formatter: hasOfftakeActive
+              ? (val) => {
+                if (val >= 10000000) return '₹' + (val / 10000000).toFixed(1) + 'Cr';
+                if (val >= 100000) return '₹' + (val / 100000).toFixed(1) + 'L';
+                if (val >= 1000) return '₹' + (val / 1000).toFixed(1) + 'K';
+                return '₹' + val;
+              }
+              : activeMetrics.includes('search_rank') ? '{value}' : '{value}%',
+          },
+        },
+      ],
+      legend: { show: false },
+      series,
+    };
+  }, [trendMeta, activeMetrics, trendPoints, chartData]);
+
+  const competitionRows = useMemo(() => {
+    // Only use fetched API data
+    const baseRows = compTab === "Brands" ? (competitionData.brands || []) : (competitionData.skus || []);
+
+    return baseRows.filter((r) =>
+      search.trim()
+        ? r.brand.toLowerCase().includes(search.toLowerCase())
+        : true
+    );
+  }, [compMeta, compTab, search, competitionData]);
+
+  // Compare SKUs chart option (multi-KPI, multi-SKU)
+  const compareOption = useMemo(() => {
+    const x = compareMeta.x;
+    const series = [];
+
+    selectedCompareSkus.forEach((sku) => {
+      const trend = compareMeta.trendsBySku[sku.id];
+      if (!trend) return;
+
+      compareMeta.metrics
+        .filter((m) => activeMetrics.includes(m.id))
+        .forEach((m) => {
+          series.push({
+            name: `${sku.name} · ${m.label}`,
+            type: "line",
+            smooth: true,
+            symbol: "circle",
+            symbolSize: 6,
+            lineStyle: { width: 1 },
+            itemStyle: { color: m.color },
+            data: trend[m.id] || [],
+          });
+        });
+    });
+
+    return {
+      tooltip: { trigger: "axis" },
+      grid: { left: 40, right: 20, top: 20, bottom: 40 },
+      xAxis: { type: "category", data: x },
+      yAxis: {
+        type: "value",
+        min: 0,
+        max: 120,
+        axisLabel: { formatter: "{value}%" },
+      },
+      series,
+    };
+  }, [compareMeta, activeMetrics, selectedCompareSkus]);
+
+  // keep selection fully in sync with drawer & deletion
+  const handleSkuApply = (ids, skus) => {
+    const mapById = Object.fromEntries(SKU_DATA.map((s) => [s.id, s]));
+    const finalList = ids.map((id) => mapById[id]).filter(Boolean);
+    setSelectedCompareSkus(finalList);
+    setAddSkuOpen(false);
+  };
+
+  // Use dynamic filter options from API, with fallbacks
+  const PLATFORM_OPTIONS = filterOptions.platforms.length > 0 ? filterOptions.platforms : ["Blinkit", "Zepto", "Instamart", "BigBasket"];
+  const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
+  const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
+  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : [];
+  const SKU_OPTIONS = filterOptions.skus && filterOptions.skus.length > 0 ? filterOptions.skus : [];
+  const KEYWORD_TYPE_OPTIONS = filterOptions.keywordTypes && filterOptions.keywordTypes.length > 0 ? filterOptions.keywordTypes : ["Branded", "Generic", "Competition"];
+  const KEYWORD_OPTIONS = filterOptions.keywords && filterOptions.keywords.length > 0 ? filterOptions.keywords : [];
+
+  if (!open) return null;
+
+  return (
+    <Box
+      sx={{
+        position: "fixed",
+        inset: 0,
+        bgcolor: "rgba(15,23,42,0.32)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "flex-start",
+        p: { xs: 1, md: 2 },
+        zIndex: 1300,
+        overflow: "auto",
+      }}
+    >
+      <Box
+        sx={{
+          position: "relative",
+          overflow: "hidden",
+          mt: { xs: 2, md: 4 },
+          width: "min(1200px, 100%)",
+          bgcolor: "white",
+          borderRadius: 3,
+          boxShadow: "0 24px 60px rgba(15,23,42,0.35)",
+          p: { xs: 2, md: 3 },
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
+      >
+        {/* Header row */}
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <ToggleButtonGroup
+            exclusive
+            value={view}
+            onChange={(_, v) => v && setView(v)}
+            sx={{
+              backgroundColor: "#F3F4F6",
+              borderRadius: "999px",
+              p: "3px",
+              "& .MuiToggleButton-root": {
+                textTransform: "none",
+                border: "none",
+                borderRadius: "999px",
+                px: { xs: 2, sm: 2.5 },
+                py: { xs: 0.5, sm: 0.75 },
+                fontSize: { xs: 13, sm: 14 },
+                "&.Mui-selected": {
+                  backgroundColor: "#0F172A",
+                  color: "#fff",
+                },
+              },
+            }}
+          >
+            <ToggleButton value="Trends">Trends</ToggleButton>
+            {!isSugarUser && (
+              <ToggleButton value="Competition">Competition</ToggleButton>
+            )}
+            {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
+          </ToggleButtonGroup>
+
+          <IconButton onClick={onClose} size="small" sx={{ color: "#64748b" }}>
+            <X size={20} />
+          </IconButton>
+        </Box>
+
+        {/* EFFECTIVE FILTERS SUMMARY BAR */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            flexWrap: "wrap",
+            py: 1.2,
+            px: 2,
+            borderRadius: "12px",
+            backgroundColor: "#F8FAFC",
+            border: "1px solid #E2E8F0",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={1}>
+            <Filter size={14} color="#64748B" />
+            <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Effective Filters:
+            </Typography>
+          </Box>
+
+          <SelectedFilterChip
+            label="Platform"
+            value={drawerFilters.Platform}
+            color={drawerFilters.Platform !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Category"
+            value={drawerFilters.Format}
+            color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Brand"
+            value={drawerFilters.Brand}
+            color={drawerFilters.Brand !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="City"
+            value={drawerFilters.City}
+            color={drawerFilters.City !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Keyword Type"
+            value={drawerFilters.Keyword_Type}
+            color={drawerFilters.Keyword_Type !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Keyword"
+            value={
+              drawerFilters.Keyword !== 'All' && typeof drawerFilters.Keyword === 'string' && drawerFilters.Keyword.split(' ').length > 4
+                ? drawerFilters.Keyword.split(' ').slice(0, 4).join(' ') + ' ...'
+                : drawerFilters.Keyword
+            }
+            color={drawerFilters.Keyword !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="SKU"
+            value={
+              drawerFilters.SKU !== 'All' && typeof drawerFilters.SKU === 'string' && drawerFilters.SKU.split(' ').length > 4
+                ? drawerFilters.SKU.split(' ').slice(0, 4).join(' ') + ' ...'
+                : drawerFilters.SKU
+            }
+            color={drawerFilters.SKU !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Date"
+            value={range}
+          />
+
+          {/* Clear All Drawer Filters */}
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All' || drawerFilters.Keyword_Type !== 'All' || drawerFilters.Keyword !== 'All' || drawerFilters.rank !== 'All') && (
+            <Button
+              size="small"
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All", Keyword_Type: "All", Keyword: "All", rank: "All" })}
+              sx={{
+                ml: 'auto',
+                fontSize: '11px',
+                textTransform: 'none',
+                color: '#ef4444',
+                '&:hover': { backgroundColor: '#fef2f2' }
+              }}
+            >
+              Clear Drawer Filters
+            </Button>
+          )}
+        </Box>
+
+        {/* TRENDS VIEW */}
+        {view === "Trends" && (
+          <Box display="flex" flexDirection="column" gap={0}>
+            {/* Title Block */}
+            {!(allTrendMeta?.context?.audience?.toLowerCase() === 'platform') && selectedColumn && (
+              <Typography
+                variant="h5"
+                fontWeight={800}
+                sx={{
+                  color: '#0f172a',
+                  lineHeight: 1.2,
+                  mb: 2,
+                }}
+              >
+                {selectedColumn}
+              </Typography>
+            )}
+
+            {/* HEADER FILTER CONTAINER */}
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="space-between"
+              flexWrap="wrap"
+              gap={2}
+              mb={3}
+            >
+              {/* PRIMARY FILTERS */}
+              <Box display="flex" alignItems="center" gap={1}>
+                <FilterDropdown
+                  title="Platform"
+                  value={drawerFilters.Platform}
+                  options={PLATFORM_OPTIONS}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, Platform: v }))}
+                />
+                <FilterDropdown
+                  title="Category"
+                  value={drawerFilters.Format}
+                  options={FORMAT_OPTIONS}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, Format: v }))}
+                />
+                <FilterDropdown
+                  title="Brand"
+                  value={drawerFilters.Brand}
+                  options={BRAND_OPTIONS}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, Brand: v }))}
+                />
+                <FilterDropdown
+                  title="City"
+                  value={drawerFilters.City}
+                  options={filterOptions.cities}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, City: v }))}
+                />
+                <FilterDropdown
+                  title="Rank"
+                  value={drawerFilters.rank}
+                  options={rankOptions}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, rank: v }))}
+                  searchable={false}
+                />
+
+                <Button
+                  onClick={() => setIsMoreFiltersOpen(prev => !prev)}
+                  startIcon={<SlidersHorizontal size={14} />}
+                  sx={{
+                    ml: 1,
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: isMoreFiltersOpen ? '#1D4ED8' : '#475569',
+                    backgroundColor: isMoreFiltersOpen ? '#EFF6FF' : 'transparent',
+                    border: '1px solid',
+                    borderColor: isMoreFiltersOpen ? '#BFDBFE' : '#E2E8F0',
+                    borderRadius: '999px',
+                    px: 2,
+                    py: 0.5,
+                    minHeight: 32,
+                    '&:hover': {
+                      backgroundColor: isMoreFiltersOpen ? '#DBEAFE' : '#F1F5F9',
+                      borderColor: isMoreFiltersOpen ? '#93C5FD' : '#CBD5E1',
+                    }
+                  }}
+                >
+                  More Filters
+                </Button>
+              </Box>
+
+              {/* RANGE + TIMESTEP — stacked vertically */}
+              <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
+                <Box display="flex" alignItems="flex-start" gap={1.5}>
+                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', mt: 0.8 }}>Range</Typography>
+                  <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
+                    <PillToggleGroup value={range} onChange={setRange} options={trendMeta.rangeOptions} />
+                    {range === "Custom" && (
+                      <Box display="flex" gap={1}>
+                        <DatePicker
+                          value={customStartDate}
+                          onChange={(newValue) => setCustomStartDate(newValue)}
+                          slotProps={{ textField: { size: 'small', sx: { width: 110, '& .MuiInputBase-root': { fontSize: '0.75rem', height: '28px', borderRadius: '999px', backgroundColor: '#F3F4F6', '& fieldset': { border: 'none' } } } } }}
+                          format="DD/MM/YY"
+                        />
+                        <DatePicker
+                          value={customEndDate}
+                          onChange={(newValue) => setCustomEndDate(newValue)}
+                          slotProps={{ textField: { size: 'small', sx: { width: 110, '& .MuiInputBase-root': { fontSize: '0.75rem', height: '28px', borderRadius: '999px', backgroundColor: '#F3F4F6', '& fieldset': { border: 'none' } } } } }}
+                          format="DD/MM/YY"
+                        />
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+                <Box display="flex" alignItems="center" gap={1.5}>
+                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Step Size</Typography>
+                  <PillToggleGroup value={timeStep} onChange={setTimeStep} options={trendMeta.timeSteps} />
+                </Box>
+              </Box>
+            </Box>
+
+            {/* CHART */}
+            <Paper
+              elevation={0}
+              sx={{
+                borderRadius: 3,
+                border: "1px solid #E5E7EB",
+                mt: 1,
+                p: { xs: 1.5, md: 2.5 },
+              }}
+            >
+              {/* Metric Row */}
+              <Box
+                display="flex"
+                flexDirection="column"
+                gap={2}
+                mb={2}
+              >
+                <Box display="flex" gap={1.5} flexWrap="wrap">
+                  {trendMeta.metrics.map((m) => {
+                    const isNotAll = (val) => {
+                      if (!val) return false;
+                      if (Array.isArray(val)) {
+                        if (val.length === 0) return false;
+                        return !val.some(v => String(v).toLowerCase() === 'all');
+                      }
+                      return String(val).toLowerCase() !== 'all';
+                    };
+
+                    const hasKeywordFilter = isNotAll(drawerFilters.Keyword) || isNotAll(drawerFilters.Keyword_Type);
+
+                    if (hasKeywordFilter && m.id === "offtake") {
+                      return null;
+                    }
+
+                    const isDisabled = !hasKeywordFilter && m.id === "search_rank";
+
+                    return (
+                      <MetricChip
+                        key={m.id}
+                        label={m.label}
+                        color={m.color}
+                        active={activeMetrics.includes(m.id) && !isDisabled}
+                        disabled={isDisabled}
+                        onClick={() =>
+                          setActiveMetrics((prev) =>
+                            prev.includes(m.id)
+                              ? prev.filter((x) => x !== m.id)
+                              : [...prev, m.id]
+                          )
+                        }
+                      />
+                    );
+                  })}
+                </Box>
+
+                <Box>
+                  {/* Show more button if we have many metrics, but currently we just show all */}
+                  {/* {trendMeta.metrics.length > 5 && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      endIcon={<ChevronDown size={14} />}
+                      sx={{
+                        textTransform: "none",
+                        borderRadius: "999px",
+                        borderColor: "#E2E8F0",
+                        color: "#3b82f6",
+                        backgroundColor: "#eff6ff",
+                        fontSize: "0.75rem",
+                        px: 2,
+                        "&:hover": {
+                          borderColor: "#3b82f6",
+                          backgroundColor: "#dbeafe",
+                        }
+                      }}
+                    >
+                      +{trendMeta.metrics.length - 5} more
+                    </Button>
+                  )} */}
+                </Box>
+              </Box>
+
+              {/* Chart */}
+              <Box sx={{ height: 340 }}>
+                {loading ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%', justifyContent: 'center' }}>
+                    <Skeleton variant="rectangular" width="100%" height={280} animation="wave" sx={{ borderRadius: 2 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                      <Skeleton variant="text" width="15%" height={20} animation="wave" />
+                    </Box>
+                  </Box>
+                ) : chartData.length === 0 ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', gap: 1 }}>
+                    <Typography variant="body1" fontWeight={500}>No data is available</Typography>
+                    <Typography variant="body2">Try adjusting your filters to find more results</Typography>
+                  </Box>
+                ) : (
+                  <ReactECharts
+                    style={{ height: "100%", width: "100%" }}
+                    option={trendOption}
+                    notMerge
+                  />
+                )}
+              </Box>
+            </Paper>
+          </Box>
+        )}
+
+        {/* COMPETITION VIEW */}
+        {view === "Competition" && (
+          <VisibilityPlatformOverviewKpiShowcase
+            selectedPlatform={drawerFilters.Platform !== 'All' ? drawerFilters.Platform : (selectedColumn || selectedPlatform || 'All')}
+            period={range === "Custom" ? "1M" : range}
+            timeStep={timeStep}
+            externalCity={drawerFilters.City === 'All' ? 'All India' : drawerFilters.City}
+            externalFilters={{
+              categories: drawerFilters.Format !== 'All' ? [drawerFilters.Format] : [],
+              brands: drawerFilters.Brand !== 'All' ? [drawerFilters.Brand] : [],
+              skus: drawerFilters.SKU !== 'All' ? [drawerFilters.SKU] : [],
+              keywords: drawerFilters.Keyword !== 'All' ? [drawerFilters.Keyword] : [],
+              keywordType: drawerFilters.Keyword_Type !== 'All' ? [drawerFilters.Keyword_Type] : [],
+              rank: drawerFilters.Rank || 'All'
+            }}
+          />
+        )}
+
+        {/* COMPARE SKUs VIEW */}
+        {view === "compare skus" && (
+          <Box display="flex" flexDirection="column" gap={2}>
+            <Box display="flex" alignItems="center" gap={1.5}>
+              <Typography variant="h6" fontWeight={600}>
+                Compare SKUs
+              </Typography>
+            </Box>
+
+            {/* RANGE + TIMESTEP */}
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              gap={2}
+              flexWrap="wrap"
+            >
+              <Box display="flex" flexDirection="column" alignItems="flex-start" gap={1}>
+                <PillToggleGroup
+                  value={range}
+                  onChange={setRange}
+                  options={trendMeta.rangeOptions}
+                />
+                {range === "Custom" && (
+                  <Box display="flex" gap={1}>
+                    <DatePicker
+                      value={customStartDate}
+                      onChange={(newValue) => setCustomStartDate(newValue)}
+                      slotProps={{ textField: { size: 'small', sx: { width: 110, '& .MuiInputBase-root': { fontSize: '0.75rem', height: '28px', borderRadius: '999px', backgroundColor: '#F3F4F6', '& fieldset': { border: 'none' } } } } }}
+                      format="DD/MM/YY"
+                    />
+                    <DatePicker
+                      value={customEndDate}
+                      onChange={(newValue) => setCustomEndDate(newValue)}
+                      slotProps={{ textField: { size: 'small', sx: { width: 110, '& .MuiInputBase-root': { fontSize: '0.75rem', height: '28px', borderRadius: '999px', backgroundColor: '#F3F4F6', '& fieldset': { border: 'none' } } } } }}
+                      format="DD/MM/YY"
+                    />
+                  </Box>
+                )}
+              </Box>
+
+              <Box display="flex" alignItems="center" gap={2}>
+                <Typography variant="body2">Time Step:</Typography>
+                <PillToggleGroup
+                  value={timeStep}
+                  onChange={setTimeStep}
+                  options={trendMeta.timeSteps}
+                />
+              </Box>
+            </Box>
+
+            {/* SKU pills + Add SKUs button row */}
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="space-between"
+              gap={2}
+              flexWrap="wrap"
+            >
+              <Box display="flex" gap={1} flexWrap="wrap" flex={1}>
+                {selectedCompareSkus.map((sku) => {
+                  const color =
+                    BRAND_COLORS[sku.brand] || "rgba(37,99,235,0.3)";
+                  return (
+                    <Chip
+                      key={sku.id}
+                      label={
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Box
+                            sx={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: "999px",
+                              backgroundColor: color,
+                            }}
+                          />
+                          <Typography variant="body2" noWrap>
+                            {sku.name}
+                          </Typography>
+                        </Box>
+                      }
+                      onDelete={() =>
+                        setSelectedCompareSkus((prev) =>
+                          prev.filter((s) => s.id !== sku.id)
+                        )
+                      }
+                      sx={{
+                        borderRadius: "999px",
+                        backgroundColor: "#F9FAFB",
+                        borderColor: "transparent",
+                        maxWidth: 260,
+                      }}
+                    />
+                  );
+                })}
+              </Box>
+
+              <Button
+                variant="contained"
+                startIcon={<Plus size={14} />}
+                sx={{
+                  backgroundColor: "#2563EB",
+                  textTransform: "none",
+                  borderRadius: "999px",
+                  minWidth: 140,
+                }}
+                onClick={() => setAddSkuOpen(true)}
+              >
+                Add SKUs
+              </Button>
+            </Box>
+
+            {/* Metric Chips */}
+            <Box display="flex" gap={1.5} flexWrap="wrap">
+              {compareMeta.metrics.map((m) => (
+                <MetricChip
+                  key={m.id}
+                  label={m.label}
+                  color={m.color}
+                  active={activeMetrics.includes(m.id)}
+                  onClick={() =>
+                    setActiveMetrics((prev) =>
+                      prev.includes(m.id)
+                        ? prev.filter((x) => x !== m.id)
+                        : [...prev, m.id]
+                    )
+                  }
+                />
+              ))}
+            </Box>
+
+            {/* Chart */}
+            <Paper sx={{ p: 2, borderRadius: 3, border: "1px solid #E5E7EB" }}>
+              <Box sx={{ height: 350 }}>
+                {selectedCompareSkus.length === 0 ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', gap: 1 }}>
+                    <Typography variant="body1" fontWeight={500}>No data is available</Typography>
+                    <Typography variant="body2">Try adjusting your filters to find more results</Typography>
+                  </Box>
+                ) : (
+                  <ReactECharts
+                    key={selectedCompareSkus.map((s) => s.id).join("-")}
+                    option={compareOption}
+                    notMerge={true}
+                    style={{ height: "100%", width: "100%" }}
+                  />
+                )}
+              </Box>
+            </Paper>
+          </Box>
+        )}
+
+        {/* ADDITIONAL FILTERS INLINE PANEL — slides in from the right within the drawer */}
+        {isMoreFiltersOpen && (
+          <Box
+            sx={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: 300,
+              bgcolor: "white",
+              borderLeft: "1px solid #E2E8F0",
+              boxShadow: "-4px 0 20px rgba(0,0,0,0.06)",
+              zIndex: 10,
+              display: "flex",
+              flexDirection: "column",
+              p: 3,
+              animation: "slideInRight 0.2s ease-out",
+              "@keyframes slideInRight": {
+                from: { transform: "translateX(100%)" },
+                to: { transform: "translateX(0)" },
+              },
+            }}
+          >
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+              <Typography variant="subtitle1" fontWeight={700} sx={{ color: "#0F172A", display: "flex", alignItems: "center", gap: 1 }}>
+                <Filter size={16} /> Additional Filters
+              </Typography>
+              <IconButton onClick={() => setIsMoreFiltersOpen(false)} size="small" sx={{ color: "#64748B", "&:hover": { bgcolor: "#F1F5F9" } }}>
+                <X size={18} />
+              </IconButton>
+            </Box>
+
+            <Box flex={1} overflow="auto" sx={{ display: "flex", flexDirection: "column", gap: 3, pr: 1 }}>
+              {/* ===== Keyword Type ===== */}
+              <Box>
+                <Typography variant="body2" fontWeight={600} mb={1} color="#475569">Keyword Type</Typography>
+                <Select
+                  fullWidth
+                  size="small"
+                  value={drawerFilters.Keyword_Type}
+                  onChange={(e) => setDrawerFilters(prev => ({ ...prev, Keyword_Type: e.target.value }))}
+                  sx={{
+                    fontSize: "13px",
+                    borderRadius: "8px",
+                    backgroundColor: "#F8FAFC",
+                    "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E2E8F0" },
+                    "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#CBD5E1" },
+                  }}
+                >
+                  <MenuItem value="All">All Types</MenuItem>
+                  {KEYWORD_TYPE_OPTIONS.map(opt => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
+                </Select>
+              </Box>
+
+              {/* ===== Keyword ===== */}
+              <Box>
+                <Typography variant="body2" fontWeight={600} mb={1} color="#475569">Keyword</Typography>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Search Keywords..."
+                  value={keywordSearchTerm || ''}
+                  onChange={(e) => setKeywordSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search size={14} color="#94A3B8" />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    mb: 1,
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      fontSize: '13px',
+                    }
+                  }}
+                />
+                <Box
+                  sx={{
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 2,
+                    '&::-webkit-scrollbar': { width: 6 },
+                    '&::-webkit-scrollbar-thumb': { backgroundColor: '#CBD5E1', borderRadius: 3 },
+                  }}
+                >
+                  <Box
+                    onClick={() => setDrawerFilters(prev => ({ ...prev, Keyword: 'All' }))}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      px: 1.5,
+                      py: 1,
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #F1F5F9',
+                      backgroundColor: drawerFilters.Keyword === 'All' ? '#EFF6FF' : 'transparent',
+                      '&:hover': { backgroundColor: '#F8FAFC' },
+                    }}
+                  >
+                    <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${drawerFilters.Keyword === 'All' ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: drawerFilters.Keyword === 'All' ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {drawerFilters.Keyword === 'All' && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                    </Box>
+                    <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>All Keywords</Typography>
+                  </Box>
+                  {KEYWORD_OPTIONS
+                    .filter(opt => !keywordSearchTerm || opt.toLowerCase().includes(keywordSearchTerm.toLowerCase()))
+                    .map(opt => {
+                      const isSelected = drawerFilters.Keyword === opt;
+                      const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
+                      return (
+                        <Box
+                          key={opt}
+                          onClick={() => setDrawerFilters(prev => ({ ...prev, Keyword: prev.Keyword === opt ? 'All' : opt }))}
+                          title={opt}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            px: 1.5,
+                            py: 0.8,
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #F8FAFC',
+                            backgroundColor: isSelected ? '#EFF6FF' : 'transparent',
+                            transition: 'background 0.15s',
+                            '&:hover': { backgroundColor: isSelected ? '#DBEAFE' : '#F8FAFC' },
+                          }}
+                        >
+                          <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${isSelected ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: isSelected ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                          </Box>
+                          <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
+                            <Typography sx={{
+                              fontSize: '12px',
+                              fontWeight: isSelected ? 600 : 400,
+                              color: isSelected ? '#1E40AF' : '#334155',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxWidth: 200,
+                            }}>
+                              {mainName}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      );
+                    })
+                  }
+                  {KEYWORD_OPTIONS.filter(opt => !keywordSearchTerm || opt.toLowerCase().includes(keywordSearchTerm.toLowerCase())).length === 0 && (
+                    <Typography sx={{ p: 2, textAlign: 'center', fontSize: '12px', color: '#94A3B8' }}>No data is available</Typography>
+                  )}
+                </Box>
+              </Box>
+
+              {/* ===== SKU ===== */}
+              <Box>
+                <Typography variant="body2" fontWeight={600} mb={1} color="#475569">SKU</Typography>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Search SKUs..."
+                  value={skuSearchTerm || ''}
+                  onChange={(e) => setSkuSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search size={14} color="#94A3B8" />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    mb: 1,
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      fontSize: '13px',
+                    }
+                  }}
+                />
+                <Box
+                  sx={{
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 2,
+                    '&::-webkit-scrollbar': { width: 6 },
+                    '&::-webkit-scrollbar-thumb': { backgroundColor: '#CBD5E1', borderRadius: 3 },
+                  }}
+                >
+                  {/* Filtered SKU list + "All SKUs" option */}
+                  {(() => {
+                    const filteredSkus = SKU_OPTIONS.filter(opt => !skuSearchTerm || opt.toLowerCase().includes(skuSearchTerm.toLowerCase()));
+
+                    const isSkuSelected = (opt) => {
+                      if (drawerFilters.SKU === 'All') return true;
+                      if (drawerFilters.SKU === 'None' || !drawerFilters.SKU) return false;
+                      const list = drawerFilters.SKU.split(';;').map(s => s.trim().toLowerCase());
+                      return list.includes(opt.toLowerCase());
+                    };
+
+                    const getCurrentlySelectedList = () => {
+                      if (drawerFilters.SKU === 'All') return [...SKU_OPTIONS];
+                      if (drawerFilters.SKU === 'None' || !drawerFilters.SKU) return [];
+                      return drawerFilters.SKU.split(';;').map(s => s.trim()).filter(Boolean);
+                    };
+
+                    const isAllFilteredSelected = filteredSkus.length > 0 && filteredSkus.every(opt => isSkuSelected(opt));
+
+                    const handleToggleAllFiltered = () => {
+                      const currentSelected = getCurrentlySelectedList();
+                      let nextSelected;
+                      if (isAllFilteredSelected) {
+                        const filteredLower = new Set(filteredSkus.map(s => s.toLowerCase()));
+                        nextSelected = currentSelected.filter(s => !filteredLower.has(s.toLowerCase()));
+                      } else {
+                        const currentLower = new Set(currentSelected.map(s => s.toLowerCase()));
+                        const toAdd = filteredSkus.filter(s => !currentLower.has(s.toLowerCase()));
+                        nextSelected = [...currentSelected, ...toAdd];
+                      }
+
+                      if (nextSelected.length === 0) {
+                        setDrawerFilters(prev => ({ ...prev, SKU: 'None', SKUWebPid: 'None' }));
+                      } else if (nextSelected.length >= SKU_OPTIONS.length) {
+                        setDrawerFilters(prev => ({ ...prev, SKU: 'All', SKUWebPid: 'All' }));
+                      } else {
+                        setDrawerFilters(prev => ({ ...prev, SKU: nextSelected.join(';;') }));
+                      }
+                    };
+
+                    return (
+                      <>
+                        {/* "All SKUs" option */}
+                        <Box
+                          onClick={handleToggleAllFiltered}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            px: 1.5,
+                            py: 1,
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #F1F5F9',
+                            backgroundColor: isAllFilteredSelected ? '#EFF6FF' : 'transparent',
+                            '&:hover': { backgroundColor: '#F8FAFC' },
+                          }}
+                        >
+                          <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${isAllFilteredSelected ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: isAllFilteredSelected ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {isAllFilteredSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                          </Box>
+                          <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                            {skuSearchTerm ? `Select All Matching SKUs (${filteredSkus.length})` : 'All SKUs'}
+                          </Typography>
+                        </Box>
+
+                        {/* Filtered SKU items */}
+                        {filteredSkus.map(opt => {
+                          const isSelected = isSkuSelected(opt);
+                          const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
+                          const variant = parenMatch ? parenMatch[1] : '';
+                          const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
+                          return (
+                            <Box
+                              key={opt}
+                              onClick={() => {
+                                const currentSelected = getCurrentlySelectedList();
+                                const exists = currentSelected.some(s => s.toLowerCase() === opt.toLowerCase());
+                                let nextSelected;
+                                if (exists) {
+                                  nextSelected = currentSelected.filter(s => s.toLowerCase() !== opt.toLowerCase());
+                                } else {
+                                  nextSelected = [...currentSelected, opt];
+                                }
+                                if (nextSelected.length === 0) {
+                                  setDrawerFilters(prev => ({ ...prev, SKU: 'None' }));
+                                } else if (nextSelected.length >= SKU_OPTIONS.length) {
+                                  setDrawerFilters(prev => ({ ...prev, SKU: 'All' }));
+                                } else {
+                                  setDrawerFilters(prev => ({ ...prev, SKU: nextSelected.join(';;') }));
+                                }
+                              }}
+                              title={opt}
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                px: 1.5,
+                                py: 0.8,
+                                cursor: 'pointer',
+                                borderBottom: '1px solid #F8FAFC',
+                                backgroundColor: isSelected ? '#EFF6FF' : 'transparent',
+                                transition: 'background 0.15s',
+                                '&:hover': { backgroundColor: isSelected ? '#DBEAFE' : '#F8FAFC' },
+                              }}
+                            >
+                              <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${isSelected ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: isSelected ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                              </Box>
+                              <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
+                                <Typography sx={{
+                                  fontSize: '12px',
+                                  fontWeight: isSelected ? 600 : 400,
+                                  color: isSelected ? '#1E40AF' : '#334155',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  maxWidth: 200,
+                                }}>
+                                  {mainName}
+                                </Typography>
+                                {variant && (
+                                  <Typography sx={{ fontSize: '10px', color: '#94A3B8', mt: '-1px' }}>
+                                    {variant}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                        {filteredSkus.length === 0 && (
+                          <Typography sx={{ p: 2, textAlign: 'center', fontSize: '12px', color: '#94A3B8' }}>No data is available</Typography>
+                        )}
+                      </>
+                    );
+                  })()}
+                </Box>
+              </Box>
+            </Box>
+
+            <Box display="flex" justifyContent="flex-end" gap={2} pt={3} borderTop="1px solid #F1F5F9">
+              <Button
+                onClick={() => setIsMoreFiltersOpen(false)}
+                variant="outlined"
+                sx={{ borderRadius: 2, textTransform: 'none', borderColor: '#E2E8F0', color: '#475569', minWidth: 90, fontSize: '13px' }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => setIsMoreFiltersOpen(false)}
+                variant="contained"
+                sx={{
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  boxShadow: 'none',
+                  bgcolor: '#0F172A',
+                  '&:hover': { bgcolor: '#1E293B', boxShadow: 'none' },
+                  minWidth: 90,
+                  fontSize: '13px'
+                }}
+              >
+                Apply
+              </Button>
+            </Box>
+          </Box>
+        )}
+
+        {/* Shared Add SKU drawer for both Competition + Compare SKUs */}
+        <AddSkuDrawer
+          open={addSkuOpen}
+          onClose={() => setAddSkuOpen(false)}
+          onApply={handleSkuApply}
+          selectedIds={selectedCompareSkus.map((s) => s.id)}
+        />
+      </Box>
+    </Box>
+  );
+}

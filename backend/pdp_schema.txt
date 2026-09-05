@@ -1,0 +1,597 @@
+--- Schema for rb_pdp_olap ---
+[
+  {
+    "name": "id",
+    "type": "Nullable(Int64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "DATE",
+    "type": "Nullable(Date)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "PERIOD",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Platform_id",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Platform",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Location_id",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Location",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Brand_id",
+    "type": "Nullable(Int64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Brand",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Product_type",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Category",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Product_Subcategory",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "MSL",
+    "type": "Nullable(Int64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Comp_flag",
+    "type": "Nullable(Int64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Web_Pid",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Product",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "URL",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Weight",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Price_range",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Reseller_Name",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "buy_box_neno_osa",
+    "type": "Nullable(Int64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "delivery_date",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "best_seller_rank",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "best_seller_category",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "guardrail",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "neno_osa",
+    "type": "Nullable(Int64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "deno_osa",
+    "type": "Nullable(Int64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "listing_percent",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "MRP",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Selling_Price",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Discount",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Rating",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Item_Id",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "image_url",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "channel",
+    "type": "Nullable(String)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Sales",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Qty_Sold_MRP",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Inventory",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "DIH",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "sd_ad_clicks",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "sp_ad_clicks",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Ad_Clicks",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "sd_ad_impressions",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "sp_ad_impressions",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Ad_Impressions",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "sd_ad_quantity_sold",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "sp_ad_quantity_sold",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Ad_Quantity_sold",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "sd_ad_units_sold",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "sp_ad_units_sold",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Ad_Units_Sold",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "sd_ad_sales",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "sp_ad_sales",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Ad_sales",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "sd_ad_spend",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "sp_ad_spend",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Ad_Spend",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Organic_Impressions",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Qty_Sold",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "Overall_GV",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "organic_gv",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "organic_qty",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "organic_conv",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "qty",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "master_mrp",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "PPU",
+    "type": "Nullable(Float64)",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  }
+]
