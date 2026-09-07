@@ -331,12 +331,47 @@ const extractChannel = (filters) => {
     if (!rawChannel) return null;
     const channelArr = normalizeFilterArray(rawChannel);
     return channelArr && channelArr.length > 0 ? (channelArr.length === 1 ? channelArr[0] : channelArr) : null;
+};const normalizePlatKey = (str) => {
+    if (!str) return '';
+    return String(str).toLowerCase().trim().replace(/[_-\s]+/g, ' ');
+};
+
+const arePlatformsMatching = (p1, p2) => {
+    const k1 = normalizePlatKey(p1);
+    const k2 = normalizePlatKey(p2);
+    if (!k1 || !k2) return false;
+    if (k1 === k2) return true;
+
+    // Amazon vs Amazon Now check
+    const isNow1 = k1.includes('now');
+    const isNow2 = k2.includes('now');
+    if (isNow1 !== isNow2) return false; // One is Now, one is not -> NOT A MATCH!
+
+    // Flipkart vs Flipkart Minutes check
+    const isMin1 = k1.includes('minute');
+    const isMin2 = k2.includes('minute');
+    if (isMin1 !== isMin2) return false; // One is Minutes, one is not -> NOT A MATCH!
+
+    // Instamart check: 'swiggy instamart' matches 'instamart'
+    if ((k1.includes('instamart') || k1.includes('swiggy')) && (k2.includes('instamart') || k2.includes('swiggy'))) {
+        return true;
+    }
+
+    // Generic fallback only if neither contains Amazon or Flipkart
+    if (!k1.includes('amazon') && !k1.includes('flipkart') && !k2.includes('amazon') && !k2.includes('flipkart')) {
+        if (k1.includes(k2) || k2.includes(k1)) return true;
+    }
+
+    return false;
 };
 
 /**
- * Helper to build platform condition based on channel selection
- * @param {string} platform - The selected platform (e.g. 'All', 'Blinkit')
- * @param {string} channel - The selected channel (e.g. 'Ecommerce', 'Modern Trades')
+ * Helper to build platform condition SQL
+ * @param {string|string[]} platform - Platform filter
+ * @param {string|string[]} channel - Channel filter
+ * @param {string} columnName - Platform column name
+ * @param {boolean} forceLower - Force lower case conversion
+ * @param {string|null} channelColumn - Channel column name
  * @returns {string|null} - The SQL condition for platform
  */
 const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', forceLower = false, channelColumn = null) => {
@@ -346,14 +381,29 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
 
     if (platform && platform !== 'All') {
         const platforms = Array.isArray(platform) ? platform : (typeof platform === 'string' && platform.includes(',') ? platform.split(',') : [platform]);
+        
+        const buildSinglePlatformCond = (pStr) => {
+            const pLower = pStr.trim().toLowerCase();
+            const pEsc = escapeStr(pLower);
+            if (pLower === 'amazon') {
+                return `(lower(${columnName}) IN ('amazon', 'amazon national', 'amazon_national') OR (lower(${columnName}) LIKE '%amazon%' AND lower(${columnName}) NOT LIKE '%now%'))`;
+            }
+            if (pLower === 'amazon now' || pLower === 'amazon_now') {
+                return `(lower(${columnName}) IN ('amazon now', 'amazon_now') OR lower(${columnName}) LIKE '%amazon%now%')`;
+            }
+            if (pLower === 'flipkart') {
+                return `(lower(${columnName}) IN ('flipkart', 'flipkart national', 'flipkart_national') OR (lower(${columnName}) LIKE '%flipkart%' AND lower(${columnName}) NOT LIKE '%minute%'))`;
+            }
+            if (pLower === 'flipkart minutes' || pLower === 'flipkart_minutes') {
+                return `(lower(${columnName}) IN ('flipkart minutes', 'flipkart_minutes') OR lower(${columnName}) LIKE '%flipkart%minute%')`;
+            }
+            return `(lower(${columnName}) = '${pEsc}' OR lower(${columnName}) LIKE '%${pEsc}%')`;
+        };
+
         if (platforms.length === 1) {
-            const pLower = escapeStr(platforms[0].trim().toLowerCase());
-            conditions.push(`(lower(${columnName}) = '${pLower}' OR lower(${columnName}) LIKE '%${pLower}%')`);
+            conditions.push(buildSinglePlatformCond(platforms[0]));
         } else if (platforms.length > 1) {
-            const condList = platforms.map(p => {
-                const pLower = escapeStr(p.trim().toLowerCase());
-                return `(lower(${columnName}) = '${pLower}' OR lower(${columnName}) LIKE '%${pLower}%')`;
-            }).join(' OR ');
+            const condList = platforms.map(p => buildSinglePlatformCond(p)).join(' OR ');
             conditions.push(`(${condList})`);
         }
     }
@@ -5344,11 +5394,11 @@ const getPlatformOverview = async (filters) => {
         };
 
         const getPlatformType = (name) => {
-            const qCommerce = ['zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo'];
+            const qCommerce = ['zepto', 'blinkit', 'swiggy instamart', 'instamart', 'dunzo', 'amazon now', 'amazon_now', 'flipkart minutes', 'flipkart_minutes'];
             const marketplace = ['amazon', 'flipkart', 'swiggy', 'bigbasket', 'jiomart'];
             const lower = name.toLowerCase();
             if (qCommerce.some(p => lower.includes(p))) return 'Q-commerce';
-            if (marketplace.some(p => lower.includes(p))) return 'Marketplace';
+            if (marketplace.some(p => lower === p || (lower.includes(p) && !lower.includes('now') && !lower.includes('minute')))) return 'Marketplace';
             return 'E-commerce';
         };
 
@@ -5393,7 +5443,7 @@ const getPlatformOverview = async (filters) => {
                     const isPharm = epharmPlatforms.some(epp => pLabel === epp || pLabel.includes(epp) || epp.includes(pLabel)) || pLabel.includes('pharm') || pLabel.includes('meds') || pLabel.includes('1mg') || pLabel.includes('1_mg');
                     if (isPharm) return hasEpharm;
 
-                    const isEcom = ecomPlatforms.some(ep => pLabel === ep || pLabel.includes(ep));
+                    const isEcom = ecomPlatforms.some(ep => (pLabel === ep || pLabel.includes(ep)) && !pLabel.includes('now') && !pLabel.includes('minute'));
                     if (isEcom) return hasEcom;
 
                     return hasModern;
@@ -5957,30 +6007,34 @@ const getPlatformOverview = async (filters) => {
         }
     }
 
-    // Helper to find matching row in platform query results (strict then substring fallback)
+    // Helper to find matching row in platform query results (strict then robust platform matching fallback)
     const findPlatformRow = (arr, key) => {
         if (!arr || !Array.isArray(arr)) return null;
-        let match = arr.find(d => d.Platform && String(d.Platform).toLowerCase() === key);
+        const normKey = normalizePlatKey(key);
+        let match = arr.find(d => d.Platform && normalizePlatKey(d.Platform) === normKey);
         if (!match) {
-            match = arr.find(d => d.Platform && (String(d.Platform).toLowerCase().includes(key) || key.includes(String(d.Platform).toLowerCase())));
+            match = arr.find(d => d.Platform && arePlatformsMatching(d.Platform, key));
         }
         return match;
     };
 
     const findMapValue = (map, key) => {
         if (!map || !(map instanceof Map)) return 0;
+        const normKey = normalizePlatKey(key);
         if (map.has(key)) return map.get(key);
+        if (map.has(normKey)) return map.get(normKey);
         for (const [mKey, val] of map.entries()) {
-            if (mKey && (mKey.includes(key) || key.includes(mKey))) return val;
+            if (mKey && arePlatformsMatching(mKey, key)) return val;
         }
         return 0;
     };
 
     const hasMapKey = (map, key) => {
         if (!map || !(map instanceof Map)) return false;
-        if (map.has(key)) return true;
+        const normKey = normalizePlatKey(key);
+        if (map.has(key) || map.has(normKey)) return true;
         for (const [mKey] of map.entries()) {
-            if (mKey && (mKey.includes(key) || key.includes(mKey))) return true;
+            if (mKey && arePlatformsMatching(mKey, key)) return true;
         }
         return false;
     };
@@ -6031,7 +6085,7 @@ const getPlatformOverview = async (filters) => {
                 clicks: parseFloat(cpmVal?.clicks || 0),
                 impressions: parseFloat(cpmVal?.impressions || 0),
                 orders: parseFloat(cpmVal?.orders || 0),
-                conversion: currPmConvMap.get(key) || 0,
+                conversion: findMapValue(currPmConvMap, key) || null,
                 neno: parseFloat(c?.neno || 0),
                 deno: parseFloat(c?.deno || 0),
                 buyBoxNeno: parseFloat(c?.buy_box_neno || 0),
@@ -6054,7 +6108,7 @@ const getPlatformOverview = async (filters) => {
                 clicks: parseFloat(pvpmVal?.clicks || 0),
                 impressions: parseFloat(pvpmVal?.impressions || 0),
                 orders: parseFloat(pvpmVal?.orders || 0),
-                conversion: prevPmConvMap.get(key) || 0,
+                conversion: findMapValue(prevPmConvMap, key) || null,
                 neno: parseFloat(pv?.neno || 0),
                 deno: parseFloat(pv?.deno || 0),
                 buyBoxNeno: parseFloat(pv?.buy_box_neno || 0),
@@ -6167,8 +6221,8 @@ const getPlatformOverview = async (filters) => {
 
     platformDefinitions.forEach(p => {
         const key = p.label.toLowerCase();
-        const isEcomRow = key.includes('amazon') || key.includes('flipkart') || key.includes('myntra') || key.includes('nykaa') || key.includes('jiomart');
-        const isQuickRow = key.includes('blinkit') || key.includes('zepto') || key.includes('swiggy') || key.includes('instamart') || key.includes('bbnow') || key.includes('quick');
+        const isEcomRow = (key.includes('amazon') || key.includes('flipkart') || key.includes('myntra') || key.includes('nykaa') || key.includes('jiomart')) && !key.includes('now') && !key.includes('minute');
+        const isQuickRow = key.includes('blinkit') || key.includes('zepto') || key.includes('swiggy') || key.includes('instamart') || key.includes('bbnow') || key.includes('quick') || key.includes('now') || key.includes('minute');
         const metrics = bulkPlatformMap.get(p.label);
 
         if (metrics) {
@@ -6430,8 +6484,8 @@ const getPlatformOverview = async (filters) => {
 
         const availability = hasPdp ? (metrics.curr.deno > 0 ? (metrics.curr.neno / metrics.curr.deno) * 100 : null) : null;
         const wtOsa = (availability !== null && metrics.curr.avgListingPercent !== null && metrics.curr.avgListingPercent !== undefined) ? (availability * metrics.curr.avgListingPercent) / 100 : null;
-        const isEcom = key.includes('amazon') || key.includes('flipkart') || key.includes('myntra') || key.includes('nykaa') || key.includes('jiomart');
-        const isQuick = key.includes('blinkit') || key.includes('zepto') || key.includes('swiggy') || key.includes('instamart') || key.includes('bbnow') || key.includes('quick');
+        const isEcom = (key.includes('amazon') || key.includes('flipkart') || key.includes('myntra') || key.includes('nykaa') || key.includes('jiomart')) && !key.includes('now') && !key.includes('minute');
+        const isQuick = key.includes('blinkit') || key.includes('zepto') || key.includes('swiggy') || key.includes('instamart') || key.includes('bbnow') || key.includes('quick') || key.includes('now') || key.includes('minute');
 
         const roas = hasPm ? (totalSpend > 0 ? totalAdSales / totalSpend : null) : null;
         const conversion = hasPm ? (metrics.curr.conversion ?? null) : null;
@@ -6446,8 +6500,8 @@ const getPlatformOverview = async (filters) => {
         const asp = hasPdp ? (metrics.curr.asp ?? null) : null;
 
         // Previous period
-        const prevHasPdp = prevData.some(d => d.Platform && d.Platform.toLowerCase() === key) || (isDrlDb && buymorePlatforms.includes(key) && (prevBuymoreMap.get(key) || 0) > 0);
-        const prevHasPm = prevPmData.some(d => d.Platform && d.Platform.toLowerCase() === key);
+        const prevHasPdp = Boolean(findPlatformRow(prevData, key)) || (isDrlDb && buymorePlatforms.includes(key) && (prevBuymoreMap.get(key) || 0) > 0);
+        const prevHasPm = Boolean(findPlatformRow(prevPmData, key));
         const prevHasMsCheck = prevMsMap.has(key) || prevMsDenomMap.has(key);
         const prevHasSosCheck = prevSosOurMap.has(key) || prevSosTotalMap.has(key);
 
@@ -13902,8 +13956,320 @@ const getMsls = async () => {
     }
 };
 
-export { getMsls };
+/**
+ * Get Cross Platform Brand Matrix
+ * Returns per-brand, per-platform metrics for: offtake, marketShare, availability, roas, spend, aov, asp
+ */
+const getCrossPlatformBrandMatrix = async (filters) => {
+    try {
+        console.log('[getCrossPlatformBrandMatrix] Fetching matrix with filters:', filters);
+
+        const { startDate: qStartDate, endDate: qEndDate, months = 1, level = 'brand' } = filters;
+        const isSkuLevel = level?.toLowerCase() === 'sku' || level?.toLowerCase() === 'skus';
+        const channel = extractChannel(filters);
+
+        const rawPlatform = filters['platform[]'] || filters.platform;
+        const rawBrand = filters['brand[]'] || filters.brand;
+        const rawCategory = filters['category[]'] || filters.category;
+        const rawLocation = filters['location[]'] || filters.location;
+
+        const platformArr = normalizeFilterArray(rawPlatform);
+        const brandArr = normalizeFilterArray(rawBrand);
+        const categoryArr = normalizeFilterArray(rawCategory);
+        const locationArr = normalizeFilterArray(rawLocation);
+
+        const monthsBack = parseInt(months, 10) || 1;
+        let endDate = await getCachedMaxDate();
+        let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
+        if (qStartDate && qEndDate) {
+            startDate = dayjs(qStartDate).startOf('day');
+            endDate = dayjs(qEndDate).endOf('day');
+        }
+
+        const sDateStr = startDate.format('YYYY-MM-DD');
+        const eDateStr = endDate.format('YYYY-MM-DD');
+
+        const src = await getWatchtowerSource(filters);
+        const pmSrc = await getPmSource();
+
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+        // Build conditions for PDP table
+        const buildPdpConds = () => {
+            const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
+            const conds = [`${dateCol} BETWEEN '${sDateStr}' AND '${eDateStr}'`];
+
+            if (platformArr.length > 0 && !platformArr.includes('All')) {
+                const platformCol = src.isAgg ? 'platform' : 'Platform';
+                conds.push(`lower(${platformCol}) IN (${platformArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+            }
+            if (brandArr.length > 0 && !brandArr.includes('All')) {
+                const brandCol = src.isAgg ? 'brand' : 'Brand';
+                conds.push(`lower(${brandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+            }
+            if (categoryArr.length > 0 && !categoryArr.includes('All')) {
+                const catCol = src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL;
+                conds.push(`${catCol} IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            }
+            if (locationArr.length > 0 && !locationArr.includes('All')) {
+                const locCol = src.isAgg ? 'location' : 'Location';
+                conds.push(`lower(${locCol}) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            }
+
+            return conds.join(' AND ');
+        };
+
+        // Build conditions for PM table
+        const buildPmConds = () => {
+            const conds = [`${pmSrc.f.date} BETWEEN '${sDateStr}' AND '${eDateStr}'`];
+            if (platformArr.length > 0 && !platformArr.includes('All')) {
+                conds.push(`lower(${pmSrc.f.platform}) IN (${platformArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+            }
+            if (brandArr.length > 0 && !brandArr.includes('All')) {
+                conds.push(`lower(${pmSrc.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+            }
+            if (categoryArr.length > 0 && !categoryArr.includes('All')) {
+                conds.push(`lower(${pmSrc.f.category}) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+            }
+            if (locationArr.length > 0 && !locationArr.includes('All') && pmSrc.f.location && pmSrc.f.location !== "'Unknown'") {
+                conds.push(`lower(${pmSrc.f.location}) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            }
+            return conds.join(' AND ');
+        };
+
+        // Build conditions for MS table
+        const buildMsConds = () => {
+            const conds = [`toDate(created_on) BETWEEN '${sDateStr}' AND '${eDateStr}'`, `sales IS NOT NULL`];
+            if (platformArr.length > 0 && !platformArr.includes('All')) {
+                conds.push(`lower(platform) IN (${platformArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+            }
+            if (brandArr.length > 0 && !brandArr.includes('All')) {
+                conds.push(`lower(brand) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+            }
+            if (categoryArr.length > 0 && !categoryArr.includes('All')) {
+                conds.push(`category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            }
+            if (locationArr.length > 0 && !locationArr.includes('All')) {
+                conds.push(`lower(Location) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            }
+            return conds.join(' AND ');
+        };
+
+        const pdpConds = buildPdpConds();
+        const pmConds = buildPmConds();
+        const msConds = buildMsConds();
+
+        const pdpItemCol = isSkuLevel ? (src.isAgg ? 'product' : 'Product') : (src.isAgg ? 'brand' : 'Brand');
+        const pdpPlatCol = src.isAgg ? 'platform' : 'Platform';
+        const pmItemCol = isSkuLevel ? pmSrc.f.product : pmSrc.f.brand;
+        const msItemCol = isSkuLevel ? 'item_name' : 'brand';
+
+        const [pdpRes, pmRes, msRes, msTotalRes, kwNumRes, kwDenRes, platformsRes] = await Promise.all([
+            queryClickHouse(`
+                SELECT 
+                    ${pdpItemCol} as item,
+                    ${src.isAgg ? 'brand' : 'Brand'} as brand,
+                    ${pdpPlatCol} as platform,
+                    SUM(${src.f.sales}) as sales,
+                    SUM(${src.f.qty}) as qty,
+                    SUM(${src.f.neno}) as neno,
+                    SUM(${src.f.deno}) as deno,
+                    AVG(if(${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
+                    AVG(${src.f.discount}) as avg_discount
+                FROM ${src.table}
+                WHERE ${pdpConds} AND ${pdpItemCol} IS NOT NULL AND ${pdpItemCol} != '' AND ${pdpPlatCol} IS NOT NULL AND ${pdpPlatCol} != ''
+                GROUP BY item, brand, platform
+                ${isSkuLevel ? 'LIMIT 1000' : ''}
+            `),
+            queryClickHouse(`
+                SELECT 
+                    ${pmItemCol} as item,
+                    ${pmSrc.f.brand} as brand,
+                    ${pmSrc.f.platform} as platform,
+                    SUM(${pmSrc.f.spend}) as spend,
+                    SUM(${pmSrc.f.adSales}) as adSales,
+                    SUM(${pmSrc.f.orders}) as orders,
+                    SUM(${pmSrc.f.clicks}) as clicks,
+                    SUM(${pmSrc.f.impressions}) as impressions
+                FROM ${pmSrc.table}
+                WHERE ${pmConds} AND ${pmItemCol} IS NOT NULL AND ${pmItemCol} != '' AND ${pmSrc.f.platform} IS NOT NULL AND ${pmSrc.f.platform} != ''
+                GROUP BY item, brand, platform
+                ${isSkuLevel ? 'LIMIT 1000' : ''}
+            `),
+            queryClickHouse(`
+                SELECT 
+                    ${msItemCol} as item,
+                    brand,
+                    platform,
+                    SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as brand_ms_sales
+                FROM rb_ms_olap
+                WHERE ${msConds} AND ${msItemCol} IS NOT NULL AND ${msItemCol} != '' AND platform IS NOT NULL AND platform != ''
+                GROUP BY item, brand, platform
+                ${isSkuLevel ? 'LIMIT 1000' : ''}
+            `),
+            queryClickHouse(`
+                SELECT 
+                    lower(platform) as platform,
+                    SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as total_ms_sales
+                FROM rb_ms_olap
+                WHERE toDate(created_on) BETWEEN '${sDateStr}' AND '${eDateStr}' AND sales IS NOT NULL AND platform IS NOT NULL AND platform != ''
+                GROUP BY platform
+            `).catch(() => []),
+            queryClickHouse(`
+                SELECT 
+                    lower(${isSkuLevel ? 'product' : 'brand'}) as item,
+                    lower(platform_name) as platform,
+                    sumIf(toInt32(overall), POSITION <= 10) as num_count
+                FROM rb_kw_olap
+                WHERE toDate(DATE) BETWEEN '${sDateStr}' AND '${eDateStr}' AND platform_name IS NOT NULL AND platform_name != '' AND ${isSkuLevel ? 'product' : 'brand'} IS NOT NULL AND ${isSkuLevel ? 'product' : 'brand'} != ''
+                GROUP BY item, platform
+            `).catch(() => []),
+            queryClickHouse(`
+                SELECT 
+                    lower(platform_name) as platform,
+                    sumIf(toInt32(overall), POSITION <= 10) as den_count
+                FROM rb_kw_olap
+                WHERE toDate(DATE) BETWEEN '${sDateStr}' AND '${eDateStr}' AND platform_name IS NOT NULL AND platform_name != ''
+                GROUP BY platform
+            `).catch(() => []),
+            queryClickHouse(`
+                SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform
+            `)
+        ]);
+
+        // Build distinct lists of platforms and items
+        const allDbPlatforms = platformsRes.map(p => p.platform).filter(Boolean);
+        const activePlatforms = (platformArr.length > 0 && !platformArr.includes('All'))
+            ? allDbPlatforms.filter(p => platformArr.some(pf => pf.toLowerCase() === p.toLowerCase()))
+            : (allDbPlatforms.length > 0 ? allDbPlatforms : ['Blinkit', 'Instamart', 'Zepto']);
+
+        const itemMap = new Map();
+        const itemKeyMap = new Map();
+
+        const getItemEntry = (itemName, brandName) => {
+            const rawKey = String(itemName).trim();
+            const lowerKey = rawKey.toLowerCase();
+            let key = itemKeyMap.get(lowerKey);
+            if (!key) {
+                key = rawKey;
+                itemKeyMap.set(lowerKey, key);
+            }
+            if (!itemMap.has(key)) {
+                itemMap.set(key, { 
+                    item: key, 
+                    brand: brandName ? String(brandName).trim() : key,
+                    platforms: {} 
+                });
+            }
+            return itemMap.get(key);
+        };
+
+        const msTotalMap = new Map();
+        (msTotalRes || []).forEach(r => {
+            if (r.platform) msTotalMap.set(String(r.platform).toLowerCase(), parseFloat(r.total_ms_sales || 0));
+        });
+
+        const kwDenMap = new Map();
+        (kwDenRes || []).forEach(r => {
+            if (r.platform) kwDenMap.set(String(r.platform).toLowerCase(), parseFloat(r.den_count || 0));
+        });
+
+        // Populate PDP metrics (OSA, Price, Promo)
+        pdpRes.forEach(r => {
+            if (!r.item || !r.platform) return;
+            const entry = getItemEntry(r.item, r.brand);
+            const pKey = String(r.platform).toLowerCase();
+            if (!entry.platforms[pKey]) entry.platforms[pKey] = {};
+
+            const sales = parseFloat(r.sales || 0);
+            const qty = parseFloat(r.qty || 0);
+            const neno = parseFloat(r.neno || 0);
+            const deno = parseFloat(r.deno || 0);
+            const asp = r.avg_asp ? parseFloat(r.avg_asp) : (qty > 0 ? sales / qty : null);
+            const discount = r.avg_discount !== null && r.avg_discount !== undefined ? parseFloat(r.avg_discount) : null;
+            const osaVal = deno > 0 ? (neno / deno) * 100 : null;
+
+            entry.platforms[pKey].offtake = sales;
+            entry.platforms[pKey].qty = qty;
+            entry.platforms[pKey].osa = osaVal;
+            entry.platforms[pKey].availability = osaVal;
+            entry.platforms[pKey].price = asp;
+            entry.platforms[pKey].asp = asp;
+            entry.platforms[pKey].promo = discount;
+            entry.platforms[pKey].promoMyBrand = discount;
+        });
+
+        // Populate PM metrics
+        pmRes.forEach(r => {
+            if (!r.item || !r.platform) return;
+            const entry = getItemEntry(r.item, r.brand);
+            const pKey = String(r.platform).toLowerCase();
+            if (!entry.platforms[pKey]) entry.platforms[pKey] = {};
+
+            const spend = parseFloat(r.spend || 0);
+            const adSales = parseFloat(r.adSales || 0);
+            const orders = parseFloat(r.orders || 0);
+
+            entry.platforms[pKey].spend = spend;
+            entry.platforms[pKey].adSales = adSales;
+            entry.platforms[pKey].orders = orders;
+            entry.platforms[pKey].roas = spend > 0 ? adSales / spend : null;
+            const offtake = entry.platforms[pKey].offtake || adSales;
+            entry.platforms[pKey].aov = orders > 0 ? offtake / orders : null;
+        });
+
+        // Populate MS metrics (Market Share %)
+        msRes.forEach(r => {
+            if (!r.item || !r.platform) return;
+            const entry = getItemEntry(r.item, r.brand);
+            const pKey = String(r.platform).toLowerCase();
+            if (!entry.platforms[pKey]) entry.platforms[pKey] = {};
+            const bSales = parseFloat(r.brand_ms_sales || 0);
+            const totSales = msTotalMap.get(pKey) || 0;
+            const mktShare = totSales > 0 ? (bSales / totSales) * 100 : null;
+            entry.platforms[pKey].marketShare = mktShare;
+            entry.platforms[pKey].marketSales = mktShare ?? bSales;
+        });
+
+        // Populate SOS metrics
+        (kwNumRes || []).forEach(r => {
+            if (!r.item || !r.platform) return;
+            const entry = getItemEntry(r.item, r.item);
+            const pKey = String(r.platform).toLowerCase();
+            if (!entry.platforms[pKey]) entry.platforms[pKey] = {};
+            const numCount = parseFloat(r.num_count || 0);
+            const denCount = kwDenMap.get(pKey) || 0;
+            const sosVal = denCount > 0 ? (numCount / denCount) * 100 : null;
+            entry.platforms[pKey].sos = sosVal;
+        });
+
+        const matrix = Array.from(itemMap.values()).sort((a, b) => {
+            const maxA = Math.max(...Object.values(a.platforms).map(p => p.offtake || p.marketShare || 0), 0);
+            const maxB = Math.max(...Object.values(b.platforms).map(p => p.offtake || p.marketShare || 0), 0);
+            return maxB - maxA;
+        });
+
+        const formattedPlatforms = activePlatforms.map(p => ({
+            key: String(p).toLowerCase(),
+            label: String(p).charAt(0).toUpperCase() + String(p).slice(1)
+        }));
+
+        return {
+            platforms: formattedPlatforms,
+            matrix
+        };
+    } catch (error) {
+        console.error('[getCrossPlatformBrandMatrix] Error:', error);
+        return {
+            platforms: [{ key: 'blinkit', label: 'Blinkit' }, { key: 'instamart', label: 'Instamart' }, { key: 'zepto', label: 'Zepto' }],
+            matrix: []
+        };
+    }
+};
+
+export { getMsls, getCrossPlatformBrandMatrix };
 export default {
+    getCrossPlatformBrandMatrix,
     getSummaryMetrics,
     getTrendData,
     getPlatformChannels,
@@ -13942,5 +14308,3 @@ export default {
     getMsls,
     getSubBrands
 };
-
-

@@ -37,7 +37,7 @@ import {
   Checkbox,
   Drawer as MuiDrawer,
 } from "@mui/material";
-import { ChevronDown, X, Search, Plus, Filter, BarChart3, SlidersHorizontal, Download } from "lucide-react";
+import { ChevronDown, X, Search, Plus, Filter, BarChart3, SlidersHorizontal, Download, Layers } from "lucide-react";
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import ReactECharts from "echarts-for-react";
@@ -45,6 +45,7 @@ import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
 import PlatformOverviewKpiShowcase from "../ControlTower/WatchTower/PlatformOverviewKpiShowcase";
 import { AvailabilityCompetitionKpiShowcase } from "./AvailabilityCompetitionKpiShowcase";
+import CrossPlatformMatrixModal from "../ControlTower/WatchTower/CrossPlatformMatrixModal";
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../CommonLayout/ErrorRetryOverlay";
 import { FilterContext } from "../../utils/FilterContext";
@@ -749,6 +750,7 @@ export default function TrendsCompetitionDrawer({
   const [periodMode, setPeriodMode] = useState("primary");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [isCrossPlatformOpen, setIsCrossPlatformOpen] = useState(false);
 
   // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
@@ -3825,6 +3827,18 @@ export default function TrendsCompetitionDrawer({
           onClose={() => setAddSkuOpen(false)}
           onApply={handleSkuApply}
           selectedIds={selectedCompareSkus.map((s) => s.id)}
+        />
+
+        {/* Cross Platform Matrix Modal */}
+        <CrossPlatformMatrixModal
+          open={isCrossPlatformOpen}
+          onClose={() => setIsCrossPlatformOpen(false)}
+          initialLevel={compTab === "SKUs" ? "sku" : "brand"}
+          initialFilters={{
+            startDate: customStart,
+            endDate: customEnd,
+            months: range === "1M" ? 1 : range === "3M" ? 3 : range === "6M" ? 6 : 1,
+          }}
         />
       </Box>
     </Box >
