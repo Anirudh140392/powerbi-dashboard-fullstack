@@ -813,6 +813,7 @@ function MarketShareFilterModal({
   categories, selectedCategory, setSelectedCategory,
   osaBrands = DEFAULT_EMPTY_ARRAY, selectedOsaBrand, setSelectedOsaBrand,
   subCategories = DEFAULT_EMPTY_ARRAY, selectedSubCategory = "All", setSelectedSubCategory,
+  subBrands = DEFAULT_EMPTY_ARRAY, selectedSubBrand = "All", setSelectedSubBrand,
   hideChannel = false,
 }) {
   const isMamaearth = React.useMemo(() => {
@@ -833,8 +834,11 @@ function MarketShareFilterModal({
     if (isMamaearth) {
       tabs.push({ key: "subCategory", label: "Sub Category", icon: ListFilter });
     }
+    if (subBrands && subBrands.length > 0) {
+      tabs.push({ key: "subBrand", label: "Sub Brand", icon: Tag });
+    }
     return tabs;
-  }, [isMamaearth]);
+  }, [isMamaearth, subBrands]);
 
   const availableTabs = hideChannel ? MS_FILTER_TABS_DYNAMIC.filter(t => t.key !== "channel") : MS_FILTER_TABS_DYNAMIC;
   const [activeTab, setActiveTab] = React.useState(hideChannel ? "brand" : "channel");
@@ -845,10 +849,12 @@ function MarketShareFilterModal({
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
   const [draftBrand, setDraftBrand] = React.useState(selectedOsaBrand || "All");
   const [draftSubCategory, setDraftSubCategory] = React.useState(selectedSubCategory || "All");
+  const [draftSubBrand, setDraftSubBrand] = React.useState(selectedSubBrand || "All");
 
   const [dynamicCategories, setDynamicCategories] = React.useState(categories);
   const [dynamicBrands, setDynamicBrands] = React.useState(osaBrands);
   const [dynamicSubCategories, setDynamicSubCategories] = React.useState(subCategories);
+  const [dynamicSubBrands, setDynamicSubBrands] = React.useState(subBrands);
 
   React.useEffect(() => {
     if (open) {
@@ -857,13 +863,15 @@ function MarketShareFilterModal({
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedOsaBrand || "All");
       setDraftSubCategory(selectedSubCategory || "All");
+      setDraftSubBrand(selectedSubBrand || "All");
       setDynamicCategories(categories);
       setDynamicBrands(osaBrands);
       setDynamicSubCategories(subCategories);
+      setDynamicSubBrands(subBrands);
       setActiveTab(hideChannel ? "brand" : "channel");
       setSearchTerm("");
     }
-  }, [open, selectedChannel, platform, selectedCategory, selectedOsaBrand, selectedSubCategory, categories, osaBrands, subCategories, hideChannel]);
+  }, [open, selectedChannel, platform, selectedCategory, selectedOsaBrand, selectedSubCategory, selectedSubBrand, categories, osaBrands, subCategories, subBrands, hideChannel]);
 
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
 
@@ -879,12 +887,14 @@ function MarketShareFilterModal({
             category: draftCategory === "All" ? undefined : (Array.isArray(draftCategory) ? draftCategory.join(",") : draftCategory),
             brand: draftBrand === "All" ? undefined : (Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand),
             subCategory: draftSubCategory === "All" ? undefined : (Array.isArray(draftSubCategory) ? draftSubCategory.join(",") : draftSubCategory),
+            subBrand: draftSubBrand === "All" ? undefined : (Array.isArray(draftSubBrand) ? draftSubBrand.join(",") : draftSubBrand),
           }
         });
         if (res.data) {
           if (res.data.categories) setDynamicCategories(res.data.categories);
           if (res.data.brands) setDynamicBrands(res.data.brands);
           if (res.data.subCategories) setDynamicSubCategories(res.data.subCategories);
+          if (res.data.subBrands) setDynamicSubBrands(res.data.subBrands);
         }
       } catch (error) {
         console.error("[MarketShareFilterModal] Error fetching cascaded filters:", error);
@@ -892,7 +902,7 @@ function MarketShareFilterModal({
     };
 
     fetchCascaded();
-  }, [open, isMamaearth, draftChannel, draftCategory, draftBrand, draftSubCategory]);
+  }, [open, isMamaearth, draftChannel, draftCategory, draftBrand, draftSubCategory, draftSubBrand]);
 
   const tabConfig = {
     channel: { options: channels, value: draftChannel, onChange: setDraftChannel },
@@ -900,6 +910,7 @@ function MarketShareFilterModal({
     category: { options: dynamicCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: dynamicBrands, value: draftBrand, onChange: setDraftBrand },
     subCategory: { options: dynamicSubCategories, value: draftSubCategory, onChange: setDraftSubCategory },
+    subBrand: { options: dynamicSubBrands, value: draftSubBrand, onChange: setDraftSubBrand },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -948,6 +959,7 @@ function MarketShareFilterModal({
     setSelectedCategory(draftCategory);
     if (setSelectedOsaBrand) setSelectedOsaBrand(draftBrand);
     if (isMamaearth && setSelectedSubCategory) setSelectedSubCategory(draftSubCategory);
+    if (setSelectedSubBrand) setSelectedSubBrand(draftSubBrand);
     onClose();
   };
 
@@ -963,6 +975,7 @@ function MarketShareFilterModal({
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftSubCategory("All");
+    setDraftSubBrand("All");
     setSearchTerm("");
   };
 
@@ -4890,6 +4903,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       subCategories={subCategories}
                       selectedSubCategory={selectedSubCategory}
                       setSelectedSubCategory={setSelectedSubCategory}
+                      subBrands={subBrands}
+                      selectedSubBrand={selectedSubBrand}
+                      setSelectedSubBrand={setSelectedSubBrand}
                       osaBrands={brands}
                       selectedOsaBrand={selectedBrand}
                       setSelectedOsaBrand={setSelectedBrand}

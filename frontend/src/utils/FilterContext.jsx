@@ -333,6 +333,7 @@ export const FilterProvider = ({ children }) => {
                     const newLocations = res.data.locations || [];
                     const newBrands = res.data.brands || [];
                     const newSubCategories = res.data.subCategories || [];
+                    const newSubBrands = res.data.subBrands || [];
                     const newPlatformMetadata = res.data.platformMetadata || [];
 
                     if (newPlatforms.length > 0) setPlatforms(newPlatforms);
@@ -344,6 +345,11 @@ export const FilterProvider = ({ children }) => {
                         setSubCategories(newSubCategories);
                     } else {
                         setSubCategories([]);
+                    }
+                    if (newSubBrands.length > 0) {
+                        setSubBrands(newSubBrands);
+                    } else {
+                        setSubBrands([]);
                     }
                     // Update platform metadata with icons sourced from rb_ms_olap platforms
                     if (newPlatformMetadata.length > 0) setPlatformMetadata(newPlatformMetadata);
@@ -371,6 +377,15 @@ export const FilterProvider = ({ children }) => {
                         if (prev === "All") return "All";
                         const currentList = Array.isArray(prev) ? prev : [prev];
                         const valid = currentList.filter(s => newSubCategories.includes(s));
+                        if (valid.length === 0) return "All";
+                        return valid.length === 1 ? valid[0] : valid;
+                    });
+
+                    // Validate current subbrand selection
+                    setSelectedSubBrand(prev => {
+                        if (prev === "All") return "All";
+                        const currentList = Array.isArray(prev) ? prev : [prev];
+                        const valid = currentList.filter(s => newSubBrands.includes(s));
                         if (valid.length === 0) return "All";
                         return valid.length === 1 ? valid[0] : valid;
                     });
@@ -521,7 +536,7 @@ export const FilterProvider = ({ children }) => {
         } finally {
             setPlatformsFetched(true);
         }
-    }, [isAuthenticated, selectedChannel, fetchChannels]);
+    }, [isAuthenticated, selectedChannel, fetchChannels, currentPath]);
 
     useEffect(() => {
         fetchPlatformsFromDb();

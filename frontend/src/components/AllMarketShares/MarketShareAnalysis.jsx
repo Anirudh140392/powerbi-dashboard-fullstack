@@ -360,6 +360,7 @@ export default function MarketShareAnalysis() {
     compareStart,
     compareEnd,
     selectedSubCategory,
+    selectedSubBrand,
   } = useContext(FilterContext);
 
   // Determine time granularity based on platform type:
@@ -397,6 +398,7 @@ export default function MarketShareAnalysis() {
           platform: platform === 'All' ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
           category: selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
           subCategory: selectedSubCategory === 'All' ? undefined : (Array.isArray(selectedSubCategory) ? selectedSubCategory.join(",") : selectedSubCategory),
+          subBrand: selectedSubBrand === 'All' ? undefined : (Array.isArray(selectedSubBrand) ? selectedSubBrand.join(",") : selectedSubBrand),
           location: undefined, // Enforced isolation from global location filter
           startDate: timeStart ? timeStart.format("YYYY-MM-DD") : null,
           endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : null,

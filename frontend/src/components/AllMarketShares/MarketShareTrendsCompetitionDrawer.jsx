@@ -274,12 +274,13 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
   const [activeMetrics, setActiveMetrics] = useState(["MWMarketShare", "OverallSov", "PaidSov"]);
   const [loading, setLoading] = useState(true);
   const [trendData, setTrendData] = useState([]);
-  const [filterOptions, setFilterOptions] = useState({ platforms: [], categories: [], brands: [], skus: [] });
+  const [filterOptions, setFilterOptions] = useState({ platforms: [], categories: [], brands: [], skus: [], subBrands: [] });
   
   const [drawerFilters, setDrawerFilters] = useState({
     Platform: globalPlatform || "All",
     Category: selectedCategory || "All",
     Brand: "All",
+    SubBrand: "All",
     City: "All"
   });
 
@@ -296,7 +297,8 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
         ...prev,
         Platform: (globalPlatform && globalPlatform !== 'All') ? globalPlatform.toLowerCase() : "All",
         Category: (selectedCategory && selectedCategory !== 'All') ? selectedCategory.toLowerCase() : "All",
-        Brand: "All"
+        Brand: "All",
+        SubBrand: "All"
       }));
       // Reset manual override when opening drawer with a new global platform
       setIsTimeStepManuallySet(false);
@@ -320,6 +322,7 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
         platform: drawerFilters.Platform === 'All' ? undefined : drawerFilters.Platform,
         category: drawerFilters.Category === 'All' ? undefined : drawerFilters.Category,
         brand: drawerFilters.Brand === 'All' ? undefined : drawerFilters.Brand,
+        subBrand: drawerFilters.SubBrand === 'All' ? undefined : drawerFilters.SubBrand,
         period: range,
         startDate: timeStart ? timeStart.format('YYYY-MM-DD') : undefined,
         endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined
@@ -387,9 +390,9 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
     try {
       const response = await axiosInstance.get('/market-share/competition-filter-options', {
         params: {
-          platformFilter: drawerFilters.Platform,
-          categoryFilter: drawerFilters.Category,
-          brandFilter: drawerFilters.Brand
+          platform: drawerFilters.Platform,
+          category: drawerFilters.Category,
+          brand: drawerFilters.Brand
         }
       });
       
@@ -397,7 +400,8 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
         platforms: response.data.platforms || [],
         categories: response.data.categories || [],
         brands: response.data.brands || [],
-        skus: response.data.skus || []
+        skus: response.data.skus || [],
+        subBrands: response.data.subBrands || []
       };
       
       setFilterOptions(newOptions);
@@ -416,6 +420,12 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
         // If Brand is selected but not in the new list, reset to All
         if (next.Brand !== "All" && !newOptions.brands.some(b => b.toLowerCase() === next.Brand.toLowerCase())) {
           next.Brand = "All";
+          updated = true;
+        }
+
+        // If SubBrand is selected but not in the new list, reset to All
+        if (next.SubBrand !== "All" && !newOptions.subBrands.some(sb => sb.toLowerCase() === next.SubBrand.toLowerCase())) {
+          next.SubBrand = "All";
           updated = true;
         }
 
@@ -549,11 +559,14 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
           <SelectedFilterChip label="Platform" value={capitalize(drawerFilters.Platform)} />
           <SelectedFilterChip label="Category" value={capitalize(drawerFilters.Category)} />
           <SelectedFilterChip label="Brand" value={capitalize(drawerFilters.Brand)} />
+          {drawerFilters.SubBrand !== "All" && (
+            <SelectedFilterChip label="Sub Brand" value={capitalize(drawerFilters.SubBrand)} />
+          )}
           <SelectedFilterChip label="Range" value={range} />
           
           <Button
             size="small"
-            onClick={() => setDrawerFilters({ Platform: "All", Category: "All", Brand: "All", City: "All" })}
+            onClick={() => setDrawerFilters({ Platform: "All", Category: "All", Brand: "All", SubBrand: "All", City: "All" })}
             sx={{ ml: 'auto', fontSize: '11px', textTransform: 'none', color: '#ef4444', fontWeight: 700 }}
           >
             Clear Drawer Filters
@@ -592,6 +605,15 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
                   onChange={(v) => setDrawerFilters(p => ({...p, Brand: v === 'All' ? 'All' : v.toLowerCase()}))} 
                   formatter={capitalize}
                 />
+                {filterOptions.subBrands && filterOptions.subBrands.length > 0 && (
+                  <FilterDropdown 
+                    title="Sub Brand" 
+                    value={drawerFilters.SubBrand} 
+                    options={filterOptions.subBrands} 
+                    onChange={(v) => setDrawerFilters(p => ({...p, SubBrand: v === 'All' ? 'All' : v}))} 
+                    formatter={capitalize}
+                  />
+                )}
               </Box>
             </Box>
 
