@@ -12860,7 +12860,7 @@ const getCityOverview = async (filters) => {
     const currPmCityConds = buildPmCityConds(startDate, endDate);
     const prevPmCityConds = buildPmCityConds(prevStartDate, prevEndDate);
 
-    // Query City metrics for both periods
+    // Query City metrics for both periods + Pan India overall totals
     const results = await Promise.all([
         queryClickHouse(`
             SELECT ${src.isAgg ? 'location' : 'Location'} as Location,
@@ -12946,10 +12946,78 @@ const getCityOverview = async (filters) => {
             FROM ${pmSrc.table}
             WHERE ${prevPmCityConds}
             GROUP BY Location
-        `)
+        `),
+        // Pan India overall metrics across all cities
+        queryClickHouse(`
+            SELECT
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as total_qty,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.spend} ELSE 0 END) as total_spend,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.adSales} ELSE 0 END) as total_Ad_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.clicks} ELSE 0 END) as total_clicks,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.impressions} ELSE 0 END) as total_impressions,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.orders} ELSE 0 END) as total_orders,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as my_mrp_val,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as comp_mrp_val,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales,
+                AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
+                AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
+            FROM ${src.table}
+            WHERE ${currCityConds} AND ${src.isAgg ? 'location' : 'Location'} IS NOT NULL AND ${src.isAgg ? 'location' : 'Location'} != ''
+        `),
+        queryClickHouse(`
+            SELECT
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as total_qty,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.spend} ELSE 0 END) as total_spend,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.adSales} ELSE 0 END) as total_Ad_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.clicks} ELSE 0 END) as total_clicks,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.impressions} ELSE 0 END) as total_impressions,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.orders} ELSE 0 END) as total_orders,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as my_mrp_val,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as comp_mrp_val,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales,
+                AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.sellingPriceRaw} > 0, ${src.f.sellingPriceRaw}, NULL)) as avg_asp,
+                AVG(if(${src.f.compFlagMapping} = 0, ${src.f.listingPercent}, NULL)) as avg_listing_percent,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
+            FROM ${src.table}
+            WHERE ${prevCityConds} AND ${src.isAgg ? 'location' : 'Location'} IS NOT NULL AND ${src.isAgg ? 'location' : 'Location'} != ''
+        `),
+        queryClickHouse(`
+            SELECT
+                SUM(${pmSrc.f.spend}) as total_spend,
+                SUM(${pmSrc.f.adSales}) as total_Ad_sales,
+                SUM(${pmSrc.f.clicks}) as total_clicks,
+                SUM(${pmSrc.f.impressions}) as total_impressions,
+                SUM(${pmSrc.f.orders}) as total_orders
+            FROM ${pmSrc.table}
+            WHERE ${currPmCityConds}
+        `),
+        queryClickHouse(`
+            SELECT
+                SUM(${pmSrc.f.spend}) as total_spend,
+                SUM(${pmSrc.f.adSales}) as total_Ad_sales,
+                SUM(${pmSrc.f.clicks}) as total_clicks,
+                SUM(${pmSrc.f.impressions}) as total_impressions,
+                SUM(${pmSrc.f.orders}) as total_orders
+            FROM ${pmSrc.table}
+            WHERE ${prevPmCityConds}
+        `),
+        queryClickHouse(`SELECT SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as city_market_sales FROM rb_ms_olap WHERE ${buildMsCityConds(startDate, endDate)}`),
+        queryClickHouse(`SELECT SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as city_market_sales FROM rb_ms_olap WHERE ${buildMsCityConds(prevStartDate, prevEndDate)}`)
     ]);
 
-    const [currCityMetrics, prevCityMetrics, currMsResult, prevMsResult, currCityCatSize, prevCityCatSize, currPmCityMetrics, prevPmCityMetrics] = results;
+    const [
+        currCityMetrics, prevCityMetrics, currMsResult, prevMsResult, currCityCatSize, prevCityCatSize, currPmCityMetrics, prevPmCityMetrics,
+        allPdpCurrRes, allPdpPrevRes, allPmCurrRes, allPmPrevRes, allMsCurrRes, allMsPrevRes
+    ] = results;
     const prevCityMap = new Map(prevCityMetrics.map(d => [d.Location, d]));
     const currPmMap = new Map(currPmCityMetrics.map(d => [d.Location?.toLowerCase(), d]));
     const prevPmMap = new Map(prevPmCityMetrics.map(d => [d.Location?.toLowerCase(), d]));
@@ -12958,6 +13026,106 @@ const getCityOverview = async (filters) => {
     const prevMsMap = new Map(prevMsResult.map(d => [d.location?.toLowerCase(), parseFloat(d.city_market_sales || 0)]));
     const currCityCatSizeMap = new Map(currCityCatSize.map(d => [d.location?.toLowerCase(), parseFloat(d.cat_size || 0)]));
     const prevCityCatSizeMap = new Map(prevCityCatSize.map(d => [d.location?.toLowerCase(), parseFloat(d.cat_size || 0)]));
+
+    // Construct Pan India Row (Aggregate across ALL cities in rb_pdp_olap)
+    const allPdpCurr = allPdpCurrRes?.[0] || {};
+    const allPdpPrev = allPdpPrevRes?.[0] || {};
+    const allPmCurr = allPmCurrRes?.[0] || {};
+    const allPmPrev = allPmPrevRes?.[0] || {};
+    const allMsCurrSales = parseFloat(allMsCurrRes?.[0]?.city_market_sales || 0);
+    const allMsPrevSales = parseFloat(allMsPrevRes?.[0]?.city_market_sales || 0);
+
+    const allOfftake = parseFloat(allPdpCurr.total_sales || 0);
+    const allOfftakeUnits = parseFloat(allPdpCurr.total_qty || 0);
+    const allSpend = parseFloat(allPmCurr.total_spend || 0);
+    const allAdSales = parseFloat(allPmCurr.total_Ad_sales || 0);
+    const allClicks = parseFloat(allPmCurr.total_clicks || 0);
+    const allImpressions = parseFloat(allPmCurr.total_impressions || 0);
+    const allOrders = parseFloat(allPmCurr.total_orders || 0);
+    const allNeno = parseFloat(allPdpCurr.total_neno || 0);
+    const allDeno = parseFloat(allPdpCurr.total_deno || 0);
+
+    const allAvailability = allDeno > 0 ? (allNeno / allDeno) * 100 : null;
+    const allRoas = allSpend > 0 ? allAdSales / allSpend : null;
+    const allConversion = calculateConversion(allOrders, allImpressions, allClicks);
+    const allCpm = allImpressions > 0 ? (allSpend / allImpressions) * 1000 : null;
+    const allCpc = allClicks > 0 ? allSpend / allClicks : null;
+
+    const allAsp = (allPdpCurr.avg_asp !== null && allPdpCurr.avg_asp !== undefined && !isNaN(allPdpCurr.avg_asp) && parseFloat(allPdpCurr.avg_asp) > 0)
+        ? parseFloat(allPdpCurr.avg_asp)
+        : (allOfftakeUnits > 0 ? (allOfftake / allOfftakeUnits) : null);
+
+    const allAov = (allOrders > 0) ? (allOfftake / allOrders) : (allOfftakeUnits > 0 ? (allOfftake / allOfftakeUnits) : null);
+
+    const allListingPercent = (allPdpCurr.avg_listing_percent !== null && allPdpCurr.avg_listing_percent !== undefined && !isNaN(allPdpCurr.avg_listing_percent))
+        ? parseFloat(allPdpCurr.avg_listing_percent)
+        : (allDeno > 0 ? 100 : null);
+
+    const allPromoMyBrand = parseFloat(allPdpCurr.my_mrp_val || 0) > 0
+        ? ((parseFloat(allPdpCurr.my_mrp_val) - parseFloat(allPdpCurr.my_actual_sales)) / parseFloat(allPdpCurr.my_mrp_val)) * 100
+        : null;
+    const allPromoCompete = parseFloat(allPdpCurr.comp_mrp_val || 0) > 0
+        ? ((parseFloat(allPdpCurr.comp_mrp_val) - parseFloat(allPdpCurr.comp_actual_sales)) / parseFloat(allPdpCurr.comp_mrp_val)) * 100
+        : null;
+
+    const allWtDiscount = (allPdpCurr.my_wt_discount !== null && allPdpCurr.my_wt_discount !== undefined && !isNaN(allPdpCurr.my_wt_discount))
+        ? parseFloat(allPdpCurr.my_wt_discount)
+        : allPromoMyBrand;
+
+    const allWtOsa = allAvailability !== null ? (allListingPercent !== null ? (allAvailability * allListingPercent) / 100 : allAvailability) : null;
+    const allMarketShare = allMsCurrSales > 0 ? (allOfftake / allMsCurrSales) * 100 : null;
+
+    const prevAllOfftake = parseFloat(allPdpPrev.total_sales || 0);
+    const prevAllOfftakeUnits = parseFloat(allPdpPrev.total_qty || 0);
+    const prevAllSpend = parseFloat(allPmPrev.total_spend || 0);
+    const prevAllAdSales = parseFloat(allPmPrev.total_Ad_sales || 0);
+    const prevAllClicks = parseFloat(allPmPrev.total_clicks || 0);
+    const prevAllImpressions = parseFloat(allPmPrev.total_impressions || 0);
+    const prevAllOrders = parseFloat(allPmPrev.total_orders || 0);
+    const prevAllNeno = parseFloat(allPdpPrev.total_neno || 0);
+    const prevAllDeno = parseFloat(allPdpPrev.total_deno || 0);
+
+    const prevAllAvailability = prevAllDeno > 0 ? (prevAllNeno / prevAllDeno) * 100 : null;
+    const prevAllRoas = prevAllSpend > 0 ? prevAllAdSales / prevAllSpend : null;
+    const prevAllConversion = calculateConversion(prevAllOrders, prevAllImpressions, prevAllClicks);
+    const prevAllCpm = prevAllImpressions > 0 ? (prevAllSpend / prevAllImpressions) * 1000 : null;
+    const prevAllCpc = prevAllClicks > 0 ? prevAllSpend / prevAllClicks : null;
+
+    const prevAllAsp = (allPdpPrev.avg_asp !== null && allPdpPrev.avg_asp !== undefined && !isNaN(allPdpPrev.avg_asp) && parseFloat(allPdpPrev.avg_asp) > 0)
+        ? parseFloat(allPdpPrev.avg_asp)
+        : (prevAllOfftakeUnits > 0 ? (prevAllOfftake / prevAllOfftakeUnits) : null);
+
+    const prevAllAov = (prevAllOrders > 0) ? (prevAllOfftake / prevAllOrders) : (prevAllOfftakeUnits > 0 ? (prevAllOfftake / prevAllOfftakeUnits) : null);
+
+    const prevAllListingPercent = (allPdpPrev.avg_listing_percent !== null && allPdpPrev.avg_listing_percent !== undefined && !isNaN(allPdpPrev.avg_listing_percent))
+        ? parseFloat(allPdpPrev.avg_listing_percent)
+        : (prevAllDeno > 0 ? 100 : null);
+
+    const prevAllPromoMyBrand = parseFloat(allPdpPrev.my_mrp_val || 0) > 0
+        ? ((parseFloat(allPdpPrev.my_mrp_val) - parseFloat(allPdpPrev.my_actual_sales)) / parseFloat(allPdpPrev.my_mrp_val)) * 100
+        : null;
+    const prevAllPromoCompete = parseFloat(allPdpPrev.comp_mrp_val || 0) > 0
+        ? ((parseFloat(allPdpPrev.comp_mrp_val) - parseFloat(allPdpPrev.comp_actual_sales)) / parseFloat(allPdpPrev.comp_mrp_val)) * 100
+        : null;
+
+    const prevAllWtDiscount = (allPdpPrev.my_wt_discount !== null && allPdpPrev.my_wt_discount !== undefined && !isNaN(allPdpPrev.my_wt_discount))
+        ? parseFloat(allPdpPrev.my_wt_discount)
+        : prevAllPromoMyBrand;
+
+    const prevAllWtOsa = prevAllAvailability !== null ? (prevAllListingPercent !== null ? (prevAllAvailability * prevAllListingPercent) / 100 : prevAllAvailability) : null;
+    const prevAllMarketShare = allMsPrevSales > 0 ? (prevAllOfftake / allMsPrevSales) * 100 : null;
+
+    const panIndiaRow = {
+        key: 'pan_india',
+        label: 'Pan India',
+        type: 'Overall',
+        logo: "https://cdn-icons-png.flaticon.com/512/535/535239.png",
+        columns: generateKpiColumns({
+            offtake: allOfftake, availability: allAvailability, wtOsa: allWtOsa, listingPercent: allListingPercent, sos: null, marketShare: allMarketShare, spend: allSpend, roas: allRoas, inorgSales: allAdSales, conversion: allConversion, cpm: allCpm, cpc: allCpc, asp: allAsp, aov: allAov, promoMyBrand: allPromoMyBrand, promoCompete: allPromoCompete, wtDiscount: allWtDiscount, categorySize: allMsCurrSales > 0 ? allMsCurrSales : null,
+            prevOfftake: prevAllOfftake, prevAvailability: prevAllAvailability, prevWtOsa: prevAllWtOsa, prevListingPercent: prevAllListingPercent, prevSos: null, prevMarketShare: prevAllMarketShare, prevSpend: prevAllSpend, prevRoas: prevAllRoas, prevInorgSales: prevAllAdSales, prevConversion: prevAllConversion, prevCpm: prevAllCpm, prevCpc: prevAllCpc, prevAsp: prevAllAsp, prevAov: prevAllAov, prevPromoMyBrand: prevAllPromoMyBrand, prevPromoCompete: prevAllPromoCompete, prevWtDiscount: prevAllWtDiscount, prevCategorySize: allMsPrevSales > 0 ? allMsPrevSales : null,
+            offtakeUnits: allOfftakeUnits, inorgUnits: allOrders, prevOfftakeUnits: prevAllOfftakeUnits, prevInorgUnits: prevAllOrders
+        })
+    };
 
     // Fetch official Tier 1 cities from rb_location_darkstore
     let tier1CitiesSet = new Set([
@@ -13106,8 +13274,8 @@ const getCityOverview = async (filters) => {
         ...cityOverview.filter(c => c.label.toLowerCase() === 'other' || c.label.toLowerCase() === 'unknown')
     ].filter(c => tier1CitiesSet.has(c.label.toLowerCase().trim()));
 
-    console.log(`[getCityOverview] Returning ${sortedCityOverview.length} Tier 1 cities`);
-    return sortedCityOverview;
+    console.log(`[getCityOverview] Returning Pan India + ${sortedCityOverview.length} Tier 1 cities`);
+    return [panIndiaRow, ...sortedCityOverview];
 };
 
 /**

@@ -651,11 +651,11 @@ const PlatformOverviewNew = ({
     // Static dimension metadata (icons, logos for known platforms)
     const dimensionMeta = {
         platform: { label: 'Platform', icon: Monitor },
+        location: { label: 'City', icon: MapPin },
         brand: { label: 'Brand', icon: Tag },
+        month: { label: 'Month', icon: Calendar },
         category: { label: 'Category', icon: Grid3X3 },
         sku: { label: 'SKU', icon: Package },
-        month: { label: 'Month', icon: Calendar },
-        location: { label: 'Location', icon: MapPin },
     }
 
     // Known platform logos for enriching API data
@@ -873,7 +873,7 @@ const PlatformOverviewNew = ({
         }
 
         // Check if user has any platform restriction in their tabPermissions
-        const ALL_ROW_IDENTIFIERS = ['all', 'overall', 'odd_overall'];
+        const ALL_ROW_IDENTIFIERS = ['all', 'overall', 'odd_overall', 'pan_india', 'pan india'];
         let hasRestrictedPlatforms = false;
         try {
             const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
@@ -1250,9 +1250,13 @@ const PlatformOverviewNew = ({
                                         >
                                             {/* Entity with Trend & RCA buttons - Sticky */}
                                             <div className={cn("flex-shrink-0 flex items-center gap-1.5 sm:gap-2 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50", dimension === 'sku' ? 'w-44 sm:w-72' : 'w-36 sm:w-56')}>
-                                                {e.logoSrc ? (
+                                                {dimension === 'location' ? (
+                                                    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-slate-100/80 flex items-center justify-center flex-shrink-0">
+                                                        <MapPin size={15} className="text-slate-700" />
+                                                    </div>
+                                                ) : e.logoSrc ? (
                                                     <div className="h-7 w-7 sm:h-9 sm:w-9 rounded-lg bg-white shadow-sm ring-1 ring-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                                        <BrandLogo name={e.name} src={e.logoSrc} className="h-7 w-7 sm:h-9 sm:w-9" imgClassName="h-5 w-5 sm:h-6 sm:w-6" />
+                                                        <BrandLogo name={e.name} src={e.logoSrc} className="h-5 w-5 sm:h-6 sm:w-6" imgClassName="h-5 w-5 sm:h-6 sm:w-6" />
                                                     </div>
                                                 ) : (
                                                     <div
