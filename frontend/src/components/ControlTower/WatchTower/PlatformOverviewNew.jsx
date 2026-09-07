@@ -44,7 +44,7 @@ const isEcomChannel = (chan) => {
 };
 
 // Platform classification helpers for KPI visibility
-const QCOM_PLATFORM_NAMES = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow', 'minutes', 'quickcomm', 'quick commerce'];
+const QCOM_PLATFORM_NAMES = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow', 'minutes', 'quickcomm', 'quick commerce', 'amazon now', 'now'];
 const isQcomPlatform = (name) => {
     if (!name) return false;
     const n = safeLower(name);

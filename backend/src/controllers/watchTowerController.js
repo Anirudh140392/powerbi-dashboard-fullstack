@@ -663,3 +663,16 @@ export const getMsls = async (req, res) => {
     }
 };
 
+export const getCrossPlatformBrandMatrix = async (req, res) => {
+    try {
+        const filters = { ...req.query, ...req.body };
+        console.log('[getCrossPlatformBrandMatrix] Controller hit with filters:', filters);
+        const data = await watchTowerService.getCrossPlatformBrandMatrix(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('[getCrossPlatformBrandMatrix] Error in controller:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};
+
+

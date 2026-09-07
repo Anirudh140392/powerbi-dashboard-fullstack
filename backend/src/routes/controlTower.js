@@ -1,4 +1,4 @@
-import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPmPlatforms, getPlatformMetadata, getPlatformChannels, getChannels, getPdpPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductsWithSap, getSubBrands, getProductCategories, getMaxDatesAll, getWatchTowerCascadedFilters, getMsls } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPmPlatforms, getPlatformMetadata, getPlatformChannels, getChannels, getPdpPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductsWithSap, getSubBrands, getProductCategories, getMaxDatesAll, getWatchTowerCascadedFilters, getMsls, getCrossPlatformBrandMatrix } from '../controllers/watchTowerController.js';
 import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
 import { getCompareSkuDateRange, getCompareSkuFilters, getCompareSkuProducts, getCompareSkuMetrics, getCompareSkuTrend } from '../controllers/compareSkuController.js';
 
@@ -171,6 +171,8 @@ export default (app) => {
 
     // Competition data endpoints
     app.get('/api/watchtower/competition', getCompetition);
+    app.get('/api/watchtower/cross-platform-brand-matrix', getCrossPlatformBrandMatrix);
+    app.post('/api/watchtower/cross-platform-brand-matrix', getCrossPlatformBrandMatrix);
     app.get('/api/watchtower/competition-filter-options', getCompetitionFilterOptions);
     app.post('/api/watchtower/competition-filter-options', getCompetitionFilterOptions);
     app.get('/api/watchtower/competition-brand-trends', getCompetitionBrandTrends);
