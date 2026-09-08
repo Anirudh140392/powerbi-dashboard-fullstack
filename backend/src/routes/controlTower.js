@@ -1,4 +1,4 @@
-import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPmPlatforms, getPlatformMetadata, getPlatformChannels, getChannels, getPdpPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductsWithSap, getSubBrands, getProductCategories, getMaxDatesAll, getWatchTowerCascadedFilters, getMsls, getCrossPlatformBrandMatrix } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPmPlatforms, getPlatformMetadata, getPlatformChannels, getChannels, getPdpPlatforms, getCrossPlatformPricing, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductsWithSap, getSubBrands, getProductCategories, getMaxDatesAll, getWatchTowerCascadedFilters, getMsls, getCrossPlatformBrandMatrix } from '../controllers/watchTowerController.js';
 import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
 import { getCompareSkuDateRange, getCompareSkuFilters, getCompareSkuProducts, getCompareSkuMetrics, getCompareSkuTrend } from '../controllers/compareSkuController.js';
 
@@ -8,15 +8,17 @@ export default (app) => {
         console.log(`[Watch Tower API] Called: ${req.method} ${req.originalUrl}`);
         if (req.query) {
             // Normalize any array keys ending in [] to their standard key name
-            for (const key of Object.keys(req.query)) {
+            Object.keys(req.query).forEach(key => {
                 if (key.endsWith('[]')) {
                     const cleanKey = key.slice(0, -2);
                     req.query[cleanKey] = req.query[key];
                 }
-            }
+            });
         }
         next();
     });
+
+    app.get('/api/watchtower/cross-platform-pricing', getCrossPlatformPricing);
     /**
      * @swagger
      * /api/watchtower:

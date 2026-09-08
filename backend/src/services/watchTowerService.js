@@ -4749,6 +4749,280 @@ const getPdpPlatforms = async () => {
     }
 };
 
+const getCrossPlatformPricing = async (filters = {}) => {
+    const { startDate, endDate, location, search, breachesOnly } = filters;
+
+    // Resolve columns for rb_pdp_olap dynamically (handles case sensitivity differences across DBs)
+    const cols = await getTableColumns('rb_pdp_olap');
+    const productCol = resolveColumn(cols, 'product');
+    const weightCol = resolveColumn(cols, 'weight');
+    const platformCol = resolveColumn(cols, 'platform');
+    const locationCol = resolveColumn(cols, 'location');
+    const mrpCol = resolveColumn(cols, 'mrp');
+    const spCol = resolveColumn(cols, 'selling_price');
+    const discountCol = resolveColumn(cols, 'discount');
+    const nenoOsaCol = resolveColumn(cols, 'neno_osa');
+    const imgCol = resolveColumn(cols, 'image_url');
+
+    // 1. Fetch Tier 1 Cities from rb_location_darkstore
+    let tier1CityNames = [];
+    try {
+        const darkstoreQuery = `
+            SELECT DISTINCT location 
+            FROM rb_location_darkstore 
+            WHERE lower(tier) = 'tier 1' OR lower(tier) = 'tier-1' OR tier = '1'
+            ORDER BY location ASC
+        `;
+        const darkRows = await queryClickHouse(darkstoreQuery);
+        tier1CityNames = darkRows.map(r => String(r.location || '').trim()).filter(Boolean);
+    } catch (e) {
+        console.warn("[getCrossPlatformPricing] Failed to query rb_location_darkstore:", e.message);
+    }
+
+    if (tier1CityNames.length === 0) {
+        tier1CityNames = ['ahmedabad', 'bengaluru', 'chennai', 'delhi', 'hyderabad', 'kolkata', 'mumbai', 'pune'];
+    }
+
+    // 2. Build date filter clauses
+    const dateConditions = [];
+    if (startDate) dateConditions.push(`DATE >= '${startDate}'`);
+    if (endDate) dateConditions.push(`DATE <= '${endDate}'`);
+    const dateWhere = dateConditions.length > 0 ? `WHERE ${dateConditions.join(' AND ')}` : '';
+
+    // 3. Fetch distinct platforms from rb_pdp_olap
+    let platforms = [];
+    try {
+        const platQuery = `SELECT DISTINCT ${platformCol} AS platform FROM rb_pdp_olap WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' ORDER BY platform`;
+        const platRows = await queryClickHouse(platQuery);
+        platforms = platRows.map(r => r.platform).filter(Boolean);
+    } catch (e) {
+        console.error("Error fetching platforms for cross platform pricing:", e);
+    }
+
+    if (platforms.length === 0) {
+        platforms = ['Blinkit', 'Instamart', 'Zepto'];
+    }
+
+    // 4. Fetch summary of breaches per Tier 1 City from rb_pdp_olap
+    const tier1LocationClause = tier1CityNames.map(c => `'${c.toLowerCase()}'`).join(',');
+    let cityBreaches = [];
+    try {
+        const cityQuery = `
+            SELECT 
+                ${locationCol} as location_raw,
+                countDistinct(${productCol}) as total_skus,
+                countIf(${mrpCol} > 0 AND ${spCol} > 0 AND ((${mrpCol} - ${spCol}) / ${mrpCol} * 100) > 20) as breach_count
+            FROM (
+                SELECT 
+                    ${locationCol}, 
+                    ${productCol}, 
+                    ${platformCol},
+                    max(${mrpCol}) as ${mrpCol}, 
+                    min(${spCol}) as ${spCol}
+                FROM rb_pdp_olap
+                ${dateWhere}
+                GROUP BY ${locationCol}, ${productCol}, ${platformCol}
+            )
+            WHERE lower(${locationCol}) IN (${tier1LocationClause})
+            GROUP BY location_raw
+            ORDER BY breach_count DESC
+        `;
+        let cityRows = await queryClickHouse(cityQuery);
+        if (cityRows.length === 0 && (startDate || endDate)) {
+            const fallbackCityQuery = `
+                SELECT 
+                    ${locationCol} as location_raw,
+                    countDistinct(${productCol}) as total_skus,
+                    countIf(${mrpCol} > 0 AND ${spCol} > 0 AND ((${mrpCol} - ${spCol}) / ${mrpCol} * 100) > 20) as breach_count
+                FROM (
+                    SELECT 
+                        ${locationCol}, 
+                        ${productCol}, 
+                        ${platformCol},
+                        max(${mrpCol}) as ${mrpCol}, 
+                        min(${spCol}) as ${spCol}
+                    FROM rb_pdp_olap
+                    GROUP BY ${locationCol}, ${productCol}, ${platformCol}
+                )
+                WHERE lower(${locationCol}) IN (${tier1LocationClause})
+                GROUP BY location_raw
+                ORDER BY breach_count DESC
+            `;
+            cityRows = await queryClickHouse(fallbackCityQuery);
+        }
+        const breachMap = new Map();
+        cityRows.forEach(r => {
+            if (r.location_raw) {
+                breachMap.set(r.location_raw.toLowerCase().trim(), Number(r.breach_count || 0));
+            }
+        });
+
+        cityBreaches = tier1CityNames.map(rawName => {
+            const norm = rawName.toLowerCase().trim();
+            let displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+            if (norm === 'bengaluru') displayName = 'Bangalore';
+            return {
+                name: displayName,
+                rawName: norm,
+                breaches: breachMap.get(norm) || 0
+            };
+        });
+    } catch (e) {
+        console.error("Error fetching city breaches for cross platform pricing:", e);
+        cityBreaches = tier1CityNames.map(rawName => ({
+            name: rawName.charAt(0).toUpperCase() + rawName.slice(1),
+            rawName: rawName.toLowerCase(),
+            breaches: 0
+        }));
+    }
+
+    // 5. Fetch main table SKU pricing data for selected location from rb_pdp_olap
+    const conditions = [`${productCol} IS NOT NULL`, `${productCol} != ''`];
+    if (startDate) conditions.push(`DATE >= '${startDate}'`);
+    if (endDate) conditions.push(`DATE <= '${endDate}'`);
+
+    let targetCityRaw = (location && location !== 'All') ? location.toLowerCase().trim() : '';
+    if (targetCityRaw === 'bangalore') targetCityRaw = 'bengaluru';
+
+    if (targetCityRaw) {
+        conditions.push(`lower(${locationCol}) = '${targetCityRaw}'`);
+    } else if (tier1CityNames.length > 0) {
+        conditions.push(`lower(${locationCol}) IN (${tier1LocationClause})`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    let skus = [];
+    try {
+        const skuQuery = `
+            SELECT 
+                ${productCol} as product_name,
+                ${weightCol} as weight,
+                any(${imgCol}) as image_url,
+                ${platformCol} as platform,
+                max(${mrpCol}) as mrp,
+                min(${spCol}) as selling_price,
+                max(${discountCol}) as discount_val,
+                max(${nenoOsaCol}) as neno_osa
+            FROM rb_pdp_olap
+            ${whereClause}
+            GROUP BY product_name, weight, platform
+            LIMIT 1000
+        `;
+        let rows = await queryClickHouse(skuQuery);
+        
+        if (rows.length === 0 && (startDate || endDate)) {
+            console.log("[getCrossPlatformPricing] Date filter returned 0 rows, executing fallback query...");
+            const fallbackConditions = [`${productCol} IS NOT NULL`, `${productCol} != ''`];
+            if (targetCityRaw) {
+                fallbackConditions.push(`lower(${locationCol}) = '${targetCityRaw}'`);
+            } else if (tier1CityNames.length > 0) {
+                fallbackConditions.push(`lower(${locationCol}) IN (${tier1LocationClause})`);
+            }
+            const fallbackWhere = `WHERE ${fallbackConditions.join(' AND ')}`;
+            const fallbackSkuQuery = `
+                SELECT 
+                    ${productCol} as product_name,
+                    ${weightCol} as weight,
+                    any(${imgCol}) as image_url,
+                    ${platformCol} as platform,
+                    max(${mrpCol}) as mrp,
+                    min(${spCol}) as selling_price,
+                    max(${discountCol}) as discount_val,
+                    max(${nenoOsaCol}) as neno_osa
+                FROM rb_pdp_olap
+                ${fallbackWhere}
+                GROUP BY product_name, weight, platform
+                LIMIT 1000
+            `;
+            rows = await queryClickHouse(fallbackSkuQuery);
+        }
+
+        const skuMap = new Map();
+
+        rows.forEach(r => {
+            const key = `${r.product_name}___${r.weight || ''}`;
+            if (!skuMap.has(key)) {
+                skuMap.set(key, {
+                    sku: r.product_name,
+                    weight: r.weight || '',
+                    imageUrl: r.image_url || '',
+                    mrp: r.mrp || 0,
+                    platformData: {}
+                });
+            }
+            const item = skuMap.get(key);
+            if (r.mrp && r.mrp > item.mrp) {
+                item.mrp = r.mrp;
+            }
+            if (r.image_url && !item.imageUrl) {
+                item.imageUrl = r.image_url;
+            }
+
+            const mrp = Number(r.mrp || item.mrp || 0);
+            const sp = Number(r.selling_price || 0);
+            const outOfStock = r.neno_osa === 0 || sp === 0;
+
+            let discountPercent = 0;
+            if (r.discount_val && r.discount_val > 0) {
+                discountPercent = Number(r.discount_val);
+            } else if (mrp > 0 && sp > 0) {
+                discountPercent = ((mrp - sp) / mrp) * 100;
+            }
+
+            const isBreaching = discountPercent > 20;
+
+            const pName = r.platform ? (r.platform.charAt(0).toUpperCase() + r.platform.slice(1)) : 'Unknown';
+            item.platformData[pName] = {
+                guardrail: "0 - 20%",
+                discount: discountPercent > 0 ? Number(discountPercent.toFixed(2)) : 0,
+                sp: Number(sp.toFixed(2)),
+                outOfStock: outOfStock,
+                isBreaching: isBreaching
+            };
+        });
+
+        for (const item of skuMap.values()) {
+            let maxDisc = -1;
+            let maxPlatform = "-";
+            let skuHasBreach = false;
+
+            Object.entries(item.platformData).forEach(([pName, pVal]) => {
+                if (!pVal.outOfStock && pVal.discount > maxDisc) {
+                    maxDisc = pVal.discount;
+                    maxPlatform = pName;
+                }
+                if (pVal.isBreaching) {
+                    skuHasBreach = true;
+                }
+            });
+
+            item.maxDiscountPlatform = maxPlatform;
+            item.maxDiscount = maxDisc > 0 ? maxDisc : 0;
+            item.hasBreach = skuHasBreach;
+            skus.push(item);
+        }
+
+    } catch (e) {
+        console.error("Error fetching SKU data for cross platform pricing:", e);
+    }
+
+    if (search && search.trim()) {
+        const q = search.toLowerCase().trim();
+        skus = skus.filter(s => s.sku.toLowerCase().includes(q) || (s.weight && String(s.weight).toLowerCase().includes(q)));
+    }
+
+    if (breachesOnly) {
+        skus = skus.filter(s => s.hasBreach);
+    }
+
+    return {
+        cities: cityBreaches,
+        platforms: platforms.map(p => p.charAt(0).toUpperCase() + p.slice(1)),
+        skus: skus
+    };
+};
+
 // Exported function - no caching layer
 const getSummaryMetrics = async (filters) => {
     return await computeSummaryMetrics(filters);
@@ -14345,6 +14619,7 @@ export default {
     getProductCategories,
     getChannels,
     getPdpPlatforms,
+    getCrossPlatformPricing,
     getWatchTowerCascadedFilters,
     getMsls,
     getSubBrands

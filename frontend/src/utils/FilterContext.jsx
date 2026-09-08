@@ -500,6 +500,24 @@ export const FilterProvider = ({ children }) => {
                     setPlatforms([]);
                     setPlatform("");
                 }
+            } else if ((currentPath + window.location.hash).includes('/cross-platform-pricing')) {
+                const reqId = ++activePlatformReq.current;
+                const res = await axiosInstance.get("/watchtower/pdp-platforms");
+                if (reqId !== activePlatformReq.current) return;
+                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                    console.log("[FilterContext] Fetched dynamic PDP platforms from rb_pdp_olap for Cross Platform Pricing:", res.data);
+                    setPlatforms(res.data);
+                    setPlatform(prevPlatform => {
+                        if (channelChanged || !prevPlatform) return res.data[0];
+                        const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
+                        const valid = currentList.filter(p => res.data.includes(p));
+                        if (valid.length === 0) return res.data[0];
+                        return valid.length === 1 ? valid[0] : valid;
+                    });
+                } else {
+                    setPlatforms([]);
+                    setPlatform("");
+                }
             } else {
                 // Refresh channels for other pages to clear any restricted lists (like from Market Share)
                 fetchChannels();

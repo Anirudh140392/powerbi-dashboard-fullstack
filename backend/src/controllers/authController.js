@@ -120,6 +120,37 @@ export const verify = async (req, res) => {
 };
 
 /**
+ * POST /api/auth/switch-db
+ * Body: { targetDbName }
+ */
+export const switchDbController = async (req, res) => {
+    try {
+        const { targetDbName } = req.body || {};
+        const email = req.user?.email;
+        const currentDbName = req.user?.dbName;
+
+        if (!email) {
+            return res.status(401).json({ success: false, error: 'Unauthorized' });
+        }
+
+        const { switchDatabase } = await import('../services/authService.js');
+        const result = await switchDatabase(email, currentDbName, targetDbName);
+
+        return res.status(200).json({
+            success: true,
+            token: result.token,
+            user: result.user,
+        });
+    } catch (error) {
+        console.error('[Auth] Database switch failed:', error.message);
+        return res.status(400).json({
+            success: false,
+            error: error.message || 'Failed to switch database',
+        });
+    }
+};
+
+/**
  * GET /api/auth/ratings-sso-token
  * Requires: valid DS JWT (authMiddleware already decoded req.user)
  *

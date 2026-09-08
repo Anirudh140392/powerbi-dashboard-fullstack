@@ -40,6 +40,7 @@ import ContentAnalysisPage from "./pages/ContentAnalysis/ContentAnalysisPage";
 import PrimarySummaryPage from "./pages/PrimarySummary/PrimarySummaryPage";
 import SecondarySummaryPage from "./pages/SecondarySummary/SecondarySummaryPage";
 import AcceptInvitePage from "./pages/Login/AcceptInvitePage";
+import CrossPlatformPricing from "./pages/Analytics/CrossPlatformPricing";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -58,6 +59,12 @@ function AppContent() {
             <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
             <Route path="/" element={<Navigate to="/watch-tower" replace />} />
+
+            <Route path="/cross-platform-pricing" element={
+              <ProtectedRoute>
+                <CrossPlatformPricing />
+              </ProtectedRoute>
+            } />
 
             <Route path="/watch-tower" element={
               <ProtectedRoute>
