@@ -226,8 +226,25 @@ const Sidebar = ({
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user } = useAuth();
+  const { logout, user, switchDb } = useAuth();
   console.log("DEBUG_SIDEBAR: user=", user);
+
+  const [dbDropdownAnchor, setDbDropdownAnchor] = useState(null);
+  const [isSwitchingDb, setIsSwitchingDb] = useState(false);
+
+  const mappedDatabases = useMemo(() => {
+    if (user?.mappedDatabases && Array.isArray(user.mappedDatabases) && user.mappedDatabases.length > 0) {
+      return user.mappedDatabases;
+    }
+    const currentDb = (user?.dbName || '').toLowerCase();
+    if (currentDb === 'mars' || currentDb === 'kellogs') {
+      return [
+        { dbName: 'mars', dbLogoUrl: marsLogo },
+        { dbName: 'kellogs', dbLogoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Kellogg%27s-Logo.svg/1280px-Kellogg%27s-Logo.svg.png' }
+      ];
+    }
+    return [];
+  }, [user?.mappedDatabases, user?.dbName]);
 
   const [dbLogoUrl, setDbLogoUrl] = useState(() => {
     return user?.dbLogoUrl || "";
@@ -584,6 +601,217 @@ const Sidebar = ({
           </IconButton>
         )}
       </Box>
+
+      {/* Mapped DB Switcher Dropdown */}
+      {mappedDatabases.length > 0 && (
+        <Box
+          sx={{
+            px: isCollapsed ? 1 : 1.5,
+            py: 1,
+            borderBottom: "1px solid rgba(0, 0, 0, 0.05)",
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+        >
+          {!isCollapsed ? (
+            <Button
+              onClick={(e) => setDbDropdownAnchor(e.currentTarget)}
+              disabled={isSwitchingDb}
+              fullWidth
+              sx={{
+                justifyContent: 'space-between',
+                px: 1.5,
+                py: 0.8,
+                borderRadius: '10px',
+                bgcolor: 'rgba(241, 245, 249, 0.8)',
+                border: '1px solid rgba(226, 232, 240, 0.9)',
+                color: '#1e293b',
+                textTransform: 'none',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                '&:hover': {
+                  bgcolor: 'rgba(226, 232, 240, 0.9)',
+                  borderColor: '#cbd5e1',
+                },
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, overflow: 'hidden' }}>
+                <Box
+                  sx={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: '6px',
+                    bgcolor: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    flexShrink: 0,
+                  }}
+                >
+                  {user?.dbLogoUrl || getStaticFallbackLogo(user?.dbName) ? (
+                    <img
+                      src={user?.dbLogoUrl || getStaticFallbackLogo(user?.dbName)}
+                      alt={user?.dbName}
+                      style={{ width: '85%', height: '85%', objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#2563eb' }}>
+                      {user?.dbName?.charAt(0).toUpperCase()}
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ textAlign: 'left', minWidth: 0 }}>
+                  <Typography sx={{ fontSize: '9px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Select Workspace
+                  </Typography>
+                  <Typography noWrap sx={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                    {user?.dbName ? user.dbName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Select Workspace'}
+                  </Typography>
+                </Box>
+              </Box>
+              <KeyboardArrowDownIcon sx={{ fontSize: '1.2rem', color: '#64748b' }} />
+            </Button>
+          ) : (
+            <Tooltip title={`Switch Workspace (${user?.dbName || ''})`} placement="right">
+              <IconButton
+                onClick={(e) => setDbDropdownAnchor(e.currentTarget)}
+                disabled={isSwitchingDb}
+                sx={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: '10px',
+                  bgcolor: 'rgba(241, 245, 249, 0.9)',
+                  border: '1px solid rgba(226, 232, 240, 0.9)',
+                  '&:hover': { bgcolor: 'rgba(226, 232, 240, 1)' },
+                }}
+              >
+                <Box sx={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {user?.dbLogoUrl || getStaticFallbackLogo(user?.dbName) ? (
+                    <img
+                      src={user?.dbLogoUrl || getStaticFallbackLogo(user?.dbName)}
+                      alt={user?.dbName}
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#2563eb' }}>
+                      {user?.dbName?.charAt(0).toUpperCase()}
+                    </Typography>
+                  )}
+                </Box>
+              </IconButton>
+            </Tooltip>
+          )}
+
+          <Popover
+            open={Boolean(dbDropdownAnchor)}
+            anchorEl={dbDropdownAnchor}
+            onClose={() => setDbDropdownAnchor(null)}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: isCollapsed ? 'right' : 'left',
+            }}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: isCollapsed ? 'left' : 'left',
+            }}
+            PaperProps={{
+              sx: {
+                mt: 1,
+                width: 220,
+                borderRadius: '12px',
+                boxShadow: '0 10px 25px -5px rgba(0,0,0,0.12), 0 8px 10px -6px rgba(0,0,0,0.08)',
+                border: '1px solid rgba(226, 232, 240, 0.9)',
+                p: 0.8,
+                bgcolor: '#ffffff',
+              },
+            }}
+          >
+            <Typography sx={{ px: 1.5, py: 0.8, fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Switch Workspace
+            </Typography>
+            <Divider sx={{ mb: 0.5 }} />
+            {mappedDatabases.map((dbItem) => {
+              const isCurrent = dbItem.dbName.toLowerCase() === (user?.dbName || '').toLowerCase();
+              const itemLogo = dbItem.dbLogoUrl || getStaticFallbackLogo(dbItem.dbName);
+
+              return (
+                <Box
+                  key={dbItem.dbName}
+                  onClick={async () => {
+                    if (isCurrent || isSwitchingDb) {
+                      setDbDropdownAnchor(null);
+                      return;
+                    }
+                    setIsSwitchingDb(true);
+                    setDbDropdownAnchor(null);
+                    await switchDb(dbItem.dbName);
+                    setIsSwitchingDb(false);
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    px: 1.5,
+                    py: 1,
+                    my: 0.3,
+                    borderRadius: '8px',
+                    cursor: isCurrent ? 'default' : 'pointer',
+                    bgcolor: isCurrent ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                    '&:hover': {
+                      bgcolor: isCurrent ? 'rgba(37, 99, 235, 0.12)' : 'rgba(241, 245, 249, 1)',
+                    },
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                    <Box
+                      sx={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: '6px',
+                        bgcolor: '#f8fafc',
+                        border: '1px solid rgba(226, 232, 240, 0.8)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {itemLogo ? (
+                        <img
+                          src={itemLogo}
+                          alt={dbItem.dbName}
+                          style={{ width: '85%', height: '85%', objectFit: 'contain' }}
+                        />
+                      ) : (
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#475569' }}>
+                          {dbItem.dbName.charAt(0).toUpperCase()}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Typography sx={{ fontSize: '13px', fontWeight: isCurrent ? 700 : 500, color: isCurrent ? '#2563eb' : '#334155' }}>
+                      {dbItem.dbName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    </Typography>
+                  </Box>
+                  {isCurrent && (
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        bgcolor: '#2563eb',
+                        boxShadow: '0 0 0 3px rgba(37, 99, 235, 0.2)',
+                      }}
+                    />
+                  )}
+                </Box>
+              );
+            })}
+          </Popover>
+        </Box>
+      )}
 
       {/* Channel Selector - Pill Segmented Control */}
       <Box sx={{

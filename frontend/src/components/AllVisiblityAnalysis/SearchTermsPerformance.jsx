@@ -298,7 +298,7 @@ export default function SearchTermsPerformance() {
   } = useContext(FilterContext);
 
   const [activeView, setActiveView] = useState("keyword");
-  const [activeFilter, setActiveFilter] = useState("All");
+  const [activeFilter, setActiveFilter] = useState("Generic");
   const [expandedRows, setExpandedRows] = useState({});
   const [locationData, setLocationData] = useState({});
   const [locationLoading, setLocationLoading] = useState({});
@@ -307,7 +307,7 @@ export default function SearchTermsPerformance() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [drilldownModal, setDrilldownModal] = useState(null);
-  const [modalKeywordType, setModalKeywordType] = useState("All");
+  const [modalKeywordType, setModalKeywordType] = useState("Generic");
   const [currentModalBrand, setCurrentModalBrand] = useState(null);
   const [hoveredKeyword, setHoveredKeyword] = useState(null);
   const [hoverPos, setHoverPos] = useState({ top: 0, left: 0 });
