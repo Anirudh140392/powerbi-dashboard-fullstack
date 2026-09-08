@@ -6,6 +6,7 @@ import axios from 'axios';
 import { queryAdminDB } from '../config/adminClickhouse.js';
 import { toFlatPermissions } from './adminService.js';
 import { updateDeviceTokenMap } from './deviceService.js';
+import { getMappedDatabasesForDb } from './authService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'trailytics_jwt_secret_2026';
 // Tokens are permanent (no expiration)
@@ -238,7 +239,7 @@ export async function authenticateSsoUser(ssoPayload, deviceInfo = {}) {
 
     // 2. Fetch database info from tb_database
     const databases = await queryAdminDB(
-        `SELECT db_name, toString(db_id) as db_id, logo_url, company_id 
+        `SELECT db_name, toString(db_id) as db_id, logo_url, company_id, mapped_db 
          FROM tb_database 
          WHERE status = 'active'`
     );
@@ -289,6 +290,11 @@ export async function authenticateSsoUser(ssoPayload, deviceInfo = {}) {
     }
     const tabPermissions = toFlatPermissions(rawTabPermissions);
 
+    let mappedDatabases = [];
+    if (matchedDb && matchedDb.mapped_db) {
+        mappedDatabases = await getMappedDatabasesForDb(matchedDb.mapped_db);
+    }
+
     const userPayload = {
         userId: user.user_id_str || user.id_str,
         email: user.user_email,
@@ -300,6 +306,7 @@ export async function authenticateSsoUser(ssoPayload, deviceInfo = {}) {
         dbLogoUrl,
         tabPermissions,
         authProvider: ssoPayload.provider,
+        mappedDatabases,
     };
 
     // Update last_login timestamp
