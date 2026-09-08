@@ -121,10 +121,12 @@ const SidebarStatusBadge = ({ type }) => {
         background: isLive ? "#10b981" : isNew ? "#2563eb" : "#2563eb",
         color: "#fff",
         borderRadius: "5px",
-        padding: "2.5px 8px",
-        marginLeft: "8px",
+        padding: "2.5px 7px",
+        marginLeft: "6px",
+        flexShrink: 0,
         display: "inline-flex",
         alignItems: "center",
+        justifyContent: "center",
         lineHeight: 1,
         textTransform: "uppercase",
         letterSpacing: "0.04em",
@@ -1372,7 +1374,7 @@ const Sidebar = ({
                       minWidth: isCollapsed ? 48 : 44,
                       maxWidth: isCollapsed ? 48 : "100%",
                       justifyContent: isCollapsed ? "center" : "flex-start",
-                      px: isCollapsed ? 1 : 2,
+                      px: isCollapsed ? 1 : 1.5,
                       py: 1.2,
                       borderRadius: "12px",
                       mb: 0.8,
@@ -1397,7 +1399,7 @@ const Sidebar = ({
                     <ListItemIcon
                       sx={{
                         minWidth: 0,
-                        mr: isCollapsed ? 0 : 1.5,
+                        mr: isCollapsed ? 0 : 1.2,
                         color: isActive ? "#2563eb" : "inherit",
                         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                         display: 'flex',
@@ -1414,8 +1416,10 @@ const Sidebar = ({
 
                     <ListItemText
                       primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          {item.label}
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 0 }}>
+                          <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.label}
+                          </Box>
                           {item.showBeta && !isCollapsed && <SidebarStatusBadge type="BETA" />}
                           {item.showLive && !isCollapsed && <SidebarStatusBadge type="LIVE" />}
                           {item.showNew && !isCollapsed && <SidebarStatusBadge type="NEW" />}
@@ -1429,7 +1433,6 @@ const Sidebar = ({
                           opacity: isCollapsed ? 0 : 1,
                           transition: 'opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                           transform: isCollapsed ? 'translateX(-10px)' : 'translateX(0)',
-                          overflow: 'hidden',
                           whiteSpace: 'nowrap',
                           ...(isPiy && {
                             background: "linear-gradient(90deg, #1e293b, #2563eb, #1e293b)",
@@ -1447,9 +1450,9 @@ const Sidebar = ({
                       }}
                       sx={{
                         m: 0,
-                        width: isCollapsed ? 0 : 'auto', // Important for centering
+                        width: isCollapsed ? 0 : '100%',
+                        minWidth: 0,
                         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                        overflow: 'hidden'
                       }}
                     />
                   </ListItemButton>
