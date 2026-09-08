@@ -26,7 +26,7 @@ import axiosInstance from "../../../api/axiosInstance";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 import { useAuth } from "../../../utils/AuthContext";
 import { FilterContext } from "../../../utils/FilterContext";
-import CrossPlatformMatrixModal from "./CrossPlatformMatrixModal";
+import CrossPlatformMatrixModal, { ALL_KPI_COLUMNS } from "./CrossPlatformMatrixModal";
 
 
 /* -------------------------------------------------------------------------- */
@@ -2816,6 +2816,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
         open={isCrossPlatformOpen}
         onClose={() => setIsCrossPlatformOpen(false)}
         initialLevel={tab === 'sku' ? 'sku' : 'brand'}
+        kpiColumns={ALL_KPI_COLUMNS}
       />
     </div>
   );

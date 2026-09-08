@@ -44,6 +44,7 @@ import ReactECharts from "echarts-for-react";
 import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
 import VisibilityPlatformOverviewKpiShowcase from "./VisibilityPlatformOverviewKpiShowcase";
+import CrossPlatformMatrixModal, { VISIBILITY_KPI_COLUMNS } from "../ControlTower/WatchTower/CrossPlatformMatrixModal";
 import axiosInstance from "../../api/axiosInstance";
 import { FilterContext } from "../../utils/FilterContext";
 import { useAuth } from "../../utils/AuthContext";
@@ -741,6 +742,7 @@ export default function VisibilityTrendsCompetitionDrawer({
   const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedChannel, selectedKeywordType, selectedKeyword, selectedRank, compareStart, compareEnd } = useContext(FilterContext);
 
   const [view, setView] = useState(isSugarUser ? "Trends" : "Trends"); // Default to Trends
+  const [isCrossPlatformOpen, setIsCrossPlatformOpen] = useState(false);
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
       audience: "Platform", // default value
@@ -2280,6 +2282,14 @@ export default function VisibilityTrendsCompetitionDrawer({
           onClose={() => setAddSkuOpen(false)}
           onApply={handleSkuApply}
           selectedIds={selectedCompareSkus.map((s) => s.id)}
+        />
+
+        {/* Cross Platform Matrix Modal */}
+        <CrossPlatformMatrixModal
+          open={isCrossPlatformOpen}
+          onClose={() => setIsCrossPlatformOpen(false)}
+          initialLevel={compTab === "SKUs" ? "sku" : "brand"}
+          kpiColumns={VISIBILITY_KPI_COLUMNS}
         />
       </Box>
     </Box>

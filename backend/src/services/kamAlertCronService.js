@@ -31,6 +31,51 @@ const getTransporter = () => {
     });
 };
 
+/**
+ * Send individual emails to each recipient using SMTP envelope routing
+ * with raw message headers to prevent Exchange Online from revealing recipients.
+ */
+const sendAlertEmailToRecipients = async (transporter, { fromEmail, fromName, recipientEmailsStr, subject, text, html }) => {
+    if (!recipientEmailsStr || typeof recipientEmailsStr !== 'string') return false;
+
+    const recipients = recipientEmailsStr
+        .split(/[,;]+/)
+        .map(e => e.trim())
+        .filter(e => e && e.includes('@'));
+
+    if (recipients.length === 0) return false;
+
+    let successCount = 0;
+    for (const recipient of recipients) {
+        const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+        const mailOptions = {
+            from: `"${fromName}" <${fromEmail}>`,
+            // DO NOT set 'to' — we control the To header manually below
+            subject: subject,
+            text: text || '',
+            html: html,
+            headers: {
+                'To': `"${fromName}" <${fromEmail}>`,
+                'Thread-Topic': `KamAlert-${uniqueId}`,
+                'Thread-Index': Buffer.from(uniqueId).toString('base64'),
+            },
+            envelope: {
+                from: fromEmail,
+                to: recipient,
+            },
+        };
+
+        try {
+            const info = await transporter.sendMail(mailOptions);
+            console.log(`[KamAlertCron] 📧 KAM email delivered to ${recipient} via envelope (header To: ${fromEmail}). Message ID: ${info.messageId}`);
+            successCount++;
+        } catch (sendErr) {
+            console.error(`[KamAlertCron] Failed to send KAM email to ${recipient}:`, sendErr.message);
+        }
+    }
+    return successCount > 0;
+};
+
 const evalCondition = (val, op, thresh) => {
     if (!op) return val < thresh;
     const lowerOp = String(op).toLowerCase();
@@ -624,21 +669,21 @@ export const runKamAlertsJob = async () => {
                             }
 
                             if (isTriggered && emailHtml && subject) {
-                                const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
-                                const mailOptions = {
-                                    from: `"Trailytics KAM Alerts" <${fromEmail}>`,
-                                    to: sendEmail,
-                                    subject: subject,
-                                    html: emailHtml,
-                                };
-
+                                const fromEmail = process.env.SMTP_USER || process.env.ALERT_EMAIL || process.env.Alert_email || 'business@trailytics.com';
                                 try {
-                                    const info = await transporter.sendMail(mailOptions);
-                                    console.log(`[KamAlertCron] HTML KAM email sent successfully to ${sendEmail}. Message ID: ${info.messageId}`);
+                                    const sent = await sendAlertEmailToRecipients(transporter, {
+                                        fromEmail,
+                                        fromName: 'Trailytics KAM Alerts',
+                                        recipientEmailsStr: sendEmail,
+                                        subject: subject,
+                                        html: emailHtml,
+                                    });
 
-                                    // Update the sent key
-                                    user[sentKey] = istNowStr;
-                                    isKamUpdated = true;
+                                    if (sent) {
+                                        // Update the sent key
+                                        user[sentKey] = istNowStr;
+                                        isKamUpdated = true;
+                                    }
                                 } catch (sendErr) {
                                     console.error(`[KamAlertCron] Failed to send KAM email to ${sendEmail}:`, sendErr.message);
                                 }

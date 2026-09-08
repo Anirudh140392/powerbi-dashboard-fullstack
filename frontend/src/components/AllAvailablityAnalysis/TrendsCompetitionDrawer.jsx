@@ -45,7 +45,7 @@ import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
 import PlatformOverviewKpiShowcase from "../ControlTower/WatchTower/PlatformOverviewKpiShowcase";
 import { AvailabilityCompetitionKpiShowcase } from "./AvailabilityCompetitionKpiShowcase";
-import CrossPlatformMatrixModal from "../ControlTower/WatchTower/CrossPlatformMatrixModal";
+import CrossPlatformMatrixModal, { PRICING_KPI_COLUMNS, VISIBILITY_KPI_COLUMNS, DEFAULT_KPI_COLUMNS } from "../ControlTower/WatchTower/CrossPlatformMatrixModal";
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../CommonLayout/ErrorRetryOverlay";
 import { FilterContext } from "../../utils/FilterContext";
@@ -3834,6 +3834,7 @@ export default function TrendsCompetitionDrawer({
           open={isCrossPlatformOpen}
           onClose={() => setIsCrossPlatformOpen(false)}
           initialLevel={compTab === "SKUs" ? "sku" : "brand"}
+          kpiColumns={dynamicKey === "pricing" ? PRICING_KPI_COLUMNS : dynamicKey === "visibility" ? VISIBILITY_KPI_COLUMNS : DEFAULT_KPI_COLUMNS}
           initialFilters={{
             startDate: customStart,
             endDate: customEnd,
