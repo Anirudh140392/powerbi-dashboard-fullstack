@@ -1,5 +1,5 @@
 import type { ContentDashboardQuerySchema } from '../validators/contentDashboard.validator.js';
-import { escapeSqlString, buildWhereClause } from '../utils/queryHelpers.js';
+import { escapeSqlString, buildWhereClause, buildTotalScoreExpr } from '../utils/queryHelpers.js';
 
 // ---------------------------------------------------------------------------
 // Products Query Builder
@@ -63,7 +63,7 @@ export function buildProductsQuery(params: ContentDashboardQuerySchema): string 
 
   // Map sortBy to actual DB column
   const sortMap: Record<string, string> = {
-    score: 'total_score',
+    score: 'calculated_score',
     title_score: 'title_score',
     bullet_point_score: 'bullet_score',
     description_score: 'description_score',
@@ -72,7 +72,7 @@ export function buildProductsQuery(params: ContentDashboardQuerySchema): string 
     video_score: 'thumbnail_video_score',
     title: 'title'
   };
-  const dbSortBy = sortMap[sortBy] ? (sortMap[sortBy] === 'title' ? 'title' : `o.${sortMap[sortBy]}`) : 'o.total_score';
+  const dbSortBy = sortMap[sortBy] ? (sortMap[sortBy] === 'title' ? 'title' : (sortMap[sortBy] === 'calculated_score' ? 'score' : `o.${sortMap[sortBy]}`)) : 'score';
 
   // Select only required columns — no SELECT *
   return `
@@ -81,7 +81,7 @@ export function buildProductsQuery(params: ContentDashboardQuerySchema): string 
       COALESCE(s.sku_name, s.sku_title, o.title) AS title,
       s.image_url,
       s.image_url_s3,
-      o.total_score AS score,
+      (${buildTotalScoreExpr('o')}) AS score,
       o.title_score,
       o.bullet_score AS bullet_point_score,
       o.description_score,

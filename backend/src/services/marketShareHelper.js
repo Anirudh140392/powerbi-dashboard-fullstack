@@ -2795,7 +2795,7 @@ export const getMarketShareTopFilterOptions = async (channelFilter = null) => {
         const subBrandQuery = `
             SELECT DISTINCT sub_brand
             FROM rb_ms_olap
-            WHERE sub_brand IS NOT NULL AND sub_brand != '' AND flag = 1
+            WHERE sub_brand IS NOT NULL AND sub_brand != ''
             ${platformCond}
             ORDER BY sub_brand
         `;
@@ -2884,7 +2884,7 @@ export const getMarketShareCascadedFilters = async (platformFilter, channelFilte
         const isMamaearth = dbName === 'mamaearth';
 
         // 1. Resolve platforms by channel
-        let filteredPlatforms = platformArr;
+        let validChannelPlatforms = null;
         if (channelFilter && channelFilter !== 'All') {
             try {
                 // Fetch mapping of platforms to channel
@@ -2907,11 +2907,20 @@ export const getMarketShareCascadedFilters = async (platformFilter, channelFilte
                         }
                     });
                     const channelLower = channelFilter.toLowerCase();
-                    filteredPlatforms = allMsPlatforms.filter(p => channelMap.get(p.toLowerCase()) === channelLower);
-                    if (filteredPlatforms.length === 0) filteredPlatforms = allMsPlatforms;
+                    validChannelPlatforms = allMsPlatforms.filter(p => channelMap.get(p.toLowerCase()) === channelLower);
+                    if (validChannelPlatforms.length === 0) validChannelPlatforms = allMsPlatforms;
                 }
             } catch (err) {
                 console.warn('[MarketShareCascadedFilters] channel map failed:', err.message);
+            }
+        }
+
+        let filteredPlatforms = platformArr;
+        if (validChannelPlatforms) {
+            if (!filteredPlatforms || filteredPlatforms.length === 0 || filteredPlatforms.includes('All')) {
+                filteredPlatforms = validChannelPlatforms;
+            } else {
+                filteredPlatforms = filteredPlatforms.filter(p => validChannelPlatforms.some(vp => vp.toLowerCase() === p.toLowerCase()));
             }
         }
 
@@ -3012,7 +3021,7 @@ export const getMarketShareCascadedFilters = async (platformFilter, channelFilte
         const subBrandQuery = `
             SELECT DISTINCT ms.sub_brand as sub_brand
             FROM rb_ms_olap as ms
-            WHERE ms.sub_brand IS NOT NULL AND ms.sub_brand != '' AND ms.flag = 1
+            WHERE ms.sub_brand IS NOT NULL AND ms.sub_brand != ''
             ${platformCond}
             ${categoryCondForSubBrand}
             ${brandCondForSubBrand}

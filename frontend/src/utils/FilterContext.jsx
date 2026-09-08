@@ -561,7 +561,70 @@ export const FilterProvider = ({ children }) => {
         };
         fetchPlatformMetadata();
     }, [isAuthenticated, currentPath]);
-
+    // ====== FETCH MARKET SHARE CASCADED FILTERS (when platform changes) ======
+    useEffect(() => {
+        const fetchMsCascaded = async () => {
+            if (!isAuthenticated) return;
+            if (!(currentPath + window.location.hash).includes('/market-share')) return;
+            
+            try {
+                const res = await axiosInstance.get("/market-share/cascaded-filters", {
+                    params: {
+                        platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+                        channel: selectedChannel === "All" ? undefined : selectedChannel
+                    }
+                });
+                if (res.data) {
+                    if (res.data.categories) {
+                        setCategories(res.data.categories);
+                        setSelectedCategory(prev => {
+                            if (prev === "All") return "All";
+                            const currentList = Array.isArray(prev) ? prev : [prev];
+                            const valid = currentList.filter(c => res.data.categories.includes(c));
+                            if (valid.length === 0) return "All";
+                            return valid.length === 1 ? valid[0] : valid;
+                        });
+                    }
+                    if (res.data.brands) {
+                        setBrands(res.data.brands);
+                        setSelectedBrand(prev => {
+                            if (prev === "All") return "All";
+                            const currentList = Array.isArray(prev) ? prev : [prev];
+                            const valid = currentList.filter(b => res.data.brands.includes(b));
+                            if (valid.length === 0) return "All";
+                            return valid.length === 1 ? valid[0] : valid;
+                        });
+                    }
+                    if (res.data.subCategories) {
+                        setSubCategories(res.data.subCategories);
+                        setSelectedSubCategory(prev => {
+                            if (prev === "All") return "All";
+                            const currentList = Array.isArray(prev) ? prev : [prev];
+                            const valid = currentList.filter(s => res.data.subCategories.includes(s));
+                            if (valid.length === 0) return "All";
+                            return valid.length === 1 ? valid[0] : valid;
+                        });
+                    }
+                    if (res.data.subBrands) {
+                        setSubBrands(res.data.subBrands);
+                        setSelectedSubBrand(prev => {
+                            if (prev === "All") return "All";
+                            const currentList = Array.isArray(prev) ? prev : [prev];
+                            const valid = currentList.filter(s => res.data.subBrands.includes(s));
+                            if (valid.length === 0) return "All";
+                            return valid.length === 1 ? valid[0] : valid;
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error("[FilterContext] Failed to fetch Market Share cascaded filters:", error);
+            }
+        };
+        // Ensure this only runs if platforms are already fetched to prevent resetting the state prematurely
+        if (platformsFetched) {
+            fetchMsCascaded();
+        }
+    }, [platform, selectedChannel, isAuthenticated, currentPath, platformsFetched]);
     // refreshFilters — can be called by child components to re-fetch filter options
     const refreshFilters = useCallback(() => {
         fetchPlatformsFromDb();

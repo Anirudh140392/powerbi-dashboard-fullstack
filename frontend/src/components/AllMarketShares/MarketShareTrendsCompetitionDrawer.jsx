@@ -266,7 +266,7 @@ const SelectedFilterChip = ({ label, value, color = "#3B82F6" }) => (
 const capitalize = (s) => (s && s !== 'All') ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
 
 const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
-  const { platform: globalPlatform, selectedCategory, timeStart, timeEnd } = useContext(FilterContext);
+  const { platform: globalPlatform, selectedCategory, selectedBrand: globalBrand, selectedSubBrand: globalSubBrand, timeStart, timeEnd } = useContext(FilterContext);
 
   const [range, setRange] = useState("1M");
   const [timeStep, setTimeStep] = useState("Daily");
@@ -293,18 +293,24 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
 
   useEffect(() => {
     if (open) {
+      const getSingleVal = (val, toLower = true) => {
+        if (!val || val === 'All') return 'All';
+        const strVal = Array.isArray(val) ? val[0] : String(val);
+        return toLower ? strVal.toLowerCase() : strVal;
+      };
+
       setDrawerFilters(prev => ({
         ...prev,
-        Platform: (globalPlatform && globalPlatform !== 'All') ? globalPlatform.toLowerCase() : "All",
-        Category: (selectedCategory && selectedCategory !== 'All') ? selectedCategory.toLowerCase() : "All",
-        Brand: "All",
-        SubBrand: "All"
+        Platform: getSingleVal(globalPlatform),
+        Category: getSingleVal(selectedCategory),
+        Brand: getSingleVal(globalBrand),
+        SubBrand: getSingleVal(globalSubBrand, false)
       }));
       // Reset manual override when opening drawer with a new global platform
       setIsTimeStepManuallySet(false);
       setTimeStep("Daily");
     }
-  }, [open, globalPlatform, selectedCategory]);
+  }, [open, globalPlatform, selectedCategory, globalBrand, globalSubBrand]);
 
   useEffect(() => {
     if (open) {

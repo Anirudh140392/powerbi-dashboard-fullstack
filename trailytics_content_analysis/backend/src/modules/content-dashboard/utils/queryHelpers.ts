@@ -42,3 +42,23 @@ export function toInt(value: string | number | null | undefined): number | null 
   const n = parseInt(String(value), 10);
   return isNaN(n) ? null : n;
 }
+
+/**
+ * Build dynamic total score SQL expression based on platform to ensure
+ * the total score is exactly the sum of the applicable individual scores.
+ */
+export function buildTotalScoreExpr(tableAlias: string = ''): string {
+  const prefix = tableAlias ? `${tableAlias}.` : '';
+  return `
+    CASE
+      WHEN LOWER(${prefix}platform) = 'zepto' THEN
+        COALESCE(${prefix}title_score, 0) + COALESCE(${prefix}bullet_score, 0) + COALESCE(${prefix}thumbnail_image_score, 0) + COALESCE(${prefix}thumbnail_video_score, 0) + COALESCE(${prefix}aplus_image_score, 0)
+      WHEN LOWER(${prefix}platform) = 'bigbasket' THEN
+        COALESCE(${prefix}title_score, 0) + COALESCE(${prefix}bullet_score, 0) + COALESCE(${prefix}description_score, 0) + COALESCE(${prefix}aplus_image_score, 0) + COALESCE(${prefix}thumbnail_image_score, 0)
+      WHEN LOWER(${prefix}platform) = 'instamart' THEN
+        COALESCE(${prefix}title_score, 0) + COALESCE(${prefix}description_score, 0) + COALESCE(${prefix}thumbnail_image_score, 0) + COALESCE(${prefix}thumbnail_video_score, 0)
+      ELSE
+        COALESCE(${prefix}title_score, 0) + COALESCE(${prefix}bullet_score, 0) + COALESCE(${prefix}description_score, 0) + COALESCE(${prefix}aplus_image_score, 0) + COALESCE(${prefix}thumbnail_image_score, 0) + COALESCE(${prefix}thumbnail_video_score, 0)
+    END
+  `.trim();
+}

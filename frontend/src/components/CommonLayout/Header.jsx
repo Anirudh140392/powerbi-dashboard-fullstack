@@ -883,6 +883,7 @@ function MarketShareFilterModal({
       try {
         const res = await axiosInstance.get("/market-share/cascaded-filters", {
           params: {
+            platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
             channel: draftChannel === "All" ? undefined : draftChannel,
             category: draftCategory === "All" ? undefined : (Array.isArray(draftCategory) ? draftCategory.join(",") : draftCategory),
             brand: draftBrand === "All" ? undefined : (Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand),
@@ -902,7 +903,7 @@ function MarketShareFilterModal({
     };
 
     fetchCascaded();
-  }, [open, isMamaearth, draftChannel, draftCategory, draftBrand, draftSubCategory, draftSubBrand]);
+  }, [open, isMamaearth, platform, draftChannel, draftCategory, draftBrand, draftSubCategory, draftSubBrand]);
 
   const tabConfig = {
     channel: { options: channels, value: draftChannel, onChange: setDraftChannel },

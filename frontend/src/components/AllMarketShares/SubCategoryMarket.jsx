@@ -140,11 +140,19 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Reset selectedSubCat and selectedBrandLocal when global category changes to ensure we fetch relevant data
+    // Reset selectedSubCat when global category changes to ensure we fetch relevant data
     useEffect(() => {
         setSelectedSubCat([]);
-        setSelectedBrandLocal([]);
     }, [selectedCategory]);
+
+    // Sync local brand with global brand filter
+    useEffect(() => {
+        if (globalSelectedBrand && globalSelectedBrand !== 'All') {
+            setSelectedBrandLocal(Array.isArray(globalSelectedBrand) ? globalSelectedBrand : [globalSelectedBrand]);
+        } else {
+            setSelectedBrandLocal([]);
+        }
+    }, [globalSelectedBrand]);
 
     // Fetch sub-category KPI data from backend
     useEffect(() => {
