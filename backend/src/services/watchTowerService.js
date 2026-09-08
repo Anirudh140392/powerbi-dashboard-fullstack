@@ -14055,9 +14055,25 @@ const getCrossPlatformBrandMatrix = async (filters) => {
             return conds.join(' AND ');
         };
 
+        // Build conditions for KW table
+        const buildKwConds = () => {
+            const conds = [`toDate(DATE) BETWEEN '${sDateStr}' AND '${eDateStr}'`, `platform_name IS NOT NULL`, `platform_name != ''`];
+            if (platformArr.length > 0 && !platformArr.includes('All')) {
+                conds.push(`lower(platform_name) IN (${platformArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+            }
+            if (locationArr.length > 0 && !locationArr.includes('All')) {
+                conds.push(`lower(location_name) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            }
+            if (categoryArr.length > 0 && !categoryArr.includes('All')) {
+                conds.push(`lower(keyword_category) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+            }
+            return conds.join(' AND ');
+        };
+
         const pdpConds = buildPdpConds();
         const pmConds = buildPmConds();
         const msConds = buildMsConds();
+        const kwConds = buildKwConds();
 
         const pdpItemCol = isSkuLevel ? (src.isAgg ? 'product' : 'Product') : (src.isAgg ? 'brand' : 'Brand');
         const pdpPlatCol = src.isAgg ? 'platform' : 'Platform';
@@ -14117,19 +14133,24 @@ const getCrossPlatformBrandMatrix = async (filters) => {
             `).catch(() => []),
             queryClickHouse(`
                 SELECT 
-                    lower(${isSkuLevel ? 'product' : 'brand'}) as item,
+                    lower(${isSkuLevel ? 'keyword_search_product' : 'brand'}) as item,
+                    brand as brand,
                     lower(platform_name) as platform,
-                    sumIf(toInt32(overall), POSITION <= 10) as num_count
+                    ifNull(sum(toInt32(overall)), 0) as num_overall,
+                    ifNull(sumIf(toInt32(overall), toInt32(spons) = 1), 0) as num_spons,
+                    ifNull(sumIf(toInt32(overall), toInt32(spons) = 0), 0) as num_organic
                 FROM rb_kw_olap
-                WHERE toDate(DATE) BETWEEN '${sDateStr}' AND '${eDateStr}' AND platform_name IS NOT NULL AND platform_name != '' AND ${isSkuLevel ? 'product' : 'brand'} IS NOT NULL AND ${isSkuLevel ? 'product' : 'brand'} != ''
-                GROUP BY item, platform
+                WHERE ${kwConds} AND ${isSkuLevel ? 'keyword_search_product' : 'brand'} IS NOT NULL AND ${isSkuLevel ? 'keyword_search_product' : 'brand'} != ''
+                GROUP BY item, brand, platform
             `).catch(() => []),
             queryClickHouse(`
                 SELECT 
                     lower(platform_name) as platform,
-                    sumIf(toInt32(overall), POSITION <= 10) as den_count
+                    ifNull(sum(toInt32(overall)), 0) as den_overall,
+                    ifNull(sumIf(toInt32(overall), toInt32(spons) = 1), 0) as den_spons,
+                    ifNull(sumIf(toInt32(overall), toInt32(spons) = 0), 0) as den_organic
                 FROM rb_kw_olap
-                WHERE toDate(DATE) BETWEEN '${sDateStr}' AND '${eDateStr}' AND platform_name IS NOT NULL AND platform_name != ''
+                WHERE ${kwConds}
                 GROUP BY platform
             `).catch(() => []),
             queryClickHouse(`
@@ -14171,7 +14192,37 @@ const getCrossPlatformBrandMatrix = async (filters) => {
 
         const kwDenMap = new Map();
         (kwDenRes || []).forEach(r => {
-            if (r.platform) kwDenMap.set(String(r.platform).toLowerCase(), parseFloat(r.den_count || 0));
+            if (r.platform) {
+                kwDenMap.set(String(r.platform).toLowerCase(), {
+                    denOverall: parseFloat(r.den_overall || 0),
+                    denSpons: parseFloat(r.den_spons || 0),
+                    denOrganic: parseFloat(r.den_organic || 0),
+                });
+            }
+        });
+
+        // Populate SOS metrics (Overall SOS, Sponsored SOS, Organic SOS)
+        (kwNumRes || []).forEach(r => {
+            if (!r.item || !r.platform) return;
+            const entry = getItemEntry(r.item, r.brand || r.item);
+            const pKey = String(r.platform).toLowerCase();
+            if (!entry.platforms[pKey]) entry.platforms[pKey] = {};
+
+            const denData = kwDenMap.get(pKey) || {};
+            const numOverall = parseFloat(r.num_overall || 0);
+            const numSpons = parseFloat(r.num_spons || 0);
+            const numOrganic = parseFloat(r.num_organic || 0);
+
+            const overallSos = (denData.denOverall > 0) ? (numOverall / denData.denOverall) * 100 : null;
+            const sponsoredSos = (denData.denSpons > 0) ? (numSpons / denData.denSpons) * 100 : null;
+            const organicSos = (denData.denOrganic > 0) ? (numOrganic / denData.denOrganic) * 100 : null;
+
+            entry.platforms[pKey].sos = overallSos;
+            entry.platforms[pKey].overall_sos = overallSos;
+            entry.platforms[pKey].sponsored_sos = sponsoredSos;
+            entry.platforms[pKey].adSos = sponsoredSos;
+            entry.platforms[pKey].organic_sos = organicSos;
+            entry.platforms[pKey].organicSos = organicSos;
         });
 
         // Populate PDP metrics (OSA, Price, Promo)
@@ -14192,6 +14243,8 @@ const getCrossPlatformBrandMatrix = async (filters) => {
             entry.platforms[pKey].offtake = sales;
             entry.platforms[pKey].qty = qty;
             entry.platforms[pKey].osa = osaVal;
+            entry.platforms[pKey].wtOsa = osaVal;
+            entry.platforms[pKey].wt_osa = osaVal;
             entry.platforms[pKey].availability = osaVal;
             entry.platforms[pKey].price = asp;
             entry.platforms[pKey].asp = asp;
@@ -14229,18 +14282,6 @@ const getCrossPlatformBrandMatrix = async (filters) => {
             const mktShare = totSales > 0 ? (bSales / totSales) * 100 : null;
             entry.platforms[pKey].marketShare = mktShare;
             entry.platforms[pKey].marketSales = mktShare ?? bSales;
-        });
-
-        // Populate SOS metrics
-        (kwNumRes || []).forEach(r => {
-            if (!r.item || !r.platform) return;
-            const entry = getItemEntry(r.item, r.item);
-            const pKey = String(r.platform).toLowerCase();
-            if (!entry.platforms[pKey]) entry.platforms[pKey] = {};
-            const numCount = parseFloat(r.num_count || 0);
-            const denCount = kwDenMap.get(pKey) || 0;
-            const sosVal = denCount > 0 ? (numCount / denCount) * 100 : null;
-            entry.platforms[pKey].sos = sosVal;
         });
 
         const matrix = Array.from(itemMap.values()).sort((a, b) => {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useContext, createContext, useEffect } from "react";
+import React, { useMemo, useState, useContext, createContext, useEffect, useCallback } from "react";
 import dayjs from "dayjs";
 import axiosInstance from "../../api/axiosInstance";
 import { FilterContext } from "../../utils/FilterContext";
@@ -10,7 +10,9 @@ import {
     Info,
     Download,
     ArrowRight,
+    Layers,
 } from "lucide-react";
+import CrossPlatformMatrixModal, { VISIBILITY_KPI_COLUMNS } from "../ControlTower/WatchTower/CrossPlatformMatrixModal";
 import * as XLSX from "xlsx";
 import {
     LineChart,
@@ -1397,6 +1399,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
         rank: 'All'
     });
     const [viewMode, setViewMode] = useState("table");
+    const [isCrossPlatformOpen, setIsCrossPlatformOpen] = useState(false);
 
     // Sync external filters if provided
     useEffect(() => {
@@ -1706,10 +1709,22 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 className="w-full"
             >
                 <div className="flex items-center justify-between gap-3">
-                    <TabsList className="bg-slate-100">
-                        <TabsTrigger value="brand" className="px-4">Brands</TabsTrigger>
-                        <TabsTrigger value="sku" className="px-4">SKUs</TabsTrigger>
-                    </TabsList>
+                    <div className="flex items-center gap-3">
+                        <TabsList className="bg-slate-100">
+                            <TabsTrigger value="brand" className="px-4">Brands</TabsTrigger>
+                            <TabsTrigger value="sku" className="px-4">SKUs</TabsTrigger>
+                        </TabsList>
+
+                        <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+                            onClick={() => setIsCrossPlatformOpen(true)}
+                        >
+                            <Layers className="h-3.5 w-3.5" />
+                            Cross Platform
+                        </button>
+                    </div>
+
                     <div className="flex items-center gap-2 text-xs text-slate-500">
                         <SlidersHorizontal className="h-3.5 w-3.5" />
                         {selectionCount > 0 ? <span>{selectionCount} filter(s) applied</span> : <span>No filters applied</span>}
@@ -1737,6 +1752,13 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 onChange={setFilters}
                 selectedPlatform={selectedPlatform}
                 city={city}
+            />
+
+            <CrossPlatformMatrixModal
+                open={isCrossPlatformOpen}
+                onClose={() => setIsCrossPlatformOpen(false)}
+                initialLevel={tab === 'sku' ? 'sku' : 'brand'}
+                kpiColumns={VISIBILITY_KPI_COLUMNS}
             />
         </div>
     );

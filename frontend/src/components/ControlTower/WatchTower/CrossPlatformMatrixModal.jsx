@@ -23,7 +23,24 @@ import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import axiosInstance from "../../../api/axiosInstance";
 
-const KPI_COLUMNS = [
+export const DEFAULT_KPI_COLUMNS = [
+  { id: "osa", altId: "availability", label: "OSA", format: "percent" },
+  { id: "wtOsa", altId: "wt_osa", label: "Wt OSA", format: "percent" },
+];
+
+export const VISIBILITY_KPI_COLUMNS = [
+  { id: "overall_sos", altId: "sos", label: "Overall SOS", format: "percent" },
+  { id: "sponsored_sos", altId: "adSos", label: "Sponsored SOS", format: "percent" },
+  { id: "organic_sos", altId: "organicSos", label: "Organic SOS", format: "percent" },
+];
+
+export const PRICING_KPI_COLUMNS = [
+  { id: "discount", altId: "promo", label: "Discount %", format: "percent" },
+  { id: "pricePerUnit", altId: "price", label: "Price per Unit", format: "currency" },
+  { id: "asp", altId: "price", label: "Average Selling Price", format: "currency" },
+];
+
+export const ALL_KPI_COLUMNS = [
   { id: "osa", altId: "availability", label: "OSA", format: "percent" },
   { id: "sos", label: "SOS", format: "percent" },
   { id: "price", altId: "asp", label: "Price", format: "currency" },
@@ -33,7 +50,8 @@ const KPI_COLUMNS = [
 
 const DEFAULT_FILTERS = {};
 
-export default function CrossPlatformMatrixModal({ open, onClose, initialFilters = DEFAULT_FILTERS, initialLevel = "brand" }) {
+export default function CrossPlatformMatrixModal({ open, onClose, initialFilters = DEFAULT_FILTERS, initialLevel = "brand", kpiColumns = DEFAULT_KPI_COLUMNS }) {
+  const activeKpiColumns = kpiColumns || DEFAULT_KPI_COLUMNS;
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({ platforms: [], matrix: [] });
   const [showFilters, setShowFilters] = useState(false);
@@ -185,7 +203,7 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
       const rowData = matrixLevel === "sku" ? { SKU: row.item, Brand: row.brand } : { Brand: row.item || row.brand };
       data.platforms.forEach((pf) => {
         const pfData = row.platforms?.[pf.key] || {};
-        KPI_COLUMNS.forEach((kpi) => {
+        activeKpiColumns.forEach((kpi) => {
           const rawVal = (pfData[kpi.id] !== undefined && pfData[kpi.id] !== null) 
             ? pfData[kpi.id] 
             : (kpi.altId ? pfData[kpi.altId] : undefined);
@@ -586,7 +604,7 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
                   {platforms.map((pf) => (
                     <th
                       key={pf.key}
-                      colSpan={KPI_COLUMNS.length}
+                      colSpan={activeKpiColumns.length}
                       style={{
                         position: "sticky",
                         top: 0,
@@ -610,7 +628,7 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
                 {/* Header Row 2: KPI Columns under each platform */}
                 <tr>
                   {platforms.map((pf) =>
-                    KPI_COLUMNS.map((kpi, idx) => (
+                    activeKpiColumns.map((kpi, idx) => (
                       <th
                         key={`${pf.key}-${kpi.id}`}
                         style={{
@@ -624,7 +642,7 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
                           fontWeight: 600,
                           fontSize: "12px",
                           borderBottom: "2px solid #475569",
-                          borderRight: idx === KPI_COLUMNS.length - 1 ? "2px solid #475569" : "1px solid #475569",
+                          borderRight: idx === activeKpiColumns.length - 1 ? "2px solid #475569" : "1px solid #475569",
                           whiteSpace: "nowrap",
                         }}
                       >
@@ -677,7 +695,7 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
                       {platforms.map((pf) => {
                         const pfData = row.platforms?.[pf.key] || {};
 
-                        return KPI_COLUMNS.map((kpi, idx) => {
+                        return activeKpiColumns.map((kpi, idx) => {
                           const val = (pfData[kpi.id] !== undefined && pfData[kpi.id] !== null) 
                             ? pfData[kpi.id] 
                             : (kpi.altId ? pfData[kpi.altId] : undefined);
@@ -692,7 +710,7 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
                                 color: val !== null && val !== undefined ? "#1E293B" : "#94A3B8",
                                 fontWeight: 400,
                                 borderBottom: "1px solid #E2E8F0",
-                                borderRight: idx === KPI_COLUMNS.length - 1 ? "2px solid #CBD5E1" : "1px solid #F1F5F9",
+                                borderRight: idx === activeKpiColumns.length - 1 ? "2px solid #CBD5E1" : "1px solid #F1F5F9",
                                 whiteSpace: "nowrap",
                               }}
                             >

@@ -8,7 +8,9 @@ import {
   BarChart3,
   SlidersHorizontal,
   Download,
+  Layers,
 } from "lucide-react";
+import CrossPlatformMatrixModal, { VISIBILITY_KPI_COLUMNS } from "../ControlTower/WatchTower/CrossPlatformMatrixModal";
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import {
@@ -1826,6 +1828,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
   // State for filtered competition data (when user applies filters)
+  const [isCrossPlatformOpen, setIsCrossPlatformOpen] = useState(false);
   const [filteredCompetitionData, setFilteredCompetitionData] = useState(null);
   const [isFilteredLoading, setIsFilteredLoading] = useState(false);
 
@@ -2164,17 +2167,28 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
         className="w-full"
       >
         <div className="flex items-center justify-between gap-3">
-          <TabsList className="bg-slate-100">
-            <TabsTrigger value="brand" className="px-4">
-              Brands
-            </TabsTrigger>
-            {/* <TabsTrigger value="sku" className="px-4">
-              SKUs
-            </TabsTrigger>
-            <TabsTrigger value="keyword" className="px-4">
-              Keywords
-            </TabsTrigger> */}
-          </TabsList>
+          <div className="flex items-center gap-3">
+            <TabsList className="bg-slate-100">
+              <TabsTrigger value="brand" className="px-4">
+                Brands
+              </TabsTrigger>
+              {/* <TabsTrigger value="sku" className="px-4">
+                SKUs
+              </TabsTrigger>
+              <TabsTrigger value="keyword" className="px-4">
+                Keywords
+              </TabsTrigger> */}
+            </TabsList>
+
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+              onClick={() => setIsCrossPlatformOpen(true)}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              Cross Platform
+            </button>
+          </div>
 
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -2266,6 +2280,13 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
         value={filters}
         onChange={setFilters}
         onApply={fetchFilteredCompetitionData}
+      />
+
+      <CrossPlatformMatrixModal
+        open={isCrossPlatformOpen}
+        onClose={() => setIsCrossPlatformOpen(false)}
+        initialLevel={tab === 'sku' ? 'sku' : 'brand'}
+        kpiColumns={VISIBILITY_KPI_COLUMNS}
       />
     </div>
   );
