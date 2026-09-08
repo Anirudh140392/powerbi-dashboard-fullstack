@@ -68,7 +68,7 @@ const RolesPermissions = () => {
 
     // These are the tab labels that match the Sidebar menu items
     const tabsList = [
-        "Business Overview", "India Overview", "Insights", "Availability Analysis",
+        "Cross Platform Pricing", "Business Overview", "India Overview", "Insights", "Availability Analysis",
         "Market Coverage", "Visibility Analysis", "Market Share", "Sales Data", 
         "Pricing Analysis", "Performance Marketing", "Portfolio Analysis", "Content Score", "Content Analysis",
         "Inventory Analysis", "Play it Yourself", "Category RCA",
