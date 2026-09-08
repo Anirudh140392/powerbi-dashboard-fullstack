@@ -19,8 +19,8 @@ let cronIntervalId = null;
  * Initialize nodemailer transport with Outlook credentials from .env
  */
 const getTransporter = () => {
-    const fromEmail = process.env.SMTP_USER || process.env.ALERT_EMAIL || process.env.Alert_email;
-    const password = process.env.SMTP_PASS || process.env.ALERT_EMAIL_PASSWORD || process.env.Alert_email_password;
+    const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || process.env.SMTP_USER || 'business@trailytics.com';
+    const password = process.env.Alert_email_password || process.env.ALERT_EMAIL_PASSWORD || process.env.SMTP_PASS;
     const host = process.env.SMTP_HOST || 'smtp.office365.com';
     const port = parseInt(process.env.SMTP_PORT || '587', 10);
 
@@ -42,6 +42,59 @@ const getTransporter = () => {
             rejectUnauthorized: false,
         }
     });
+};
+
+/**
+ * Send individual emails to each recipient using SMTP envelope routing
+ * with raw message headers to prevent Exchange Online from revealing recipients.
+ *
+ * Exchange Online resolves SMTP envelope recipients for same-tenant mail
+ * and displays them in Outlook's To: field. To prevent this:
+ * 1. We do NOT set the 'to' field in mailOptions (prevents nodemailer adding To header)
+ * 2. We use 'headers' to manually set a To: header of 'undisclosed-recipients:;'
+ * 3. We use 'envelope' for the actual SMTP delivery (RCPT TO)
+ */
+const sendAlertEmailToRecipients = async (transporter, { fromEmail, fromName, recipientEmailsStr, subject, text, html }) => {
+    if (!recipientEmailsStr || typeof recipientEmailsStr !== 'string') return false;
+
+    const recipients = recipientEmailsStr
+        .split(/[,;]+/)
+        .map(e => e.trim())
+        .filter(e => e && e.includes('@'));
+
+    if (recipients.length === 0) return false;
+
+    let successCount = 0;
+    for (const recipient of recipients) {
+        const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+        const mailOptions = {
+            from: `"${fromName}" <${fromEmail}>`,
+            // DO NOT set 'to' — we control the To header manually below
+            subject: subject,
+            text: text,
+            html: html,
+            // Manually set headers to hide recipients and break old conversation threading
+            headers: {
+                'To': `"${fromName}" <${fromEmail}>`,
+                'Thread-Topic': `Alert-${uniqueId}`,
+                'Thread-Index': Buffer.from(uniqueId).toString('base64'),
+            },
+            // envelope controls actual SMTP delivery (MAIL FROM + RCPT TO)
+            envelope: {
+                from: fromEmail,
+                to: recipient,
+            },
+        };
+
+        try {
+            const info = await transporter.sendMail(mailOptions);
+            console.log(`[AlertCron] 📧 Email delivered to ${recipient} via envelope (header To: ${fromEmail}). Message ID: ${info.messageId}`);
+            successCount++;
+        } catch (sendErr) {
+            console.error(`[AlertCron] Failed to send email to ${recipient}:`, sendErr.message);
+        }
+    }
+    return successCount > 0;
 };
 
 /**
@@ -451,27 +504,27 @@ export const runEmailAlertsJob = async () => {
                     });
 
                     // 7. Send email
-                    const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
-                    const mailOptions = {
-                        from: `"Trailytics Alerts" <${fromEmail}>`,
-                        to: sendEmail,
-                        subject: `📊 Performance Summary: ${alert.alert_name} — ${companyDisplayName}`,
-                        text: `Hi,\n\nYour weekly Performance Summary for ${companyDisplayName} is ready.\n\nPlatforms: ${alertPlatforms.join(', ')}\nData as of: ${dateRange.cwEnd}\n\nBest regards,\nTrailytics Team`,
-                        html: emailHtml,
-                    };
-
+                    const fromEmail = process.env.SMTP_USER || process.env.ALERT_EMAIL || process.env.Alert_email || 'business@trailytics.com';
                     try {
-                        const info = await transporter.sendMail(mailOptions);
-                        console.log(`[AlertCron] 📧 Performance Summary email sent to ${sendEmail}. Message ID: ${info.messageId}`);
+                        const sent = await sendAlertEmailToRecipients(transporter, {
+                            fromEmail,
+                            fromName: 'Trailytics Alerts',
+                            recipientEmailsStr: sendEmail,
+                            subject: `📊 Performance Summary: ${alert.alert_name} — ${companyDisplayName}`,
+                            text: `Hi,\n\nYour weekly Performance Summary for ${companyDisplayName} is ready.\n\nPlatforms: ${alertPlatforms.join(', ')}\nData as of: ${dateRange.cwEnd}\n\nBest regards,\nTrailytics Team`,
+                            html: emailHtml,
+                        });
 
-                        const istDateTimeStr = getISTDateTimeString();
-                        const updateQuery = `
-                            ALTER TABLE admin_master.tb_alert
-                            UPDATE last_email_sent = parseDateTimeBestEffort('${istDateTimeStr}')
-                            WHERE id = toUUID('${alert.id}')
-                        `;
-                        await queryAdminDB(updateQuery);
-                        console.log(`[AlertCron] Saved last_email_sent for Performance Summary "${alert.alert_name}": ${istDateTimeStr} IST`);
+                        if (sent) {
+                            const istDateTimeStr = getISTDateTimeString();
+                            const updateQuery = `
+                                ALTER TABLE admin_master.tb_alert
+                                UPDATE last_email_sent = parseDateTimeBestEffort('${istDateTimeStr}')
+                                WHERE id = toUUID('${alert.id}')
+                            `;
+                            await queryAdminDB(updateQuery);
+                            console.log(`[AlertCron] Saved last_email_sent for Performance Summary "${alert.alert_name}": ${istDateTimeStr} IST`);
+                        }
                     } catch (sendErr) {
                         console.error(`[AlertCron] Failed to send Performance Summary email to ${sendEmail}:`, sendErr.message);
                     }
@@ -562,26 +615,26 @@ export const runEmailAlertsJob = async () => {
                     });
 
                     // 5. Send email
-                    const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
-                    const mailOptions = {
-                        from: `"Trailytics Alerts" <${fromEmail}>`,
-                        to: sendEmail,
-                        subject: `📊 PTD Performance Summary: ${alert.alert_name} — ${companyDisplayName}`,
-                        text: `Hi,\n\nYour Period-To-Date Performance Summary for ${companyDisplayName} is ready.\n\nPlatforms: ${alertPlatforms.join(', ')}\nCP: ${cpStart} – ${cpEnd}\nPP: ${ppStart} – ${ppEnd}\n\nBest regards,\nTrailytics Team`,
-                        html: emailHtml,
-                    };
-
+                    const fromEmail = process.env.SMTP_USER || process.env.ALERT_EMAIL || process.env.Alert_email || 'business@trailytics.com';
                     try {
-                        const info = await transporter.sendMail(mailOptions);
-                        console.log(`[AlertCron] 📧 PTD Summary email sent to ${sendEmail}. Message ID: ${info.messageId}`);
+                        const sent = await sendAlertEmailToRecipients(transporter, {
+                            fromEmail,
+                            fromName: 'Trailytics Alerts',
+                            recipientEmailsStr: sendEmail,
+                            subject: `📊 PTD Performance Summary: ${alert.alert_name} — ${companyDisplayName}`,
+                            text: `Hi,\n\nYour Period-To-Date Performance Summary for ${companyDisplayName} is ready.\n\nPlatforms: ${alertPlatforms.join(', ')}\nCP: ${cpStart} – ${cpEnd}\nPP: ${ppStart} – ${ppEnd}\n\nBest regards,\nTrailytics Team`,
+                            html: emailHtml,
+                        });
 
-                        const istDateTimeStr = getISTDateTimeString();
-                        await queryAdminDB(`
-                            ALTER TABLE admin_master.tb_alert
-                            UPDATE last_email_sent = parseDateTimeBestEffort('${istDateTimeStr}')
-                            WHERE id = toUUID('${alert.id}')
-                        `);
-                        console.log(`[AlertCron] Saved last_email_sent for PTD Summary "${alert.alert_name}".`);
+                        if (sent) {
+                            const istDateTimeStr = getISTDateTimeString();
+                            await queryAdminDB(`
+                                ALTER TABLE admin_master.tb_alert
+                                UPDATE last_email_sent = parseDateTimeBestEffort('${istDateTimeStr}')
+                                WHERE id = toUUID('${alert.id}')
+                            `);
+                            console.log(`[AlertCron] Saved last_email_sent for PTD Summary "${alert.alert_name}".`);
+                        }
                     } catch (sendErr) {
                         console.error(`[AlertCron] Failed to send PTD Summary email to ${sendEmail}:`, sendErr.message);
                     }
@@ -1814,27 +1867,27 @@ export const runEmailAlertsJob = async () => {
                                     isDynamicAlert: isDynamicAlert,
                                 });
 
-                                const fromEmail = process.env.Alert_email || process.env.ALERT_EMAIL || 'business@trailytics.com';
-                                const mailOptions = {
-                                    from: `"Trailytics Alerts" <${fromEmail}>`,
-                                    to: sendEmail,
-                                    subject: `🚨 ALERT TRIGGERED: ${alert.alert_name} [${new Date().toLocaleTimeString()}]`,
-                                    text: `Hi,\n\nAn intelligent alert rule has been triggered for your dashboard.\n\nAlert: ${alert.alert_name}\nDatabase: ${dbName}\nSeverity: ${alert.severity_level || 'Warning'}\nPlatforms: ${alert.platforms.join(', ') || 'All'}\nBrands: ${alert.brands.join(', ') || 'All'}\nCondition: ${metricDetails.conditionText}\nCurrent OSA: ${aggregateOsa.currentOsa}%\nPrevious OSA: ${aggregateOsa.previousOsa}%\n\nBest regards,\nTrailytics Team`,
-                                    html: emailHtml,
-                                };
-
+                                const fromEmail = process.env.SMTP_USER || process.env.ALERT_EMAIL || process.env.Alert_email || 'business@trailytics.com';
                                 try {
-                                    const info = await transporter.sendMail(mailOptions);
-                                    console.log(`[AlertCron] HTML email sent successfully to ${sendEmail}. Message ID: ${info.messageId}`);
+                                    const sent = await sendAlertEmailToRecipients(transporter, {
+                                        fromEmail,
+                                        fromName: 'Trailytics Alerts',
+                                        recipientEmailsStr: sendEmail,
+                                        subject: `🚨 ALERT TRIGGERED: ${alert.alert_name} [${new Date().toLocaleTimeString()}]`,
+                                        text: `Hi,\n\nAn intelligent alert rule has been triggered for your dashboard.\n\nAlert: ${alert.alert_name}\nDatabase: ${dbName}\nSeverity: ${alert.severity_level || 'Warning'}\nPlatforms: ${alert.platforms.join(', ') || 'All'}\nBrands: ${alert.brands.join(', ') || 'All'}\nCondition: ${metricDetails.conditionText}\nCurrent OSA: ${aggregateOsa.currentOsa}%\nPrevious OSA: ${aggregateOsa.previousOsa}%\n\nBest regards,\nTrailytics Team`,
+                                        html: emailHtml,
+                                    });
 
-                                    // Update last_email_sent timestamp in ClickHouse
-                                    const updateQuery = `
-                                        ALTER TABLE admin_master.tb_alert 
-                                        UPDATE last_email_sent = parseDateTimeBestEffort('${istNow}') 
-                                        WHERE id = toUUID('${alert.id}')
-                                    `;
-                                    await queryAdminDB(updateQuery);
-                                    console.log(`[AlertCron] Saved current IST date & time to last_email_sent for alert "${alert.alert_name}" (${alert.id}): ${istNow} IST`);
+                                    if (sent) {
+                                        // Update last_email_sent timestamp in ClickHouse
+                                        const updateQuery = `
+                                            ALTER TABLE admin_master.tb_alert 
+                                            UPDATE last_email_sent = parseDateTimeBestEffort('${istNow}') 
+                                            WHERE id = toUUID('${alert.id}')
+                                        `;
+                                        await queryAdminDB(updateQuery);
+                                        console.log(`[AlertCron] Saved current IST date & time to last_email_sent for alert "${alert.alert_name}" (${alert.id}): ${istNow} IST`);
+                                    }
                                 } catch (sendErr) {
                                     console.error(`[AlertCron] Failed to send email to ${sendEmail}:`, sendErr.message);
                                 }

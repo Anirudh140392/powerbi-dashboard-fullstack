@@ -13,7 +13,7 @@ import {
   Download,
   Layers,
 } from "lucide-react";
-import CrossPlatformMatrixModal from "../ControlTower/WatchTower/CrossPlatformMatrixModal";
+import CrossPlatformMatrixModal, { PRICING_KPI_COLUMNS, VISIBILITY_KPI_COLUMNS, DEFAULT_KPI_COLUMNS } from "../ControlTower/WatchTower/CrossPlatformMatrixModal";
 import {
   LineChart,
   Line,
@@ -2465,6 +2465,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         open={isCrossPlatformOpen}
         onClose={() => setIsCrossPlatformOpen(false)}
         initialLevel={tab === 'sku' ? 'sku' : 'brand'}
+        kpiColumns={dynamicKey === "pricing" ? PRICING_KPI_COLUMNS : dynamicKey === "visibility" ? VISIBILITY_KPI_COLUMNS : DEFAULT_KPI_COLUMNS}
       />
     </div>
   );
