@@ -70,39 +70,74 @@ interface ApiResponse {
 const getScoringRules = (platform: string, metric: string) => {
   const p = (platform || '').toLowerCase();
   
-  if (p === 'flipkart') {
+  if (p === 'amazon' || p === 'amazon now') {
     switch (metric) {
       case 'Title Score': return { weightage: 20, rules: ['<b>20:</b> Title &ge; 100 chars', '<b>10:</b> Title 50–99 chars', '<b>0:</b> Title &lt; 50 chars'] };
+      case 'Bullet Score': return { weightage: 20, rules: ['<b>20:</b> 4+ bullets', '<b>10:</b> 1–3 bullets', '<b>0:</b> No bullets'] };
       case 'Description Score': return { weightage: 20, rules: ['<b>20:</b> 400+ chars', '<b>10:</b> 200–399 chars', '<b>0:</b> &lt;200 chars'] };
-      case 'Thumbnail Image Score': return { weightage: 20, rules: ['<b>20:</b> 7+ images', '<b>10:</b> 1–6 images', '<b>0:</b> No images'] };
-      case 'Thumbnail Video Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 video', '<b>0:</b> None'] };
-      case 'A+ Image Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 A+ image', '<b>0:</b> None'] };
+      case 'Thumbnail Image Score': return { weightage: 15, rules: ['<b>15:</b> 7+ images', '<b>5:</b> 1–6 images', '<b>0:</b> No images'] };
+      case 'Thumbnail Video Score': return { weightage: 10, rules: ['<b>10:</b> At least 1 video', '<b>0:</b> No video'] };
+      case 'A+ Image Score': return { weightage: 15, rules: ['<b>15:</b> At least 1 A+ image', '<b>0:</b> No A+ images'] };
       default: return null;
     }
   }
-  
-  if (p === 'zepto') {
+
+  if (p === 'bigbasket') {
     switch (metric) {
-      case 'Title Score': return { weightage: 20, rules: ['<b>20:</b> &ge; 80 chars', '<b>10:</b> 50–79 chars', '<b>0:</b> &lt;50 chars'] };
-      case 'Description Score': return { weightage: 20, rules: ['<b>20:</b> 400+ chars', '<b>10:</b> 300–399 chars', '<b>0:</b> &lt;300 chars'] };
-      case 'A+ Image Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 A+ image', '<b>0:</b> None'] };
-      case 'Thumbnail Image Score': return { weightage: 20, rules: ['<b>20:</b> 5+ images', '<b>10:</b> 3–4 images', '<b>0:</b> &lt;3 images'] };
-      case 'Thumbnail Video Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 video', '<b>0:</b> None'] };
+      case 'Title Score': return { weightage: 20, rules: ['<b>20:</b> 50+ chars', '<b>10:</b> 25–49 chars', '<b>0:</b> Below 25'] };
+      case 'Bullet Score': return { weightage: 20, rules: ['<b>20:</b> 5+ bullets', '<b>10:</b> 3–4 bullets', '<b>0:</b> Below 3'] };
+      case 'Description Score': return { weightage: 20, rules: ['<b>20:</b> 400+ chars', '<b>10:</b> 200–399 chars', '<b>0:</b> Below 200'] };
+      case 'A+ Image Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 A+ image', '<b>0:</b> No A+ image'] };
+      case 'Thumbnail Image Score': return { weightage: 20, rules: ['<b>20:</b> 7+ images', '<b>10:</b> 5–6 images', '<b>0:</b> Below 5'] };
       default: return null;
     }
   }
-  
+
   if (p === 'blinkit') {
     switch (metric) {
-      case 'Title Score': return { weightage: 20, rules: ['<b>20:</b> &ge; 50 chars', '<b>10:</b> 25–49 chars', '<b>0:</b> 0 chars'] };
-      case 'Bullet Score': return { weightage: 20, rules: ['<b>20:</b> 5+ bullets', '<b>10:</b> 3–4 bullets', '<b>0:</b> &lt;3 bullets'] };
-      case 'A+ Image Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 A+ image', '<b>0:</b> None'] };
-      case 'Thumbnail Image Score': return { weightage: 20, rules: ['<b>20:</b> 7+ images', '<b>10:</b> 5–6 images', '<b>0:</b> &lt;5 images'] };
-      case 'Thumbnail Video Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 video', '<b>0:</b> None'] };
+      case 'Title Score': return { weightage: 20, rules: ['<b>20:</b> 50+ chars', '<b>10:</b> 25–49 chars', '<b>0:</b> Below 25'] };
+      case 'Bullet Score': return { weightage: 20, rules: ['<b>20:</b> 5+ bullets', '<b>10:</b> 3–4 bullets', '<b>0:</b> Below 3'] };
+      case 'Description Score': return { weightage: 20, rules: ['<b>20:</b> 400+ chars', '<b>10:</b> 200–399 chars', '<b>0:</b> Below 200'] };
+      case 'Thumbnail Image Score': return { weightage: 15, rules: ['<b>15:</b> 7+ images', '<b>5:</b> 5–6 images', '<b>0:</b> Below 5'] };
+      case 'Thumbnail Video Score': return { weightage: 10, rules: ['<b>10:</b> At least 1 video', '<b>0:</b> No video'] };
+      case 'A+ Image Score': return { weightage: 15, rules: ['<b>15:</b> At least 1 A+ image', '<b>0:</b> No A+ image'] };
       default: return null;
     }
   }
-  
+
+  if (p === 'flipkart' || p === 'flipkart minutes') {
+    switch (metric) {
+      case 'Title Score': return { weightage: 20, rules: ['<b>20:</b> Title &ge; 100 chars', '<b>10:</b> Title 50–99 chars', '<b>0:</b> Title &lt; 50 chars'] };
+      case 'Bullet Score': return { weightage: 20, rules: ['<b>20:</b> 4+ bullets', '<b>10:</b> 1–3 bullets', '<b>0:</b> No bullets'] };
+      case 'Description Score': return { weightage: 20, rules: ['<b>20:</b> 400+ chars', '<b>10:</b> 200–399 chars', '<b>0:</b> Below 200'] };
+      case 'Thumbnail Image Score': return { weightage: 15, rules: ['<b>15:</b> 7+ images', '<b>5:</b> 1–6 images', '<b>0:</b> No image'] };
+      case 'Thumbnail Video Score': return { weightage: 10, rules: ['<b>10:</b> At least 1 video', '<b>0:</b> No video'] };
+      case 'A+ Image Score': return { weightage: 15, rules: ['<b>15:</b> At least 1 A+ image', '<b>0:</b> No A+ image'] };
+      default: return null;
+    }
+  }
+
+  if (p === 'instamart') {
+    switch (metric) {
+      case 'Title Score': return { weightage: 25, rules: ['<b>25:</b> 60+ chars', '<b>15:</b> 50–59 chars', '<b>0:</b> Below 50'] };
+      case 'Description Score': return { weightage: 25, rules: ['<b>25:</b> 450+ chars', '<b>15:</b> 350–449 chars', '<b>0:</b> Below 350'] };
+      case 'Thumbnail Image Score': return { weightage: 25, rules: ['<b>25:</b> 5+ images', '<b>15:</b> 3–4 images', '<b>0:</b> Below 3'] };
+      case 'Thumbnail Video Score': return { weightage: 25, rules: ['<b>25:</b> At least 1 video', '<b>0:</b> No video'] };
+      default: return null;
+    }
+  }
+
+  if (p === 'zepto') {
+    switch (metric) {
+      case 'Title Score': return { weightage: 20, rules: ['<b>20:</b> 80+ chars', '<b>10:</b> 50–79 chars', '<b>0:</b> Below 50'] };
+      case 'Bullet Score': return { weightage: 20, rules: ['<b>20:</b> 4+ chars', '<b>10:</b> 1+ chars', '<b>0:</b> Below 1'] };
+      case 'Thumbnail Image Score': return { weightage: 20, rules: ['<b>20:</b> 5+ images', '<b>10:</b> 3–4 images', '<b>0:</b> Below 3'] };
+      case 'Thumbnail Video Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 video', '<b>0:</b> No video'] };
+      case 'A+ Image Score': return { weightage: 20, rules: ['<b>20:</b> At least 1 A+ image', '<b>0:</b> No A+ image'] };
+      default: return null;
+    }
+  }
+
   // Default fallback (matches existing hardcoded weightages in the dashboard)
   switch (metric) {
       case 'Title Score': return { weightage: 20 };
@@ -777,35 +812,70 @@ const SkuDrillDownTable = ({
   const getDetailedBreakdown = (label: string) => {
     const p = (platform as string || '').toLowerCase();
 
-    if (p === 'flipkart') {
+    if (p === 'amazon' || p === 'amazon now') {
       switch (label) {
         case 'Title Score': return [{ check: 'Title ≥ 100 chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'Title 50–99 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Title < 50 chars', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Bullet Score': return [{ check: '4+ bullets', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '1–3 bullets', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'No bullets', score: 0, status: 'Fail', action: 'Action Required' }];
         case 'Description Score': return [{ check: '400+ chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '200–399 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<200 chars', score: 0, status: 'Fail', action: 'Action Required' }];
-        case 'Thumbnail Image Score': return [{ check: '7+ images', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '1–6 images', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'No images', score: 0, status: 'Fail', action: 'Action Required' }];
-        case 'Thumbnail Video Score': return [{ check: 'At least 1 video', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'None', score: 0, status: 'Fail', action: 'Action Required' }];
-        case 'A+ Image Score': return [{ check: 'At least 1 A+ image', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'None', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Image Score': return [{ check: '7+ images', score: 15, status: 'Pass', action: 'No Action Required' }, { check: '1–6 images', score: 5, status: 'Warn', action: 'Action Required' }, { check: 'No images', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Video Score': return [{ check: 'At least 1 video', score: 10, status: 'Pass', action: 'No Action Required' }, { check: 'No video', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'A+ Image Score': return [{ check: 'At least 1 A+ image', score: 15, status: 'Pass', action: 'No Action Required' }, { check: 'No A+ images', score: 0, status: 'Fail', action: 'Action Required' }];
         default: return [];
       }
     }
 
-    if (p === 'zepto') {
+    if (p === 'bigbasket') {
       switch (label) {
-        case 'Title Score': return [{ check: '≥ 80 chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '50–79 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<50 chars', score: 0, status: 'Fail', action: 'Action Required' }];
-        case 'Description Score': return [{ check: '400+ chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '300–399 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<300 chars', score: 0, status: 'Fail', action: 'Action Required' }];
-        case 'A+ Image Score': return [{ check: 'At least 1 A+ image', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'None', score: 0, status: 'Fail', action: 'Action Required' }];
-        case 'Thumbnail Image Score': return [{ check: '5+ images', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '3–4 images', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<3 images', score: 0, status: 'Fail', action: 'Action Required' }];
-        case 'Thumbnail Video Score': return [{ check: 'At least 1 video', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'None', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Title Score': return [{ check: '50+ characters', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '25–49 characters', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Below 25', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Bullet Score': return [{ check: '5+ bullets', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '3–4 bullets', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Below 3', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Description Score': return [{ check: '400+ characters', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '200–399 characters', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Below 200', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'A+ Image Score': return [{ check: 'At least 1 A+ image', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'No A+ image', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Image Score': return [{ check: '7+ images', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '5–6 images', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Below 5', score: 0, status: 'Fail', action: 'Action Required' }];
         default: return [];
       }
     }
 
     if (p === 'blinkit') {
       switch (label) {
-        case 'Title Score': return [{ check: '≥ 50 chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '25–49 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: '0 chars', score: 0, status: 'Fail', action: 'Action Required' }];
-        case 'Bullet Score': return [{ check: '5+ bullets', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '3–4 bullets', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<3 bullets', score: 0, status: 'Fail', action: 'Action Required' }];
-        case 'A+ Image Score': return [{ check: 'At least 1 A+ image', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'None', score: 0, status: 'Fail', action: 'Action Required' }];
-        case 'Thumbnail Image Score': return [{ check: '7+ images', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '5–6 images', score: 10, status: 'Warn', action: 'Action Required' }, { check: '<5 images', score: 0, status: 'Fail', action: 'Action Required' }];
-        case 'Thumbnail Video Score': return [{ check: 'At least 1 video', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'None', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Title Score': return [{ check: '50+ characters', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '25–49 characters', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Below 25', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Bullet Score': return [{ check: '5+ bullets', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '3–4 bullets', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Below 3', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Description Score': return [{ check: '400+ characters', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '200–399 characters', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Below 200', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Image Score': return [{ check: '7+ images', score: 15, status: 'Pass', action: 'No Action Required' }, { check: '5–6 images', score: 5, status: 'Warn', action: 'Action Required' }, { check: 'Below 5', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Video Score': return [{ check: 'At least 1 video', score: 10, status: 'Pass', action: 'No Action Required' }, { check: 'No video', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'A+ Image Score': return [{ check: 'At least 1 A+ image', score: 15, status: 'Pass', action: 'No Action Required' }, { check: 'No A+ image', score: 0, status: 'Fail', action: 'Action Required' }];
+        default: return [];
+      }
+    }
+
+    if (p === 'flipkart' || p === 'flipkart minutes') {
+      switch (label) {
+        case 'Title Score': return [{ check: 'Title ≥ 100 chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'Title 50–99 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Title < 50 chars', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Bullet Score': return [{ check: '4+ bullets', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '1–3 bullets', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'No bullets', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Description Score': return [{ check: '400+ characters', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '200–399 characters', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Below 200', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Image Score': return [{ check: '7+ images', score: 15, status: 'Pass', action: 'No Action Required' }, { check: '1–6 images', score: 5, status: 'Warn', action: 'Action Required' }, { check: 'No image', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Video Score': return [{ check: 'At least 1 video', score: 10, status: 'Pass', action: 'No Action Required' }, { check: 'No video', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'A+ Image Score': return [{ check: 'At least 1 A+ image', score: 15, status: 'Pass', action: 'No Action Required' }, { check: 'No A+ image', score: 0, status: 'Fail', action: 'Action Required' }];
+        default: return [];
+      }
+    }
+
+    if (p === 'instamart') {
+      switch (label) {
+        case 'Title Score': return [{ check: '60+ chars', score: 25, status: 'Pass', action: 'No Action Required' }, { check: '50–59 chars', score: 15, status: 'Warn', action: 'Action Required' }, { check: 'Below 50', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Description Score': return [{ check: '450+ chars', score: 25, status: 'Pass', action: 'No Action Required' }, { check: '350–449 chars', score: 15, status: 'Warn', action: 'Action Required' }, { check: 'Below 350', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Image Score': return [{ check: '5+ images', score: 25, status: 'Pass', action: 'No Action Required' }, { check: '3–4 images', score: 15, status: 'Warn', action: 'Action Required' }, { check: 'Below 3', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Video Score': return [{ check: 'At least 1 video', score: 25, status: 'Pass', action: 'No Action Required' }, { check: 'No video', score: 0, status: 'Fail', action: 'Action Required' }];
+        default: return [];
+      }
+    }
+
+    if (p === 'zepto') {
+      switch (label) {
+        case 'Title Score': return [{ check: '80+ characters', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '50–79 characters', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Below 50', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Bullet Score': return [{ check: '4+ characters', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '1+ characters', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Below 1', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Image Score': return [{ check: '5+ images', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '3–4 images', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Below 3', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'Thumbnail Video Score': return [{ check: 'At least 1 video', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'No video', score: 0, status: 'Fail', action: 'Action Required' }];
+        case 'A+ Image Score': return [{ check: 'At least 1 A+ image', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'No A+ image', score: 0, status: 'Fail', action: 'Action Required' }];
         default: return [];
       }
     }

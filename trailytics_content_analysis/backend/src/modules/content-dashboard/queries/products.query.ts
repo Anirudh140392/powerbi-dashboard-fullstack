@@ -14,7 +14,10 @@ export function buildProductsQuery(params: ContentDashboardQuerySchema): string 
   const conditions: string[] = [];
 
   if (platform) {
-    conditions.push(`LOWER(o.platform) LIKE LOWER('%${escapeSqlString(platform)}%')`);
+    const platList = platform.split(',').map(p => `'${escapeSqlString(p.trim().toLowerCase())}'`).filter(Boolean).join(',');
+    if (platList) {
+      conditions.push(`LOWER(o.platform) IN (${platList})`);
+    }
   }
 
   if (skus) {
