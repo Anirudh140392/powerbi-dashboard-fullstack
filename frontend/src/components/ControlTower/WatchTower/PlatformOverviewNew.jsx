@@ -112,7 +112,7 @@ const cardSize = {
 
 const kpiLabels = {
     offtakes: 'Offtakes',
-    quantitySold: 'Quantity Sold',
+    quantitySold: 'Qty Sold',
     spend: 'Spend',
     tacos: 'TACoS',
     roas_x: 'ROAS',
@@ -120,14 +120,14 @@ const kpiLabels = {
     wtOsa: 'Wt OSA',
     wtDiscount: 'Wt Discount',
     listingPercent: 'Listing %',
-    marketShare: 'Market share',
+    marketShare: 'Mkt Share',
     conversion: 'Conversion',
-    shareOfVolume: 'SHARE OF SEARCH',
-    ad_sov: 'Ad SOV',
-    organic_sov: 'Organic SOV',
+    shareOfVolume: 'SOS',
+    ad_sov: 'Ad SOS',
+    organic_sov: 'Organic SOS',
     inorgSales: 'Inorganic Sales',
     asp: 'ASP',
-    categorySize: 'Category Size',
+    categorySize: 'Cat Size',
     discount: 'Promo',
     deliveryTime: 'Delivery Time',
     aov: 'AOV'
@@ -136,6 +136,7 @@ const kpiLabels = {
 // Map backend KPI title → frontend kpiKey
 const BACKEND_TITLE_TO_KEY = {
     'Offtakes': 'offtakes',
+    'Qty Sold': 'quantitySold',
     'Quantity Sold': 'quantitySold',
     'Spend': 'spend',
     'TACoS': 'tacos',
@@ -152,9 +153,13 @@ const BACKEND_TITLE_TO_KEY = {
     'Listing': 'listingPercent',
     'SOS': 'shareOfVolume',
     'Share of Search': 'shareOfVolume',
+    'Ad SOS': 'ad_sov',
     'Ad SOV': 'ad_sov',
+    'Organic SOS': 'organic_sov',
     'Organic SOV': 'organic_sov',
+    'Mkt Share': 'marketShare',
     'Market Share': 'marketShare',
+    'Cat Size': 'categorySize',
     'Category Size': 'categorySize',
     'CPM': 'cpm',
     'CPC': 'cpc',
@@ -280,7 +285,7 @@ const PlatformOverviewNew = ({
 
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
-        { key: 'quantitySold', label: 'Quantity Sold' },
+        { key: 'quantitySold', label: 'Qty Sold' },
         { key: 'spend', label: 'Spend' },
         { key: 'inorgSales', label: 'Inorganic Sales' },
         { key: 'aov', label: 'AOV' },
@@ -292,11 +297,11 @@ const PlatformOverviewNew = ({
         { key: 'wtDiscount', label: 'Wt Discount' },
         { key: 'asp', label: 'ASP' },
         { key: 'listingPercent', label: 'Listing %' },
-        { key: 'ad_sov', label: 'Ad SOV' },
-        { key: 'organic_sov', label: 'Organic SOV' },
-        { key: 'shareOfVolume', label: 'Share of Search' },
-        { key: 'marketShare', label: 'Market Share' },
-        { key: 'categorySize', label: 'Category Size' },
+        { key: 'ad_sov', label: 'Ad SOS' },
+        { key: 'organic_sov', label: 'Organic SOS' },
+        { key: 'shareOfVolume', label: 'SOS' },
+        { key: 'marketShare', label: 'Mkt Share' },
+        { key: 'categorySize', label: 'Cat Size' },
         { key: 'roas_x', label: 'ROAS' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'buyBoxPct', label: 'Buy Box %' },
@@ -1128,7 +1133,7 @@ const PlatformOverviewNew = ({
                         <div className="space-y-3 sm:space-y-4 py-3 sm:py-4">
                             {[1, 2, 3, 4].map((i) => (
                                 <div key={i} className="flex items-center gap-2 sm:gap-3 px-1 sm:px-2">
-                                    <div className="w-36 sm:w-56 flex-shrink-0 flex items-center gap-2 sm:gap-3">
+                                    <div className="w-48 sm:w-72 flex-shrink-0 flex items-center gap-2 sm:gap-3">
                                         <div className="h-9 w-9 rounded-lg bg-slate-100 animate-pulse" />
                                         <div className="h-4 w-24 bg-slate-100 rounded animate-pulse" />
                                     </div>
@@ -1188,7 +1193,7 @@ const PlatformOverviewNew = ({
                             <div className="min-w-max pb-2">
                                 {/* KPI Labels Header - Premium */}
                                 <div className="flex items-center gap-2 mb-3 sm:mb-4 px-1">
-                                    <div className={cn("w-36 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between", dimension === 'sku' ? 'sm:w-72' : 'sm:w-56')}>
+                                    <div className={cn("w-48 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between", dimension === 'sku' ? 'sm:w-80' : 'sm:w-72')}>
                                         <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
                                         {dimension === 'sku' && (
                                             <motion.button
@@ -1249,7 +1254,7 @@ const PlatformOverviewNew = ({
                                             transition={{ duration: 0.3 }}
                                         >
                                             {/* Entity with Trend & RCA buttons - Sticky */}
-                                            <div className={cn("flex-shrink-0 flex items-center gap-1.5 sm:gap-2 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50", dimension === 'sku' ? 'w-44 sm:w-72' : 'w-36 sm:w-56')}>
+                                            <div className={cn("flex-shrink-0 flex items-center gap-1.5 sm:gap-2 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50", dimension === 'sku' ? 'w-52 sm:w-80' : 'w-48 sm:w-72')}>
                                                 {dimension === 'location' ? (
                                                     <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-slate-100/80 flex items-center justify-center flex-shrink-0">
                                                         <MapPin size={15} className="text-slate-700" />
@@ -1269,10 +1274,10 @@ const PlatformOverviewNew = ({
                                                 <div className="flex flex-col flex-1 overflow-hidden justify-center">
                                                     <span
                                                         className="text-[11px] sm:text-[13px] font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis"
-                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '150px' : undefined, textTransform: 'capitalize' }}
+                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '180px' : undefined, textTransform: 'capitalize' }}
                                                         title={e.name}
                                                     >
-                                                        {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}
+                                                        {dimension === 'sku' ? truncateToWords(e.name, 6) : e.name}
                                                     </span>
                                                     {dimension === 'sku' && e.offtakeShare !== undefined && (
                                                         <div className="flex items-center gap-1 mt-0.5" title="Offtake Share">

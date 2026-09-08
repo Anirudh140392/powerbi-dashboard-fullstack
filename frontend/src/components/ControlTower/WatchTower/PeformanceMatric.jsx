@@ -19,13 +19,13 @@ import { defaultBrands } from "@/utils/DataCenter";
 const KPI_CARDS = [
   {
     id: "sos_new",
-    label: "Share Of Search",
+    label: "SOS",
     value: "25%",
     unit: "",
     tag: "-1.3%",
     tagTone: "warning",
     footer: "Organic + Paid view",
-    trendTitle: "Share of Search Trend",
+    trendTitle: "SOS Trend",
     trendSubtitle: "Last 7 periods",
     trendData: [
       { period: "P1", value: 5 },
