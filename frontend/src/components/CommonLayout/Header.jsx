@@ -5122,7 +5122,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                     />
                   )}
                 </>
-              ) : (
+              ) : title === "Cross Platform Pricing" || location.pathname.includes("cross-platform-pricing") ? null : (
                 /* ============ OTHER PAGES: ORIGINAL DROPDOWNS ============ */
                 <>
                   {/* CHANNEL SELECTION */}

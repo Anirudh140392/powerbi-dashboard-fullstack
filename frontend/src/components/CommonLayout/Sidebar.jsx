@@ -111,13 +111,14 @@ import { Sparkles } from "lucide-react";
 
 const SidebarStatusBadge = ({ type }) => {
   const isLive = type === "LIVE";
+  const isNew = type === "NEW";
   return (
     <span
       className={isLive ? "status-pulse-green" : "status-pulse-blue"}
       style={{
         fontSize: "7.5px",
         fontWeight: 800,
-        background: isLive ? "#10b981" : "#2563eb",
+        background: isLive ? "#10b981" : isNew ? "#2563eb" : "#2563eb",
         color: "#fff",
         borderRadius: "5px",
         padding: "2.5px 8px",
@@ -373,6 +374,7 @@ const Sidebar = ({
 
   const menuSections = {
     "MAIN MENU": [
+      { label: "Cross Platform Pricing", path: "/cross-platform-pricing", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, showNew: true },
       { label: "India Overview", path: "/geo-intelligence", icon: <PublicIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} />, showLive: true },
       { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
@@ -1416,6 +1418,7 @@ const Sidebar = ({
                           {item.label}
                           {item.showBeta && !isCollapsed && <SidebarStatusBadge type="BETA" />}
                           {item.showLive && !isCollapsed && <SidebarStatusBadge type="LIVE" />}
+                          {item.showNew && !isCollapsed && <SidebarStatusBadge type="NEW" />}
                         </Box>
                       }
                       primaryTypographyProps={{
