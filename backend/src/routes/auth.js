@@ -1,6 +1,6 @@
 // src/routes/auth.js
 import express from 'express';
-import { login, verify, ratingssSsoToken, verifyInvite, completeInvite, googleLogin, microsoftLogin, microsoftCallback } from '../controllers/authController.js';
+import { login, verify, switchDbController, ratingssSsoToken, verifyInvite, completeInvite, googleLogin, microsoftLogin, microsoftCallback } from '../controllers/authController.js';
 import { authMiddleware } from '../helper/authMiddleware.js';
 
 const router = express.Router();
@@ -48,6 +48,13 @@ router.post('/login', login);
  *         description: Invalid/expired token or access revoked
  */
 router.get('/verify', verify);
+
+/**
+ * POST /api/auth/switch-db
+ * Protected — requires valid DS JWT.
+ * Switches current database context to target database if authorized in mapped_db.
+ */
+router.post('/switch-db', authMiddleware, switchDbController);
 
 /**
  * GET /api/auth/ratings-sso-token

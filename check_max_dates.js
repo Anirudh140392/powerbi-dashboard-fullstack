@@ -21,6 +21,4 @@ async function checkMaxDates() {
 }
 
 
-
 checkMaxDates();
-

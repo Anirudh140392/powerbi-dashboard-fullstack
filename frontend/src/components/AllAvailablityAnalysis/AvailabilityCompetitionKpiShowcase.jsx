@@ -10,7 +10,10 @@ import {
     BarChart3,
     SlidersHorizontal,
     Download,
+    ArrowRight,
+    Layers,
 } from "lucide-react";
+import CrossPlatformMatrixModal from "../ControlTower/WatchTower/CrossPlatformMatrixModal";
 import {
     LineChart,
     Line,
@@ -724,7 +727,7 @@ const KPI_KEYS = [
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows, loading, isEcom, onDownload }) => {
+const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
     return (
         <Card className="mt-3">
             <CardHeader className="border-b pb-2">
@@ -770,7 +773,23 @@ const BrandTable = ({ rows, loading, isEcom, onDownload }) => {
                                     )}
                                 >
                                     <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
-                                        {row.name}
+                                        <div className="flex items-center justify-between gap-1.5">
+                                            <span className="truncate" title={row.name}>{row.name}</span>
+                                            {onBrandSelect && row.name && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onBrandSelect(row.name);
+                                                    }}
+                                                    className="px-2 py-0.5 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600 rounded transition-all duration-150 flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
+                                                    title={`View SKUs for ${row.name}`}
+                                                >
+                                                    <span>SKUs</span>
+                                                    <ArrowRight className="h-3 w-3" />
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">
                                         <span className="font-semibold text-slate-700">
@@ -1165,6 +1184,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     const [trendData, setTrendData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [availableCities, setAvailableCities] = useState(["Select All"]);
+    const [isCrossPlatformOpen, setIsCrossPlatformOpen] = useState(false);
 
     // Derive active filters and city (controlled vs uncontrolled pattern)
     const activeFilters = useMemo(() => {
@@ -1317,12 +1337,23 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
         });
 
         return mapped.sort((a, b) => {
-            const valA = Number(a.MarketShare?.value ?? a.marketShare?.value ?? a.MarketShare ?? a.marketShare ?? 0) || 0;
-            const valB = Number(b.MarketShare?.value ?? b.marketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0) || 0;
-            if (Math.abs(valB - valA) > 0.0001) return valB - valA;
+            const getOfftakeVal = (item) => {
+                const raw = item?.OfftakeShare?.value ?? item?.OfftakeShare ?? item?.offtake_share ?? item?.CategoryShare?.value ?? item?.CategoryShare ?? 0;
+                const num = Number(raw);
+                return isNaN(num) ? 0 : num;
+            };
+            const offtakeA = getOfftakeVal(a);
+            const offtakeB = getOfftakeVal(b);
+            if (Math.abs(offtakeB - offtakeA) > 0.0001) return offtakeB - offtakeA;
+
+            const msA = Number(a.MarketShare?.value ?? a.marketShare?.value ?? a.MarketShare ?? a.marketShare ?? 0) || 0;
+            const msB = Number(b.MarketShare?.value ?? b.marketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0) || 0;
+            if (Math.abs(msB - msA) > 0.0001) return msB - msA;
+
             const salesA = Number(a.total_sales || 0);
             const salesB = Number(b.total_sales || 0);
             if (salesB !== salesA) return salesB - salesA;
+
             const osaA = Number(a.osa ?? 0) || 0;
             const osaB = Number(b.osa ?? 0) || 0;
             return osaB - osaA;
@@ -1390,6 +1421,15 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
             console.error("[AvailabilityCompetitionKpiShowcase] Excel download error:", err);
         }
     };
+
+    const handleBrandSelect = useCallback((brandName) => {
+        if (!brandName) return;
+        setFilters((prev) => ({
+            ...prev,
+            brands: [brandName],
+        }));
+        setTab("sku");
+    }, []);
 
     return (
         <div className="flex-col bg-slate-50 text-slate-900">
@@ -1468,19 +1508,33 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 value={tab}
                 onValueChange={(v) => {
                     setTab(v);
+                    if (v === "brand") {
+                        setFilters((prev) => ({ ...prev, brands: [] }));
+                    }
                 }}
                 className="w-full"
             >
                 <div className="flex items-center justify-between gap-3">
-                    <TabsList className="bg-slate-100">
-                        <TabsTrigger value="brand" className="px-4">Brands</TabsTrigger>
-                        <TabsTrigger value="sku" className="px-4">SKUs</TabsTrigger>
-                    </TabsList>
+                    <div className="flex items-center gap-3">
+                        <TabsList className="bg-slate-100">
+                            <TabsTrigger value="brand" className="px-4">Brands</TabsTrigger>
+                            <TabsTrigger value="sku" className="px-4">SKUs</TabsTrigger>
+                        </TabsList>
+
+                        <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+                            onClick={() => setIsCrossPlatformOpen(true)}
+                        >
+                            <Layers className="h-3.5 w-3.5" />
+                            Cross Platform
+                        </button>
+                    </div>
                 </div>
 
                 <TabsContent value="brand" className="mt-3">
                     {viewMode === "table" ? (
-                        <BrandTable rows={brandRows} loading={loading} isEcom={isEcom} onDownload={handleDownloadCompetitionExcel} />
+                        <BrandTable rows={brandRows} loading={loading} isEcom={isEcom} onDownload={handleDownloadCompetitionExcel} onBrandSelect={handleBrandSelect} />
                     ) : (
                         <TrendView
                             mode="brand"
@@ -1530,6 +1584,12 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 platform={platform}
                 channel={selectedChannel}
                 location={activeCity}
+            />
+
+            <CrossPlatformMatrixModal
+                open={isCrossPlatformOpen}
+                onClose={() => setIsCrossPlatformOpen(false)}
+                initialLevel={tab === 'sku' ? 'sku' : 'brand'}
             />
         </div>
     );

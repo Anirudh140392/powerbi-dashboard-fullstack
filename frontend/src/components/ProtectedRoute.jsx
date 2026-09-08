@@ -6,6 +6,7 @@ import { Lock as LockIcon } from "@mui/icons-material";
 
 // Maps route paths to their corresponding tab permission label (must match sidebar & admin panel)
 const ROUTE_TO_TAB_LABEL = {
+    "/cross-platform-pricing": "Cross Platform Pricing",
     "/watch-tower": "Business Overview",
     "/geo-intelligence": "India Overview",
     "/insights": "Insights",
@@ -32,7 +33,7 @@ const ROUTE_TO_TAB_LABEL = {
 
 // Ordered list of routes to try when finding the first allowed page
 const ROUTE_PRIORITY = [
-    "/watch-tower", "/geo-intelligence", "/insights", "/availability-analysis",
+    "/cross-platform-pricing", "/watch-tower", "/geo-intelligence", "/insights", "/availability-analysis",
     "/visibility-anlysis", "/market-share", "/pricing-analysis",
     "/performance-marketing", "/content-score", "/content-analysis", "/inventory",
     "/scheduled-reports", "/download-report", "/review-rating",

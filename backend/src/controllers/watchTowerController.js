@@ -141,6 +141,23 @@ export const getPdpPlatforms = async (req, res) => {
     }
 };
 
+export const getCrossPlatformPricing = async (req, res) => {
+    try {
+        const { startDate, endDate, location, search, breachesOnly } = req.query;
+        const result = await watchTowerService.getCrossPlatformPricing({
+            startDate,
+            endDate,
+            location,
+            search,
+            breachesOnly: breachesOnly === 'true'
+        });
+        res.json(result);
+    } catch (error) {
+        console.error('Error in getCrossPlatformPricing controller:', error);
+        res.status(500).json({ error: 'Failed to fetch cross platform pricing data' });
+    }
+};
+
 export const getBrands = async (req, res) => {
     try {
         const { platform, includeCompetitors } = req.query;
@@ -662,4 +679,17 @@ export const getMsls = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };
+
+export const getCrossPlatformBrandMatrix = async (req, res) => {
+    try {
+        const filters = { ...req.query, ...req.body };
+        console.log('[getCrossPlatformBrandMatrix] Controller hit with filters:', filters);
+        const data = await watchTowerService.getCrossPlatformBrandMatrix(filters);
+        res.json(data);
+    } catch (error) {
+        console.error('[getCrossPlatformBrandMatrix] Error in controller:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};
+
 

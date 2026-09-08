@@ -9,6 +9,39 @@ const JWT_SECRET = process.env.JWT_SECRET || 'trailytics_jwt_secret_2026';
 // Tokens are permanent (no expiration)
 
 /**
+ * Helper to fetch mapped databases details given a mapped_db string (e.g. "mars,kellogs")
+ */
+export async function getMappedDatabasesForDb(mappedDbStr) {
+    if (!mappedDbStr || typeof mappedDbStr !== 'string' || !mappedDbStr.trim()) {
+        return [];
+    }
+
+    const dbNames = mappedDbStr.split(',').map(s => s.trim()).filter(Boolean);
+    if (dbNames.length === 0) return [];
+
+    try {
+        const inClause = dbNames.map(name => `'${name.toLowerCase().replace(/'/g, "''")}'`).join(',');
+        const rows = await queryAdminDB(`
+            SELECT toString(db_id) as db_id, db_name, logo_url, company_id, mapped_db 
+            FROM tb_database 
+            WHERE lower(db_name) IN (${inClause}) AND status = 'active'
+        `);
+
+        return rows.map(r => ({
+            dbName: r.db_name,
+            dbId: r.db_id,
+            dbLogoUrl: r.logo_url || "",
+            companyId: (r.company_id && r.company_id !== '00000000-0000-0000-0000-000000000000') ? r.company_id : '',
+            mappedDb: r.mapped_db || ""
+        }));
+    } catch (e) {
+        console.warn('[Auth] Failed to fetch mapped databases:', e.message);
+        return [];
+    }
+}
+
+
+/**
  * Authenticate user by email and password, with Trusted Device verification.
  *
  * Device verification flow (all within tb_user):
@@ -63,9 +96,9 @@ export async function loginUser(email, password, deviceInfo = {}) {
         throw new Error('Invalid email or password');
     }
 
-    // 3. Look up db_name and company_id from tb_database using db_id
+    // 3. Look up db_name, company_id and mapped_db from tb_database using db_id
     const databases = await queryAdminDB(
-        `SELECT db_name, toString(db_id) as db_id, logo_url, company_id 
+        `SELECT db_name, toString(db_id) as db_id, logo_url, company_id, mapped_db 
          FROM tb_database 
          WHERE status = 'active'`
     );
@@ -323,7 +356,13 @@ export async function loginUser(email, password, deviceInfo = {}) {
         console.warn('[Auth] Failed to fetch permissions during login:', e.message);
     }
 
-    // 6. Generate JWT token
+    // 6. Fetch mapped databases list if mapped_db is configured
+    let mappedDatabases = [];
+    if (matchedDb && matchedDb.mapped_db) {
+        mappedDatabases = await getMappedDatabasesForDb(matchedDb.mapped_db);
+    }
+
+    // 7. Generate JWT token
     // NOTE: Do NOT include dbLogoUrl or tabPermissions in the JWT payload.
     // dbLogoUrl is a base64-encoded image (10-20KB+) and tabPermissions is a large
     // JSON object. Including them causes the Authorization header to exceed nginx's
@@ -355,6 +394,7 @@ export async function loginUser(email, password, deviceInfo = {}) {
             dbStatus: dbStatusBool,
             tabPermissions,
             companyId,      // ratings postgres company_id — stored in sessionStorage for ratings tab
+            mappedDatabases,
         },
         // Device token info for the controller to set the HTTP-only cookie
         deviceToken: resolvedDeviceToken,
@@ -436,15 +476,16 @@ export async function verifySession(token, deviceToken = null) {
         }
     }
 
-    // 4. Look up db_name, logo_url and company_id from tb_database using token info
+    // 4. Look up db_name, logo_url, company_id and mapped_db from tb_database using token info
     let dbName = decoded.dbName || process.env.CLICKHOUSE_DB || 'colpal';
     let dbId = decoded.dbId || '';
     let dbLogoUrl = decoded.dbLogoUrl || "";
     let companyId = decoded.companyId || process.env.RATINGS_COMPANY_ID || '';
+    let mappedDatabases = [];
 
     try {
         const dbRows = await queryAdminDB(`
-            SELECT toString(db_id) as db_id, logo_url, company_id FROM tb_database 
+            SELECT toString(db_id) as db_id, logo_url, company_id, mapped_db FROM tb_database 
             WHERE lower(db_name) = '${dbName.toLowerCase()}' 
             LIMIT 1
         `);
@@ -456,6 +497,9 @@ export async function verifySession(token, deviceToken = null) {
             const isNullUuid = rawCid === '00000000-0000-0000-0000-000000000000';
             if (rawCid && !isNullUuid) {
                 companyId = rawCid;
+            }
+            if (dbRows[0].mapped_db) {
+                mappedDatabases = await getMappedDatabasesForDb(dbRows[0].mapped_db);
             }
         }
     } catch (e) {
@@ -500,6 +544,100 @@ export async function verifySession(token, deviceToken = null) {
         dbStatus,
         tabPermissions,
         companyId,      // ratings postgres company_id — passed to ratings tab via sessionStorage
+        mappedDatabases,
+    };
+}
+
+/**
+ * Switch active database for a user if allowed by mapped_db
+ */
+export async function switchDatabase(email, currentDbName, targetDbName) {
+    if (!targetDbName) {
+        throw new Error('Target database name is required');
+    }
+
+    const trimmedTarget = targetDbName.trim();
+    const trimmedCurrent = (currentDbName || '').trim();
+
+    // 1. Fetch current DB mapped_db definition from tb_database
+    const currentDbRows = await queryAdminDB(`
+        SELECT db_name, mapped_db FROM tb_database 
+        WHERE lower(db_name) = '${trimmedCurrent.toLowerCase()}' 
+        LIMIT 1
+    `);
+
+    // 2. Fetch target DB details from tb_database
+    const targetDbRows = await queryAdminDB(`
+        SELECT toString(db_id) as db_id, db_name, logo_url, company_id, mapped_db FROM tb_database 
+        WHERE lower(db_name) = '${trimmedTarget.toLowerCase()}' AND status = 'active'
+        LIMIT 1
+    `);
+
+    if (targetDbRows.length === 0) {
+        throw new Error(`Target database '${trimmedTarget}' not found or inactive`);
+    }
+
+    const targetDb = targetDbRows[0];
+
+    // Check mapping permission: target must be in current's mapped_db or target's mapped_db
+    const currentMapped = currentDbRows[0]?.mapped_db || '';
+    const targetMapped = targetDb.mapped_db || '';
+
+    const allowedDbNames = new Set([
+        ...currentMapped.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+        ...targetMapped.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+        trimmedCurrent.toLowerCase()
+    ]);
+
+    if (!allowedDbNames.has(trimmedTarget.toLowerCase())) {
+        throw new Error(`Database switch to '${trimmedTarget}' is not allowed for current session`);
+    }
+
+    // 3. Resolve user details
+    const users = await queryAdminDB(
+        `SELECT *, toString(db_id) as db_id_str, toString(user_id) as user_id_str 
+         FROM tb_user 
+         WHERE lower(user_email) = lower({email:String}) AND status = 'active'
+         ORDER BY last_login DESC
+         LIMIT 1`,
+        { email }
+    );
+
+    const user = users[0] || {};
+    const userRole = (user.user_role || 'user').toLowerCase();
+    const companyId = (targetDb.company_id && targetDb.company_id !== '00000000-0000-0000-0000-000000000000') ? targetDb.company_id : '';
+
+    // Calculate mapped databases list
+    const combinedMappedStr = Array.from(allowedDbNames).join(',');
+    const mappedDatabases = await getMappedDatabasesForDb(combinedMappedStr);
+
+    // 4. Create new JWT token
+    const token = jwt.sign(
+        {
+            userId: user.user_id_str || user.id_str,
+            email: email,
+            dbName: targetDb.db_name,
+            dbId: targetDb.db_id,
+            dbLogoUrl: targetDb.logo_url || "",
+            companyId: companyId,
+            userName: user.user_name || email.split('@')[0],
+            role: userRole,
+        },
+        JWT_SECRET
+    );
+
+    return {
+        token,
+        user: {
+            email: email,
+            name: user.user_name || email.split('@')[0],
+            dbName: targetDb.db_name,
+            dbId: targetDb.db_id,
+            dbLogoUrl: targetDb.logo_url || "",
+            role: userRole,
+            companyId,
+            mappedDatabases,
+        }
     };
 }
 

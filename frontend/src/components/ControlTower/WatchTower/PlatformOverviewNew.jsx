@@ -44,7 +44,7 @@ const isEcomChannel = (chan) => {
 };
 
 // Platform classification helpers for KPI visibility
-const QCOM_PLATFORM_NAMES = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow', 'minutes', 'quickcomm', 'quick commerce'];
+const QCOM_PLATFORM_NAMES = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow', 'minutes', 'quickcomm', 'quick commerce', 'amazon now', 'now'];
 const isQcomPlatform = (name) => {
     if (!name) return false;
     const n = safeLower(name);
@@ -112,7 +112,7 @@ const cardSize = {
 
 const kpiLabels = {
     offtakes: 'Offtakes',
-    quantitySold: 'Quantity Sold',
+    quantitySold: 'Qty Sold',
     spend: 'Spend',
     tacos: 'TACoS',
     roas_x: 'ROAS',
@@ -120,14 +120,14 @@ const kpiLabels = {
     wtOsa: 'Wt OSA',
     wtDiscount: 'Wt Discount',
     listingPercent: 'Listing %',
-    marketShare: 'Market share',
+    marketShare: 'Mkt Share',
     conversion: 'Conversion',
-    shareOfVolume: 'SHARE OF SEARCH',
-    ad_sov: 'Ad SOV',
-    organic_sov: 'Organic SOV',
+    shareOfVolume: 'SOS',
+    ad_sov: 'Ad SOS',
+    organic_sov: 'Organic SOS',
     inorgSales: 'Inorganic Sales',
     asp: 'ASP',
-    categorySize: 'Category Size',
+    categorySize: 'Cat Size',
     discount: 'Promo',
     deliveryTime: 'Delivery Time',
     aov: 'AOV'
@@ -136,6 +136,7 @@ const kpiLabels = {
 // Map backend KPI title → frontend kpiKey
 const BACKEND_TITLE_TO_KEY = {
     'Offtakes': 'offtakes',
+    'Qty Sold': 'quantitySold',
     'Quantity Sold': 'quantitySold',
     'Spend': 'spend',
     'TACoS': 'tacos',
@@ -152,9 +153,13 @@ const BACKEND_TITLE_TO_KEY = {
     'Listing': 'listingPercent',
     'SOS': 'shareOfVolume',
     'Share of Search': 'shareOfVolume',
+    'Ad SOS': 'ad_sov',
     'Ad SOV': 'ad_sov',
+    'Organic SOS': 'organic_sov',
     'Organic SOV': 'organic_sov',
+    'Mkt Share': 'marketShare',
     'Market Share': 'marketShare',
+    'Cat Size': 'categorySize',
     'Category Size': 'categorySize',
     'CPM': 'cpm',
     'CPC': 'cpc',
@@ -235,6 +240,9 @@ const parseKpiValue = (cell) => {
     return val;
 };
 
+// KPIs sourced from rb_pm_olap (Paid Media marketing metrics)
+const PM_KPIS = ['spend', 'inorgSales', 'roas_x', 'tacos', 'conversion', 'cpm', 'cpc', 'ad_sov'];
+
 // Dimension → API endpoint mapping
 const DIMENSION_API_MAP = {
     platform: '/watchtower/platform-overview',
@@ -242,6 +250,7 @@ const DIMENSION_API_MAP = {
     month: '/watchtower/month-overview',
     category: '/watchtower/category-overview',
     sku: '/watchtower/sku-overview',
+    location: '/watchtower/city-overview',
 }
 
 // Color palette for dynamically created entities
@@ -276,7 +285,7 @@ const PlatformOverviewNew = ({
 
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
-        { key: 'quantitySold', label: 'Quantity Sold' },
+        { key: 'quantitySold', label: 'Qty Sold' },
         { key: 'spend', label: 'Spend' },
         { key: 'inorgSales', label: 'Inorganic Sales' },
         { key: 'aov', label: 'AOV' },
@@ -288,11 +297,11 @@ const PlatformOverviewNew = ({
         { key: 'wtDiscount', label: 'Wt Discount' },
         { key: 'asp', label: 'ASP' },
         { key: 'listingPercent', label: 'Listing %' },
-        { key: 'ad_sov', label: 'Ad SOV' },
-        { key: 'organic_sov', label: 'Organic SOV' },
-        { key: 'shareOfVolume', label: 'Share of Search' },
-        { key: 'marketShare', label: 'Market Share' },
-        { key: 'categorySize', label: 'Category Size' },
+        { key: 'ad_sov', label: 'Ad SOS' },
+        { key: 'organic_sov', label: 'Organic SOS' },
+        { key: 'shareOfVolume', label: 'SOS' },
+        { key: 'marketShare', label: 'Mkt Share' },
+        { key: 'categorySize', label: 'Cat Size' },
         { key: 'roas_x', label: 'ROAS' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'buyBoxPct', label: 'Buy Box %' },
@@ -440,6 +449,9 @@ const PlatformOverviewNew = ({
             baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime');
         }
 
+        if (dimension === 'location') {
+            return baseKpis.filter(k => !PM_KPIS.includes(k.key) && k.key !== 'shareOfVolume' && k.key !== 'organic_sov');
+        }
         if (dimension === 'sku') {
             return baseKpis.filter(k => {
                 if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov') return false;
@@ -482,6 +494,10 @@ const PlatformOverviewNew = ({
         ];
         const activePlat = dimension === 'sku' ? skuPlatformFilter : activePlatformFilter;
         const allowBuyBox = isBuyBoxPlatform(activePlat);
+
+        if (dimension === 'location') {
+            return base.filter(k => !PM_KPIS.includes(k) && k !== 'shareOfVolume' && k !== 'organic_sov');
+        }
 
         if (dimension === 'platform') {
             if (isEcom) base = base.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpm');
@@ -598,7 +614,9 @@ const PlatformOverviewNew = ({
 
     // Keep glanceKpis in sync with dimension switch & platform changes
     useEffect(() => {
-        if (dimension === 'sku') {
+        if (dimension === 'location') {
+            setGlanceKpis(prev => prev.filter(k => !PM_KPIS.includes(k) && k !== 'shareOfVolume' && k !== 'organic_sov'));
+        } else if (dimension === 'sku') {
             setGlanceKpis(prev => {
                 let next = prev.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov' && k !== 'cpm');
                 if (isSkuQcom) {
@@ -638,6 +656,7 @@ const PlatformOverviewNew = ({
     // Static dimension metadata (icons, logos for known platforms)
     const dimensionMeta = {
         platform: { label: 'Platform', icon: Monitor },
+        location: { label: 'City', icon: MapPin },
         brand: { label: 'Brand', icon: Tag },
         month: { label: 'Month', icon: Calendar },
         category: { label: 'Category', icon: Grid3X3 },
@@ -859,7 +878,7 @@ const PlatformOverviewNew = ({
         }
 
         // Check if user has any platform restriction in their tabPermissions
-        const ALL_ROW_IDENTIFIERS = ['all', 'overall', 'odd_overall'];
+        const ALL_ROW_IDENTIFIERS = ['all', 'overall', 'odd_overall', 'pan_india', 'pan india'];
         let hasRestrictedPlatforms = false;
         try {
             const storedUser = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
@@ -1114,7 +1133,7 @@ const PlatformOverviewNew = ({
                         <div className="space-y-3 sm:space-y-4 py-3 sm:py-4">
                             {[1, 2, 3, 4].map((i) => (
                                 <div key={i} className="flex items-center gap-2 sm:gap-3 px-1 sm:px-2">
-                                    <div className="w-36 sm:w-56 flex-shrink-0 flex items-center gap-2 sm:gap-3">
+                                    <div className="w-48 sm:w-72 flex-shrink-0 flex items-center gap-2 sm:gap-3">
                                         <div className="h-9 w-9 rounded-lg bg-slate-100 animate-pulse" />
                                         <div className="h-4 w-24 bg-slate-100 rounded animate-pulse" />
                                     </div>
@@ -1174,7 +1193,7 @@ const PlatformOverviewNew = ({
                             <div className="min-w-max pb-2">
                                 {/* KPI Labels Header - Premium */}
                                 <div className="flex items-center gap-2 mb-3 sm:mb-4 px-1">
-                                    <div className={cn("w-36 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between", dimension === 'sku' ? 'sm:w-72' : 'sm:w-56')}>
+                                    <div className={cn("w-48 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between", dimension === 'sku' ? 'sm:w-80' : 'sm:w-72')}>
                                         <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
                                         {dimension === 'sku' && (
                                             <motion.button
@@ -1235,10 +1254,14 @@ const PlatformOverviewNew = ({
                                             transition={{ duration: 0.3 }}
                                         >
                                             {/* Entity with Trend & RCA buttons - Sticky */}
-                                            <div className={cn("flex-shrink-0 flex items-center gap-1.5 sm:gap-2 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50", dimension === 'sku' ? 'w-44 sm:w-72' : 'w-36 sm:w-56')}>
-                                                {e.logoSrc ? (
+                                            <div className={cn("flex-shrink-0 flex items-center gap-1.5 sm:gap-2 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50", dimension === 'sku' ? 'w-52 sm:w-80' : 'w-48 sm:w-72')}>
+                                                {dimension === 'location' ? (
+                                                    <div className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg bg-slate-100/80 flex items-center justify-center flex-shrink-0">
+                                                        <MapPin size={15} className="text-slate-700" />
+                                                    </div>
+                                                ) : e.logoSrc ? (
                                                     <div className="h-7 w-7 sm:h-9 sm:w-9 rounded-lg bg-white shadow-sm ring-1 ring-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                                        <BrandLogo name={e.name} src={e.logoSrc} className="h-7 w-7 sm:h-9 sm:w-9" imgClassName="h-5 w-5 sm:h-6 sm:w-6" />
+                                                        <BrandLogo name={e.name} src={e.logoSrc} className="h-5 w-5 sm:h-6 sm:w-6" imgClassName="h-5 w-5 sm:h-6 sm:w-6" />
                                                     </div>
                                                 ) : (
                                                     <div
@@ -1251,10 +1274,10 @@ const PlatformOverviewNew = ({
                                                 <div className="flex flex-col flex-1 overflow-hidden justify-center">
                                                     <span
                                                         className="text-[11px] sm:text-[13px] font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis"
-                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '150px' : undefined, textTransform: 'capitalize' }}
+                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '180px' : undefined, textTransform: 'capitalize' }}
                                                         title={e.name}
                                                     >
-                                                        {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}
+                                                        {dimension === 'sku' ? truncateToWords(e.name, 6) : e.name}
                                                     </span>
                                                     {dimension === 'sku' && e.offtakeShare !== undefined && (
                                                         <div className="flex items-center gap-1 mt-0.5" title="Offtake Share">

@@ -1,22 +1,63 @@
-/**
- * OLAP table resolver utility.
- *
- * Controls which databases use the unified `rb_review_olap` table instead of
- * the legacy multi-table schema (products, product_snapshots, ml_reviews, reviews,
- * competitor_mentions, stakeholder_mappings).
- *
- * To add a new db to OLAP mode, append its name (case-insensitive) to the
- * OLAP_ENABLED_DBS env var as a comma-separated list, e.g.:
- *   OLAP_ENABLED_DBS=drl,mars,prestige
- *
- * No db name is hardcoded in this file.
- */
+import clickhouse from '../config/clickhouse.js';
 
 let _olapEnabledDbs = null;
+let _lastFetchTime = 0;
+const CACHE_TTL_MS = 60 * 1000; // 60s cache TTL
+let _fetchPromise = null;
 
+/**
+ * Refreshes the set of enabled databases from admin_master.tb_database.
+ */
+export async function refreshOlapEnabledDbs() {
+    if (_fetchPromise) return _fetchPromise;
+
+    _fetchPromise = (async () => {
+        try {
+            const res = await clickhouse.query({
+                query: 'SELECT db_name FROM admin_master.tb_database',
+                format: 'JSONEachRow'
+            });
+            const rows = await res.json();
+            const dbs = new Set(
+                rows
+                    .map((r) => (r.db_name || '').trim().toLowerCase())
+                    .filter(Boolean)
+            );
+            if (dbs.size > 0) {
+                _olapEnabledDbs = dbs;
+                _lastFetchTime = Date.now();
+            }
+        } catch (err) {
+            console.error('[olapResolver] Error fetching db_names from admin_master.tb_database:', err?.message || err);
+            if (!_olapEnabledDbs) {
+                _olapEnabledDbs = new Set(
+                    (process.env.OLAP_ENABLED_DBS || '')
+                        .split(',')
+                        .map((s) => s.trim().toLowerCase())
+                        .filter(Boolean)
+                );
+            }
+        } finally {
+            _fetchPromise = null;
+        }
+        return _olapEnabledDbs;
+    })();
+
+    return _fetchPromise;
+}
+
+/**
+ * Returns the set of enabled OLAP databases.
+ * Dynamically populated from admin_master.tb_database.
+ */
 function getOlapEnabledDbs() {
+    const now = Date.now();
+    if (_olapEnabledDbs === null || now - _lastFetchTime > CACHE_TTL_MS) {
+        refreshOlapEnabledDbs().catch(() => {});
+    }
+
     if (_olapEnabledDbs === null) {
-        _olapEnabledDbs = new Set(
+        return new Set(
             (process.env.OLAP_ENABLED_DBS || '')
                 .split(',')
                 .map((s) => s.trim().toLowerCase())
@@ -48,4 +89,8 @@ export function getOlapTableName(dbName) {
     }
     return process.env.OLAP_TABLE_NAME || 'rb_review_olap';
 }
+
+// Initial async fetch on module load
+refreshOlapEnabledDbs().catch(() => {});
+
 

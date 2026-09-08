@@ -11,7 +11,9 @@ import {
   BarChart3,
   SlidersHorizontal,
   Download,
+  Layers,
 } from "lucide-react";
+import CrossPlatformMatrixModal, { PRICING_KPI_COLUMNS, VISIBILITY_KPI_COLUMNS, DEFAULT_KPI_COLUMNS } from "../ControlTower/WatchTower/CrossPlatformMatrixModal";
 import {
   LineChart,
   Line,
@@ -1076,6 +1078,12 @@ const KPI_KEYS = [
     unit: "%",
   },
   {
+    key: "OfftakeShare",
+    label: "Offtake Share %",
+    color: "#0EA5E9",
+    unit: "%",
+  },
+  {
     key: "Psl",
     label: "PSL",
     color: "#8B5CF6",
@@ -1119,6 +1127,12 @@ const MARKET_SHARE_KPI_KEYS = [
     key: "MarketShare",
     label: "MARKET SHARE%",
     color: "#14B8A6",
+    unit: "%",
+  },
+  {
+    key: "OfftakeShare",
+    label: "Offtake Share %",
+    color: "#0EA5E9",
     unit: "%",
   },
   {
@@ -1554,6 +1568,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
     return keys;
   }, [dynamicKey, selectedChannel, platform]);
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
+  const [isCrossPlatformOpen, setIsCrossPlatformOpen] = useState(false);
   const [city, setCity] = useState(() => {
     if (drawerFilters?.City) {
       return drawerFilters.City === 'All' ? 'All India' : drawerFilters.City;
@@ -1864,9 +1879,10 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
       const assortmentVal = getVal(b.Assortment?.value, b.assortment?.value, b.Assortment, b.assortment);
       const catShareVal = getVal(b.CategoryShare?.value, b.categoryShare?.value, b.CategoryShare, b.categoryShare);
       const mktShareVal = getVal(b.MarketShare?.value, b.marketShare?.value, b.MarketShare, b.marketShare);
+      const offtakeShareVal = getVal(b.OfftakeShare?.value, b.offtakeShare?.value, b.OfftakeShare, b.offtake_share) ?? catShareVal;
       return {
-        id: b.brand_name || `brand-${idx}`,
-        name: b.brand_name || 'Unknown',
+        id: b.brand_name || b.name || `brand-${idx}`,
+        name: b.brand_name || b.name || 'Unknown',
         // lowercase keys (legacy)
         osa: osaVal, osaDelta: b.OSA?.delta ?? b.osa?.delta ?? 0,
         sos: sosVal, sosDelta: b.SOS?.delta ?? b.sos?.delta ?? 0,
@@ -1875,12 +1891,14 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         assortment: assortmentVal,
         categoryShare: catShareVal, categoryShareDelta: b.CategoryShare?.delta ?? b.categoryShare?.delta ?? 0,
         marketShare: mktShareVal, marketShareDelta: b.MarketShare?.delta ?? b.marketShare?.delta ?? 0,
+        offtakeShare: offtakeShareVal, offtakeShareDelta: b.OfftakeShare?.delta ?? b.offtakeShare?.delta ?? 0,
         // TitleCase keys — these MUST match KPI_KEYS[].key for table rendering
         Osa: osaVal,
         Listing: listingVal,
         Assortment: assortmentVal,
         MarketShare: mktShareVal,
         CategoryShare: catShareVal,
+        OfftakeShare: offtakeShareVal,
         // Formatting fields for display components
         CategorySize: b.CategorySize?.value ?? b.CategorySize ?? 0,
         Sales: b.Sales?.value ?? b.Sales ?? 0,
@@ -1928,6 +1946,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
       const assortmentVal = getVal(s.Assortment?.value, s.assortment?.value, s.Assortment, s.assortment);
       const catShareVal = getVal(s.CategoryShare?.value, s.categoryShare?.value, s.CategoryShare, s.categoryShare);
       const mktShareVal = getVal(s.MarketShare?.value, s.marketShare?.value, s.MarketShare, s.marketShare);
+      const offtakeShareVal = getVal(s.OfftakeShare?.value, s.offtakeShare?.value, s.OfftakeShare, s.offtake_share) ?? catShareVal;
       return {
         id: s.sku_name || `sku-${idx}`,
         name: s.sku_name || 'Unknown',
@@ -1940,12 +1959,14 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         assortment: assortmentVal,
         categoryShare: catShareVal, categoryShareDelta: s.CategoryShare?.delta ?? s.categoryShare?.delta ?? 0,
         marketShare: mktShareVal, marketShareDelta: s.MarketShare?.delta ?? s.marketShare?.delta ?? 0,
+        offtakeShare: offtakeShareVal, offtakeShareDelta: s.OfftakeShare?.delta ?? s.offtakeShare?.delta ?? 0,
         // TitleCase keys — these MUST match KPI_KEYS[].key for table rendering
         Osa: osaVal,
         Listing: listingVal,
         Assortment: assortmentVal,
         MarketShare: mktShareVal,
         CategoryShare: catShareVal,
+        OfftakeShare: offtakeShareVal,
         // Formatting fields for display components
         CategorySize: s.CategorySize?.value ?? s.CategorySize ?? 0,
         Sales: s.Sales?.value ?? s.Sales ?? 0,
@@ -2306,14 +2327,25 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         className="w-full"
       >
         <div className="flex items-center justify-between gap-3">
-          <TabsList className="bg-slate-100">
-            <TabsTrigger value="brand" className="px-4">
-              Brands
-            </TabsTrigger>
-            <TabsTrigger value="sku" className="px-4">
-              SKUs
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex items-center gap-3">
+            <TabsList className="bg-slate-100">
+              <TabsTrigger value="brand" className="px-4">
+                Brands
+              </TabsTrigger>
+              <TabsTrigger value="sku" className="px-4">
+                SKUs
+              </TabsTrigger>
+            </TabsList>
+
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+              onClick={() => setIsCrossPlatformOpen(true)}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              Cross Platform
+            </button>
+          </div>
 
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -2427,6 +2459,13 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
         dynamicKey={dynamicKey}
         resellerName={resellerName}
         isDrl={isDrl}
+      />
+
+      <CrossPlatformMatrixModal
+        open={isCrossPlatformOpen}
+        onClose={() => setIsCrossPlatformOpen(false)}
+        initialLevel={tab === 'sku' ? 'sku' : 'brand'}
+        kpiColumns={dynamicKey === "pricing" ? PRICING_KPI_COLUMNS : dynamicKey === "visibility" ? VISIBILITY_KPI_COLUMNS : DEFAULT_KPI_COLUMNS}
       />
     </div>
   );

@@ -116,13 +116,24 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
         compareStart,
         compareEnd,
         selectedSubCategory: globalSelectedSubCategory,
+        selectedBrand: globalSelectedBrand,
+        selectedSubBrand: globalSelectedSubBrand,
+        brands,
+        subBrands,
     } = useContext(FilterContext);
+
+    const [selectedBrandLocal, setSelectedBrandLocal] = useState([]);
+    const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
+    const brandDropdownRef = useRef(null);
 
     // Close dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
                 setIsDropdownOpen(false);
+            }
+            if (brandDropdownRef.current && !brandDropdownRef.current.contains(e.target)) {
+                setIsBrandDropdownOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -134,12 +145,25 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
         setSelectedSubCat([]);
     }, [selectedCategory]);
 
+    // Sync local brand with global brand filter
+    useEffect(() => {
+        if (globalSelectedBrand && globalSelectedBrand !== 'All') {
+            setSelectedBrandLocal(Array.isArray(globalSelectedBrand) ? globalSelectedBrand : [globalSelectedBrand]);
+        } else {
+            setSelectedBrandLocal([]);
+        }
+    }, [globalSelectedBrand]);
+
     // Fetch sub-category KPI data from backend
     useEffect(() => {
         const fetchSubCategoryKpi = async () => {
             const subCategoryParam = selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined;
+            const brandLocalParam = selectedBrandLocal.length > 0 ? selectedBrandLocal.join(",") : undefined;
             const globalSubCategoryParam = globalSelectedSubCategory === 'All' ? 'all' : (Array.isArray(globalSelectedSubCategory) ? globalSelectedSubCategory.join(",") : globalSelectedSubCategory || 'all');
-            const paramKey = `${platform || 'All'}-${selectedCategory || 'All'}-${subCategoryParam || 'all'}-${globalSubCategoryParam}-${timeStart ? timeStart.format("YYYYMMDD") : ''}-${timeEnd ? timeEnd.format("YYYYMMDD") : ''}`;
+            const globalBrandParam = globalSelectedBrand === 'All' ? 'all' : (Array.isArray(globalSelectedBrand) ? globalSelectedBrand.join(",") : globalSelectedBrand || 'all');
+            const globalSubBrandParam = globalSelectedSubBrand === 'All' ? 'all' : (Array.isArray(globalSelectedSubBrand) ? globalSelectedSubBrand.join(",") : globalSelectedSubBrand || 'all');
+            
+            const paramKey = `${platform || 'All'}-${selectedCategory || 'All'}-${subCategoryParam || 'all'}-${globalSubCategoryParam}-${brandLocalParam || 'all'}-${globalBrandParam}-${globalSubBrandParam}-${timeStart ? timeStart.format("YYYYMMDD") : ''}-${timeEnd ? timeEnd.format("YYYYMMDD") : ''}`;
 
             if (lastFetchedSubCatRef.current === paramKey) {
                 return;
@@ -157,6 +181,9 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                     compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
                     subCategory: subCategoryParam,
                     globalSubCategory: globalSelectedSubCategory === 'All' ? undefined : (Array.isArray(globalSelectedSubCategory) ? globalSelectedSubCategory.join(",") : globalSelectedSubCategory),
+                    brand: brandLocalParam,
+                    globalBrand: globalSelectedBrand === 'All' ? undefined : (Array.isArray(globalSelectedBrand) ? globalSelectedBrand.join(",") : globalSelectedBrand),
+                    globalSubBrand: globalSelectedSubBrand === 'All' ? undefined : (Array.isArray(globalSelectedSubBrand) ? globalSelectedSubBrand.join(",") : globalSelectedSubBrand),
                 };
 
                 const response = await axiosInstance.get('/market-share/sub-category-kpi', { params });
@@ -174,9 +201,9 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                     if (selectedSubCat.length === 0 && selectedSubCategory && selectedSubCategory.length > 0) {
                         const defaultSelection = Array.isArray(selectedSubCategory) ? selectedSubCategory : [selectedSubCategory];
                         
-                        // Update ref to prevent duplicate fetch after state update
                         const newSubCatParam = defaultSelection.join(",");
-                        const newParamKey = `${platform || 'All'}-${selectedCategory || 'All'}-${newSubCatParam}-${globalSubCategoryParam}-${timeStart ? timeStart.format("YYYYMMDD") : ''}-${timeEnd ? timeEnd.format("YYYYMMDD") : ''}`;
+                        const newBrandLocalParam = selectedBrandLocal.length > 0 ? selectedBrandLocal.join(",") : 'all';
+                        const newParamKey = `${platform || 'All'}-${selectedCategory || 'All'}-${newSubCatParam}-${globalSubCategoryParam}-${newBrandLocalParam}-${globalBrandParam}-${globalSubBrandParam}-${timeStart ? timeStart.format("YYYYMMDD") : ''}-${timeEnd ? timeEnd.format("YYYYMMDD") : ''}`;
                         lastFetchedSubCatRef.current = newParamKey;
 
                         setSelectedSubCat(defaultSelection);
@@ -193,7 +220,7 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
         };
 
         fetchSubCategoryKpi();
-    }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedSubCat, globalSelectedSubCategory]);
+    }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedSubCat, globalSelectedSubCategory, selectedBrandLocal, globalSelectedBrand, globalSelectedSubBrand]);
 
     const loading = parentLoading || dataLoading;
 
@@ -239,6 +266,17 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                 return prev.filter(c => c !== cat);
             } else {
                 return [...prev, cat];
+            }
+        });
+    };
+
+    // Toggle multi-select brand
+    const toggleBrand = (b) => {
+        setSelectedBrandLocal(prev => {
+            if (prev.includes(b)) {
+                return prev.filter(c => c !== b);
+            } else {
+                return [...prev, b];
             }
         });
     };
@@ -315,6 +353,69 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                             )}
                         </AnimatePresence>
                     </div>
+
+                    {subBrands && subBrands.length > 0 && (
+                        <div className="relative" ref={brandDropdownRef}>
+                            <button
+                                onClick={() => setIsBrandDropdownOpen(!isBrandDropdownOpen)}
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 border shadow-sm",
+                                    isBrandDropdownOpen
+                                        ? "bg-slate-900 text-white border-slate-900 shadow-lg"
+                                        : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:shadow-md"
+                                )}
+                            >
+                                <span className="text-[10px] font-semibold uppercase tracking-wider opacity-60">Brand:</span>
+                                <span className="max-w-[150px] truncate">
+                                    {selectedBrandLocal.length === 0 ? 'All' :
+                                        selectedBrandLocal.length === 1 ? selectedBrandLocal[0] :
+                                            `${selectedBrandLocal[0]} +${selectedBrandLocal.length - 1}`}
+                                </span>
+                                <ChevronDown
+                                    size={14}
+                                    className={cn(
+                                        "transition-transform duration-200",
+                                        isBrandDropdownOpen && "rotate-180"
+                                    )}
+                                />
+                            </button>
+
+                            <AnimatePresence>
+                                {isBrandDropdownOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                                        transition={{ duration: 0.15 }}
+                                        className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden max-h-64 overflow-y-auto"
+                                    >
+                                        <div className="p-1.5">
+                                            {/* Use brands from global context to prevent options shrinking when filtered */}
+                                            {(brands || []).map(b => (
+                                                <button
+                                                    key={b}
+                                                    onClick={() => {
+                                                        toggleBrand(b);
+                                                    }}
+                                                    className={cn(
+                                                        "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-[12px] font-semibold transition-all duration-150",
+                                                        selectedBrandLocal.includes(b)
+                                                            ? "bg-slate-900 text-white"
+                                                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                                                    )}
+                                                >
+                                                    <span>{b}</span>
+                                                    {selectedBrandLocal.includes(b) && (
+                                                        <Check size={14} className="text-emerald-400" />
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    )}
 
                     <div className="h-6 w-px bg-slate-200 mx-1"></div>
                     <div className="flex items-center gap-2">

@@ -22,7 +22,7 @@ import { cn } from '../../../lib/utils'
 
 const kpiOptions = [
     { key: 'offtakes', label: 'Offtakes' },
-    { key: 'quantitySold', label: 'Quantity Sold' },
+    { key: 'quantitySold', label: 'Qty Sold' },
     { key: 'spend', label: 'Spend' },
     { key: 'inorgSales', label: 'Inorg Sales' },
     { key: 'aov', label: 'AOV' },
@@ -34,11 +34,11 @@ const kpiOptions = [
     { key: 'wtDiscount', label: 'Wt Discount' },
     { key: 'asp', label: 'ASP' },
     { key: 'listingPercent', label: 'Listing %' },
-    { key: 'ad_sov', label: 'Ad SOV' },
-    { key: 'organic_sov', label: 'Organic SOV' },
-    { key: 'shareOfVolume', label: 'Share of Search' },
-    { key: 'marketShare', label: 'Market share' },
-    { key: 'categorySize', label: 'Category size' },
+    { key: 'ad_sov', label: 'Ad SOS' },
+    { key: 'organic_sov', label: 'Organic SOS' },
+    { key: 'shareOfVolume', label: 'SOS' },
+    { key: 'marketShare', label: 'Mkt Share' },
+    { key: 'categorySize', label: 'Cat Size' },
     { key: 'roas_x', label: 'ROAS' },
     { key: 'conversion', label: 'Conversion' },
 ]

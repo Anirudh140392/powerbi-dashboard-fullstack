@@ -225,8 +225,38 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const switchDb = async (targetDbName) => {
+        try {
+            const token = sessionStorage.getItem("token");
+            const response = await axios.post(
+                `${API_BASE}/auth/switch-db`,
+                { targetDbName },
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                    withCredentials: true,
+                }
+            );
+
+            if (response.data.success) {
+                const { token: newToken, user: updatedUserData } = response.data;
+                if (updatedUserData.role) {
+                    updatedUserData.role = updatedUserData.role.toLowerCase();
+                }
+                sessionStorage.setItem("token", newToken);
+                sessionStorage.setItem("user", JSON.stringify(updatedUserData));
+                setUser(updatedUserData);
+                window.location.reload();
+                return { success: true };
+            }
+            return { success: false, error: response.data.error || "Failed to switch database" };
+        } catch (error) {
+            const errorMsg = error.response?.data?.error || "Failed to switch database";
+            return { success: false, error: errorMsg };
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ isLoggedIn, user, login, logout, isVerifying, loginWithToken, loginWithSso }}>
+        <AuthContext.Provider value={{ isLoggedIn, user, login, logout, isVerifying, loginWithToken, loginWithSso, switchDb }}>
             {children}
         </AuthContext.Provider>
     );

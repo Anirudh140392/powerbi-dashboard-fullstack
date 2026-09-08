@@ -71,7 +71,7 @@ const CompareSkuMatrix = ({ onClose }) => {
         { id: 'spend', label: 'Spend', section: null, kpiKey: 'spend' },
         { id: 'inorg_sales', label: 'Inorg Sales', section: null, kpiKey: 'inorgSales' },
         { id: 'conversion', label: 'Conversion', section: null, kpiKey: 'conversion' },
-        { id: 'market_share', label: 'Est Market share', section: null, kpiKey: 'marketShare' },
+        { id: 'market_share', label: 'Est Mkt Share', section: null, kpiKey: 'marketShare' },
         { id: 'cpm', label: 'CPM', section: null, kpiKey: 'cpm' },
         { id: 'cpc', label: 'CPC', section: null, kpiKey: 'cpc' },
     ];
