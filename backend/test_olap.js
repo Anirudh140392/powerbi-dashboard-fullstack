@@ -1,33 +1,25 @@
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { ClickHouse } from 'clickhouse';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const clickhouse = new ClickHouse({
+    url: process.env.CLICKHOUSE_URL || 'http://localhost',
+    port: process.env.CLICKHOUSE_PORT || 8123,
+    debug: false,
+    basicAuth: null,
+    isUseGzip: true,
+    format: "json",
+    config: {
+        database: 'danone', // FORCE danone!
+    }
+});
+
 async function test() {
-  try {
-    const qEcom = `
-      SELECT DISTINCT platform AS Platform 
-      FROM danone.rb_content_olap 
-      WHERE isNotNull(platform) AND platform != '\\N' AND platform != '' 
-        AND lower(platform) IN (
-            SELECT lower(Platform) 
-            FROM danone.rb_pdp_olap 
-            WHERE isNotNull(Platform) AND lower(CHANNEL) = 'ecommerce'
-        )
-      ORDER BY Platform
-    `;
-    const resEcom = await queryClickHouse(qEcom);
-    console.log("EComm Content Platforms:", resEcom);
-    
-    const qQcomm = `
-      SELECT DISTINCT platform AS Platform 
-      FROM danone.rb_content_olap 
-      WHERE isNotNull(platform) AND platform != '\\N' AND platform != '' 
-        AND lower(platform) IN (
-            SELECT lower(Platform) 
-            FROM danone.rb_pdp_olap 
-            WHERE isNotNull(Platform) AND lower(CHANNEL) = 'quickcomm'
-        )
-      ORDER BY Platform
-    `;
-    const resQcomm = await queryClickHouse(qQcomm);
-    console.log("QComm Content Platforms:", resQcomm);
-  } catch (e) { console.error(e); }
+    try {
+        const res = await clickhouse.query("SELECT DISTINCT brand_name_th, brand, sub_brand FROM rb_kw_olap LIMIT 1").toPromise();
+        console.log("Success");
+    } catch(e) {
+        console.error("Error:", e.message);
+    }
 }
 test();
