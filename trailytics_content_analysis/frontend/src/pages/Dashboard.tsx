@@ -68,7 +68,7 @@ interface ApiResponse {
 // --- REUSABLE UI COMPONENTS ---
 
 const getScoringRules = (platform: string, metric: string) => {
-  const p = (platform || '').toLowerCase();
+  const p = (platform || '').trim().toLowerCase();
   
   if (p === 'amazon' || p === 'amazon now') {
     switch (metric) {
@@ -105,7 +105,7 @@ const getScoringRules = (platform: string, metric: string) => {
     }
   }
 
-  if (p === 'flipkart' || p === 'flipkart minutes') {
+  if (p === 'flipkart' || p === 'flipkart minutes' || p === 'flipkart national') {
     switch (metric) {
       case 'Title Score': return { weightage: 20, rules: ['<b>20:</b> Title &ge; 100 chars', '<b>10:</b> Title 50–99 chars', '<b>0:</b> Title &lt; 50 chars'] };
       case 'Bullet Score': return { weightage: 20, rules: ['<b>20:</b> 4+ bullets', '<b>10:</b> 1–3 bullets', '<b>0:</b> No bullets'] };
@@ -784,7 +784,7 @@ const SkuDrillDownTable = ({
       };
     }
     const maxScore = weightages[columnIndex] || 100;
-    const percentage = (score / maxScore) * 100;
+    const percentage = Math.min(100, (score / maxScore) * 100);
 
     if (percentage >= 80) return {
       bg: isOverall ? 'bg-emerald-100' : 'bg-[#f2fbf5]', 
@@ -810,7 +810,7 @@ const SkuDrillDownTable = ({
   };
 
   const getDetailedBreakdown = (label: string) => {
-    const p = (platform as string || '').toLowerCase();
+    const p = ((platform as string) || '').trim().toLowerCase();
 
     if (p === 'amazon' || p === 'amazon now') {
       switch (label) {
@@ -847,7 +847,7 @@ const SkuDrillDownTable = ({
       }
     }
 
-    if (p === 'flipkart' || p === 'flipkart minutes') {
+    if (p === 'flipkart' || p === 'flipkart minutes' || p === 'flipkart national') {
       switch (label) {
         case 'Title Score': return [{ check: 'Title ≥ 100 chars', score: 20, status: 'Pass', action: 'No Action Required' }, { check: 'Title 50–99 chars', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'Title < 50 chars', score: 0, status: 'Fail', action: 'Action Required' }];
         case 'Bullet Score': return [{ check: '4+ bullets', score: 20, status: 'Pass', action: 'No Action Required' }, { check: '1–3 bullets', score: 10, status: 'Warn', action: 'Action Required' }, { check: 'No bullets', score: 0, status: 'Fail', action: 'Action Required' }];
@@ -1154,7 +1154,7 @@ const SkuDrillDownTable = ({
                         >
                            {!isCellExpanded && ci !== 0 && <div className="absolute inset-0 bg-white/40 group-hover:bg-transparent transition-colors pointer-events-none"></div>}
                            <div className={`text-[15px] font-black relative z-10 ${style.text}`}>
-                             {score === null ? '-' : `${Math.round((score / (weightages[ci] || 100)) * 100)}%`}
+                             {score === null ? '-' : `${Math.min(100, Math.round((score / (weightages[ci] || 100)) * 100))}%`}
                            </div>
                         </div>
                       )
@@ -1171,9 +1171,25 @@ const SkuDrillDownTable = ({
                        const actualScore = topMetrics[activeCi];
                        const fullBreakdown = getDetailedBreakdown(metricLabel);
                        
-                       // Find the perfect match or fallback to the closest/highest applicable bucket
+                       // Find the perfect match or fallback to the closest/highest applicable bucket using percentage
                        const exactMatch = fullBreakdown.filter(item => item.score === actualScore);
-                       const breakdownData = exactMatch.length > 0 ? exactMatch : fullBreakdown.length > 0 ? [fullBreakdown.reduce((prev, curr) => Math.abs(curr.score - (actualScore ?? 0)) < Math.abs(prev.score - (actualScore ?? 0)) ? curr : prev)] : fullBreakdown;
+                       let breakdownData = exactMatch;
+                       
+                       if (exactMatch.length === 0 && fullBreakdown.length > 0) {
+                         const maxPossible = weightages[activeCi] || 100;
+                         const percentage = actualScore != null ? (actualScore / maxPossible) * 100 : 0;
+                         
+                         let bestMatch = fullBreakdown[0]; // default Pass
+                         if (fullBreakdown.length >= 3) {
+                           if (percentage < 40) bestMatch = fullBreakdown[fullBreakdown.length - 1]; // Fail
+                           else if (percentage < 80) bestMatch = fullBreakdown[1]; // Warn
+                           else bestMatch = fullBreakdown[0]; // Pass
+                         } else if (fullBreakdown.length === 2) {
+                           if (percentage < 50) bestMatch = fullBreakdown[1]; // Fail
+                           else bestMatch = fullBreakdown[0]; // Pass
+                         }
+                         breakdownData = [bestMatch];
+                       }
                        
                        return (
                          <div className="p-6 pb-16 bg-white border-t border-slate-100 rounded-b-[20px]">
