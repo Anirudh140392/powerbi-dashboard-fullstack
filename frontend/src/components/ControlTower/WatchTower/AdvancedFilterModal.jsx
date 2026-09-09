@@ -353,7 +353,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         dateFrom: '',
         dateTo: '',
         msl: '0',
-        kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion', 'aov'].filter(k => {
+        kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
             if (currentDimension === 'sku') {
                 if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
                 if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
@@ -748,7 +748,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             dateFrom: '',
             dateTo: '',
             msl: '0',
-            kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion', 'aov'].filter(k => {
+            kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
                 if (currentDimension === 'sku') {
                     if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
                     if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;

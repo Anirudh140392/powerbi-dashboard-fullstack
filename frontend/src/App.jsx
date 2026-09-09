@@ -40,6 +40,7 @@ import ContentAnalysisPage from "./pages/ContentAnalysis/ContentAnalysisPage";
 import PrimarySummaryPage from "./pages/PrimarySummary/PrimarySummaryPage";
 import SecondarySummaryPage from "./pages/SecondarySummary/SecondarySummaryPage";
 import AcceptInvitePage from "./pages/Login/AcceptInvitePage";
+import SelectWorkspacePage from "./pages/Login/SelectWorkspacePage";
 import CrossPlatformPricing from "./pages/Analytics/CrossPlatformPricing";
 
 function AppContent() {
@@ -57,6 +58,11 @@ function AppContent() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />
+            <Route path="/select-workspace" element={
+              <ProtectedRoute>
+                <SelectWorkspacePage />
+              </ProtectedRoute>
+            } />
 
             <Route path="/" element={<Navigate to="/watch-tower" replace />} />
 

@@ -79,6 +79,147 @@ const RolesPermissions = () => {
     const [allDatabases, setAllDatabases] = useState([]);
     const [selectedAllDb, setSelectedAllDb] = useState("mars");
     const [dbPlatformsMap, setDbPlatformsMap] = useState({});
+    const [dbMasterStateMap, setDbMasterStateMap] = useState({});
+
+    // Helper to get master status for a DB (whether it has users or not)
+    const getDbMasterState = (dbName) => {
+        if (!dbName) return { isDbActive: false, isTabActive: () => false, filteredByDb: [] };
+        const dbKey = dbName.toLowerCase();
+        const filteredByDb = usersData.filter(u => (u.dbName || '').toLowerCase() === dbKey);
+        const customState = dbMasterStateMap[dbKey] || {};
+
+        let isDbActive;
+        if (filteredByDb.length > 0) {
+            isDbActive = filteredByDb.every(u => u.dbStatus);
+        } else if (customState.dbStatus !== undefined) {
+            isDbActive = customState.dbStatus;
+        } else {
+            const dbObj = allDatabases.find(d => (d.db_name || '').toLowerCase() === dbKey);
+            isDbActive = dbObj ? (dbObj.status !== 'inactive') : true;
+        }
+
+        const isTabActive = (tabKey) => {
+            if (filteredByDb.length > 0) {
+                return filteredByDb.every(u => u.tabs && u.tabs[tabKey]);
+            }
+            if (customState.tabs && customState.tabs[tabKey] !== undefined) {
+                return customState.tabs[tabKey];
+            }
+            return true;
+        };
+
+        return { isDbActive, isTabActive, filteredByDb };
+    };
+
+    const handleToggleMasterDbStatus = async (dbName) => {
+        if (!dbName) return;
+        const dbKey = dbName.toLowerCase();
+        const { isDbActive, filteredByDb } = getDbMasterState(dbName);
+        const newStatus = !isDbActive;
+
+        setDbMasterStateMap(prev => ({
+            ...prev,
+            [dbKey]: {
+                ...prev[dbKey],
+                dbStatus: newStatus
+            }
+        }));
+
+        if (filteredByDb.length > 0) {
+            setUsersData(prev => prev.map(u => {
+                if ((u.dbName || '').toLowerCase() === dbKey) {
+                    return { ...u, dbStatus: newStatus };
+                }
+                return u;
+            }));
+        }
+
+        try {
+            const token = sessionStorage.getItem("token");
+            const reqs = [
+                axios.patch(`${API_BASE}/admin/permissions/db-status`, {
+                    dbName: dbName,
+                    dbStatus: newStatus
+                }, { headers: { Authorization: `Bearer ${token}` } })
+            ];
+            if (filteredByDb.length > 0) {
+                filteredByDb.forEach(u => {
+                    reqs.push(
+                        axios.patch(`${API_BASE}/admin/permissions/db-status`, {
+                            email: u.email,
+                            dbName: u.dbName || dbName,
+                            dbStatus: newStatus
+                        }, { headers: { Authorization: `Bearer ${token}` } })
+                    );
+                });
+            }
+            await Promise.all(reqs);
+        } catch (err) {
+            console.error('[RolesPermissions] Failed to toggle DB status:', err);
+            fetchPermissionsUsers();
+        }
+    };
+
+    const handleToggleMasterTab = async (dbName, tabKey) => {
+        if (!dbName) return;
+        const dbKey = dbName.toLowerCase();
+        const { isTabActive, filteredByDb } = getDbMasterState(dbName);
+        const newVal = !isTabActive(tabKey);
+
+        const dbPlats = dbPlatformsMap[dbKey] || [];
+        const baseTabs = {};
+        tabsList.forEach(t => { baseTabs[t] = true; });
+        dbPlats.forEach(p => { baseTabs[`platform_${p.toLowerCase()}`] = true; });
+
+        const currentTabs = dbMasterStateMap[dbKey]?.tabs || {};
+        const newDbTabs = { ...baseTabs, ...currentTabs, [tabKey]: newVal };
+
+        setDbMasterStateMap(prev => ({
+            ...prev,
+            [dbKey]: {
+                ...prev[dbKey],
+                tabs: newDbTabs
+            }
+        }));
+
+        if (filteredByDb.length > 0) {
+            setUsersData(prev => prev.map(u => {
+                if ((u.dbName || '').toLowerCase() === dbKey) {
+                    const rawTabs = { ...u.tabs, [tabKey]: newVal };
+                    const updatedTabs = getCleanedTabs(u, rawTabs);
+                    return { ...u, tabs: updatedTabs };
+                }
+                return u;
+            }));
+        }
+
+        try {
+            const token = sessionStorage.getItem("token");
+            const reqs = [
+                axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
+                    dbName: dbName,
+                    tabPermissions: newDbTabs
+                }, { headers: { Authorization: `Bearer ${token}` } })
+            ];
+            if (filteredByDb.length > 0) {
+                filteredByDb.forEach(u => {
+                    const rawTabs = { ...u.tabs, [tabKey]: newVal };
+                    const updatedTabs = getCleanedTabs(u, rawTabs);
+                    reqs.push(
+                        axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
+                            email: u.email,
+                            dbName: u.dbName || dbName,
+                            tabPermissions: updatedTabs
+                        }, { headers: { Authorization: `Bearer ${token}` } })
+                    );
+                });
+            }
+            await Promise.all(reqs);
+        } catch (err) {
+            console.error('[RolesPermissions] Failed to toggle tab permission for DB:', err);
+            fetchPermissionsUsers();
+        }
+    };
 
     // Fetch users and databases on mount
     useEffect(() => {
@@ -480,7 +621,7 @@ const RolesPermissions = () => {
                         style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.2em 1.2em' }}
                     >
                         <option value="all">All Databases ({usersData.length})</option>
-                        {[...new Set(usersData.map(u => u.dbName))].filter(d => d && d !== 'N/A').sort().map(db => (
+                        {[...new Set([...usersData.map(u => u.dbName), ...allDatabases.map(d => d.db_name)])].filter(d => d && d !== 'N/A').sort().map(db => (
                             <option key={db} value={db}>
                                 {db} ({usersData.filter(u => u.dbName === db).length})
                             </option>
@@ -566,37 +707,15 @@ const RolesPermissions = () => {
                                     <TableCell className="py-4" onClick={(e) => e.stopPropagation()}>
                                         <div className="flex items-center gap-3">
                                             {(() => {
-                                                const filteredByDb = usersData.filter(u => u.dbName.toLowerCase() === selectedAllDb.toLowerCase());
-                                                const allDbActive = filteredByDb.length > 0 && filteredByDb.every(u => u.dbStatus);
+                                                const { isDbActive } = getDbMasterState(selectedAllDb);
                                                 return (
                                                     <>
-                                                        <span className={`text-[9px] font-bold uppercase tracking-wider ${allDbActive ? 'text-indigo-600' : 'text-slate-300'}`}>
-                                                            {allDbActive ? 'Active' : 'Inactive'}
+                                                        <span className={`text-[9px] font-bold uppercase tracking-wider ${isDbActive ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                            {isDbActive ? 'Active' : 'Inactive'}
                                                         </span>
                                                         <Switch
-                                                            checked={allDbActive}
-                                                            onChange={async () => {
-                                                                const newStatus = !allDbActive;
-                                                                setUsersData(prev => prev.map(u => {
-                                                                    if (u.dbName.toLowerCase() === selectedAllDb.toLowerCase()) {
-                                                                        return { ...u, dbStatus: newStatus };
-                                                                    }
-                                                                    return u;
-                                                                }));
-                                                                try {
-                                                                    const token = sessionStorage.getItem("token");
-                                                                    await Promise.all(filteredByDb.map(u =>
-                                                                        axios.patch(`${API_BASE}/admin/permissions/db-status`, {
-                                                                            email: u.email,
-                                                                            dbName: u.dbName || selectedAllDb,
-                                                                            dbStatus: newStatus
-                                                                        }, { headers: { Authorization: `Bearer ${token}` } })
-                                                                    ));
-                                                                } catch (err) {
-                                                                    console.error('[RolesPermissions] Failed to toggle DB statuses for selected DB:', err);
-                                                                    fetchPermissionsUsers();
-                                                                }
-                                                            }}
+                                                            checked={isDbActive}
+                                                            onChange={() => handleToggleMasterDbStatus(selectedAllDb)}
                                                         />
                                                     </>
                                                 );
@@ -619,8 +738,8 @@ const RolesPermissions = () => {
                                                     <div className="px-14 py-4 space-y-2">
                                                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                                             {tabsList.map((tab) => {
-                                                                const filteredByDb = usersData.filter(u => u.dbName.toLowerCase() === selectedAllDb.toLowerCase());
-                                                                const allUsersHaveTab = filteredByDb.length > 0 && filteredByDb.every(u => u.tabs[tab]);
+                                                                const { isTabActive } = getDbMasterState(selectedAllDb);
+                                                                const active = isTabActive(tab);
                                                                 return (
                                                                     <div
                                                                         key={tab}
@@ -631,39 +750,12 @@ const RolesPermissions = () => {
                                                                         </div>
                                                                         <div className="flex flex-col items-end gap-1">
                                                                             <div className="flex items-center gap-2">
-                                                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${allUsersHaveTab ? 'text-indigo-600' : 'text-slate-300'}`}>
-                                                                                    {allUsersHaveTab ? 'Active' : 'Inactive'}
+                                                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${active ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                                                    {active ? 'Active' : 'Inactive'}
                                                                                 </span>
                                                                                 <Switch
-                                                                                    checked={allUsersHaveTab}
-                                                                                    onChange={async () => {
-                                                                                        const newVal = !allUsersHaveTab;
-                                                                                        // Optimistic update for filtered users
-                                                                                        setUsersData(prev => prev.map(u => {
-                                                                                            if (u.dbName.toLowerCase() === selectedAllDb.toLowerCase()) {
-                                                                                                const rawTabs = { ...u.tabs, [tab]: newVal };
-                                                                                                const updatedTabs = getCleanedTabs(u, rawTabs);
-                                                                                                return { ...u, tabs: updatedTabs };
-                                                                                            }
-                                                                                            return u;
-                                                                                        }));
-                                                                                        // Persist for each user
-                                                                                        try {
-                                                                                            const token = sessionStorage.getItem("token");
-                                                                                            await Promise.all(filteredByDb.map(u => {
-                                                                                                const rawTabs = { ...u.tabs, [tab]: newVal };
-                                                                                                const updatedTabs = getCleanedTabs(u, rawTabs);
-                                                                                                return axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
-                                                                                                    email: u.email,
-                                                                                                    dbName: u.dbName || selectedAllDb,
-                                                                                                    tabPermissions: updatedTabs
-                                                                                                }, { headers: { Authorization: `Bearer ${token}` } });
-                                                                                            }));
-                                                                                        } catch (err) {
-                                                                                            console.error('[RolesPermissions] Failed to toggle all tab permissions for selected database:', err);
-                                                                                            fetchPermissionsUsers();
-                                                                                        }
-                                                                                    }}
+                                                                                    checked={active}
+                                                                                    onChange={() => handleToggleMasterTab(selectedAllDb, tab)}
                                                                                 />
                                                                             </div>
                                                                         </div>
@@ -683,8 +775,8 @@ const RolesPermissions = () => {
                                                                         {dbPlats.map((plat) => {
                                                                             const permKey = `platform_${plat.toLowerCase()}`;
                                                                             const displayName = plat.charAt(0).toUpperCase() + plat.slice(1);
-                                                                            const filteredByDb = usersData.filter(u => u.dbName.toLowerCase() === selectedAllDb.toLowerCase());
-                                                                            const allUsersHavePlat = filteredByDb.length > 0 && filteredByDb.every(u => u.tabs[permKey]);
+                                                                            const { isTabActive } = getDbMasterState(selectedAllDb);
+                                                                            const active = isTabActive(permKey);
                                                                             return (
                                                                                 <div
                                                                                     key={plat}
@@ -695,37 +787,12 @@ const RolesPermissions = () => {
                                                                                     </div>
                                                                                     <div className="flex flex-col items-end gap-1">
                                                                                         <div className="flex items-center gap-2">
-                                                                                            <span className={`text-[9px] font-bold uppercase tracking-wider ${allUsersHavePlat ? 'text-indigo-600' : 'text-slate-300'}`}>
-                                                                                                {allUsersHavePlat ? 'Active' : 'Inactive'}
+                                                                                            <span className={`text-[9px] font-bold uppercase tracking-wider ${active ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                                                                {active ? 'Active' : 'Inactive'}
                                                                                             </span>
                                                                                             <Switch
-                                                                                                checked={allUsersHavePlat}
-                                                                                                onChange={async () => {
-                                                                                                    const newVal = !allUsersHavePlat;
-                                                                                                    setUsersData(prev => prev.map(u => {
-                                                                                                        if (u.dbName.toLowerCase() === selectedAllDb.toLowerCase()) {
-                                                                                                            const rawTabs = { ...u.tabs, [permKey]: newVal };
-                                                                                                            const updatedTabs = getCleanedTabs(u, rawTabs);
-                                                                                                            return { ...u, tabs: updatedTabs };
-                                                                                                        }
-                                                                                                        return u;
-                                                                                                    }));
-                                                                                                    try {
-                                                                                                        const token = sessionStorage.getItem("token");
-                                                                                                        await Promise.all(filteredByDb.map(u => {
-                                                                                                            const rawTabs = { ...u.tabs, [permKey]: newVal };
-                                                                                                            const updatedTabs = getCleanedTabs(u, rawTabs);
-                                                                                                            return axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
-                                                                                                                email: u.email,
-                                                                                                                dbName: u.dbName || selectedAllDb,
-                                                                                                                tabPermissions: updatedTabs
-                                                                                                            }, { headers: { Authorization: `Bearer ${token}` } });
-                                                                                                        }));
-                                                                                                    } catch (err) {
-                                                                                                        console.error('[RolesPermissions] Failed to toggle platform permission for selected database:', err);
-                                                                                                        fetchPermissionsUsers();
-                                                                                                    }
-                                                                                                }}
+                                                                                                checked={active}
+                                                                                                onChange={() => handleToggleMasterTab(selectedAllDb, permKey)}
                                                                                             />
                                                                                         </div>
                                                                                     </div>

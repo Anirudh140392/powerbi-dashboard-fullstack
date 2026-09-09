@@ -256,6 +256,15 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
     const [localCategory,    setLocalCategory]    = useState([]);
     const [localSubCategory, setLocalSubCategory] = useState([]);
 
+    const isKelloggs = useMemo(() => {
+        try {
+            const u = JSON.parse(sessionStorage.getItem('user'));
+            return u?.dbName?.toLowerCase() === 'kelloggs';
+        } catch {
+            return false;
+        }
+    }, []);
+
     // ── Fetch ──────────────────────────────────────────────────────────────
     useEffect(() => {
         const fetchData = async () => {
@@ -270,8 +279,14 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
                 };
                 const res = await axiosInstance.get('/market-share/share-table', { params });
                 const fetchedData = Array.isArray(res.data?.data) ? res.data.data : [];
-                const hardcodedData = fetchedData.filter(r => r.brand && r.brand.toLowerCase() === 'the derma co.');
-                setTableData(hardcodedData);
+                let tableRows = fetchedData;
+                try {
+                    const u = JSON.parse(sessionStorage.getItem('user'));
+                    if (u?.dbName?.toLowerCase() === 'mamaearth') {
+                        tableRows = fetchedData.filter(r => r.brand && r.brand.toLowerCase() === 'the derma co.');
+                    }
+                } catch (e) {}
+                setTableData(tableRows);
             } catch (err) {
                 console.error('[MarketShareShareTable] Fetch error:', err);
                 setTableData([]);
@@ -523,7 +538,7 @@ const MarketShareShareTable = ({ loading: parentLoading }) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {!loading && processedData.length > 0 && (
+                        {!loading && processedData.length > 0 && !isKelloggs && (
                             <motion.tr
                                 className="bg-purple-50/70 font-bold border-b border-purple-200/60 hover:bg-purple-100/50 transition-colors"
                                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}

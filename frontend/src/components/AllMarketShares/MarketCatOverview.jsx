@@ -137,14 +137,14 @@ const MarketCatOverview = ({
 
                 // Construct parameters avoiding empty arrays
                 const selectedCats = advancedFilters.categories?.length > 0 ? advancedFilters.categories : (selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory : [selectedCategory]));
-                const selectedBrands = advancedFilters.brands?.length > 0 ? advancedFilters.brands : undefined;
+                const selectedBrands = advancedFilters.brands?.length > 0 ? advancedFilters.brands : (selectedBrand === 'All' ? undefined : (Array.isArray(selectedBrand) ? selectedBrand : [selectedBrand]));
 
                 const params = {
                     platform: globalPlatform === 'All' ? undefined : (Array.isArray(globalPlatform) ? globalPlatform.join(",") : globalPlatform),
                     category: selectedCats ? (Array.isArray(selectedCats) ? selectedCats.join(",") : selectedCats) : undefined,
                     subCategory: selectedSubCategory === 'All' ? undefined : (Array.isArray(selectedSubCategory) ? selectedSubCategory.join(",") : selectedSubCategory),
                     location: selectedCities ? (Array.isArray(selectedCities) ? selectedCities.join(",") : selectedCities) : undefined,
-                    brand: selectedBrands ? selectedBrands.join(",") : undefined,
+                    brand: selectedBrands ? (Array.isArray(selectedBrands) ? selectedBrands.join(",") : selectedBrands) : undefined,
                     startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
                     endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
                     compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
@@ -166,7 +166,7 @@ const MarketCatOverview = ({
         };
 
         fetchCrossPlatformData();
-    }, [globalPlatform, selectedCategory, selectedSubCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, advancedFilters]);
+    }, [globalPlatform, selectedBrand, selectedCategory, selectedSubCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, advancedFilters]);
 
     const loading = parentLoading || dataLoading;
 

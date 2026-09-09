@@ -1835,8 +1835,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             (async () => {
                 try {
                     const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
+                    const salesValidCond = src.isAgg ? 'total_sales > 0' : "Sales IS NOT NULL AND toString(Sales) != '' AND toString(Sales) != 'null'";
                     const result = await queryClickHouse(`
-                        SELECT ${dateCol} as date, SUM(${src.f.sales}) as total_sales 
+                        SELECT 
+                            ${dateCol} as date, 
+                            SUM(${src.f.sales}) as total_sales,
+                            countIf(${salesValidCond}) as valid_sales_count
                         FROM ${src.table} 
                         WHERE ${offtakeCondStr}
                         GROUP BY date ORDER BY date
@@ -1948,11 +1952,19 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             (async () => {
                 try {
                     const prevOfftakeCondStr = buildOfftakeConditions(momStartDate, momEndDate);
-                    const result = await queryClickHouse(`SELECT SUM(${src.f.sales}) as total FROM ${src.table} WHERE ${prevOfftakeCondStr}`);
-                    return parseFloat(result[0]?.total || 0);
+                    const salesValidCond = src.isAgg ? 'total_sales > 0' : "Sales IS NOT NULL AND toString(Sales) != '' AND toString(Sales) != 'null'";
+                    const result = await queryClickHouse(`
+                        SELECT 
+                            SUM(${src.f.sales}) as total,
+                            countIf(${salesValidCond}) as valid_sales_count 
+                        FROM ${src.table} 
+                        WHERE ${prevOfftakeCondStr}
+                    `);
+                    const validCount = parseInt(result[0]?.valid_sales_count || 0, 10);
+                    return validCount > 0 ? parseFloat(result[0]?.total || 0) : null;
                 } catch (err) {
                     console.error('[PrevOfftake] ClickHouse error:', err.message);
-                    return 0;
+                    return null;
                 }
             })(),
             // 12. Previous Market Share
@@ -2035,23 +2047,27 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         };
 
         const hasOfftakeData = offtakeData.length > 0;
-        const totalOfftake = hasOfftakeData ? offtakeData.reduce((sum, d) => sum + parseFloat(d.total_sales || 0), 0) : null;
+        const totalValidSalesCount = offtakeData.reduce((sum, d) => sum + parseInt(d.valid_sales_count || 0, 10), 0);
+        const totalOfftake = (hasOfftakeData && totalValidSalesCount > 0) ? offtakeData.reduce((sum, d) => sum + parseFloat(d.total_sales || 0), 0) : null;
         const offtakeChart = mapToWeeks(offtakeData, weekBuckets, 'total_sales');
 
         const formattedOfftake = formatCurrency(totalOfftake);
 
         // Calculate Offtake Trend
-        const prevOfftakeVal = parseFloat(prevOfftakeResult || 0);
+        const prevOfftakeVal = prevOfftakeResult !== null ? parseFloat(prevOfftakeResult) : null;
         let offtakeChange = 0;
         let offtakeTrendStr = "N/A";
 
         if (totalOfftake !== null) {
-            if (prevOfftakeVal > 0) {
+            if (prevOfftakeVal !== null && prevOfftakeVal > 0) {
                 offtakeChange = ((totalOfftake - prevOfftakeVal) / prevOfftakeVal) * 100;
-            } else if (totalOfftake > 0) {
+                offtakeTrendStr = (offtakeChange >= 0 ? "+" : "") + offtakeChange.toFixed(2) + "%";
+            } else if (totalOfftake > 0 && (prevOfftakeVal === 0 || prevOfftakeVal === null)) {
                 offtakeChange = 100;
+                offtakeTrendStr = "+100.00%";
+            } else if (prevOfftakeVal === null) {
+                offtakeTrendStr = "N/A";
             }
-            offtakeTrendStr = (offtakeChange >= 0 ? "+" : "") + offtakeChange.toFixed(2) + "%";
         }
 
         // Process Market Share Data
@@ -8538,6 +8554,7 @@ const getKpiTrends = async (filters) => {
                 ${groupExpression.replace('DATE', src.f.date)} as date_group,
                 MAX(toDate(${src.f.date})) as ref_date,
                 SUM(${src.f.sales}) as total_sales,
+                countIf(${src.isAgg ? 'total_sales > 0' : 'Sales IS NOT NULL AND toString(Sales) != \'\' AND toString(Sales) != \'null\''}) as valid_sales_count,
                 SUM(${src.f.adSales}) as total_Ad_sales,
                 SUM(${src.f.spend}) as total_ad_spend,
                 SUM(${src.f.orders}) as total_ad_orders,
@@ -8895,7 +8912,8 @@ const getKpiTrends = async (filters) => {
         const row = scaleMarsMetrics(rowRaw, brand || category || skuName || dimensionValue);
 
         // Extract values
-        const totalSales = parseFloat(row.total_sales || 0);
+        const hasValidSales = row.valid_sales_count !== undefined ? parseInt(row.valid_sales_count, 10) > 0 : (row.total_sales !== null && row.total_sales !== undefined);
+        const totalSales = (hasValidSales && row.total_sales !== null && row.total_sales !== undefined) ? parseFloat(row.total_sales) : null;
         const adSales = parseFloat(row.total_Ad_sales || 0);
         const adSpend = parseFloat(row.total_ad_spend || 0);
         const adOrders = parseFloat(row.total_ad_orders || 0);
@@ -8997,22 +9015,22 @@ const getKpiTrends = async (filters) => {
             Roas: valIfData(hasPmAdSalesData && hasPmSpendData, effectivePmBucketData, parseFloat(roas.toFixed(2))),
             BmiSalesRatio: valIfData(hasPmSpendData && hasOfftakesData, effectivePmBucketData && hasPdpBucketData, parseFloat(bmiSalesRatio.toFixed(2))),
             // Extended KPIs (Platform/Month/Category/Brand pages)
-            Offtakes: valIfData(hasOfftakesData, hasPdpBucketData, parseFloat(offtakes.toFixed(0))),
-            Spend: valIfData(hasPmSpendData, effectivePmBucketData, parseFloat(spend.toFixed(0))),
+            Offtakes: valIfData(hasOfftakesData, hasPdpBucketData, (offtakes !== null && offtakes !== undefined) ? parseFloat(offtakes.toFixed(0)) : null),
+            Spend: valIfData(hasPmSpendData, effectivePmBucketData, (spend !== null && spend !== undefined) ? parseFloat(spend.toFixed(0)) : null),
             Availability: valIfData(hasAvailabilityData, hasPdpBucketData, availability !== null ? parseFloat(availability.toFixed(2)) : null),
             Osa: valIfData(hasAvailabilityData, hasPdpBucketData, availability !== null ? parseFloat(availability.toFixed(2)) : null),
             Listing: valIfData(hasAssortmentData, hasPdpBucketData, masterCount > 0 ? parseFloat(((assortment / masterCount) * 100).toFixed(2)) : (availability !== null ? parseFloat(availability.toFixed(2)) : null)),
             Assortment: valIfData(hasAssortmentData, hasPdpBucketData, assortment),
-            CPM: valIfData(hasPmSpendData && hasPmImpressionsData, effectivePmBucketData, parseFloat(cpm.toFixed(2))),
-            CPC: valIfData(hasPmSpendData && hasPmClicksData, effectivePmBucketData, parseFloat(cpc.toFixed(2))),
+            CPM: valIfData(hasPmSpendData && hasPmImpressionsData, effectivePmBucketData, (cpm !== null && cpm !== undefined) ? parseFloat(cpm.toFixed(2)) : null),
+            CPC: valIfData(hasPmSpendData && hasPmClicksData, effectivePmBucketData, (cpc !== null && cpc !== undefined) ? parseFloat(cpc.toFixed(2)) : null),
             // Pricing KPIs
             'Promo-My': valIfData(hasDiscountData, hasPdpBucketData, parseFloat(discount.toFixed(2))),
             PricePerUnit: valIfData(hasPricingData, hasPdpBucketData, parseFloat(pricePerUnit.toFixed(2))),
             ASP: valIfData(hasPricingData, hasPdpBucketData, parseFloat(asp.toFixed(2))),
             RPI: valIfData(hasPricingData, hasPdpBucketData, parseFloat(rpi.toFixed(2))),
             // Mapped aliases for frontend compatibility (DRAWER SYNC)
-            offtake: valIfData(hasOfftakesData, hasPdpBucketData, parseFloat(offtakes.toFixed(0))),       // MyTrendsDrawer
-            Offtake: valIfData(hasOfftakesData, hasPdpBucketData, parseFloat(offtakes.toFixed(0))),       // TrendsCompetitionDrawer
+            offtake: valIfData(hasOfftakesData, hasPdpBucketData, (offtakes !== null && offtakes !== undefined) ? parseFloat(offtakes.toFixed(0)) : null),       // MyTrendsDrawer
+            Offtake: valIfData(hasOfftakesData, hasPdpBucketData, (offtakes !== null && offtakes !== undefined) ? parseFloat(offtakes.toFixed(0)) : null),       // TrendsCompetitionDrawer
             osa: valIfData(hasAvailabilityData, hasPdpBucketData, availability !== null ? parseFloat(availability.toFixed(2)) : null),       // MyTrendsDrawer
             discount: valIfData(hasDiscountData, hasPdpBucketData, parseFloat(discount.toFixed(2))),      // MyTrendsDrawer
             Sos: valIfData(hasSosFinalData, hasSosBucketData, parseFloat(shareOfSearch.toFixed(2))),      // MyTrendsDrawer

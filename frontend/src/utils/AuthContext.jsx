@@ -124,6 +124,8 @@ export const AuthProvider = ({ children }) => {
         sessionStorage.removeItem("isLoggedIn");
         sessionStorage.removeItem("token");
         sessionStorage.removeItem("user");
+        sessionStorage.removeItem("workspaceSelected");
+        sessionStorage.removeItem("activeWorkspaceDb");
     };
 
     // Verify session on mount/refresh: re-validate token with backend
