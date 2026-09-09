@@ -1315,13 +1315,14 @@ const PlatformOverviewNew = ({
                                                     </button>
                                                     {(() => {
                                                         const entityNameLower = safeLower(e.name || e.label).trim();
-                                                        const chanStr = safeLower(selectedChannel);
-                                                        const platStr = safeLower(globalPlatform);
-                                                        const isEcomEntity = isEcomPlatform(entityNameLower) || chanStr.includes('ecom') || chanStr.includes('e-commerce');
-                                                        const isAmazonEntity = entityNameLower.includes('amazon') || platStr.includes('amazon');
 
-                                                        // For e-commerce, ONLY show RCA button for Amazon; hide for all other e-commerce platforms
-                                                        if (isEcomEntity && !isAmazonEntity) {
+                                                        // Only show RCA button for Blinkit, Zepto, Amazon (not Amazon Now), and Instamart
+                                                        const rcaAllowedPlatforms = ['blinkit', 'zepto', 'amazon', 'instamart'];
+                                                        const rcaExcludedPlatforms = ['amazon now'];
+                                                        const isExcluded = rcaExcludedPlatforms.some(p => entityNameLower.includes(p));
+                                                        const isRcaAllowed = !isExcluded && rcaAllowedPlatforms.some(p => entityNameLower.includes(p));
+
+                                                        if (!isRcaAllowed) {
                                                             return null;
                                                         }
 
