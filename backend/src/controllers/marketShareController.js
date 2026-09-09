@@ -54,7 +54,9 @@ export const SubCategoryKpi = async (req, res) => {
         const compStart = compareStartDate ? dayjs(compareStartDate) : null;
         const compEnd = compareEndDate ? dayjs(compareEndDate) : null;
 
-        const result = await getSubCategoryKpi(start, end, platform, category, location, subCategory, compStart, compEnd, brand, globalSubCategory, globalBrand, globalSubBrand);
+        const effectiveSubBrand = (globalSubBrand && globalSubBrand !== 'all' && globalSubBrand !== 'All') ? globalSubBrand : ((subBrand && subBrand !== 'all' && subBrand !== 'All') ? subBrand : (globalSubBrand || subBrand));
+
+        const result = await getSubCategoryKpi(start, end, platform, category, location, subCategory, compStart, compEnd, brand, globalSubCategory, globalBrand, effectiveSubBrand);
 
         res.json({
             message: "Sub-Category KPI fetched successfully",

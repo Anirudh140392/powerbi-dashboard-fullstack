@@ -502,7 +502,7 @@ export const getAvailabilityCompetition = async (req, res) => {
             period: req.query.period || '1M',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            ownBrandsOnly: req.query.ownBrandsOnly,
+            ownBrandsOnly: false,
             msl: req.query.msl,
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
             resellerName: parseFilter(req.query.resellerName)

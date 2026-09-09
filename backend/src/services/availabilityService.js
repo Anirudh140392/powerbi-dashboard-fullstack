@@ -3143,7 +3143,8 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 startDate = endDate.subtract(days, 'days');
             }
 
-            const whereClause = await buildAvailabilityWhereClause({ ...filters, startDate, endDate });
+            const effectiveFilters = { ...filters, ownBrandsOnly: false };
+            const whereClause = await buildAvailabilityWhereClause({ ...effectiveFilters, startDate, endDate });
 
             const query = `
                 WITH latest_skus AS (
@@ -3227,8 +3228,8 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 WHERE ${whereClause}
                   AND Product IS NOT NULL AND Product != ''
                 GROUP BY Product, Brand
-                ORDER BY total_sales DESC, total_deno DESC
-                LIMIT 50
+                ORDER BY total_deno DESC, total_sales DESC
+                LIMIT 100
             `;
 
 
@@ -3298,7 +3299,7 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
         const { platform = 'All', location = 'All', category = 'All', brand = 'All' } = filters;
 
         // 1. Build base condition (Platform and Location)
-        const baseWhere = await buildAvailabilityWhereClause({ platform, location, channel: filters.channel, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const baseWhere = await buildAvailabilityWhereClause({ platform, location, channel: filters.channel, ownBrandsOnly: false, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const baseCondsStr = baseWhere !== '1=1' ? `${baseWhere} AND ` : '';
 
         // Dynamically resolve columns
@@ -3310,12 +3311,12 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
         const catQuery = `SELECT DISTINCT ${catCol} as value FROM rb_pdp_olap WHERE ${baseCondsStr}${catCol} IS NOT NULL AND ${catCol} != '' ORDER BY value`;
 
         // 3. Build Brand conditions (filtered by Platform/Location/Advanced/Category)
-        const brandWhere = await buildAvailabilityWhereClause({ platform, location, category, channel: filters.channel, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const brandWhere = await buildAvailabilityWhereClause({ platform, location, category, channel: filters.channel, ownBrandsOnly: false, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const brandCondsStr = brandWhere !== '1=1' ? `${brandWhere} AND ` : '';
         const brandQuery = `SELECT DISTINCT Brand as value FROM rb_pdp_olap WHERE ${brandCondsStr}Brand IS NOT NULL AND Brand != '' ORDER BY Brand`;
 
         // 4. Build SKU conditions (filtered by Platform/Location/Advanced/Category/Brand)
-        const skuWhere = await buildAvailabilityWhereClause({ platform, location, category, brand, channel: filters.channel, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const skuWhere = await buildAvailabilityWhereClause({ platform, location, category, brand, channel: filters.channel, ownBrandsOnly: false, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const skuCondsStr = skuWhere !== '1=1' ? `${skuWhere} AND ` : '';
         const skuQuery = `SELECT DISTINCT Product as value FROM rb_pdp_olap WHERE ${skuCondsStr}Product IS NOT NULL AND Product != '' ORDER BY Product`;
 
@@ -3432,7 +3433,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                     startDate = endDate.subtract(days, 'days');
                 }
 
-                const autoWhereClause = await buildAvailabilityWhereClause({ ...filters, brands: undefined, brand: undefined, startDate, endDate });
+                const autoWhereClause = await buildAvailabilityWhereClause({ ...filters, ownBrandsOnly: false, brands: undefined, brand: undefined, startDate, endDate });
                 const topBrandsQuery = `
                     SELECT Brand, SUM(toFloat64OrZero(toString(deno_osa))) as total_deno
                     FROM rb_pdp_olap
@@ -3462,7 +3463,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                 startDate = endDate.subtract(days, 'days');
             }
 
-            const whereClause = await buildAvailabilityWhereClause({ ...filters, startDate, endDate });
+            const whereClause = await buildAvailabilityWhereClause({ ...filters, ownBrandsOnly: false, startDate, endDate });
 
             // Determine Grouping for ClickHouse
             let groupExpression;
@@ -3595,7 +3596,7 @@ const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
                     startDate = endDate.subtract(days, 'days');
                 }
 
-                const autoWhereClause = await buildAvailabilityWhereClause({ ...filters, skus: undefined, sku: undefined, startDate, endDate });
+                const autoWhereClause = await buildAvailabilityWhereClause({ ...filters, ownBrandsOnly: false, skus: undefined, sku: undefined, startDate, endDate });
                 const topSkusQuery = `
                     SELECT Product, SUM(toFloat64OrZero(toString(deno_osa))) as total_deno
                     FROM rb_pdp_olap
@@ -3625,7 +3626,7 @@ const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
                 startDate = endDate.subtract(days, 'days');
             }
 
-            const whereClause = await buildAvailabilityWhereClause({ ...filters, startDate, endDate });
+            const whereClause = await buildAvailabilityWhereClause({ ...filters, ownBrandsOnly: false, startDate, endDate });
 
             // Determine Grouping for ClickHouse
             let groupExpression;

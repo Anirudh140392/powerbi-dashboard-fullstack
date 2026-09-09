@@ -66,7 +66,8 @@ export const makeSubCategoryJoin = (subCategoryFilter) => {
 
 const checkColumnExists = async (tableName, columnName) => {
     try {
-        const result = await queryClickHouse(`SELECT count() as count FROM system.columns WHERE table = '${tableName}' AND name = '${columnName}'`);
+        const dbName = getCurrentDbName();
+        const result = await queryClickHouse(`SELECT count() as count FROM system.columns WHERE database = '${dbName}' AND table = '${tableName}' AND name = '${columnName}'`);
         return result && result.length > 0 && result[0].count > 0;
     } catch (e) {
         return false;
@@ -1332,9 +1333,11 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             globalBrandCond = `AND lower(${isMamaearth ? 'ms.group_brand' : 'group_brand'}) IN (${globalBrandArr.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
         }
 
+        const hasSubBrandCol = await checkColumnExists('rb_ms_olap', 'sub_brand');
+
         const globalSubBrandArr = normalizeFilterArray(globalSubBrandFilter);
         let globalSubBrandCond = '';
-        if (globalSubBrandArr && globalSubBrandArr.length > 0 && !globalSubBrandArr.includes('All')) {
+        if (hasSubBrandCol && globalSubBrandArr && globalSubBrandArr.length > 0 && !globalSubBrandArr.includes('All')) {
             globalSubBrandCond = `AND ${isMamaearth ? 'ms.sub_brand' : 'sub_brand'} IN (${globalSubBrandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
@@ -1407,7 +1410,9 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             subCatCond = `AND category IN (${finalTargetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
-        // Get total category sales for denominator
+        const groupBrandCol = isMamaearth ? 'ms.group_brand' : 'group_brand';
+
+        // Get total category sales for denominator (including brand & sub-brand filters when applied)
         const totalSalesQuery = `
             SELECT SUM(toFloat64OrZero(toString(${isMamaearth ? 'ms.sales' : 'sales'}))) as total_sales
             FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
@@ -1415,6 +1420,9 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${startStr}' AND '${endStr}'
             ${platformCond} ${locationCond}
             ${subCatCond}
+            ${brandCond}
+            ${globalBrandCond}
+            ${globalSubBrandCond}
         `;
 
         const prevTotalSalesQuery = `
@@ -1424,32 +1432,35 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${platformCond} ${locationCond}
             ${subCatCond}
+            ${brandCond}
+            ${globalBrandCond}
+            ${globalSubBrandCond}
         `;
 
         // 2. Current period brand KPIs
         const currentQuery = `
-            SELECT ${isMamaearth ? 'ms.group_brand' : 'group_brand'} as brand,
+            SELECT ${groupBrandCol} as brand,
                    SUM(toFloat64OrZero(toString(${isMamaearth ? 'ms.sales' : 'sales'}))) as total_sales
             FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
             ${subCatJoin}
             WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
             ${subCatCond}
-            AND ${isMamaearth ? 'ms.group_brand' : 'group_brand'} IS NOT NULL AND ${isMamaearth ? 'ms.group_brand' : 'group_brand'} != ''
+            AND ${groupBrandCol} IS NOT NULL AND ${groupBrandCol} != ''
             GROUP BY brand
             ORDER BY total_sales DESC
         `;
 
         // 3. Previous period brand KPIs (for delta)
         const prevQuery = `
-            SELECT ${isMamaearth ? 'ms.group_brand' : 'group_brand'} as brand,
+            SELECT ${groupBrandCol} as brand,
                    SUM(toFloat64OrZero(toString(${isMamaearth ? 'ms.sales' : 'sales'}))) as total_sales
             FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
             ${subCatJoin}
             WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${baseCond}
             ${subCatCond}
-            AND ${isMamaearth ? 'ms.group_brand' : 'group_brand'} IS NOT NULL AND ${isMamaearth ? 'ms.group_brand' : 'group_brand'} != ''
+            AND ${groupBrandCol} IS NOT NULL AND ${groupBrandCol} != ''
             GROUP BY brand
         `;
 
