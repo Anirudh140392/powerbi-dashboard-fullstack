@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -16,7 +16,10 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Tooltip
+  Tooltip,
+  FormControl,
+  Select,
+  MenuItem
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -27,7 +30,9 @@ import {
   FilterList as FilterListIcon,
   Edit as EditIcon,
   OpenInNew as OpenInNewIcon,
-  Storefront as StorefrontIcon
+  Storefront as StorefrontIcon,
+  LocationOn as LocationOnIcon,
+  Apartment as ApartmentIcon
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import CommonContainer from '../../components/CommonLayout/CommonContainer';
@@ -71,6 +76,14 @@ export default function CrossPlatformPricing() {
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const rowsPerPage = 10;
+  const cityScrollRef = useRef(null);
+
+  const scrollCities = (direction) => {
+    if (cityScrollRef.current) {
+      const scrollAmount = direction === 'left' ? -300 : 300;
+      cityScrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
 
   const startDateStr = timeStart ? dayjs(timeStart).format('YYYY-MM-DD') : undefined;
   const endDateStr = timeEnd ? dayjs(timeEnd).format('YYYY-MM-DD') : undefined;
@@ -222,45 +235,161 @@ export default function CrossPlatformPricing() {
             </Box>
           </Box>
 
-          {/* City Carousel Tabs */}
-          <Box sx={{ px: 3, py: 1.5, display: 'flex', gap: 1.5, overflowX: 'auto', borderBottom: '1px solid #f1f5f9', '&::-webkit-scrollbar': { height: '4px' } }}>
-            {data.cities && data.cities.map((c) => {
-              const isSelected = selectedCity?.toLowerCase() === c.name?.toLowerCase();
-              return (
-                <Box
-                  key={c.name}
-                  onClick={() => { setSelectedCity(c.name); setPage(1); }}
+          {/* Sleek Non-Block City Location Segment Bar */}
+          <Box
+            sx={{
+              px: 3,
+              py: 1.5,
+              bgcolor: '#f8fafc',
+              borderTop: '1px solid #f1f5f9',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 2,
+              flexWrap: 'wrap'
+            }}
+          >
+            {/* Left: Location Label & Horizontal Chip Strip */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, flexShrink: 0 }}>
+                <LocationOnIcon sx={{ fontSize: '1.2rem', color: '#0284c7' }} />
+                <Typography sx={{ fontSize: '12px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  City:
+                </Typography>
+              </Box>
+
+              {/* Scrollable Chip Tabs (Non-block Pills) */}
+              <Box
+                ref={cityScrollRef}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  overflowX: 'auto',
+                  scrollbarWidth: 'none',
+                  '&::-webkit-scrollbar': { display: 'none' },
+                  py: 0.5
+                }}
+              >
+                {data.cities && data.cities.map((c) => {
+                  const isSelected = selectedCity?.toLowerCase() === c.name?.toLowerCase();
+                  const isHighBreach = c.breaches > 75;
+
+                  return (
+                    <Box
+                      key={c.name}
+                      onClick={() => { setSelectedCity(c.name); setPage(1); }}
+                      sx={{
+                        flexShrink: 0,
+                        cursor: 'pointer',
+                        px: 2.2,
+                        py: 0.9,
+                        borderRadius: '24px',
+                        background: isSelected
+                          ? 'linear-gradient(135deg, #0284c7 0%, #4f46e5 100%)'
+                          : '#ffffff',
+                        color: isSelected ? '#ffffff' : '#1e293b',
+                        border: isSelected ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                        fontWeight: isSelected ? 800 : 600,
+                        fontSize: '13px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: isSelected
+                          ? '0 4px 14px rgba(2, 132, 199, 0.35)'
+                          : '0 1px 3px rgba(0,0,0,0.03)',
+                        '&:hover': {
+                          transform: 'translateY(-1px)',
+                          bgcolor: isSelected ? undefined : '#f8fafc',
+                          borderColor: isSelected ? '#0284c7' : '#94a3b8'
+                        }
+                      }}
+                    >
+                      <span>{c.name}</span>
+
+                      {/* Integrated Micro Breach Badge inside Pill */}
+                      <Box
+                        sx={{
+                          px: 1,
+                          py: 0.2,
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          bgcolor: isSelected
+                            ? 'rgba(255, 255, 255, 0.25)'
+                            : (isHighBreach ? '#ffe4e6' : '#fffbeb'),
+                          color: isSelected
+                            ? '#ffffff'
+                            : (isHighBreach ? '#be123c' : '#b45309'),
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.4
+                        }}
+                      >
+                        <WarningIcon sx={{ fontSize: '0.75rem', color: isSelected ? '#ffffff' : (isHighBreach ? '#e11d48' : '#d97706') }} />
+                        <span>{c.breaches}</span>
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+
+            {/* Right Controls: Quick Dropdown Select + Scroll Buttons */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <Select
+                  value={selectedCity}
+                  onChange={(e) => { setSelectedCity(e.target.value); setPage(1); }}
                   sx={{
-                    flexShrink: 0,
-                    cursor: 'pointer',
-                    px: 2.5,
-                    py: 1.2,
-                    borderRadius: '12px',
-                    border: isSelected ? '2px solid #0284c7' : '1px solid #e2e8f0',
-                    bgcolor: isSelected ? '#f0f9ff' : '#ffffff',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 0.5,
-                    minWidth: 120,
-                    '&:hover': {
-                      borderColor: isSelected ? '#0284c7' : '#cbd5e1',
-                      transform: 'translateY(-1px)'
-                    }
+                    borderRadius: '20px',
+                    bgcolor: '#ffffff',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    height: 34,
+                    '& fieldset': { borderColor: '#cbd5e1' },
+                    '&:hover fieldset': { borderColor: '#0284c7' }
                   }}
                 >
-                  <Typography sx={{ fontWeight: isSelected ? 800 : 600, fontSize: '13px', color: '#0f172a' }}>
-                    {c.name}
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-                    <WarningIcon sx={{ fontSize: '0.9rem', color: '#d97706' }} />
-                    <Typography sx={{ fontSize: '12px', fontWeight: 800, color: '#92400e' }}>
-                      {c.breaches}
-                    </Typography>
-                  </Box>
-                </Box>
-              );
-            })}
+                  {data.cities && data.cities.map((c) => (
+                    <MenuItem key={c.name} value={c.name} sx={{ fontSize: '12px', fontWeight: 600, display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                      <span>{c.name}</span>
+                      <Chip
+                        label={`${c.breaches} breaches`}
+                        size="small"
+                        sx={{
+                          height: 18,
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          bgcolor: c.breaches > 75 ? '#ffe4e6' : '#fffbeb',
+                          color: c.breaches > 75 ? '#e11d48' : '#b45309'
+                        }}
+                      />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                <IconButton
+                  size="small"
+                  onClick={() => scrollCities('left')}
+                  sx={{ bgcolor: '#ffffff', border: '1px solid #cbd5e1', width: 32, height: 32, '&:hover': { bgcolor: '#e2e8f0' } }}
+                >
+                  <ChevronLeftIcon sx={{ fontSize: '1.1rem', color: '#334155' }} />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={() => scrollCities('right')}
+                  sx={{ bgcolor: '#ffffff', border: '1px solid #cbd5e1', width: 32, height: 32, '&:hover': { bgcolor: '#e2e8f0' } }}
+                >
+                  <ChevronRightIcon sx={{ fontSize: '1.1rem', color: '#334155' }} />
+                </IconButton>
+              </Box>
+            </Box>
           </Box>
 
           {/* Pricing Matrix Table */}
