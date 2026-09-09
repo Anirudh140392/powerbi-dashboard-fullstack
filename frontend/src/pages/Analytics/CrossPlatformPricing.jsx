@@ -121,6 +121,11 @@ export default function CrossPlatformPricing() {
     return ['Blinkit', 'Instamart', 'Zepto'];
   }, [data.platforms]);
 
+  // Dynamic minimum table width based on platform count to avoid cluttering and enforce smooth horizontal scrolling
+  const tableMinWidth = useMemo(() => {
+    return Math.max(1240, 320 + 140 + activePlatforms.length * 260);
+  }, [activePlatforms.length]);
+
   return (
     <CommonContainer title="Cross Platform Pricing">
       <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: '#f8fafc', minHeight: '100vh', fontFamily: "'DM Sans', sans-serif" }}>
@@ -147,6 +152,20 @@ export default function CrossPlatformPricing() {
               <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', color: '#0f172a', fontFamily: "'DM Sans', sans-serif" }}>
                 SKUs Cross Platform Pricing
               </Typography>
+              {activePlatforms.length > 3 && (
+                <Chip
+                  label="← Scroll Horizontally →"
+                  size="small"
+                  sx={{
+                    bgcolor: '#eff6ff',
+                    color: '#0284c7',
+                    fontWeight: 700,
+                    fontSize: '11px',
+                    height: 22,
+                    border: '1px solid #bae6fd'
+                  }}
+                />
+              )}
             </Box>
 
             {/* Breaches Filter Toggle & Search */}
@@ -251,20 +270,58 @@ export default function CrossPlatformPricing() {
             sx={{
               borderRadius: 0,
               overflowX: 'auto',
-              '&::-webkit-scrollbar': { height: '8px' },
+              maxWidth: '100%',
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#94a3b8 #f1f5f9',
+              '&::-webkit-scrollbar': { height: '10px' },
               '&::-webkit-scrollbar-track': { bgcolor: '#f1f5f9' },
-              '&::-webkit-scrollbar-thumb': { bgcolor: '#cbd5e1', borderRadius: '4px', '&:hover': { bgcolor: '#94a3b8' } }
+              '&::-webkit-scrollbar-thumb': {
+                bgcolor: '#94a3b8',
+                borderRadius: '5px',
+                border: '2px solid #f1f5f9',
+                '&:hover': { bgcolor: '#64748b' }
+              }
             }}
           >
-            <Table sx={{ minWidth: 1240, tableLayout: 'fixed' }} aria-label="cross platform pricing table">
+            <Table sx={{ minWidth: tableMinWidth, tableLayout: 'fixed' }} aria-label="cross platform pricing table">
               
               {/* Header Group Row */}
               <TableHead>
                 <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                  <TableCell sx={{ fontWeight: 800, color: '#475569', fontSize: '12px', py: 1.8, minWidth: 320, width: 320, borderBottom: '1px solid #e2e8f0' }}>
+                  <TableCell
+                    rowSpan={2}
+                    sx={{
+                      fontWeight: 800,
+                      color: '#475569',
+                      fontSize: '12px',
+                      py: 1.8,
+                      minWidth: 320,
+                      width: 320,
+                      borderBottom: '2px solid #e2e8f0',
+                      position: 'sticky',
+                      left: 0,
+                      zIndex: 3,
+                      bgcolor: '#f8fafc',
+                      boxShadow: '3px 0 6px -2px rgba(0,0,0,0.08)'
+                    }}
+                  >
                     SKU
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 800, color: '#475569', fontSize: '12px', py: 1.8, minWidth: 140, width: 140, borderBottom: '1px solid #e2e8f0', borderLeft: '1px solid #e2e8f0', textAlign: 'center' }}>
+                  <TableCell
+                    rowSpan={2}
+                    sx={{
+                      fontWeight: 800,
+                      color: '#475569',
+                      fontSize: '12px',
+                      py: 1.8,
+                      minWidth: 140,
+                      width: 140,
+                      borderBottom: '2px solid #e2e8f0',
+                      borderLeft: '1px solid #e2e8f0',
+                      textAlign: 'center',
+                      bgcolor: '#f8fafc'
+                    }}
+                  >
                     Max Discount<br />Platform
                   </TableCell>
                   
@@ -291,7 +348,6 @@ export default function CrossPlatformPricing() {
 
                 {/* Sub Header Row */}
                 <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                  <TableCell colSpan={2} sx={{ borderBottom: '2px solid #e2e8f0' }} />
                   {activePlatforms.map((pName) => (
                     <React.Fragment key={`${pName}-sub`}>
                       <TableCell align="center" sx={{ fontWeight: 700, color: '#64748b', fontSize: '11px', py: 1, borderBottom: '2px solid #e2e8f0', borderLeft: '1px solid #e2e8f0', minWidth: 120, width: 120 }}>
@@ -310,7 +366,7 @@ export default function CrossPlatformPricing() {
                 {loading ? (
                   Array.from({ length: 5 }).map((_, idx) => (
                     <TableRow key={idx}>
-                      <TableCell sx={{ minWidth: 320, width: 320 }}><Skeleton variant="rectangular" height={40} borderRadius={8} /></TableCell>
+                      <TableCell sx={{ minWidth: 320, width: 320, position: 'sticky', left: 0, zIndex: 2, bgcolor: '#ffffff' }}><Skeleton variant="rectangular" height={40} borderRadius={8} /></TableCell>
                       <TableCell sx={{ minWidth: 140, width: 140 }}><Skeleton variant="text" /></TableCell>
                       {activePlatforms.map((p) => (
                         <React.Fragment key={p}>
@@ -334,11 +390,26 @@ export default function CrossPlatformPricing() {
                       key={`${item.sku}-${index}`}
                       sx={{
                         '&:hover': { bgcolor: '#f8fafc' },
+                        '&:hover .sticky-sku-cell': { bgcolor: '#f8fafc' },
                         transition: 'background-color 0.15s ease'
                       }}
                     >
                       {/* SKU Column */}
-                      <TableCell sx={{ py: 2, minWidth: 320, width: 320 }}>
+                      <TableCell
+                        className="sticky-sku-cell"
+                        sx={{
+                          py: 2,
+                          minWidth: 320,
+                          width: 320,
+                          position: 'sticky',
+                          left: 0,
+                          zIndex: 2,
+                          bgcolor: '#ffffff',
+                          borderRight: '1px solid #e2e8f0',
+                          boxShadow: '3px 0 6px -2px rgba(0,0,0,0.06)',
+                          transition: 'background-color 0.15s ease'
+                        }}
+                      >
                         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
                           <Box
                             sx={{

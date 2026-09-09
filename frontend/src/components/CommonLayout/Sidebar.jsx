@@ -348,6 +348,10 @@ const Sidebar = ({
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
+  const [expandedPricing, setExpandedPricing] = useState(() => {
+    const path = window.location.pathname;
+    return path === '/pricing-analysis' || path === '/cross-platform-pricing';
+  });
   const [channelAnchorEl, setChannelAnchorEl] = useState(null);
   const [platformAnchorEl, setPlatformAnchorEl] = useState(null);
   const [showPlatformOptions, setShowPlatformOptions] = useState(true); // Default to showing the carousel for visibility
@@ -376,7 +380,6 @@ const Sidebar = ({
 
   const menuSections = {
     "MAIN MENU": [
-      { label: "Cross Platform Pricing", path: "/cross-platform-pricing", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, showNew: true },
       { label: "India Overview", path: "/geo-intelligence", icon: <PublicIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} />, showLive: true },
       { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
@@ -384,7 +387,6 @@ const Sidebar = ({
       { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars_petcare', 'sugar'] },
       //{ label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
       { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
       //{ label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> }, 
       { label: "Content Score", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['mars'] },
@@ -1322,6 +1324,174 @@ const Sidebar = ({
       )}
 
 
+      {/* ─── Pricing Collapsible Folder (below Platform Icons) ─── */}
+      {!isCollapsed && user?.dbStatus !== false && (() => {
+        const pricingSubpages = [
+          { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
+          { label: "Cross Platform Pricing", path: "/cross-platform-pricing", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, showNew: true },
+        ];
+        const dbName = user?.dbName;
+        const tabPerms = user?.tabPermissions;
+        const visibleSubpages = pricingSubpages.filter(item => {
+          if (item.showOnlyForDb && !item.showOnlyForDb.includes(dbName)) return false;
+          if (item.hideForDb && item.hideForDb.includes(dbName)) return false;
+          if (tabPerms && Object.keys(tabPerms).length > 0 && tabPerms[item.label] === false) return false;
+          return true;
+        });
+        if (visibleSubpages.length === 0) return null;
+        const isPricingActive = visibleSubpages.some(item => currentPath === item.path);
+
+        return (
+          <Box sx={{ px: 1.5, mb: 0.5 }}>
+            {/* Pricing Folder Header */}
+            <ListItemButton
+              onClick={() => setExpandedPricing(!expandedPricing)}
+              sx={{
+                px: 2,
+                py: 1.2,
+                borderRadius: "12px",
+                mb: 0.5,
+                color: isPricingActive ? "#2563eb" : "#64748b",
+                bgcolor: isPricingActive ? "rgba(37, 99, 235, 0.04)" : "transparent",
+                "&:hover": {
+                  bgcolor: isPricingActive ? "rgba(37, 99, 235, 0.08)" : "rgba(30, 41, 59, 0.04)",
+                  color: isPricingActive ? "#1d4ed8" : "#1e293b",
+                },
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: 1.2,
+                  color: isPricingActive ? "#2563eb" : "inherit",
+                  display: 'flex',
+                  '& .MuiSvgIcon-root': { fontSize: '1.15rem' }
+                }}
+              >
+                <PriceChangeIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="Pricing"
+                primaryTypographyProps={{
+                  fontSize: "12px",
+                  fontWeight: isPricingActive ? 700 : 600,
+                  fontFamily: "'DM Sans', sans-serif",
+                  color: isPricingActive ? "#2563eb" : "inherit",
+                }}
+                sx={{ my: 0 }}
+              />
+              {expandedPricing ? (
+                <ExpandLessIcon sx={{ fontSize: '1rem', color: isPricingActive ? '#2563eb' : '#94a3b8' }} />
+              ) : (
+                <ExpandMoreIcon sx={{ fontSize: '1rem', color: isPricingActive ? '#2563eb' : '#94a3b8' }} />
+              )}
+            </ListItemButton>
+
+            {/* Pricing Collapsible Children */}
+            <Collapse in={expandedPricing} timeout="auto" unmountOnExit>
+              <Box sx={{ pl: 2 }}>
+                {visibleSubpages.map(item => {
+                  const isActive = currentPath === item.path;
+                  return (
+                    <ListItemButton
+                      key={item.label}
+                      onClick={() => {
+                        navigate(item.path);
+                        if (isMobile && onClose) onClose();
+                      }}
+                      className={isActive ? "sidebar-item-active" : ""}
+                      sx={{
+                        minWidth: 44,
+                        maxWidth: "100%",
+                        justifyContent: "flex-start",
+                        px: 2,
+                        py: 1,
+                        borderRadius: "12px",
+                        mb: 0.5,
+                        bgcolor: isActive ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                        color: isActive ? "#2563eb" : "#64748b",
+                        position: 'relative',
+                        overflow: 'hidden',
+                        "&:hover": {
+                          bgcolor: isActive ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
+                          color: isActive ? "#1d4ed8" : "#1e293b",
+                          transform: 'translateX(2px)',
+                        },
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      }}
+                    >
+                      <ListItemIcon
+                        sx={{
+                          minWidth: 0,
+                          mr: 1.5,
+                          color: isActive ? "#2563eb" : "inherit",
+                          display: 'flex',
+                          '& .MuiSvgIcon-root': { fontSize: '1.15rem' }
+                        }}
+                      >
+                        {item.icon}
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 0 }}>
+                            <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item.label}
+                            </Box>
+                            {item.showNew && <SidebarStatusBadge type="NEW" />}
+                          </Box>
+                        }
+                        primaryTypographyProps={{
+                          fontSize: "12px",
+                          fontWeight: isActive ? 700 : 500,
+                          fontFamily: "'DM Sans', sans-serif",
+                          color: isActive ? "#2563eb" : "inherit",
+                          letterSpacing: '0.01em',
+                        }}
+                        sx={{ my: 0 }}
+                      />
+                    </ListItemButton>
+                  );
+                })}
+              </Box>
+            </Collapse>
+
+            <Divider sx={{ mt: 0.5, mb: 0.5, borderColor: 'rgba(0,0,0,0.04)' }} />
+          </Box>
+        );
+      })()}
+
+      {/* Collapsed Pricing icon */}
+      {isCollapsed && user?.dbStatus !== false && (() => {
+        const isPricingActive = currentPath === '/pricing-analysis' || currentPath === '/cross-platform-pricing';
+        return (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 0.5 }}>
+            <Tooltip title="Pricing" placement="right">
+              <ListItemButton
+                onClick={() => navigate('/pricing-analysis')}
+                sx={{
+                  minWidth: 48,
+                  maxWidth: 48,
+                  justifyContent: 'center',
+                  px: 1,
+                  py: 1.2,
+                  borderRadius: '12px',
+                  mx: 'auto',
+                  bgcolor: isPricingActive ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                  color: isPricingActive ? '#2563eb' : '#64748b',
+                  '&:hover': {
+                    bgcolor: isPricingActive ? 'rgba(37, 99, 235, 0.12)' : 'rgba(30, 41, 59, 0.04)',
+                    transform: 'scale(1.05)',
+                  },
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              >
+                <PriceChangeIcon sx={{ fontSize: isPricingActive ? '1.25rem' : '1.15rem' }} />
+              </ListItemButton>
+            </Tooltip>
+          </Box>
+        );
+      })()}
 
       {/* Menu scroll area */}
       <Box sx={{
