@@ -1267,7 +1267,7 @@ const PlatformOverviewNew = ({
                                                     >
                                                         {dimension === 'sku' ? truncateToWords(e.name, 6) : e.name}
                                                     </span>
-                                                    {dimension === 'sku' && e.offtakeShare !== undefined && (
+                                                    {dimension === 'sku' && e.offtakeShare !== undefined && e.offtakeShare !== null && Number(e.offtakeShare) > 0 && (
                                                         <div className="flex items-center gap-1 mt-0.5" title="Offtake Share">
                                                             <div className="flex items-center gap-1 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/50 text-sky-600 font-bold" style={{ fontSize: '9px' }}>
                                                                 <PieChart size={10} className="text-sky-500" />

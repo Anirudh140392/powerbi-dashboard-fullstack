@@ -394,7 +394,7 @@ export const getPermissionsUsers = async () => {
         const dbMap = new Map();
         databases.forEach(db => dbMap.set(db.db_id, db.db_name));
 
-        return users.map(user => {
+        const mappedUsers = users.map(user => {
             let finalDbName = 'N/A';
             if (dbMap.has(user.db_id)) {
                 finalDbName = dbMap.get(user.db_id);
@@ -432,6 +432,28 @@ export const getPermissionsUsers = async () => {
                 tabPermissions
             };
         });
+
+        // Ensure every database in tb_database has at least one entry represented in the list
+        const existingDbNames = new Set(mappedUsers.map(u => (u.dbName || '').toLowerCase()));
+        databases.forEach(db => {
+            const dbLower = (db.db_name || '').toLowerCase();
+            if (dbLower && dbLower !== 'n/a' && !existingDbNames.has(dbLower)) {
+                mappedUsers.push({
+                    id: `db_${db.db_id}`,
+                    email: `${db.db_name}_default@trailytics.com`,
+                    name: `${db.db_name} Default`,
+                    role: 'user',
+                    ip: '',
+                    dbName: db.db_name,
+                    lastLogin: 'Never',
+                    dbStatus: true,
+                    tabPermissions: {}
+                });
+                existingDbNames.add(dbLower);
+            }
+        });
+
+        return mappedUsers;
     } catch (error) {
         console.error('[AdminService] getPermissionsUsers failed:', error.message);
         throw error;
@@ -573,7 +595,24 @@ export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions, re
                 const dbRows = await queryAdminDB(`SELECT toString(db_id) as db_id FROM tb_database WHERE lower(db_name) = '${safeDb}' LIMIT 1`);
                 if (dbRows && dbRows.length > 0) {
                     const dbId = dbRows[0].db_id;
-                    await queryAdminDB(`ALTER TABLE tb_user UPDATE tab_permissions = '${jsonStr}' WHERE toString(db_id) = '${dbId}'`);
+                    const dbUserRows = await queryAdminDB(`SELECT toString(id) as id FROM tb_user WHERE toString(db_id) = '${dbId}' LIMIT 1`);
+                    if (dbUserRows && dbUserRows.length > 0) {
+                        await queryAdminDB(`ALTER TABLE tb_user UPDATE tab_permissions = '${jsonStr}' WHERE toString(db_id) = '${dbId}'`);
+                    } else {
+                        const defaultUserRow = {
+                            id: Date.now().toString(),
+                            user_id: '0',
+                            user_email: `${safeDb}_default@trailytics.com`,
+                            user_name: `${safeDb} Default Permissions`,
+                            user_role: 'user',
+                            password_hash: '',
+                            db_id: dbId,
+                            status: 'active',
+                            db_status: 'active',
+                            tab_permissions: JSON.stringify(nestedPermissions)
+                        };
+                        await insertAdminDB('tb_user', [defaultUserRow]);
+                    }
                 }
             } catch (e) {
                 console.warn(`[AdminService] Could not update tab_permissions for db ${resolvedDbName}:`, e.message);

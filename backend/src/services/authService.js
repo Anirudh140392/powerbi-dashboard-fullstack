@@ -332,18 +332,41 @@ export async function loginUser(email, password, deviceInfo = {}) {
         console.error(`[DEBUG_AUTH] Error logging success:`, logError.message);
     }
 
-    // Fetch the latest non-empty db_status and tab_permissions for this user
+    // Fetch the latest non-empty db_status and tab_permissions for this user on this database
     let tabPermissions = {};
     let dbStatusBool = true;
     try {
-        const permRows = await queryAdminDB(
-            `SELECT 
-                ifNull(argMaxIf(db_status, last_login, db_status != ''), 'active') as db_status,
-                ifNull(argMaxIf(tab_permissions, last_login, tab_permissions != ''), '') as tab_permissions
-             FROM tb_user 
-             WHERE user_email = {email:String}`,
-            { email: user.user_email }
-        );
+        let permRows = [];
+        const currentDbId = matchedDb?.db_id ? String(matchedDb.db_id) : '';
+        if (currentDbId) {
+            permRows = await queryAdminDB(
+                `SELECT db_status, tab_permissions 
+                 FROM tb_user 
+                 WHERE lower(user_email) = lower({email:String}) AND toString(db_id) = {dbId:String} AND status != 'deleted' 
+                 ORDER BY last_login DESC LIMIT 1`,
+                { email: user.user_email, dbId: currentDbId }
+            );
+        }
+        if ((!permRows || permRows.length === 0 || !permRows[0].tab_permissions) && currentDbId) {
+            const dbPermRows = await queryAdminDB(
+                `SELECT db_status, tab_permissions 
+                 FROM tb_user 
+                 WHERE toString(db_id) = {dbId:String} AND tab_permissions != '' 
+                 LIMIT 1`,
+                { dbId: currentDbId }
+            );
+            if (dbPermRows && dbPermRows.length > 0) permRows = dbPermRows;
+        }
+        if (!permRows || permRows.length === 0) {
+            permRows = await queryAdminDB(
+                `SELECT 
+                    ifNull(argMaxIf(db_status, last_login, db_status != ''), 'active') as db_status,
+                    ifNull(argMaxIf(tab_permissions, last_login, tab_permissions != ''), '') as tab_permissions
+                 FROM tb_user 
+                 WHERE user_email = {email:String}`,
+                { email: user.user_email }
+            );
+        }
         if (permRows.length > 0) {
             dbStatusBool = (!permRows[0].db_status || permRows[0].db_status === '' || permRows[0].db_status === 'active');
             try {
@@ -506,20 +529,43 @@ export async function verifySession(token, deviceToken = null) {
         console.warn('[Auth] Failed to fetch database info during verify:', e.message);
     }
 
-    // 5. Fetch latest db_status and tab_permissions for this user
+    // 5. Fetch latest db_status and tab_permissions for this user on active database
     let dbStatus = decoded.dbStatus !== undefined ? decoded.dbStatus : true;
     let tabPermissions = decoded.tabPermissions || {};
     try {
-        const permRows = await queryAdminDB(
-            `SELECT 
-                db_status,
-                tab_permissions
-             FROM tb_user 
-             WHERE lower(user_email) = lower({email:String}) AND status != 'deleted'
-             ORDER BY last_login DESC, created_on DESC
-             LIMIT 1`,
-            { email: decoded.email }
-        );
+        let permRows = [];
+        const currentDbId = dbId ? String(dbId) : '';
+        if (currentDbId) {
+            permRows = await queryAdminDB(
+                `SELECT db_status, tab_permissions 
+                 FROM tb_user 
+                 WHERE lower(user_email) = lower({email:String}) AND toString(db_id) = {dbId:String} AND status != 'deleted' 
+                 ORDER BY last_login DESC LIMIT 1`,
+                { email: decoded.email, dbId: currentDbId }
+            );
+        }
+        if ((!permRows || permRows.length === 0 || !permRows[0].tab_permissions) && currentDbId) {
+            const dbPermRows = await queryAdminDB(
+                `SELECT db_status, tab_permissions 
+                 FROM tb_user 
+                 WHERE toString(db_id) = {dbId:String} AND tab_permissions != '' 
+                 LIMIT 1`,
+                { dbId: currentDbId }
+            );
+            if (dbPermRows && dbPermRows.length > 0) permRows = dbPermRows;
+        }
+        if (!permRows || permRows.length === 0) {
+            permRows = await queryAdminDB(
+                `SELECT 
+                    db_status,
+                    tab_permissions
+                 FROM tb_user 
+                 WHERE lower(user_email) = lower({email:String}) AND status != 'deleted'
+                 ORDER BY last_login DESC, created_on DESC
+                 LIMIT 1`,
+                { email: decoded.email }
+            );
+        }
         if (permRows.length > 0) {
             dbStatus = (!permRows[0].db_status || permRows[0].db_status === '' || permRows[0].db_status === 'active');
             try {

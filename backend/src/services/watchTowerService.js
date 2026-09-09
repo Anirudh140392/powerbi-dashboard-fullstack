@@ -13061,15 +13061,16 @@ const getSkuOverview = async (filters) => {
 
         const bKey = String(dataRaw.brand_name || dataRaw.Product || 'unknown').toLowerCase().trim();
         const brandTotalSales = brandTotalSalesMap[bKey] || overallTotalSkuSales || 0;
-        const offtakeShare = brandTotalSales > 0 ? (offtake / brandTotalSales) * 100 : 0;
+        const hasSales = offtake !== null && offtake !== undefined && Number(offtake) > 0;
+        const offtakeShare = (hasSales && brandTotalSales > 0) ? parseFloat(((offtake / brandTotalSales) * 100).toFixed(2)) : null;
 
         return {
-            key: `sku_${idx}_${skuName.toLowerCase().replace(/\s+/g, '_').substring(0, 30)} `,
+            key: `sku_${idx}_${skuName.toLowerCase().replace(/\s+/g, '_').substring(0, 30)}`,
             label: skuName,
             type: "SKU",
             logo: (dataRaw.web_pid && skuImageMap[String(dataRaw.web_pid).toLowerCase()]) || null,
             page_url: (dataRaw.web_pid && skuUrlMap[String(dataRaw.web_pid).toLowerCase()]) || null,
-            offtakeShare: parseFloat(offtakeShare.toFixed(2)),
+            offtakeShare: offtakeShare,
             columns: generateKpiColumns({
                 offtake, availability, wtOsa, listingPercent, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? currSkuCategorySize : null, adSov, organicSov, buyBoxPct, deliveryTime,
                 prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? prevSkuCategorySize : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,

@@ -184,9 +184,12 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
         return apiData.osaDetail.map(row => {
             const values = row.values || [];
             let offtakeShare = row.offtakeShare;
-            if ((offtakeShare === undefined || offtakeShare === null) && totalSalesAcc > 0) {
-                const s = parseFloat(row.sales || row.totalSales || row.offtake || 0) || 0;
-                offtakeShare = parseFloat(((s / totalSalesAcc) * 100).toFixed(2));
+            const rowSales = parseFloat(row.sales || row.totalSales || row.offtake || 0) || 0;
+            const hasSales = rowSales > 0;
+            if (!hasSales) {
+                offtakeShare = null;
+            } else if ((offtakeShare === undefined || offtakeShare === null) && totalSalesAcc > 0) {
+                offtakeShare = parseFloat(((rowSales / totalSalesAcc) * 100).toFixed(2));
             }
             return {
                 name: row.name || row.productName || "Unknown Product",
@@ -432,7 +435,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                                     </div>
                                                                     <div className="flex items-center gap-2 mt-0.5">
                                                                         <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight">{r.platform}</div>
-                                                                        {r.offtakeShare !== undefined && r.offtakeShare !== null && (
+                                                                        {r.offtakeShare !== undefined && r.offtakeShare !== null && Number(r.offtakeShare) > 0 && (
                                                                             <div className="flex items-center gap-1 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/50 text-sky-600 font-bold" style={{ fontSize: '9px' }} title="Offtake Share">
                                                                                 <PieChart size={10} className="text-sky-500" />
                                                                                 {r.offtakeShare}% Share
