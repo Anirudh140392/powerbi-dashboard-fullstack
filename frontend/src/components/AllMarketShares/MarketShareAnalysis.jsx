@@ -501,7 +501,7 @@ export default function MarketShareAnalysis() {
     };
 
     fetchMarketShareData();
-  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, timeStep, selectedSubCategory]);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, timeStep, selectedSubCategory, selectedSubBrand]);
 
 
   return (

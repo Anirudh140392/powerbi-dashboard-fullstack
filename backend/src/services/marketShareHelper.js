@@ -1012,8 +1012,7 @@ const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEnd
             WITH
                 our_subcategories AS (
                     SELECT DISTINCT
-                        ms.category as category,
-                        ms.sub_category as sub_category
+                        ms.category as category
                     FROM rb_ms_olap as ms
                     WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
                       AND lower(ms.group_brand) IN (${brandsSql.toLowerCase()})
@@ -1028,7 +1027,7 @@ const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEnd
                     FROM rb_ms_olap as ms
                     WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
                       AND lower(ms.group_brand) IN (${brandsSql.toLowerCase()})
-                      AND (ms.category, ms.sub_category) IN (SELECT category, sub_category FROM our_subcategories)
+                      AND ms.category IN (SELECT category FROM our_subcategories)
                       ${baseCond}
                       ${subCatWhere}
                       ${subBrandWhere}
@@ -1038,7 +1037,7 @@ const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEnd
                         SUM(toFloat64OrZero(toString(ms.sales))) AS total_subcat_sales
                     FROM rb_ms_olap as ms
                     WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
-                      AND (ms.category, ms.sub_category) IN (SELECT category, sub_category FROM our_subcategories)
+                      AND ms.category IN (SELECT category FROM our_subcategories)
                       ${baseCond}
                       ${subCatWhere}
                 )
@@ -1052,8 +1051,7 @@ const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEnd
             WITH
                 our_subcategories AS (
                     SELECT DISTINCT
-                        ms.category as category,
-                        ms.sub_category as sub_category
+                        ms.category as category
                     FROM rb_ms_olap as ms
                     WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
                       AND lower(ms.group_brand) IN (${brandsSql.toLowerCase()})
@@ -1068,7 +1066,7 @@ const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEnd
                     FROM rb_ms_olap as ms
                     WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
                       AND lower(ms.group_brand) IN (${brandsSql.toLowerCase()})
-                      AND (ms.category, ms.sub_category) IN (SELECT category, sub_category FROM our_subcategories)
+                      AND ms.category IN (SELECT category FROM our_subcategories)
                       ${baseCond}
                       ${subCatWhere}
                       ${subBrandWhere}
@@ -1078,7 +1076,7 @@ const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEnd
                         SUM(toFloat64OrZero(toString(ms.sales))) AS total_subcat_sales
                     FROM rb_ms_olap as ms
                     WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
-                      AND (ms.category, ms.sub_category) IN (SELECT category, sub_category FROM our_subcategories)
+                      AND ms.category IN (SELECT category FROM our_subcategories)
                       ${baseCond}
                       ${subCatWhere}
                 )
@@ -1337,7 +1335,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
         const globalSubBrandArr = normalizeFilterArray(globalSubBrandFilter);
         let globalSubBrandCond = '';
         if (globalSubBrandArr && globalSubBrandArr.length > 0 && !globalSubBrandArr.includes('All')) {
-            globalSubBrandCond = `AND ms.sub_brand IN (${globalSubBrandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`;
+            globalSubBrandCond = `AND ${isMamaearth ? 'ms.sub_brand' : 'sub_brand'} IN (${globalSubBrandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
