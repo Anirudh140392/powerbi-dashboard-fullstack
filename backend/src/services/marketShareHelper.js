@@ -1176,7 +1176,7 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
         }
         const brandsSql = ourBrands.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
-        // Current & Previous Share
+        // Current & Previous Share (Category-level Market Share, not filtered by Sub Category)
         const currentQuery = `
             SELECT 
                 SUM(toFloat64OrZero(toString(ms.sales))) as total_sales,
@@ -1185,7 +1185,6 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
             ${subCat.join}
             WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
-            ${subCat.where}
             ${subBrand.where}
         `;
 
@@ -1197,7 +1196,6 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
             ${subCat.join}
             WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${baseCond}
-            ${subCat.where}
             ${subBrand.where}
         `;
 
@@ -1217,7 +1215,6 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
             ${subCat.join}
             WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
-            ${subCat.where}
             ${subBrand.where}
             GROUP BY date_group
             ORDER BY date_group
