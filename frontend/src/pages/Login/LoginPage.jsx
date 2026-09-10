@@ -194,7 +194,15 @@ const LoginPageContent = () => {
         if (!isVerifying && isLoggedIn && user) {
             const userRole = (user?.role || '').toLowerCase();
             const isAdmin = userRole.includes('admin') || userRole.includes('super');
-            const redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(user);
+            const hasMultipleWorkspaces = Array.isArray(user?.mappedDatabases) && user.mappedDatabases.length >= 2;
+            const workspaceSelected = sessionStorage.getItem("workspaceSelected") === "true";
+
+            let redirectPath;
+            if (hasMultipleWorkspaces && !workspaceSelected && !isAdmin) {
+                redirectPath = "/select-workspace";
+            } else {
+                redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(user);
+            }
             navigate(redirectPath, { replace: true });
         }
     }, [isLoggedIn, isVerifying, navigate, user]);

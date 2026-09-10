@@ -306,21 +306,65 @@ export const downloadReport = async (req, res) => {
 
             const darkstoreQuery = `
                 SELECT 
-                    toString(created_on) as DATE,
-                    platform_name as platform,
-                    brand_name as brand,
-                    brand_category_name as category,
-                    location_name as location,
-                    pincode,
-                    pincode_area,
-                    web_pid,
-                    sku_name as sku,
-                    pdp_page_url,
-                    osa,
-                    osa_remark
-                FROM ${weekTable}
-                ${darkstoreWhere}
-                ORDER BY created_on DESC
+                    d.created_on_str as DATE,
+                    d.platform_name as platform,
+                    d.brand_name as brand,
+                    d.brand_category_name as category,
+                    d.location_name as location,
+                    d.pincode,
+                    d.pincode_area,
+                    d.web_pid,
+                    d.sku_name as sku,
+                    d.pdp_page_url,
+                    d.osa,
+                    d.osa_remark,
+                    d.location_id,
+                    s.total_platform_darkstores,
+                    s.total_darkstore_cities,
+                    s.listed_darkstore_cities,
+                    s.listing_percentage
+                FROM (
+                    SELECT
+                        toString(created_on) as created_on_str,
+                        created_on,
+                        platform_name,
+                        brand_name,
+                        brand_category_name,
+                        location_name,
+                        pincode,
+                        pincode_area,
+                        web_pid,
+                        sku_name,
+                        pdp_page_url,
+                        osa,
+                        osa_remark,
+                        location_id
+                    FROM ${weekTable}
+                    ${darkstoreWhere}
+                ) d
+                LEFT JOIN (
+                    SELECT
+                        platform_name,
+                        web_pid,
+                        COUNT(DISTINCT location_id) AS total_platform_darkstores,
+                        COUNT(DISTINCT location_name) AS total_darkstore_cities,
+                        COUNT(DISTINCT CASE
+                            WHEN lower(osa_remark) IN ('instock', 'oos')
+                            THEN location_name
+                        END) AS listed_darkstore_cities,
+                        ROUND(
+                            COUNT(DISTINCT CASE
+                                WHEN lower(osa_remark) IN ('instock', 'oos')
+                                THEN location_name
+                            END) * 100.0
+                            / NULLIF(COUNT(DISTINCT location_name), 0),
+                            2
+                        ) AS listing_percentage
+                    FROM ${weekTable}
+                    ${darkstoreWhere}
+                    GROUP BY platform_name, web_pid
+                ) s ON d.platform_name = s.platform_name AND d.web_pid = s.web_pid
+                ORDER BY d.created_on DESC
             `;
 
             console.log(`[downloadReport] Executing Darkstore query on ${weekTable}:`, darkstoreQuery);

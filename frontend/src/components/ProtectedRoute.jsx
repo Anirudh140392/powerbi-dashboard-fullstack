@@ -136,10 +136,15 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
         }
     }
 
-    // --- Tab Permission & DB Status Enforcement ---
-    // Skip permission checks for admin users and admin-only routes
     const userRole = user?.role?.toLowerCase() || '';
     const isAdmin = userRole.includes('admin') || userRole.includes('super');
+    const hasMultipleWorkspaces = Array.isArray(user?.mappedDatabases) && user.mappedDatabases.length >= 2;
+    const workspaceSelected = sessionStorage.getItem("workspaceSelected") === "true";
+
+    // Enforce workspace selection screen if user has 2+ mapped DBs and hasn't selected a workspace yet
+    if (!isAdmin && !adminOnly && hasMultipleWorkspaces && !workspaceSelected && location.pathname !== '/select-workspace') {
+        return <Navigate to="/select-workspace" replace />;
+    }
 
     if (!isAdmin && !adminOnly) {
         const currentPath = location.pathname;

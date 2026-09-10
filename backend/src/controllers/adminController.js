@@ -197,19 +197,19 @@ export const updateDbStatus = async (req, res) => {
         }
 
         const { userId, email, dbStatus, dbName } = req.body;
-        const targetIdentifier = userId || email;
+        const targetIdentifier = userId || email || dbName;
 
         if (!targetIdentifier || typeof dbStatus !== 'boolean') {
             return res.status(400).json({
                 success: false,
-                error: 'userId or email, and dbStatus (boolean) are required'
+                error: 'userId, email, or dbName, and dbStatus (boolean) are required'
             });
         }
 
         const updateRes = await adminService.updateUserDbStatus(targetIdentifier, dbStatus, dbName);
 
         // Clear permissions and platforms cache so changes apply instantly
-        clearPermissionsCache(email);
+        if (email) clearPermissionsCache(email);
         adminService.clearDbPlatformsCache();
 
         // Audit log permission change
@@ -250,19 +250,19 @@ export const updateTabPermissions = async (req, res) => {
         }
 
         const { userId, email, tabPermissions, dbName } = req.body;
-        const targetIdentifier = userId || email;
+        const targetIdentifier = userId || email || dbName;
 
         if (!targetIdentifier || typeof tabPermissions !== 'object') {
             return res.status(400).json({
                 success: false,
-                error: 'userId or email, and tabPermissions (object) are required'
+                error: 'userId, email, or dbName, and tabPermissions (object) are required'
             });
         }
 
         const updateRes = await adminService.updateUserTabPermissions(targetIdentifier, tabPermissions, dbName);
 
         // Clear permissions and platforms cache so changes apply instantly
-        clearPermissionsCache(email);
+        if (email) clearPermissionsCache(email);
         adminService.clearDbPlatformsCache();
 
         // Audit log permission change (log only changed key-value pairs)

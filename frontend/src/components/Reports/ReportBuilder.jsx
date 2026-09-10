@@ -753,12 +753,13 @@ export default function ReportBuilder({
                         </Typography>
                       </Box>
                       <Typography variant="body2" sx={{ color: "#0284C7", mb: 2 }}>
-                        This report will export raw darkstore records including the following 12 columns:
+                        This report will export raw darkstore records including the following 17 columns:
                       </Typography>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                         {[
                           "DATE", "platform", "brand", "category", "location",
-                          "pincode", "pincode_area", "web_pid", "sku", "pdp_page_url", "osa", "osa_remark"
+                          "pincode", "pincode_area", "web_pid", "sku", "pdp_page_url", "osa", "osa_remark",
+                          "location_id", "total_platform_darkstores", "total_darkstore_cities", "listed_darkstore_cities", "listing_percentage"
                         ].map((col) => (
                           <Chip key={col} label={col} size="small" sx={{ background: "#E0F2FE", color: "#0369A1", fontWeight: 600, borderRadius: "6px", fontFamily: "'JetBrains Mono', monospace" }} />
                         ))}

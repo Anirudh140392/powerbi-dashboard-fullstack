@@ -1507,7 +1507,7 @@ export const getSignalLabData = async (req, res) => {
                     type: signalType,
                     metricType,
                     offtakeValue: metricType === 'inventory' ? (doi !== null ? doi.toFixed(1) : 'N/A') : `₹${(revenue / 100000).toFixed(1)} lac`,
-                    offtakeShare: totalMarketSales > 0 ? ((revenue / totalMarketSales) * 100).toFixed(2) + '%' : '0.00%',
+                    offtakeShare: (revenue !== null && revenue !== undefined && Number(revenue) > 0 && totalMarketSales > 0) ? ((revenue / totalMarketSales) * 100).toFixed(2) + '%' : null,
                     impact: `${metricChange >= 0 ? '+' : ''}${metricChange.toFixed(1)}%`,
                     kpis,
                     topCities

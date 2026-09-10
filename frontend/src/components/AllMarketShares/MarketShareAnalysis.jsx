@@ -331,8 +331,9 @@ export default function MarketShareAnalysis() {
     try {
       const u = JSON.parse(sessionStorage.getItem('user'));
       if (u?.dbName) {
-        const isME = u.dbName.toLowerCase() === 'mamaearth';
-        const displayName = isME
+        const dbLower = u.dbName.toLowerCase();
+        const isME = dbLower === 'mamaearth' || dbLower === 'kelloggs';
+        const displayName = dbLower === 'mamaearth'
           ? 'The Derma Co.'
           : u.dbName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         return { dbDisplayName: displayName, isMamaearth: isME };
@@ -361,6 +362,7 @@ export default function MarketShareAnalysis() {
     compareEnd,
     selectedSubCategory,
     selectedSubBrand,
+    selectedBrand,
   } = useContext(FilterContext);
 
   // Determine time granularity based on platform type:
@@ -397,6 +399,7 @@ export default function MarketShareAnalysis() {
         const params = {
           platform: platform === 'All' ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
           category: selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+          brand: selectedBrand === 'All' ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
           subCategory: selectedSubCategory === 'All' ? undefined : (Array.isArray(selectedSubCategory) ? selectedSubCategory.join(",") : selectedSubCategory),
           subBrand: selectedSubBrand === 'All' ? undefined : (Array.isArray(selectedSubBrand) ? selectedSubBrand.join(",") : selectedSubBrand),
           location: undefined, // Enforced isolation from global location filter
@@ -479,9 +482,14 @@ export default function MarketShareAnalysis() {
                   ? `₹${(prevSales / 100000).toFixed(2)} L`
                   : `₹${prevSales.toFixed(2)}`;
 
+              const brandTitle = (selectedBrand && selectedBrand !== 'All') 
+                ? (Array.isArray(selectedBrand) ? selectedBrand.join(', ') : selectedBrand) 
+                : dbDisplayName;
               const arrow = marsDelta >= 0 ? '▲' : '▼';
               return {
                 ...k,
+                title: `${brandTitle} Estimated Sales`,
+                subtitle: `${brandTitle} brand estimated sales performance`,
                 value: formattedValue,
                 delta: marsDelta,
                 deltaLabel: `${arrow} ${Math.abs(marsDelta)}% (${prevValueCr})`,
@@ -501,7 +509,7 @@ export default function MarketShareAnalysis() {
     };
 
     fetchMarketShareData();
-  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, timeStep, selectedSubCategory, selectedSubBrand]);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, timeStep, selectedSubCategory, selectedSubBrand, selectedBrand]);
 
 
   return (

@@ -5,7 +5,7 @@ export const Platform = async (req, res) => {
     req.query.location = 'All';
     req.query.cities = 'All';
     try {
-        const { platform, category, location, startDate, endDate, compareStartDate, compareEndDate, timeStep, subCategory, subBrand } = req.query;
+        const { platform, category, location, startDate, endDate, compareStartDate, compareEndDate, timeStep, subCategory, subBrand, brand } = req.query;
         console.log("Market Share API request received:", req.query);
 
         // Use provided dates or default to last 30 days
@@ -19,10 +19,10 @@ export const Platform = async (req, res) => {
 
         // Fetch all KPIs in parallel
         const [categorySize, leaderData, marsData, marketShareData] = await Promise.all([
-            getCategorySize(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep, subCategory, subBrand),
-            getMarketLeaderSales(start, end, platform, category, location, compStart, compEnd, subCategory, subBrand),
-            getMarsWrigleySales(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep, subCategory, subBrand),
-            getMarketShareKPI(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep, subCategory, subBrand)
+            getCategorySize(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep, subCategory, subBrand, brand),
+            getMarketLeaderSales(start, end, platform, category, location, compStart, compEnd, subCategory, subBrand, brand),
+            getMarsWrigleySales(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep, subCategory, subBrand, brand),
+            getMarketShareKPI(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep, subCategory, subBrand, brand)
         ]);
 
         const response = {

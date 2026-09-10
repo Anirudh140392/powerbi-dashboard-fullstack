@@ -50,7 +50,7 @@ export const normalizePlatformArrayForMs = (platformArr) => {
  */
 export const makeSubCategoryJoin = (subCategoryFilter) => {
     const dbName = getCurrentDbName();
-    const isMamaearth = dbName === 'mamaearth';
+    const isMamaearth = dbName === 'mamaearth' || dbName === 'kelloggs';
     const subCategoryArr = normalizeFilterArray(subCategoryFilter);
     const hasSubCategory = isMamaearth && subCategoryArr && subCategoryArr.length > 0 && !subCategoryArr.includes('All');
 
@@ -591,7 +591,7 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
     }
 };
 
-export const getMarketLeaderSales = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, subCategoryFilter = null, subBrandFilter = null) => {
+export const getMarketLeaderSales = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, subCategoryFilter = null, subBrandFilter = null, brandFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -719,7 +719,7 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
  * Logic: SUM(sales) WHERE brand is a Mars Wrigley brand
  * Returns: { sales, prevSales, delta, deltaAbs }
  */
-export const getMarsWrigleySales = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly', subCategoryFilter = null, subBrandFilter = null) => {
+export const getMarsWrigleySales = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly', subCategoryFilter = null, subBrandFilter = null, brandFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -765,12 +765,18 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
 
         const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
 
-        // Dynamic "Our Brands" query (comp_flag = 0)
-        const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
-        const brandResult = await queryClickHouse(brandQuery);
-        let ourBrands = brandResult.map(b => b.brand_name).filter(Boolean);
-        if (ourBrands.length === 0) {
-            ourBrands = ['dummy_no_brands'];
+        // Dynamic "Our Brands" query (comp_flag = 0 or user-selected brandFilter)
+        const brandArr = normalizeFilterArray(brandFilter);
+        let ourBrands = [];
+        if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            ourBrands = brandArr;
+        } else {
+            const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+            const brandResult = await queryClickHouse(brandQuery);
+            ourBrands = brandResult.map(b => b.brand_name).filter(Boolean);
+            if (ourBrands.length === 0) {
+                ourBrands = ['dummy_no_brands'];
+            }
         }
         const marsFilter = `AND lower(ms.group_brand) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
 
@@ -873,7 +879,7 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
  * Logic: SUM of all sales in rb_ms_olap for the selected category/platform/date range
  */
 
-export const getCategorySize = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly', subCategoryFilter = null, subBrandFilter = null) => {
+export const getCategorySize = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly', subCategoryFilter = null, subBrandFilter = null, brandFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -1115,7 +1121,7 @@ const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEnd
  * Logic: (Our Sales / Total Category Sales) * 100
  * Returns: { share, prevShare, delta, subCategoryShare, prevSubCategoryShare, trend }
  */
-export const getMarketShareKPI = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly', subCategoryFilter = null, subBrandFilter = null) => {
+export const getMarketShareKPI = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly', subCategoryFilter = null, subBrandFilter = null, brandFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -1157,14 +1163,20 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
 
         const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
 
-        // Get our brands
-        const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
-        const brandResult = await queryClickHouse(brandQuery);
-        let ourBrands = brandResult.map(b => b.brand_name).filter(Boolean);
-        if (ourBrands.length === 0) ourBrands = ['dummy_no_brands'];
+        // Get our brands or brandFilter
+        const brandArr = normalizeFilterArray(brandFilter);
+        let ourBrands = [];
+        if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            ourBrands = brandArr;
+        } else {
+            const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+            const brandResult = await queryClickHouse(brandQuery);
+            ourBrands = brandResult.map(b => b.brand_name).filter(Boolean);
+            if (ourBrands.length === 0) ourBrands = ['dummy_no_brands'];
+        }
         const brandsSql = ourBrands.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
-        // Current & Previous Share
+        // Current & Previous Share (Category-level Market Share, not filtered by Sub Category)
         const currentQuery = `
             SELECT 
                 SUM(toFloat64OrZero(toString(ms.sales))) as total_sales,
@@ -1173,7 +1185,6 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
             ${subCat.join}
             WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
-            ${subCat.where}
             ${subBrand.where}
         `;
 
@@ -1185,7 +1196,6 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
             ${subCat.join}
             WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${baseCond}
-            ${subCat.where}
             ${subBrand.where}
         `;
 
@@ -1205,7 +1215,6 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
             ${subCat.join}
             WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
-            ${subCat.where}
             ${subBrand.where}
             GROUP BY date_group
             ORDER BY date_group
@@ -1297,7 +1306,7 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
 export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilter, locationFilter = null, subCategoryFilter = null, compStart = null, compEnd = null, brandFilter = null, globalSubCategoryFilter = null, globalBrandFilter = null, globalSubBrandFilter = null) => {
     try {
         const dbName = getCurrentDbName();
-        const isMamaearth = dbName === 'mamaearth';
+        const isMamaearth = dbName === 'mamaearth' || dbName === 'kelloggs';
 
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -2786,7 +2795,7 @@ export const getMarketShareTopFilterOptions = async (channelFilter = null) => {
 
         // 6.7 Sub-Categories from rb_ms_olap
         const dbName = getCurrentDbName();
-        const isMamaearth = dbName === 'mamaearth';
+        const isMamaearth = dbName === 'mamaearth' || dbName === 'kelloggs';
         let subCategoryQuery;
         if (isMamaearth) {
             subCategoryQuery = `
@@ -2890,7 +2899,7 @@ export const getMarketShareCascadedFilters = async (platformFilter, channelFilte
         const subBrandArr = normalizeFilterArray(subBrandFilter);
 
         const dbName = getCurrentDbName();
-        const isMamaearth = dbName === 'mamaearth';
+        const isMamaearth = dbName === 'mamaearth' || dbName === 'kelloggs';
 
         // 1. Resolve platforms by channel
         let validChannelPlatforms = null;

@@ -744,7 +744,8 @@ const getAbsoluteOsaOverview = async (filters) => {
                 const bKeyFull = `${(item.brand || '').toLowerCase().trim()}::${(item.format || '').toLowerCase().trim()}::${(item.platform || '').toLowerCase().trim()}`;
                 const bKeyBrand = (item.brand || '').toLowerCase().trim();
                 const brandTotalSales = brandSalesMapOverview[bKeyFull] || overallBrandSalesMapOverview[bKeyBrand] || 0;
-                const offtakeShare = brandTotalSales > 0 ? parseFloat(((item.totalSales / brandTotalSales) * 100).toFixed(2)) : 0;
+                const hasSales = item.totalSales !== null && item.totalSales !== undefined && Number(item.totalSales) > 0;
+                const offtakeShare = (hasSales && brandTotalSales > 0) ? parseFloat(((item.totalSales / brandTotalSales) * 100).toFixed(2)) : null;
 
                 return {
                     name: item.name,
@@ -2106,8 +2107,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                 const bKeyFull = `${(item.brand || '').toLowerCase().trim()}::${(item.category_name || '').toLowerCase().trim()}::${(item.platform || '').toLowerCase().trim()}`;
                 const bKeyBrand = (item.brand || '').toLowerCase().trim();
                 const brandTotalSales = brandSalesMap[bKeyFull] || overallBrandSalesMap[bKeyBrand] || 0;
-
-                const offtakeShare = brandTotalSales > 0 ? parseFloat(((item.totalSales / brandTotalSales) * 100).toFixed(2)) : 0;
+                const hasSales = item.totalSales !== null && item.totalSales !== undefined && Number(item.totalSales) > 0;
+                const offtakeShare = (hasSales && brandTotalSales > 0) ? parseFloat(((item.totalSales / brandTotalSales) * 100).toFixed(2)) : null;
 
                 const rowObj = {
                     name: item.name,

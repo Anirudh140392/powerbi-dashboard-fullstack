@@ -819,7 +819,8 @@ function MarketShareFilterModal({
   const isMamaearth = React.useMemo(() => {
     try {
       const u = JSON.parse(sessionStorage.getItem('user'));
-      return u?.dbName?.toLowerCase() === "mamaearth";
+      const db = u?.dbName?.toLowerCase();
+      return db === "mamaearth" || db === "kelloggs";
     } catch {
       return false;
     }
