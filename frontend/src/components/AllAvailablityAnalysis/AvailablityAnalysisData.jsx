@@ -380,6 +380,8 @@ const ProductLevelHeat = ({ olaMode = "absolute" }) => {
   // -------------------------------------------
   // Expand All / Collapse All
   // -------------------------------------------
+
+  
   const expandAll = () => {
     const f = {};
     const p = {};

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../../components/CommonLayout/ErrorRetryOverlay";
@@ -292,7 +291,9 @@ export default function WatchTower() {
     }
 
     // Also detect changes in local filter overrides (channel/platform)
-    // Without this, changing channel in the filter modal won't trigger a context rebuild
+    // Without this, changing channel in the filter modal won't trigger a context rebuild;
+
+    
     if (!hasMeaningfulChange && overriddenContextRef.current) {
       const currentChannel = filters.channel || "All";
       const currentPlatform = filters.platform || "All";
