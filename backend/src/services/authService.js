@@ -363,8 +363,8 @@ export async function loginUser(email, password, deviceInfo = {}) {
                     ifNull(argMaxIf(db_status, last_login, db_status != ''), 'active') as db_status,
                     ifNull(argMaxIf(tab_permissions, last_login, tab_permissions != ''), '') as tab_permissions
                  FROM tb_user 
-                 WHERE user_email = {email:String}`,
-                { email: user.user_email }
+                 WHERE user_email = {email:String} AND toString(db_id) = {dbId:String}`,
+                { email: user.user_email, dbId: currentDbId || '' }
             );
         }
         if (permRows.length > 0) {
@@ -554,16 +554,20 @@ export async function verifySession(token, deviceToken = null) {
             );
             if (dbPermRows && dbPermRows.length > 0) permRows = dbPermRows;
         }
+        // Third fallback: email-only query (no db_id filter).
+        // ONLY use this if we truly found NO rows at all from the db_id-scoped queries above.
+        // If a row was found with empty tab_permissions, that is valid (all tabs allowed)
+        // and we should NOT fall through here, as it would return the wrong workspace's permissions.
         if (!permRows || permRows.length === 0) {
             permRows = await queryAdminDB(
                 `SELECT 
                     db_status,
                     tab_permissions
                  FROM tb_user 
-                 WHERE lower(user_email) = lower({email:String}) AND status != 'deleted'
+                 WHERE lower(user_email) = lower({email:String}) AND toString(db_id) = {dbId:String} AND status != 'deleted'
                  ORDER BY last_login DESC, created_on DESC
                  LIMIT 1`,
-                { email: decoded.email }
+                { email: decoded.email, dbId: currentDbId || '' }
             );
         }
         if (permRows.length > 0) {
@@ -657,17 +661,64 @@ export async function switchDatabase(email, currentDbName, targetDbName) {
     const combinedMappedStr = Array.from(allowedDbNames).join(',');
     const mappedDatabases = await getMappedDatabasesForDb(combinedMappedStr);
 
-    // 4. Create new JWT token
+    // 5. Fetch tab_permissions and db_status for THIS USER on the TARGET database
+    //    (Critical for sidebar rendering — without this, the old workspace's permissions persist)
+    let tabPermissions = {};
+    let dbStatusBool = true;
+    const targetDbId = String(targetDb.db_id);
+    try {
+        let permRows = [];
+
+        // First: look for this user's permissions on the target db_id
+        if (targetDbId) {
+            permRows = await queryAdminDB(
+                `SELECT db_status, tab_permissions 
+                 FROM tb_user 
+                 WHERE lower(user_email) = lower({email:String}) AND toString(db_id) = {dbId:String} AND status != 'deleted' 
+                 ORDER BY last_login DESC LIMIT 1`,
+                { email, dbId: targetDbId }
+            );
+        }
+
+        // Second: if user has no row on target db, get any user's permissions for that db
+        if ((!permRows || permRows.length === 0 || !permRows[0].tab_permissions) && targetDbId) {
+            const dbPermRows = await queryAdminDB(
+                `SELECT db_status, tab_permissions 
+                 FROM tb_user 
+                 WHERE toString(db_id) = {dbId:String} AND tab_permissions != '' 
+                 LIMIT 1`,
+                { dbId: targetDbId }
+            );
+            if (dbPermRows && dbPermRows.length > 0) permRows = dbPermRows;
+        }
+
+        if (permRows && permRows.length > 0) {
+            dbStatusBool = (!permRows[0].db_status || permRows[0].db_status === '' || permRows[0].db_status === 'active');
+            try {
+                if (permRows[0].tab_permissions && permRows[0].tab_permissions.trim()) {
+                    tabPermissions = toFlatPermissions(JSON.parse(permRows[0].tab_permissions));
+                }
+            } catch (e) { /* ignore parse errors */ }
+        }
+    } catch (e) {
+        console.warn('[Auth] Failed to fetch permissions during switchDatabase:', e.message);
+    }
+
+    // 6. Create new JWT token
+    // NOTE: Do NOT include dbLogoUrl or tabPermissions in the JWT payload.
+    // dbLogoUrl is a base64-encoded image (10-20KB+) and tabPermissions is a large
+    // JSON object. Including them causes the Authorization header to exceed nginx's
+    // default 8KB header buffer limit.
     const token = jwt.sign(
         {
             userId: user.user_id_str || user.id_str,
             email: email,
             dbName: targetDb.db_name,
             dbId: targetDb.db_id,
-            dbLogoUrl: targetDb.logo_url || "",
             companyId: companyId,
             userName: user.user_name || email.split('@')[0],
             role: userRole,
+            dbStatus: dbStatusBool,
         },
         JWT_SECRET
     );
@@ -681,6 +732,8 @@ export async function switchDatabase(email, currentDbName, targetDbName) {
             dbId: targetDb.db_id,
             dbLogoUrl: targetDb.logo_url || "",
             role: userRole,
+            dbStatus: dbStatusBool,
+            tabPermissions,
             companyId,
             mappedDatabases,
         }
