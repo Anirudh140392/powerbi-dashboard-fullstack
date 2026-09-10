@@ -42,6 +42,7 @@ import SecondarySummaryPage from "./pages/SecondarySummary/SecondarySummaryPage"
 import AcceptInvitePage from "./pages/Login/AcceptInvitePage";
 import SelectWorkspacePage from "./pages/Login/SelectWorkspacePage";
 import CrossPlatformPricing from "./pages/Analytics/CrossPlatformPricing";
+import MopAnalysis from "./pages/Analytics/MopAnalysis";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -71,6 +72,13 @@ function AppContent() {
                 <CrossPlatformPricing />
               </ProtectedRoute>
             } />
+
+            <Route path="/mop-analysis" element={
+              <ProtectedRoute>
+                <MopAnalysis />
+              </ProtectedRoute>
+            } />
+
 
             <Route path="/watch-tower" element={
               <ProtectedRoute>
