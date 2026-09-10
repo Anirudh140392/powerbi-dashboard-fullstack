@@ -45,14 +45,10 @@ const getTransporter = () => {
 };
 
 /**
- * Send individual emails to each recipient using SMTP envelope routing
- * with raw message headers to prevent Exchange Online from revealing recipients.
+ * Send alert/report emails to recipients using BCC so recipients cannot see each other.
  *
- * Exchange Online resolves SMTP envelope recipients for same-tenant mail
- * and displays them in Outlook's To: field. To prevent this:
- * 1. We do NOT set the 'to' field in mailOptions (prevents nodemailer adding To header)
- * 2. We use 'headers' to manually set a To: header of 'undisclosed-recipients:;'
- * 3. We use 'envelope' for the actual SMTP delivery (RCPT TO)
+ * All recipient email addresses are added to the 'bcc' field.
+ * The 'to' header is set to the sender address (fromName <fromEmail>).
  */
 const sendAlertEmailToRecipients = async (transporter, { fromEmail, fromName, recipientEmailsStr, subject, text, html }) => {
     if (!recipientEmailsStr || typeof recipientEmailsStr !== 'string') return false;
@@ -64,38 +60,54 @@ const sendAlertEmailToRecipients = async (transporter, { fromEmail, fromName, re
 
     if (recipients.length === 0) return false;
 
-    let successCount = 0;
-    for (const recipient of recipients) {
-        const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
-        const mailOptions = {
-            from: `"${fromName}" <${fromEmail}>`,
-            // DO NOT set 'to' — we control the To header manually below
-            subject: subject,
-            text: text,
-            html: html,
-            // Manually set headers to hide recipients and break old conversation threading
-            headers: {
-                'To': `"${fromName}" <${fromEmail}>`,
-                'Thread-Topic': `Alert-${uniqueId}`,
-                'Thread-Index': Buffer.from(uniqueId).toString('base64'),
-            },
-            // envelope controls actual SMTP delivery (MAIL FROM + RCPT TO)
-            envelope: {
-                from: fromEmail,
-                to: recipient,
-            },
-        };
+    const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const mailOptions = {
+        from: `"${fromName}" <${fromEmail}>`,
+        to: `"${fromName}" <${fromEmail}>`,
+        bcc: recipients,
+        subject: subject,
+        text: text || '',
+        html: html,
+        headers: {
+            'Thread-Topic': `Alert-${uniqueId}`,
+            'Thread-Index': Buffer.from(uniqueId).toString('base64'),
+        },
+    };
 
-        try {
-            const info = await transporter.sendMail(mailOptions);
-            console.log(`[AlertCron] 📧 Email delivered to ${recipient} via envelope (header To: ${fromEmail}). Message ID: ${info.messageId}`);
-            successCount++;
-        } catch (sendErr) {
-            console.error(`[AlertCron] Failed to send email to ${recipient}:`, sendErr.message);
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`[AlertCron] 📧 Report/Alert email delivered via BCC to ${recipients.length} recipient(s) (${recipients.join(', ')}). Message ID: ${info.messageId}`);
+        return true;
+    } catch (sendErr) {
+        console.error(`[AlertCron] Failed to send BCC email to recipients (${recipients.join(', ')}):`, sendErr.message);
+
+        // Fallback: send individually with BCC if bulk BCC fails
+        let successCount = 0;
+        for (const recipient of recipients) {
+            const singleMailOptions = {
+                from: `"${fromName}" <${fromEmail}>`,
+                to: `"${fromName}" <${fromEmail}>`,
+                bcc: recipient,
+                subject: subject,
+                text: text || '',
+                html: html,
+                headers: {
+                    'Thread-Topic': `Alert-${uniqueId}`,
+                    'Thread-Index': Buffer.from(uniqueId).toString('base64'),
+                },
+            };
+            try {
+                const info = await transporter.sendMail(singleMailOptions);
+                console.log(`[AlertCron] 📧 Fallback BCC email delivered to ${recipient}. Message ID: ${info.messageId}`);
+                successCount++;
+            } catch (err) {
+                console.error(`[AlertCron] Fallback BCC send failed for ${recipient}:`, err.message);
+            }
         }
+        return successCount > 0;
     }
-    return successCount > 0;
 };
+
 
 /**
  * Helper to evaluate conditional operators dynamically (e.g. less than, greater than, equal to)

@@ -18,6 +18,8 @@ import walkthrough from './routes/walkthrough.js';
 import supplyChain from './routes/supplyChain.js';
 import primarySales from './routes/primarySales.js';
 import secondarySales from './routes/secondarySales.js';
+import mopAnalysis from './routes/mopAnalysis.js';
+
 
 export default (app) => {
     // Admin routes
@@ -80,4 +82,8 @@ export default (app) => {
 
     // Secondary Sales routes
     secondarySales(app);
+
+    // MOP Analysis routes
+    mopAnalysis(app);
 };
+

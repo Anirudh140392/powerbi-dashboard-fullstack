@@ -195,10 +195,14 @@ export const FilterProvider = ({ children }) => {
             const isVisibility = path.includes('/visibility-anlysis') || path.includes('/visibility-analysis');
             const isSecondary = path.includes('/secondary');
             const isPrimary = path.includes('/primary') && !path.includes('/watch-tower') && !path.includes('/watchtower');
+            const isMop = path.includes('/mop-analysis');
 
             let endpoint;
             let pageLabel;
-            if (isMarketShare) {
+            if (isMop) {
+                endpoint = '/mop-analysis/latest-date';
+                pageLabel = 'MOP Analysis (mop_master)';
+            } else if (isMarketShare) {
                 endpoint = '/market-share/latest-date';
                 pageLabel = 'Market Share (rb_ms_olap)';
             } else if (isVisibility) {
@@ -243,10 +247,14 @@ export const FilterProvider = ({ children }) => {
                         setMinDate(null);
                     }
 
-                    // Only overwrite timeStart and timeEnd if the user hasn't explicitly set a custom date
-                    if (!userSetDate) {
+                    // For MOP analysis or if dates are out of bounds or if user hasn't explicitly set dates, reset timeStart and timeEnd
+                    const isOutRange = (timeEnd && timeEnd.isAfter(lEnd)) || (timeStart && minDateStr && timeStart.isBefore(dayjs(minDateStr)));
+                    if (!userSetDate || isMop || isOutRange) {
                         setTimeEnd(lEnd);
                         setTimeStart(lStart);
+                        if (isMop) {
+                            setUserSetDate(false);
+                        }
 
                         // Simple Previous period comparison (aligned with the length of the current period)
                         const periodDays = lEnd.diff(lStart, 'day') + 1;

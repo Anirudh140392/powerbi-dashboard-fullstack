@@ -350,7 +350,7 @@ const Sidebar = ({
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
   const [expandedPricing, setExpandedPricing] = useState(() => {
     const path = window.location.pathname;
-    return path === '/pricing-analysis' || path === '/cross-platform-pricing';
+    return path === '/pricing-analysis' || path === '/cross-platform-pricing' || path === '/mop-analysis';
   });
   const [channelAnchorEl, setChannelAnchorEl] = useState(null);
   const [platformAnchorEl, setPlatformAnchorEl] = useState(null);
@@ -1329,6 +1329,7 @@ const Sidebar = ({
         const pricingSubpages = [
           { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
           { label: "Cross Platform Pricing", path: "/cross-platform-pricing", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, showNew: true },
+          { label: "MOP Analysis", path: "/mop-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['pidilite'] },
         ];
         const dbName = user?.dbName;
         const tabPerms = user?.tabPermissions;
@@ -1463,7 +1464,7 @@ const Sidebar = ({
 
       {/* Collapsed Pricing icon */}
       {isCollapsed && user?.dbStatus !== false && (() => {
-        const isPricingActive = currentPath === '/pricing-analysis' || currentPath === '/cross-platform-pricing';
+        const isPricingActive = currentPath === '/pricing-analysis' || currentPath === '/cross-platform-pricing' || currentPath === '/mop-analysis';
         return (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 0.5 }}>
             <Tooltip title="Pricing" placement="right">
