@@ -185,9 +185,9 @@ export const getMopData = async (req, res) => {
         // ─── Known platform list (matches the image columns) ───
         const knownPlatforms = ['amazon', 'blinkit', 'bigbasket', 'flipkart', 'swiggy', 'zepto'];
 
-        // Build pivot SELECT expressions for each platform's minimum selling price
+        // Build pivot SELECT expressions for each platform's minimum selling price (> 0)
         const platformSelects = knownPlatforms.map(p => {
-            return `MIN(CASE WHEN lower(o.${platformCol}) LIKE '%${p}%' THEN toFloat64(o.${spCol}) END) AS ${p}_price`;
+            return `MIN(CASE WHEN lower(o.${platformCol}) LIKE '%${p}%' AND toFloat64(o.${spCol}) > 0 THEN toFloat64(o.${spCol}) END) AS ${p}_price`;
         }).join(',\n                    ');
 
         // ─── Main query: join rb_pdp_olap with mop_master ───
