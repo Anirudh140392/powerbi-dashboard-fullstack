@@ -31,9 +31,9 @@ const ROUTE_TO_TAB_LABEL = {
     "/on-shelf-availability": "Market Coverage",
 };
 
-// Ordered list of routes to try when finding the first allowed page
+// Ordered list of routes to try when finding the first allowed page (Business Overview /watch-tower is top priority)
 const ROUTE_PRIORITY = [
-    "/cross-platform-pricing", "/watch-tower", "/geo-intelligence", "/insights", "/availability-analysis",
+    "/watch-tower", "/cross-platform-pricing", "/geo-intelligence", "/insights", "/availability-analysis",
     "/visibility-anlysis", "/market-share", "/pricing-analysis",
     "/performance-marketing", "/content-score", "/content-analysis", "/inventory",
     "/scheduled-reports", "/download-report", "/review-rating",

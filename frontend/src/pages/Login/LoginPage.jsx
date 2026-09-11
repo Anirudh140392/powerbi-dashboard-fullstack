@@ -220,10 +220,19 @@ const LoginPageContent = () => {
         const result = await login({ email, password });
 
         if (result.success) {
-            // Check role from AuthContext user if not immediately available in result
-            // though login service returns them
-            // Let's rely on the useEffect above or do it here
-            // navigate(userData.role === 'admin' ? "/admin" : "/watch-tower", { replace: true });
+            const loggedInUser = result.user || JSON.parse(sessionStorage.getItem('user') || '{}');
+            const userRole = (loggedInUser?.role || '').toLowerCase();
+            const isAdmin = userRole.includes('admin') || userRole.includes('super');
+            const hasMultipleWorkspaces = Array.isArray(loggedInUser?.mappedDatabases) && loggedInUser.mappedDatabases.length >= 2;
+            const workspaceSelected = sessionStorage.getItem("workspaceSelected") === "true";
+
+            let redirectPath;
+            if (hasMultipleWorkspaces && !workspaceSelected && !isAdmin) {
+                redirectPath = "/select-workspace";
+            } else {
+                redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(loggedInUser);
+            }
+            navigate(redirectPath, { replace: true });
         } else {
             setError(result.error || "Invalid email or password");
             setLoading(false);
