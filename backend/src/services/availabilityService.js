@@ -2146,8 +2146,9 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     const skuListStr = formattedData.map(item => `'${escapeStr(item.sku)}'`).join(',');
                     const imgQuery = `
                         SELECT lower(web_pid) as w_pid, any(web_pid) as orig_pid,
-                               any(image_url) as img_url,
-                               any(page_url) as page_url, any(platform_name) as platform_name
+                               anyIf(image_url, image_url IS NOT NULL AND image_url != '') as img_url,
+                               anyIf(page_url, page_url IS NOT NULL AND page_url != '') as page_url,
+                               any(platform_name) as platform_name
                         FROM rb_sku_platform 
                         WHERE lower(web_pid) IN (${skuListStr}) 
                         GROUP BY w_pid
@@ -2160,20 +2161,23 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                         const key = String(r.w_pid).toLowerCase();
                         if (r.img_url) imgMap[key] = r.img_url;
 
-                        // Resolve page URL.
-                        // Priority: always try to build dynamic URL first using orig_pid
-                        // (original-case from DB e.g. B0CGXQSHJZ) because page_url stored
-                        // in the DB may have been saved with the wrong (lowercase) casing.
-                        // Only fall back to DB page_url if we cannot build one dynamically.
-                        const pidForUrl = r.orig_pid || r.w_pid;
-                        let rawUrl = null;
-                        if (r.platform_name) {
+                        // Resolve page URL:
+                        // Priority 1: Pick exact page_url stored in rb_sku_platform DB table
+                        let rawUrl = r.page_url && String(r.page_url).trim() !== '' ? String(r.page_url).trim() : null;
+
+                        // Priority 2: Fall back to dynamic SKU URL generation only if DB page_url is empty/null
+                        if (!rawUrl && r.platform_name) {
+                            const pidForUrl = r.orig_pid || r.w_pid;
                             rawUrl = buildDynamicSkuUrl(r.platform_name, pidForUrl);
                         }
-                        if (!rawUrl) {
-                            rawUrl = r.page_url || null;
+
+                        // Ensure proper http:// or https:// scheme prefix
+                        if (rawUrl) {
+                            if (!/^https?:\/\//i.test(rawUrl)) {
+                                rawUrl = `https://${rawUrl}`;
+                            }
+                            urlMap[key] = rawUrl;
                         }
-                        if (rawUrl) urlMap[key] = rawUrl;
                     });
 
                     formattedData.forEach(item => {

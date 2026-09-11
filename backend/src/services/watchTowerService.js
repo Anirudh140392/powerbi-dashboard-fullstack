@@ -12908,7 +12908,7 @@ const getSkuOverview = async (filters) => {
 
             if (skuCols.size > 0) {
                 if (columnExists(skuCols, 'page_url')) {
-                    selectCols.push('any(page_url) as page_url');
+                    selectCols.push("anyIf(page_url, page_url IS NOT NULL AND page_url != '') as page_url");
                     hasPageUrl = true;
                 }
                 if (columnExists(skuCols, 'platform_name')) {
@@ -12927,20 +12927,15 @@ const getSkuOverview = async (filters) => {
                 const key = String(row.web_pid).toLowerCase();
                 skuImageMap[key] = row.img;
 
-                let raw = (hasPageUrl && row.page_url) || null;
+                let raw = (hasPageUrl && row.page_url && String(row.page_url).trim() !== '') ? String(row.page_url).trim() : null;
                 if (!raw && hasPlatformName && row.platform_name) {
                     raw = buildDynamicSkuUrl(row.platform_name, row.web_pid);
                 }
                 if (raw) {
-                    try {
-                        const u = new URL(raw);
-                        const parts = u.pathname.split('/');
-                        parts[parts.length - 1] = parts[parts.length - 1].toUpperCase();
-                        u.pathname = parts.join('/');
-                        skuUrlMap[key] = u.toString();
-                    } catch (_) {
-                        skuUrlMap[key] = raw;
+                    if (!/^https?:\/\//i.test(raw)) {
+                        raw = `https://${raw}`;
                     }
+                    skuUrlMap[key] = raw;
                 }
             });
             console.log(`[getSkuOverview] Fetched ${Object.keys(skuImageMap).length} SKU details from rb_sku_platform`);
