@@ -15,7 +15,7 @@ const checkMopTableExists = async () => {
 
 /**
  * GET /api/mop-analysis/latest-date
- * Returns min and max date (created_on) in mop_master
+ * Returns min and max date (DATE) from rb_pdp_olap joined with mop_master
  */
 export const getMopLatestDate = async (req, res) => {
     try {
@@ -24,12 +24,24 @@ export const getMopLatestDate = async (req, res) => {
             return res.json({ available: false });
         }
 
+        let webPidCol = 'Web_Pid';
+        let dateCol = 'DATE';
+        try {
+            const olapCols = await getTableColumns('rb_pdp_olap');
+            webPidCol = resolveColumn(olapCols, 'Web_Pid', 'Web_Pid');
+            dateCol = resolveColumn(olapCols, 'DATE', 'DATE');
+        } catch (e) {
+            console.warn('[getMopLatestDate] Could not describe rb_pdp_olap');
+        }
+
         const dateQuery = `
             SELECT 
-                formatDateTime(MIN(toDate(created_on)), '%Y-%m-%d') AS min_date,
-                formatDateTime(MAX(toDate(created_on)), '%Y-%m-%d') AS max_date
-            FROM mop_master
-            WHERE created_on IS NOT NULL
+                formatDateTime(MIN(toDate(o.${dateCol})), '%Y-%m-%d') AS min_date,
+                formatDateTime(MAX(toDate(o.${dateCol})), '%Y-%m-%d') AS max_date
+            FROM rb_pdp_olap o
+            INNER JOIN mop_master m
+                ON lower(m.web_pid) = lower(o.${webPidCol})
+            WHERE o.${dateCol} IS NOT NULL AND toDate(o.${dateCol}) > '2000-01-01'
         `;
 
         const result = await queryClickHouse(dateQuery);
@@ -69,7 +81,6 @@ export const getMopLatestDate = async (req, res) => {
  * GET /api/mop-analysis/filters
  * Returns filter options: ecom_nmg list, code list
  */
-
 export const getMopFilters = async (req, res) => {
     try {
         const exists = await checkMopTableExists();
@@ -111,22 +122,6 @@ export const getMopData = async (req, res) => {
 
         const { ecomNaming, code, startDate, endDate, page = 1, pageSize = 50 } = req.query;
 
-        // ─── Build WHERE conditions on mop_master ───
-        const mopConds = [];
-        if (ecomNaming && ecomNaming !== 'All') {
-            mopConds.push(`lower(m.ecom_nmg) = lower('${ecomNaming.replace(/'/g, "''")}')`);
-        }
-        if (code && code !== 'All') {
-            mopConds.push(`lower(m.code) = lower('${code.replace(/'/g, "''")}')`);
-        }
-        if (startDate) {
-            mopConds.push(`toDate(m.created_on) >= '${startDate}'`);
-        }
-        if (endDate) {
-            mopConds.push(`toDate(m.created_on) <= '${endDate}'`);
-        }
-        const mopWhere = mopConds.length > 0 ? `WHERE ${mopConds.join(' AND ')}` : '';
-
         // ─── Discover columns in rb_pdp_olap ───
         let spCol = 'Selling_Price';
         let webPidCol = 'Web_Pid';
@@ -143,45 +138,77 @@ export const getMopData = async (req, res) => {
             console.warn('[getMopData] Could not describe rb_pdp_olap, using default column names');
         }
 
+        // ─── Build WHERE conditions ───
+        const conds = [];
+
+        // ecomNaming filter
+        if (ecomNaming !== undefined && ecomNaming !== null && ecomNaming !== 'All') {
+            let ecomList = [];
+            if (Array.isArray(ecomNaming)) {
+                ecomList = ecomNaming.map(s => String(s).trim()).filter(Boolean);
+            } else if (typeof ecomNaming === 'string') {
+                ecomList = ecomNaming.split(',').map(s => s.trim()).filter(Boolean);
+            }
+
+            if (ecomList.length > 0 && !ecomList.includes('All')) {
+                const inClause = ecomList.map(v => `lower('${v.replace(/'/g, "''")}')`).join(', ');
+                conds.push(`lower(m.ecom_nmg) IN (${inClause})`);
+            } else if (ecomList.length === 0) {
+                conds.push(`1 = 0`);
+            }
+        }
+
+        // code filter
+        if (code !== undefined && code !== null && code !== 'All') {
+            let codeList = [];
+            if (Array.isArray(code)) {
+                codeList = code.map(s => String(s).trim()).filter(Boolean);
+            } else if (typeof code === 'string') {
+                codeList = code.split(',').map(s => s.trim()).filter(Boolean);
+            }
+
+            if (codeList.length > 0 && !codeList.includes('All')) {
+                const inClause = codeList.map(v => `lower('${v.replace(/'/g, "''")}')`).join(', ');
+                conds.push(`lower(m.code) IN (${inClause})`);
+            } else if (codeList.length === 0) {
+                conds.push(`1 = 0`);
+            }
+        }
+        if (startDate) {
+            conds.push(`toDate(o.${dateCol}) >= '${startDate}'`);
+        }
+        if (endDate) {
+            conds.push(`toDate(o.${dateCol}) <= '${endDate}'`);
+        }
+        const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
+
         // ─── Known platform list (matches the image columns) ───
         const knownPlatforms = ['amazon', 'blinkit', 'bigbasket', 'flipkart', 'swiggy', 'zepto'];
 
         // Build pivot SELECT expressions for each platform's minimum selling price
         const platformSelects = knownPlatforms.map(p => {
-            // Handle platform name variants (e.g. "flipkart national" should match "flipkart")
             return `MIN(CASE WHEN lower(o.${platformCol}) LIKE '%${p}%' THEN toFloat64(o.${spCol}) END) AS ${p}_price`;
         }).join(',\n                    ');
 
-        // ─── Main query: join mop_master with rb_pdp_olap ───
-        // For each mop_master row (date + web_pid), get MIN selling price per platform from rb_pdp_olap
+        // ─── Main query: join rb_pdp_olap with mop_master ───
         const dataQuery = `
             SELECT
-                toDate(m.created_on) AS date,
+                toDate(o.${dateCol}) AS date,
                 m.code,
-                m.ecom_nmg,
-                m.name AS product,
-                m.mrp,
-                m.t1_mop,
-                m.t2_mop,
-                m.platform AS mop_platform,
-                m.web_pid,
+                any(m.ecom_nmg) AS ecom_nmg,
+                any(m.name) AS product,
+                max(m.mrp) AS mrp,
+                max(m.t1_mop) AS t1_mop,
+                max(m.t2_mop) AS t2_mop,
                 ${platformSelects}
-            FROM mop_master m
-            LEFT JOIN rb_pdp_olap o
+            FROM rb_pdp_olap o
+            INNER JOIN mop_master m
                 ON lower(m.web_pid) = lower(o.${webPidCol})
-                AND toDate(m.created_on) = toDate(o.${dateCol})
-            ${mopWhere}
+            ${whereClause}
             GROUP BY
-                toDate(m.created_on),
-                m.code,
-                m.ecom_nmg,
-                m.name,
-                m.mrp,
-                m.t1_mop,
-                m.t2_mop,
-                m.platform,
-                m.web_pid
-            ORDER BY toDate(m.created_on) DESC, m.code ASC
+                date,
+                m.code
+            ORDER BY date DESC, m.code ASC
         `;
 
         // ─── Count query ───
@@ -189,12 +216,13 @@ export const getMopData = async (req, res) => {
             SELECT count() AS cnt
             FROM (
                 SELECT
-                    toDate(m.created_on) AS date,
-                    m.code,
-                    m.web_pid
-                FROM mop_master m
-                ${mopWhere.replace(/m\./g, 'm.')}
-                GROUP BY date, m.code, m.web_pid
+                    toDate(o.${dateCol}) AS date,
+                    m.code
+                FROM rb_pdp_olap o
+                INNER JOIN mop_master m
+                    ON lower(m.web_pid) = lower(o.${webPidCol})
+                ${whereClause}
+                GROUP BY date, m.code
             )
         `;
 
@@ -207,7 +235,7 @@ export const getMopData = async (req, res) => {
 
         const total = countData?.[0]?.cnt || rawData.length;
 
-        // ─── Paginate in JS (ClickHouse LIMIT with GROUP BY can be unreliable for offsets) ───
+        // ─── Paginate in JS ───
         const offset = (parseInt(page) - 1) * parseInt(pageSize);
         const paginatedData = rawData.slice(offset, offset + parseInt(pageSize));
 
@@ -220,7 +248,6 @@ export const getMopData = async (req, res) => {
             mrp: row.mrp != null ? Number(row.mrp) : null,
             t1Mop: row.t1_mop != null ? Number(row.t1_mop) : null,
             t2Mop: row.t2_mop != null ? Number(row.t2_mop) : null,
-            webPid: row.web_pid || '',
             amazonPrice: row.amazon_price != null ? Number(row.amazon_price) : null,
             blinkitPrice: row.blinkit_price != null ? Number(row.blinkit_price) : null,
             bigbasketPrice: row.bigbasket_price != null ? Number(row.bigbasket_price) : null,

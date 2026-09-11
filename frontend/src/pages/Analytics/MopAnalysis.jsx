@@ -31,6 +31,7 @@ import {
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import CommonContainer from '../../components/CommonLayout/CommonContainer';
+import MultiSelectSearchDropdown from '../../components/CommonLayout/MultiSelectSearchDropdown';
 import { FilterContext } from '../../utils/FilterContext';
 import { fetchMopFilters, fetchMopData } from '../../api/mopAnalysisService';
 
@@ -44,7 +45,7 @@ export default function MopAnalysis() {
   const [ecomOptions, setEcomOptions] = useState([]);
   const [codeOptions, setCodeOptions] = useState([]);
 
-  // Selected filter states
+  // Selected filter states ('All' or array of strings)
   const [selectedEcom, setSelectedEcom] = useState('All');
   const [selectedCode, setSelectedCode] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,9 +86,17 @@ export default function MopAnalysis() {
     const loadData = async () => {
       setLoading(true);
       try {
+        const ecomParam = selectedEcom === 'All'
+          ? undefined
+          : (Array.isArray(selectedEcom) ? (selectedEcom.length === 0 ? '' : selectedEcom.join(',')) : selectedEcom);
+
+        const codeParam = selectedCode === 'All'
+          ? undefined
+          : (Array.isArray(selectedCode) ? (selectedCode.length === 0 ? '' : selectedCode.join(',')) : selectedCode);
+
         const res = await fetchMopData({
-          ecomNaming: selectedEcom === 'All' ? undefined : selectedEcom,
-          code: selectedCode === 'All' ? undefined : selectedCode,
+          ecomNaming: ecomParam,
+          code: codeParam,
           startDate: startDateStr,
           endDate: endDateStr,
           page,
@@ -127,12 +136,13 @@ export default function MopAnalysis() {
     return d.isValid() ? d.format('M/D/YYYY') : dateStr;
   };
 
-  // Helper to render price with MOP violation color rules
-  // Red: Price < T2 MOP (below lower floor)
-  // Blue: Price < T1 MOP (between T2 and T1 MOP)
-  // Regular text color: Price >= T1 MOP
+  // Helper to render price with MOP violation color rules matching DAX formula:
+  // IF price = 0 -> BLANK()
+  // IF price < t2 -> "Red"
+  // IF price < t1 -> "Blue"
+  // ELSE -> BLANK() (default text color)
   const renderPriceCell = (price, t1Mop, t2Mop) => {
-    if (price === null || price === undefined || price === '') {
+    if (price === null || price === undefined || price === '' || Number(price) === 0) {
       return '';
     }
 
@@ -140,7 +150,7 @@ export default function MopAnalysis() {
     const numT1 = t1Mop !== null && t1Mop !== undefined ? Number(t1Mop) : null;
     const numT2 = t2Mop !== null && t2Mop !== undefined ? Number(t2Mop) : null;
 
-    let color = '#334155'; // default regular dark gray text
+    let color = '#334155'; // default regular text color
     let fontWeight = 500;
 
     if (numT2 !== null && numPrice < numT2) {
@@ -165,6 +175,7 @@ export default function MopAnalysis() {
       </Typography>
     );
   };
+
 
   // Export table to CSV
   const handleExportCSV = () => {
@@ -250,66 +261,28 @@ export default function MopAnalysis() {
             {/* Filter Dropdowns (E-Com Naming & Code) */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
               {/* E-Com Naming Dropdown */}
-              <FormControl size="small" sx={{ minWidth: 180 }}>
-                <InputLabel id="ecom-label" sx={{ fontSize: '13px', fontWeight: 600 }}>
-                  E-Com Naming
-                </InputLabel>
-                <Select
-                  labelId="ecom-label"
-                  id="ecom-select"
-                  value={selectedEcom}
-                  label="E-Com Naming"
-                  onChange={(e) => {
-                    setSelectedEcom(e.target.value);
-                    setPage(1);
-                  }}
-                  sx={{
-                    borderRadius: '8px',
-                    bgcolor: '#ffffff',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: '#1e293b'
-                  }}
-                >
-                  <MenuItem value="All">All</MenuItem>
-                  {ecomOptions.map((opt) => (
-                    <MenuItem key={opt} value={opt}>
-                      {opt}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <MultiSelectSearchDropdown
+                label="E-Com Naming"
+                options={ecomOptions}
+                value={selectedEcom}
+                onChange={(val) => {
+                  setSelectedEcom(val);
+                  setPage(1);
+                }}
+                minWidth={180}
+              />
 
               {/* Code Dropdown */}
-              <FormControl size="small" sx={{ minWidth: 180 }}>
-                <InputLabel id="code-label" sx={{ fontSize: '13px', fontWeight: 600 }}>
-                  Code
-                </InputLabel>
-                <Select
-                  labelId="code-label"
-                  id="code-select"
-                  value={selectedCode}
-                  label="Code"
-                  onChange={(e) => {
-                    setSelectedCode(e.target.value);
-                    setPage(1);
-                  }}
-                  sx={{
-                    borderRadius: '8px',
-                    bgcolor: '#ffffff',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: '#1e293b'
-                  }}
-                >
-                  <MenuItem value="All">All</MenuItem>
-                  {codeOptions.map((opt) => (
-                    <MenuItem key={opt} value={opt}>
-                      {opt}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <MultiSelectSearchDropdown
+                label="Code"
+                options={codeOptions}
+                value={selectedCode}
+                onChange={(val) => {
+                  setSelectedCode(val);
+                  setPage(1);
+                }}
+                minWidth={180}
+              />
 
               {/* CSV Export Button */}
               <Button
