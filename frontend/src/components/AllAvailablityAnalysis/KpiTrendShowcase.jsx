@@ -1980,15 +1980,22 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType, pl
     });
 
     return mapped.sort((a, b) => {
+      const getNumericOsa = (item) => {
+        const val = item.Osa ?? item.osa;
+        if (val === null || val === undefined || val === 'N/A' || val === '') return -Infinity;
+        const num = Number(val);
+        return isNaN(num) ? -Infinity : num;
+      };
+      const osaA = getNumericOsa(a);
+      const osaB = getNumericOsa(b);
+      if (osaA !== osaB) return osaB - osaA;
+
       const valA = Number(a.MarketShare?.value ?? a.MarketShare ?? a.marketShare ?? 0) || 0;
       const valB = Number(b.MarketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0) || 0;
       if (Math.abs(valB - valA) > 0.0001) return valB - valA;
       const salesA = Number(a.total_sales || a.Sales || 0) || 0;
       const salesB = Number(b.total_sales || b.Sales || 0) || 0;
-      if (salesB !== salesA) return salesB - salesA;
-      const osaA = Number(a.Osa ?? 0) || 0;
-      const osaB = Number(b.Osa ?? 0) || 0;
-      return osaB - osaA;
+      return salesB - salesA;
     });
   }, [competitionData.skus, filters.brands, filters.skus]);
 

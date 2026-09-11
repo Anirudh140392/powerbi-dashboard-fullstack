@@ -3277,9 +3277,14 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
             });
 
             skus.sort((a, b) => {
-                const msA = Number(a.marketShare) || 0;
-                const msB = Number(b.marketShare) || 0;
-                if (Math.abs(msB - msA) > 0.0001) return msB - msA;
+                const osaA = a.osa !== null && a.osa !== undefined ? Number(a.osa) : -Infinity;
+                const osaB = b.osa !== null && b.osa !== undefined ? Number(b.osa) : -Infinity;
+                if (osaA !== osaB) return osaB - osaA;
+
+                const listA = a.listing !== null && a.listing !== undefined ? Number(a.listing) : -Infinity;
+                const listB = b.listing !== null && b.listing !== undefined ? Number(b.listing) : -Infinity;
+                if (listA !== listB) return listB - listA;
+
                 return (b.total_sales || 0) - (a.total_sales || 0);
             });
 
