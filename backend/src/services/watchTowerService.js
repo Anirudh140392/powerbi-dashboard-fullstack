@@ -14572,10 +14572,44 @@ const getCrossPlatformBrandMatrix = async (filters) => {
             entry.platforms[pKey].marketSales = mktShare ?? bSales;
         });
 
+        const getRowScore = (row) => {
+            if (!row || !row.platforms) return { hasData: false, totalScore: 0 };
+            let hasData = false;
+            let totalScore = 0;
+
+            Object.values(row.platforms).forEach(p => {
+                if (!p) return;
+                Object.entries(p).forEach(([key, val]) => {
+                    if (val !== null && val !== undefined && val !== '' && !isNaN(val)) {
+                        const num = Number(val);
+                        if (num > 0) {
+                            hasData = true;
+                            if (key === 'offtake' || key === 'marketSales' || key === 'adSales') {
+                                totalScore += num;
+                            } else if (key === 'osa' || key === 'sos' || key === 'marketShare' || key === 'promo') {
+                                totalScore += num * 10;
+                            } else {
+                                totalScore += num;
+                            }
+                        }
+                    }
+                });
+            });
+
+            return { hasData, totalScore };
+        };
+
         const matrix = Array.from(itemMap.values()).sort((a, b) => {
-            const maxA = Math.max(...Object.values(a.platforms).map(p => p.offtake || p.marketShare || 0), 0);
-            const maxB = Math.max(...Object.values(b.platforms).map(p => p.offtake || p.marketShare || 0), 0);
-            return maxB - maxA;
+            const scoreA = getRowScore(a);
+            const scoreB = getRowScore(b);
+
+            if (scoreA.hasData !== scoreB.hasData) {
+                return scoreA.hasData ? -1 : 1;
+            }
+            if (scoreB.totalScore !== scoreA.totalScore) {
+                return scoreB.totalScore - scoreA.totalScore;
+            }
+            return String(a.item || a.brand || '').localeCompare(String(b.item || b.brand || ''));
         });
 
         const formattedPlatforms = activePlatforms.map(p => ({

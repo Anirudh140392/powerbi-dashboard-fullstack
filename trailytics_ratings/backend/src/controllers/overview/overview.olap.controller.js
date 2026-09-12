@@ -21,7 +21,9 @@ import { getOlapTableName } from '../../utils/olapResolver.js';
 // ── helpers ────────────────────────────────────────────────────────────────
 
 const getTargetDb = (req) =>
+    req.query.db ||
     req.query.db_name ||
+    req.query.database ||
     req.headers['x-db-name'] ||
     req.headers['x-database-name'] ||
     (req.authUser && req.authUser.dbName) ||

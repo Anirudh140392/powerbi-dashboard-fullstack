@@ -21,18 +21,35 @@ const clickhouse = createClient({
     request_timeout: 120000,
 });
 
-// Intercept clickhouse.query to inject request-scoped database overrides
+const maricoClickhouse = createClient({
+    url: process.env.MARICO_CLICKHOUSE_HOST || process.env.CLICKHOUSE_HOST || 'http://localhost:8123',
+    database: process.env.MARICO_CLICKHOUSE_DB || 'marico_true_element',
+    username: process.env.MARICO_CLICKHOUSE_USER || process.env.CLICKHOUSE_USER || 'default',
+    password: process.env.MARICO_CLICKHOUSE_PASSWORD || process.env.CLICKHOUSE_PASSWORD || '',
+    request_timeout: 120000,
+});
+
+// Intercept clickhouse.query to inject request-scoped database overrides and route to correct ClickHouse cluster
 const originalQuery = clickhouse.query;
+const originalMaricoQuery = maricoClickhouse.query;
+
 clickhouse.query = function (options) {
     const store = clickhouseStorage.getStore();
-    if (store && store.dbName) {
-        console.log(`[CH Query] Intercepted. Database: ${store.dbName}, CompanyId: ${store.companyId}, Query: ${options.query?.substring(0, 100).replace(/\s+/g, ' ')}`);
+    const targetDb = store?.dbName || options?.database || options?.clickhouse_settings?.database;
+    const isMarico = targetDb && targetDb.toLowerCase().includes('marico');
+
+    if (targetDb && (!options.query || !options.query.includes('admin_master'))) {
         options.clickhouse_settings = {
             ...options.clickhouse_settings,
-            database: store.dbName
+            database: targetDb
         };
+        console.log(`[CH Query] Intercepted. Database: ${targetDb}, Query: ${options.query?.substring(0, 100).replace(/\s+/g, ' ')}`);
     } else {
-        console.log(`[CH Query] No request store found. Using default database: ${defaultDb}, Query: ${options.query?.substring(0, 100).replace(/\s+/g, ' ')}`);
+        console.log(`[CH Query] Querying admin_master or default. Query: ${options.query?.substring(0, 100).replace(/\s+/g, ' ')}`);
+    }
+
+    if (isMarico) {
+        return originalMaricoQuery.call(maricoClickhouse, options);
     }
     return originalQuery.call(this, options);
 };

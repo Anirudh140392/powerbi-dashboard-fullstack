@@ -221,7 +221,49 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
   };
 
   const platforms = data.platforms || [];
-  const matrix = data.matrix || [];
+  const rawMatrix = data.matrix || [];
+
+  // Helper to check if a row has any valid data value across platforms and active KPI columns
+  const getRowDataScore = (row) => {
+    if (!row || !row.platforms) return { hasData: false, score: 0 };
+    let hasData = false;
+    let score = 0;
+
+    platforms.forEach((pf) => {
+      const pfData = row.platforms?.[pf.key] || {};
+      activeKpiColumns.forEach((kpi) => {
+        const val = (pfData[kpi.id] !== undefined && pfData[kpi.id] !== null)
+          ? pfData[kpi.id]
+          : (kpi.altId ? pfData[kpi.altId] : undefined);
+
+        if (val !== null && val !== undefined && val !== "" && !isNaN(val)) {
+          const num = Number(val);
+          if (num > 0) {
+            hasData = true;
+            score += num;
+          }
+        }
+      });
+    });
+
+    return { hasData, score };
+  };
+
+  const matrix = React.useMemo(() => {
+    if (!rawMatrix.length) return [];
+    return [...rawMatrix].sort((a, b) => {
+      const scoreA = getRowDataScore(a);
+      const scoreB = getRowDataScore(b);
+
+      if (scoreA.hasData !== scoreB.hasData) {
+        return scoreA.hasData ? -1 : 1;
+      }
+      if (scoreB.score !== scoreA.score) {
+        return scoreB.score - scoreA.score;
+      }
+      return String(a.item || a.brand || "").localeCompare(String(b.item || b.brand || ""));
+    });
+  }, [rawMatrix, platforms, activeKpiColumns]);
 
   return (
     <Dialog

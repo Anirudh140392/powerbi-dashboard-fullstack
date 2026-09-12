@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import clickhouse from '../config/clickhouse.js';
+import clickhouse, { resolveCompanyUuid } from '../config/clickhouse.js';
 
 // Simple LRU cache for JWT verification to avoid hitting ClickHouse on every request
 const sessionCache = new Map();
@@ -79,12 +79,13 @@ export async function authenticateApi(req, res, next) {
 
         // Check if database is active (optional, fallback to payload)
         let dbName = decoded.dbName || process.env.CLICKHOUSE_DB || 'colpal';
-        let companyId = decoded.companyId || process.env.RATINGS_COMPANY_ID || '';
+        let companyId = decoded.companyId || decoded.company_id || '';
         
         try {
             const dbRows = await clickhouse.query({
                 query: `SELECT company_id, status FROM admin_master.tb_database WHERE lower(db_name) = {dbName:String} LIMIT 1`,
                 query_params: { dbName: dbName.toLowerCase() },
+                database: dbName,
                 format: 'JSONEachRow'
             }).then(res => res.json());
 
@@ -99,6 +100,10 @@ export async function authenticateApi(req, res, next) {
             }
         } catch (e) {
             console.warn('[Auth] Failed to verify tb_database in ClickHouse:', e.message);
+        }
+
+        if (!companyId || companyId === '00000000-0000-0000-0000-000000000000') {
+            companyId = await resolveCompanyUuid(dbName);
         }
 
         const authUser = {
