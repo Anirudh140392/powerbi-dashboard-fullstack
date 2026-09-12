@@ -1,95 +1,69 @@
 import { Box, Card, CardContent, Typography, Chip } from "@mui/material";
 import { useState } from "react";
 
-const CardMetric = () => {
-  // const cards = [
-  //   {
-  //     title: "Offtake",
-  //     value: "₹9.0 Cr",
-  //     sub: "for MTD",
-  //     change: "▲3.2% (₹28.8 lac)",
-  //     changeColor: "green",
-  //     prevText: "vs Previous Month",
-  //     extra: "#Units: 4.9 lac",
-  //     extraChange: "▲2.4%",
-  //     extraChangeColor: "green",
-  //   },
-  //   {
-  //     title: "Ad Spends",
-  //     value: "₹1.63 Cr",
-  //     sub: "for MTD",
-  //     change: "▲2.8% (₹4.6 lac)",
-  //     changeColor: "green",
-  //     prevText: "vs Previous Month",
-  //   },
-  //   {
-  //     title: "ROAS",
-  //     value: "5.44x",
-  //     sub: "for MTD (Avg.)",
-  //     change: "▲3.1% (+0.2x)",
-  //     changeColor: "green",
-  //     prevText: "vs Previous Month",
-  //   },
-  //   {
-  //     title: "Impressions",
-  //     value: "21.0M",
-  //     sub: "for MTD",
-  //     change: "▲4.6% (+0.9M)",
-  //     changeColor: "green",
-  //     prevText: "vs Previous Month",
-  //   },
-  //   {
-  //     title: "Orders",
-  //     value: "16.8K",
-  //     sub: "for MTD",
-  //     change: "▲2.6% (+420)",
-  //     changeColor: "green",
-  //     prevText: "vs Previous Month",
-  //   },
-  // ];
-
-  const cards = [
+const CardMetric = ({ data, onViewTrends }) => {
+  const defaultCards = [
     {
-      title: "Offtake",
-      value: "₹12.4 Cr",
-      sub: "for MTD",
-      change: "▲4.8% (₹57.2 lac)",
+      title: "Offtakes",
+      value: "₹14.8 Cr",
+      sub: "MTD (Month-to-Date)",
+      change: "▲6.4% (₹89.3 lac)",
       changeColor: "green",
       prevText: "vs Previous Month",
-      extra: "#Units: 6.3 lac",
-      extraChange: "▲3.1%",
+      extra: "#Units: 7.1 lac",
+      extraChange: "▲4.2%",
       extraChangeColor: "green",
     },
     {
       title: "Availability",
-      value: "₹2.18 Cr",
-      sub: "for MTD",
-      change: "▲3.5% (₹7.4 lac)",
+      value: "96.8%",
+      sub: "MTD Coverage",
+      change: "▲1.8% (+1.7%)",
       changeColor: "green",
       prevText: "vs Previous Month",
     },
     {
-      title: "Discount",
-      value: "4.92x",
-      sub: "for MTD (Avg.)",
-      change: "▲2.4% (+0.11x)",
-      changeColor: "green",
+      title: "Promo Spends %",
+      value: "5.21%",
+      sub: "MTD (Avg.)",
+      change: "▼0.7% (-0.04%)",
+      changeColor: "red",
       prevText: "vs Previous Month",
     },
     {
       title: "Market Share",
-      value: "23.7M",
-      sub: "for MTD",
-      change: "▲5.2% (+1.17M)",
+      value: "24.3%",
+      sub: "MTD",
+      change: "▲3.9% (+0.92%)",
       changeColor: "green",
       prevText: "vs Previous Month",
     },
   ];
 
+  const cards = data && data.length > 0 ? data.map(item => ({
+    title: item.name,
+    value: item.label,
+    sub: item.subtitle,
+    change: item.trend,
+    changeColor: item.trendType === 'up' ? 'green' : item.trendType === 'down' ? 'red' : 'grey',
+    prevText: item.comparison,
+    extra: item.units ? `#Units: ${item.units}` : null,
+    extraChange: item.unitsTrend,
+    extraChangeColor: item.unitsTrend && item.unitsTrend.includes('+') ? 'green' : 'red',
+    chart: item.chart
+  })) : defaultCards;
+
   const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
 
   // Generate smooth data
-  const generateValues = () => {
+  const generateValues = (card) => {
+    if (card.chart && card.chart.length > 0) {
+      // Normalize chart data to 0-100 range for the mini chart if needed, 
+      // or just pass as is if the component handles it. 
+      // The current component expects values roughly between 20-80 for visual appeal.
+      // Let's just return the chart data.
+      return card.chart;
+    }
     return months.map(() => Math.floor(Math.random() * 60) + 20);
   };
 
@@ -123,14 +97,14 @@ const CardMetric = () => {
               📈
             </Box>
 
-            <Typography variant="h6" fontWeight={600}>
+            <Typography variant="h5" fontWeight={600}>
               Watchtower Overview
             </Typography>
 
-            <Chip label="All" size="small" variant="outlined" />
+            <Chip label="All" size="large" variant="outlined" />
           </Box>
 
-          <Chip label="MTD vs Previous Month" variant="filled" />
+          {/* <Chip label="MTD vs Previous Month" variant="filled" /> */}
         </Box>
 
         {/* Cards Row */}
@@ -140,22 +114,24 @@ const CardMetric = () => {
             gap: 2,
             overflowX: scrollNeeded ? "auto" : "hidden",
             pb: 1,
+            px: 1.5,
             scrollSnapType: scrollNeeded ? "x mandatory" : "none",
           }}
         >
           {cards.map((card, index) => {
-            const values = generateValues();
+            const values = generateValues(card);
             const color = isProfit(card.change) ? "#28a745" : "#dc3545";
 
             return (
               <MiniChartCard
                 key={index}
                 card={card}
-                months={months}
+                months={months} // Note: months are hardcoded, might not match data
                 values={values}
                 color={color}
                 scrollNeeded={scrollNeeded}
                 totalCards={cards.length}
+                onClick={() => onViewTrends(card.title, "Metric")}
               />
             );
           })}
@@ -173,11 +149,14 @@ const MiniChartCard = ({
   color,
   scrollNeeded,
   totalCards,
+  onClick,
 }) => {
   const [hover, setHover] = useState(null);
 
   // Create a smooth Bezier curve path
   const createSmoothPath = () => {
+    if (values.length < 2) return ""; // Not enough points for a path
+
     const points = values.map((v, i) => ({
       x: (i / (values.length - 1)) * 100,
       y: 100 - v,
@@ -197,36 +176,38 @@ const MiniChartCard = ({
     <Card
       sx={{
         flexShrink: 0,
-        width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
-        borderRadius: 3,
+        width: scrollNeeded ? 550 : `${100 / Math.min(totalCards, 4) - 1}%`,
+        borderRadius: 5,
         scrollSnapAlign: "start",
         transition: "0.25s",
         "&:hover": { transform: "translateY(-5px)", boxShadow: 6 },
+        cursor: "pointer",
       }}
+      onClick={onClick}
     >
       <CardContent>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body1" color="text.secondary" fontSize={28} sx={{ mb: 1.0, fontWeight: 600 }}>
           {card.title}
         </Typography>
-
-        <Typography variant="h5" fontWeight={600}>
+ 
+        <Typography variant="h3" fontWeight={800} sx={{ mb: 1.5 }}>
           {card.value}{" "}
-          <Typography component="span" color="text.secondary">
+          <Typography component="span" color="text.secondary" fontSize={24}>
             {card.sub}
           </Typography>
         </Typography>
-
-        <Typography variant="body2" sx={{ color: card.changeColor, mt: 1 }}>
+ 
+        <Typography variant="body1" sx={{ color: card.changeColor, mt: 2.0, fontWeight: 700, fontSize: 24 }}>
           {card.change}{" "}
-          <Typography component="span" color="text.secondary">
+          <Typography component="span" color="text.secondary" fontSize={20}>
             {card.prevText}
           </Typography>
         </Typography>
 
         {card.extra && (
-          <Typography variant="body2" color="text.secondary" mt={0.5}>
+          <Typography variant="body1" color="text.secondary" mt={1.5} fontSize={24}>
             {card.extra}{" "}
-            <span style={{ color: card.extraChangeColor }}>
+            <span style={{ color: card.extraChangeColor, fontWeight: 700 }}>
               {card.extraChange}
             </span>
           </Typography>
@@ -253,7 +234,7 @@ const MiniChartCard = ({
           {/* Dots layer - positioned absolutely to maintain circular shape */}
           {/* Dots + Tooltip */}
           {values.map((v, i) => {
-            const xPercent = (i / (values.length - 1)) * 100;
+            const xPercent = values.length > 1 ? (i / (values.length - 1)) * 100 : 50;
             const yPercent = 100 - v;
 
             return (
