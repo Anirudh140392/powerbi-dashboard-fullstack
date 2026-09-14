@@ -19,7 +19,8 @@ import {
   IconButton,
   Tooltip,
   TextField,
-  InputAdornment
+  InputAdornment,
+  CircularProgress
 } from '@mui/material';
 import {
   ChevronLeft as ChevronLeftIcon,
@@ -54,9 +55,11 @@ export default function MopAnalysis() {
 
   // Table & pagination state
   const [rows, setRows] = useState([]);
+  const [platforms, setPlatforms] = useState([]);
   const [totalRows, setTotalRows] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [exporting, setExporting] = useState(false);
 
   const startDateStr = timeStart ? dayjs(timeStart).format('YYYY-MM-DD') : undefined;
   const endDateStr = timeEnd ? dayjs(timeEnd).format('YYYY-MM-DD') : undefined;
@@ -107,6 +110,7 @@ export default function MopAnalysis() {
         if (isMounted) {
           setRows(res?.rows || []);
           setTotalRows(res?.total || 0);
+          setPlatforms(res?.platforms || []);
         }
       } catch (err) {
         console.error('Failed to load MOP data:', err);
@@ -204,19 +208,62 @@ export default function MopAnalysis() {
     };
   };
 
-  // Export table to native .xlsx format retaining red and blue colour formatting and dd/mm/yyyy dates
+  // Export table to native .xlsx format retaining red and blue colour formatting and dd/mm/yyyy dates (ALL DATA)
   const handleExportExcel = async () => {
-    const dataToExport = filteredRows.length > 0 ? filteredRows : rows;
-    if (dataToExport.length === 0) return;
+    if (totalRows === 0 && rows.length === 0) return;
+    setExporting(true);
 
     try {
+      // Build filter parameters for full dataset fetch
+      const ecomParam = selectedEcom === 'All'
+        ? undefined
+        : (Array.isArray(selectedEcom) ? (selectedEcom.length === 0 ? '' : selectedEcom.join(',')) : selectedEcom);
+
+      const codeParam = selectedCode === 'All'
+        ? undefined
+        : (Array.isArray(selectedCode) ? (selectedCode.length === 0 ? '' : selectedCode.join(',')) : selectedCode);
+
+      // Fetch all matching data for current filters (unpaginated)
+      const res = await fetchMopData({
+        ecomNaming: ecomParam,
+        code: codeParam,
+        startDate: startDateStr,
+        endDate: endDateStr,
+        page: 1,
+        pageSize: 100000
+      });
+
+      const allFetchedRows = res?.rows || rows;
+
+      // Filter by quick search query if present
+      let dataToExport = allFetchedRows;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        dataToExport = allFetchedRows.filter(r =>
+          (r.code && r.code.toLowerCase().includes(q)) ||
+          (r.product && r.product.toLowerCase().includes(q)) ||
+          (r.ecomNaming && r.ecomNaming.toLowerCase().includes(q))
+        );
+      }
+
+      if (dataToExport.length === 0) {
+        setExporting(false);
+        return;
+      }
+
       const workbook = new ExcelJS.Workbook();
       workbook.creator = 'Trailytics';
       workbook.created = new Date();
 
       const worksheet = workbook.addWorksheet('MOP Analysis');
 
-      // Define columns and widths
+      // Dynamic columns based on discovered platforms
+      const platformCols = platforms.map(p => ({
+        header: p.label,
+        key: `plat_${p.key}`,
+        width: 16
+      }));
+
       worksheet.columns = [
         { header: 'Date', key: 'date', width: 14 },
         { header: 'Code', key: 'code', width: 20 },
@@ -224,12 +271,7 @@ export default function MopAnalysis() {
         { header: 'MRP', key: 'mrp', width: 12 },
         { header: 'T1 MOP', key: 't1Mop', width: 12 },
         { header: 'T2 MOP', key: 't2Mop', width: 12 },
-        { header: 'Amazon Price', key: 'amazonPrice', width: 15 },
-        { header: 'Blinkit Price', key: 'blinkitPrice', width: 15 },
-        { header: 'BigBasket Price', key: 'bigbasketPrice', width: 15 },
-        { header: 'Flipkart Price', key: 'flipkartPrice', width: 15 },
-        { header: 'Swiggy Price', key: 'swiggyPrice', width: 15 },
-        { header: 'Zepto Price', key: 'zeptoPrice', width: 15 }
+        ...platformCols
       ];
 
       // Style header row
@@ -254,21 +296,21 @@ export default function MopAnalysis() {
       // Populate data rows
       dataToExport.forEach((r) => {
         const dateVal = formatDate(r.date);
-        const row = worksheet.addRow({
+        const rowData = {
           date: dateVal,
           code: r.code || '',
           product: r.product || '',
           mrp: r.mrp != null ? Number(r.mrp) : '',
           t1Mop: r.t1Mop != null ? Number(r.t1Mop) : '',
-          t2Mop: r.t2Mop != null ? Number(r.t2Mop) : '',
-          amazonPrice: r.amazonPrice != null && Number(r.amazonPrice) > 0 ? Number(r.amazonPrice) : '',
-          blinkitPrice: r.blinkitPrice != null && Number(r.blinkitPrice) > 0 ? Number(r.blinkitPrice) : '',
-          bigbasketPrice: r.bigbasketPrice != null && Number(r.bigbasketPrice) > 0 ? Number(r.bigbasketPrice) : '',
-          flipkartPrice: r.flipkartPrice != null && Number(r.flipkartPrice) > 0 ? Number(r.flipkartPrice) : '',
-          swiggyPrice: r.swiggyPrice != null && Number(r.swiggyPrice) > 0 ? Number(r.swiggyPrice) : '',
-          zeptoPrice: r.zeptoPrice != null && Number(r.zeptoPrice) > 0 ? Number(r.zeptoPrice) : ''
+          t2Mop: r.t2Mop != null ? Number(r.t2Mop) : ''
+        };
+
+        platforms.forEach(p => {
+          const val = r.platformPrices ? r.platformPrices[p.key] : null;
+          rowData[`plat_${p.key}`] = val != null && Number(val) > 0 ? Number(val) : '';
         });
 
+        const row = worksheet.addRow(rowData);
         row.height = 20;
 
         // Alignment
@@ -287,18 +329,12 @@ export default function MopAnalysis() {
         const numT2 = r.t2Mop != null ? Number(r.t2Mop) : null;
 
         // Platform price columns
-        const platformKeys = [
-          { key: 'amazonPrice', val: r.amazonPrice },
-          { key: 'blinkitPrice', val: r.blinkitPrice },
-          { key: 'bigbasketPrice', val: r.bigbasketPrice },
-          { key: 'flipkartPrice', val: r.flipkartPrice },
-          { key: 'swiggyPrice', val: r.swiggyPrice },
-          { key: 'zeptoPrice', val: r.zeptoPrice }
-        ];
-
-        platformKeys.forEach(({ key, val }) => {
-          const cell = row.getCell(key);
+        platforms.forEach((p) => {
+          const cellKey = `plat_${p.key}`;
+          const cell = row.getCell(cellKey);
           cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          const val = r.platformPrices ? r.platformPrices[p.key] : null;
+
           if (val !== null && val !== undefined && val !== '' && Number(val) > 0) {
             const numPrice = Number(val);
             cell.numFmt = '0.00';
@@ -333,17 +369,15 @@ export default function MopAnalysis() {
       saveAs(blob, `MOP_Analysis_${dayjs().format('YYYY-MM-DD')}.xlsx`);
     } catch (err) {
       console.error('Failed to export Excel report:', err);
+    } finally {
+      setExporting(false);
     }
   };
 
   // Export table to CSV
   const handleExportCSV = () => {
     if (rows.length === 0) return;
-    const headers = [
-      'Date', 'Code', 'Product', 'MRP', 'T1 MOP', 'T2 MOP',
-      'Amazon Price', 'Blinkit Price', 'BigBasket Price',
-      'Flipkart Price', 'Swiggy Price', 'Zepto Price'
-    ];
+    const headers = ['Date', 'Code', 'Product', 'MRP', 'T1 MOP', 'T2 MOP', ...platforms.map(p => p.label)];
 
     const csvData = rows.map(r => [
       formatDate(r.date),
@@ -352,12 +386,7 @@ export default function MopAnalysis() {
       r.mrp ?? '',
       r.t1Mop ?? '',
       r.t2Mop ?? '',
-      r.amazonPrice ?? '',
-      r.blinkitPrice ?? '',
-      r.bigbasketPrice ?? '',
-      r.flipkartPrice ?? '',
-      r.swiggyPrice ?? '',
-      r.zeptoPrice ?? ''
+      ...platforms.map(p => (r.platformPrices && r.platformPrices[p.key] != null ? r.platformPrices[p.key] : ''))
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...csvData.map(e => e.join(','))].join('\n');
@@ -443,13 +472,13 @@ export default function MopAnalysis() {
                 minWidth={180}
               />
 
-              {/* Report Export Button (Styled Excel with Red/Blue Breach formatting) */}
+              {/* Report Export Button (Styled Excel with Red/Blue Breach formatting - All Data) */}
               <Button
                 variant="contained"
                 size="small"
-                startIcon={<FileDownloadIcon />}
+                startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <FileDownloadIcon />}
                 onClick={handleExportExcel}
-                disabled={rows.length === 0}
+                disabled={rows.length === 0 || exporting}
                 sx={{
                   borderRadius: '8px',
                   bgcolor: '#2563eb',
@@ -465,7 +494,7 @@ export default function MopAnalysis() {
                   }
                 }}
               >
-                Export Report
+                {exporting ? 'Exporting...' : 'Export Report'}
               </Button>
             </Box>
           </Box>
@@ -553,24 +582,15 @@ export default function MopAnalysis() {
                   <TableCell align="right" sx={{ fontWeight: 700, fontSize: '12px', color: '#1e293b', bgcolor: '#f8fafc', py: 1.5 }}>
                     T2 MOP
                   </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '12px', color: '#1e293b', bgcolor: '#f8fafc', py: 1.5 }}>
-                    Amazon Price
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '12px', color: '#1e293b', bgcolor: '#f8fafc', py: 1.5 }}>
-                    Blinkit Price
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '12px', color: '#1e293b', bgcolor: '#f8fafc', py: 1.5 }}>
-                    BigBasket Price
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '12px', color: '#1e293b', bgcolor: '#f8fafc', py: 1.5 }}>
-                    Flipkart Price
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '12px', color: '#1e293b', bgcolor: '#f8fafc', py: 1.5 }}>
-                    Swiggy Price
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, fontSize: '12px', color: '#1e293b', bgcolor: '#f8fafc', py: 1.5 }}>
-                    Zepto Price
-                  </TableCell>
+                  {platforms.map((p) => (
+                    <TableCell
+                      key={p.key}
+                      align="right"
+                      sx={{ fontWeight: 700, fontSize: '12px', color: '#1e293b', bgcolor: '#f8fafc', py: 1.5, whiteSpace: 'nowrap' }}
+                    >
+                      {p.label}
+                    </TableCell>
+                  ))}
                 </TableRow>
               </TableHead>
 
@@ -648,35 +668,12 @@ export default function MopAnalysis() {
                         {row.t2Mop != null ? Number(row.t2Mop) : ''}
                       </TableCell>
 
-                      {/* Amazon Price */}
-                      <TableCell align="right" sx={{ py: 1.2 }}>
-                        {renderPriceCell(row.amazonPrice, row.t1Mop, row.t2Mop)}
-                      </TableCell>
-
-                      {/* Blinkit Price */}
-                      <TableCell align="right" sx={{ py: 1.2 }}>
-                        {renderPriceCell(row.blinkitPrice, row.t1Mop, row.t2Mop)}
-                      </TableCell>
-
-                      {/* BigBasket Price */}
-                      <TableCell align="right" sx={{ py: 1.2 }}>
-                        {renderPriceCell(row.bigbasketPrice, row.t1Mop, row.t2Mop)}
-                      </TableCell>
-
-                      {/* Flipkart Price */}
-                      <TableCell align="right" sx={{ py: 1.2 }}>
-                        {renderPriceCell(row.flipkartPrice, row.t1Mop, row.t2Mop)}
-                      </TableCell>
-
-                      {/* Swiggy Price */}
-                      <TableCell align="right" sx={{ py: 1.2 }}>
-                        {renderPriceCell(row.swiggyPrice, row.t1Mop, row.t2Mop)}
-                      </TableCell>
-
-                      {/* Zepto Price */}
-                      <TableCell align="right" sx={{ py: 1.2 }}>
-                        {renderPriceCell(row.zeptoPrice, row.t1Mop, row.t2Mop)}
-                      </TableCell>
+                      {/* Dynamic Platform Prices */}
+                      {platforms.map((p) => (
+                        <TableCell key={p.key} align="right" sx={{ py: 1.2 }}>
+                          {renderPriceCell(row.platformPrices ? row.platformPrices[p.key] : null, row.t1Mop, row.t2Mop)}
+                        </TableCell>
+                      ))}
                     </TableRow>
                   ))
                 )}
