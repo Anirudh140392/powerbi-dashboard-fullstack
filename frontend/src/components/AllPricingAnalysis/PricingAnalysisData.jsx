@@ -2480,7 +2480,7 @@ export default function PricingAnalysisData() {
         trend: d.discount?.sparklineData || [],
         trendDir: (d.discount?.change || 0) >= 0 ? 'up' : 'down',
         prevText: 'vs Previous Period',
-        infoTooltip: 'Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.'
+        infoTooltip: 'Discount represents the average discount percentage applied across all active SKUs on the selected platform during the current period.'
       },
       {
         id: 'vis-1',
