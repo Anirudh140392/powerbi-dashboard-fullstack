@@ -1,0 +1,1 @@
+SELECT MIN(DATE), MAX(DATE) FROM rb_pdp_olap;

@@ -13,13 +13,13 @@ const CategoryMetricCard = ({ data }) => (
     <Typography sx={{ fontWeight: 900, color: '#111827', textAlign: 'center', mb: 3, fontSize: '0.95rem' }}>
       {data.name}
     </Typography>
-    
+
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Assortment */}
-      <Box sx={{ 
-        textAlign: 'center', 
-        py: 2.5, 
-        bgcolor: '#f9fafb', 
+      <Box sx={{
+        textAlign: 'center',
+        py: 2.5,
+        bgcolor: '#f9fafb',
         borderRadius: 1.5,
         minHeight: '90px',
         display: 'flex',
@@ -29,9 +29,9 @@ const CategoryMetricCard = ({ data }) => (
         <Typography variant="h4" sx={{ fontWeight: 900, color: '#111827' }}>
           {data.assortment.count}
         </Typography>
-        <Typography 
-          variant="caption" 
-          sx={{ 
+        <Typography
+          variant="caption"
+          sx={{
             color: data.assortment.change?.includes('-') ? '#dc2626' : '#16a34a',
             fontWeight: 600,
             mt: 0.5
@@ -40,10 +40,10 @@ const CategoryMetricCard = ({ data }) => (
           {data.assortment.change?.includes('-') ? '▼' : '▲'} {data.assortment.change}
         </Typography>
       </Box>
-      
+
       {/* Wt. OSA% */}
-      <Box sx={{ 
-        textAlign: 'center', 
+      <Box sx={{
+        textAlign: 'center',
         py: 2,
         minHeight: '70px',
         display: 'flex',
@@ -53,9 +53,9 @@ const CategoryMetricCard = ({ data }) => (
         <Typography variant="h5" sx={{ fontWeight: 900, color: '#111827' }}>
           {data.wtOsa.value}
         </Typography>
-        <Typography 
-          variant="caption" 
-          sx={{ 
+        <Typography
+          variant="caption"
+          sx={{
             color: data.wtOsa.change?.includes('-') ? '#dc2626' : '#16a34a',
             fontWeight: 600,
             mt: 0.5
@@ -64,10 +64,10 @@ const CategoryMetricCard = ({ data }) => (
           {data.wtOsa.change?.includes('-') ? '▼' : '▲'} {data.wtOsa.change}
         </Typography>
       </Box>
-      
+
       {/* Wt. Disc % */}
-      <Box sx={{ 
-        textAlign: 'center', 
+      <Box sx={{
+        textAlign: 'center',
         py: 2,
         minHeight: '70px',
         display: 'flex',
@@ -77,9 +77,9 @@ const CategoryMetricCard = ({ data }) => (
         <Typography variant="h5" sx={{ fontWeight: 900, color: '#111827' }}>
           {data.wtDisc.value}
         </Typography>
-        <Typography 
-          variant="caption" 
-          sx={{ 
+        <Typography
+          variant="caption"
+          sx={{
             color: data.wtDisc.change?.includes('-') ? '#dc2626' : '#16a34a',
             fontWeight: 600,
             mt: 0.5
@@ -88,10 +88,10 @@ const CategoryMetricCard = ({ data }) => (
           {data.wtDisc.change?.includes('-') ? '▼' : '▲'} {data.wtDisc.change}
         </Typography>
       </Box>
-      
-      {/* Overall SOV */}
-      <Box sx={{ 
-        textAlign: 'center', 
+
+      {/* Overall SOS */}
+      <Box sx={{
+        textAlign: 'center',
         py: 2,
         minHeight: '70px',
         display: 'flex',
@@ -99,23 +99,23 @@ const CategoryMetricCard = ({ data }) => (
         justifyContent: 'center'
       }}>
         <Typography variant="h5" sx={{ fontWeight: 900, color: '#111827' }}>
-          {data.overallSov.value}
+          {data.overallSos.value}
         </Typography>
-        <Typography 
-          variant="caption" 
-          sx={{ 
-            color: data.overallSov.change?.includes('-') ? '#dc2626' : '#16a34a',
+        <Typography
+          variant="caption"
+          sx={{
+            color: data.overallSos.change?.includes('-') ? '#dc2626' : '#16a34a',
             fontWeight: 600,
             mt: 0.5
           }}
         >
-          {data.overallSov.change?.includes('-') ? '▼' : '▲'} {data.overallSov.change}
+          {data.overallSos.change?.includes('-') ? '▼' : '▲'} {data.overallSos.change}
         </Typography>
       </Box>
-      
+
       {/* DOI */}
-      <Box sx={{ 
-        textAlign: 'center', 
+      <Box sx={{
+        textAlign: 'center',
         py: 2,
         minHeight: '70px',
         display: 'flex',
@@ -155,7 +155,7 @@ export default function CategoryMetricsSection({ metrics }) {
         }}>
           ☰
         </Box>
-        
+
         <Box sx={{
           bgcolor: '#f3f4f6',
           p: 2,
@@ -170,7 +170,7 @@ export default function CategoryMetricsSection({ metrics }) {
             Assortment
           </Typography>
         </Box>
-        
+
         <Box sx={{
           bgcolor: '#f3f4f6',
           p: 2,
@@ -185,7 +185,7 @@ export default function CategoryMetricsSection({ metrics }) {
             Wt. OSA%
           </Typography>
         </Box>
-        
+
         <Box sx={{
           bgcolor: '#f3f4f6',
           p: 2,
@@ -200,7 +200,7 @@ export default function CategoryMetricsSection({ metrics }) {
             Wt. Disc %
           </Typography>
         </Box>
-        
+
         <Box sx={{
           bgcolor: '#f3f4f6',
           p: 2,
@@ -212,10 +212,10 @@ export default function CategoryMetricsSection({ metrics }) {
           minHeight: '70px'
         }}>
           <Typography sx={{ fontWeight: 700, fontSize: '0.75rem', color: '#4b5563' }}>
-            Overall SOV
+            Overall SOS
           </Typography>
         </Box>
-        
+
         <Box sx={{
           bgcolor: '#f3f4f6',
           p: 2,
@@ -231,7 +231,7 @@ export default function CategoryMetricsSection({ metrics }) {
           </Typography>
         </Box>
       </Box>
-      
+
       {/* Metric Cards with horizontal scroll */}
       <Box sx={{
         flex: 1,

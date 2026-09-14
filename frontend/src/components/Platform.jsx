@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, Button } from '@mui/material';
 
 const PlatformCard = ({ name, value, trend, items, itemsTrend, active, onViewTrends }) => (
-  <Box 
+  <Box
     sx={{
       p: 3,
       borderRadius: 2,
@@ -23,18 +23,18 @@ const PlatformCard = ({ name, value, trend, items, itemsTrend, active, onViewTre
       </Typography>
       {active && <Box sx={{ width: 8, height: 8, bgcolor: '#2563eb', borderRadius: '50%' }} />}
     </Box>
-    
+
     <Typography variant="caption" sx={{ color: '#6b7280', display: 'block', mb: 0.5 }}>
-      Offtake
+      Offtakes
     </Typography>
-    
+
     <Typography variant="h5" sx={{ fontWeight: 900, color: '#111827', mb: 1 }}>
       {value}
     </Typography>
-    
-    <Typography 
-      variant="caption" 
-      sx={{ 
+
+    <Typography
+      variant="caption"
+      sx={{
         fontWeight: 700,
         color: trend?.startsWith('-') ? '#dc2626' : '#16a34a',
         display: 'block',
@@ -43,14 +43,14 @@ const PlatformCard = ({ name, value, trend, items, itemsTrend, active, onViewTre
     >
       {trend?.startsWith('-') ? '▼' : '▲'} {trend}
     </Typography>
-    
+
     <Typography variant="caption" sx={{ color: '#9ca3af', display: 'block', mb: 0.5 }}>
       #Units: {items}
     </Typography>
-    
-    <Typography 
-      variant="caption" 
-      sx={{ 
+
+    <Typography
+      variant="caption"
+      sx={{
         fontWeight: 600,
         color: itemsTrend?.startsWith('-') ? '#dc2626' : '#16a34a'
       }}
@@ -67,12 +67,12 @@ export default function PlatformOverview({ cards, onViewTrends }) {
         <Typography variant="h6" sx={{ fontWeight: 900, color: '#111827', display: 'flex', alignItems: 'center', gap: 1 }}>
           <span style={{ fontSize: '1.2rem' }}>▦</span> Platform Overview
         </Typography>
-        
+
         <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button 
-            variant="outlined" 
+          <Button
+            variant="outlined"
             size="small"
-            sx={{ 
+            sx={{
               textTransform: 'none',
               color: '#6b7280',
               borderColor: '#d1d5db',
@@ -84,10 +84,10 @@ export default function PlatformOverview({ cards, onViewTrends }) {
           >
             Stale Data
           </Button>
-          <Button 
-            variant="outlined" 
+          <Button
+            variant="outlined"
             size="small"
-            sx={{ 
+            sx={{
               textTransform: 'none',
               color: '#6b7280',
               borderColor: '#d1d5db',
@@ -101,10 +101,10 @@ export default function PlatformOverview({ cards, onViewTrends }) {
           </Button>
         </Box>
       </Box>
-      
+
       <Box sx={{ display: 'flex', gap: 2 }}>
         {/* Left Label */}
-        <Box sx={{ 
+        <Box sx={{
           display: 'flex',
           alignItems: 'center',
           gap: 1,
@@ -114,13 +114,13 @@ export default function PlatformOverview({ cards, onViewTrends }) {
           fontSize: '0.875rem'
         }}>
           <span>☰</span>
-          <span>Offtake</span>
+          <span>Offtakes</span>
         </Box>
-        
+
         {/* Cards Container with horizontal scroll */}
-        <Box sx={{ 
-          display: 'flex', 
-          gap: 3, 
+        <Box sx={{
+          display: 'flex',
+          gap: 3,
           overflowX: 'auto',
           pb: 2,
           flex: 1,
@@ -140,9 +140,9 @@ export default function PlatformOverview({ cards, onViewTrends }) {
           }
         }}>
           {cards.map((card, idx) => (
-            <PlatformCard 
-              key={idx} 
-              {...card} 
+            <PlatformCard
+              key={idx}
+              {...card}
               onViewTrends={() => onViewTrends(card)}
             />
           ))}
