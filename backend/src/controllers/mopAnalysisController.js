@@ -182,13 +182,31 @@ export const getMopData = async (req, res) => {
         }
         const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
 
-        // ─── Known platform list (matches the image columns) ───
-        const knownPlatforms = ['amazon', 'blinkit', 'bigbasket', 'flipkart', 'swiggy', 'zepto'];
+        // ─── Discover platforms dynamically from rb_pdp_olap ───
+        const platformQuery = `
+            SELECT DISTINCT o.${platformCol} AS platform
+            FROM rb_pdp_olap o
+            INNER JOIN mop_master m
+                ON lower(m.web_pid) = lower(o.${webPidCol})
+            WHERE o.${platformCol} IS NOT NULL AND o.${platformCol} != ''
+            ORDER BY platform
+        `;
 
-        // Build pivot SELECT expressions for each platform's minimum selling price (> 0)
-        const platformSelects = knownPlatforms.map(p => {
-            return `MIN(CASE WHEN lower(o.${platformCol}) LIKE '%${p}%' AND toFloat64(o.${spCol}) > 0 THEN toFloat64(o.${spCol}) END) AS ${p}_price`;
-        }).join(',\n                    ');
+        let rawPlatforms = [];
+        try {
+            const platformRows = await queryClickHouse(platformQuery);
+            rawPlatforms = platformRows.map(r => r.platform).filter(Boolean);
+        } catch (e) {
+            console.warn('[getMopData] Failed to discover dynamic platforms:', e.message);
+        }
+
+        // Build pivot SELECT expressions for each exact platform
+        const platformSelects = rawPlatforms.length > 0
+            ? ',\n' + rawPlatforms.map((p, idx) => {
+                const escapedP = p.replace(/'/g, "''");
+                return `MIN(CASE WHEN lower(o.${platformCol}) = lower('${escapedP}') AND toFloat64(o.${spCol}) > 0 THEN toFloat64(o.${spCol}) END) AS p_${idx}`;
+            }).join(',\n')
+            : '';
 
         // ─── Main query: join rb_pdp_olap with mop_master ───
         const dataQuery = `
@@ -199,7 +217,7 @@ export const getMopData = async (req, res) => {
                 any(m.name) AS product,
                 max(m.mrp) AS mrp,
                 max(m.t1_mop) AS t1_mop,
-                max(m.t2_mop) AS t2_mop,
+                max(m.t2_mop) AS t2_mop
                 ${platformSelects}
             FROM rb_pdp_olap o
             INNER JOIN mop_master m
@@ -240,26 +258,38 @@ export const getMopData = async (req, res) => {
         const paginatedData = rawData.slice(offset, offset + parseInt(pageSize));
 
         // ─── Format rows for the frontend ───
-        const rows = paginatedData.map(row => ({
-            date: row.date,
-            code: row.code ? String(row.code).toUpperCase() : '',
-            ecomNaming: row.ecom_nmg || '',
-            product: row.product || '',
-            mrp: row.mrp != null ? Number(row.mrp) : null,
-            t1Mop: row.t1_mop != null ? Number(row.t1_mop) : null,
-            t2Mop: row.t2_mop != null ? Number(row.t2_mop) : null,
-            amazonPrice: row.amazon_price != null ? Number(row.amazon_price) : null,
-            blinkitPrice: row.blinkit_price != null ? Number(row.blinkit_price) : null,
-            bigbasketPrice: row.bigbasket_price != null ? Number(row.bigbasket_price) : null,
-            flipkartPrice: row.flipkart_price != null ? Number(row.flipkart_price) : null,
-            swiggyPrice: row.swiggy_price != null ? Number(row.swiggy_price) : null,
-            zeptoPrice: row.zepto_price != null ? Number(row.zepto_price) : null,
-        }));
+        const rows = paginatedData.map(row => {
+            const platformPrices = {};
+            rawPlatforms.forEach((p, idx) => {
+                const val = row[`p_${idx}`];
+                platformPrices[p] = val != null ? Number(val) : null;
+            });
+
+            return {
+                date: row.date,
+                code: row.code ? String(row.code).toUpperCase() : '',
+                ecomNaming: row.ecom_nmg || '',
+                product: row.product || '',
+                mrp: row.mrp != null ? Number(row.mrp) : null,
+                t1Mop: row.t1_mop != null ? Number(row.t1_mop) : null,
+                t2Mop: row.t2_mop != null ? Number(row.t2_mop) : null,
+                platformPrices,
+            };
+        });
+
+        // Format platform headers metadata for frontend rendering
+        const platforms = rawPlatforms.map(p => {
+            const title = p.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+            return {
+                key: p,
+                label: `${title} Price`
+            };
+        });
 
         res.json({
             rows,
             total: parseInt(total),
-            platforms: knownPlatforms,
+            platforms,
         });
     } catch (error) {
         console.error('[getMopData] Error:', error);
