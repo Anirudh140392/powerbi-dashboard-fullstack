@@ -19,7 +19,8 @@ import {
   IconButton,
   Tooltip,
   TextField,
-  InputAdornment
+  InputAdornment,
+  CircularProgress
 } from '@mui/material';
 import {
   ChevronLeft as ChevronLeftIcon,
@@ -58,6 +59,7 @@ export default function MopAnalysis() {
   const [totalRows, setTotalRows] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [exporting, setExporting] = useState(false);
 
   const startDateStr = timeStart ? dayjs(timeStart).format('YYYY-MM-DD') : undefined;
   const endDateStr = timeEnd ? dayjs(timeEnd).format('YYYY-MM-DD') : undefined;
@@ -206,12 +208,49 @@ export default function MopAnalysis() {
     };
   };
 
-  // Export table to native .xlsx format retaining red and blue colour formatting and dd/mm/yyyy dates
+  // Export table to native .xlsx format retaining red and blue colour formatting and dd/mm/yyyy dates (ALL DATA)
   const handleExportExcel = async () => {
-    const dataToExport = filteredRows.length > 0 ? filteredRows : rows;
-    if (dataToExport.length === 0) return;
+    if (totalRows === 0 && rows.length === 0) return;
+    setExporting(true);
 
     try {
+      // Build filter parameters for full dataset fetch
+      const ecomParam = selectedEcom === 'All'
+        ? undefined
+        : (Array.isArray(selectedEcom) ? (selectedEcom.length === 0 ? '' : selectedEcom.join(',')) : selectedEcom);
+
+      const codeParam = selectedCode === 'All'
+        ? undefined
+        : (Array.isArray(selectedCode) ? (selectedCode.length === 0 ? '' : selectedCode.join(',')) : selectedCode);
+
+      // Fetch all matching data for current filters (unpaginated)
+      const res = await fetchMopData({
+        ecomNaming: ecomParam,
+        code: codeParam,
+        startDate: startDateStr,
+        endDate: endDateStr,
+        page: 1,
+        pageSize: 100000
+      });
+
+      const allFetchedRows = res?.rows || rows;
+
+      // Filter by quick search query if present
+      let dataToExport = allFetchedRows;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        dataToExport = allFetchedRows.filter(r =>
+          (r.code && r.code.toLowerCase().includes(q)) ||
+          (r.product && r.product.toLowerCase().includes(q)) ||
+          (r.ecomNaming && r.ecomNaming.toLowerCase().includes(q))
+        );
+      }
+
+      if (dataToExport.length === 0) {
+        setExporting(false);
+        return;
+      }
+
       const workbook = new ExcelJS.Workbook();
       workbook.creator = 'Trailytics';
       workbook.created = new Date();
@@ -330,6 +369,8 @@ export default function MopAnalysis() {
       saveAs(blob, `MOP_Analysis_${dayjs().format('YYYY-MM-DD')}.xlsx`);
     } catch (err) {
       console.error('Failed to export Excel report:', err);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -431,13 +472,13 @@ export default function MopAnalysis() {
                 minWidth={180}
               />
 
-              {/* Report Export Button (Styled Excel with Red/Blue Breach formatting) */}
+              {/* Report Export Button (Styled Excel with Red/Blue Breach formatting - All Data) */}
               <Button
                 variant="contained"
                 size="small"
-                startIcon={<FileDownloadIcon />}
+                startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <FileDownloadIcon />}
                 onClick={handleExportExcel}
-                disabled={rows.length === 0}
+                disabled={rows.length === 0 || exporting}
                 sx={{
                   borderRadius: '8px',
                   bgcolor: '#2563eb',
@@ -453,7 +494,7 @@ export default function MopAnalysis() {
                   }
                 }}
               >
-                Export Report
+                {exporting ? 'Exporting...' : 'Export Report'}
               </Button>
             </Box>
           </Box>

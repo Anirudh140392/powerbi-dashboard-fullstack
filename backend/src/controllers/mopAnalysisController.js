@@ -254,8 +254,12 @@ export const getMopData = async (req, res) => {
         const total = countData?.[0]?.cnt || rawData.length;
 
         // ─── Paginate in JS ───
-        const offset = (parseInt(page) - 1) * parseInt(pageSize);
-        const paginatedData = rawData.slice(offset, offset + parseInt(pageSize));
+        const pSize = parseInt(pageSize);
+        let paginatedData = rawData;
+        if (pSize > 0 && pSize < 100000) {
+            const offset = (parseInt(page) - 1) * pSize;
+            paginatedData = rawData.slice(offset, offset + pSize);
+        }
 
         // ─── Format rows for the frontend ───
         const rows = paginatedData.map(row => {
