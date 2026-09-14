@@ -3228,8 +3228,8 @@ class VisibilityService {
                     const pidList = skus.map(s => `'${esc(s.skuName)}'`).join(',');
                     const enrichQuery = `
                         SELECT lower(web_pid) as w_pid, any(web_pid) as orig_pid,
-                               any(image_url) as img_url,
-                               any(page_url) as page_url,
+                               anyIf(image_url, image_url IS NOT NULL AND image_url != '') as img_url,
+                               anyIf(page_url, page_url IS NOT NULL AND page_url != '') as page_url,
                                any(platform_name) as platform_name
                         FROM rb_sku_platform
                         WHERE lower(web_pid) IN (${pidList})
@@ -3242,14 +3242,22 @@ class VisibilityService {
                     enrichData.forEach(r => {
                         const key = String(r.w_pid).toLowerCase();
                         if (r.img_url) imgMap[key] = r.img_url;
-                        // Build URL: prefer dynamic (correct casing) over stale DB page_url
-                        const pidForUrl = r.orig_pid || r.w_pid;
-                        let rawUrl = null;
-                        if (r.platform_name) {
+
+                        // Priority 1: Pick exact page_url stored in rb_sku_platform DB table
+                        let rawUrl = r.page_url && String(r.page_url).trim() !== '' ? String(r.page_url).trim() : null;
+
+                        // Priority 2: Fallback to dynamic URL if missing in DB
+                        if (!rawUrl && r.platform_name) {
+                            const pidForUrl = r.orig_pid || r.w_pid;
                             rawUrl = buildDynamicSkuUrl(r.platform_name, pidForUrl);
                         }
-                        if (!rawUrl) rawUrl = r.page_url || null;
-                        if (rawUrl) urlMap[key] = rawUrl;
+
+                        if (rawUrl) {
+                            if (!/^https?:\/\//i.test(rawUrl)) {
+                                rawUrl = `https://${rawUrl}`;
+                            }
+                            urlMap[key] = rawUrl;
+                        }
                     });
 
                     skus.forEach(s => {
@@ -4044,8 +4052,8 @@ class VisibilityService {
                     try {
                         const imgQuery = `
                                 SELECT lower(web_pid) as w_pid, any(web_pid) as orig_pid,
-                                       any(image_url) as img,
-                                       any(page_url) as page_url,
+                                       anyIf(image_url, image_url IS NOT NULL AND image_url != '') as img,
+                                       anyIf(page_url, page_url IS NOT NULL AND page_url != '') as page_url,
                                        any(platform_name) as platform_name
                                 FROM rb_sku_platform
                                 WHERE lower(web_pid) IN (${webPids.map(id => `'${escapeCH(String(id).toLowerCase())}'`).join(',')})
@@ -4057,14 +4065,22 @@ class VisibilityService {
                         imgData.forEach(row => {
                             const key = String(row.w_pid).toLowerCase();
                             imgMap.set(key, row.img);
-                            // Build URL: prefer dynamic (correct casing via orig_pid) over DB page_url
-                            const pidForUrl = row.orig_pid || row.w_pid;
-                            let rawUrl = null;
-                            if (row.platform_name) {
+
+                            // Priority 1: Pick exact page_url stored in rb_sku_platform DB table
+                            let rawUrl = row.page_url && String(row.page_url).trim() !== '' ? String(row.page_url).trim() : null;
+
+                            // Priority 2: Fallback to dynamic URL if missing in DB
+                            if (!rawUrl && row.platform_name) {
+                                const pidForUrl = row.orig_pid || row.w_pid;
                                 rawUrl = buildDynamicSkuUrl(row.platform_name, pidForUrl);
                             }
-                            if (!rawUrl) rawUrl = row.page_url || null;
-                            if (rawUrl) urlMap.set(key, rawUrl);
+
+                            if (rawUrl) {
+                                if (!/^https?:\/\//i.test(rawUrl)) {
+                                    rawUrl = `https://${rawUrl}`;
+                                }
+                                urlMap.set(key, rawUrl);
+                            }
                         });
 
                         Object.values(itemsMap).forEach(item => {

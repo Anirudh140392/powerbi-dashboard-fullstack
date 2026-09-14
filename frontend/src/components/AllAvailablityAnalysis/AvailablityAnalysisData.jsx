@@ -1226,9 +1226,9 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
 
   const isSignalLabHiddenUser = useMemo(() => {
     try {
-      const u = JSON.parse(sessionStorage.getItem('user'));
-      const db = u?.dbName?.toLowerCase();
-      return db === 'boat' || db === 'mars' || db === 'mars_petcare' || db === 'mar_petcare';
+      const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || localStorage.getItem('user') || '{}');
+      const db = (u?.dbName || u?.db_name || u?.database || '').toLowerCase();
+      return db === 'boat' || db === 'mars' || db === 'mars_petcare' || db === 'mar_petcare' || db === 'suhana_masala' || db === 'suhana' || db.includes('suhana');
     } catch {
       return false;
     }

@@ -40,6 +40,83 @@ export async function getMappedDatabasesForDb(mappedDbStr) {
     }
 }
 
+/**
+ * Helper to fetch all allowed workspace databases for a given user email.
+ * Finds distinct db_ids assigned to this email in tb_user and maps them to tb_database.
+ */
+export async function getUserMappedDatabases(email) {
+    if (!email || typeof email !== 'string' || !email.trim()) {
+        return [];
+    }
+
+    try {
+        // 1. Fetch all active databases from tb_database
+        const allDbs = await queryAdminDB(
+            `SELECT toString(db_id) as db_id, db_name, logo_url, company_id, mapped_db 
+             FROM tb_database 
+             WHERE status = 'active'`
+        );
+
+        if (!allDbs || allDbs.length === 0) return [];
+
+        // 2. Fetch distinct db_ids assigned to this user email in tb_user
+        const userDbRows = await queryAdminDB(
+            `SELECT DISTINCT toString(db_id) as db_id 
+             FROM tb_user 
+             WHERE lower(user_email) = lower({email:String}) AND status != 'deleted'`,
+            { email: email.trim() }
+        );
+
+        if (!userDbRows || userDbRows.length === 0) return [];
+
+        const userDbIds = new Set(
+            userDbRows.map(r => String(r.db_id || '').trim()).filter(Boolean)
+        );
+
+        const matchedDbsMap = new Map(); // db_name -> dbObj
+
+        // Match userDbIds against allDbs in tb_database
+        for (const db of allDbs) {
+            const dbIdStr = String(db.db_id);
+            const dbNameLower = db.db_name.toLowerCase();
+
+            let isMatch = false;
+
+            if (userDbIds.has(dbIdStr)) {
+                isMatch = true;
+            } else {
+                // Approximate BigInt match for user db_ids
+                for (const uDbId of userDbIds) {
+                    try {
+                        const uIdNum = BigInt(uDbId);
+                        const dbIdNum = BigInt(dbIdStr);
+                        const diff = uIdNum > dbIdNum ? uIdNum - dbIdNum : dbIdNum - uIdNum;
+                        if (diff < BigInt('1000')) {
+                            isMatch = true;
+                            break;
+                        }
+                    } catch (e) { /* ignore BigInt parse error */ }
+                }
+            }
+
+            if (isMatch) {
+                matchedDbsMap.set(dbNameLower, db);
+            }
+        }
+
+        return Array.from(matchedDbsMap.values()).map(r => ({
+            dbName: r.db_name,
+            dbId: String(r.db_id),
+            dbLogoUrl: r.logo_url || "",
+            companyId: (r.company_id && r.company_id !== '00000000-0000-0000-0000-000000000000') ? r.company_id : '',
+            mappedDb: r.mapped_db || ""
+        }));
+    } catch (e) {
+        console.warn('[Auth] Failed to fetch user mapped databases:', e.message);
+        return [];
+    }
+}
+
 
 /**
  * Authenticate user by email and password, with Trusted Device verification.
@@ -379,11 +456,8 @@ export async function loginUser(email, password, deviceInfo = {}) {
         console.warn('[Auth] Failed to fetch permissions during login:', e.message);
     }
 
-    // 6. Fetch mapped databases list if mapped_db is configured
-    let mappedDatabases = [];
-    if (matchedDb && matchedDb.mapped_db) {
-        mappedDatabases = await getMappedDatabasesForDb(matchedDb.mapped_db);
-    }
+    // 6. Fetch mapped databases list for user (distinct db_ids in tb_user + mapped_db)
+    const mappedDatabases = await getUserMappedDatabases(user.user_email, matchedDb);
 
     // 7. Generate JWT token
     // NOTE: Do NOT include dbLogoUrl or tabPermissions in the JWT payload.
@@ -504,15 +578,16 @@ export async function verifySession(token, deviceToken = null) {
     let dbId = decoded.dbId || '';
     let dbLogoUrl = decoded.dbLogoUrl || "";
     let companyId = decoded.companyId || process.env.RATINGS_COMPANY_ID || '';
-    let mappedDatabases = [];
+    let currentDbObj = null;
 
     try {
         const dbRows = await queryAdminDB(`
-            SELECT toString(db_id) as db_id, logo_url, company_id, mapped_db FROM tb_database 
+            SELECT toString(db_id) as db_id, db_name, logo_url, company_id, mapped_db FROM tb_database 
             WHERE lower(db_name) = '${dbName.toLowerCase()}' 
             LIMIT 1
         `);
         if (dbRows.length > 0) {
+            currentDbObj = dbRows[0];
             dbLogoUrl = dbRows[0].logo_url || "";
             dbId = dbRows[0].db_id || dbId;
             // Filter out the null UUID sentinel (00000000-0000-0000-0000-000000000000)
@@ -521,13 +596,12 @@ export async function verifySession(token, deviceToken = null) {
             if (rawCid && !isNullUuid) {
                 companyId = rawCid;
             }
-            if (dbRows[0].mapped_db) {
-                mappedDatabases = await getMappedDatabasesForDb(dbRows[0].mapped_db);
-            }
         }
     } catch (e) {
         console.warn('[Auth] Failed to fetch database info during verify:', e.message);
     }
+
+    const mappedDatabases = await getUserMappedDatabases(decoded.email);
 
     // 5. Fetch latest db_status and tab_permissions for this user on active database
     let dbStatus = decoded.dbStatus !== undefined ? decoded.dbStatus : true;
@@ -556,8 +630,6 @@ export async function verifySession(token, deviceToken = null) {
         }
         // Third fallback: email-only query (no db_id filter).
         // ONLY use this if we truly found NO rows at all from the db_id-scoped queries above.
-        // If a row was found with empty tab_permissions, that is valid (all tabs allowed)
-        // and we should NOT fall through here, as it would return the wrong workspace's permissions.
         if (!permRows || permRows.length === 0) {
             permRows = await queryAdminDB(
                 `SELECT 
@@ -599,7 +671,7 @@ export async function verifySession(token, deviceToken = null) {
 }
 
 /**
- * Switch active database for a user if allowed by mapped_db
+ * Switch active database for a user if allowed by mapped_db or user's assigned db_ids
  */
 export async function switchDatabase(email, currentDbName, targetDbName) {
     if (!targetDbName) {
@@ -611,7 +683,7 @@ export async function switchDatabase(email, currentDbName, targetDbName) {
 
     // 1. Fetch current DB mapped_db definition from tb_database
     const currentDbRows = await queryAdminDB(`
-        SELECT db_name, mapped_db FROM tb_database 
+        SELECT toString(db_id) as db_id, db_name, logo_url, company_id, mapped_db FROM tb_database 
         WHERE lower(db_name) = '${trimmedCurrent.toLowerCase()}' 
         LIMIT 1
     `);
@@ -629,18 +701,15 @@ export async function switchDatabase(email, currentDbName, targetDbName) {
 
     const targetDb = targetDbRows[0];
 
-    // Check mapping permission: target must be in current's mapped_db or target's mapped_db
-    const currentMapped = currentDbRows[0]?.mapped_db || '';
-    const targetMapped = targetDb.mapped_db || '';
+    // Check mapping permission: user must have access to targetDb (via tb_user db_ids or mapped_db)
+    const userMappedDatabases = await getUserMappedDatabases(email);
 
-    const allowedDbNames = new Set([
-        ...currentMapped.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
-        ...targetMapped.split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
-        trimmedCurrent.toLowerCase()
-    ]);
+    const isAllowed = userMappedDatabases.some(
+        db => db.dbName.toLowerCase() === trimmedTarget.toLowerCase()
+    );
 
-    if (!allowedDbNames.has(trimmedTarget.toLowerCase())) {
-        throw new Error(`Database switch to '${trimmedTarget}' is not allowed for current session`);
+    if (!isAllowed) {
+        throw new Error(`Database switch to '${trimmedTarget}' is not allowed for user ${email}`);
     }
 
     // 3. Resolve user details
@@ -657,9 +726,7 @@ export async function switchDatabase(email, currentDbName, targetDbName) {
     const userRole = (user.user_role || 'user').toLowerCase();
     const companyId = (targetDb.company_id && targetDb.company_id !== '00000000-0000-0000-0000-000000000000') ? targetDb.company_id : '';
 
-    // Calculate mapped databases list
-    const combinedMappedStr = Array.from(allowedDbNames).join(',');
-    const mappedDatabases = await getMappedDatabasesForDb(combinedMappedStr);
+    const mappedDatabases = userMappedDatabases;
 
     // 5. Fetch tab_permissions and db_status for THIS USER on the TARGET database
     //    (Critical for sidebar rendering — without this, the old workspace's permissions persist)

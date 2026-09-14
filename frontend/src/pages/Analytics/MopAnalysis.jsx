@@ -30,7 +30,10 @@ import {
   FilterList as FilterListIcon
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import CommonContainer from '../../components/CommonLayout/CommonContainer';
+import MultiSelectSearchDropdown from '../../components/CommonLayout/MultiSelectSearchDropdown';
 import { FilterContext } from '../../utils/FilterContext';
 import { fetchMopFilters, fetchMopData } from '../../api/mopAnalysisService';
 
@@ -44,7 +47,7 @@ export default function MopAnalysis() {
   const [ecomOptions, setEcomOptions] = useState([]);
   const [codeOptions, setCodeOptions] = useState([]);
 
-  // Selected filter states
+  // Selected filter states ('All' or array of strings)
   const [selectedEcom, setSelectedEcom] = useState('All');
   const [selectedCode, setSelectedCode] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,9 +88,17 @@ export default function MopAnalysis() {
     const loadData = async () => {
       setLoading(true);
       try {
+        const ecomParam = selectedEcom === 'All'
+          ? undefined
+          : (Array.isArray(selectedEcom) ? (selectedEcom.length === 0 ? '' : selectedEcom.join(',')) : selectedEcom);
+
+        const codeParam = selectedCode === 'All'
+          ? undefined
+          : (Array.isArray(selectedCode) ? (selectedCode.length === 0 ? '' : selectedCode.join(',')) : selectedCode);
+
         const res = await fetchMopData({
-          ecomNaming: selectedEcom === 'All' ? undefined : selectedEcom,
-          code: selectedCode === 'All' ? undefined : selectedCode,
+          ecomNaming: ecomParam,
+          code: codeParam,
           startDate: startDateStr,
           endDate: endDateStr,
           page,
@@ -120,19 +131,20 @@ export default function MopAnalysis() {
 
   const totalPages = Math.ceil((totalRows || filteredRows.length) / pageSize) || 1;
 
-  // Format date string to M/D/YYYY for UI display matching the screenshot
+  // Format date string to DD/MM/YYYY for UI display matching user requirement (dd/mm/yyyy)
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
     const d = dayjs(dateStr);
-    return d.isValid() ? d.format('M/D/YYYY') : dateStr;
+    return d.isValid() ? d.format('DD/MM/YYYY') : dateStr;
   };
 
-  // Helper to render price with MOP violation color rules
-  // Red: Price < T2 MOP (below lower floor)
-  // Blue: Price < T1 MOP (between T2 and T1 MOP)
-  // Regular text color: Price >= T1 MOP
+  // Helper to render price with MOP violation color rules matching DAX formula:
+  // IF price = 0 -> BLANK()
+  // IF price < t2 -> "Red"
+  // IF price < t1 -> "Blue"
+  // ELSE -> BLANK() (default text color)
   const renderPriceCell = (price, t1Mop, t2Mop) => {
-    if (price === null || price === undefined || price === '') {
+    if (price === null || price === undefined || price === '' || Number(price) === 0) {
       return '';
     }
 
@@ -140,7 +152,7 @@ export default function MopAnalysis() {
     const numT1 = t1Mop !== null && t1Mop !== undefined ? Number(t1Mop) : null;
     const numT2 = t2Mop !== null && t2Mop !== undefined ? Number(t2Mop) : null;
 
-    let color = '#334155'; // default regular dark gray text
+    let color = '#334155'; // default regular text color
     let fontWeight = 500;
 
     if (numT2 !== null && numPrice < numT2) {
@@ -164,6 +176,164 @@ export default function MopAnalysis() {
         {numPrice.toFixed(2)}
       </Typography>
     );
+  };
+
+  // Helper to get styled price value for Excel export with red and blue breach formatting
+  const getPriceExportStyle = (price, t1Mop, t2Mop) => {
+    if (price === null || price === undefined || price === '' || Number(price) === 0) {
+      return { text: '', style: 'text-align: right;' };
+    }
+    const numPrice = Number(price);
+    const numT1 = t1Mop !== null && t1Mop !== undefined ? Number(t1Mop) : null;
+    const numT2 = t2Mop !== null && t2Mop !== undefined ? Number(t2Mop) : null;
+
+    let color = '#334155';
+    let fontWeight = '500';
+
+    if (numT2 !== null && numPrice < numT2) {
+      color = '#ef4444'; // Red for T2 breach
+      fontWeight = '700';
+    } else if (numT1 !== null && numPrice < numT1) {
+      color = '#2563eb'; // Blue for T1 breach
+      fontWeight = '700';
+    }
+
+    return {
+      text: numPrice.toFixed(2),
+      style: `color: ${color}; font-weight: ${fontWeight}; text-align: right;`
+    };
+  };
+
+  // Export table to native .xlsx format retaining red and blue colour formatting and dd/mm/yyyy dates
+  const handleExportExcel = async () => {
+    const dataToExport = filteredRows.length > 0 ? filteredRows : rows;
+    if (dataToExport.length === 0) return;
+
+    try {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Trailytics';
+      workbook.created = new Date();
+
+      const worksheet = workbook.addWorksheet('MOP Analysis');
+
+      // Define columns and widths
+      worksheet.columns = [
+        { header: 'Date', key: 'date', width: 14 },
+        { header: 'Code', key: 'code', width: 20 },
+        { header: 'Product', key: 'product', width: 38 },
+        { header: 'MRP', key: 'mrp', width: 12 },
+        { header: 'T1 MOP', key: 't1Mop', width: 12 },
+        { header: 'T2 MOP', key: 't2Mop', width: 12 },
+        { header: 'Amazon Price', key: 'amazonPrice', width: 15 },
+        { header: 'Blinkit Price', key: 'blinkitPrice', width: 15 },
+        { header: 'BigBasket Price', key: 'bigbasketPrice', width: 15 },
+        { header: 'Flipkart Price', key: 'flipkartPrice', width: 15 },
+        { header: 'Swiggy Price', key: 'swiggyPrice', width: 15 },
+        { header: 'Zepto Price', key: 'zeptoPrice', width: 15 }
+      ];
+
+      // Style header row
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 28;
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF1F5F9' }
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'medium', color: { argb: 'FF94A3B8' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+        };
+      });
+
+      // Populate data rows
+      dataToExport.forEach((r) => {
+        const dateVal = formatDate(r.date);
+        const row = worksheet.addRow({
+          date: dateVal,
+          code: r.code || '',
+          product: r.product || '',
+          mrp: r.mrp != null ? Number(r.mrp) : '',
+          t1Mop: r.t1Mop != null ? Number(r.t1Mop) : '',
+          t2Mop: r.t2Mop != null ? Number(r.t2Mop) : '',
+          amazonPrice: r.amazonPrice != null && Number(r.amazonPrice) > 0 ? Number(r.amazonPrice) : '',
+          blinkitPrice: r.blinkitPrice != null && Number(r.blinkitPrice) > 0 ? Number(r.blinkitPrice) : '',
+          bigbasketPrice: r.bigbasketPrice != null && Number(r.bigbasketPrice) > 0 ? Number(r.bigbasketPrice) : '',
+          flipkartPrice: r.flipkartPrice != null && Number(r.flipkartPrice) > 0 ? Number(r.flipkartPrice) : '',
+          swiggyPrice: r.swiggyPrice != null && Number(r.swiggyPrice) > 0 ? Number(r.swiggyPrice) : '',
+          zeptoPrice: r.zeptoPrice != null && Number(r.zeptoPrice) > 0 ? Number(r.zeptoPrice) : ''
+        });
+
+        row.height = 20;
+
+        // Alignment
+        row.getCell('date').alignment = { vertical: 'middle', horizontal: 'center' };
+        row.getCell('code').alignment = { vertical: 'middle', horizontal: 'left' };
+        row.getCell('product').alignment = { vertical: 'middle', horizontal: 'left' };
+
+        // Number format for MRP, T1, T2
+        ['mrp', 't1Mop', 't2Mop'].forEach((colKey) => {
+          const cell = row.getCell(colKey);
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          if (cell.value !== '') cell.numFmt = '0.00';
+        });
+
+        const numT1 = r.t1Mop != null ? Number(r.t1Mop) : null;
+        const numT2 = r.t2Mop != null ? Number(r.t2Mop) : null;
+
+        // Platform price columns
+        const platformKeys = [
+          { key: 'amazonPrice', val: r.amazonPrice },
+          { key: 'blinkitPrice', val: r.blinkitPrice },
+          { key: 'bigbasketPrice', val: r.bigbasketPrice },
+          { key: 'flipkartPrice', val: r.flipkartPrice },
+          { key: 'swiggyPrice', val: r.swiggyPrice },
+          { key: 'zeptoPrice', val: r.zeptoPrice }
+        ];
+
+        platformKeys.forEach(({ key, val }) => {
+          const cell = row.getCell(key);
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          if (val !== null && val !== undefined && val !== '' && Number(val) > 0) {
+            const numPrice = Number(val);
+            cell.numFmt = '0.00';
+
+            if (numT2 !== null && numPrice < numT2) {
+              // T2 breach -> Red
+              cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFEF4444' } };
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF2F2' } };
+            } else if (numT1 !== null && numPrice < numT1) {
+              // T1 breach -> Blue
+              cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF2563EB' } };
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF6FF' } };
+            } else {
+              cell.font = { name: 'Arial', size: 10, color: { argb: 'FF334155' } };
+            }
+          } else {
+            cell.value = '';
+          }
+        });
+
+        // Grid borders
+        row.eachCell((cell) => {
+          cell.border = {
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(blob, `MOP_Analysis_${dayjs().format('YYYY-MM-DD')}.xlsx`);
+    } catch (err) {
+      console.error('Failed to export Excel report:', err);
+    }
   };
 
   // Export table to CSV
@@ -250,90 +420,52 @@ export default function MopAnalysis() {
             {/* Filter Dropdowns (E-Com Naming & Code) */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
               {/* E-Com Naming Dropdown */}
-              <FormControl size="small" sx={{ minWidth: 180 }}>
-                <InputLabel id="ecom-label" sx={{ fontSize: '13px', fontWeight: 600 }}>
-                  E-Com Naming
-                </InputLabel>
-                <Select
-                  labelId="ecom-label"
-                  id="ecom-select"
-                  value={selectedEcom}
-                  label="E-Com Naming"
-                  onChange={(e) => {
-                    setSelectedEcom(e.target.value);
-                    setPage(1);
-                  }}
-                  sx={{
-                    borderRadius: '8px',
-                    bgcolor: '#ffffff',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: '#1e293b'
-                  }}
-                >
-                  <MenuItem value="All">All</MenuItem>
-                  {ecomOptions.map((opt) => (
-                    <MenuItem key={opt} value={opt}>
-                      {opt}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <MultiSelectSearchDropdown
+                label="E-Com Naming"
+                options={ecomOptions}
+                value={selectedEcom}
+                onChange={(val) => {
+                  setSelectedEcom(val);
+                  setPage(1);
+                }}
+                minWidth={180}
+              />
 
               {/* Code Dropdown */}
-              <FormControl size="small" sx={{ minWidth: 180 }}>
-                <InputLabel id="code-label" sx={{ fontSize: '13px', fontWeight: 600 }}>
-                  Code
-                </InputLabel>
-                <Select
-                  labelId="code-label"
-                  id="code-select"
-                  value={selectedCode}
-                  label="Code"
-                  onChange={(e) => {
-                    setSelectedCode(e.target.value);
-                    setPage(1);
-                  }}
-                  sx={{
-                    borderRadius: '8px',
-                    bgcolor: '#ffffff',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: '#1e293b'
-                  }}
-                >
-                  <MenuItem value="All">All</MenuItem>
-                  {codeOptions.map((opt) => (
-                    <MenuItem key={opt} value={opt}>
-                      {opt}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <MultiSelectSearchDropdown
+                label="Code"
+                options={codeOptions}
+                value={selectedCode}
+                onChange={(val) => {
+                  setSelectedCode(val);
+                  setPage(1);
+                }}
+                minWidth={180}
+              />
 
-              {/* CSV Export Button */}
+              {/* Report Export Button (Styled Excel with Red/Blue Breach formatting) */}
               <Button
-                variant="outlined"
+                variant="contained"
                 size="small"
                 startIcon={<FileDownloadIcon />}
-                onClick={handleExportCSV}
+                onClick={handleExportExcel}
                 disabled={rows.length === 0}
                 sx={{
                   borderRadius: '8px',
-                  borderColor: '#cbd5e1',
-                  color: '#475569',
+                  bgcolor: '#2563eb',
+                  color: '#ffffff',
                   textTransform: 'none',
                   fontWeight: 600,
                   fontSize: '13px',
                   px: 2,
                   py: 0.8,
+                  boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
                   '&:hover': {
-                    borderColor: '#94a3b8',
-                    bgcolor: '#f8fafc'
+                    bgcolor: '#1d4ed8'
                   }
                 }}
               >
-                Export CSV
+                Export Report
               </Button>
             </Box>
           </Box>

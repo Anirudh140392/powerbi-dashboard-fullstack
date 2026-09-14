@@ -422,7 +422,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                                         <div className="font-bold text-slate-900 leading-5 text-xs">{r.name}</div>
                                                                         {r.page_url && (
                                                                             <a
-                                                                                href={r.page_url}
+                                                                                href={/^https?:\/\//i.test(r.page_url) ? r.page_url : `https://${r.page_url}`}
                                                                                 target="_blank"
                                                                                 rel="noopener noreferrer"
                                                                                 onClick={(e) => e.stopPropagation()}

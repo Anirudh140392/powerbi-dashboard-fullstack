@@ -1274,20 +1274,15 @@ const getDimensionOverview = async (filters = {}) => {
                     weight: r.weight || null,
                     image_url: r.image_url || null,
                     page_url: (() => {
-                        let raw = r.page_url || null;
+                        let raw = (r.page_url && String(r.page_url).trim() !== '') ? String(r.page_url).trim() : null;
                         if (!raw && r.platform_name && r.web_pid) {
                             raw = buildDynamicSkuUrl(r.platform_name, r.web_pid);
                         }
                         if (!raw) return null;
-                        try {
-                            const u = new URL(raw);
-                            const parts = u.pathname.split('/');
-                            parts[parts.length - 1] = parts[parts.length - 1].toUpperCase();
-                            u.pathname = parts.join('/');
-                            return u.toString();
-                        } catch (_) {
-                            return raw;
+                        if (!/^https?:\/\//i.test(raw)) {
+                            raw = `https://${raw}`;
                         }
+                        return raw;
                     })(),
                     data: {
                         discount: getMetric(r.Discount, r.discount_prev),

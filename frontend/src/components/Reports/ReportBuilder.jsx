@@ -758,8 +758,8 @@ export default function ReportBuilder({
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                         {[
                           "DATE", "platform", "brand", "category", "location",
-                          "pincode", "pincode_area", "web_pid", "sku", "pdp_page_url", "osa", "osa_remark",
-                          "location_id", "total_platform_darkstores", "total_darkstore_cities", "listed_darkstore_cities", "listing_percentage"
+                          "pincode", "pincode_area", "web_pid", "sku", "pdp_page", "osa", "osa_remark",
+                          "location_id", "Total Dark store on platform", "Total City Dark Store", "Listed City Dark Store", "City Listing %"
                         ].map((col) => (
                           <Chip key={col} label={col} size="small" sx={{ background: "#E0F2FE", color: "#0369A1", fontWeight: 600, borderRadius: "6px", fontFamily: "'JetBrains Mono', monospace" }} />
                         ))}

@@ -220,10 +220,19 @@ const LoginPageContent = () => {
         const result = await login({ email, password });
 
         if (result.success) {
-            // Check role from AuthContext user if not immediately available in result
-            // though login service returns them
-            // Let's rely on the useEffect above or do it here
-            // navigate(userData.role === 'admin' ? "/admin" : "/watch-tower", { replace: true });
+            const loggedInUser = result.user || JSON.parse(sessionStorage.getItem('user') || '{}');
+            const userRole = (loggedInUser?.role || '').toLowerCase();
+            const isAdmin = userRole.includes('admin') || userRole.includes('super');
+            const hasMultipleWorkspaces = Array.isArray(loggedInUser?.mappedDatabases) && loggedInUser.mappedDatabases.length >= 2;
+            const workspaceSelected = sessionStorage.getItem("workspaceSelected") === "true";
+
+            let redirectPath;
+            if (hasMultipleWorkspaces && !workspaceSelected && !isAdmin) {
+                redirectPath = "/select-workspace";
+            } else {
+                redirectPath = isAdmin ? "/admin" : getFirstAllowedRoute(loggedInUser);
+            }
+            navigate(redirectPath, { replace: true });
         } else {
             setError(result.error || "Invalid email or password");
             setLoading(false);
@@ -410,6 +419,22 @@ const LoginPageContent = () => {
                                         }}
                                         onError={(err) => setError(err || "Google sign-in was canceled or failed.")}
                                     />
+
+                                    {/* MICROSOFT SSO BUTTON */}
+                                    <button
+                                        type="button"
+                                        onClick={handleMicrosoftLogin}
+                                        disabled={loading}
+                                        className="w-full h-[52px] border border-gray-200 bg-white hover:bg-gray-50/80 rounded-[18px] text-[14px] font-semibold text-gray-700 flex items-center justify-center gap-3 transition-all transform hover:-translate-y-0.5 cursor-pointer shadow-sm disabled:opacity-50"
+                                    >
+                                        <svg className="w-5 h-5" viewBox="0 0 23 23">
+                                            <path fill="#f35325" d="M1 1h10v10H1z" />
+                                            <path fill="#81bc06" d="M12 1h10v10H12z" />
+                                            <path fill="#05a6f0" d="M1 12h10v10H1z" />
+                                            <path fill="#ffba08" d="M12 12h10v10H12z" />
+                                        </svg>
+                                        <span>Sign in with Microsoft</span>
+                                    </button>
                                 </div>
                             </>
                         )}

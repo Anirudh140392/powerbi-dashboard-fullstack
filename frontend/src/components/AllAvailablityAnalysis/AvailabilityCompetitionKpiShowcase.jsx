@@ -12,6 +12,9 @@ import {
     Download,
     ArrowRight,
     Layers,
+    ArrowUpDown,
+    ChevronUp,
+    ChevronDown,
 } from "lucide-react";
 import CrossPlatformMatrixModal from "../ControlTower/WatchTower/CrossPlatformMatrixModal";
 import {
@@ -728,11 +731,79 @@ const KPI_KEYS = [
 /* -------------------------------------------------------------------------- */
 
 const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
+    const [sortConfig, setSortConfig] = useState({ key: 'osa', direction: 'desc' });
+
+    const handleSort = (key) => {
+        setSortConfig((prev) => {
+            if (prev.key === key) {
+                return { key, direction: prev.direction === 'desc' ? 'asc' : 'desc' };
+            }
+            return { key, direction: key === 'name' ? 'asc' : 'desc' };
+        });
+    };
+
+    const sortedRows = useMemo(() => {
+        if (!rows || rows.length === 0) return [];
+        return [...rows].sort((a, b) => {
+            const { key, direction } = sortConfig;
+            const mult = direction === 'desc' ? -1 : 1;
+
+            if (key === 'name') {
+                const valA = String(a.name || '');
+                const valB = String(b.name || '');
+                return mult * valA.localeCompare(valB);
+            }
+
+            const getNumericVal = (item, k) => {
+                const val = item[k];
+                if (val === null || val === undefined || val === 'N/A' || val === '') return -Infinity;
+                const num = Number(val);
+                return isNaN(num) ? -Infinity : num;
+            };
+
+            const numA = getNumericVal(a, key);
+            const numB = getNumericVal(b, key);
+
+            if (numA !== numB) {
+                return mult * (numA > numB ? 1 : -1);
+            }
+
+            const osaA = getNumericVal(a, 'osa');
+            const osaB = getNumericVal(b, 'osa');
+            if (osaA !== osaB) return osaB > osaA ? 1 : -1;
+
+            return (a.name || '').localeCompare(b.name || '');
+        });
+    }, [rows, sortConfig]);
+
+    const renderSortHeader = (key, label, className = "text-center") => (
+        <th
+            onClick={() => handleSort(key)}
+            className={cn(
+                "px-3 py-2 cursor-pointer select-none hover:bg-slate-100 transition-colors",
+                className
+            )}
+        >
+            <div className="inline-flex items-center gap-1">
+                <span>{label}</span>
+                {sortConfig.key === key ? (
+                    sortConfig.direction === 'desc' ? (
+                        <ChevronDown className="h-3.5 w-3.5 text-blue-600" />
+                    ) : (
+                        <ChevronUp className="h-3.5 w-3.5 text-blue-600" />
+                    )
+                ) : (
+                    <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 hover:opacity-100" />
+                )}
+            </div>
+        </th>
+    );
+
     return (
-        <Card className="mt-3">
+        <Card className="mt-3 border-slate-200 bg-white shadow-sm">
             <CardHeader className="border-b pb-2">
                 <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
-                    <span>Brands ({rows.length || 0})</span>
+                    <span>Brands ({sortedRows.length || 0})</span>
                     {onDownload && (
                         <button
                             type="button"
@@ -750,12 +821,11 @@ const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
                     <table className="min-w-full divide-y divide-slate-200 text-xs">
                         <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 shadow-sm">
                             <tr>
-                                <th className="px-3 py-2 text-left">Brand</th>
-                                <th className="px-3 py-2 text-center">OSA</th>
-                                {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
-                                <th className="px-3 py-2 text-center">Wt OSA</th>
+                                {renderSortHeader('name', 'Brand', 'text-left')}
+                                {renderSortHeader('osa', 'OSA', 'text-center')}
+                                {!isEcom && renderSortHeader('listing', 'Listing %', 'text-center')}
+                                {renderSortHeader('wtOsa', 'Wt OSA', 'text-center')}
                             </tr>
-
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && Array.from({ length: 5 }).map((_, idx) => (
@@ -764,7 +834,7 @@ const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
                                     <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                                 </tr>
                             ))}
-                            {!loading && rows.map((row, idx) => (
+                            {!loading && sortedRows.map((row, idx) => (
                                 <tr
                                     key={row.id}
                                     className={cn(
@@ -811,13 +881,12 @@ const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
                                 </tr>
 
                             ))}
-                            {!loading && rows.length === 0 && (
+                            {!loading && sortedRows.length === 0 && (
                                 <tr>
                                     <td
                                         colSpan={isEcom ? 3 : 4}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
-
                                         No brands matching current filters.
                                     </td>
                                 </tr>
@@ -831,11 +900,80 @@ const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
 };
 
 const SkuTable = ({ rows, loading, isEcom, onDownload }) => {
+    const [sortConfig, setSortConfig] = useState({ key: 'osa', direction: 'desc' });
+
+    const handleSort = (key) => {
+        setSortConfig((prev) => {
+            if (prev.key === key) {
+                return { key, direction: prev.direction === 'desc' ? 'asc' : 'desc' };
+            }
+            return { key, direction: key === 'name' || key === 'brandName' ? 'asc' : 'desc' };
+        });
+    };
+
+    const sortedRows = useMemo(() => {
+        if (!rows || rows.length === 0) return [];
+        return [...rows].sort((a, b) => {
+            const { key, direction } = sortConfig;
+            const mult = direction === 'desc' ? -1 : 1;
+
+            if (key === 'name' || key === 'brandName') {
+                const valA = String(a[key] || '');
+                const valB = String(b[key] || '');
+                return mult * valA.localeCompare(valB);
+            }
+
+            const getNumericVal = (item, k) => {
+                const val = item[k];
+                if (val === null || val === undefined || val === 'N/A' || val === '') return -Infinity;
+                const num = Number(val);
+                return isNaN(num) ? -Infinity : num;
+            };
+
+            const numA = getNumericVal(a, key);
+            const numB = getNumericVal(b, key);
+
+            if (numA !== numB) {
+                return mult * (numA > numB ? 1 : -1);
+            }
+
+            // Fallback tie-breaker: OSA desc, then name asc
+            const osaA = getNumericVal(a, 'osa');
+            const osaB = getNumericVal(b, 'osa');
+            if (osaA !== osaB) return osaB > osaA ? 1 : -1;
+
+            return (a.name || '').localeCompare(b.name || '');
+        });
+    }, [rows, sortConfig]);
+
+    const renderSortHeader = (key, label, className = "text-center") => (
+        <th
+            onClick={() => handleSort(key)}
+            className={cn(
+                "px-3 py-2 cursor-pointer select-none hover:bg-slate-100 transition-colors",
+                className
+            )}
+        >
+            <div className="inline-flex items-center gap-1">
+                <span>{label}</span>
+                {sortConfig.key === key ? (
+                    sortConfig.direction === 'desc' ? (
+                        <ChevronDown className="h-3.5 w-3.5 text-blue-600" />
+                    ) : (
+                        <ChevronUp className="h-3.5 w-3.5 text-blue-600" />
+                    )
+                ) : (
+                    <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 hover:opacity-100" />
+                )}
+            </div>
+        </th>
+    );
+
     return (
         <Card className="mt-3 border-slate-200 bg-white shadow-sm">
             <CardHeader className="border-b pb-2">
                 <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
-                    <span>SKUs ({rows.length || 0})</span>
+                    <span>SKUs ({sortedRows.length || 0})</span>
                     {onDownload && (
                         <button
                             type="button"
@@ -853,23 +991,22 @@ const SkuTable = ({ rows, loading, isEcom, onDownload }) => {
                     <table className="min-w-full divide-y divide-slate-200 text-xs">
                         <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 shadow-sm">
                             <tr>
-                                <th className="px-3 py-2 text-left">SKU</th>
-                                <th className="px-3 py-2 text-left">Brand</th>
-                                <th className="px-3 py-2 text-center">OSA</th>
-                                {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
-                                <th className="px-3 py-2 text-center">Wt OSA</th>
+                                {renderSortHeader('name', 'SKU', 'text-left')}
+                                {renderSortHeader('brandName', 'Brand', 'text-left')}
+                                {renderSortHeader('osa', 'OSA', 'text-center')}
+                                {!isEcom && renderSortHeader('listing', 'Listing %', 'text-center')}
+                                {renderSortHeader('wtOsa', 'Wt OSA', 'text-center')}
                             </tr>
-
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && (
                                 <tr>
-                                    <td colSpan={5} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                                    <td colSpan={isEcom ? 4 : 5} className="px-3 py-6 text-center text-[12px] text-slate-400">
                                         <div className="animate-pulse">Loading competition data...</div>
                                     </td>
                                 </tr>
                             )}
-                            {!loading && rows.map((row, idx) => (
+                            {!loading && sortedRows.map((row, idx) => (
                                 <tr
                                     key={row.id}
                                     className={cn(
@@ -901,15 +1038,13 @@ const SkuTable = ({ rows, loading, isEcom, onDownload }) => {
                                         </span>
                                     </td>
                                 </tr>
-
                             ))}
-                            {!loading && rows.length === 0 && (
+                            {!loading && sortedRows.length === 0 && (
                                 <tr>
                                     <td
                                         colSpan={isEcom ? 4 : 5}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
-
                                         No SKUs matching current filters.
                                     </td>
                                 </tr>
@@ -1292,10 +1427,10 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
         activeFilters.categories.length + activeFilters.brands.length + activeFilters.skus.length + (activeFilters.msl ? activeFilters.msl.length : 0);
 
     const brandRows = useMemo(() => {
-        return (competitionData.brands || []).map((b, idx) => {
-            const osa = b.osa || 0;
-            const listing = b.listing || 0;
-            const wtOsa = b.wtOsa ?? b.wt_osa ?? (osa && listing ? parseFloat(((osa * listing) / 100).toFixed(1)) : 0);
+        const mapped = (competitionData.brands || []).map((b, idx) => {
+            const osa = b.osa ?? b.OSA?.value ?? null;
+            const listing = b.listing ?? b.Listing?.value ?? null;
+            const wtOsa = b.wtOsa ?? b.wt_osa ?? (osa !== null && osa !== undefined && listing !== null && listing !== undefined ? parseFloat(((osa * listing) / 100).toFixed(1)) : null);
             return {
                 id: b.brand || `brand-${idx}`,
                 name: b.brand || 'Unknown',
@@ -1309,14 +1444,32 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 psl: b.psl || 0
             };
         });
+
+        return mapped.sort((a, b) => {
+            const getNumericVal = (item, k) => {
+                const val = item[k];
+                if (val === null || val === undefined || val === 'N/A' || val === '') return -Infinity;
+                const num = Number(val);
+                return isNaN(num) ? -Infinity : num;
+            };
+            const osaA = getNumericVal(a, 'osa');
+            const osaB = getNumericVal(b, 'osa');
+            if (osaA !== osaB) return osaB - osaA;
+
+            const listA = getNumericVal(a, 'listing');
+            const listB = getNumericVal(b, 'listing');
+            if (listA !== listB) return listB - listA;
+
+            return (a.name || '').localeCompare(b.name || '');
+        });
     }, [competitionData.brands]);
 
     const skuRows = useMemo(() => {
         const mapped = (competitionData.skus || []).map((s, idx) => {
             const msVal = Number(s.MarketShare?.value ?? s.marketShare?.value ?? s.MarketShare ?? s.marketShare ?? 0);
-            const osa = s.osa ?? s.OSA?.value ?? 0;
-            const listing = s.listing ?? s.Listing?.value ?? 0;
-            const wtOsa = s.wtOsa ?? s.wt_osa ?? (osa && listing ? parseFloat(((osa * listing) / 100).toFixed(1)) : 0);
+            const osa = s.osa ?? s.OSA?.value ?? null;
+            const listing = s.listing ?? s.Listing?.value ?? null;
+            const wtOsa = s.wtOsa ?? s.wt_osa ?? (osa !== null && osa !== undefined && listing !== null && listing !== undefined ? parseFloat(((osa * listing) / 100).toFixed(1)) : null);
             return {
                 id: s.sku_name || `sku-${idx}`,
                 name: s.sku_name || 'Unknown',
@@ -1337,26 +1490,26 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
         });
 
         return mapped.sort((a, b) => {
-            const getOfftakeVal = (item) => {
-                const raw = item?.OfftakeShare?.value ?? item?.OfftakeShare ?? item?.offtake_share ?? item?.CategoryShare?.value ?? item?.CategoryShare ?? 0;
-                const num = Number(raw);
-                return isNaN(num) ? 0 : num;
+            const getNumericVal = (item, k) => {
+                const val = item[k];
+                if (val === null || val === undefined || val === 'N/A' || val === '') return -Infinity;
+                const num = Number(val);
+                return isNaN(num) ? -Infinity : num;
             };
-            const offtakeA = getOfftakeVal(a);
-            const offtakeB = getOfftakeVal(b);
-            if (Math.abs(offtakeB - offtakeA) > 0.0001) return offtakeB - offtakeA;
 
-            const msA = Number(a.MarketShare?.value ?? a.marketShare?.value ?? a.MarketShare ?? a.marketShare ?? 0) || 0;
-            const msB = Number(b.MarketShare?.value ?? b.marketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0) || 0;
-            if (Math.abs(msB - msA) > 0.0001) return msB - msA;
+            const osaA = getNumericVal(a, 'osa');
+            const osaB = getNumericVal(b, 'osa');
+            if (osaA !== osaB) return osaB - osaA;
 
-            const salesA = Number(a.total_sales || 0);
-            const salesB = Number(b.total_sales || 0);
-            if (salesB !== salesA) return salesB - salesA;
+            const listA = getNumericVal(a, 'listing');
+            const listB = getNumericVal(b, 'listing');
+            if (listA !== listB) return listB - listA;
 
-            const osaA = Number(a.osa ?? 0) || 0;
-            const osaB = Number(b.osa ?? 0) || 0;
-            return osaB - osaA;
+            const wtA = getNumericVal(a, 'wtOsa');
+            const wtB = getNumericVal(b, 'wtOsa');
+            if (wtA !== wtB) return wtB - wtA;
+
+            return (a.name || '').localeCompare(b.name || '');
         });
     }, [competitionData.skus]);
 
