@@ -4827,7 +4827,7 @@ const getCrossPlatformPricing = async (filters = {}) => {
             SELECT 
                 ${locationCol} as location_raw,
                 countDistinct(${productCol}) as total_skus,
-                countIf(${mrpCol} > 0 AND ${spCol} > 0 AND ((${mrpCol} - ${spCol}) / ${mrpCol} * 100) > 20) as breach_count
+                countIf(${mrpCol} > 0 AND ${spCol} > 0 AND (((${mrpCol} - ${spCol}) / ${mrpCol} * 100) > 20 OR ((${mrpCol} - ${spCol}) / ${mrpCol} * 100) <= 0)) as breach_count
             FROM (
                 SELECT 
                     ${locationCol}, 
@@ -4849,7 +4849,7 @@ const getCrossPlatformPricing = async (filters = {}) => {
                 SELECT 
                     ${locationCol} as location_raw,
                     countDistinct(${productCol}) as total_skus,
-                    countIf(${mrpCol} > 0 AND ${spCol} > 0 AND ((${mrpCol} - ${spCol}) / ${mrpCol} * 100) > 20) as breach_count
+                    countIf(${mrpCol} > 0 AND ${spCol} > 0 AND (((${mrpCol} - ${spCol}) / ${mrpCol} * 100) > 20 OR ((${mrpCol} - ${spCol}) / ${mrpCol} * 100) <= 0)) as breach_count
                 FROM (
                     SELECT 
                         ${locationCol}, 
@@ -4980,13 +4980,13 @@ const getCrossPlatformPricing = async (filters = {}) => {
             const outOfStock = r.neno_osa === 0 || sp === 0;
 
             let discountPercent = 0;
-            if (r.discount_val && r.discount_val > 0) {
+            if (r.discount_val !== undefined && r.discount_val !== null && r.discount_val !== '' && Number(r.discount_val) > 0) {
                 discountPercent = Number(r.discount_val);
             } else if (mrp > 0 && sp > 0) {
                 discountPercent = ((mrp - sp) / mrp) * 100;
             }
 
-            const isBreaching = discountPercent > 20;
+            const isBreaching = !outOfStock && (discountPercent > 20 || discountPercent <= 0);
 
             const pName = r.platform ? (r.platform.charAt(0).toUpperCase() + r.platform.slice(1)) : 'Unknown';
             item.platformData[pName] = {
