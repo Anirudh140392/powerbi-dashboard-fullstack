@@ -1918,7 +1918,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               id: "PricePerUnit",
-              label: `Price Per Unit (${currencySymbol})`,
+              label: `Wt. Price Per Unit (${currencySymbol})`,
               color: "#14B8A6",
               axis: "left",
               default: true,
@@ -1955,7 +1955,7 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
           metrics: [
             { id: "Discount", label: "Promo-My %", color: "#6366F1", default: true },
-            { id: "PricePerUnit", label: "Price Per Unit", color: "#14B8A6", default: true },
+            { id: "PricePerUnit", label: "Wt. Price Per Unit", color: "#14B8A6", default: true },
             { id: "ASP", label: "ASP", color: "#8B5CF6", default: false },
           ],
           x: COMPARE_X,
@@ -2408,7 +2408,7 @@ export default function TrendsCompetitionDrawer({
             { id: "MarketShare", label: "Market Share", type: "metric" },
             { id: "OSA", label: "OSA", type: "metric" },
             { id: "Discount", label: "Promo-My %", type: "metric" },
-            { id: "PricePerUnit", label: "Price Per Unit", type: "metric" },
+            { id: "PricePerUnit", label: "Wt. Price Per Unit", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
             { id: "RPI", label: "RPI", type: "metric" },
           ],

@@ -94,7 +94,7 @@ const PricingTrendsDrawer = ({ open, onClose, entityName, dimensionType, platfor
                     {payload.map((entry, index) => {
                         const labelMap = {
                             discount: 'Discount %',
-                            pricePerUnit: 'Price per Unit',
+                            pricePerUnit: 'Wt. Price per Unit',
                             asp: 'Average Selling Price'
                         };
                         const unitMap = {
@@ -124,7 +124,7 @@ const PricingTrendsDrawer = ({ open, onClose, entityName, dimensionType, platfor
 
     const metricsList = [
         { key: 'discount', label: 'Discount %', color: '#6366f1' },
-        { key: 'pricePerUnit', label: 'Price per Unit', color: '#14b8a6' },
+        { key: 'pricePerUnit', label: 'Wt. Price per Unit', color: '#14b8a6' },
         { key: 'asp', label: 'Average Selling Price', color: '#8b5cf6' }
     ];
 

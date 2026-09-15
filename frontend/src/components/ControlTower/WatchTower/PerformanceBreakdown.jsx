@@ -651,26 +651,95 @@ export function AggregatedViewTable() {
                             </AnimatePresence>
                         </div>
                         <button onClick={() => {
-                            // CSV Download
-                            const headers = [currentDimension.label, ...tableHeaders];
+                            // CSV Download with Compare period (Overall, Last Week, MTD, Last 3M)
+                            const headers = [currentDimension.label, "Compare period", ...tableHeaders];
                             const csvRows = [headers.join(",")];
+                            const periodsToExport = selectedPeriods && selectedPeriods.length > 0 ? selectedPeriods : [
+                                { key: "last_week", label: "Last Week" },
+                                { key: "mtd", label: "MTD" },
+                                { key: "last_3_months", label: "Last 3M" }
+                            ];
+
                             data.forEach(row => {
-                                const rowVals = [`"${row.tag || ''}"`, row.impressions];
-                                if (showClicks) rowVals.push(row.clicks);
-                                if (showAtc) rowVals.push(row.atc);
-                                rowVals.push(
+                                // 1. Overall row
+                                const overallRowVals = [
+                                    `"${(row.tag || '').replace(/"/g, '""')}"`,
+                                    `"Overall"`,
+                                    row.impressions ?? 0
+                                ];
+                                if (showClicks) overallRowVals.push(row.clicks ?? 0);
+                                if (showAtc) overallRowVals.push(row.atc ?? 0);
+                                overallRowVals.push(
                                     `${(row.ctr || 0).toFixed(2)}%`,
-                                    `${(row.spend_percent_share || 0).toFixed(1)}%`,
-                                    row.spends,
+                                    `${(row.spend_percent_share || 0).toFixed(2)}%`,
+                                    row.spends ?? 0,
                                     (row.cpc || 0).toFixed(2),
-                                    row.orders,
+                                    row.orders ?? 0,
                                     (row.aov || 0).toFixed(2),
                                     `${(row.cvr || 0).toFixed(2)}%`,
-                                    row.sales
+                                    row.sales ?? 0
                                 );
-                                csvRows.push(rowVals.join(","));
+                                csvRows.push(overallRowVals.join(","));
+
+                                // 2. Comparison period rows (Last Week, MTD, Last 3M)
+                                periodsToExport.forEach(period => {
+                                    const pd = getPeriodData(row.tag, period.key);
+                                    const periodRowVals = [
+                                        `"${(row.tag || '').replace(/"/g, '""')}"`,
+                                        `"${period.label}"`
+                                    ];
+
+                                    if (pd) {
+                                        const pdTotalClicks = (pd.clicks || 0) + (pd.atc || 0);
+                                        const ctr = pd.ctr !== undefined && pd.ctr !== null
+                                            ? pd.ctr
+                                            : (pd.impressions > 0 ? (pdTotalClicks / pd.impressions) * 100 : 0);
+                                        const spendShare = pd.spend_percent_share !== undefined && pd.spend_percent_share !== null
+                                            ? pd.spend_percent_share
+                                            : 0;
+                                        const cpc = pd.cpc !== undefined && pd.cpc !== null
+                                            ? pd.cpc
+                                            : (pdTotalClicks > 0 ? pd.spends / pdTotalClicks : 0);
+                                        const aov = pd.aov !== undefined && pd.aov !== null
+                                            ? pd.aov
+                                            : (pd.orders > 0 ? pd.sales / pd.orders : 0);
+                                        const cvr = pd.cvr !== undefined && pd.cvr !== null
+                                            ? pd.cvr
+                                            : (pdTotalClicks > 0 ? (pd.orders / pdTotalClicks) * 100 : 0);
+
+                                        periodRowVals.push(pd.impressions ?? 0);
+                                        if (showClicks) periodRowVals.push(pd.clicks ?? 0);
+                                        if (showAtc) periodRowVals.push(pd.atc ?? 0);
+                                        periodRowVals.push(
+                                            `${(ctr || 0).toFixed(2)}%`,
+                                            `${(spendShare || 0).toFixed(2)}%`,
+                                            pd.spends ?? 0,
+                                            (cpc || 0).toFixed(2),
+                                            pd.orders ?? 0,
+                                            (aov || 0).toFixed(2),
+                                            `${(cvr || 0).toFixed(2)}%`,
+                                            pd.sales ?? 0
+                                        );
+                                    } else {
+                                        periodRowVals.push(0);
+                                        if (showClicks) periodRowVals.push(0);
+                                        if (showAtc) periodRowVals.push(0);
+                                        periodRowVals.push(
+                                            "0.00%",
+                                            "0.00%",
+                                            0,
+                                            "0.00",
+                                            0,
+                                            "0.00",
+                                            "0.00%",
+                                            0
+                                        );
+                                    }
+                                    csvRows.push(periodRowVals.join(","));
+                                });
                             });
-                            const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+
+                            const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement("a");
                             a.href = url; a.download = `performance_breakdown_${groupBy}_${new Date().toISOString().split('T')[0]}.csv`;
