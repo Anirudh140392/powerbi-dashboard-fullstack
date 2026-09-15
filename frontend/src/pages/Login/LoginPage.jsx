@@ -151,7 +151,23 @@ const LoginPageContent = () => {
         setLoading(true);
 
         // Build Microsoft OAuth authorize URL (Web mode — returns ?code= to backend callback)
-        const state = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+        let envPrefix = 'prod';
+        if (origin.includes('dev.trailytics.in')) {
+            envPrefix = 'dev';
+        } else if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+            envPrefix = 'local';
+        }
+        const randomState = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+        
+        // Encode state with redirectUri to guarantee backend callback matching
+        const stateData = {
+            env: envPrefix,
+            redirectUri: MS_CALLBACK_URL,
+            nonce: randomState
+        };
+        const state = btoa(JSON.stringify(stateData)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
         const params = new URLSearchParams({
             client_id: MS_CLIENT_ID,
             response_type: 'code',
