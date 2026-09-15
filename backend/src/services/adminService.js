@@ -942,7 +942,7 @@ export const getAdminPlatforms = async (dbName) => {
 export const inviteTokensMap = new Map();
 
 /**
- * Invite a new user, map them to a tenant database, generate invite token, and send invite email
+ * Invite a user — either brand-new or an existing user gaining access to an additional database
  */
 export const inviteUser = async ({ email, dbId, role = 'user', frontendUrl = '' }) => {
     if (!email || !dbId) {
@@ -951,15 +951,30 @@ export const inviteUser = async ({ email, dbId, role = 'user', frontendUrl = '' 
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Check if active user already exists
-    const existing = await queryAdminDB(
-        `SELECT status FROM tb_user WHERE lower(user_email) = {email:String} AND status = 'active' LIMIT 1`,
-        { email: cleanEmail }
+    // ── 1. Check if this exact email + dbId combo already exists and is active ──
+    const sameDbActive = await queryAdminDB(
+        `SELECT status FROM tb_user
+         WHERE lower(user_email) = {email:String}
+           AND toString(db_id) = {dbId:String}
+           AND status = 'active'
+         LIMIT 1`,
+        { email: cleanEmail, dbId: String(dbId) }
     );
 
-    if (existing && existing.length > 0) {
-        throw new Error(`A user with email "${cleanEmail}" is already active.`);
+    if (sameDbActive && sameDbActive.length > 0) {
+        throw new Error(`User "${cleanEmail}" already has active access to this dashboard.`);
     }
+
+    // ── 2. Check if user is active on ANY other database ──
+    const existingActive = await queryAdminDB(
+        `SELECT user_id, user_name, password_hash, user_role
+         FROM tb_user
+         WHERE lower(user_email) = {email:String}
+           AND status = 'active'
+         ORDER BY last_login DESC
+         LIMIT 1`,
+        { email: cleanEmail }
+    );
 
     // Get DB name for email template
     const dbs = await queryAdminDB(
@@ -968,25 +983,12 @@ export const inviteUser = async ({ email, dbId, role = 'user', frontendUrl = '' 
     const targetDb = dbs.find(d => d.db_id === String(dbId)) || dbs[0];
     const dbName = targetDb ? targetDb.db_name : 'Trailytics';
 
-    // Generate secure 32-byte token
-    const cryptoMod = await import('crypto');
-    const token = cryptoMod.default.randomBytes(32).toString('hex');
-    const expiresAt = Date.now() + (48 * 60 * 60 * 1000); // 48 hours
-
-    inviteTokensMap.set(token, {
-        email: cleanEmail,
-        dbId: String(dbId),
-        dbName,
-        role: role.toLowerCase(),
-        expiresAt,
-    });
-
     const id = Date.now().toString();
     const hashRes = await queryAdminDB(`SELECT toString(cityHash64('${cleanEmail}')) as hash`);
     const user_id = hashRes[0]?.hash || id;
     const currentTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0];
 
-    // Fetch tab_permissions from existing user in same database if available
+    // Fetch tab_permissions from existing user in the target database if available
     let defaultTabPermissions = '';
     try {
         const permQuery = `
@@ -1003,6 +1005,51 @@ export const inviteUser = async ({ email, dbId, role = 'user', frontendUrl = '' 
             defaultTabPermissions = permRows[0].tab_permissions;
         }
     } catch (e) { /* ignore */ }
+
+    // ── 3a. EXISTING ACTIVE USER → grant access to new DB directly (no invite link needed) ──
+    if (existingActive && existingActive.length > 0) {
+        const existingUser = existingActive[0];
+
+        await insertAdminDB('tb_user', [{
+            id,
+            user_id: existingUser.user_id || user_id,
+            user_email: cleanEmail,
+            user_name: existingUser.user_name || cleanEmail.split('@')[0],
+            user_role: role.toLowerCase(),
+            password_hash: existingUser.password_hash || '',
+            db_id: String(dbId),
+            last_login: currentTimestamp,
+            created_on: currentTimestamp,
+            status: 'active',
+            ip: '',
+            access: 'allow',
+            db_status: 'active',
+            tab_permissions: defaultTabPermissions
+        }]);
+
+        // Send notification email about new dashboard access
+        const { sendNewDashboardAccessEmail } = await import('./emailService.js');
+        await sendNewDashboardAccessEmail(cleanEmail, dbName, frontendUrl);
+
+        return {
+            success: true,
+            message: `New dashboard access granted to existing user "${cleanEmail}" for ${dbName}.`,
+            existingUser: true
+        };
+    }
+
+    // ── 3b. BRAND-NEW USER → generate invite token and send invite email ──
+    const cryptoMod = await import('crypto');
+    const token = cryptoMod.default.randomBytes(32).toString('hex');
+    const expiresAt = Date.now() + (48 * 60 * 60 * 1000); // 48 hours
+
+    inviteTokensMap.set(token, {
+        email: cleanEmail,
+        dbId: String(dbId),
+        dbName,
+        role: role.toLowerCase(),
+        expiresAt,
+    });
 
     await insertAdminDB('tb_user', [{
         id,

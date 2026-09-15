@@ -113,3 +113,85 @@ export async function sendUserInviteEmail(toEmail, inviteLink, dbName = '') {
     console.log('======================================================\n');
     return true;
 }
+
+/**
+ * Send a notification email to an existing user when they are granted access to a new dashboard
+ * @param {string} toEmail - Recipient email address
+ * @param {string} dbName - Target company/tenant database name
+ * @param {string} frontendUrl - Frontend base URL for login link
+ * @returns {Promise<boolean>}
+ */
+export async function sendNewDashboardAccessEmail(toEmail, dbName = '', frontendUrl = '') {
+    const senderEmail = process.env.SMTP_USER || process.env.Alert_email || 'business@trailytics.com';
+    const fromAddress = process.env.EMAIL_FROM || `"Trailytics Support" <${senderEmail}>`;
+    const formattedDbName = dbName ? dbName.replace(/_/g, ' ').toUpperCase() : 'TRAILYTICS';
+    const loginUrl = (frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '') + '/login';
+
+    const subject = `New Dashboard Access Granted — ${formattedDbName}`;
+
+    const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 40px 20px; }
+        .container { max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 40px; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
+        .logo { font-size: 24px; font-weight: 800; color: #4f46e5; letter-spacing: -0.5px; margin-bottom: 24px; }
+        h1 { font-size: 22px; font-weight: 700; color: #0f172a; margin-top: 0; }
+        p { font-size: 15px; line-height: 1.6; color: #475569; }
+        .badge { display: inline-block; background-color: #d1fae5; color: #065f46; padding: 4px 12px; border-radius: 9999px; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+        .btn { display: inline-block; background-color: #4f46e5; color: #ffffff !important; text-decoration: none; padding: 14px 28px; border-radius: 12px; font-size: 16px; font-weight: 600; margin: 24px 0; text-align: center; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25); }
+        .btn:hover { background-color: #4338ca; }
+        .footer { margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 16px; font-size: 12px; color: #94a3b8; text-align: center; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="logo">Trailytics</div>
+        <div class="badge">New Dashboard Access</div>
+        <h1>You've been granted access to a new dashboard</h1>
+        <p>Hello,</p>
+        <p>An administrator has granted you access to the <strong>${formattedDbName}</strong> analytics dashboard on Trailytics.</p>
+        <p>You can log in with your existing credentials — no need to create a new password. Simply select the <strong>${formattedDbName}</strong> dashboard after logging in.</p>
+        
+        <div style="text-align: center;">
+          <a href="${loginUrl}" class="btn" target="_blank">Go to Trailytics Login</a>
+        </div>
+
+        <p>You can continue to use your password, <strong>Google SSO</strong>, or <strong>Microsoft SSO</strong> to log in with <code>${toEmail}</code>.</p>
+        
+        <div class="footer">
+          <p>&copy; ${new Date().getFullYear()} Trailytics Inc. All rights reserved.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+    `;
+
+    const activeTransporter = getTransporter();
+
+    if (activeTransporter) {
+        try {
+            await activeTransporter.sendMail({
+                from: fromAddress,
+                to: toEmail,
+                subject,
+                html: htmlContent,
+            });
+            console.log(`[EmailService] New dashboard access email sent to: ${toEmail} for ${formattedDbName}`);
+            return true;
+        } catch (err) {
+            console.error(`[EmailService] Failed to send new-access email to ${toEmail}:`, err.message);
+        }
+    }
+
+    // Dev mode fallback log
+    console.log('\n======================================================');
+    console.log('✉️  [DEV EMAIL LOG] New Dashboard Access Notification:');
+    console.log(`    To: ${toEmail}`);
+    console.log(`    Dashboard: ${formattedDbName}`);
+    console.log(`    Login: ${loginUrl}`);
+    console.log('======================================================\n');
+    return true;
+}

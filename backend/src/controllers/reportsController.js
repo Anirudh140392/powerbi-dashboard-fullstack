@@ -289,6 +289,7 @@ export const downloadReport = async (req, res) => {
             const currentDb = getCurrentDbName() || 'drl';
             const hasLocalWeekTable = await checkTableExists('rb_pdp_week');
             const weekTable = hasLocalWeekTable ? `${currentDb}.rb_pdp_week` : 'drl.rb_pdp_week';
+            const hasLocationDarkstoreTable = await checkTableExists('rb_location_darkstore');
 
             const darkstoreConds = [];
             const pCond = buildInClause('platform_name', platform);
@@ -303,6 +304,26 @@ export const downloadReport = async (req, res) => {
             darkstoreConds.push(`toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`);
 
             const darkstoreWhere = darkstoreConds.length > 0 ? `WHERE ${darkstoreConds.join(' AND ')}` : '';
+
+            // Build state_map CTE and join if rb_location_darkstore table exists
+            const stateMapCTE = hasLocationDarkstoreTable
+                ? `,
+                state_map AS
+                (
+                    SELECT DISTINCT
+                        location,
+                        location_state
+                    FROM rb_location_darkstore
+                    WHERE location IS NOT NULL AND location != ''
+                )`
+                : '';
+            const stateJoin = hasLocationDarkstoreTable
+                ? `LEFT JOIN state_map sm
+                    ON lower(b.location_name) = lower(sm.location)`
+                : '';
+            const stateCol = hasLocationDarkstoreTable
+                ? `sm.location_state AS State,`
+                : `'' AS State,`;
 
             const darkstoreQuery = `
                 WITH base AS
@@ -367,13 +388,14 @@ export const downloadReport = async (req, res) => {
                         platform_name,
                         web_pid,
                         location_name
-                )
+                )${stateMapCTE}
                 SELECT
                     toString(b.created_date) AS DATE,
                     b.platform_name AS platform,
                     b.brand_name AS brand,
                     b.brand_category_name AS category,
                     b.location_name AS location,
+                    ${stateCol}
                     b.pincode,
                     b.pincode_area,
                     b.web_pid,
@@ -403,6 +425,7 @@ export const downloadReport = async (req, res) => {
                     AND b.platform_name = scl.platform_name
                     AND b.web_pid = scl.web_pid
                     AND b.location_name = scl.location_name
+                ${stateJoin}
                 ORDER BY b.created_date DESC
             `;
 
