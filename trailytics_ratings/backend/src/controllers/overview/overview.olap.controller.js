@@ -804,7 +804,7 @@ export const getProductHealth = async (req, res) => {
         const sql = `
             WITH product_stats AS (
                 SELECT
-                    substring(o.product_name, 1, 80) AS product,
+                    o.product_name AS product,
                     count() AS total,
                     countIf(o.sentiment = 'positive') AS positive,
                     countIf(o.sentiment = 'negative') AS negative,
@@ -815,7 +815,7 @@ export const getProductHealth = async (req, res) => {
                     countIf(${priorPeriodFilter} AND o.sentiment = 'negative') AS older_neg
                 FROM ${getOlapTable(req)} o
                 WHERE ${where.join(' AND ')}
-                GROUP BY substring(o.product_name, 1, 80)
+                GROUP BY o.product_name
                 HAVING count() >= 10
             )
             SELECT
@@ -840,7 +840,7 @@ export const getProductHealth = async (req, res) => {
         let monthlyData = {};
         if (topProducts.length > 0) {
             const mParams = { companyId: String(req.companyId), topProducts };
-            const mWhere = ['o.company_id = {companyId:String}', 'substring(o.product_name, 1, 80) IN {topProducts:Array(String)}', 'isNotNull(o.review_date)'];
+            const mWhere = ['o.company_id = {companyId:String}', 'o.product_name IN {topProducts:Array(String)}', 'isNotNull(o.review_date)'];
             if (is_competitor && is_competitor !== 'all') { mWhere.push(`coalesce(o.is_competitor, 0) = {isCompetitor:UInt8}`); mParams.isCompetitor = is_competitor === 'true' ? 1 : 0; }
             if (category) { mWhere.push(`ilike(o.product_category, {category:String})`); mParams.category = category; }
             if (date_from) { mWhere.push(`o.review_date >= toDate({dateFrom:String})`); mParams.dateFrom = date_from; }
@@ -855,7 +855,7 @@ export const getProductHealth = async (req, res) => {
             }
 
             const monthSql = `
-                SELECT substring(o.product_name, 1, 80) AS product,
+                SELECT o.product_name AS product,
                        substring(toString(o.review_date), 1, 7) AS month,
                        round(avg(o.rating), 2) AS avg_rating,
                        count() AS count
