@@ -10331,19 +10331,37 @@ const getLatestAvailableMonth = async (filters = {}) => {
             };
         }
 
-        // Always query rb_pdp_olap directly for date range detection
-        const currentDb = getCurrentDbName() || 'drl';
-        const targetTable = (currentDb === 'drl' || currentDb === 'prestige') ? `${currentDb}.rb_pdp_olap` : 'rb_pdp_olap';
+        // Dynamic table resolution for PDP data
+        const currentDb = getCurrentDbName() || 'emami';
+
+        const checkTableExists = async (tableName) => {
+            try {
+                const res = await queryClickHouse(`EXISTS TABLE ${tableName}`);
+                return Boolean(res && res[0] && (res[0].result == 1 || Object.values(res[0])[0] == 1));
+            } catch { return false; }
+        };
+
+        let targetTable = `${currentDb}.rb_pdp`;
+        if (await checkTableExists(`${currentDb}.rb_pdp`)) targetTable = `${currentDb}.rb_pdp`;
+        else if (await checkTableExists('rb_pdp')) targetTable = 'rb_pdp';
+        else if (await checkTableExists('emami.rb_pdp')) targetTable = 'emami.rb_pdp';
+        else if (await checkTableExists(`${currentDb}.rb_pdp_olap`)) targetTable = `${currentDb}.rb_pdp_olap`;
+        else if (await checkTableExists('rb_pdp_olap')) targetTable = 'rb_pdp_olap';
+        else if (await checkTableExists(`${currentDb}.rb_pdp_week`)) targetTable = `${currentDb}.rb_pdp_week`;
+        else if (await checkTableExists('rb_pdp_week')) targetTable = 'rb_pdp_week';
 
         const cols = await getTableColumns(targetTable);
         const r = (name) => resolveColumn(cols, name);
-        const dateCol = r('DATE');
-        const compFlagCol = r('Comp_flag');
+        const dateCol = cols.has('created_on') ? 'created_on' : (cols.has('pdp_crawl_date') ? 'pdp_crawl_date' : r('DATE'));
+        const compFlagCol = cols.has('comp_flag') ? r('comp_flag') : null;
         const platformCol = r('Platform');
         const brandCol = r('Brand');
         const locationCol = r('Location');
 
-        const conditions = [`toString(${compFlagCol}) = '0'`];
+        const conditions = [];
+        if (compFlagCol && cols.has(compFlagCol.toLowerCase())) {
+            conditions.push(`toString(${compFlagCol}) = '0'`);
+        }
 
         if (platform && platform !== 'All') {
             conditions.push(`lower(${platformCol}) = '${escapeStr(platform.toLowerCase())}'`);
@@ -10363,12 +10381,12 @@ const getLatestAvailableMonth = async (filters = {}) => {
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')} ` : '';
 
-        // Query rb_pdp_olap for the latest date
+        // Query target table for the min and latest dates
         const result = await queryClickHouse(`
             SELECT MIN(toDate(${dateCol})) as minDate, MAX(toDate(${dateCol})) as latestDate
             FROM ${targetTable}
             ${whereClause}
-        `);
+        `).catch(() => []);
 
         const minDate = result?.[0]?.minDate;
         const latestDate = result?.[0]?.latestDate;
