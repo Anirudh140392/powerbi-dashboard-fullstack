@@ -1124,7 +1124,7 @@ export const getProductHealth = async (req, res) => {
             ),
             product_stats AS (
                 SELECT
-                    substring(r.product_name, 1, 80) AS product,
+                    r.product_name AS product,
                     count() AS total,
                     countIf(r.sentiment = 'Positive') AS positive,
                     countIf(r.sentiment = 'Negative') AS negative,
@@ -1137,7 +1137,7 @@ export const getProductHealth = async (req, res) => {
                 LEFT JOIN products mp ON mp.company_id = r.company_id AND mp.product_external_id = r.web_pid AND lower(mp.platform) = lower(r.platform)
                 LEFT JOIN latest_snapshots ps ON ps.web_pid = r.web_pid AND lower(ps.platform) = lower(r.platform)
                 WHERE ${where.join(' AND ')}
-                GROUP BY substring(r.product_name, 1, 80)
+                GROUP BY r.product_name
                 HAVING count() >= 10
             )
             SELECT
@@ -1164,7 +1164,7 @@ export const getProductHealth = async (req, res) => {
 
         if (topProducts.length > 0) {
             const mParams = { companyId: String(req.companyId), topProducts };
-            const mWhere = ['r.company_id = {companyId:String}', 'substring(r.product_name, 1, 80) IN {topProducts:Array(String)}', 'isNotNull(r.review_date)'];
+            const mWhere = ['r.company_id = {companyId:String}', 'r.product_name IN {topProducts:Array(String)}', 'isNotNull(r.review_date)'];
 
             if (is_competitor && is_competitor !== 'all') {
                 mWhere.push(`coalesce(r.is_competitor, 0) = {isCompetitor:UInt8}`);
@@ -1202,7 +1202,7 @@ export const getProductHealth = async (req, res) => {
                     ) LIMIT 1 BY lower(platform), web_pid
                 )
                 SELECT
-                    substring(r.product_name, 1, 80) AS product,
+                    r.product_name AS product,
                     substring(toString(r.review_date), 1, 7) AS month,
                     round(avg(r.rating), 2) AS avg_rating,
                     count() AS count

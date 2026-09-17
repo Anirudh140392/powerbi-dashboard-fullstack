@@ -46,7 +46,7 @@ function processWebPidUppercase(row) {
 const checkTableExists = async (tableName) => {
     try {
         const result = await queryClickHouse(`EXISTS TABLE ${tableName}`);
-        const exists = result && result[0] && result[0].result === 1;
+        const exists = Boolean(result && result[0] && (result[0].result == 1 || Object.values(result[0])[0] == 1));
         console.log(`[checkTableExists] ${tableName} -> raw: ${JSON.stringify(result?.[0])} -> exists: ${exists}`);
         return exists;
     } catch (error) {
@@ -54,6 +54,28 @@ const checkTableExists = async (tableName) => {
         return false;
     }
 };
+
+/**
+ * Helper to resolve the main full PDP raw data table, prioritizing full tables over week/summary tables.
+ */
+async function resolvePdpTable() {
+    const currentDb = getCurrentDbName() || 'emami';
+
+    // 1. Check full rb_pdp tables first
+    if (await checkTableExists(`${currentDb}.rb_pdp`)) return `${currentDb}.rb_pdp`;
+    if (await checkTableExists('rb_pdp')) return 'rb_pdp';
+    if (await checkTableExists('emami.rb_pdp')) return 'emami.rb_pdp';
+
+    // 2. Check full olap tables
+    if (await checkTableExists(`${currentDb}.rb_pdp_olap`)) return `${currentDb}.rb_pdp_olap`;
+    if (await checkTableExists('rb_pdp_olap')) return 'rb_pdp_olap';
+
+    // 3. Weekly tables only if no full raw tables exist
+    if (await checkTableExists(`${currentDb}.rb_pdp_week`)) return `${currentDb}.rb_pdp_week`;
+    if (await checkTableExists('rb_pdp_week')) return 'rb_pdp_week';
+
+    return 'emami.rb_pdp';
+}
 
 /**
  * Get filter options for Scheduled Reports
@@ -1236,13 +1258,16 @@ export const getAvailableReportTypes = async (req, res) => {
  */
 export const getPdpReportFilters = async (req, res) => {
     try {
-        const hasTable = await checkTableExists('rb_pdp');
-        if (!hasTable) {
-            return res.status(400).json({ error: 'Table rb_pdp does not exist for this database.' });
+        const pdpTable = await resolvePdpTable();
+        if (!pdpTable) {
+            return res.status(400).json({ error: 'No PDP data table exists for this database.' });
         }
 
+        const pdpCols = await getTableColumns(pdpTable).catch(() => new Map());
+        const dateCol = pdpCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
+
         const { platform, location, brand, brandCategory, pincode, sku, webPid, date, startDate, endDate } = req.query;
-        const cacheKey = generateCacheKey('pdp_report_filters_v4', req.query);
+        const cacheKey = generateCacheKey(`pdp_report_filters_v6_${pdpTable}`, req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
             const buildWhere = (excludeField) => {
@@ -1284,20 +1309,20 @@ export const getPdpReportFilters = async (req, res) => {
                 addStringInClause('brand_category_name', brandCategory, 'brandCategory');
                 addStringInClause('sku_name', sku, 'sku');
                 addStringInClause('web_pid', webPid, 'webPid');
-                addDateInClause('pdp_crawl_date', date, 'date');
+                addDateInClause(dateCol, date, 'date');
 
                 return conditions.length > 0 ? ' AND ' + conditions.join(' AND ') : '';
             };
 
-            const platformQuery = `SELECT DISTINCT platform_name FROM rb_pdp WHERE platform_name != '' AND platform_name IS NOT NULL ${buildWhere('platform')} ORDER BY platform_name`;
-            const locationQuery = `SELECT DISTINCT location_name FROM rb_pdp WHERE location_name != '' AND location_name IS NOT NULL ${buildWhere('location')} ORDER BY location_name`;
-            const pincodeQuery = `SELECT DISTINCT pincode FROM rb_pdp WHERE pincode IS NOT NULL ${buildWhere('pincode')} ORDER BY pincode`;
-            const brandQuery = `SELECT DISTINCT brand_name FROM rb_pdp WHERE brand_name != '' AND brand_name IS NOT NULL ${buildWhere('brand')} ORDER BY brand_name`;
-            const categoryQuery = `SELECT DISTINCT brand_category_name FROM rb_pdp WHERE brand_category_name != '' AND brand_category_name IS NOT NULL ${buildWhere('brandCategory')} ORDER BY brand_category_name`;
-            const skuQuery = `SELECT DISTINCT sku_name FROM rb_pdp WHERE sku_name != '' AND sku_name IS NOT NULL ${buildWhere('sku')} ORDER BY sku_name LIMIT 1000000`;
-            const webPidQuery = `SELECT DISTINCT web_pid FROM rb_pdp WHERE web_pid != '' AND web_pid IS NOT NULL ${buildWhere('webPid')} ORDER BY web_pid LIMIT 1000000`;
-            const dateQuery = `SELECT DISTINCT toDate(pdp_crawl_date) as DateStr FROM rb_pdp WHERE pdp_crawl_date IS NOT NULL ${buildWhere('date')} ORDER BY DateStr DESC`;
-            const platformMaxDatesQuery = `SELECT platform_name, formatDateTime(max(pdp_crawl_date), '%Y-%m-%d') as maxDate FROM rb_pdp WHERE platform_name != '' AND platform_name IS NOT NULL GROUP BY platform_name`;
+            const platformQuery = `SELECT DISTINCT platform_name FROM ${pdpTable} WHERE platform_name != '' AND platform_name IS NOT NULL ${buildWhere('platform')} ORDER BY platform_name`;
+            const locationQuery = `SELECT DISTINCT location_name FROM ${pdpTable} WHERE location_name != '' AND location_name IS NOT NULL ${buildWhere('location')} ORDER BY location_name`;
+            const pincodeQuery = `SELECT DISTINCT pincode FROM ${pdpTable} WHERE pincode IS NOT NULL ${buildWhere('pincode')} ORDER BY pincode`;
+            const brandQuery = `SELECT DISTINCT brand_name FROM ${pdpTable} WHERE brand_name != '' AND brand_name IS NOT NULL ${buildWhere('brand')} ORDER BY brand_name`;
+            const categoryQuery = `SELECT DISTINCT brand_category_name FROM ${pdpTable} WHERE brand_category_name != '' AND brand_category_name IS NOT NULL ${buildWhere('brandCategory')} ORDER BY brand_category_name`;
+            const skuQuery = `SELECT DISTINCT sku_name FROM ${pdpTable} WHERE sku_name != '' AND sku_name IS NOT NULL ${buildWhere('sku')} ORDER BY sku_name LIMIT 1000000`;
+            const webPidQuery = `SELECT DISTINCT web_pid FROM ${pdpTable} WHERE web_pid != '' AND web_pid IS NOT NULL ${buildWhere('webPid')} ORDER BY web_pid LIMIT 1000000`;
+            const dateQuery = `SELECT DISTINCT toDate(${dateCol}) as DateStr FROM ${pdpTable} WHERE ${dateCol} IS NOT NULL ${buildWhere('date')} ORDER BY DateStr DESC`;
+            const platformMaxDatesQuery = `SELECT platform_name, formatDateTime(max(${dateCol}), '%Y-%m-%d') as maxDate FROM ${pdpTable} WHERE platform_name != '' AND platform_name IS NOT NULL GROUP BY platform_name`;
 
             const [platforms, locations, pincodes, brands, categories, skus, webPids, dates, platformMaxDates] = await Promise.all([
                 queryClickHouse(platformQuery),
@@ -1352,15 +1377,15 @@ export const getPdpReportFilters = async (req, res) => {
  */
 export const downloadPdpReport = async (req, res) => {
     try {
-        const hasTable = await checkTableExists('rb_pdp');
-        if (!hasTable) {
-            return res.status(400).json({ error: 'Table rb_pdp does not exist for this database.' });
+        const pdpTable = await resolvePdpTable();
+        if (!pdpTable) {
+            return res.status(400).json({ error: 'No PDP data table exists for this database.' });
         }
 
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
         const hasPortfolio = skuPlatCols.has('portfolio');
 
-        const pdpRawCols = await getTableColumns('rb_pdp').catch(() => new Map());
+        const pdpRawCols = await getTableColumns(pdpTable).catch(() => new Map());
         const pdpResellerCol = pdpRawCols.has('reseller_name') ? pdpRawCols.get('reseller_name')
             : pdpRawCols.has('reseller') ? pdpRawCols.get('reseller')
             : null;
@@ -1425,7 +1450,7 @@ export const downloadPdpReport = async (req, res) => {
                 pdp.price_variation AS price_variation,
                 formatDateTime(pdp.pdp_crawl_date, '%Y-%m-%d') AS date,
                 pdp.year AS year
-            FROM rb_pdp AS pdp
+            FROM ${pdpTable} AS pdp
             ${joinClause}
             ${whereClause}
             ORDER BY pdp.pdp_crawl_date DESC
@@ -1480,9 +1505,9 @@ export const downloadPdpReport = async (req, res) => {
  */
 export const previewPdpReport = async (req, res) => {
     try {
-        const hasTable = await checkTableExists('rb_pdp');
-        if (!hasTable) {
-            return res.status(400).json({ error: 'Table rb_pdp does not exist for this database.' });
+        const pdpTable = await resolvePdpTable();
+        if (!pdpTable) {
+            return res.status(400).json({ error: 'No PDP data table exists for this database.' });
         }
 
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
@@ -1526,11 +1551,11 @@ export const previewPdpReport = async (req, res) => {
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
         // Count query (without join to be faster, use same conditions but on pdp alias)
-        const countQuery = `SELECT count() as total FROM rb_pdp AS pdp ${whereClause}`;
+        const countQuery = `SELECT count() as total FROM ${pdpTable} AS pdp ${whereClause}`;
         const countResult = await queryClickHouse(countQuery);
         const totalCount = countResult && countResult[0] ? parseInt(countResult[0].total, 10) : 0;
 
-        const pdpRawCols = await getTableColumns('rb_pdp').catch(() => new Map());
+        const pdpRawCols = await getTableColumns(pdpTable).catch(() => new Map());
         const pdpResellerCol = pdpRawCols.has('reseller_name') ? pdpRawCols.get('reseller_name')
             : pdpRawCols.has('reseller') ? pdpRawCols.get('reseller')
             : null;
@@ -1561,7 +1586,7 @@ export const previewPdpReport = async (req, res) => {
                 pdp.price_variation AS price_variation,
                 formatDateTime(pdp.pdp_crawl_date, '%Y-%m-%d') AS date,
                 pdp.year AS year
-            FROM rb_pdp AS pdp
+            FROM ${pdpTable} AS pdp
             ${joinClause}
             ${whereClause}
             ORDER BY pdp.pdp_crawl_date DESC
@@ -1604,6 +1629,369 @@ export const previewPdpReport = async (req, res) => {
         });
     } catch (error) {
         console.error('[previewPdpReport] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Helper to process Promo Violation raw records
+ */
+async function fetchAndProcessPromoViolationData(reqQuery) {
+    const pdpTable = await resolvePdpTable();
+    const kamTable = (await checkTableExists('emami_kam_master')) ? 'emami_kam_master' : 'emami.emami_kam_master';
+    const pdpCols = await getTableColumns(pdpTable).catch(() => new Map());
+    const dateCol = pdpCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
+    const { kam, asm, platform, sku, startDate, endDate } = reqQuery;
+
+    const conditions = ['p.price_rp > 0', 'p.price_sp > 0'];
+
+    if (kam && kam !== 'All' && !kam.startsWith('All ')) {
+        const items = kam.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+        conditions.push(`lower(trim(k.kam)) IN (${items})`);
+    }
+    if (asm && asm !== 'All' && !asm.startsWith('All ')) {
+        const items = asm.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+        conditions.push(`lower(trim(k.asm)) IN (${items})`);
+    }
+    if (platform && platform !== 'All' && !platform.startsWith('All ')) {
+        const items = platform.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+        conditions.push(`lower(trim(p.platform_name)) IN (${items})`);
+    }
+    if (sku && sku !== 'All' && !sku.startsWith('All ')) {
+        const items = sku.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+        conditions.push(`lower(trim(p.sku_name)) IN (${items})`);
+    }
+    if (startDate && endDate) {
+        conditions.push(`toDate(p.${dateCol}) >= '${startDate}' AND toDate(p.${dateCol}) <= '${endDate}'`);
+    }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    const query = `
+        SELECT 
+            k.kam AS kam,
+            k.asm AS asm,
+            lower(trim(p.platform_name)) AS platform_name,
+            p.sku_name AS sku_name,
+            lower(trim(p.location_name)) AS location_name,
+            toString(p.pincode) AS pincode,
+            p.price_rp AS price_rp,
+            p.price_sp AS price_sp,
+            p.guardrail AS guardrail
+        FROM ${pdpTable} AS p
+        INNER JOIN ${kamTable} AS k
+            ON lower(trim(p.platform_name)) = lower(trim(k.platform_name))
+            AND lower(trim(p.location_name)) = lower(trim(k.location_name))
+        ${whereClause}
+    `;
+
+    const rawRows = await queryClickHouse(query);
+
+    const parseGuardrail = (val) => {
+        if (!val || val === 'na' || val === '\\n') return 0;
+        const num = parseFloat(val);
+        if (isNaN(num)) return 0;
+        return num <= 1 ? num * 100 : num;
+    };
+
+    const groups = new Map();
+    const allLocationsSet = new Set();
+
+    for (const row of rawRows) {
+        const plat = row.platform_name || '';
+        const skuName = row.sku_name || '';
+        const loc = row.location_name || '';
+        if (loc) allLocationsSet.add(loc);
+
+        const key = `${plat}|||${skuName}`;
+        if (!groups.has(key)) {
+            groups.set(key, {
+                platform_name: plat,
+                sku_name: skuName,
+                locationsMap: new Map(),
+                rpList: [],
+                spList: [],
+                guardrailList: [],
+            });
+        }
+
+        const item = groups.get(key);
+        if (loc) {
+            if (!item.locationsMap.has(loc)) {
+                item.locationsMap.set(loc, new Set());
+            }
+            if (row.pincode && row.pincode !== '0' && row.pincode !== 'na') {
+                item.locationsMap.get(loc).add(row.pincode);
+            }
+        }
+
+        if (row.price_rp > 0) item.rpList.push(Number(row.price_rp));
+        if (row.price_sp > 0) item.spList.push(Number(row.price_sp));
+        const gVal = parseGuardrail(row.guardrail);
+        if (gVal > 0) item.guardrailList.push(gVal);
+    }
+
+    const locationsList = Array.from(allLocationsSet).sort();
+
+    const finalTableRows = [];
+    for (const item of groups.values()) {
+        const avgMRP = item.rpList.length ? (item.rpList.reduce((a, b) => a + b, 0) / item.rpList.length) : 0;
+        const avgSP = item.spList.length ? (item.spList.reduce((a, b) => a + b, 0) / item.spList.length) : 0;
+
+        let totalDiscount = 0;
+        let countDisc = 0;
+        for (let i = 0; i < Math.min(item.rpList.length, item.spList.length); i++) {
+            const rp = item.rpList[i];
+            const sp = item.spList[i];
+            if (rp > 0) {
+                totalDiscount += ((rp - sp) / rp) * 100;
+                countDisc++;
+            }
+        }
+        const discountOperated = countDisc > 0 ? (totalDiscount / countDisc) : (avgMRP > 0 ? ((avgMRP - avgSP) / avgMRP * 100) : 0);
+        const guardrail = item.guardrailList.length ? (item.guardrailList.reduce((a, b) => a + b, 0) / item.guardrailList.length) : 10;
+
+        const isBreached = discountOperated > guardrail;
+
+        const pincodeCounts = {};
+        const pincodeStrings = {};
+
+        for (const loc of locationsList) {
+            if (item.locationsMap.has(loc)) {
+                const pSet = item.locationsMap.get(loc);
+                pincodeCounts[loc] = pSet.size || (pSet.size === 0 ? 1 : 0);
+                pincodeStrings[loc] = Array.from(pSet).join(', ');
+            } else {
+                pincodeCounts[loc] = '';
+                pincodeStrings[loc] = '';
+            }
+        }
+
+        finalTableRows.push({
+            platform_name: item.platform_name,
+            sku_name: item.sku_name,
+            pincodeCounts,
+            pincodeStrings,
+            mrp: Math.round(avgMRP * 100) / 100,
+            sp: Math.round(avgSP * 100) / 100,
+            guardrail: Math.round(guardrail * 100) / 100,
+            discountOperated: Math.round(discountOperated * 100) / 100,
+            isBreached
+        });
+    }
+
+    const breachedRows = finalTableRows.filter(r => r.isBreached);
+    return { locationsList, breachedRows, allRows: finalTableRows };
+}
+
+/**
+ * Separate function to query min and max created_on date from PDP table for promo violation platforms
+ * SQL query: SELECT MIN(created_on), MAX(created_on) FROM rb_pdp WHERE platform_name IN ('dmart', 'metro', 'reliance retail', 'walmart')
+ */
+export const getPromoViolationDateRange = async () => {
+    try {
+        const pdpTable = await resolvePdpTable();
+        const pdpCols = await getTableColumns(pdpTable).catch(() => new Map());
+        const dateCol = pdpCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
+
+        console.log(`[getPromoViolationDateRange] table=${pdpTable}, dateCol=${dateCol}, currentDb=${getCurrentDbName()}`);
+
+        const query = `
+            SELECT 
+                formatDateTime(MIN(${dateCol}), '%Y-%m-%d') AS minDate, 
+                formatDateTime(MAX(${dateCol}), '%Y-%m-%d') AS maxDate 
+            FROM ${pdpTable} 
+            WHERE ${dateCol} IS NOT NULL
+        `;
+
+        const res = await queryClickHouse(query).catch(() => []);
+        const minDate = res?.[0]?.minDate || null;
+        const maxDate = res?.[0]?.maxDate || null;
+
+        console.log(`[getPromoViolationDateRange] RESULT: minDate=${minDate}, maxDate=${maxDate}`);
+
+        return { minDate, maxDate };
+    } catch (err) {
+        console.error('[getPromoViolationDateRange] Error:', err);
+        return { minDate: null, maxDate: null };
+    }
+};
+
+
+/**
+ * Filter options for Promo Violation report (dynamically mapped / cascading)
+ */
+export const getPromoViolationFilterOptions = async (req, res) => {
+    try {
+        const pdpTable = await resolvePdpTable();
+        const kamTable = (await checkTableExists('emami_kam_master')) ? 'emami_kam_master' : 'emami.emami_kam_master';
+        const pdpCols = await getTableColumns(pdpTable).catch(() => new Map());
+        const dateCol = pdpCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
+        const { kam, asm, platform, sku, startDate, endDate } = req.query;
+
+        const buildWhere = (excludeField) => {
+            const conds = ['p.price_rp > 0', 'p.price_sp > 0'];
+
+            const addIn = (field, col, val) => {
+                if (excludeField === field || !val || val === 'All' || val.startsWith('All ') || val.trim() === '') return;
+                const items = val.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+                conds.push(`lower(trim(${col})) IN (${items})`);
+            };
+
+            addIn('kam', 'k.kam', kam);
+            addIn('asm', 'k.asm', asm);
+            addIn('platform', 'p.platform_name', platform);
+            addIn('sku', 'p.sku_name', sku);
+
+            if (startDate && endDate) {
+                conds.push(`toDate(p.${dateCol}) >= '${startDate}' AND toDate(p.${dateCol}) <= '${endDate}'`);
+            }
+
+            return conds.length > 0 ? 'WHERE ' + conds.join(' AND ') : '';
+        };
+
+        const kamQuery = `SELECT DISTINCT k.kam AS kam FROM ${pdpTable} AS p INNER JOIN ${kamTable} AS k ON lower(trim(p.platform_name)) = lower(trim(k.platform_name)) AND lower(trim(p.location_name)) = lower(trim(k.location_name)) ${buildWhere('kam')} AND k.kam != '' AND k.kam IS NOT NULL ORDER BY kam`;
+
+        const asmQuery = `SELECT DISTINCT k.asm AS asm FROM ${pdpTable} AS p INNER JOIN ${kamTable} AS k ON lower(trim(p.platform_name)) = lower(trim(k.platform_name)) AND lower(trim(p.location_name)) = lower(trim(k.location_name)) ${buildWhere('asm')} AND k.asm != '' AND k.asm IS NOT NULL ORDER BY asm`;
+
+        const platformQuery = `SELECT DISTINCT p.platform_name AS platform_name FROM ${pdpTable} AS p INNER JOIN ${kamTable} AS k ON lower(trim(p.platform_name)) = lower(trim(k.platform_name)) AND lower(trim(p.location_name)) = lower(trim(k.location_name)) ${buildWhere('platform')} AND p.platform_name != '' AND p.platform_name IS NOT NULL ORDER BY platform_name`;
+
+        const skuQuery = `SELECT DISTINCT p.sku_name AS sku_name FROM ${pdpTable} AS p INNER JOIN ${kamTable} AS k ON lower(trim(p.platform_name)) = lower(trim(k.platform_name)) AND lower(trim(p.location_name)) = lower(trim(k.location_name)) ${buildWhere('sku')} AND p.sku_name != '' AND p.sku_name IS NOT NULL ORDER BY sku_name`;
+
+        const [kamsRes, asmsRes, platformsRes, skusRes, dateRange] = await Promise.all([
+            queryClickHouse(kamQuery).catch(() => []),
+            queryClickHouse(asmQuery).catch(() => []),
+            queryClickHouse(platformQuery).catch(() => []),
+            queryClickHouse(skuQuery).catch(() => []),
+            getPromoViolationDateRange(),
+        ]);
+
+        const kams = kamsRes.map(r => r.kam).filter(Boolean);
+        const asms = asmsRes.map(r => r.asm).filter(Boolean);
+        const platforms = platformsRes.map(r => r.platform_name).filter(Boolean);
+        const skus = skusRes.map(r => r.sku_name).filter(Boolean);
+
+        const minDate = dateRange.minDate || null;
+        const maxDate = dateRange.maxDate || null;
+
+        console.log(`[getPromoViolationFilterOptions] Sending to frontend: minDate=${minDate}, maxDate=${maxDate}, kams=${kams.length}, platforms=${platforms.length}`);
+        res.json({ kams, asms, platforms, skus, minDate, maxDate });
+    } catch (error) {
+        console.error('[getPromoViolationFilterOptions] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Preview Promo Violation report
+ */
+export const previewPromoViolationReport = async (req, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
+        const offset = (page - 1) * limit;
+
+        const { locationsList, breachedRows } = await fetchAndProcessPromoViolationData(req.query);
+
+        const totalCount = breachedRows.length;
+        const paginatedRows = breachedRows.slice(offset, offset + limit);
+
+        const kamSelected = req.query.kam ? req.query.kam.split(',')[0] : 'All KAMs';
+
+        res.json({
+            locationsList,
+            rows: paginatedRows,
+            totalCount,
+            page,
+            limit,
+            totalPages: Math.ceil(totalCount / limit),
+            kamName: kamSelected
+        });
+    } catch (error) {
+        console.error('[previewPromoViolationReport] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Download Promo Violation Excel Report
+ */
+export const downloadPromoViolationReport = async (req, res) => {
+    try {
+        const { locationsList, breachedRows } = await fetchAndProcessPromoViolationData(req.query);
+        const kamSelected = req.query.kam ? req.query.kam.split(',')[0] : 'All KAMs';
+
+        const headerRow1 = [
+            `Price Violation @ ${kamSelected}`,
+            "",
+            "Crawler Data",
+            "",
+            "Guardrail",
+            "Discount Operated"
+        ];
+
+        const headerRow2 = [
+            "platform_name",
+            "Sku- Final",
+            "MRP",
+            "SP",
+            "Guardrail",
+            "Discount Operated"
+        ];
+
+        for (const loc of locationsList) {
+            const cityLabel = loc.charAt(0).toUpperCase() + loc.slice(1);
+            headerRow1.push(cityLabel, "");
+            headerRow2.push("Count of PIN Code", "Pincodes");
+        }
+
+        const dataRows = breachedRows.map(row => {
+            const rowVals = [
+                row.platform_name,
+                row.sku_name,
+                row.mrp,
+                row.sp,
+                `${row.guardrail}%`,
+                `${row.discountOperated}%`
+            ];
+            for (const loc of locationsList) {
+                rowVals.push(
+                    row.pincodeCounts[loc] !== '' ? row.pincodeCounts[loc] : '',
+                    row.pincodeStrings[loc] || ''
+                );
+            }
+            return rowVals;
+        });
+
+        const sheetData = [headerRow1, headerRow2, ...dataRows];
+        const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+        const merges = [];
+        // Merge Price Violation @ KAM (Cols A-B)
+        merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } });
+        // Merge Crawler Data (Cols C-D)
+        merges.push({ s: { r: 0, c: 2 }, e: { r: 0, c: 3 } });
+
+        // Merge each City header over its 2 sub-columns (Count of PIN Code, Pincodes)
+        let colIdx = 6;
+        for (let i = 0; i < locationsList.length; i++) {
+            merges.push({ s: { r: 0, c: colIdx }, e: { r: 0, c: colIdx + 1 } });
+            colIdx += 2;
+        }
+
+        worksheet['!merges'] = merges;
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Promo Violation Report");
+
+        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        const fileName = `Promo_Violation_Report_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buffer);
+    } catch (error) {
+        console.error('[downloadPromoViolationReport] Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };

@@ -315,10 +315,55 @@ export const microsoftCallback = async (req, res) => {
             return res.send(buildCallbackHtml(false, null, null, 'No authorization code received from Microsoft.'));
         }
 
-        const forwardedHost = req.headers['x-forwarded-host'];
-        const referer = req.headers.referer || req.headers.referrer || '';
-        const rawHost = forwardedHost || req.headers.host || '';
-        const isDev = referer.includes('dev.trailytics.in') || rawHost.includes('dev.trailytics.in') || rawHost.includes('localhost');
+        const stateStr = (req.query.state || req.body?.state || '').toString();
+        const forwardedHost = (req.headers['x-forwarded-host'] || '').toString();
+        const referer = (req.headers.referer || req.headers.referrer || '').toString();
+        const rawHost = (req.headers.host || '').toString();
+
+        let isDev = false;
+        let isLocal = false;
+        let customRedirectUri = null;
+
+        if (stateStr) {
+            try {
+                let base64 = stateStr.replace(/-/g, '+').replace(/_/g, '/');
+                while (base64.length % 4) base64 += '=';
+                const parsedState = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
+                if (parsedState.env === 'dev') {
+                    isDev = true;
+                } else if (parsedState.env === 'local') {
+                    isLocal = true;
+                    isDev = true;
+                } else if (parsedState.env === 'prod') {
+                    isDev = false;
+                }
+                if (parsedState.redirectUri) {
+                    customRedirectUri = parsedState.redirectUri;
+                }
+            } catch (e) {
+                // Fallback for string prefix state format
+                if (stateStr.startsWith('dev_')) {
+                    isDev = true;
+                } else if (stateStr.startsWith('prod_')) {
+                    isDev = false;
+                } else if (stateStr.startsWith('local_')) {
+                    isLocal = true;
+                    isDev = true;
+                }
+            }
+        }
+
+        if (!stateStr && !customRedirectUri) {
+            // Header-based fallback
+            if (referer.includes('dev.trailytics.in') || forwardedHost.includes('dev.trailytics.in') || rawHost.includes('dev.trailytics.in')) {
+                isDev = true;
+            } else if (referer.includes('trailytics.in') || forwardedHost.includes('trailytics.in') || rawHost.includes('trailytics.in')) {
+                isDev = false;
+            } else if (rawHost.includes('localhost') || rawHost.includes('127.0.0.1')) {
+                isLocal = true;
+                isDev = true;
+            }
+        }
 
         const clientId = isDev 
             ? (process.env.MICROSOFT_DEV_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID)
@@ -332,16 +377,18 @@ export const microsoftCallback = async (req, res) => {
             ? (process.env.MICROSOFT_DEV_TENANT_ID || process.env.MICROSOFT_TENANT_ID || 'common')
             : (process.env.MICROSOFT_PROD_TENANT_ID || process.env.MICROSOFT_TENANT_ID || 'common');
 
-        let callbackUrl = process.env.MICROSOFT_CALLBACK_URL || process.env.MICROSOFT_DEV_CALLBACK_URL;
-        if (referer.includes('dev.trailytics.in') || rawHost.includes('dev.trailytics.in')) {
-            callbackUrl = 'https://dev.trailytics.in/api/auth/callback/microsoft';
-        } else if (referer.includes('trailytics.in') || rawHost.includes('trailytics.in')) {
-            callbackUrl = 'https://trailytics.in/api/auth/callback/microsoft';
-        } else if (rawHost.includes('localhost') || rawHost.includes('127.0.0.1') || referer.includes('localhost')) {
-            callbackUrl = 'http://localhost:9500/api/auth/callback/microsoft';
+        let callbackUrl = customRedirectUri;
+        if (!callbackUrl) {
+            if (isLocal) {
+                callbackUrl = `http://${rawHost || 'localhost:9500'}/api/auth/callback/microsoft`;
+            } else if (isDev) {
+                callbackUrl = process.env.MICROSOFT_DEV_CALLBACK_URL || 'https://dev.trailytics.in/api/auth/callback/microsoft';
+            } else {
+                callbackUrl = process.env.MICROSOFT_PROD_CALLBACK_URL || 'https://trailytics.in/api/auth/callback/microsoft';
+            }
         }
 
-        console.log('[Auth] Microsoft callback using callbackUrl:', callbackUrl, '| client_id:', clientId ? 'OK' : 'MISSING');
+        console.log('[Auth] Microsoft callback env:', isDev ? 'DEV' : (isLocal ? 'LOCAL' : 'PROD'), '| callbackUrl:', callbackUrl, '| client_id:', clientId ? 'OK' : 'MISSING');
 
         if (!clientId || !clientSecret || !callbackUrl) {
             console.error('[Auth] Missing Microsoft OAuth config (CLIENT_ID, CLIENT_SECRET, or CALLBACK_URL)');

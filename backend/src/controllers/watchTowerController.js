@@ -66,8 +66,8 @@ export const getLatestAvailableMonth = async (req, res) => {
         const filters = { ...req.query };
         const latest = await watchTowerService.getLatestAvailableMonth(filters);
 
-        if (!latest?.available) {
-            return res.status(404).json({
+        if (!latest || !latest.available) {
+            return res.json({
                 available: false,
                 message: 'No data months available for the provided filters'
             });

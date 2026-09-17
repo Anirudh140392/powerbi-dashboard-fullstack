@@ -17,8 +17,10 @@ function getClientForDb(dbName) {
         return clientCache.get(dbName);
     }
 
+    const urlToUse = process.env.CLICKHOUSE_URL || 'http://localhost:8123';
+
     const client = createClient({
-        url: process.env.CLICKHOUSE_URL || 'http://localhost:8123',
+        url: urlToUse,
         username: process.env.CLICKHOUSE_USER || 'default',
         password: process.env.CLICKHOUSE_PASSWORD || '',
         database: dbName,
@@ -35,7 +37,7 @@ function getClientForDb(dbName) {
     });
 
     clientCache.set(dbName, client);
-    console.log(`[ClickHouse] Created client for database: ${dbName}`);
+    console.log(`[ClickHouse] Created client for database: ${dbName} at ${urlToUse}`);
     return client;
 }
 

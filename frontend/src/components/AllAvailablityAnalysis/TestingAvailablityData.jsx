@@ -2490,7 +2490,7 @@ const FormatPerformanceStudio = () => {
                   <div className="text-left">
                     <div className="font-medium">{f.name}</div>
                     <div className="text-[10px] text-slate-500">
-                      Offtakes {f.offtakes} · ROAS {f.roas.toFixed(1)}x
+                      Offtakes {f.offtakes} · ROAS {Number.isFinite(f.roas) ? `${f.roas.toFixed(1)}x` : "N/A"}
                     </div>
                   </div>
                 </div>
@@ -2611,11 +2611,11 @@ const FormatPerformanceStudio = () => {
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-xs">
                   <div className="text-[10px] text-slate-500">ROAS</div>
                   <div className="text-lg font-semibold">
-                    {active.roas.toFixed(1)}x
+                    {Number.isFinite(active.roas) ? `${active.roas.toFixed(1)}x` : "N/A"}
                   </div>
                   {compare && (
                     <div className="text-[9px] text-violet-600 mt-0.5">
-                      vs {compare.roas.toFixed(1)}x
+                      vs {Number.isFinite(compare.roas) ? `${compare.roas.toFixed(1)}x` : "N/A"}
                     </div>
                   )}
                 </div>

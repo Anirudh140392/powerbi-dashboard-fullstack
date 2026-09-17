@@ -108,3 +108,47 @@ export const previewPdpReport = async (params = {}) => {
     }
 };
 
+export const fetchPromoViolationFilters = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/reports/promo-violation-filters", { params: formatParams(params) });
+        return response.data;
+    } catch (error) {
+        console.error("fetchPromoViolationFilters error:", error);
+        throw error;
+    }
+};
+
+export const downloadPromoViolationReport = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/reports/download-promo-violation-report", {
+            params: formatParams(params),
+            responseType: 'blob',
+            timeout: 10 * 60 * 1000,
+        });
+        if (response.status === 204) {
+            const err = new Error("No Content");
+            err.status = 204;
+            throw err;
+        }
+        return response.data;
+    } catch (error) {
+        if (error.status !== 204) {
+            console.error("downloadPromoViolationReport error:", error);
+        }
+        throw error;
+    }
+};
+
+export const previewPromoViolationReport = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/reports/preview-promo-violation-report", {
+            params: formatParams(params),
+            timeout: 2 * 60 * 1000,
+        });
+        return response.data;
+    } catch (error) {
+        console.error("previewPromoViolationReport error:", error);
+        throw error;
+    }
+};
+

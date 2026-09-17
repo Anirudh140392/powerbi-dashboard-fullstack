@@ -1182,13 +1182,28 @@ const Sidebar = ({
                   display: 'flex',
                   gap: 1.5,
                   overflowX: 'auto',
-                  py: 1,
+                  pt: 1,
+                  pb: 1.5,
                   px: 1,
                   scrollBehavior: 'smooth',
-                  '&::-webkit-scrollbar': { display: 'none' },
-                  msOverflowStyle: 'none',
-                  scrollbarWidth: 'none',
                   width: '100%',
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#cbd5e1 rgba(0, 0, 0, 0.04)',
+                  '&::-webkit-scrollbar': {
+                    height: '6px',
+                    display: 'block',
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                    borderRadius: '3px',
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    backgroundColor: '#cbd5e1',
+                    borderRadius: '3px',
+                    '&:hover': {
+                      backgroundColor: '#94a3b8',
+                    },
+                  },
                 }}
               >
                 {platforms.filter(p => p !== 'All').map(pName => {

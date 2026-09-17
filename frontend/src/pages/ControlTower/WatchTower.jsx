@@ -327,7 +327,7 @@ export default function WatchTower() {
 
   // --- DETERMINISTIC JITTER FOR FRONTEND-ONLY VARIATION ---
   const getJitter = (baseVal, kpiKey) => {
-    if (typeof baseVal !== "number") return baseVal;
+    if (typeof baseVal !== "number" || !Number.isFinite(baseVal)) return 0;
 
     // Standardize category for seed consistency
     const catSeed = (!selectedCategory || selectedCategory === "All" || (Array.isArray(selectedCategory) && selectedCategory.length === 0))
@@ -1112,7 +1112,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
       activeValue: active.roas,
       compareValue: compare?.roas ?? null,
       max: 10,
-      format: (v) => `${v}x`,
+      format: (v) => Number.isFinite(v) ? `${v.toFixed(1)}x` : "N/A",
     },
     {
       key: "inorgSalesPct",
@@ -1128,7 +1128,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
       activeValue: active.conversionPct,
       compareValue: compare?.conversionPct ?? null,
       max: 15,
-      format: (v) => `${v}%`,
+      format: (v) => Number.isFinite(v) ? `${v.toFixed(1)}%` : "N/A",
     },
     {
       key: "marketSharePct",
@@ -1136,7 +1136,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
       activeValue: active.marketSharePct,
       compareValue: compare?.marketSharePct ?? null,
       max: 100,
-      format: (v) => `${v}%`,
+      format: (v) => Number.isFinite(v) ? `${v.toFixed(1)}%` : "N/A",
     },
     {
       key: "cpm",
@@ -1353,7 +1353,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
                   {compare && (
                     <div className="mt-1 text-[10px] text-rose-500">
                       Delta ROAS{" "}
-                      {Number.isFinite(compare.roas)
+                      {Number.isFinite(compare.roas) && Number.isFinite(active.roas)
                         ? (active.roas - compare.roas).toFixed(1)
                         : "-"}
                       x vs {compare.name}
@@ -1423,7 +1423,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
 
                     {compare && (
                       <div className="text-[9px] text-violet-600 mt-0.5">
-                        vs {compare.roas.toFixed(1)}x
+                        vs {Number.isFinite(compare.roas) ? `${compare.roas.toFixed(1)}x` : "N/A"}
                       </div>
                     )}
                   </div>

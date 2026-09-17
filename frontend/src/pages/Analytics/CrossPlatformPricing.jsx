@@ -618,8 +618,9 @@ export default function CrossPlatformPricing() {
                       {/* Platform Columns */}
                       {activePlatforms.map((pName) => {
                         const pfVal = item.platformData ? item.platformData[pName] : null;
-                        const isBreaching = pfVal && pfVal.isBreaching;
                         const isOutOfStock = pfVal && pfVal.outOfStock;
+                        const isBreaching = pfVal && !isOutOfStock && (pfVal.isBreaching || pfVal.discount === 0 || pfVal.discount > 20);
+                        const isZeroDiscount = pfVal && !isOutOfStock && pfVal.discount === 0;
 
                         return (
                           <React.Fragment key={`${item.sku}-${pName}`}>
@@ -685,7 +686,7 @@ export default function CrossPlatformPricing() {
                                       {pfVal.discount}%
                                     </Typography>
                                     {isBreaching && (
-                                      <Tooltip title="Discount exceeds maximum guardrail limit (20%)">
+                                      <Tooltip title={isZeroDiscount ? "0% Discount Breach" : "Discount exceeds maximum guardrail limit (20%)"}>
                                         <WarningIcon sx={{ fontSize: '0.9rem', color: '#dc2626' }} />
                                       </Tooltip>
                                     )}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useContext, useEffect } from "react";
+import React, { useMemo, useState, useContext, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
@@ -108,7 +108,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, onFiltersChange }) => {
+const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, filters }) => {
   const [activeTab, setActiveTab] = useState("platform");
   const {
     selectedChannel,
@@ -118,6 +118,122 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
     timeStart,
     timeEnd
   } = useContext(FilterContext);
+
+  const isQuickCom = (selectedChannel || '').toLowerCase().includes('quickcomm');
+
+  // Segment-isolated Matrix filter state
+  const [localMatrixFilters, setLocalMatrixFilters] = useState(null);
+  const [localMatrixData, setLocalMatrixData] = useState(null);
+  const [isLocalFetching, setIsLocalFetching] = useState(false);
+  const [localError, setLocalError] = useState(null);
+
+  const lastGlobalFiltersRef = useRef(JSON.stringify(filters));
+
+  // Sync / Reset local state when global header filters change
+  useEffect(() => {
+    const currentGlobal = JSON.stringify(filters);
+    if (currentGlobal !== lastGlobalFiltersRef.current) {
+      lastGlobalFiltersRef.current = currentGlobal;
+      setLocalMatrixFilters(null);
+      setLocalMatrixData(null);
+      setLocalError(null);
+    }
+  }, [filters]);
+
+  // Fetch isolated matrix data when local segment filters are applied
+  useEffect(() => {
+    if (!localMatrixFilters) return;
+
+    let isMounted = true;
+    const fetchLocalMatrix = async () => {
+      setIsLocalFetching(true);
+      setLocalError(null);
+
+      try {
+        const buildQueryParams = (viewMode) => {
+          const params = new URLSearchParams();
+          params.append('viewMode', viewMode);
+
+          if (viewMode === 'Platform') {
+            params.append('platform', 'All');
+          }
+
+          const merged = { ...filters, ...localMatrixFilters };
+          Object.entries(merged).forEach(([key, value]) => {
+            if (key === 'platform' && viewMode === 'Platform') return;
+            if (value !== undefined && value !== null && value !== 'All' && value !== '') {
+              if (Array.isArray(value)) {
+                if (value.length > 0) value.forEach(v => params.append(key, v));
+              } else {
+                params.append(key, value);
+              }
+            }
+          });
+
+          params.append('ownBrandsOnly', 'true');
+          return params.toString();
+        };
+
+        const token = sessionStorage.getItem('token');
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+        const [resPlatform, resFormat, resCity] = await Promise.all([
+          fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${buildQueryParams('Platform')}`, { headers }).then(r => r.json()),
+          fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${buildQueryParams('Format')}`, { headers }).then(r => r.json()),
+          fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${buildQueryParams('City')}`, { headers }).then(r => r.json()),
+        ]);
+
+        if (!isMounted) return;
+
+        const filterRows = (kpiObject) => {
+          if (!kpiObject || !Array.isArray(kpiObject.rows)) return kpiObject;
+          return {
+            ...kpiObject,
+            rows: kpiObject.rows.filter(row => {
+              if (isQuickCom) return ['OSA', 'DOI', 'PSL'].includes(row.kpi);
+              return ['OSA', 'DOI', 'PSL', 'BUY BOX %', 'DELIVERY TIME', 'SKU COUNT'].includes(row.kpi);
+            })
+          };
+        };
+
+        setLocalMatrixData({
+          platformKpi: filterRows(resPlatform),
+          formatKpi: filterRows(resFormat),
+          cityKpi: filterRows(resCity)
+        });
+      } catch (err) {
+        console.error('❌ [Platform KPI Matrix] Local fetch error:', err);
+        if (isMounted) setLocalError(err.message);
+      } finally {
+        if (isMounted) setIsLocalFetching(false);
+      }
+    };
+
+    fetchLocalMatrix();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [localMatrixFilters, filters, isQuickCom]);
+
+  const handleMatrixFilterChange = (matrixFilters) => {
+    console.log("✅ [Platform KPI Matrix] Applying segment-isolated filters:", matrixFilters);
+    const mappedFilters = {};
+    if (matrixFilters.platforms) mappedFilters.platform = matrixFilters.platforms;
+    if (matrixFilters.brands) mappedFilters.brand = matrixFilters.brands;
+    if (matrixFilters.categories) mappedFilters.category = matrixFilters.categories;
+    if (matrixFilters.locations) mappedFilters.location = matrixFilters.locations;
+    if (matrixFilters.months) mappedFilters.months = matrixFilters.months;
+    if (matrixFilters.kpis) mappedFilters.kpis = matrixFilters.kpis;
+    if (matrixFilters.metroFlags) mappedFilters.metroFlags = matrixFilters.metroFlags;
+    if (matrixFilters.cities) mappedFilters.cities = matrixFilters.cities;
+    if (matrixFilters.formats) mappedFilters.formats = matrixFilters.formats;
+
+    setLocalMatrixFilters(mappedFilters);
+  };
+
+  const effectiveApiData = localMatrixData || apiData;
+  const effectiveLoading = loading || isLocalFetching;
 
   // 🔥 Utility to compute unified trend + series for ANY item
   const buildRows = (dataArray, columnList, context = {}) => {
@@ -168,11 +284,11 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
 
     // If API provides platform matrix, format it.
     let platformData = null;
-    if (apiData?.platformKpi) {
+    if (effectiveApiData?.platformKpi) {
       // Convert { columns: ["KPI", ...cols], rows: { osa: { kpi: "OSA", Blinkit: 90, ...}, doi: {...} } }
       // To { columns: ["kpi", ...cols], rows: [{kpi: "OSA", Blinkit: 90, ...}, ...] }
 
-      const { columns: origColumns, rows: origRowsArray } = apiData.platformKpi;
+      const { columns: origColumns, rows: origRowsArray } = effectiveApiData.platformKpi;
 
       // Guard against malformed API responses (e.g. error objects without columns/rows)
       if (!Array.isArray(origColumns) || !Array.isArray(origRowsArray)) {
@@ -214,8 +330,8 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
 
     // ---- Format tab ----
     let formatData = null;
-    if (apiData?.formatKpi && Array.isArray(apiData.formatKpi?.columns) && Array.isArray(apiData.formatKpi?.rows)) {
-      const { columns: fOrigColumns, rows: fOrigRowsArray } = apiData.formatKpi;
+    if (effectiveApiData?.formatKpi && Array.isArray(effectiveApiData.formatKpi?.columns) && Array.isArray(effectiveApiData.formatKpi?.rows)) {
+      const { columns: fOrigColumns, rows: fOrigRowsArray } = effectiveApiData.formatKpi;
       const fNormalizedColumns = fOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
       const fMappedRows = [];
       if (Array.isArray(fOrigRowsArray)) {
@@ -237,8 +353,8 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
 
     // ---- City tab ----
     let cityData = null;
-    if (apiData?.cityKpi && Array.isArray(apiData.cityKpi?.columns) && Array.isArray(apiData.cityKpi?.rows)) {
-      const { columns: cOrigColumns, rows: cOrigRowsArray } = apiData.cityKpi;
+    if (effectiveApiData?.cityKpi && Array.isArray(effectiveApiData.cityKpi?.columns) && Array.isArray(effectiveApiData.cityKpi?.rows)) {
+      const { columns: cOrigColumns, rows: cOrigRowsArray } = effectiveApiData.cityKpi;
       const cNormalizedColumns = cOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
       const cMappedRows = [];
       if (Array.isArray(cOrigRowsArray)) {
@@ -266,12 +382,20 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       { key: "format", label: "Category", data: formatData },
       { key: "city", label: "City", data: cityData },
     ];
-  }, [olaMode, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, apiData]);
+  }, [olaMode, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, effectiveApiData]);
 
-  const active = tabs.find((t) => t.key === activeTab);
+  const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
 
   return (
-    <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
+    <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4 relative">
+      {isLocalFetching && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-[1px] transition-all rounded-3xl">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-emerald-600"></div>
+            <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Updating Matrix...</span>
+          </div>
+        </div>
+      )}
 
       {/* -------- TABS -------- */}
       <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
@@ -292,8 +416,8 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
         dynamicKey='availability'
         data={active.data}
         title={active.label}
-        loading={loading}
-        onFilterChange={onFiltersChange}
+        loading={effectiveLoading}
+        onFilterChange={handleMatrixFilterChange}
         selectedLevel={activeTab}
       />
     </div>
@@ -876,7 +1000,7 @@ const FormatPerformanceStudio = ({ olaMode = "absolute" }) => {
                   <div className="text-left">
                     <div className="font-medium">{f.name}</div>
                     <div className="text-[10px] text-slate-500">
-                      Offtakes {f.offtakes} · ROAS {f.roas.toFixed(1)}x
+                      Offtakes {f.offtakes} · ROAS {Number.isFinite(f.roas) ? `${f.roas.toFixed(1)}x` : "N/A"}
                     </div>
                   </div>
                 </div>
@@ -997,11 +1121,11 @@ const FormatPerformanceStudio = ({ olaMode = "absolute" }) => {
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-xs">
                   <div className="text-[10px] text-slate-500">ROAS</div>
                   <div className="text-lg font-semibold">
-                    {active.roas.toFixed(1)}x
+                    {Number.isFinite(active.roas) ? `${active.roas.toFixed(1)}x` : "N/A"}
                   </div>
                   {compare && (
                     <div className="text-[9px] text-violet-600 mt-0.5">
-                      vs {compare.roas.toFixed(1)}x
+                      vs {Number.isFinite(compare.roas) ? `${compare.roas.toFixed(1)}x` : "N/A"}
                     </div>
                   )}
                 </div>
@@ -1478,21 +1602,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
                 }) || []
               }
             }}
-            onFiltersChange={(matrixFilters) => {
-              if (!props.onFiltersChange) return;
-              // Map Matrix filter keys to Global filter keys
-              const mappedFilters = {};
-              if (matrixFilters.platforms) mappedFilters.platform = matrixFilters.platforms;
-              if (matrixFilters.brands) mappedFilters.brand = matrixFilters.brands;
-              if (matrixFilters.categories) mappedFilters.category = matrixFilters.categories;
-              if (matrixFilters.locations) mappedFilters.location = matrixFilters.locations;
-              if (matrixFilters.months) mappedFilters.months = matrixFilters.months;
-              if (matrixFilters.kpis) mappedFilters.kpis = matrixFilters.kpis;
-              if (matrixFilters.metroFlags) mappedFilters.metroFlags = matrixFilters.metroFlags;
-              if (matrixFilters.cities) mappedFilters.cities = matrixFilters.cities;
-              if (matrixFilters.formats) mappedFilters.formats = matrixFilters.formats;
-              props.onFiltersChange(mappedFilters);
-            }}
+            filters={props.filters}
           />
         )}
         {!apiData?.osaDetail ? (
