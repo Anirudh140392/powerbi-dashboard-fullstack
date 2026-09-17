@@ -33,12 +33,36 @@ export default function AvailablityAnalysis() {
     selectedMsl,
     setSelectedMsl,
     selectedSapCode,
-    selectedSubBrand
+    selectedSubBrand,
+    platforms
   } = useContext(FilterContext);
 
   const [showTrends, setShowTrends] = useState(false);
   const [mslFilter, setMslFilter] = useState('0'); // MSL filter: '0' = All SKUs (default), '1' = MSL SKUs only
   const [resellerFilter, setResellerFilter] = useState([]); // Reseller filter (DRL only)
+
+  // Ref to track active request IDs for each segment to prevent stale async responses from overwriting state
+  const requestSeqRef = useRef({});
+
+  const genReqId = (segmentKey) => {
+    const nextSeq = (requestSeqRef.current[`${segmentKey}_seq`] || 0) + 1;
+    requestSeqRef.current[`${segmentKey}_seq`] = nextSeq;
+    requestSeqRef.current[segmentKey] = nextSeq;
+    return nextSeq;
+  };
+
+  // Helper to ensure platform param isn't stale when channel changes
+  const sanitizePlatformParam = (params) => {
+    if (params.has('platform') && platforms && platforms.length > 0) {
+      const pVals = params.getAll('platform');
+      const lowerPlatforms = platforms.map(p => p.toLowerCase());
+      const isStale = pVals.some(pv => pv !== 'All' && !lowerPlatforms.includes(pv.toLowerCase()));
+      if (isStale) {
+        params.delete('platform');
+        params.append('platform', 'All');
+      }
+    }
+  };
 
   // Initialize filters from context
   const [filters, setFilters] = useState({
@@ -244,6 +268,9 @@ export default function AvailablityAnalysis() {
     if (!params.has('brand')) params.append('brand', 'All');
     if (!params.has('location')) params.append('location', 'All');
 
+    // Sanitize platform against stale selections when channel changes
+    sanitizePlatformParam(params);
+
     // Force ownBrandsOnly to match Watch Tower KPIs identically
     params.append('ownBrandsOnly', 'true');
     if (params.has('sapCode') && !params.has('skuCode')) {
@@ -267,6 +294,10 @@ export default function AvailablityAnalysis() {
     if (!params.has('platform')) params.append('platform', 'All');
     if (!params.has('brand')) params.append('brand', 'All');
     if (!params.has('location')) params.append('location', 'All');
+
+    // Sanitize platform against stale selections when channel changes
+    sanitizePlatformParam(params);
+
     params.append('ownBrandsOnly', 'true');
     if (params.has('sapCode') && !params.has('skuCode')) {
       params.getAll('sapCode').forEach(val => params.append('skuCode', val));
@@ -345,105 +376,121 @@ export default function AvailablityAnalysis() {
   };
 
   // Individual segment fetch functions for retry capability
-  const fetchOverview = async (queryParams) => {
+  const fetchOverview = async (queryParams, reqId) => {
     try {
       setApiErrors(prev => ({ ...prev, overview: null }));
       const res = await fetch(`/api/availability-analysis/absolute-osa/availability-overview?${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (reqId && requestSeqRef.current['overview'] !== reqId) return false;
       setApiData(prev => ({ ...prev, overview: data }));
       return true;
     } catch (err) {
+      if (reqId && requestSeqRef.current['overview'] !== reqId) return false;
       console.error('[Overview] API error:', err);
       setApiErrors(prev => ({ ...prev, overview: err.message }));
       return false;
     }
   };
 
-  const fetchPlatformKpi = async () => {
+  const fetchPlatformKpi = async (reqId) => {
     try {
       setApiErrors(prev => ({ ...prev, platformKpi: null }));
       const crossPlatformParams = buildQueryParamsWithoutPlatform();
       const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${crossPlatformParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (reqId && requestSeqRef.current['platformKpi'] !== reqId) return false;
       setApiData(prev => ({ ...prev, platformKpi: data }));
       return true;
     } catch (err) {
+      if (reqId && requestSeqRef.current['platformKpi'] !== reqId) return false;
       console.error('[PlatformKpi] API error:', err);
       setApiErrors(prev => ({ ...prev, platformKpi: err.message }));
       return false;
     }
   };
 
-  const fetchFormatKpi = async () => {
+  const fetchFormatKpi = async (reqId) => {
     try {
       setApiErrors(prev => ({ ...prev, formatKpi: null }));
       const crossPlatformParams = buildQueryParamsWithoutPlatform();
       const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${crossPlatformParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (reqId && requestSeqRef.current['formatKpi'] !== reqId) return false;
       setApiData(prev => ({ ...prev, formatKpi: data }));
       return true;
     } catch (err) {
+      if (reqId && requestSeqRef.current['formatKpi'] !== reqId) return false;
       console.error('[FormatKpi] API error:', err);
       setApiErrors(prev => ({ ...prev, formatKpi: err.message }));
       return false;
     }
   };
 
-  const fetchCityKpi = async () => {
+  const fetchCityKpi = async (reqId) => {
     try {
       setApiErrors(prev => ({ ...prev, cityKpi: null }));
       const crossPlatformParams = buildQueryParamsWithoutPlatform();
       const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${crossPlatformParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (reqId && requestSeqRef.current['cityKpi'] !== reqId) return false;
       setApiData(prev => ({ ...prev, cityKpi: data }));
       return true;
     } catch (err) {
+      if (reqId && requestSeqRef.current['cityKpi'] !== reqId) return false;
       console.error('[CityKpi] API error:', err);
       setApiErrors(prev => ({ ...prev, cityKpi: err.message }));
       return false;
     }
   };
 
-  const fetchDoi = async (queryParams) => {
+  const fetchDoi = async (queryParams, reqId) => {
     try {
       setApiErrors(prev => ({ ...prev, doi: null }));
       const res = await fetch(`/api/availability-analysis/absolute-osa/doi?${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (reqId && requestSeqRef.current['doi'] !== reqId) return false;
       setApiData(prev => ({ ...prev, doi: data }));
       return true;
     } catch (err) {
+      if (reqId && requestSeqRef.current['doi'] !== reqId) return false;
       console.error('[DOI] API error:', err);
       setApiErrors(prev => ({ ...prev, doi: err.message }));
       return false;
     }
   };
 
-  const fetchMetroCity = async (queryParams) => {
+  const fetchMetroCity = async (queryParams, reqId) => {
     try {
       setApiErrors(prev => ({ ...prev, metroCity: null }));
       const res = await fetch(`/api/availability-analysis/absolute-osa/metro-city-stock-availability?${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (reqId && requestSeqRef.current['metroCity'] !== reqId) return false;
       setApiData(prev => ({ ...prev, metroCity: data }));
       return true;
     } catch (err) {
+      if (reqId && requestSeqRef.current['metroCity'] !== reqId) return false;
       console.error('[MetroCity] API error:', err);
       setApiErrors(prev => ({ ...prev, metroCity: err.message }));
       return false;
     }
   };
 
-  const fetchOsaDetail = async (osaDetailParams) => {
+  const fetchOsaDetail = async (osaDetailParams, reqId) => {
     try {
       setApiErrors(prev => ({ ...prev, osaDetail: null }));
       const res = await fetch(`/api/availability-analysis/absolute-osa/osa-percentage-detail?${osaDetailParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (reqId && requestSeqRef.current['osaDetail'] !== reqId) {
+        console.log('[OsaDetail] Ignoring stale response for reqId:', reqId);
+        return false;
+      }
       console.log('[OsaDetail] API response received. Type:', typeof data, 'IsArray:', Array.isArray(data));
       // Handle new { dates, rows } response shape AND legacy direct array
       let osaRows, osaDates;
@@ -459,6 +506,7 @@ export default function AvailablityAnalysis() {
       setApiData(prev => ({ ...prev, osaDetail: osaRows, osaDates: osaDates }));
       return true;
     } catch (err) {
+      if (reqId && requestSeqRef.current['osaDetail'] !== reqId) return false;
       console.error('[OsaDetail] API error:', err);
       setApiErrors(prev => ({ ...prev, osaDetail: err.message }));
       return false;
@@ -477,10 +525,10 @@ export default function AvailablityAnalysis() {
   const handleResellerChange = (newResellerValue) => {
     setResellerFilter(newResellerValue);
     const params = buildOsaDetailParams(mslFilter, newResellerValue);
-    fetchOsaDetail(params);
+    fetchOsaDetail(params, genReqId('osaDetail'));
   };
 
-  const fetchKpiTrends = async (queryParams) => {
+  const fetchKpiTrends = async (queryParams, reqId) => {
     try {
       setApiErrors(prev => ({ ...prev, kpiTrends: null }));
       const params = new URLSearchParams(queryParams);
@@ -488,9 +536,11 @@ export default function AvailablityAnalysis() {
       const res = await fetch(`/api/availability-analysis/kpi-trends?${params.toString()}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (reqId && requestSeqRef.current['kpiTrends'] !== reqId) return false;
       setApiData(prev => ({ ...prev, kpiTrends: data }));
       return true;
     } catch (err) {
+      if (reqId && requestSeqRef.current['kpiTrends'] !== reqId) return false;
       console.error('[KpiTrends] API error:', err);
       setApiErrors(prev => ({ ...prev, kpiTrends: err.message }));
       return false;
@@ -508,14 +558,14 @@ export default function AvailablityAnalysis() {
     const osaDetailParams = buildOsaDetailParams();
 
     switch (segmentKey) {
-      case 'overview': return fetchOverview(queryParams);
-      case 'platformKpi': return fetchPlatformKpi();
-      case 'formatKpi': return fetchFormatKpi();
-      case 'cityKpi': return fetchCityKpi();
-      case 'doi': return fetchDoi(queryParams);
-      case 'metroCity': return fetchMetroCity(queryParams);
-      case 'osaDetail': return fetchOsaDetail(osaDetailParams);
-      case 'kpiTrends': return fetchKpiTrends(queryParams);
+      case 'overview': return fetchOverview(queryParams, genReqId('overview'));
+      case 'platformKpi': return fetchPlatformKpi(genReqId('platformKpi'));
+      case 'formatKpi': return fetchFormatKpi(genReqId('formatKpi'));
+      case 'cityKpi': return fetchCityKpi(genReqId('cityKpi'));
+      case 'doi': return fetchDoi(queryParams, genReqId('doi'));
+      case 'metroCity': return fetchMetroCity(queryParams, genReqId('metroCity'));
+      case 'osaDetail': return fetchOsaDetail(osaDetailParams, genReqId('osaDetail'));
+      case 'kpiTrends': return fetchKpiTrends(queryParams, genReqId('kpiTrends'));
       default: return false;
     }
   };
@@ -571,14 +621,14 @@ export default function AvailablityAnalysis() {
         const osaDetailParams = buildOsaDetailParams();
 
         // Fire all fetches independently to allow incremental updates
-        fetchOverview(queryParams);
-        fetchPlatformKpi();
-        fetchFormatKpi();
-        fetchCityKpi();
-        fetchDoi(queryParams);
-        fetchMetroCity(queryParams);
-        fetchOsaDetail(osaDetailParams);
-        fetchKpiTrends(queryParams);
+        fetchOverview(queryParams, genReqId('overview'));
+        fetchPlatformKpi(genReqId('platformKpi'));
+        fetchFormatKpi(genReqId('formatKpi'));
+        fetchCityKpi(genReqId('cityKpi'));
+        fetchDoi(queryParams, genReqId('doi'));
+        fetchMetroCity(queryParams, genReqId('metroCity'));
+        fetchOsaDetail(osaDetailParams, genReqId('osaDetail'));
+        fetchKpiTrends(queryParams, genReqId('kpiTrends'));
 
         // We set loading to false immediately so the child can render skeletons 
         // based on the empty apiData and update as responses arrive.

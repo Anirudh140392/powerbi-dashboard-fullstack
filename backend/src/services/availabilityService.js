@@ -74,9 +74,9 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 export const buildPlatformChannelCond = async (platform, channel, prefix = '') => {
     const formattedPrefix = (prefix && !prefix.endsWith('.')) ? `${prefix}.` : prefix;
     let pArr = [];
-    if (platform && platform !== 'All') {
-        pArr = Array.isArray(platform) ? platform : [platform];
-    } else if (channel && channel !== 'All') {
+
+    let channelPlatforms = [];
+    if (channel && channel !== 'All') {
         try {
             // Dynamically resolve valid platforms for this channel using rca_sku_dim
             // Handle variations like 'Ecom', 'Ecommerce', 'Quickcomm'
@@ -92,12 +92,26 @@ export const buildPlatformChannelCond = async (platform, channel, prefix = '') =
             if (hasChannel) {
                 const plats = await queryClickHouse(`SELECT DISTINCT ${platformCol} as platform FROM rca_sku_dim WHERE lower(${channelCol}) LIKE '${searchPattern}'`);
                 if (plats && plats.length > 0) {
-                    pArr = plats.map(r => r.platform).filter(Boolean);
+                    channelPlatforms = plats.map(r => r.platform).filter(Boolean);
                 }
             }
         } catch (error) {
             console.error(`[buildPlatformChannelCond] Failed to fetch platforms for channel ${channel}:`, error.message);
         }
+    }
+
+    if (platform && platform !== 'All') {
+        const rawArr = Array.isArray(platform) ? platform : [platform];
+        if (channelPlatforms.length > 0) {
+            const lowerChannelPlats = new Set(channelPlatforms.map(p => p.toLowerCase().replace(/\s+/g, '_')));
+            const valid = rawArr.filter(p => lowerChannelPlats.has(p.toLowerCase().replace(/\s+/g, '_')));
+            // If requested platform matches channel, filter by valid; if mismatched (e.g. Amazon now for Ecom), fallback to channelPlatforms
+            pArr = valid.length > 0 ? valid : channelPlatforms;
+        } else {
+            pArr = rawArr;
+        }
+    } else if (channelPlatforms.length > 0) {
+        pArr = channelPlatforms;
     }
 
     if (pArr.length > 0) {

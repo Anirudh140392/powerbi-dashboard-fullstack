@@ -10922,6 +10922,15 @@ const getDarkStoreCount = async (filters = {}) => {
             darkstoreTable = 'rb_location_darkstore';
         }
 
+        // Check if rca_sku_dim table exists for channel filtering
+        let rcaExists = false;
+        try {
+            const rcaCheck = await queryClickHouse(`EXISTS TABLE rca_sku_dim`);
+            rcaExists = (Number(rcaCheck?.[0]?.result) === 1);
+        } catch (e) {
+            rcaExists = false;
+        }
+
         // Helper to escape strings for ClickHouse
         const esc = (str) => str ? str.replace(/'/g, "''") : '';
 
@@ -10931,47 +10940,58 @@ const getDarkStoreCount = async (filters = {}) => {
         if (platform && platform !== 'All') {
             const platformArr = Array.isArray(platform) ? platform : [platform];
             if (platformArr.length > 0) {
-                conds.push(`platform IN(${platformArr.map(p => `'${esc(p)}'`).join(', ')})`);
+                conds.push(`d.platform IN(${platformArr.map(p => `'${esc(p)}'`).join(', ')})`);
             }
         }
 
         if (location && location !== 'All') {
             const locationArr = Array.isArray(location) ? location : [location];
             if (locationArr.length > 0) {
-                const locCond = buildLocationQueryCond(locationArr, platform, 'location', 'platform');
+                const locCond = buildLocationQueryCond(locationArr, platform, 'd.location', 'd.platform');
                 if (locCond) conds.push(locCond);
             }
         }
 
         const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')} ` : '';
 
+        // Join rca_sku_dim to filter only platforms with quickcomm channel
+        const joinRcaClause = rcaExists ? `
+            INNER JOIN (
+                SELECT DISTINCT lower(platform) AS platform
+                FROM rca_sku_dim
+                WHERE lower(channel) IN ('quickcomm', 'quick commerce', 'quick_commerce', 'qcomm') OR lower(channel) LIKE '%quick%'
+            ) AS r ON lower(d.platform) = r.platform
+        ` : '';
+
         // ── Platform-level query ──
         const platformQuery = `
             SELECT
-                platform,
-                uniq(concat(toString(pincode), merchant_name)) AS total,
-                uniq(concat(toString(pincode), merchant_name)) AS listed,
-                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
-                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_listed
-            FROM ${darkstoreTable}
+                d.platform AS platform,
+                uniq(concat(toString(d.pincode), d.merchant_name)) AS total,
+                uniq(concat(toString(d.pincode), d.merchant_name)) AS listed,
+                uniqIf(concat(toString(d.pincode), d.merchant_name), d.store_first_seen >= today() - 30) AS new_total,
+                uniqIf(concat(toString(d.pincode), d.merchant_name), d.store_first_seen >= today() - 30) AS new_listed
+            FROM ${darkstoreTable} AS d
+            ${joinRcaClause}
             ${whereClause}
-            GROUP BY platform
+            GROUP BY d.platform
             ORDER BY total DESC
         `;
 
         // ── City-level query ──
         const cityQuery = `
             SELECT
-                platform,
-                location AS city,
-                uniq(concat(toString(pincode), merchant_name)) AS total,
-                uniq(concat(toString(pincode), merchant_name)) AS listed,
-                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_total,
-                uniqIf(concat(toString(pincode), merchant_name), store_first_seen >= today() - 30) AS new_listed
-            FROM ${darkstoreTable}
+                d.platform AS platform,
+                d.location AS city,
+                uniq(concat(toString(d.pincode), d.merchant_name)) AS total,
+                uniq(concat(toString(d.pincode), d.merchant_name)) AS listed,
+                uniqIf(concat(toString(d.pincode), d.merchant_name), d.store_first_seen >= today() - 30) AS new_total,
+                uniqIf(concat(toString(d.pincode), d.merchant_name), d.store_first_seen >= today() - 30) AS new_listed
+            FROM ${darkstoreTable} AS d
+            ${joinRcaClause}
             ${whereClause}
-            GROUP BY platform, location
-            ORDER BY platform, total DESC
+            GROUP BY d.platform, d.location
+            ORDER BY d.platform, total DESC
         `;
 
         console.log('[getDarkStoreCount] Platform query:', platformQuery);
