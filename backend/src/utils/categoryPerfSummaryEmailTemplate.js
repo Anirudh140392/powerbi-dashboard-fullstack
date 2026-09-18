@@ -165,6 +165,7 @@ ${rows.join('')}
 };
 
 
+
 /**
  * Build a platform card with all its categories (no per-platform insights).
  */
