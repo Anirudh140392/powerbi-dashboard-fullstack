@@ -232,34 +232,52 @@ const buildConsolidatedInsights = (platformMap) => {
 
         let bullets = [];
 
-        const pNameLower = platformName.toLowerCase();
-        
-        if (pNameLower.includes('zepto')) {
-            bullets = [
-                `Overall sales increased 18.5% in Week 2, and ad spend also increased by 23.1%.`,
-                `Chocolates gifting leads the category with the spike attributed to Raksha Bandhan.`,
-                `GMFC provides a smaller but efficient incremental contribution.`
-            ];
-        } else if (pNameLower.includes('blinkit')) {
-            bullets = [
-                `Overall sales increased 5.1% in Week 2 while discount levels remained broadly stable.`,
-                `Growth was primarily volume-led with Gifting category being the strongest growth engine.`
-            ];
-        } else if (pNameLower.includes('instamart') || pNameLower.includes('swiggy')) {
-            bullets = [
-                `Overall sales declined 28.5% in Week 2 while total ad spend increased 8.0%.`,
-                `There was continuous incremental growth in sales throughout Week 1 which was immediately followed by the sharp decline in sales once Raksha Bandhan ended.`
-            ];
+        const bestCatName = bestCat?.categoryName ? String(bestCat.categoryName) : null;
+        const secondCatName = secondCat?.categoryName ? String(secondCat.categoryName) : null;
+
+        if (gmvDelta > 0) {
+            if (adDelta > 0) {
+                // Scenario A: Growth + ad spend rose
+                bullets.push(`Overall sales increased ${gmvAbs}% vs previous period, and ad spend also increased by ${adAbs}%.`);
+                if (bestCatName) {
+                    bullets.push(`${bestCatName} leads the category performance as the strongest growth engine.`);
+                } else {
+                    bullets.push(`Growth was primarily driven by top performing categories.`);
+                }
+                if (secondCatName) {
+                    bullets.push(`${secondCatName} provided an efficient incremental contribution.`);
+                }
+            } else {
+                // Scenario B: Growth with stable/reduced ad spend
+                bullets.push(`Overall sales increased ${gmvAbs}% vs previous period while discount levels remained broadly stable.`);
+                if (bestCatName) {
+                    bullets.push(`Growth was primarily volume-led with ${bestCatName} being the strongest growth engine.`);
+                } else {
+                    bullets.push(`Growth was primarily volume-led with key categories driving performance.`);
+                }
+            }
+        } else if (gmvDelta < 0) {
+            // Scenario C: Decline
+            if (adDelta > 0) {
+                bullets.push(`Overall sales declined ${gmvAbs}% vs previous period while total ad spend increased ${adAbs}%.`);
+            } else if (adDelta < 0) {
+                bullets.push(`Overall sales declined ${gmvAbs}% vs previous period along with a ${adAbs}% decrease in total ad spend.`);
+            } else {
+                bullets.push(`Overall sales declined ${gmvAbs}% vs previous period.`);
+            }
+            if (bestCatName) {
+                bullets.push(`${bestCatName} remained the top relative performer despite overall category decline.`);
+            } else {
+                bullets.push(`Category trends remained broadly aligned across product segments.`);
+            }
         } else {
-            // Fallback for any other unexpected platform names
-            bullets = [
-                `Overall sales performance is stable in Week 2.`,
-                `Category trends remained broadly aligned with post-festival norms.`
-            ];
+            // Fallback: Stable / no change
+            bullets.push(`Overall sales performance remained stable vs previous period.`);
+            bullets.push(`Category trends remained broadly aligned across all product lines.`);
         }
 
         const bulletHtml = bullets
-            .map(s => `<tr><td style="padding:3px 0 3px 8px; font-family:Arial,Helvetica,sans-serif; font-size:11px; color:#16224A; line-height:1.6;">&bull;&nbsp;${s}</td></tr>`)
+            .map(s => `<tr><td style="padding:3px 0 3px 8px; font-family:Arial,Helvetica,sans-serif; font-size:11px; color:#16224A; line-height:1.6;">&bull;&nbsp;${escapeHtml(s)}</td></tr>`)
             .join('\n');
 
         const borderTop = first ? '' : 'border-top:1px solid #E4E9F7;';
