@@ -1,0 +1,323 @@
+name: Deploy to EC2
+
+
+on:
+  push:
+    branches:
+      - enhancement_01122025_backend_kenil
+      - enhancement_01122025_dev_kenil
+      - enhancement_01122025_marico_kenil
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  APP_DIR: /Dashboard/powerbi-dashboard-fullstack
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set environment variables based on branch
+        run: |
+          if [ "${{ github.ref_name }}" = "enhancement_01122025_backend_kenil" ]; then
+            echo "DEPLOY_ENV=production" >> $GITHUB_ENV
+            echo "TARGET_HOST=${{ secrets.EC2_HOST }}" >> $GITHUB_ENV
+            echo "TARGET_SSH_KEY<<EOF" >> $GITHUB_ENV
+            echo "${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+            echo "TARGET_USER=${{ secrets.EC2_USER }}" >> $GITHUB_ENV
+            echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_URL }}" >> $GITHUB_ENV
+            echo "TARGET_ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}" >> $GITHUB_ENV
+            echo "TARGET_VITE_API_URL=${{ secrets.VITE_API_URL }}" >> $GITHUB_ENV
+
+            GOOGLE_PROD_ID="${{ secrets.GOOGLE_PROD_CLIENT_ID }}"
+            [ -z "$GOOGLE_PROD_ID" ] && GOOGLE_PROD_ID="${{ secrets.GOOGLE_CLIENT_ID }}"
+            echo "TARGET_GOOGLE_CLIENT_ID=${GOOGLE_PROD_ID}" >> $GITHUB_ENV
+
+            GOOGLE_PROD_SECRET="${{ secrets.GOOGLE_PROD_CLIENT_SECRET }}"
+            [ -z "$GOOGLE_PROD_SECRET" ] && GOOGLE_PROD_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}"
+            echo "TARGET_GOOGLE_CLIENT_SECRET=${GOOGLE_PROD_SECRET}" >> $GITHUB_ENV
+
+            GOOGLE_PROD_URL="${{ secrets.GOOGLE_PROD_CALLBACK_URL }}"
+            [ -z "$GOOGLE_PROD_URL" ] && GOOGLE_PROD_URL="${{ secrets.GOOGLE_CALLBACK_URL }}"
+            echo "TARGET_GOOGLE_CALLBACK_URL=${GOOGLE_PROD_URL}" >> $GITHUB_ENV
+
+            MICROSOFT_PROD_ID="${{ secrets.MICROSOFT_PROD_CLIENT_ID }}"
+            [ -z "$MICROSOFT_PROD_ID" ] && MICROSOFT_PROD_ID="${{ secrets.MICROSOFT_CLIENT_ID }}"
+            echo "TARGET_MICROSOFT_CLIENT_ID=${MICROSOFT_PROD_ID}" >> $GITHUB_ENV
+
+            MICROSOFT_PROD_TENANT="${{ secrets.MICROSOFT_PROD_TENANT_ID }}"
+            [ -z "$MICROSOFT_PROD_TENANT" ] && MICROSOFT_PROD_TENANT="${{ secrets.MICROSOFT_TENANT_ID }}"
+            echo "TARGET_MICROSOFT_TENANT_ID=${MICROSOFT_PROD_TENANT}" >> $GITHUB_ENV
+
+            MICROSOFT_PROD_SECRET="${{ secrets.MICROSOFT_PROD_CLIENT_SECRET }}"
+            [ -z "$MICROSOFT_PROD_SECRET" ] && MICROSOFT_PROD_SECRET="${{ secrets.MICROSOFT_CLIENT_SECRET }}"
+            echo "TARGET_MICROSOFT_CLIENT_SECRET=${MICROSOFT_PROD_SECRET}" >> $GITHUB_ENV
+
+            MICROSOFT_PROD_URL="${{ secrets.MICROSOFT_PROD_CALLBACK_URL }}"
+            [ -z "$MICROSOFT_PROD_URL" ] && MICROSOFT_PROD_URL="${{ secrets.MICROSOFT_CALLBACK_URL }}"
+            echo "TARGET_MICROSOFT_CALLBACK_URL=${MICROSOFT_PROD_URL}" >> $GITHUB_ENV
+          elif [ "${{ github.ref_name }}" = "enhancement_01122025_dev_kenil" ]; then
+            echo "DEPLOY_ENV=development" >> $GITHUB_ENV
+            echo "TARGET_HOST=${{ secrets.EC2_DEV_HOST }}" >> $GITHUB_ENV
+            echo "TARGET_SSH_KEY<<EOF" >> $GITHUB_ENV
+            echo "${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+            echo "TARGET_USER=${{ secrets.EC2_USER }}" >> $GITHUB_ENV
+            echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_DEV_URL }}" >> $GITHUB_ENV
+            
+            ALLOWED_ORIGINS_DEV="${{ secrets.ALLOWED_ORIGINS_DEV }}"
+            [ -z "$ALLOWED_ORIGINS_DEV" ] && ALLOWED_ORIGINS_DEV="${{ secrets.ALLOWED_ORIGINS }}"
+            echo "TARGET_ALLOWED_ORIGINS=${ALLOWED_ORIGINS_DEV}" >> $GITHUB_ENV
+
+            VITE_API_DEV_URL="${{ secrets.VITE_API_DEV_URL }}"
+            [ -z "$VITE_API_DEV_URL" ] && VITE_API_DEV_URL="${{ secrets.VITE_API_URL }}"
+            echo "TARGET_VITE_API_URL=${VITE_API_DEV_URL}" >> $GITHUB_ENV
+            GOOGLE_DEV_ID="${{ secrets.GOOGLE_DEV_CLIENT_ID }}"
+            [ -z "$GOOGLE_DEV_ID" ] && GOOGLE_DEV_ID="${{ secrets.GOOGLE_CLIENT_ID }}"
+            echo "TARGET_GOOGLE_CLIENT_ID=${GOOGLE_DEV_ID}" >> $GITHUB_ENV
+
+            GOOGLE_DEV_SECRET="${{ secrets.GOOGLE_DEV_CLIENT_SECRET }}"
+            [ -z "$GOOGLE_DEV_SECRET" ] && GOOGLE_DEV_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}"
+            echo "TARGET_GOOGLE_CLIENT_SECRET=${GOOGLE_DEV_SECRET}" >> $GITHUB_ENV
+
+            GOOGLE_DEV_URL="${{ secrets.GOOGLE_DEV_CALLBACK_URL }}"
+            [ -z "$GOOGLE_DEV_URL" ] && GOOGLE_DEV_URL="${{ secrets.GOOGLE_CALLBACK_URL }}"
+            echo "TARGET_GOOGLE_CALLBACK_URL=${GOOGLE_DEV_URL}" >> $GITHUB_ENV
+
+            MICROSOFT_DEV_ID="${{ secrets.MICROSOFT_DEV_CLIENT_ID }}"
+            [ -z "$MICROSOFT_DEV_ID" ] && MICROSOFT_DEV_ID="${{ secrets.MICROSOFT_CLIENT_ID }}"
+            echo "TARGET_MICROSOFT_CLIENT_ID=${MICROSOFT_DEV_ID}" >> $GITHUB_ENV
+
+            MICROSOFT_DEV_TENANT="${{ secrets.MICROSOFT_DEV_TENANT_ID }}"
+            [ -z "$MICROSOFT_DEV_TENANT" ] && MICROSOFT_DEV_TENANT="${{ secrets.MICROSOFT_TENANT_ID }}"
+            echo "TARGET_MICROSOFT_TENANT_ID=${MICROSOFT_DEV_TENANT}" >> $GITHUB_ENV
+
+            MICROSOFT_DEV_SECRET="${{ secrets.MICROSOFT_DEV_CLIENT_SECRET }}"
+            [ -z "$MICROSOFT_DEV_SECRET" ] && MICROSOFT_DEV_SECRET="${{ secrets.MICROSOFT_CLIENT_SECRET }}"
+            echo "TARGET_MICROSOFT_CLIENT_SECRET=${MICROSOFT_DEV_SECRET}" >> $GITHUB_ENV
+
+            MICROSOFT_DEV_URL="${{ secrets.MICROSOFT_DEV_CALLBACK_URL }}"
+            [ -z "$MICROSOFT_DEV_URL" ] && MICROSOFT_DEV_URL="${{ secrets.MICROSOFT_CALLBACK_URL }}"
+            echo "TARGET_MICROSOFT_CALLBACK_URL=${MICROSOFT_DEV_URL}" >> $GITHUB_ENV
+          elif [ "${{ github.ref_name }}" = "enhancement_01122025_marico_kenil" ]; then
+            echo "DEPLOY_ENV=marico" >> $GITHUB_ENV
+            echo "APP_DIR=/project/powerbi-dashboard-fullstack" >> $GITHUB_ENV
+            echo "TARGET_HOST=${{ secrets.EC2_HOST_MARICO }}" >> $GITHUB_ENV
+            echo "TARGET_SSH_KEY<<EOF" >> $GITHUB_ENV
+            echo "${{ secrets.EC2_SSH_KEY_MARICO }}" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+            echo "TARGET_USER=${{ secrets.EC2_USERNAME_MARICO }}" >> $GITHUB_ENV
+            echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_MARICO_URL }}" >> $GITHUB_ENV
+            echo "TARGET_ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}" >> $GITHUB_ENV
+            echo "TARGET_VITE_API_URL=${{ secrets.VITE_API_URL }}" >> $GITHUB_ENV
+
+            GOOGLE_MARICO_ID="${{ secrets.GOOGLE_CLIENT_ID }}"
+            echo "TARGET_GOOGLE_CLIENT_ID=${GOOGLE_MARICO_ID}" >> $GITHUB_ENV
+
+            GOOGLE_MARICO_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}"
+            echo "TARGET_GOOGLE_CLIENT_SECRET=${GOOGLE_MARICO_SECRET}" >> $GITHUB_ENV
+
+            GOOGLE_MARICO_URL="${{ secrets.GOOGLE_CALLBACK_URL }}"
+            echo "TARGET_GOOGLE_CALLBACK_URL=${GOOGLE_MARICO_URL}" >> $GITHUB_ENV
+
+            MICROSOFT_MARICO_ID="${{ secrets.MICROSOFT_CLIENT_ID }}"
+            echo "TARGET_MICROSOFT_CLIENT_ID=${MICROSOFT_MARICO_ID}" >> $GITHUB_ENV
+
+            MICROSOFT_MARICO_TENANT="${{ secrets.MICROSOFT_TENANT_ID }}"
+            echo "TARGET_MICROSOFT_TENANT_ID=${MICROSOFT_MARICO_TENANT}" >> $GITHUB_ENV
+
+            MICROSOFT_MARICO_SECRET="${{ secrets.MICROSOFT_CLIENT_SECRET }}"
+            echo "TARGET_MICROSOFT_CLIENT_SECRET=${MICROSOFT_MARICO_SECRET}" >> $GITHUB_ENV
+
+            MICROSOFT_MARICO_URL="${{ secrets.MICROSOFT_CALLBACK_URL }}"
+            echo "TARGET_MICROSOFT_CALLBACK_URL=${MICROSOFT_MARICO_URL}" >> $GITHUB_ENV
+          fi
+          echo "🎯 Deploying to ${{ github.ref_name }} environment"
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ env.TARGET_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ env.TARGET_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create main backend .env file on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.TARGET_USER }}@${{ env.TARGET_HOST }} << 'ENDSSH'
+            # Ensure the user has permissions to the directory
+            sudo chown -R ${{ env.TARGET_USER }}:${{ env.TARGET_USER }} ${{ env.APP_DIR }}
+            
+            cd ${{ env.APP_DIR }}
+            mkdir -p backend
+            cat > backend/.env << 'EOF'
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          REDIS_HOST=host.docker.internal
+          REDIS_PORT=6379
+          REDIS_PASSWORD=
+          REDIS_DB=${{ secrets.REDIS_DB }}
+          REDIS_ENABLED=${{ secrets.REDIS_ENABLED }}
+          REDIS_DEFAULT_TTL=${{ secrets.REDIS_DEFAULT_TTL }}
+          CLICKHOUSE_URL=${{ env.TARGET_CLICKHOUSE_URL }}
+          CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}
+          CLICKHOUSE_DB=${{ secrets.CLICKHOUSE_DB }}
+          ENABLE_DEBUG_LOGS=true
+          Alert_email=${{ secrets.ALERT_EMAIL || 'business@trailytics.com' }}
+          Alert_email_password=${{ secrets.ALERT_EMAIL_PASSWORD || 'Marketing@!22' }}
+          WHATSAPP_PHONE_NUMBER_ID=${{ secrets.WHATSAPP_PHONE_NUMBER_ID || '1283810401472038' }}
+          WHATSAPP_ACCESS_TOKEN=${{ secrets.WHATSAPP_ACCESS_TOKEN || 'EAAPMTMAVpQEBSBNxvjgROhRGV46WSYpGTKyvh3XOxuWfQp8wyMr0i3BzroskRPWHDWlU0aQYJubg4ssghpHak8ePQN15ck5L9SJiB1PElNVwSZAGGhMSaFY1v99UC4iIYLktojcmbETYO9CxxtIkJDzL3dFYbM9tWqhQOWNsjSBPRAZCkHwYdwDuAZC9VqZBAQZDZD' }}
+          WHATSAPP_TEMPLATE_NAME=${{ secrets.WHATSAPP_TEMPLATE_NAME || 'digital_insight_alert' }}
+          WHATSAPP_TEMPLATE_LANG=${{ secrets.WHATSAPP_TEMPLATE_LANG || 'en' }}
+          GOOGLE_CLIENT_ID=${{ env.TARGET_GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET=${{ env.TARGET_GOOGLE_CLIENT_SECRET }}
+          GOOGLE_CALLBACK_URL=${{ env.TARGET_GOOGLE_CALLBACK_URL }}
+          MICROSOFT_CLIENT_ID=${{ env.TARGET_MICROSOFT_CLIENT_ID }}
+          MICROSOFT_TENANT_ID=${{ env.TARGET_MICROSOFT_TENANT_ID }}
+          MICROSOFT_CLIENT_SECRET=${{ env.TARGET_MICROSOFT_CLIENT_SECRET }}
+          MICROSOFT_CALLBACK_URL=${{ env.TARGET_MICROSOFT_CALLBACK_URL }}
+          EOF
+            echo "✅ Main backend .env file created for ${{ env.DEPLOY_ENV }} environment"
+          ENDSSH
+
+      - name: Create ratings backend .env file on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.TARGET_USER }}@${{ env.TARGET_HOST }} << 'ENDSSH'
+            cd ${{ env.APP_DIR }}
+            mkdir -p trailytics_ratings/backend
+            cat > trailytics_ratings/backend/.env << 'EOF'
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          API_PORT=3001
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          VITE_RAILWAY_URL=${{ secrets.VITE_RAILWAY_URL }}
+          ALLOWED_ORIGINS=${{ env.TARGET_ALLOWED_ORIGINS }}
+          CLICKHOUSE_HOST=${{ env.TARGET_CLICKHOUSE_URL }}
+          CLICKHOUSE_DB=${{ secrets.CLICKHOUSE_DB }}
+          CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}
+          COMPANY_ID=${{ secrets.COMPANY_ID }}
+          OLAP_ENABLED_DBS=${{ secrets.OLAP_ENABLED_DBS || 'drl' }}
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASS=${{ secrets.SMTP_PASS }}
+          SMTP_FROM=${{ secrets.SMTP_FROM }}
+          ALERT_DEFAULT_RECIPIENTS=${{ secrets.ALERT_DEFAULT_RECIPIENTS }}
+          PUBLIC_DASHBOARD_URL=${{ secrets.PUBLIC_DASHBOARD_URL }}
+          EOF
+            echo "✅ Ratings backend .env file created"
+          ENDSSH
+
+      - name: Create frontend .env files on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.TARGET_USER }}@${{ env.TARGET_HOST }} << 'ENDSSH'
+            cd ${{ env.APP_DIR }}
+            mkdir -p trailytics_ratings/frontend
+            cat > trailytics_ratings/frontend/.env << 'EOF'
+          VITE_API_URL=${{ env.TARGET_VITE_API_URL }}
+          VITE_RAILWAY_URL=${{ secrets.VITE_RAILWAY_URL }}
+          VITE_COMPANY_ID=${{ secrets.COMPANY_ID }}
+          OLAP_ENABLED_DBS=${{ secrets.OLAP_ENABLED_DBS || 'drl' }}
+          VITE_OLAP_ENABLED_DBS=${{ secrets.VITE_OLAP_ENABLED_DBS || secrets.OLAP_ENABLED_DBS || 'drl' }}
+          EOF
+            mkdir -p frontend
+            cat > frontend/.env << 'EOF'
+          VITE_API_URL=${{ env.TARGET_VITE_API_URL }}
+          VITE_GOOGLE_CLIENT_ID=${{ env.TARGET_GOOGLE_CLIENT_ID }}
+          VITE_MICROSOFT_CLIENT_ID=${{ env.TARGET_MICROSOFT_CLIENT_ID }}
+          VITE_MICROSOFT_TENANT_ID=${{ env.TARGET_MICROSOFT_TENANT_ID }}
+          EOF
+            echo "✅ Frontend .env files created for ${{ env.DEPLOY_ENV }} environment"
+          ENDSSH
+
+      - name: Create content analysis backend .env file on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.TARGET_USER }}@${{ env.TARGET_HOST }} << 'ENDSSH'
+            cd ${{ env.APP_DIR }}
+            mkdir -p trailytics_content_analysis/backend
+            cat > trailytics_content_analysis/backend/.env << 'EOF'
+          PORT_COTENT=8000
+          CLICKHOUSE_URL=${{ env.TARGET_CLICKHOUSE_URL }}
+          CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}
+          CLICKHOUSE_DB=${{ secrets.CONTENT_CLICKHOUSE_DB }}
+          EOF
+            echo "✅ Content analysis backend .env file created"
+          ENDSSH
+
+      - name: Deploy to EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ env.TARGET_USER }}@${{ env.TARGET_HOST }} << 'ENDSSH'
+            set -e
+            
+            echo "📁 Navigating to app directory..."
+            cd ${{ env.APP_DIR }} || { echo "❌ App directory not found"; exit 1; }
+            
+            # Resolve dubious ownership error
+            git config --global --add safe.directory ${{ env.APP_DIR }}
+            
+            echo "📥 Pulling latest code from branch: ${{ github.ref_name }}..."
+            git fetch origin ${{ github.ref_name }}
+            git checkout ${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
+            
+            echo "🛑 Stopping and removing all managed containers..."
+            docker stop backend_multiple frontend_multiple ratings_backend content_backend || true
+            docker rm backend_multiple frontend_multiple ratings_backend content_backend || true
+            
+            echo "🔨 Building and starting all containers..."
+            docker compose up -d --build
+            
+            echo "⏳ Waiting for services to start..."
+            sleep 15
+            
+            echo "🔍 Checking container status..."
+            docker compose ps
+            
+            echo "✅ Health checks..."
+            curl -sf http://localhost:5000/health || { echo "❌ Main backend health check failed"; exit 1; }
+            curl -sf http://localhost:3001/api/health || echo "⚠️  Ratings backend health check skipped (endpoint may not exist)"
+            curl -sf http://localhost:8000/health || echo "⚠️  Content analysis backend health check skipped (endpoint may not exist)"
+            curl -sf http://localhost:9400/ || { echo "❌ Frontend health check failed"; exit 1; }
+            
+            echo "🎉 Deployment successful!"
+          ENDSSH
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+
+      - name: Deployment Summary
+        run: |
+          echo "## Deployment Summary 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌍 Environment: \`${{ env.DEPLOY_ENV }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Deployed to: \`${{ env.TARGET_HOST }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "📦 Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 App: http://${{ env.TARGET_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 Main API: http://${{ env.TARGET_HOST }}/api" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 Ratings API: http://${{ env.TARGET_HOST }}:3001" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 Content API: http://${{ env.TARGET_HOST }}:8000" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Services" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Container | Port |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Main Backend | backend_multiple | 5000 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Ratings Backend | ratings_backend | 3001 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Content Analysis Backend | content_backend | 8000 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | frontend_multiple | 9400 |" >> $GITHUB_STEP_SUMMARY
+
+          

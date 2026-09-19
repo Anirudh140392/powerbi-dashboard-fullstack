@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Quick Commerce Performance Summary — Ops Console (Frost Blue)</title>
+<!--
+  DYNAMIC PERFORMANCE SUMMARY EMAIL TEMPLATE — Reference Document (Light / Frost Blue theme)
+  =============================================================================================
+  Reskin of perfSummaryEmailTemplate.html — theme inspired by the KW Delta SOS alert card
+  (light blue header band, gray-blue table header, bordered table rows, plain footer).
+  STRUCTURE AND PLACEHOLDER CONTRACT OF THE ORIGINAL TEMPLATE ARE UNCHANGED — only the
+  color theme, the grouping level (platform-level, category-level removed), and the two
+  METRIC tables below are new.
+
+  Actual rendering happens in: src/utils/categoryPerfSummaryEmailTemplate.js
+                                 (rename candidate: platformPerfSummaryEmailTemplate.js —
+                                 file/function still named "category*" from the earlier
+                                 version; rename left as a TODO for whoever wires this up,
+                                 not done here since it's outside the template file itself)
+  Data is fetched by:           src/services/perfSummaryDataService.js
+  Orchestrated by:               src/services/alertCronService.js
+
+  TRIGGER: alert_type = 'performance_summary' in tb_alert
+  SCHEDULE: Fires on scheduled_day (e.g. every Thursday)
+  GROUPING: Platform level only. Category-level cards/placeholders have been removed —
+            one card per platform in tb_alert.platforms[], not per platform+category.
+
+  ── TABLE 1 — PERFORMANCE METRICS (CW vs L4W Avg) ──────────────────────────────────────
+  DATE LOGIC (naming matches the existing Low-OSA / KW-Delta-SOS alert convention):
+  - CW (Current Week)   = current calendar week's aggregated value, as of scheduled_day - 1
+  - L4W AVG             = average of that same metric over the preceding 4 complete weeks
+  - DELTA               = CW VALUE vs L4W AVG VALUE
+      • for %-based metrics (Weighted Discount, OSA, TACoS, SOS) → absolute point difference (CW − L4W AVG)
+      • for currency metrics (Ad Spend) → relative % change ((CW − L4W AVG) / L4W AVG × 100)
+
+  METRICS (per platform) — confirm exact source tables/fields against the pipeline before wiring live data:
+  1. Weighted Discount  = weighted avg ((MRP-SP)/MRP)*100         from rb_pdp_olap
+  2. OSA                = SUM(neno_osa)/SUM(deno_osa)*100         from rb_pdp_olap
+  3. Ad Spend           = SUM(ad_spend)                            from rb_ads_olap (TODO: confirm table)
+  4. TACoS              = ad_spend / Offtake GMV * 100             from rb_ads_olap + rb_pdp_olap (TODO: confirm table)
+  5. SOS                = brand_rows / total_rows * 100            from rb_kw_olap
+
+  NOTE: Offtake Units and Offtake GMV have been removed as standalone rows in this table
+  (the metric set is now exactly the 5 above, in this order).
+
+  ── TABLE 2 — VOLUME & VALUE: PRIMARY VS SECONDARY (CP vs PP) ──────────────────────────
+  DATE LOGIC:
+  - CP (Current Period)  = the period being reported on for this table
+  - PP (Previous Period) = the immediately preceding comparable period
+  - DELTA                = CP VALUE vs PP VALUE, relative % change ((CP − PP) / PP × 100),
+                            since all four metrics in this table are currency/count values
+                            (consistent with the currency/count delta convention in Table 1)
+  TODO: confirm with product whether CP/PP windows are the same as CW/L4W above or are
+  independently configurable, and confirm exact source tables/fields for each metric below
+  and the precise business definition of "Primary" vs "Secondary" (e.g. focus SKU set vs
+  a benchmark/competitor set, or two brand groupings) before wiring live data.
+
+  METRICS (per platform, reported once for "Primary" and once for "Secondary"):
+  1. Confirmed Value     = TODO: confirm source table/field
+  2. Billed Value        = TODO: confirm source table/field
+  3. Ordered Quantity    = TODO: confirm source table/field
+  4. Confirmed Quantity  = TODO: confirm source table/field
+
+  DYNAMIC PLACEHOLDERS:
+  - {{LOGO_URL}}       → tb_database.logo_url (via tb_alert.db_id)
+  - {{COMPANY_NAME}}   → tb_database.db_name
+  - {{CW_DATE}}        → current week "as of" date (e.g. "12 Aug 2026")
+  - {{L4W_RANGE}}      → trailing 4-week window label (e.g. "16 Jul – 12 Aug 2026")
+  - {{PLATFORM_NAME}}  → Per platform from tb_alert.platforms[]
+  - {{SEVERITY_LEVEL}} → tb_alert.severity_level (unused for visual severity in this alert type; kept for schema parity)
+
+  MULTI-PLATFORM: When >1 platform selected, cards stack vertically (one card per platform).
+-->
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+<o:AllowPNG/>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<!--[if mso]>
+<style type="text/css">
+  body, table, td, span, a { font-family: Arial, Helvetica, sans-serif !important; }
+</style>
+<![endif]-->
+<style>
+  body, table, td { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; mso-line-height-rule: exactly; }
+  img { border: 0; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+  body { margin: 0; padding: 0; width: 100% !important; background-color: #EEF2FC; }
+  table { border-collapse: collapse; border-spacing: 0; }
+  @media screen and (max-width: 720px) {
+    .email-container { width: 100% !important; max-width: 100% !important; }
+  }
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#EEF2FC;">
+<table bgcolor="#EEF2FC" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#EEF2FC;">
+<tr>
+<td align="center" style="padding:18px 12px;">
+
+<!--[if mso]>
+<table role="presentation" align="center" width="700" cellpadding="0" cellspacing="0" border="0"><tr><td>
+<![endif]-->
+<table role="presentation" class="email-container" width="700" align="center" cellpadding="0" cellspacing="0" border="0" style="width:700px; max-width:700px; margin:0 auto;">
+
+<!-- MASTHEAD -->
+<tr>
+<td style="padding:4px 0 14px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td valign="middle" align="left" style="padding-bottom:12px;">
+<!-- LOGO PLACEHOLDER -->
+<img src="{{LOGO_URL}}" width="140" height="28" alt="{{COMPANY_NAME}} Logo" style="display:block; border:0; outline:none; text-decoration:none;">
+</td>
+</tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td valign="middle" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#5C6B94;">
+Weekly snapshot &middot; CW as of {{CW_DATE}} vs L4W Avg ({{L4W_RANGE}})
+</td>
+<td valign="middle" align="right">
+<table bgcolor="#EAF0FF" role="presentation" cellpadding="0" cellspacing="0" border="0" align="right" style="background-color:#EAF0FF; border-radius:999px;">
+  <tr>
+    <td style="padding:3px 8px 2px 8px; font-family:Arial, Helvetica, sans-serif; font-size:8px; letter-spacing:.9px; text-transform:uppercase; color:#2F5FEA; font-weight:bold; white-space:nowrap;">
+      QUICK COMMERCE
+    </td>
+  </tr>
+</table>
+</td>
+</tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td height="10" style="font-size:1px; line-height:10px;">&nbsp;</td>
+</tr>
+<tr>
+<td bgcolor="#2F5FEA" height="3" style="background-color:#2F5FEA; border-radius:3px; font-size:1px; line-height:3px;">&nbsp;</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- ============================================================ -->
+<!-- PLATFORM CARD (repeated per platform — category-level grouping removed) -->
+<!-- ============================================================ -->
+<!-- CARD: Blinkit -->
+<tr>
+<td style="padding-bottom:16px;">
+<!--[if mso]>
+<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" arcsize="2.3%" stroke="t" strokecolor="#E4E9F7" fillcolor="#FFFFFF" style="width:700px;">
+<v:textbox style="mso-fit-shape-to-text:true" inset="0,0,0,0">
+<![endif]-->
+<table bgcolor="#FFFFFF" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border:1px solid #E4E9F7; border-radius:16px; box-shadow:0 10px 20px -14px rgba(47,95,234,0.20);">
+
+<!-- Band header (light blue, dark blue text — Blinkit-inspired) -->
+<tr>
+<td bgcolor="#DCE9FE" style="padding:13px 17px; background-color:#DCE9FE; border-radius:16px 16px 0 0; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:15px; color:#173C9C;">{{PLATFORM_NAME}}</td>
+</tr>
+
+<!-- ============================== -->
+<!-- TABLE 1: PERFORMANCE METRICS   -->
+<!-- ============================== -->
+
+<!-- Section label bar -->
+<tr>
+<td bgcolor="#F5F7FC" style="padding:8px 17px; background-color:#F5F7FC; border-bottom:1px solid #EEF1FA;">
+<span style="font-family:Arial, Helvetica, sans-serif; font-size:9px; font-weight:bold; letter-spacing:.8px; text-transform:uppercase; color:#6B7A9E;">PERFORMANCE METRICS</span>
+</td>
+</tr>
+
+<!-- Column headers -->
+<tr>
+<td style="padding:10px 17px 7px 17px; border-bottom:1.5px solid #C9D6FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA;">METRIC</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">Current Period VALUE</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">Previous Period VALUE</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">DELTA</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Offtake Units -->
+<tr>
+<td bgcolor="#FFFFFF" style="padding:11px 17px; background-color:#FFFFFF;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#16224A; font-weight:bold;" valign="middle">Offtake Units</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#0B1B3F; white-space:nowrap;" valign="middle">12,450</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10px; color:#5C6B94; white-space:nowrap;" valign="middle">10,820</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10.5px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 15.1%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Offtake GMV -->
+<tr>
+<td bgcolor="#F8FAFD" style="padding:11px 17px; background-color:#F8FAFD; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#16224A; font-weight:bold;" valign="middle">Offtake GMV</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#0B1B3F; white-space:nowrap;" valign="middle">&#8377;3.42L</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10px; color:#5C6B94; white-space:nowrap;" valign="middle">&#8377;2.96L</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10.5px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 15.5%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Weighted Discount -->
+<tr>
+<td bgcolor="#FFFFFF" style="padding:11px 17px; background-color:#FFFFFF; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#16224A; font-weight:bold;" valign="middle">Weighted Discount</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#0B1B3F; white-space:nowrap;" valign="middle">34.6%</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10px; color:#5C6B94; white-space:nowrap;" valign="middle">31.8%</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10.5px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 2.8%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- OSA -->
+<tr>
+<td bgcolor="#F8FAFD" style="padding:11px 17px; background-color:#F8FAFD; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#16224A; font-weight:bold;" valign="middle">OSA</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#0B1B3F; white-space:nowrap;" valign="middle">88.4%</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10px; color:#5C6B94; white-space:nowrap;" valign="middle">91.2%</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10.5px; color:#DC3B3B; white-space:nowrap;" valign="middle">&#9660; 2.8%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Ad Spend -->
+<tr>
+<td bgcolor="#FFFFFF" style="padding:11px 17px; background-color:#FFFFFF; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#16224A; font-weight:bold;" valign="middle">Ad Spend</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#0B1B3F; white-space:nowrap;" valign="middle">&#8377;42.5K</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10px; color:#5C6B94; white-space:nowrap;" valign="middle">&#8377;38.1K</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10.5px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 11.5%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- TACoS -->
+<tr>
+<td bgcolor="#F8FAFD" style="padding:11px 17px; background-color:#F8FAFD; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#16224A; font-weight:bold;" valign="middle">TACoS</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#0B1B3F; white-space:nowrap;" valign="middle">7.8%</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10px; color:#5C6B94; white-space:nowrap;" valign="middle">8.6%</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10.5px; color:#DC3B3B; white-space:nowrap;" valign="middle">&#9660; 0.8pp</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- SOS -->
+<tr>
+<td bgcolor="#FFFFFF" style="padding:11px 17px; background-color:#FFFFFF; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="34%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#16224A; font-weight:bold;" valign="middle">Share Of Search</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#0B1B3F; white-space:nowrap;" valign="middle">24.3%</td>
+<td width="24%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10px; color:#5C6B94; white-space:nowrap;" valign="middle">21.6%</td>
+<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10.5px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 2.7%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- ================================================== -->
+<!-- TABLE 2: VOLUME & VALUE — PRIMARY (Current Period vs Previous Period) -->
+<!-- ================================================== -->
+
+<!-- Section label bar -->
+<tr>
+<td bgcolor="#F5F7FC" style="padding:8px 17px; background-color:#F5F7FC; border-top:1.5px solid #C9D6FA; border-bottom:1px solid #EEF1FA;">
+<span style="font-family:Arial, Helvetica, sans-serif; font-size:9px; font-weight:bold; letter-spacing:.8px; text-transform:uppercase; color:#6B7A9E;">Primary Info</span>
+</td>
+</tr>
+
+<!-- Column headers: Primary | Current Period | Previous Period | DELTA -->
+<tr>
+<td style="padding:10px 17px 7px 17px; border-bottom:1.5px solid #C9D6FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="39%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:8.5px; font-weight:bold; letter-spacing:.5px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;" valign="middle">Primary</td>
+<td width="21%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.3px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">Current Period</td>
+<td width="20%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.3px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">Previous Period</td>
+<td width="20%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; letter-spacing:.3px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">DELTA</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Confirmed Value -->
+<tr>
+<td bgcolor="#FFFFFF" style="padding:9px 17px; background-color:#FFFFFF;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="39%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#16224A; font-weight:bold;" valign="middle">Confirmed Value</td>
+<td width="21%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#0B1B3F; white-space:nowrap;" valign="middle">&#8377;1.84L</td>
+<td width="20%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10px; color:#5C6B94; white-space:nowrap;" valign="middle">&#8377;1.62L</td>
+<td width="20%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10.5px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 13.6%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Billed Value -->
+<tr>
+<td bgcolor="#F8FAFD" style="padding:9px 17px; background-color:#F8FAFD; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="39%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#16224A; font-weight:bold;" valign="middle">Billed Value</td>
+<td width="21%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#0B1B3F; white-space:nowrap;" valign="middle">&#8377;1.71L</td>
+<td width="20%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10px; color:#5C6B94; white-space:nowrap;" valign="middle">&#8377;1.49L</td>
+<td width="20%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10.5px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 14.8%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Ordered Quantity -->
+<tr>
+<td bgcolor="#FFFFFF" style="padding:9px 17px; background-color:#FFFFFF; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="39%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#16224A; font-weight:bold;" valign="middle">Ordered Quantity</td>
+<td width="21%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#0B1B3F; white-space:nowrap;" valign="middle">860</td>
+<td width="20%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10px; color:#5C6B94; white-space:nowrap;" valign="middle">745</td>
+<td width="20%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10.5px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 15.4%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Confirmed Quantity -->
+<tr>
+<td bgcolor="#F8FAFD" style="padding:9px 17px; background-color:#F8FAFD; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="39%" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#16224A; font-weight:bold;" valign="middle">Confirmed Quantity</td>
+<td width="21%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#0B1B3F; white-space:nowrap;" valign="middle">812</td>
+<td width="20%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10px; color:#5C6B94; white-space:nowrap;" valign="middle">701</td>
+<td width="20%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:10.5px; color:#157347; white-space:nowrap;" valign="middle">&#9650; 15.8%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- CARD FOOTER (plain, rounds off bottom corners) -->
+<tr>
+<td bgcolor="#FFFFFF" style="padding:12px 17px; background-color:#FFFFFF; border-top:1px solid #EEF1FA; border-radius:0 0 16px 16px; font-size:1px; line-height:1px;">&nbsp;</td>
+</tr>
+
+</table>
+<!--[if mso]>
+</v:textbox>
+</v:roundrect>
+<![endif]-->
+</td>
+</tr>
+<!-- END PLATFORM CARD -->
+
+<!-- GLOBAL FOOTER -->
+<tr>
+<td align="center" style="padding:10px 4px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td align="center" style="font-family:Arial, Helvetica, sans-serif; font-size:9px; color:#5C6B94;">
+Automated performance summary generated by <strong>Trailytics</strong>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+</table>
+<!--[if mso]>
+</td></tr></table>
+<![endif]-->
+
+</td>
+</tr>
+</table>
+</body>
+</html>
