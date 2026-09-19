@@ -493,6 +493,21 @@ const buildLocationQueryCond = (locationArr, platformVal, locationCol = 'locatio
     }
 };
 
+/**
+ * Helper to build state condition dynamically based on Location column join with rb_location_darkstore location_state
+ * @param {string|string[]} stateVal - Selected state(s)
+ * @param {string} locationCol - Location column name (e.g. 'Location', 'location', 'location_name')
+ * @returns {string|null} - The SQL condition for state
+ */
+const buildStateQueryCond = (stateVal, locationCol = 'location') => {
+    if (!stateVal || stateVal === 'All') return null;
+    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+    const stateArr = normalizeFilterArray(stateVal);
+    if (!stateArr || stateArr.length === 0) return null;
+    const stateConds = stateArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',');
+    return `lower(${locationCol}) IN (SELECT DISTINCT lower(location) FROM rb_location_darkstore WHERE lower(location_state) IN (${stateConds}))`;
+};
+
 
 
 
@@ -1139,6 +1154,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             }
 
             const locationCol = src.f.location;
+            const rawState = filters['state[]'] || filters.state;
+            const stateCond = buildStateQueryCond(rawState, locationCol);
+            if (stateCond) {
+                conditions.push(stateCond);
+            }
+
             const locationArrLocal = normalizeFilterArray(location);
             if (locationCol && locationCol !== "'Unknown'" && locationArrLocal && locationArrLocal.length > 0) {
                 const platformCol = src.f.platform;
@@ -5785,6 +5806,10 @@ const getPlatformOverview = async (filters) => {
         }
 
         const locCol = src.isAgg ? 'location' : 'Location';
+        const rawState = filters['state[]'] || filters.state;
+        const stateCond = buildStateQueryCond(rawState, locCol);
+        if (!skipLocation && stateCond) conds.push(stateCond);
+
         if (!skipLocation && locationArr && locationArr.length > 0) {
             const platformCol = src.isAgg ? 'platform' : 'Platform';
             const locCond = buildLocationQueryCond(locationArr, platformArr, locCol, platformCol);
@@ -7370,6 +7395,10 @@ const getCategoryOverview = async (filters) => {
         }
 
         const locCol = src.isAgg ? 'location' : 'Location';
+        const rawState = filters['state[]'] || filters.state;
+        const stateCond = buildStateQueryCond(rawState, locCol);
+        if (stateCond) conds.push(stateCond);
+
         if (locationArr && locationArr.length > 0) {
             const platformCol = src.isAgg ? 'platform' : 'Platform';
             const locCond = buildLocationQueryCond(locationArr, catPlatform, locCol, platformCol);
@@ -14100,7 +14129,7 @@ const getProductCategories = async (filters = {}) => {
 
 const getWatchTowerCascadedFilters = async (filters) => {
     try {
-        const { platform, category, brand, location, startDate, endDate, sapCode } = filters;
+        const { platform, category, brand, location, state, startDate, endDate, sapCode } = filters;
         const channel = extractChannel(filters);
 
         const cols = await getTableColumns('rca_sku_dim');
@@ -14142,7 +14171,16 @@ const getWatchTowerCascadedFilters = async (filters) => {
                 }
             }
 
-            // 4. Location filter
+            // 4. State filter (joins on rb_location_darkstore location_state)
+            if (excludeField !== 'state' && state && state !== 'All') {
+                const stateArr = normalizeFilterArray(state);
+                if (stateArr.length > 0) {
+                    const stateConds = stateArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',');
+                    conds.push(`lower(${locationCol}) IN (SELECT DISTINCT lower(location) FROM rb_location_darkstore WHERE lower(location_state) IN (${stateConds}))`);
+                }
+            }
+
+            // 5. Location filter
             if (excludeField !== 'location' && location && location !== 'All') {
                 const locArr = normalizeFilterArray(location);
                 if (locArr.length > 0) {
@@ -14150,7 +14188,7 @@ const getWatchTowerCascadedFilters = async (filters) => {
                 }
             }
 
-            // 5. SAP Code filter
+            // 6. SAP Code filter
             const hasSap = columnExists(cols, 'sap_code') || columnExists(cols, 'sapcode');
             if (excludeField !== 'sapCode' && sapCode && sapCode !== 'All') {
                 const sapArr = normalizeFilterArray(sapCode);
@@ -14183,6 +14221,27 @@ const getWatchTowerCascadedFilters = async (filters) => {
                 return results.map(r => r.val).filter(Boolean);
             } catch (err) {
                 console.error(`[getWatchTowerCascadedFilters] Error for field ${field}:`, err);
+                return [];
+            }
+        };
+
+        const runStatesQuery = async () => {
+            try {
+                const conds = getConditions('state');
+                const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
+                const query = `
+                    SELECT DISTINCT lower(d.location_state) AS val 
+                    FROM rb_location_darkstore d
+                    WHERE lower(d.location) IN (
+                        SELECT DISTINCT ${locationCol} FROM rca_sku_dim ${whereClause}
+                    )
+                    AND d.location_state IS NOT NULL AND d.location_state != ''
+                    ORDER BY val
+                `;
+                const results = await queryClickHouse(query);
+                return results.map(r => r.val).filter(Boolean);
+            } catch (err) {
+                console.error(`[getWatchTowerCascadedFilters] Error for states:`, err);
                 return [];
             }
         };
@@ -14229,11 +14288,12 @@ const getWatchTowerCascadedFilters = async (filters) => {
             }
         };
 
-        const [channelsList, platformsList, categoriesList, brandsList, locationsList, grammagesList, subBrandsList] = await Promise.all([
+        const [channelsList, platformsList, categoriesList, brandsList, statesList, locationsList, grammagesList, subBrandsList] = await Promise.all([
             runQuery('channel', channelCol),
             runQuery('platform', platformCol),
             runQuery('category', categoryCol),
             runQuery('brand', brandCol),
+            runStatesQuery(),
             runQuery('location', locationCol),
             runGrammageQuery(),
             getSubBrands(filters)
@@ -14244,6 +14304,7 @@ const getWatchTowerCascadedFilters = async (filters) => {
             platforms: platformsList,
             categories: categoriesList,
             brands: brandsList,
+            states: statesList,
             locations: locationsList,
             grammages: grammagesList,
             subBrands: subBrandsList
@@ -14255,6 +14316,7 @@ const getWatchTowerCascadedFilters = async (filters) => {
             platforms: [],
             categories: [],
             brands: [],
+            states: [],
             locations: [],
             grammages: [],
             subBrands: []

@@ -135,6 +135,36 @@ export const queryClickHouse = async (query, params = {}, clickhouse_settings = 
     }
 };
 
+/**
+ * Stream query results from ClickHouse as a Node.js readable stream.
+ * Each row is emitted as a parsed JSON object via the 'data' event.
+ * This avoids loading the full result set into memory — critical for
+ * exports with millions of rows (e.g. darkstore data).
+ *
+ * Usage:
+ *   const stream = await streamClickHouse('SELECT ... FROM ...');
+ *   stream.on('data', (row) => { ... });
+ *   stream.on('end', () => { ... });
+ */
+export const streamClickHouse = async (query, params = {}, clickhouse_settings = {}) => {
+    const client = getCurrentClient();
+    const dbName = getCurrentDbName();
+    console.log(`[ClickHouse Stream] DB: ${dbName} | Query: ${query.replace(/\s+/g, ' ').slice(0, 200)}...`);
+
+    const queryOptions = {
+        query,
+        query_params: params,
+        format: 'JSONEachRow',
+    };
+
+    if (Object.keys(clickhouse_settings).length > 0) {
+        queryOptions.clickhouse_settings = clickhouse_settings;
+    }
+
+    const resultSet = await client.query(queryOptions);
+    return resultSet.stream();
+};
+
 // Helper for insert operations
 export const insertClickHouse = async (table, values) => {
     try {

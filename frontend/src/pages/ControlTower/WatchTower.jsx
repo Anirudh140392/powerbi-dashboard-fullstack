@@ -191,6 +191,7 @@ export default function WatchTower() {
     platform: _sidebarPlatform,
     platforms,
     selectedKeyword,
+    selectedState,
     selectedLocation,
     selectedChannel: _sidebarChannel,
     maxDate,
@@ -596,7 +597,7 @@ export default function WatchTower() {
   }, []);
 
   // Sync loading state with filter changes to prevent one-frame flicker
-  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${selectedChannel}-${selectedMsl}-${selectedSubBrand}`;
+  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedState}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${selectedChannel}-${selectedMsl}-${selectedSubBrand}`;
   const [prevFilterKey, setPrevFilterKey] = useState(currentFilterKey);
   const lastFetchedOverviewKey = useRef(null);
 
@@ -636,6 +637,7 @@ export default function WatchTower() {
         brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
         category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
         channel: selectedChannel === "All" ? undefined : selectedChannel,
+        state: selectedState === "All" ? undefined : (Array.isArray(selectedState) ? selectedState.join(",") : selectedState),
         location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
         keyword: selectedKeyword || undefined,
         startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
