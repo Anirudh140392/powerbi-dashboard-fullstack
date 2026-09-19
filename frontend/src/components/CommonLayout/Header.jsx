@@ -158,7 +158,7 @@ function WatchTowerFilterModal({
     if (localSubBrands && localSubBrands.length > 0) {
       tabs.push({ key: "subBrand", label: "Sub Brand", icon: Tag });
     }
-    tabs.push({ key: "state", label: "State", icon: MapPin });
+    // tabs.push({ key: "state", label: "State", icon: MapPin }); // Hidden for now as requested
     tabs.push({ key: "location", label: "City", icon: MapPin });
     tabs.push({ key: "msl", label: "Top SKU", icon: Hash });
 
