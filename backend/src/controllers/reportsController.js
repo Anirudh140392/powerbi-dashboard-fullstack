@@ -1,8 +1,9 @@
-import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
+import { queryClickHouse, streamClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 const UPPERCASE_WEB_PID_TARGETS = [
     'amazon',
@@ -306,7 +307,9 @@ export const downloadReport = async (req, res) => {
 
         const dataMode = req.query.dataMode || 'aggregated';
 
-        // ── DARKSTORE DATA EXPORT (rb_pdp_week) ──
+        // ── DARKSTORE DATA EXPORT (rb_pdp_week) — Streaming CSV ──
+        // Streams rows directly from ClickHouse → CSV → HTTP response.
+        // This avoids loading millions of rows into memory (which caused OOM / Docker crashes).
         if (dataMode === 'darkstore' || reportType === 'Darkstore Data') {
             const currentDb = getCurrentDbName() || 'drl';
             const hasLocalWeekTable = await checkTableExists('rb_pdp_week');
@@ -451,24 +454,81 @@ export const downloadReport = async (req, res) => {
                 ORDER BY b.created_date DESC
             `;
 
-            console.log(`[downloadReport] Executing Darkstore query on ${weekTable}:`, darkstoreQuery);
-            const rawData = await queryClickHouse(darkstoreQuery);
-            console.log(`[downloadReport] Fetched ${rawData?.length || 0} Darkstore rows`);
+            console.log(`[downloadReport] Streaming Darkstore CSV from ${weekTable}`);
 
-            if (!rawData || rawData.length === 0) {
-                return res.status(204).send();
-            }
+            // ── CSV helper: escape a value for CSV (handles commas, quotes, newlines) ──
+            const csvEscape = (val) => {
+                if (val === null || val === undefined) return '';
+                const str = String(val);
+                if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                    return `"${str.replace(/"/g, '""')}"`;
+                }
+                return str;
+            };
 
-            const processedData = rawData.map(row => processWebPidUppercase({ ...row }));
-            const worksheet = XLSX.utils.json_to_sheet(processedData);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Darkstore_Data");
+            // Set streaming CSV response headers
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename=Darkstore_Data_${dayjs().format('YYYYMMDD')}.csv`);
+            res.setHeader('Transfer-Encoding', 'chunked');
 
-            const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            res.setHeader('Content-Disposition', `attachment; filename=Darkstore_Data_${dayjs().format('YYYYMMDD')}.xlsx`);
-            return res.send(buffer);
+            // Stream from ClickHouse
+            const stream = await streamClickHouse(darkstoreQuery);
+
+            let headerWritten = false;
+            let rowCount = 0;
+
+            // The ClickHouse client stream() emits arrays of Row objects.
+            // Each Row has .json() → parsed object, .text → raw string.
+            stream.on('data', (rows) => {
+                const rowArray = Array.isArray(rows) ? rows : [rows];
+                for (const rowObj of rowArray) {
+                    // Row objects from @clickhouse/client have .json() method
+                    const row = (typeof rowObj.json === 'function') ? rowObj.json()
+                        : (Buffer.isBuffer(rowObj)) ? JSON.parse(rowObj.toString())
+                        : (typeof rowObj === 'string') ? JSON.parse(rowObj)
+                        : rowObj;
+
+                    // Apply web_pid uppercase transformation in-place
+                    processWebPidUppercase(row);
+
+                    // Write CSV header on first row
+                    if (!headerWritten) {
+                        const headers = Object.keys(row);
+                        res.write(headers.map(csvEscape).join(',') + '\n');
+                        headerWritten = true;
+                    }
+
+                    // Write CSV row
+                    const values = Object.values(row);
+                    res.write(values.map(csvEscape).join(',') + '\n');
+                    rowCount++;
+                }
+            });
+
+            stream.on('end', () => {
+                console.log(`[downloadReport] Streamed ${rowCount} Darkstore CSV rows`);
+                if (rowCount === 0) {
+                    // If no rows were streamed and headers not written, send 204
+                    if (!headerWritten) {
+                        // Headers already set for CSV, so just end with empty body
+                        // The frontend handles empty response
+                    }
+                }
+                res.end();
+            });
+
+            stream.on('error', (err) => {
+                console.error('[downloadReport] Darkstore stream error:', err);
+                if (!res.headersSent) {
+                    res.status(500).json({ error: 'Stream failed' });
+                } else {
+                    res.end();
+                }
+            });
+
+            return; // Response is handled by stream events
         }
+
 
         let query = '';
         const conditions = [];
@@ -1180,29 +1240,60 @@ export const downloadReport = async (req, res) => {
         // Process Web_Pid uppercase for specified platforms (Amazon, Flipkart, Flipkart Minutes, Amazon Now, Instamart)
         finalData = finalData.map(row => processWebPidUppercase({ ...row }));
 
-        // 5. Generate Excel using xlsx
-        const worksheet = XLSX.utils.json_to_sheet(finalData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Report Data");
+        // Check if date range is > 31 days or format is csv
+        const totalDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
+        const isMoreThan31Days = totalDays > 31;
 
-        // Set column widths
-        const maxWidths = {};
-        finalData.forEach(row => {
-            Object.keys(row).forEach(key => {
-                const val = String(row[key] || '');
-                maxWidths[key] = Math.max(maxWidths[key] || key.length, val.length);
-            });
-        });
-        worksheet["!cols"] = Object.keys(maxWidths).map(key => ({ wch: Math.min(maxWidths[key] + 2, 50) }));
+        if (isMoreThan31Days || req.query.format === 'csv') {
+            if (!finalData || finalData.length === 0) {
+                return res.status(204).send();
+            }
 
-        // 5. Send file Buffer
-        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+            const headers = Object.keys(finalData[0] || {});
+            const csvRows = [headers.join(',')];
 
+            for (const row of finalData) {
+                const values = headers.map(header => {
+                    const val = row[header];
+                    if (val === null || val === undefined) return '""';
+                    const str = String(val).replace(/"/g, '""');
+                    return `"${str}"`;
+                });
+                csvRows.push(values.join(','));
+            }
+
+            const csvString = csvRows.join('\n');
+            const fileName = `${reportType.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD_HHmmss')}.csv`;
+
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+            return res.send(csvString);
+        }
+
+        // 5. Stream Excel (.xlsx) using ExcelJS WorkbookWriter (low memory overhead, streams rows directly)
         const fileName = `${reportType.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
-
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.send(buffer);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+        const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+            stream: res,
+            useStyles: false,
+            useSharedStrings: false
+        });
+
+        const worksheet = workbook.addWorksheet("Report Data");
+
+        if (finalData && finalData.length > 0) {
+            const headers = Object.keys(finalData[0]);
+            worksheet.addRow(headers).commit();
+
+            for (const row of finalData) {
+                const values = headers.map(h => (row[h] !== undefined && row[h] !== null) ? row[h] : '');
+                worksheet.addRow(values).commit();
+            }
+        }
+
+        await workbook.commit();
 
     } catch (error) {
         console.error('[downloadReport] Error:', error);
@@ -1483,16 +1574,29 @@ export const downloadPdpReport = async (req, res) => {
             };
         });
 
-        const worksheet = XLSX.utils.json_to_sheet(finalData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "PDP Report");
-
-        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
         const fileName = `PDP_Report_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
-
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.send(buffer);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+        const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+            stream: res,
+            useStyles: false,
+            useSharedStrings: false
+        });
+
+        const worksheet = workbook.addWorksheet("PDP Report");
+
+        if (finalData && finalData.length > 0) {
+            const headers = Object.keys(finalData[0]);
+            worksheet.addRow(headers).commit();
+
+            for (const row of finalData) {
+                const values = headers.map(h => (row[h] !== undefined && row[h] !== null) ? row[h] : '');
+                worksheet.addRow(values).commit();
+            }
+        }
+
+        await workbook.commit();
     } catch (error) {
         console.error('[downloadPdpReport] Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });

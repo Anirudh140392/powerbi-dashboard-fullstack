@@ -244,11 +244,25 @@ export default function ScheduledReports() {
                 params.endDate = dayjs(customDateRange.endDate).format('YYYY-MM-DD');
             }
 
-            // Call backend API — it returns an Excel blob
+            // Call backend API — returns Blob (Excel or CSV)
             const blob = await downloadReport(params);
 
-            // Trigger file download
-            const fileName = `${reportType.replace(/\s+/g, '_')}_${timePeriod.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.xlsx`;
+            // Determine extension: darkstore mode, blob type text/csv, or date range > 31 days -> .csv
+            const isDarkstore = dataMode === 'darkstore' || reportType === 'Darkstore Data';
+
+            let sDate = params.startDate;
+            let eDate = params.endDate;
+            if (!sDate) {
+                const now = dayjs();
+                if (timePeriod === "Last 90 Days") { sDate = now.subtract(90, 'day').format('YYYY-MM-DD'); eDate = now.format('YYYY-MM-DD'); }
+                else if (timePeriod === "Last 6 Months") { sDate = now.subtract(6, 'month').format('YYYY-MM-DD'); eDate = now.format('YYYY-MM-DD'); }
+                else if (timePeriod === "Last Year") { sDate = now.subtract(1, 'year').format('YYYY-MM-DD'); eDate = now.format('YYYY-MM-DD'); }
+            }
+            const isOver31Days = sDate && eDate ? (dayjs(eDate).diff(dayjs(sDate), 'day') + 1 > 31) : false;
+            const isCsv = isDarkstore || isOver31Days || (blob && blob.type && blob.type.includes('csv'));
+
+            const ext = isCsv ? 'csv' : 'xlsx';
+            const fileName = `${reportType.replace(/\s+/g, '_')}_${timePeriod.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.${ext}`;
             saveAs(blob, fileName);
 
             setShowSuccess(true);

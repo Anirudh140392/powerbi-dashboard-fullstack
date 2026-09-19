@@ -84,6 +84,7 @@ function WatchTowerFilterModal({
   platforms, platform, setPlatform,
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
+  states = [], selectedState = "All", setSelectedState,
   locations = [], selectedLocation, setSelectedLocation,
   isBusinessOverview = false,
   msls = [], selectedMsl, setSelectedMsl,
@@ -119,6 +120,7 @@ function WatchTowerFilterModal({
   const [draftPlatform, setDraftPlatform] = React.useState(platform);
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
   const [draftBrand, setDraftBrand] = React.useState(selectedBrand);
+  const [draftState, setDraftState] = React.useState(selectedState);
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
   const [draftMsl, setDraftMsl] = React.useState(selectedMsl);
   const [draftSapCode, setDraftSapCode] = React.useState(selectedSapCode);
@@ -128,6 +130,7 @@ function WatchTowerFilterModal({
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
   const [localBrands, setLocalBrands] = React.useState(brands);
+  const [localStates, setLocalStates] = React.useState(states);
   const [localLocations, setLocalLocations] = React.useState(locations);
   const [localMsls, setLocalMsls] = React.useState(msls);
   const [localSapCodes, setLocalSapCodes] = React.useState(sapCodes);
@@ -155,6 +158,7 @@ function WatchTowerFilterModal({
     if (localSubBrands && localSubBrands.length > 0) {
       tabs.push({ key: "subBrand", label: "Sub Brand", icon: Tag });
     }
+    tabs.push({ key: "state", label: "State", icon: MapPin });
     tabs.push({ key: "location", label: "City", icon: MapPin });
     tabs.push({ key: "msl", label: "Top SKU", icon: Hash });
 
@@ -171,6 +175,7 @@ function WatchTowerFilterModal({
       setDraftPlatform(platform);
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedBrand);
+      setDraftState(selectedState);
       setDraftLocation(selectedLocation);
       setDraftMsl(selectedMsl);
       setDraftSapCode(selectedSapCode);
@@ -178,6 +183,7 @@ function WatchTowerFilterModal({
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
+      setLocalStates(states);
       setLocalLocations(locations);
       setLocalMsls(msls);
       setLocalSapCodes(sapCodes);
@@ -203,6 +209,7 @@ function WatchTowerFilterModal({
       platform: getParam(draftPlatform),
       category: getParam(draftCategory),
       brand: getParam(draftBrand),
+      state: getParam(draftState),
       location: getParam(draftLocation),
       subBrand: getParam(draftSubBrand)
     };
@@ -210,7 +217,7 @@ function WatchTowerFilterModal({
     axiosInstance.get("/watchtower/cascaded-filters", { params })
       .then(res => {
         if (res.data) {
-          const { platforms: newPlatforms, categories: newCategories, brands: newBrands, locations: newLocations } = res.data;
+          const { platforms: newPlatforms, categories: newCategories, brands: newBrands, states: newStates, locations: newLocations } = res.data;
 
           if (newPlatforms && Array.isArray(newPlatforms)) {
             setLocalPlatforms(newPlatforms);
@@ -249,6 +256,18 @@ function WatchTowerFilterModal({
             });
           }
 
+          if (newStates && Array.isArray(newStates)) {
+            setLocalStates(newStates);
+            setDraftState(prev => {
+              if (prev === "All") return "All";
+              const currList = Array.isArray(prev) ? prev : [prev];
+              if (currList.length === 0 || (currList.length === 1 && !currList[0])) return [];
+              const valid = currList.filter(s => newStates.some(ns => ns.toLowerCase() === s.toLowerCase()));
+              const newValue = valid.length === 0 ? "All" : (valid.length === newStates.length ? "All" : (valid.length === 1 ? valid[0] : valid));
+              return JSON.stringify(prev) === JSON.stringify(newValue) ? prev : newValue;
+            });
+          }
+
           if (newLocations && Array.isArray(newLocations)) {
             setLocalLocations(newLocations);
             setDraftLocation(prev => {
@@ -269,7 +288,7 @@ function WatchTowerFilterModal({
       .catch((err) => {
         console.error("Failed to fetch cascaded filters:", err);
       });
-  }, [draftChannel, draftPlatform, draftCategory, draftBrand, draftLocation, draftSubBrand, open]);
+  }, [draftChannel, draftPlatform, draftCategory, draftBrand, draftState, draftLocation, draftSubBrand, open]);
 
   // CASCADE: draftPlatform, draftCategory, draftBrand → sapCodes
   React.useEffect(() => {
@@ -315,6 +334,7 @@ function WatchTowerFilterModal({
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     subBrand: { options: localSubBrands, value: draftSubBrand, onChange: setDraftSubBrand },
+    state: { options: localStates, value: draftState, onChange: setDraftState },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
     msl: { options: localMsls, value: draftMsl, onChange: setDraftMsl },
     sapCode: { options: localSapCodes, value: draftSapCode, onChange: setDraftSapCode },
@@ -387,6 +407,7 @@ function WatchTowerFilterModal({
     }
     setSelectedCategory(normalize(draftCategory));
     setSelectedBrand(normalize(draftBrand));
+    if (setSelectedState) setSelectedState(normalize(draftState));
     if (setSelectedLocation) setSelectedLocation(normalize(draftLocation));
     if (setSelectedMsl) setSelectedMsl(normalize(draftMsl));
     if (setSelectedSapCode) setSelectedSapCode(draftSapCode);
@@ -407,6 +428,7 @@ function WatchTowerFilterModal({
     }
     setDraftCategory("All");
     setDraftBrand("All");
+    setDraftState("All");
     setDraftLocation("All");
     setDraftMsl("All");
     setDraftSapCode("All");
@@ -4283,6 +4305,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     locations,
     selectedLocation,
     setSelectedLocation,
+    states,
+    selectedState,
+    setSelectedState,
     platforms,
     platform,
     setPlatform,
@@ -4872,6 +4897,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       brands={brands}
                       selectedBrand={selectedBrand}
                       setSelectedBrand={setSelectedBrand}
+                      states={states}
+                      selectedState={selectedState}
+                      setSelectedState={setSelectedState}
                       locations={title === "Insights" ? ['Chandigarh', 'Delhi', 'Gurugram', 'Faridabad', 'Lucknow', 'Kolkata', 'Ahmedabad', 'Mumbai', 'Pune', 'Hyderabad', 'Bengaluru', 'Chennai'] : locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}

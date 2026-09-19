@@ -39,6 +39,10 @@ export const FilterProvider = ({ children }) => {
     const [locations, setLocations] = useState(FALLBACK_LOCATIONS);
     const [selectedLocation, setSelectedLocation] = useState("All");
 
+    // State (Location State) filter state
+    const [states, setStates] = useState([]);
+    const [selectedState, setSelectedState] = useState("All");
+
     // Additional Location Filters
     const [zones, setZones] = useState([]);
     const [selectedZone, setSelectedZone] = useState("All");
@@ -990,6 +994,10 @@ export const FilterProvider = ({ children }) => {
             setLocations,
             selectedLocation,
             setSelectedLocation,
+            states,
+            setStates,
+            selectedState,
+            setSelectedState,
             platforms,
             setPlatforms,
             platformMetadata,
