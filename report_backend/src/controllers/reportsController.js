@@ -470,10 +470,17 @@ export const downloadReport = async (req, res) => {
                     }
 
                     const values = Object.values(row);
-                    res.write(values.map(csvEscape).join(',') + '\n');
+                    const canWrite = res.write(values.map(csvEscape).join(',') + '\n');
                     rowCount++;
+
+                    if (!canWrite) {
+                        stream.pause();
+                        res.once('drain', () => stream.resume());
+                        break;
+                    }
                 }
             });
+
 
             stream.on('end', () => {
                 console.log(`[downloadReport Microservice] Streamed ${rowCount} Darkstore CSV rows`);
