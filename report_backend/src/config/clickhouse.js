@@ -24,7 +24,7 @@ function getClientForDb(dbName) {
         password: process.env.CLICKHOUSE_PASSWORD || '',
         database: dbName,
         request_timeout: 600000, // 10 minutes for large report downloads
-        max_open_connections: 10,
+        max_open_connections: 50,
         compression: {
             request: true,
             response: true,
