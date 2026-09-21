@@ -2923,9 +2923,26 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 platformDefinitions = cachedPlatforms;
             } else {
                 // Fetch platforms from rca_sku_dim table using ClickHouse
-                const platformsFromDb = await queryClickHouse(`
+                let platformsFromDb = await queryClickHouse(`
                     SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform
                 `);
+
+                const dbNameOverview = getCurrentDbName();
+                if (dbNameOverview === 'drl') {
+                    try {
+                        const bmPlats = await queryClickHouse(`SELECT DISTINCT Platform as platform FROM drl.buymore_rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != ''`);
+                        const existingSet = new Set(platformsFromDb.map(p => p.platform?.toLowerCase().trim()));
+                        bmPlats.forEach(r => {
+                            const norm = r.platform?.toLowerCase().trim();
+                            if (norm && !existingSet.has(norm)) {
+                                existingSet.add(norm);
+                                platformsFromDb.push({ platform: r.platform });
+                            }
+                        });
+                    } catch (e) {
+                        console.warn('[watchTowerOverview] Could not fetch platforms from buymore_rb_pdp_olap:', e.message);
+                    }
+                }
 
                 // Build platform definitions from database results
                 platformDefinitions = platformsFromDb
@@ -4642,7 +4659,25 @@ const getPlatforms = async (channel) => {
             query = `SELECT DISTINCT ${platformCol} AS platform FROM rca_sku_dim WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' ORDER BY platform`;
         }
         const results = await queryClickHouse(query);
-        return results.map(p => p.platform).filter(Boolean).sort();
+        const list = results.map(p => p.platform).filter(Boolean);
+
+        if (getCurrentDbName() === 'drl') {
+            try {
+                const bmPlats = await queryClickHouse(`SELECT DISTINCT Platform as platform FROM drl.buymore_rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != ''`);
+                const existingSet = new Set(list.map(p => p.toLowerCase().trim()));
+                bmPlats.forEach(r => {
+                    const norm = r.platform?.toLowerCase().trim();
+                    if (norm && !existingSet.has(norm)) {
+                        existingSet.add(norm);
+                        list.push(r.platform);
+                    }
+                });
+            } catch (e) {
+                console.warn('[getPlatforms] Could not fetch platforms from buymore_rb_pdp_olap:', e.message);
+            }
+        }
+
+        return list.sort();
     } catch (error) {
         console.error("Error fetching platforms:", error);
         return [];
@@ -4687,9 +4722,26 @@ const getPmPlatforms = async () => {
 const getPlatformMetadata = async () => {
     try {
         // 1) Get distinct platforms from rca_sku_dim
-        const platformsFromDb = await queryClickHouse(
+        let platformsFromDb = await queryClickHouse(
             `SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`
         );
+
+        if (getCurrentDbName() === 'drl') {
+            try {
+                const bmPlats = await queryClickHouse(`SELECT DISTINCT Platform as platform FROM drl.buymore_rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != ''`);
+                const existingSet = new Set(platformsFromDb.map(p => p.platform?.toLowerCase().trim()));
+                bmPlats.forEach(r => {
+                    const norm = r.platform?.toLowerCase().trim();
+                    if (norm && !existingSet.has(norm)) {
+                        existingSet.add(norm);
+                        platformsFromDb.push({ platform: r.platform });
+                    }
+                });
+            } catch (e) {
+                console.warn('[getPlatformMetadata] Could not fetch platforms from buymore_rb_pdp_olap:', e.message);
+            }
+        }
+
         if (!platformsFromDb || platformsFromDb.length === 0) return [];
 
         // 2) Get platform images from rb_platform
@@ -4724,6 +4776,7 @@ const getPlatformMetadata = async () => {
             'meesho': 'https://upload.wikimedia.org/wikipedia/commons/3/33/Meesho_logo.png',
             'myntra': 'https://static.vecteezy.com/system/resources/previews/067/941/729/non_2x/myntra-logo-myntra-icon-transparent-background-free-png.png',
             'pharmeasy': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmvGD4R2shvyr2o70i_tkpo4J2fygT8Im2YAcHruh45A&s',
+            'shopify': 'https://upload.wikimedia.org/wikipedia/commons/0/0e/Shopify_logo_2018.svg',
             '1mg': 'https://downloadr2.apkmirror.com/wp-content/uploads/2022/01/23/61e9605e26437.png',
             '1_mg': 'https://downloadr2.apkmirror.com/wp-content/uploads/2022/01/23/61e9605e26437.png',
             'apollo': 'https://pbs.twimg.com/profile_images/800955664155557888/OP1uO2ZW_400x400.jpg',
@@ -5682,7 +5735,24 @@ const getPlatformOverview = async (filters) => {
             console.error('[getPlatformOverview] Error fetching platform visuals:', vErr.message);
         }
 
-        const platformsFromDb = await queryClickHouse(`SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != ''`);
+        let platformsFromDb = await queryClickHouse(`SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != ''`);
+
+        const isDrlDb = getCurrentDbName() === 'drl';
+        if (isDrlDb) {
+            try {
+                const bmPlats = await queryClickHouse(`SELECT DISTINCT Platform as platform FROM drl.buymore_rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != ''`);
+                const existingSet = new Set(platformsFromDb.map(p => p.platform?.toLowerCase().trim()));
+                bmPlats.forEach(r => {
+                    const norm = r.platform?.toLowerCase().trim();
+                    if (norm && !existingSet.has(norm)) {
+                        existingSet.add(norm);
+                        platformsFromDb.push({ platform: r.platform });
+                    }
+                });
+            } catch (e) {
+                console.warn('[getPlatformOverview] Could not fetch platforms from buymore_rb_pdp_olap:', e.message);
+            }
+        }
 
         const getPlatformLogo = (name) => {
             const dbLogo = platformVisualsMap.get(name.toLowerCase().trim());
@@ -5699,7 +5769,8 @@ const getPlatformOverview = async (filters) => {
                 'jiomart': 'https://upload.wikimedia.org/wikipedia/en/5/54/JioMart_logo.svg',
                 'meesho': 'https://upload.wikimedia.org/wikipedia/commons/3/33/Meesho_logo.png',
                 'myntra': 'https://static.vecteezy.com/system/resources/previews/067/941/729/non_2x/myntra-logo-myntra-icon-transparent-background-free-png.png',
-                'pharmeasy': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmvGD4R2shvyr2o70i_tkpo4J2fygT8Im2YAcHruh45A&s'
+                'pharmeasy': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQmvGD4R2shvyr2o70i_tkpo4J2fygT8Im2YAcHruh45A&s',
+                'shopify': 'https://upload.wikimedia.org/wikipedia/commons/0/0e/Shopify_logo_2018.svg'
             };
             return logoMap[name.toLowerCase().trim()] || 'https://cdn-icons-png.flaticon.com/512/3502/3502685.png';
         };
