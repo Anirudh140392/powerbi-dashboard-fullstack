@@ -43,6 +43,55 @@ const normalizeFilterArray = (value) => {
     return arr;
 };
 
+const buildBuymoreCondsForTab = (sDate, eDate, filters = {}) => {
+    const { platform, category, location, brand } = filters;
+    const conds = [`toDate(DATE) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
+
+    const buymorePlatforms = ['amazon', 'pharmeasy', 'nykaa', 'myntra', 'jiomart', 'shopify', 'meesho', 'flipkart'];
+
+    // Platform filter
+    const platformArr = normalizeFilterArray(platform);
+    if (platformArr && platformArr.length > 0 && !platformArr.map(p => String(p).toLowerCase()).includes('all')) {
+        const filteredPlats = platformArr.map(p => String(p).toLowerCase()).filter(p => buymorePlatforms.includes(p));
+        if (filteredPlats.length > 0) {
+            conds.push(`lower(Platform) IN (${filteredPlats.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+        } else {
+            conds.push(`lower(Platform) IN ('__none__')`);
+        }
+    } else {
+        conds.push(`lower(Platform) IN (${buymorePlatforms.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+    }
+
+    // Category filter
+    const catArr = normalizeFilterArray(category);
+    if (catArr && catArr.length > 0 && !catArr.map(c => String(c).toLowerCase()).includes('all')) {
+        conds.push(`lower(trim(BOTH '\t\n ' FROM ifNull(category, ''))) IN (${catArr.map(c => `'${escapeStr(String(c).toLowerCase())}'`).join(', ')})`);
+    }
+
+    // Location filter
+    const locArr = normalizeFilterArray(location);
+    if (locArr && locArr.length > 0 && !locArr.map(l => String(l).toLowerCase()).includes('all')) {
+        conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(String(l).toLowerCase())}'`).join(', ')})`);
+    }
+
+    // Brand filter
+    const bArr = normalizeFilterArray(brand);
+    if (bArr && bArr.length > 0 && !bArr.map(b => String(b).toLowerCase()).includes('all')) {
+        const brandConditions = bArr.map(b => `lower(ifNull(brand, '')) LIKE '%${escapeStr(String(b).toLowerCase())}%'`).join(' OR ');
+        conds.push(`(${brandConditions})`);
+    }
+
+    // Status filter
+    const validStatuses = [
+        'shiplable generated', 'pickup_complete', 'pickup pending', 'payment success',
+        'packed', 'ndr/npr', 'shipment_issue', 'out for delivery', 'in transit',
+        'drs prepared', 'dispatched', 'delivered', 'created'
+    ];
+    conds.push(`lower(trim(Status)) IN (${validStatuses.map(s => `'${escapeStr(s.toLowerCase())}'`).join(', ')})`);
+
+    return conds.join(' AND ');
+};
+
 // Global SQL snippet to resolve the Product_Category from Brand if the column is empty
 // For chocolate brands (Snickers, Galaxy), uses Product name keywords to distinguish
 // Gifting (gift, tin pack, minis) from Non-Gifting
@@ -7244,6 +7293,41 @@ const getMonthOverview = async (filters) => {
     const sosDenomMonthMap = new Map(sosDenomMonth.map(r => [r.month, parseInt(r.count) || 0]));
     const msMonthMap = new Map(msMonthData.map(r => [r.month_date, parseFloat(r.avg_market_share || 0)]));
     const catSizeMonthMap = new Map(catSizeMonth.map(r => [r.month_date, parseFloat(r.cat_size || 0)]));
+
+    const isDrlDbMonth = getCurrentDbName() === 'drl';
+    if (isDrlDbMonth) {
+        try {
+            const bmMonthlyRes = await queryClickHouse(`
+                SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month_date,
+                       SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                       SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
+                FROM drl.buymore_rb_pdp_olap
+                WHERE ${buildBuymoreCondsForTab(fetchStartDate, endDate, { platform: moPlatform, category: categoryArr, location: locationArr, brand: brandArr })}
+                GROUP BY month_date
+            `);
+
+            const monthlyMap = new Map(monthlyData.map(m => [m.month_date, m]));
+            bmMonthlyRes.forEach(r => {
+                if (!r.month_date) return;
+                if (monthlyMap.has(r.month_date)) {
+                    const mRow = monthlyMap.get(r.month_date);
+                    mRow.total_sales = (parseFloat(mRow.total_sales) || 0) + parseFloat(r.buymore_sales || 0);
+                    mRow.total_qty = (parseFloat(mRow.total_qty) || 0) + parseFloat(r.buymore_qty || 0);
+                } else {
+                    const newRow = {
+                        month_date: r.month_date,
+                        total_sales: parseFloat(r.buymore_sales || 0),
+                        total_qty: parseFloat(r.buymore_qty || 0)
+                    };
+                    monthlyData.push(newRow);
+                    monthlyMap.set(r.month_date, newRow);
+                }
+            });
+        } catch (bmErr) {
+            console.error('[getMonthOverview] Error querying buymore_rb_pdp_olap:', bmErr);
+        }
+    }
+
     const dataMap = new Map(monthlyData.map(d => [d.month_date, d]));
     const pmDataMap = new Map(monthlyPmData.map(d => [d.month_date, d]));
 
@@ -7688,6 +7772,62 @@ const getCategoryOverview = async (filters) => {
             LIMIT 100
         `)
     ]);
+
+    const isDrlDbCat = getCurrentDbName() === 'drl';
+    if (isDrlDbCat) {
+        try {
+            const [currBmRes, prevBmRes] = await Promise.all([
+                queryClickHouse(`
+                    SELECT ifNull(nullIf(trim(category), ''), 'Other') as Category,
+                           SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                           SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
+                    FROM drl.buymore_rb_pdp_olap
+                    WHERE ${buildBuymoreCondsForTab(startDate, endDate, { platform: catPlatform, category: categoryArr, location: locationArr, brand: brandArr })}
+                    GROUP BY Category
+                `),
+                queryClickHouse(`
+                    SELECT ifNull(nullIf(trim(category), ''), 'Other') as Category,
+                           SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                           SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
+                    FROM drl.buymore_rb_pdp_olap
+                    WHERE ${buildBuymoreCondsForTab(momStart, momEnd, { platform: catPlatform, category: categoryArr, location: locationArr, brand: brandArr })}
+                    GROUP BY Category
+                `)
+            ]);
+
+            const existingCatSet = new Set(distinctCategories.map(d => d.category?.toLowerCase()));
+
+            const mergeBmCategories = (bmList, catDataArray) => {
+                const dataMap = new Map(catDataArray.map(d => [d.Category?.toLowerCase(), d]));
+                bmList.forEach(r => {
+                    const cKey = r.Category?.toLowerCase();
+                    if (!cKey) return;
+                    if (!existingCatSet.has(cKey)) {
+                        existingCatSet.add(cKey);
+                        distinctCategories.push({ category: r.Category });
+                    }
+                    if (dataMap.has(cKey)) {
+                        const row = dataMap.get(cKey);
+                        row.total_sales = (parseFloat(row.total_sales) || 0) + parseFloat(r.buymore_sales || 0);
+                        row.total_qty = (parseFloat(row.total_qty) || 0) + parseFloat(r.buymore_qty || 0);
+                    } else {
+                        const newRow = {
+                            Category: r.Category,
+                            total_sales: parseFloat(r.buymore_sales || 0),
+                            total_qty: parseFloat(r.buymore_qty || 0)
+                        };
+                        catDataArray.push(newRow);
+                        dataMap.set(cKey, newRow);
+                    }
+                });
+            };
+
+            mergeBmCategories(currBmRes, currCatData);
+            mergeBmCategories(prevBmRes, prevCatData);
+        } catch (bmErr) {
+            console.error('[getCategoryOverview] Error querying buymore_rb_pdp_olap:', bmErr);
+        }
+    }
 
     // SOS Current - Simple sumIf(overall) / sum(overall) per category
     const currSosData = await queryClickHouse(`
@@ -8144,6 +8284,62 @@ const getBrandsOverview = async (filters) => {
                     WHERE ${buildMsBrandConds(momStart, momEnd, null)}
                 `)
     ]);
+
+    const isDrlDbBrand = getCurrentDbName() === 'drl';
+    if (isDrlDbBrand) {
+        try {
+            const [currBmRes, prevBmRes] = await Promise.all([
+                queryClickHouse(`
+                    SELECT ifNull(nullIf(trim(brand), ''), 'Other') as Brand,
+                           SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                           SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
+                    FROM drl.buymore_rb_pdp_olap
+                    WHERE ${buildBuymoreCondsForTab(startDate, endDate, { platform: boPlatform, category: boCategory, location: locationArr, brand: brandArr })}
+                    GROUP BY Brand
+                `),
+                queryClickHouse(`
+                    SELECT ifNull(nullIf(trim(brand), ''), 'Other') as Brand,
+                           SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                           SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
+                    FROM drl.buymore_rb_pdp_olap
+                    WHERE ${buildBuymoreCondsForTab(momStart, momEnd, { platform: boPlatform, category: boCategory, location: locationArr, brand: brandArr })}
+                    GROUP BY Brand
+                `)
+            ]);
+
+            const existingBrandsSet = new Set(distinctBrands.map(d => d.brand?.toLowerCase()));
+
+            const mergeBmBrands = (bmList, brandDataArray) => {
+                const dataMap = new Map(brandDataArray.map(d => [d.Brand?.toLowerCase(), d]));
+                bmList.forEach(r => {
+                    const bKey = r.Brand?.toLowerCase();
+                    if (!bKey) return;
+                    if (!existingBrandsSet.has(bKey)) {
+                        existingBrandsSet.add(bKey);
+                        distinctBrands.push({ brand: r.Brand });
+                    }
+                    if (dataMap.has(bKey)) {
+                        const row = dataMap.get(bKey);
+                        row.total_sales = (parseFloat(row.total_sales) || 0) + parseFloat(r.buymore_sales || 0);
+                        row.total_qty = (parseFloat(row.total_qty) || 0) + parseFloat(r.buymore_qty || 0);
+                    } else {
+                        const newRow = {
+                            Brand: r.Brand,
+                            total_sales: parseFloat(r.buymore_sales || 0),
+                            total_qty: parseFloat(r.buymore_qty || 0)
+                        };
+                        brandDataArray.push(newRow);
+                        dataMap.set(bKey, newRow);
+                    }
+                });
+            };
+
+            mergeBmBrands(currBmRes, currBrandData);
+            mergeBmBrands(prevBmRes, prevBrandData);
+        } catch (bmErr) {
+            console.error('[getBrandsOverview] Error querying buymore_rb_pdp_olap:', bmErr);
+        }
+    }
 
     // SOS Fix: Denominator must be total across ALL rows (not grouped by brand)
     // Numerator is per-brand (flag='1' = our brand rows)
@@ -8654,6 +8850,7 @@ const getKpiTrends = async (filters) => {
                 ${groupExpression.replace('DATE', src.f.date)} as date_group,
                 MAX(toDate(${src.f.date})) as ref_date,
                 SUM(${src.f.sales}) as total_sales,
+                SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
                 countIf(${src.isAgg ? 'total_sales > 0' : 'Sales IS NOT NULL AND toString(Sales) != \'\' AND toString(Sales) != \'null\''}) as valid_sales_count,
                 SUM(${src.f.adSales}) as total_Ad_sales,
                 SUM(${src.f.spend}) as total_ad_spend,
@@ -8754,12 +8951,16 @@ const getKpiTrends = async (filters) => {
                 const buymoreResults = await queryClickHouse(`
                     SELECT 
                         ${buymoreGroupExpr} as date_group,
-                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
                     FROM drl.buymore_rb_pdp_olap
                     WHERE ${buildBuymoreConds()}
                     GROUP BY date_group
                 `);
-                buymoreMap = new Map(buymoreResults.map(r => [String(r.date_group), parseFloat(r.buymore_sales || 0)]));
+                buymoreMap = new Map(buymoreResults.map(r => [String(r.date_group), {
+                    sales: parseFloat(r.buymore_sales || 0),
+                    qty: parseFloat(r.buymore_qty || 0)
+                }]));
             } catch (err) {
                 console.error('[getKpiTrends] Error querying buymore_rb_pdp_olap:', err);
             }
@@ -8769,18 +8970,23 @@ const getKpiTrends = async (filters) => {
         kpiResults.forEach(r => kpiMap.set(String(r.date_group), r));
 
         if (includeBuyMore) {
-            buymoreMap.forEach((buySales, groupKey) => {
+            buymoreMap.forEach((buyData, groupKey) => {
+                const buySales = buyData.sales;
+                const buyQty = buyData.qty;
                 if (kpiMap.has(groupKey)) {
                     const row = kpiMap.get(groupKey);
                     if (!includeOtherResellers) {
                         row.total_sales = buySales;
+                        row.total_qty = buyQty;
                     } else {
                         row.total_sales = parseFloat(row.total_sales || 0) + buySales;
+                        row.total_qty = parseFloat(row.total_qty || 0) + buyQty;
                     }
                 } else {
                     const newRow = {
                         date_group: groupKey,
                         total_sales: buySales,
+                        total_qty: buyQty,
                         total_Ad_sales: 0,
                         total_ad_spend: 0,
                         total_ad_orders: 0,
@@ -8799,6 +9005,7 @@ const getKpiTrends = async (filters) => {
             kpiResults.forEach(r => {
                 if (!buymoreMap.has(String(r.date_group))) {
                     r.total_sales = 0;
+                    r.total_qty = 0;
                 }
             });
         }
@@ -8944,6 +9151,7 @@ const getKpiTrends = async (filters) => {
     // If a specific KPI is completely missing (null/0) for all dates, it will be marked as unavailable
     // and return null (showing "N/A" on the UI) for all data points.
     const hasOfftakesData = kpiResults.some(r => parseFloat(r.total_sales || 0) > 0);
+    const hasQuantitySoldData = kpiResults.some(r => parseFloat(r.total_qty || 0) > 0);
     const hasAvailabilityData = kpiResults.some(r => r.total_availability !== null && r.total_availability !== undefined);
     const hasAssortmentData = kpiResults.some(r => parseInt(r.assortment_count || 0, 10) > 0);
     const hasDiscountData = kpiResults.some(r => parseFloat(r.avg_discount || 0) > 0);
@@ -9087,6 +9295,7 @@ const getKpiTrends = async (filters) => {
 
         // 6. Offtakes (Total Sales) - Return raw value for frontend formatting
         const offtakes = totalSales;
+        const quantitySold = (hasPdpBucketData && row.total_qty !== null && row.total_qty !== undefined) ? parseFloat(row.total_qty) : null;
 
         // 7. Spend (Ad Spend) - Return raw value for frontend formatting
         const spend = effectiveAdSpend;
@@ -9116,6 +9325,11 @@ const getKpiTrends = async (filters) => {
             BmiSalesRatio: valIfData(hasPmSpendData && hasOfftakesData, effectivePmBucketData && hasPdpBucketData, parseFloat(bmiSalesRatio.toFixed(2))),
             // Extended KPIs (Platform/Month/Category/Brand pages)
             Offtakes: valIfData(hasOfftakesData, hasPdpBucketData, (offtakes !== null && offtakes !== undefined) ? parseFloat(offtakes.toFixed(0)) : null),
+            QuantitySold: valIfData(hasQuantitySoldData, hasPdpBucketData, (quantitySold !== null && quantitySold !== undefined) ? parseFloat(quantitySold.toFixed(0)) : null),
+            Quantity_Sold: valIfData(hasQuantitySoldData, hasPdpBucketData, (quantitySold !== null && quantitySold !== undefined) ? parseFloat(quantitySold.toFixed(0)) : null),
+            quantitySold: valIfData(hasQuantitySoldData, hasPdpBucketData, (quantitySold !== null && quantitySold !== undefined) ? parseFloat(quantitySold.toFixed(0)) : null),
+            Quantity: valIfData(hasQuantitySoldData, hasPdpBucketData, (quantitySold !== null && quantitySold !== undefined) ? parseFloat(quantitySold.toFixed(0)) : null),
+            QtySold: valIfData(hasQuantitySoldData, hasPdpBucketData, (quantitySold !== null && quantitySold !== undefined) ? parseFloat(quantitySold.toFixed(0)) : null),
             Spend: valIfData(hasPmSpendData, effectivePmBucketData, (spend !== null && spend !== undefined) ? parseFloat(spend.toFixed(0)) : null),
             Availability: valIfData(hasAvailabilityData, hasPdpBucketData, availability !== null ? parseFloat(availability.toFixed(2)) : null),
             Osa: valIfData(hasAvailabilityData, hasPdpBucketData, availability !== null ? parseFloat(availability.toFixed(2)) : null),
@@ -13001,6 +13215,64 @@ const getSkuOverview = async (filters) => {
         currTotalOrgSovCatRes, prevTotalOrgSovCatRes
     ] = results;
 
+    const isDrlDbSku = getCurrentDbName() === 'drl';
+    if (isDrlDbSku) {
+        try {
+            const [currBmRes, prevBmRes] = await Promise.all([
+                queryClickHouse(`
+                    SELECT sku_name as Product,
+                           any(ifNull(nullIf(trim(brand), ''), 'Other')) as brand_name,
+                           any(Product_id) as web_pid,
+                           SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                           SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
+                    FROM drl.buymore_rb_pdp_olap
+                    WHERE ${buildBuymoreCondsForTab(startDate, endDate, { platform: skuPlatform, category: categoryArr, location: locationArr, brand: brandArr })}
+                      AND sku_name IS NOT NULL AND sku_name != ''
+                    GROUP BY Product
+                `),
+                queryClickHouse(`
+                    SELECT sku_name as Product,
+                           any(ifNull(nullIf(trim(brand), ''), 'Other')) as brand_name,
+                           any(Product_id) as web_pid,
+                           SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                           SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
+                    FROM drl.buymore_rb_pdp_olap
+                    WHERE ${buildBuymoreCondsForTab(prevStartDate, prevEndDate, { platform: skuPlatform, category: categoryArr, location: locationArr, brand: brandArr })}
+                      AND sku_name IS NOT NULL AND sku_name != ''
+                    GROUP BY Product
+                `)
+            ]);
+
+            const mergeBmSkus = (bmList, skuDataArray) => {
+                const dataMap = new Map(skuDataArray.map(d => [d.Product?.toLowerCase(), d]));
+                bmList.forEach(r => {
+                    const pKey = r.Product?.toLowerCase();
+                    if (!pKey) return;
+                    if (dataMap.has(pKey)) {
+                        const row = dataMap.get(pKey);
+                        row.total_sales = (parseFloat(row.total_sales) || 0) + parseFloat(r.buymore_sales || 0);
+                        row.total_qty = (parseFloat(row.total_qty) || 0) + parseFloat(r.buymore_qty || 0);
+                    } else {
+                        const newRow = {
+                            Product: r.Product,
+                            brand_name: r.brand_name,
+                            web_pid: r.web_pid,
+                            total_sales: parseFloat(r.buymore_sales || 0),
+                            total_qty: parseFloat(r.buymore_qty || 0)
+                        };
+                        skuDataArray.push(newRow);
+                        dataMap.set(pKey, newRow);
+                    }
+                });
+            };
+
+            mergeBmSkus(currBmRes, currSkuMetrics);
+            mergeBmSkus(prevBmRes, prevSkuMetrics);
+        } catch (bmErr) {
+            console.error('[getSkuOverview] Error querying buymore_rb_pdp_olap:', bmErr);
+        }
+    }
+
     const [
         currTotalSosCat, prevTotalSosCat,
         currTotalAdSovCat, prevTotalAdSovCat,
@@ -13498,6 +13770,73 @@ const getCityOverview = async (filters) => {
         currCityMetrics, prevCityMetrics, currMsResult, prevMsResult, currCityCatSize, prevCityCatSize, currPmCityMetrics, prevPmCityMetrics,
         allPdpCurrRes, allPdpPrevRes, allPmCurrRes, allPmPrevRes, allMsCurrRes, allMsPrevRes
     ] = results;
+
+    const isDrlDbCity = getCurrentDbName() === 'drl';
+    if (isDrlDbCity) {
+        try {
+            const [currBmRes, prevBmRes] = await Promise.all([
+                queryClickHouse(`
+                    SELECT Location,
+                           SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                           SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
+                    FROM drl.buymore_rb_pdp_olap
+                    WHERE ${buildBuymoreCondsForTab(startDate, endDate, { platform: cityPlatform, category: categoryArr, location: locationArr, brand: brandArr })}
+                      AND Location IS NOT NULL AND Location != ''
+                    GROUP BY Location
+                `),
+                queryClickHouse(`
+                    SELECT Location,
+                           SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales,
+                           SUM(ifNull(toFloat64OrZero(toString(Qty_Sold_MRP)), 0)) as buymore_qty
+                    FROM drl.buymore_rb_pdp_olap
+                    WHERE ${buildBuymoreCondsForTab(prevStartDate, prevEndDate, { platform: cityPlatform, category: categoryArr, location: locationArr, brand: brandArr })}
+                      AND Location IS NOT NULL AND Location != ''
+                    GROUP BY Location
+                `)
+            ]);
+
+            const mergeBmCities = (bmList, cityDataArray) => {
+                const dataMap = new Map(cityDataArray.map(d => [d.Location?.toLowerCase(), d]));
+                bmList.forEach(r => {
+                    const lKey = r.Location?.toLowerCase();
+                    if (!lKey) return;
+                    if (dataMap.has(lKey)) {
+                        const row = dataMap.get(lKey);
+                        row.total_sales = (parseFloat(row.total_sales) || 0) + parseFloat(r.buymore_sales || 0);
+                        row.total_qty = (parseFloat(row.total_qty) || 0) + parseFloat(r.buymore_qty || 0);
+                    } else {
+                        const newRow = {
+                            Location: r.Location,
+                            total_sales: parseFloat(r.buymore_sales || 0),
+                            total_qty: parseFloat(r.buymore_qty || 0)
+                        };
+                        cityDataArray.push(newRow);
+                        dataMap.set(lKey, newRow);
+                    }
+                });
+            };
+
+            mergeBmCities(currBmRes, currCityMetrics);
+            mergeBmCities(prevBmRes, prevCityMetrics);
+
+            // Also add buymore overall totals to Pan India totals
+            const bmCurrTotalSales = currBmRes.reduce((acc, r) => acc + parseFloat(r.buymore_sales || 0), 0);
+            const bmCurrTotalQty = currBmRes.reduce((acc, r) => acc + parseFloat(r.buymore_qty || 0), 0);
+            const bmPrevTotalSales = prevBmRes.reduce((acc, r) => acc + parseFloat(r.buymore_sales || 0), 0);
+            const bmPrevTotalQty = prevBmRes.reduce((acc, r) => acc + parseFloat(r.buymore_qty || 0), 0);
+
+            if (allPdpCurrRes && allPdpCurrRes[0]) {
+                allPdpCurrRes[0].total_sales = (parseFloat(allPdpCurrRes[0].total_sales) || 0) + bmCurrTotalSales;
+                allPdpCurrRes[0].total_qty = (parseFloat(allPdpCurrRes[0].total_qty) || 0) + bmCurrTotalQty;
+            }
+            if (allPdpPrevRes && allPdpPrevRes[0]) {
+                allPdpPrevRes[0].total_sales = (parseFloat(allPdpPrevRes[0].total_sales) || 0) + bmPrevTotalSales;
+                allPdpPrevRes[0].total_qty = (parseFloat(allPdpPrevRes[0].total_qty) || 0) + bmPrevTotalQty;
+            }
+        } catch (bmErr) {
+            console.error('[getCityOverview] Error querying buymore_rb_pdp_olap:', bmErr);
+        }
+    }
     const prevCityMap = new Map(prevCityMetrics.map(d => [d.Location, d]));
     const currPmMap = new Map(currPmCityMetrics.map(d => [d.Location?.toLowerCase(), d]));
     const prevPmMap = new Map(prevPmCityMetrics.map(d => [d.Location?.toLowerCase(), d]));

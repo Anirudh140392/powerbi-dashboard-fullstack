@@ -91,6 +91,8 @@ export const KPI_SOURCE_MAP = {
   Discount: 'pdp', 'Promo-My': 'pdp', 'promo-my': 'pdp', PromoMyBrand: 'pdp', discount: 'pdp',
   Assortment: 'pdp', Listing: 'pdp',
   PricePerUnit: 'pdp', ASP: 'pdp', RPI: 'pdp', Price: 'pdp', price: 'pdp',
+  Offtakes: 'pdp', offtake: 'pdp', Offtake: 'pdp',
+  QuantitySold: 'pdp', Quantity_Sold: 'pdp', quantitySold: 'pdp', Quantity: 'pdp', QtySold: 'pdp',
   // PM table KPIs
   InorganicSales: 'pm', InorgSales: 'pm',
   Conversion: 'pm', conversion: 'pm', Roas: 'pm', ROAS: 'pm', roas: 'pm',
@@ -139,6 +141,12 @@ const DASHBOARD_DATA = {
         label: "Inorg Sales",
         color: "#7C3AED",
         axis: "right",
+      },
+      {
+        id: "QuantitySold",
+        label: "Quantity Sold",
+        color: "#0EA5E9",
+        axis: "left",
       },
       {
         id: "Conversion",

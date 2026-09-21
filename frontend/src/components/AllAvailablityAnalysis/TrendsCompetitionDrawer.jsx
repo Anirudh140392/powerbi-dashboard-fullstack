@@ -635,6 +635,8 @@ const KPI_SOURCE_MAP = {
   Availability: 'pdp', Osa: 'pdp', osa: 'pdp',
   'Promo-My': 'pdp', PromoMyBrand: 'pdp',
   Assortment: 'pdp', Listing: 'pdp',
+  Offtakes: 'pdp', offtake: 'pdp', Offtake: 'pdp',
+  QuantitySold: 'pdp', Quantity_Sold: 'pdp', quantitySold: 'pdp', Quantity: 'pdp', QtySold: 'pdp',
   // PM table KPIs
   InorganicSales: 'pm', InorgSales: 'pm',
   Conversion: 'pm', Roas: 'pm', ROAS: 'pm',
@@ -1522,6 +1524,13 @@ export default function TrendsCompetitionDrawer({
               default: true,
             },
             {
+              id: "QuantitySold",
+              label: "Quantity Sold",
+              color: "#0EA5E9",
+              axis: "left",
+              default: false,
+            },
+            {
               id: "Conversion",
               label: "Conversion",
               color: "#F97316",
@@ -2120,6 +2129,12 @@ export default function TrendsCompetitionDrawer({
               id: "InorgSales",
               label: "Inorg Sales",
               color: "#7C3AED",
+              axis: "left",
+            },
+            {
+              id: "QuantitySold",
+              label: "Quantity Sold",
+              color: "#0EA5E9",
               axis: "left",
             },
             {
