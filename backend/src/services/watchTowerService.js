@@ -10370,18 +10370,18 @@ const getLatestAvailableMonth = async (filters = {}) => {
             } catch { return false; }
         };
 
-        let targetTable = `${currentDb}.rb_pdp`;
-        if (await checkTableExists(`${currentDb}.rb_pdp`)) targetTable = `${currentDb}.rb_pdp`;
+        let targetTable = `${currentDb}.rb_pdp_olap`;
+        if (await checkTableExists(`${currentDb}.rb_pdp_olap`)) targetTable = `${currentDb}.rb_pdp_olap`;
+        else if (await checkTableExists('rb_pdp_olap')) targetTable = 'rb_pdp_olap';
+        else if (await checkTableExists(`${currentDb}.rb_pdp`)) targetTable = `${currentDb}.rb_pdp`;
         else if (await checkTableExists('rb_pdp')) targetTable = 'rb_pdp';
         else if (await checkTableExists('emami.rb_pdp')) targetTable = 'emami.rb_pdp';
-        else if (await checkTableExists(`${currentDb}.rb_pdp_olap`)) targetTable = `${currentDb}.rb_pdp_olap`;
-        else if (await checkTableExists('rb_pdp_olap')) targetTable = 'rb_pdp_olap';
         else if (await checkTableExists(`${currentDb}.rb_pdp_week`)) targetTable = `${currentDb}.rb_pdp_week`;
         else if (await checkTableExists('rb_pdp_week')) targetTable = 'rb_pdp_week';
 
         const cols = await getTableColumns(targetTable);
         const r = (name) => resolveColumn(cols, name);
-        const dateCol = cols.has('created_on') ? 'created_on' : (cols.has('pdp_crawl_date') ? 'pdp_crawl_date' : r('DATE'));
+        const dateCol = targetTable.includes('rb_pdp_olap') ? r('DATE') : (cols.has('created_on') ? 'created_on' : (cols.has('pdp_crawl_date') ? 'pdp_crawl_date' : r('DATE')));
         const compFlagCol = cols.has('comp_flag') ? r('comp_flag') : null;
         const platformCol = r('Platform');
         const brandCol = r('Brand');

@@ -63,8 +63,10 @@ export const getTrendData = async (req, res) => {
 
 export const getLatestAvailableMonth = async (req, res) => {
     try {
+        console.log("🔥 [DEBUG getLatestAvailableMonth Controller] Called with dbName:", req.user?.dbName, "query:", req.query);
         const filters = { ...req.query };
         const latest = await watchTowerService.getLatestAvailableMonth(filters);
+        console.log("🔥 [DEBUG getLatestAvailableMonth Controller] Result:", latest);
 
         if (!latest || !latest.available) {
             return res.json({
