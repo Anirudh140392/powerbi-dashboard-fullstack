@@ -128,7 +128,7 @@ const kpiLabels = {
     inorgSales: 'Inorganic Sales',
     asp: 'ASP',
     categorySize: 'Cat Size',
-    discount: 'Promo',
+    discount: 'Discount',
     deliveryTime: 'Delivery Time',
     aov: 'AOV'
 };
@@ -164,6 +164,7 @@ const BACKEND_TITLE_TO_KEY = {
     'CPM': 'cpm',
     'CPC': 'cpc',
     'ASP': 'asp',
+    'Discount': 'discount',
     'Promo': 'discount',
     'Promo-My': 'discount',
     'Promo Compete': 'promoCompete',

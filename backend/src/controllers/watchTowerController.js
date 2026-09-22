@@ -16,7 +16,7 @@ export const watchTowerOverview = async (req, res) => {
                 { name: "Availability", label: "0%", subtitle: "No data", trend: "0%", trendType: "neutral", chart: [] },
                 { name: "Share of Search", label: "0%", subtitle: "No data", trend: "0%", trendType: "neutral", chart: [] },
                 { name: "Market Share", label: "0%", subtitle: "No data", trend: "0%", trendType: "neutral", chart: [] },
-                { name: "Promo", label: "0%", subtitle: "No data", trend: "+0.0%", trendType: "neutral", chart: [] },
+                { name: "Discount", label: "0%", subtitle: "No data", trend: "+0.0%", trendType: "neutral", chart: [] },
             ],
             summaryMetrics: {
                 offtakes: "₹0",

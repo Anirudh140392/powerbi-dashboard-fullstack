@@ -1342,6 +1342,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     }, [drawerFilters, city]);
 
     const handleFilterChange = useCallback((newFilters) => {
+        setFilters(newFilters);
         if (setDrawerFilters) {
             const localFormat = newFilters.categories.length > 0 ? newFilters.categories.join(',') : 'All';
             const localBrand = newFilters.brands.length > 0 ? newFilters.brands.join(',') : 'All';
@@ -1354,8 +1355,6 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 SKU: localSku,
                 Msl: rawMsl
             }));
-        } else {
-            setFilters(newFilters);
         }
     }, [setDrawerFilters]);
 
@@ -1465,7 +1464,15 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     }, [competitionData.brands]);
 
     const skuRows = useMemo(() => {
-        const mapped = (competitionData.skus || []).map((s, idx) => {
+        let rawSkus = competitionData.skus || [];
+        if (activeFilters.brands && activeFilters.brands.length > 0) {
+            const allowedBrands = activeFilters.brands.map(b => b.toLowerCase().trim());
+            rawSkus = rawSkus.filter(s => {
+                const bName = (s.brand_name || s.brandName || s.brand || s.Brand || '').toLowerCase().trim();
+                return allowedBrands.some(ab => bName.includes(ab) || ab.includes(bName));
+            });
+        }
+        const mapped = rawSkus.map((s, idx) => {
             const msVal = Number(s.MarketShare?.value ?? s.marketShare?.value ?? s.MarketShare ?? s.marketShare ?? 0);
             const osa = s.osa ?? s.OSA?.value ?? null;
             const listing = s.listing ?? s.Listing?.value ?? null;
@@ -1511,7 +1518,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
 
             return (a.name || '').localeCompare(b.name || '');
         });
-    }, [competitionData.skus]);
+    }, [competitionData.skus, activeFilters.brands]);
 
     const handleDownloadCompetitionExcel = () => {
         try {
@@ -1577,12 +1584,12 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
 
     const handleBrandSelect = useCallback((brandName) => {
         if (!brandName) return;
-        setFilters((prev) => ({
-            ...prev,
+        handleFilterChange({
+            ...activeFilters,
             brands: [brandName],
-        }));
+        });
         setTab("sku");
-    }, []);
+    }, [activeFilters, handleFilterChange]);
 
     return (
         <div className="flex-col bg-slate-50 text-slate-900">

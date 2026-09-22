@@ -2303,7 +2303,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 labels: chartLabels
             },
             {
-                name: "Promo",
+                name: "Discount",
                 label: formattedPromo,
                 subtitle: subtitle,
                 trend: promoTrendStr,

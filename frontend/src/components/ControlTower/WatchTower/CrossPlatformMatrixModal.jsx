@@ -44,7 +44,7 @@ export const ALL_KPI_COLUMNS = [
   { id: "osa", altId: "availability", label: "OSA", format: "percent" },
   { id: "sos", label: "SOS", format: "percent" },
   { id: "price", altId: "asp", label: "Price", format: "currency" },
-  { id: "promo", altId: "promoMyBrand", label: "Promo-My %", format: "percent" },
+  { id: "promo", altId: "promoMyBrand", label: "Discount %", format: "percent" },
   { id: "marketShare", altId: "marketSales", label: "Mkt Share", format: "percent" },
 ];
 

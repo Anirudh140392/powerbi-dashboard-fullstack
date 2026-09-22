@@ -1526,8 +1526,14 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
 
     const skuRows = useMemo(() => {
         let rows = apiSkuData;
-        if (filters.brands.length) rows = rows.filter((r) => filters.brands.includes(r.brandName));
-        if (filters.skus.length) rows = rows.filter((r) => filters.skus.includes(r.name));
+        if (filters.brands && filters.brands.length) {
+            const allowed = filters.brands.map(b => b.toLowerCase().trim());
+            rows = rows.filter((r) => {
+                const bName = (r.brandName || r.brand_name || r.brand || '').toLowerCase().trim();
+                return allowed.some(ab => bName.includes(ab) || ab.includes(bName));
+            });
+        }
+        if (filters.skus && filters.skus.length) rows = rows.filter((r) => filters.skus.includes(r.name));
         return rows;
     }, [apiSkuData, filters.brands, filters.skus]);
 

@@ -1920,7 +1920,7 @@ export default function TrendsCompetitionDrawer({
           metrics: [
             {
               id: "Discount",
-              label: "Promo-My %",
+              label: "Discount",
               color: "#6366F1",
               axis: "right",
               default: true,
@@ -1963,7 +1963,7 @@ export default function TrendsCompetitionDrawer({
           timeSteps: ["Daily", "Weekly", "Monthly"],
           defaultTimeStep: "Daily",
           metrics: [
-            { id: "Discount", label: "Promo-My %", color: "#6366F1", default: true },
+            { id: "Discount", label: "Discount", color: "#6366F1", default: true },
             { id: "PricePerUnit", label: "Wt. Price Per Unit", color: "#14B8A6", default: true },
             { id: "ASP", label: "ASP", color: "#8B5CF6", default: false },
           ],
@@ -1981,7 +1981,7 @@ export default function TrendsCompetitionDrawer({
           periodToggle: { primary: "MTD", compare: "Previous Month" },
           columns: [
             { id: "brand", label: "Brand", type: "text" },
-            { id: "Discount", label: "Promo-My %", type: "metric" },
+            { id: "Discount", label: "Discount", type: "metric" },
             { id: "PricePerUnit", label: "Price per Unit", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
           ],
@@ -2151,7 +2151,7 @@ export default function TrendsCompetitionDrawer({
             },
             { id: "SOS", label: "SOS", color: "#A855F7", axis: "right" },
             { id: "MarketShare", label: "Market Share", color: "#9333EA", axis: "right" },
-            { id: "Discount", label: "Promo-My %", color: "#06B6D4", axis: "right" },
+            { id: "Discount", label: "Discount", color: "#06B6D4", axis: "right" },
             { id: "CPM", label: "CPM", color: "#64748B", axis: "left" },
             { id: "CPC", label: "CPC", color: "#475569", axis: "left" },
           ],
@@ -2345,7 +2345,7 @@ export default function TrendsCompetitionDrawer({
             { id: "ROAS", label: "ROAS", color: "#16A34A", default: true },
             { id: "CategoryShare", label: "Category Share", color: "#EC4899" },
             { id: "MarketShare", label: "Market Share", color: "#9333EA" },
-            { id: "Discount", label: "Promo-My %", color: "#06B6D4" },
+            { id: "Discount", label: "Discount", color: "#06B6D4" },
             { id: "Conversion", label: "Conversion", color: "#F97316" },
           ],
 
@@ -2422,7 +2422,7 @@ export default function TrendsCompetitionDrawer({
             { id: "CategoryShare", label: "Category Share", type: "metric" },
             { id: "MarketShare", label: "Market Share", type: "metric" },
             { id: "OSA", label: "OSA", type: "metric" },
-            { id: "Discount", label: "Promo-My %", type: "metric" },
+            { id: "Discount", label: "Discount", type: "metric" },
             { id: "PricePerUnit", label: "Wt. Price Per Unit", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
             { id: "RPI", label: "RPI", type: "metric" },
