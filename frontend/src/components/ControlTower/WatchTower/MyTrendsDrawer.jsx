@@ -34,6 +34,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
   const [timeStep, setTimeStep] = useState('Weekly');
   const [selectedMetrics, setSelectedMetrics] = useState({
     offtake: true,
+    quantitySold: true,
     estCategoryShare: true,
     osa: true,
     discount: true,
@@ -94,6 +95,17 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
               </Typography>
             </Box>
           )}
+          {selectedMetrics.quantitySold && (payload[0].payload.quantitySold || payload[0].payload.QuantitySold) && (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#0ea5e9' }}></Box>
+                <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>Quantity Sold</Typography>
+              </Box>
+              <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
+                {Number(payload[0].payload.quantitySold || payload[0].payload.QuantitySold).toLocaleString()} Units
+              </Typography>
+            </Box>
+          )}
           {selectedMetrics.osa && payload[0].payload.osa && (
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -113,6 +125,7 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
 
   const metricsList = [
     { key: 'offtake', label: 'Offtakes', color: theme.palette.error.main },
+    { key: 'quantitySold', label: 'Quantity Sold', color: '#0ea5e9' },
     { key: 'estCategoryShare', label: 'Est. Category Share', color: theme.palette.secondary ? theme.palette.secondary.main : '#a855f7' },
     { key: 'osa', label: 'OSA%', color: theme.palette.success.main },
     { key: 'discount', label: 'Wt. Discount%', color: theme.palette.primary.main },
@@ -381,6 +394,17 @@ const MyTrendsDrawer = ({ open, onClose, trendData = {}, trendParams = {} }) => 
                     strokeWidth={2.5}
                     dot={{ r: 3.5, fill: theme.palette.error.main, strokeWidth: 0 }}
                     activeDot={{ r: 5, fill: theme.palette.error.main, strokeWidth: 2, stroke: theme.palette.background.paper }}
+                  />
+                )}
+                {selectedMetrics.quantitySold && (
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="QuantitySold"
+                    stroke="#0ea5e9"
+                    strokeWidth={2.5}
+                    dot={{ r: 3.5, fill: '#0ea5e9', strokeWidth: 0 }}
+                    activeDot={{ r: 5, fill: '#0ea5e9', strokeWidth: 2, stroke: theme.palette.background.paper }}
                   />
                 )}
                 {selectedMetrics.estCategoryShare && (

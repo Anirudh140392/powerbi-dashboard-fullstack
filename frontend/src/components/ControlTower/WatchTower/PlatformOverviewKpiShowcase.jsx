@@ -91,6 +91,8 @@ export const KPI_SOURCE_MAP = {
   Discount: 'pdp', 'Promo-My': 'pdp', 'promo-my': 'pdp', PromoMyBrand: 'pdp', discount: 'pdp',
   Assortment: 'pdp', Listing: 'pdp',
   PricePerUnit: 'pdp', ASP: 'pdp', RPI: 'pdp', Price: 'pdp', price: 'pdp',
+  Offtakes: 'pdp', offtake: 'pdp', Offtake: 'pdp',
+  QuantitySold: 'pdp', Quantity_Sold: 'pdp', quantitySold: 'pdp', Quantity: 'pdp', QtySold: 'pdp',
   // PM table KPIs
   InorganicSales: 'pm', InorgSales: 'pm',
   Conversion: 'pm', conversion: 'pm', Roas: 'pm', ROAS: 'pm', roas: 'pm',
@@ -141,6 +143,12 @@ const DASHBOARD_DATA = {
         axis: "right",
       },
       {
+        id: "QuantitySold",
+        label: "Quantity Sold",
+        color: "#0EA5E9",
+        axis: "left",
+      },
+      {
         id: "Conversion",
         label: "Conversion",
         color: "#F97316",
@@ -161,7 +169,7 @@ const DASHBOARD_DATA = {
       },
       {
         id: "PromoMyBrand",
-        label: "Promo-My %",
+        label: "Discount",
         color: "#F59E0B",
         axis: "right",
       },
@@ -1844,7 +1852,7 @@ const KPI_KEYS = [
   },
   {
     key: "promo-my",
-    label: "Promo-My %",
+    label: "Discount",
     color: "#06B6D4", // cyan
     unit: "%",
   },
@@ -2105,7 +2113,7 @@ const BrandTable = ({ rows, loading, onTrendClick, onDownload, onBrandSelect }) 
                 <th className="px-3 py-2 text-center w-[15%]">OSA</th>
                 <th className="px-3 py-2 text-center w-[15%]">SOS</th>
                 <th className="px-3 py-2 text-center w-[15%]">Price</th>
-                <th className="px-3 py-2 text-center w-[15%]">Promo-My %</th>
+                <th className="px-3 py-2 text-center w-[15%]">Discount %</th>
                 <th className="px-3 py-2 text-center w-[15%]">Mkt Share</th>
               </tr>
             </thead>
@@ -2235,7 +2243,7 @@ const SkuTable = ({ rows, loading, onTrendClick, onDownload }) => {
                 <th className="px-3 py-2 text-center w-[14%]">Brand</th>
                 <th className="px-3 py-2 text-center w-[13%]">OSA</th>
                 <th className="px-3 py-2 text-center w-[13%]">Price</th>
-                <th className="px-3 py-2 text-center w-[14%]">Promo-My %</th>
+                <th className="px-3 py-2 text-center w-[14%]">Discount %</th>
                 <th className="px-3 py-2 text-center w-[14%]">Mkt Share</th>
                 <th className="px-3 py-2 text-center w-[14%]">Offtake Share %</th>
               </tr>
@@ -2533,7 +2541,15 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
   }, [apiBrandData]);
 
   const skuRows = useMemo(() => {
-    return [...apiSkuData].sort((a, b) => {
+    let filtered = [...apiSkuData];
+    if (filters.brands && filters.brands.length > 0) {
+      const allowed = filters.brands.map(b => b.toLowerCase().trim());
+      filtered = filtered.filter(s => {
+        const bName = (s.brand_name || s.brandName || s.brand || s.Brand || '').toLowerCase().trim();
+        return allowed.some(ab => bName.includes(ab) || ab.includes(bName));
+      });
+    }
+    return filtered.sort((a, b) => {
       const getOfftakeVal = (item) => {
         const raw = item?.OfftakeShare?.value ?? item?.OfftakeShare ?? item?.offtake_share ?? item?.CategoryShare?.value ?? item?.CategoryShare ?? 0;
         const num = Number(raw);

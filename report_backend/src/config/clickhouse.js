@@ -1,4 +1,3 @@
-// src/config/clickhouse.js
 import 'dotenv/config';
 import { createClient } from '@clickhouse/client';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -25,7 +24,7 @@ function getClientForDb(dbName) {
         password: process.env.CLICKHOUSE_PASSWORD || '',
         database: dbName,
         request_timeout: 600000, // 10 minutes for large report downloads
-        max_open_connections: 10,
+        max_open_connections: 50,
         compression: {
             request: true,
             response: true,
@@ -37,17 +36,16 @@ function getClientForDb(dbName) {
     });
 
     clientCache.set(dbName, client);
-    console.log(`[ClickHouse] Created client for database: ${dbName} at ${urlToUse}`);
+    console.log(`[ClickHouse Report Service] Created client for database: ${dbName} at ${urlToUse}`);
     return client;
 }
 
 // Default client (uses CLICKHOUSE_DB from .env)
-const defaultDbName = process.env.CLICKHOUSE_DB;
+const defaultDbName = process.env.CLICKHOUSE_DB || 'colpal';
 const clickhouse = getClientForDb(defaultDbName);
 
 /**
  * Set the current request's database name in AsyncLocalStorage
- * Called by authMiddleware after JWT verification
  */
 export function setCurrentDbName(dbName) {
     const store = dbStorage.getStore();
@@ -58,19 +56,10 @@ export function setCurrentDbName(dbName) {
 
 /**
  * Get the current request's database name from AsyncLocalStorage
- * Falls back to the default CLICKHOUSE_DB from .env
  */
 export function getCurrentDbName() {
     const store = dbStorage.getStore();
     return (store && store.dbName) || defaultDbName;
-}
-
-/**
- * Calculates Conversion for all dashboard profiles.
- * Unified Formula: Orders / Clicks
- */
-export function calculateConversion(orders = 0, impressions = 0, clicks = 0) {
-    return clicks > 0 ? (orders / clicks) * 100 : 0;
 }
 
 /**
@@ -83,7 +72,6 @@ function getCurrentClient() {
 
 /**
  * Express middleware to wrap each request in AsyncLocalStorage context
- * Must be applied BEFORE routes
  */
 export function asyncStorageMiddleware(req, res, next) {
     dbStorage.run({ dbName: defaultDbName }, () => {
@@ -91,29 +79,12 @@ export function asyncStorageMiddleware(req, res, next) {
     });
 }
 
-export const connectClickHouse = async () => {
-    try {
-        const result = await clickhouse.query({
-            query: 'SELECT 1',
-            format: 'JSONEachRow',
-        });
-        await result.json();
-        console.log('✅ Connected to ClickHouse (default DB:', defaultDbName, ')');
-        return true;
-    } catch (err) {
-        console.error('❌ Unable to connect to ClickHouse:', err.message);
-        return false;
-    }
-};
-
-// Helper function to run queries - automatically uses the correct DB per request
 export const queryClickHouse = async (query, params = {}, clickhouse_settings = {}) => {
     try {
         const client = getCurrentClient();
         const dbName = getCurrentDbName();
-        // LOG ALL QUERIES FOR DEBUGGING
-        console.log(`[ClickHouse Debug] DB: ${dbName} | Query: ${query.replace(/\s+/g, ' ')}`);
-        
+        console.log(`[ClickHouse Report Service] DB: ${dbName} | Query: ${query.replace(/\s+/g, ' ').slice(0, 150)}...`);
+
         const queryOptions = {
             query,
             query_params: params,
@@ -126,30 +97,20 @@ export const queryClickHouse = async (query, params = {}, clickhouse_settings = 
 
         const result = await client.query(queryOptions);
         const data = await result.json();
-        console.log(`[ClickHouse Debug] Result: ${data.length} rows`);
         return data;
     } catch (err) {
-        console.error('[ClickHouse] Query failed:', err.message);
-        console.error('[ClickHouse] Full error:', err);
+        console.error('[ClickHouse Report Service] Query failed:', err.message);
         throw err;
     }
 };
 
 /**
  * Stream query results from ClickHouse as a Node.js readable stream.
- * Each row is emitted as a parsed JSON object via the 'data' event.
- * This avoids loading the full result set into memory — critical for
- * exports with millions of rows (e.g. darkstore data).
- *
- * Usage:
- *   const stream = await streamClickHouse('SELECT ... FROM ...');
- *   stream.on('data', (row) => { ... });
- *   stream.on('end', () => { ... });
  */
 export const streamClickHouse = async (query, params = {}, clickhouse_settings = {}) => {
     const client = getCurrentClient();
     const dbName = getCurrentDbName();
-    console.log(`[ClickHouse Stream] DB: ${dbName} | Query: ${query.replace(/\s+/g, ' ').slice(0, 200)}...`);
+    console.log(`[ClickHouse Stream Report Service] DB: ${dbName} | Query: ${query.replace(/\s+/g, ' ').slice(0, 200)}...`);
 
     const queryOptions = {
         query,
@@ -163,22 +124,6 @@ export const streamClickHouse = async (query, params = {}, clickhouse_settings =
 
     const resultSet = await client.query(queryOptions);
     return resultSet.stream();
-};
-
-// Helper for insert operations
-export const insertClickHouse = async (table, values) => {
-    try {
-        const client = getCurrentClient();
-        await client.insert({
-            table,
-            values,
-            format: 'JSONEachRow',
-        });
-        return true;
-    } catch (err) {
-        console.error('ClickHouse insert error:', err.message);
-        throw err;
-    }
 };
 
 export default clickhouse;

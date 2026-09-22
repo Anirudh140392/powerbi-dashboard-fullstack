@@ -1201,7 +1201,7 @@ const SnapshotOverview = ({
 
         const finalOrders = {
             id: ordersItem?.id || 'orders',
-            title: 'Orders',
+            title: 'Ad Units',
             value: ordersVal,
             delta: ordersDelta,
             deltaLabel: ordersItem?.tag || ordersPerf?.tag || `${ordersDelta > 0 ? '+' : ''}${ordersDelta}%`,

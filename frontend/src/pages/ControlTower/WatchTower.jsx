@@ -191,6 +191,7 @@ export default function WatchTower() {
     platform: _sidebarPlatform,
     platforms,
     selectedKeyword,
+    selectedState,
     selectedLocation,
     selectedChannel: _sidebarChannel,
     maxDate,
@@ -355,6 +356,7 @@ export default function WatchTower() {
     'Availability': { icon: Layers, gradient: ['#14b8a6', '#06b6d4'], id: 'availability' },
     'Share of Search': { icon: Eye, gradient: ['#f97316', '#fb923c'], id: 'sos' },
     'Market Share': { icon: PieChart, gradient: ['#8b5cf6', '#a855f7'], id: 'market' },
+    'Discount': { icon: Percent, gradient: ['#f59e0b', '#fbbf24'], id: 'promo' },
     'Promo': { icon: Percent, gradient: ['#f59e0b', '#fbbf24'], id: 'promo' },
   };
 
@@ -364,6 +366,7 @@ export default function WatchTower() {
     'Availability': "The proportion of stores or locations where a product is available for purchase at a given time.",
     'Share of Search': "Share of Search is calculated based on Top 10 rank positions.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
     'Market Share': "The percentage of total category sales contributed by a brand. Market Share data is currently available only for the 11 Tier-1 cities.",
+    'Discount': "A price reduction or special offer applied to a product to encourage customer purchases.",
     'Promo': "A price reduction or special offer applied to a product to encourage customer purchases.",
     'Inorganic Sales': "Sales generated through paid channels, including advertisements and sponsored placements.\n\nData Refresh: Ad sales data is typically updated daily and available by 2:00 PM.",
     'ROAS': "The revenue generated for every unit of advertising spend.",
@@ -398,7 +401,7 @@ export default function WatchTower() {
         let normalizedTitle = originalTitle;
         if (originalTitle === 'Inorg Sales') normalizedTitle = 'Inorganic Sales';
         if (originalTitle === 'SOS') normalizedTitle = 'Share of Search';
-        if (originalTitle === 'Promo My Brand') normalizedTitle = 'Promo';
+        if (originalTitle === 'Promo My Brand' || originalTitle === 'Promo') normalizedTitle = 'Discount';
         if (originalTitle === 'Offtakes') normalizedTitle = 'Offtake';
 
         const meta = KPI_ICON_MAP[normalizedTitle] || KPI_ICON_MAP[originalTitle] || { icon: TrendingUp, gradient: ['#6366f1', '#8b5cf6'], id: normalizedTitle.toLowerCase().replace(/\s+/g, '_') };
@@ -486,7 +489,7 @@ export default function WatchTower() {
         infoTooltip: KPI_INFO_TOOLTIPS['Market Share'],
       },
       {
-        id: 'promo', title: 'Promo',
+        id: 'promo', title: 'Discount',
         value: `${getJitter(8.5, 'promo')}%`,
         delta: getJitter(1.2, 'promodelta'),
         deltaLabel: `+${getJitter(1.2, 'promodelta').toFixed(1)}%`,
@@ -596,7 +599,7 @@ export default function WatchTower() {
   }, []);
 
   // Sync loading state with filter changes to prevent one-frame flicker
-  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${selectedChannel}-${selectedMsl}-${selectedSubBrand}`;
+  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedState}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${selectedChannel}-${selectedMsl}-${selectedSubBrand}`;
   const [prevFilterKey, setPrevFilterKey] = useState(currentFilterKey);
   const lastFetchedOverviewKey = useRef(null);
 
@@ -636,6 +639,7 @@ export default function WatchTower() {
         brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
         category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
         channel: selectedChannel === "All" ? undefined : selectedChannel,
+        state: selectedState === "All" ? undefined : (Array.isArray(selectedState) ? selectedState.join(",") : selectedState),
         location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
         keyword: selectedKeyword || undefined,
         startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
