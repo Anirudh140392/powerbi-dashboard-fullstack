@@ -966,14 +966,31 @@ const Sidebar = ({
         {user?.dbName !== 'emami' && channels.filter(ch => ch !== 'All').length > 0 && (<Box sx={{
           display: 'flex',
           flexDirection: isCollapsed ? 'column' : 'row',
-          gap: isCollapsed ? 1 : 3,
+          gap: isCollapsed ? 1 : 2.5,
           alignItems: 'center',
           justifyContent: isCollapsed ? 'center' : 'flex-start',
           px: isCollapsed ? 0 : 2.5,
           pt: 1,
           pb: 0,
           width: '100%',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+          overflowX: isCollapsed ? 'visible' : 'auto',
           borderBottom: isCollapsed ? 'none' : '1px solid rgba(0, 0, 0, 0.08)',
+          scrollbarWidth: 'thin',
+          '&::-webkit-scrollbar': {
+            height: '4px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'transparent',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: 'rgba(0, 0, 0, 0.15)',
+            borderRadius: '4px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            background: 'rgba(0, 0, 0, 0.3)',
+          },
         }}>
           {channels.filter(ch => ch !== 'All').sort((a, b) => a.localeCompare(b)).map((ch) => {
             const isSelected = selectedChannel === ch;
@@ -1013,6 +1030,8 @@ const Sidebar = ({
                   position: 'relative',
                   cursor: 'pointer',
                   pb: 1,
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
                   '&::after': {
                     content: '""',
                     position: 'absolute',
