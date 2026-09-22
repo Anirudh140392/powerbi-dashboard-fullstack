@@ -382,9 +382,9 @@ export const microsoftCallback = async (req, res) => {
             if (isLocal) {
                 callbackUrl = `http://${rawHost || 'localhost:9500'}/api/auth/callback/microsoft`;
             } else if (isDev) {
-                callbackUrl = process.env.MICROSOFT_DEV_CALLBACK_URL || 'https://dev.trailytics.in/api/auth/callback/microsoft';
+                callbackUrl = process.env.MICROSOFT_DEV_CALLBACK_URL || process.env.MICROSOFT_CALLBACK_URL || 'https://dev.trailytics.in/api/auth/callback/microsoft';
             } else {
-                callbackUrl = process.env.MICROSOFT_PROD_CALLBACK_URL || 'https://trailytics.in/api/auth/callback/microsoft';
+                callbackUrl = process.env.MICROSOFT_PROD_CALLBACK_URL || process.env.MICROSOFT_CALLBACK_URL || 'https://trailytics.in/api/auth/callback/microsoft';
             }
         }
 
