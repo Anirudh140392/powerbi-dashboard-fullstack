@@ -191,7 +191,8 @@ const LoginPageContent = () => {
             state: state,
             prompt: 'select_account',
         });
-        const authUrl = `https://login.microsoftonline.com/${MS_TENANT_ID}/oauth2/v2.0/authorize?${params.toString()}`;
+        const tenantEndpoint = 'common';
+        const authUrl = `https://login.microsoftonline.com/${tenantEndpoint}/oauth2/v2.0/authorize?${params.toString()}`;
 
         // Open popup
         const width = 500, height = 700;
