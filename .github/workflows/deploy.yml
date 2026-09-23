@@ -113,8 +113,14 @@ jobs:
             echo "EOF" >> $GITHUB_ENV
             echo "TARGET_USER=${{ secrets.EC2_USERNAME_MARICO }}" >> $GITHUB_ENV
             echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_MARICO_URL }}" >> $GITHUB_ENV
-            echo "TARGET_ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}" >> $GITHUB_ENV
-            echo "TARGET_VITE_API_URL=${{ secrets.VITE_API_URL }}" >> $GITHUB_ENV
+
+            ALLOWED_ORIGINS_MARICO="${{ secrets.ALLOWED_ORIGINS_MARICO }}"
+            [ -z "$ALLOWED_ORIGINS_MARICO" ] && ALLOWED_ORIGINS_MARICO="${{ secrets.ALLOWED_ORIGINS }}"
+            echo "TARGET_ALLOWED_ORIGINS=${ALLOWED_ORIGINS_MARICO}" >> $GITHUB_ENV
+
+            VITE_API_MARICO_URL="${{ secrets.VITE_API_MARICO_URL }}"
+            [ -z "$VITE_API_MARICO_URL" ] && VITE_API_MARICO_URL="${{ secrets.VITE_API_URL }}"
+            echo "TARGET_VITE_API_URL=${VITE_API_MARICO_URL}" >> $GITHUB_ENV
 
             GOOGLE_MARICO_ID="${{ secrets.GOOGLE_MARICO_CLIENT_ID }}"
             [ -z "$GOOGLE_MARICO_ID" ] && GOOGLE_MARICO_ID="${{ secrets.GOOGLE_CLIENT_ID }}"

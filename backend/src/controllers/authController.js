@@ -322,6 +322,7 @@ export const microsoftCallback = async (req, res) => {
 
         let isDev = false;
         let isLocal = false;
+        let isMarico = false;
         let customRedirectUri = null;
 
         if (stateStr) {
@@ -331,6 +332,8 @@ export const microsoftCallback = async (req, res) => {
                 const parsedState = JSON.parse(Buffer.from(base64, 'base64').toString('utf-8'));
                 if (parsedState.env === 'dev') {
                     isDev = true;
+                } else if (parsedState.env === 'marico') {
+                    isMarico = true;
                 } else if (parsedState.env === 'local') {
                     isLocal = true;
                     isDev = true;
@@ -344,6 +347,8 @@ export const microsoftCallback = async (req, res) => {
                 // Fallback for string prefix state format
                 if (stateStr.startsWith('dev_')) {
                     isDev = true;
+                } else if (stateStr.startsWith('marico_')) {
+                    isMarico = true;
                 } else if (stateStr.startsWith('prod_')) {
                     isDev = false;
                 } else if (stateStr.startsWith('local_')) {
@@ -355,7 +360,9 @@ export const microsoftCallback = async (req, res) => {
 
         if (!stateStr && !customRedirectUri) {
             // Header-based fallback
-            if (referer.includes('dev.trailytics.in') || forwardedHost.includes('dev.trailytics.in') || rawHost.includes('dev.trailytics.in')) {
+            if (referer.includes('marico.trailytics.in') || forwardedHost.includes('marico.trailytics.in') || rawHost.includes('marico.trailytics.in')) {
+                isMarico = true;
+            } else if (referer.includes('dev.trailytics.in') || forwardedHost.includes('dev.trailytics.in') || rawHost.includes('dev.trailytics.in')) {
                 isDev = true;
             } else if (referer.includes('trailytics.in') || forwardedHost.includes('trailytics.in') || rawHost.includes('trailytics.in')) {
                 isDev = false;
@@ -365,22 +372,30 @@ export const microsoftCallback = async (req, res) => {
             }
         }
 
-        const clientId = isDev 
-            ? (process.env.MICROSOFT_DEV_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID)
-            : (process.env.MICROSOFT_PROD_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID);
+        const clientId = isMarico
+            ? (process.env.MICROSOFT_MARICO_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID)
+            : isDev 
+                ? (process.env.MICROSOFT_DEV_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID)
+                : (process.env.MICROSOFT_PROD_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID);
 
-        const clientSecret = isDev
-            ? (process.env.MICROSOFT_DEV_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET)
-            : (process.env.MICROSOFT_PROD_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET);
+        const clientSecret = isMarico
+            ? (process.env.MICROSOFT_MARICO_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET)
+            : isDev
+                ? (process.env.MICROSOFT_DEV_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET)
+                : (process.env.MICROSOFT_PROD_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET);
 
-        const tenantId = isDev
-            ? (process.env.MICROSOFT_DEV_TENANT_ID || process.env.MICROSOFT_TENANT_ID || 'common')
-            : (process.env.MICROSOFT_PROD_TENANT_ID || process.env.MICROSOFT_TENANT_ID || 'common');
+        const tenantId = isMarico
+            ? (process.env.MICROSOFT_MARICO_TENANT_ID || process.env.MICROSOFT_TENANT_ID || 'common')
+            : isDev
+                ? (process.env.MICROSOFT_DEV_TENANT_ID || process.env.MICROSOFT_TENANT_ID || 'common')
+                : (process.env.MICROSOFT_PROD_TENANT_ID || process.env.MICROSOFT_TENANT_ID || 'common');
 
         let callbackUrl = customRedirectUri;
         if (!callbackUrl) {
             if (isLocal) {
                 callbackUrl = `http://${rawHost || 'localhost:9500'}/api/auth/callback/microsoft`;
+            } else if (isMarico) {
+                callbackUrl = process.env.MICROSOFT_MARICO_CALLBACK_URL || process.env.MICROSOFT_CALLBACK_URL || 'https://marico.trailytics.in/api/auth/callback/microsoft';
             } else if (isDev) {
                 callbackUrl = process.env.MICROSOFT_DEV_CALLBACK_URL || process.env.MICROSOFT_CALLBACK_URL || 'https://dev.trailytics.in/api/auth/callback/microsoft';
             } else {
@@ -388,7 +403,7 @@ export const microsoftCallback = async (req, res) => {
             }
         }
 
-        console.log('[Auth] Microsoft callback env:', isDev ? 'DEV' : (isLocal ? 'LOCAL' : 'PROD'), '| callbackUrl:', callbackUrl, '| client_id:', clientId ? 'OK' : 'MISSING');
+        console.log('[Auth] Microsoft callback env:', isMarico ? 'MARICO' : (isDev ? 'DEV' : (isLocal ? 'LOCAL' : 'PROD')), '| callbackUrl:', callbackUrl, '| client_id:', clientId ? 'OK' : 'MISSING');
 
         if (!clientId || !clientSecret || !callbackUrl) {
             console.error('[Auth] Missing Microsoft OAuth config (CLIENT_ID, CLIENT_SECRET, or CALLBACK_URL)');

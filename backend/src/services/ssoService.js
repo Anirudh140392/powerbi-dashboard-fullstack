@@ -65,7 +65,8 @@ export async function verifyGoogleToken(token) {
     const expectedAudiences = [
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_PROD_CLIENT_ID,
-        process.env.GOOGLE_DEV_CLIENT_ID
+        process.env.GOOGLE_DEV_CLIENT_ID,
+        process.env.GOOGLE_MARICO_CLIENT_ID,
     ].filter(Boolean);
 
     // Verify token using google-auth-library for JWT ID tokens
@@ -144,7 +145,8 @@ export async function verifyMicrosoftToken(idToken, extraPayload = {}) {
             const expectedAudiences = [
                 process.env.MICROSOFT_CLIENT_ID,
                 process.env.MICROSOFT_PROD_CLIENT_ID,
-                process.env.MICROSOFT_DEV_CLIENT_ID
+                process.env.MICROSOFT_DEV_CLIENT_ID,
+                process.env.MICROSOFT_MARICO_CLIENT_ID,
             ].filter(Boolean);
             const decodedVerified = await new Promise((resolve, reject) => {
                 jwt.verify(

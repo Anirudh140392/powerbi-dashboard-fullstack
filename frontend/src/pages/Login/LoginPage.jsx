@@ -67,12 +67,16 @@ const MS_TENANT_ID = import.meta.env.VITE_MICROSOFT_TENANT_ID || 'common';
 
 const getMsClientId = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const maricoId = import.meta.env.VITE_MICROSOFT_MARICO_CLIENT_ID;
     const devId = import.meta.env.VITE_MICROSOFT_DEV_CLIENT_ID;
     const prodId = import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID;
     const genId = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
 
     const filterValid = (id) => (id && id !== MS_TENANT_ID ? id : '');
 
+    if (origin.includes('marico.trailytics.in')) {
+        return filterValid(maricoId) || filterValid(genId) || "a71441c2-565e-4999-90a2-059212f3e234";
+    }
     if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
         return filterValid(devId) || filterValid(genId) || filterValid(prodId) || "153c3bd5-c6f7-41a5-b11c-3334d71b5db4";
     }
@@ -153,7 +157,9 @@ const LoginPageContent = () => {
         // Build Microsoft OAuth authorize URL (Web mode — returns ?code= to backend callback)
         const origin = typeof window !== 'undefined' ? window.location.origin : '';
         let envPrefix = 'prod';
-        if (origin.includes('dev.trailytics.in')) {
+        if (origin.includes('marico.trailytics.in')) {
+            envPrefix = 'marico';
+        } else if (origin.includes('dev.trailytics.in')) {
             envPrefix = 'dev';
         } else if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
             envPrefix = 'local';
