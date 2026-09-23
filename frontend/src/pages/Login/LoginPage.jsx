@@ -23,10 +23,18 @@ import {
 
 const getGoogleClientId = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
-        return import.meta.env.VITE_GOOGLE_DEV_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-cse1isbmn2qp4hu1se9voboitm8t9oht.apps.googleusercontent.com";
+    const maricoId = import.meta.env.VITE_GOOGLE_MARICO_CLIENT_ID;
+    const devId = import.meta.env.VITE_GOOGLE_DEV_CLIENT_ID;
+    const prodId = import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID;
+    const genId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+    if (origin.includes('marico.trailytics.in')) {
+        return maricoId || genId || "848173356904-dio6agfe1qa9bgmciqj1n5scoq12088b.apps.googleusercontent.com";
     }
-    return import.meta.env.VITE_GOOGLE_PROD_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID || "176719245227-smbn58so6ajfol9smtq0r9ksi4vedi4r.apps.googleusercontent.com";
+    if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return devId || genId || prodId || "176719245227-cse1isbmn2qp4hu1se9voboitm8t9oht.apps.googleusercontent.com";
+    }
+    return prodId || genId || devId || "176719245227-smbn58so6ajfol9smtq0r9ksi4vedi4r.apps.googleusercontent.com";
 };
 const GOOGLE_CLIENT_ID = getGoogleClientId();
 
