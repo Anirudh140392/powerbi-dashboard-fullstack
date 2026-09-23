@@ -83,7 +83,7 @@ const getMsClientId = () => {
     const filterValid = (id) => (id && id !== MS_TENANT_ID ? id : '');
 
     if (origin.includes('marico.trailytics.in')) {
-        return filterValid(maricoId) || filterValid(genId) || "a71441c2-565e-4999-90a2-059212f3e234";
+        return filterValid(maricoId) || filterValid(genId) || "1f222f9c-f86c-41b8-bf15-710a8d5accc9";
     }
     if (origin.includes('dev.trailytics.in') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
         return filterValid(devId) || filterValid(genId) || filterValid(prodId) || "153c3bd5-c6f7-41a5-b11c-3334d71b5db4";
@@ -212,9 +212,13 @@ const LoginPageContent = () => {
 
         // Monitor if popup was closed without completing login
         const popupTimer = setInterval(() => {
-            if (popup.closed) {
-                clearInterval(popupTimer);
-                setLoading(false);
+            try {
+                if (popup && popup.closed) {
+                    clearInterval(popupTimer);
+                    setLoading(false);
+                }
+            } catch (e) {
+                // Ignore COOP cross-origin access restriction warning when popup navigates to external domain
             }
         }, 500);
     };
