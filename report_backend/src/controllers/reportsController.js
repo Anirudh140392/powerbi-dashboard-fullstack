@@ -315,15 +315,15 @@ export const downloadReport = async (req, res) => {
                 state_map AS
                 (
                     SELECT DISTINCT
-                        location,
+                        toString(pincode) AS pincode,
                         location_state
                     FROM rb_location_darkstore
-                    WHERE location IS NOT NULL AND location != ''
+                    WHERE pincode IS NOT NULL AND toString(pincode) != '' AND toString(pincode) != '0'
                 )`
                 : '';
             const stateJoin = hasLocationDarkstoreTable
                 ? `LEFT JOIN state_map sm
-                    ON lower(b.location_name) = lower(sm.location)`
+                    ON toString(b.pincode) = sm.pincode`
                 : '';
             const stateCol = hasLocationDarkstoreTable
                 ? `sm.location_state AS State,`
@@ -400,7 +400,7 @@ export const downloadReport = async (req, res) => {
                     b.brand_category_name AS category,
                     b.location_name AS location,
                     ${stateCol}
-                    b.pincode,
+                    b.pincode AS Pincode,
                     b.pincode_area,
                     b.web_pid,
                     b.sku_name AS sku,
