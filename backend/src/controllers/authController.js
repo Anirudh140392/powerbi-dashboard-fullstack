@@ -372,8 +372,13 @@ export const microsoftCallback = async (req, res) => {
             }
         }
 
+        const rawMaricoClientId = process.env.MICROSOFT_MARICO_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID;
+        const validMaricoClientId = (rawMaricoClientId && rawMaricoClientId !== 'a71441c2-565e-4999-90a2-059212f3e234')
+            ? rawMaricoClientId
+            : '1f222f9c-f86c-41b8-bf15-710a8d5accc9';
+
         const clientId = isMarico
-            ? (process.env.MICROSOFT_MARICO_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID)
+            ? validMaricoClientId
             : isDev 
                 ? (process.env.MICROSOFT_DEV_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID)
                 : (process.env.MICROSOFT_PROD_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID);

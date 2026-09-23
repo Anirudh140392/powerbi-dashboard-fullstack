@@ -80,7 +80,7 @@ const getMsClientId = () => {
     const prodId = import.meta.env.VITE_MICROSOFT_PROD_CLIENT_ID;
     const genId = import.meta.env.VITE_MICROSOFT_CLIENT_ID;
 
-    const filterValid = (id) => (id && id !== MS_TENANT_ID ? id : '');
+    const filterValid = (id) => (id && id !== MS_TENANT_ID && id !== 'a71441c2-565e-4999-90a2-059212f3e234' ? id : '');
 
     if (origin.includes('marico.trailytics.in')) {
         return filterValid(maricoId) || filterValid(genId) || "1f222f9c-f86c-41b8-bf15-710a8d5accc9";
