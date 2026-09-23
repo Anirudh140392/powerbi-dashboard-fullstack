@@ -3,6 +3,12 @@
 // Renders one card per platform with 7 KPIs, severity-colored status bar,
 // Market Share T-3 info tooltip, and compact number formatting.
 
+const truncateToDecimals = (num, decimals = 2) => {
+    const factor = Math.pow(10, decimals);
+    const truncated = Math.floor(Math.abs(num) * factor + 0.00000001) / factor;
+    return parseFloat(truncated.toFixed(decimals));
+};
+
 /**
  * Format a number in compact Indian style: ₹32.07K, ₹1.5L, ₹2.3Cr
  */
@@ -10,11 +16,17 @@ const formatCompact = (value, currency = '₹') => {
     if (value === null || value === undefined || isNaN(value)) return `${currency}0`;
     const abs = Math.abs(value);
     const sign = value < 0 ? '-' : '';
-    if (abs >= 1e7) return `${sign}${currency}${(abs / 1e7).toFixed(1)}Cr`;
-    if (abs >= 1e5) return `${sign}${currency}${(abs / 1e5).toFixed(1)}L`;
-    if (abs >= 1e3) return `${sign}${currency}${(abs / 1e3).toFixed(1)}K`;
-    const hasDecimal = abs % 1 !== 0;
-    return `${sign}${currency}${hasDecimal ? abs.toFixed(1) : abs.toString()}`;
+    let numStr = '';
+    if (abs >= 1e7) {
+        numStr = `${truncateToDecimals(abs / 1e7, 2)}Cr`;
+    } else if (abs >= 1e5) {
+        numStr = `${truncateToDecimals(abs / 1e5, 2)}L`;
+    } else if (abs >= 1e3) {
+        numStr = `${truncateToDecimals(abs / 1e3, 2)}K`;
+    } else {
+        numStr = truncateToDecimals(abs, 2).toString();
+    }
+    return `${sign}${currency}${numStr}`;
 };
 
 /**
@@ -24,11 +36,17 @@ const formatNumber = (value) => {
     if (value === null || value === undefined || isNaN(value)) return '0';
     const abs = Math.abs(value);
     const sign = value < 0 ? '-' : '';
-    if (abs >= 1e7) return `${sign}${(abs / 1e7).toFixed(1)}Cr`;
-    if (abs >= 1e5) return `${sign}${(abs / 1e5).toFixed(1)}L`;
-    if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}K`;
-    const hasDecimal = abs % 1 !== 0;
-    return `${sign}${hasDecimal ? abs.toFixed(1) : abs.toLocaleString('en-IN')}`;
+    let numStr = '';
+    if (abs >= 1e7) {
+        numStr = `${truncateToDecimals(abs / 1e7, 2)}Cr`;
+    } else if (abs >= 1e5) {
+        numStr = `${truncateToDecimals(abs / 1e5, 2)}L`;
+    } else if (abs >= 1e3) {
+        numStr = `${truncateToDecimals(abs / 1e3, 2)}K`;
+    } else {
+        numStr = truncateToDecimals(abs, 2).toLocaleString('en-IN');
+    }
+    return `${sign}${numStr}`;
 };
 
 /**
@@ -36,7 +54,16 @@ const formatNumber = (value) => {
  */
 const formatPct = (value) => {
     if (value === null || value === undefined || isNaN(value)) return '0%';
-    return `${parseFloat(value).toFixed(1)}%`;
+    const abs = Math.abs(value);
+    const sign = value < 0 ? '-' : '';
+    const truncated = truncateToDecimals(abs, 2);
+    return `${sign}${truncated}%`;
+};
+
+const formatFullNumber = (value) => {
+    if (value === null || value === undefined || isNaN(value)) return '0';
+    const num = Math.round(Number(value));
+    return num.toLocaleString('en-IN');
 };
 
 /**
@@ -153,8 +180,8 @@ const buildPlatformCard = (platformName, kpis, currentDateStr, previousDateStr, 
             formatCompact(kpis.salesAsp.previous, currency),
             kpis.salesAsp.delta, true),
         buildMetricRow('Qty Sold', ICONS.qtySold,
-            formatNumber(kpis.qtySold.current),
-            formatNumber(kpis.qtySold.previous),
+            formatFullNumber(kpis.qtySold.current),
+            formatFullNumber(kpis.qtySold.previous),
             kpis.qtySold.delta, false),
         buildMetricRow('SOV', ICONS.sov,
             formatPct(kpis.sov.current),

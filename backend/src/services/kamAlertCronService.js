@@ -737,13 +737,13 @@ export const runKamAlertsJob = async () => {
 };
 
 export const initKamAlertCron = () => {
-    const INTERVAL_MS = 1 * 60 * 1000;
+    const INTERVAL_MS = 30 * 60 * 1000;
 
     if (cronIntervalId) {
         clearInterval(cronIntervalId);
     }
 
-    console.log(`[KamAlertCron] Initializing KAM alert scheduler (runs every 1 minute)`);
+    console.log(`[KamAlertCron] Initializing KAM alert scheduler (runs every 30 minutes)`);
     
     cronIntervalId = setInterval(() => {
         runKamAlertsJob().catch(err => {

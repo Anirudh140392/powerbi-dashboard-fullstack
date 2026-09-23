@@ -3,31 +3,58 @@
 // Layout: Platform section header > Category sub-header > 6 KPI metric table.
 // KPIs: Offtake Units, Offtake GMV, Weighted Discount, OSA, Ad Spend & TACoS, SOS.
 
+const truncateToDecimals = (num, decimals = 2) => {
+    const factor = Math.pow(10, decimals);
+    const truncated = Math.floor(Math.abs(num) * factor + 0.00000001) / factor;
+    return parseFloat(truncated.toFixed(decimals));
+};
+
 const formatCompact = (value, currency = '₹') => {
     if (value === null || value === undefined || isNaN(value)) return `${currency}0`;
     const abs = Math.abs(value);
     const sign = value < 0 ? '-' : '';
-    if (abs >= 1e7) return `${sign}${currency}${(abs / 1e7).toFixed(1)}Cr`;
-    if (abs >= 1e5) return `${sign}${currency}${(abs / 1e5).toFixed(1)}L`;
-    if (abs >= 1e3) return `${sign}${currency}${(abs / 1e3).toFixed(1)}K`;
-    const hasDecimal = abs % 1 !== 0;
-    return `${sign}${currency}${hasDecimal ? abs.toFixed(1) : abs.toString()}`;
+    let numStr = '';
+    if (abs >= 1e7) {
+        numStr = `${truncateToDecimals(abs / 1e7, 2)}Cr`;
+    } else if (abs >= 1e5) {
+        numStr = `${truncateToDecimals(abs / 1e5, 2)}L`;
+    } else if (abs >= 1e3) {
+        numStr = `${truncateToDecimals(abs / 1e3, 2)}K`;
+    } else {
+        numStr = truncateToDecimals(abs, 2).toString();
+    }
+    return `${sign}${currency}${numStr}`;
 };
 
 const formatNumber = (value) => {
     if (value === null || value === undefined || isNaN(value)) return '0';
     const abs = Math.abs(value);
     const sign = value < 0 ? '-' : '';
-    if (abs >= 1e7) return `${sign}${(abs / 1e7).toFixed(1)}Cr`;
-    if (abs >= 1e5) return `${sign}${(abs / 1e5).toFixed(1)}L`;
-    if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}K`;
-    const hasDecimal = abs % 1 !== 0;
-    return `${sign}${hasDecimal ? abs.toFixed(1) : abs.toLocaleString('en-IN')}`;
+    let numStr = '';
+    if (abs >= 1e7) {
+        numStr = `${truncateToDecimals(abs / 1e7, 2)}Cr`;
+    } else if (abs >= 1e5) {
+        numStr = `${truncateToDecimals(abs / 1e5, 2)}L`;
+    } else if (abs >= 1e3) {
+        numStr = `${truncateToDecimals(abs / 1e3, 2)}K`;
+    } else {
+        numStr = truncateToDecimals(abs, 2).toLocaleString('en-IN');
+    }
+    return `${sign}${numStr}`;
 };
 
 const formatPct = (value) => {
     if (value === null || value === undefined || isNaN(value)) return '0%';
-    return `${parseFloat(value).toFixed(1)}%`;
+    const abs = Math.abs(value);
+    const sign = value < 0 ? '-' : '';
+    const truncated = truncateToDecimals(abs, 2);
+    return `${sign}${truncated}%`;
+};
+
+const formatFullNumber = (value) => {
+    if (value === null || value === undefined || isNaN(value)) return '0';
+    const num = Math.round(Number(value));
+    return num.toLocaleString('en-IN');
 };
 
 const formatDateDisplay = (dateStr) => {
@@ -66,7 +93,7 @@ const buildMetricRow = (label, currentFormatted, previousFormatted, delta, isAlt
         const isUp = delta > 0;
         const color = (isTacos ? (isUp ? '#DC3B3B' : '#157347') : (isUp ? '#157347' : '#DC3B3B'));
         let arrow = isUp ? '&#9650;' : '&#9660;';
-        const absVal = Math.abs(delta).toFixed(1);
+        const absVal = truncateToDecimals(Math.abs(delta), 2);
         const unit = isTacos ? 'pp' : '%';
         deltaHtml = `<td width="18%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:${color}; white-space:nowrap;" valign="top">${arrow} ${absVal}${unit}${extraDeltaHtml}</td>`;
     } else {
@@ -96,8 +123,8 @@ ${deltaHtml}
 const buildCategoryTable = (categoryName, kpis, currency = '₹') => {
     const rows = [
         buildMetricRow('1. Offtake Units',
-            formatNumber(kpis.qtySold.current),
-            formatNumber(kpis.qtySold.previous),
+            formatFullNumber(kpis.qtySold.current),
+            formatFullNumber(kpis.qtySold.previous),
             kpis.qtySold.delta, false),
         buildMetricRow('2. Offtake GMV',
             formatCompact(kpis.gmv.current, currency),

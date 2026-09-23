@@ -4,31 +4,58 @@
 // ─────────────────────────────────────────────────────────────
 // Formatters
 // ─────────────────────────────────────────────────────────────
+const truncateToDecimals = (num, decimals = 2) => {
+    const factor = Math.pow(10, decimals);
+    const truncated = Math.floor(Math.abs(num) * factor + 0.00000001) / factor;
+    return parseFloat(truncated.toFixed(decimals));
+};
+
 const formatCompact = (value, currency = '₹') => {
     if (value === null || value === undefined || isNaN(value)) return `${currency}0`;
     const abs = Math.abs(value);
     const sign = value < 0 ? '-' : '';
-    if (abs >= 1e7) return `${sign}${currency}${(abs / 1e7).toFixed(1)}Cr`;
-    if (abs >= 1e5) return `${sign}${currency}${(abs / 1e5).toFixed(1)}L`;
-    if (abs >= 1e3) return `${sign}${currency}${(abs / 1e3).toFixed(1)}K`;
-    const hasDecimal = abs % 1 !== 0;
-    return `${sign}${currency}${hasDecimal ? abs.toFixed(1) : abs.toString()}`;
+    let numStr = '';
+    if (abs >= 1e7) {
+        numStr = `${truncateToDecimals(abs / 1e7, 2)}Cr`;
+    } else if (abs >= 1e5) {
+        numStr = `${truncateToDecimals(abs / 1e5, 2)}L`;
+    } else if (abs >= 1e3) {
+        numStr = `${truncateToDecimals(abs / 1e3, 2)}K`;
+    } else {
+        numStr = truncateToDecimals(abs, 2).toString();
+    }
+    return `${sign}${currency}${numStr}`;
 };
 
 const formatNumber = (value) => {
     if (value === null || value === undefined || isNaN(value)) return '0';
     const abs = Math.abs(value);
     const sign = value < 0 ? '-' : '';
-    if (abs >= 1e7) return `${sign}${(abs / 1e7).toFixed(1)}Cr`;
-    if (abs >= 1e5) return `${sign}${(abs / 1e5).toFixed(1)}L`;
-    if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}K`;
-    const hasDecimal = abs % 1 !== 0;
-    return `${sign}${hasDecimal ? abs.toFixed(1) : abs.toLocaleString('en-IN')}`;
+    let numStr = '';
+    if (abs >= 1e7) {
+        numStr = `${truncateToDecimals(abs / 1e7, 2)}Cr`;
+    } else if (abs >= 1e5) {
+        numStr = `${truncateToDecimals(abs / 1e5, 2)}L`;
+    } else if (abs >= 1e3) {
+        numStr = `${truncateToDecimals(abs / 1e3, 2)}K`;
+    } else {
+        numStr = truncateToDecimals(abs, 2).toLocaleString('en-IN');
+    }
+    return `${sign}${numStr}`;
 };
 
 const formatPct = (value) => {
     if (value === null || value === undefined || isNaN(value)) return '0%';
-    return `${parseFloat(value).toFixed(1)}%`;
+    const abs = Math.abs(value);
+    const sign = value < 0 ? '-' : '';
+    const truncated = truncateToDecimals(abs, 2);
+    return `${sign}${truncated}%`;
+};
+
+const formatFullNumber = (value) => {
+    if (value === null || value === undefined || isNaN(value)) return '0';
+    const num = Math.round(Number(value));
+    return num.toLocaleString('en-IN');
 };
 
 const formatDateDisplay = (dateStr) => {
@@ -118,7 +145,7 @@ const buildMetricRow = (label, currentFmt, previousFmt, delta, isAlt, isFirst, d
 // ─────────────────────────────────────────────────────────────
 const buildPlatformCard = (platformName, kpis, cpLabel, ppLabel, currency) => {
     const perfRows = [
-        buildMetricRow('Offtake Units',     formatNumber(kpis.offtakeUnits.current),           formatNumber(kpis.offtakeUnits.previous),           kpis.offtakeUnits.delta, false, true),
+        buildMetricRow('Offtake Units',     formatFullNumber(kpis.offtakeUnits.current),           formatFullNumber(kpis.offtakeUnits.previous),           kpis.offtakeUnits.delta, false, true),
         buildMetricRow('Offtake GMV',       formatCompact(kpis.offtakeGmv.current, currency),  formatCompact(kpis.offtakeGmv.previous, currency),  kpis.offtakeGmv.delta,   true,  false),
         buildMetricRow('Weighted Discount', formatPct(kpis.discount.current),                  formatPct(kpis.discount.previous),                  kpis.discount.delta,     false, false),
         buildMetricRow('OSA',               formatPct(kpis.osa.current),                       formatPct(kpis.osa.previous),                       kpis.osa.delta,          true,  false),
@@ -130,8 +157,8 @@ const buildPlatformCard = (platformName, kpis, cpLabel, ppLabel, currency) => {
     const primaryRows = [
         buildMetricRow('Confirmed Value',   formatCompact(kpis.confirmedValue.current, currency),              formatCompact(kpis.confirmedValue.previous, currency),              kpis.confirmedValue.delta, false, true),
         buildMetricRow('Billed Value',      formatCompact(kpis.billedValue.current, currency),                 formatCompact(kpis.billedValue.previous, currency),                 kpis.billedValue.delta,    true,  false),
-        buildMetricRow('Ordered Quantity',  formatNumber(kpis.orderedQty.current),                             formatNumber(kpis.orderedQty.previous),                             kpis.orderedQty.delta,     false, false),
-        buildMetricRow('Confirmed Quantity',formatNumber(kpis.confirmedQty.current),                           formatNumber(kpis.confirmedQty.previous),                           kpis.confirmedQty.delta,   true,  false),
+        buildMetricRow('Ordered Quantity',  formatFullNumber(kpis.orderedQty.current),                             formatFullNumber(kpis.orderedQty.previous),                             kpis.orderedQty.delta,     false, false),
+        buildMetricRow('Confirmed Quantity',formatFullNumber(kpis.confirmedQty.current),                           formatFullNumber(kpis.confirmedQty.previous),                           kpis.confirmedQty.delta,   true,  false),
     ];
 
     return `

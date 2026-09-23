@@ -365,13 +365,18 @@ export const fetchAllPlatformCategoryKPIs = async (dbName, platform, brands, isR
     addData(adSpendData, 'ad');
     addData(sosData, 'sos');
 
-    const round1 = (v) => parseFloat(parseFloat(v).toFixed(1));
-    const pctDelta = (curr, prev) => {
-        const c = round1(curr);
-        const p = round1(prev);
-        return p !== 0 ? round1(((c - p) / p) * 100) : (c > 0 ? 100 : 0);
+    const truncate2 = (v) => {
+        if (v === null || v === undefined || isNaN(v)) return 0;
+        const sign = Math.sign(v) || 1;
+        const abs = Math.abs(v);
+        return sign * (Math.floor(abs * 100 + 0.00000001) / 100);
     };
-    const ptDelta = (curr, prev) => round1(round1(curr) - round1(prev));
+    const pctDelta = (curr, prev) => {
+        const c = truncate2(curr);
+        const p = truncate2(prev);
+        return p !== 0 ? truncate2(((c - p) / p) * 100) : (c > 0 ? 100 : 0);
+    };
+    const ptDelta = (curr, prev) => truncate2(truncate2(curr) - truncate2(prev));
 
     const results = [];
     for (const norm of Object.keys(unifiedData)) {
@@ -386,8 +391,8 @@ export const fetchAllPlatformCategoryKPIs = async (dbName, platform, brands, isR
         const sos = unifiedData[norm].sos;
 
         // Compute TACoS = Ad Spend / GMV * 100
-        const cwTacos = pdp.gmv.current > 0 ? round1(ad.current / pdp.gmv.current * 100) : 0;
-        const l4wTacos = pdp.gmv.previous > 0 ? round1(ad.previous / pdp.gmv.previous * 100) : 0;
+        const cwTacos = pdp.gmv.current > 0 ? truncate2(ad.current / pdp.gmv.current * 100) : 0;
+        const l4wTacos = pdp.gmv.previous > 0 ? truncate2(ad.previous / pdp.gmv.previous * 100) : 0;
 
         results.push({
             categoryName: originalCats[norm],
