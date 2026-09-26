@@ -1549,6 +1549,7 @@ export const downloadPdpReport = async (req, res) => {
         const pdpResellerCol = pdpRawCols.has('reseller_name') ? pdpRawCols.get('reseller_name')
             : pdpRawCols.has('reseller') ? pdpRawCols.get('reseller')
             : null;
+        const dateCol = pdpRawCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
 
         const { platforms, locations, pincodes, brands, categories, skus, webPids, dates, startDate, endDate } = req.query;
 
@@ -1576,10 +1577,10 @@ export const downloadPdpReport = async (req, res) => {
         addFilter('pdp.web_pid', webPids);
 
         if (startDate && endDate) {
-            conditions.push(`toDate(pdp.pdp_crawl_date) >= '${startDate}' AND toDate(pdp.pdp_crawl_date) <= '${endDate}'`);
+            conditions.push(`toDate(pdp.${dateCol}) >= '${startDate}' AND toDate(pdp.${dateCol}) <= '${endDate}'`);
         } else if (dates && dates !== 'All' && dates.trim() !== '') {
             const formattedDates = dates.split(',').map(d => `'${d.trim()}'`).join(', ');
-            conditions.push(`toDate(pdp.pdp_crawl_date) IN (${formattedDates})`);
+            conditions.push(`toDate(pdp.${dateCol}) IN (${formattedDates})`);
         }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -1608,12 +1609,12 @@ export const downloadPdpReport = async (req, res) => {
                 pdp.price_rp AS price_rp,
                 pdp.price_sp AS price_sp,
                 pdp.price_variation AS price_variation,
-                formatDateTime(pdp.pdp_crawl_date, '%Y-%m-%d') AS date,
+                formatDateTime(pdp.${dateCol}, '%Y-%m-%d') AS date,
                 pdp.year AS year
             FROM ${pdpTable} AS pdp
             ${joinClause}
             ${whereClause}
-            ORDER BY pdp.pdp_crawl_date DESC
+            ORDER BY pdp.${dateCol} DESC
         `;
 
         const rawData = await queryClickHouse(query);
@@ -1683,6 +1684,12 @@ export const previewPdpReport = async (req, res) => {
             return res.status(400).json({ error: 'No PDP data table exists for this database.' });
         }
 
+        const pdpRawCols = await getTableColumns(pdpTable).catch(() => new Map());
+        const pdpResellerCol = pdpRawCols.has('reseller_name') ? pdpRawCols.get('reseller_name')
+            : pdpRawCols.has('reseller') ? pdpRawCols.get('reseller')
+            : null;
+        const dateCol = pdpRawCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
+
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
         const hasPortfolio = skuPlatCols.has('portfolio');
 
@@ -1715,10 +1722,10 @@ export const previewPdpReport = async (req, res) => {
         addFilter('pdp.web_pid', webPids);
 
         if (startDate && endDate) {
-            conditions.push(`toDate(pdp.pdp_crawl_date) >= '${startDate}' AND toDate(pdp.pdp_crawl_date) <= '${endDate}'`);
+            conditions.push(`toDate(pdp.${dateCol}) >= '${startDate}' AND toDate(pdp.${dateCol}) <= '${endDate}'`);
         } else if (dates && dates !== 'All' && dates.trim() !== '') {
             const formattedDates = dates.split(',').map(d => `'${d.trim()}'`).join(', ');
-            conditions.push(`toDate(pdp.pdp_crawl_date) IN (${formattedDates})`);
+            conditions.push(`toDate(pdp.${dateCol}) IN (${formattedDates})`);
         }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -1727,11 +1734,6 @@ export const previewPdpReport = async (req, res) => {
         const countQuery = `SELECT count() as total FROM ${pdpTable} AS pdp ${whereClause}`;
         const countResult = await queryClickHouse(countQuery);
         const totalCount = countResult && countResult[0] ? parseInt(countResult[0].total, 10) : 0;
-
-        const pdpRawCols = await getTableColumns(pdpTable).catch(() => new Map());
-        const pdpResellerCol = pdpRawCols.has('reseller_name') ? pdpRawCols.get('reseller_name')
-            : pdpRawCols.has('reseller') ? pdpRawCols.get('reseller')
-            : null;
 
         let selectPortfolio = "'' AS portfolio";
         let joinClause = "";
@@ -1757,12 +1759,12 @@ export const previewPdpReport = async (req, res) => {
                 pdp.price_rp AS price_rp,
                 pdp.price_sp AS price_sp,
                 pdp.price_variation AS price_variation,
-                formatDateTime(pdp.pdp_crawl_date, '%Y-%m-%d') AS date,
+                formatDateTime(pdp.${dateCol}, '%Y-%m-%d') AS date,
                 pdp.year AS year
             FROM ${pdpTable} AS pdp
             ${joinClause}
             ${whereClause}
-            ORDER BY pdp.pdp_crawl_date DESC
+            ORDER BY pdp.${dateCol} DESC
             LIMIT ${limit} OFFSET ${offset}
         `;
 
