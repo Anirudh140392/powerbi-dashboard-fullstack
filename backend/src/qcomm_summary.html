@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Quick Commerce Performance — Ops Console (Navy Frost)</title>
+<!--
+  DYNAMIC PERFORMANCE SUMMARY EMAIL TEMPLATE — Reference Document
+  ================================================================
+  This file is the DESIGN REFERENCE for the performance_summary alert email.
+  Actual rendering happens in: src/utils/perfSummaryEmailTemplate.js
+  Data is fetched by:           src/services/perfSummaryDataService.js
+  Orchestrated by:              src/services/alertCronService.js
+
+  TRIGGER: alert_type = 'performance_summary' in tb_alert
+  SCHEDULE: Fires on scheduled_day (e.g. every Thursday)
+
+  DATE LOGIC:
+  - Current (T-1): scheduled_day - 1 (e.g. Wednesday if scheduled Thursday)
+  - Previous (LWD): Current - 7 days
+  - Market Share uses T-3 instead (data availability lag)
+
+  KPIs (per platform):
+  1. Sales [MRP]    = SUM(MRP * Qty_Sold)          from rb_pdp_olap
+  2. Sales [ASP]    = SUM(Selling_Price * Qty_Sold) from rb_pdp_olap
+  3. Qty Sold       = SUM(Qty_Sold)                 from rb_pdp_olap
+  4. SOV (SOS)      = brand_rows / total_rows * 100 from rb_kw_olap
+  5. OSA            = SUM(neno_osa)/SUM(deno_osa)*100 from rb_pdp_olap
+  6. Discounting    = weighted avg ((MRP-SP)/MRP)*100 from rb_pdp_olap
+  7. Market Share   = our_sales / total_sales * 100  from rb_ms_olap (T-3)
+
+  DYNAMIC PLACEHOLDERS:
+  - {{LOGO_URL}}       → tb_database.logo_url (via tb_alert.db_id)
+  - {{COMPANY_NAME}}   → tb_database.db_name
+  - {{CURRENT_DATE}}   → T-1 date (e.g. "5 Aug 2026")
+  - {{PREVIOUS_DATE}}  → LWD date (e.g. "29 Jul 2026")
+  - {{PLATFORM_NAME}}  → Per platform from tb_alert.platforms[]
+  - {{SEVERITY_LEVEL}} → tb_alert.severity_level (colors status bar)
+
+  MULTI-PLATFORM: When >1 platform selected, cards stack vertically.
+-->
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style>
+  body, table, td { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { border: 0; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+  body { margin: 0; padding: 0; width: 100% !important; background-color: #EEF2FC; }
+  table { border-collapse: collapse; border-spacing: 0; }
+  @media screen and (max-width: 400px) {
+    .email-container { width: 100% !important; max-width: 100% !important; }
+  }
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#EEF2FC;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#EEF2FC;">
+<tr>
+<td align="center" style="padding:18px 12px;">
+
+<!--[if mso]>
+<table role="presentation" align="center" width="398" cellpadding="0" cellspacing="0" border="0"><tr><td>
+<![endif]-->
+<table role="presentation" class="email-container" width="398" align="center" cellpadding="0" cellspacing="0" border="0" style="width:398px; max-width:398px; margin:0 auto;">
+
+<!-- MASTHEAD -->
+<tr>
+<td style="padding:4px 0 14px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td valign="middle" align="left" style="padding-bottom:12px;">
+<!-- LOGO PLACEHOLDER -->
+<img src="{{LOGO_URL}}" width="140" height="28" alt="{{COMPANY_NAME}} Logo" style="display:block; border:0; outline:none; text-decoration:none;">
+</td>
+</tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td valign="middle" align="left" style="font-family:Arial, Helvetica, sans-serif; font-size:9.5px; color:#5C6B94;">
+Weekly snapshot &middot; data as of {{CURRENT_DATE}} (T-1) vs {{PREVIOUS_DATE}}
+</td>
+<td valign="middle" align="right">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right" style="background-color:#EAF0FF; border-radius:999px;">
+  <tr>
+    <td style="padding:3px 8px 2px 8px; font-family:Arial, Helvetica, sans-serif; font-size:8px; letter-spacing:.9px; text-transform:uppercase; color:#2F5FEA; font-weight:bold; white-space:nowrap;">
+      QUICK COMMERCE
+    </td>
+  </tr>
+</table>
+</td>
+</tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td height="10" style="font-size:1px; line-height:10px;">&nbsp;</td>
+</tr>
+<tr>
+<td height="3" style="background-color:#2F5FEA; border-radius:3px; font-size:1px; line-height:3px;">&nbsp;</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- ============================================================ -->
+<!-- PLATFORM CARD (repeated per platform when multi-platform)     -->
+<!-- ============================================================ -->
+<!-- CARD: Zepto -->
+<tr>
+<td style="padding-bottom:16px;">
+<!--[if mso]>
+<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" arcsize="4%" stroke="f" fillcolor="#FFFFFF" style="width:398px;">
+<v:textbox style="mso-fit-shape-to-text:true" inset="0,0,0,0">
+<![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:16px; box-shadow:0 12px 24px -10px rgba(31,74,216,0.18);">
+
+<!-- Band header -->
+<tr>
+<td style="padding:13px 17px; background-color:#12295E; border-radius:16px 16px 0 0; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:15px; color:#FFFFFF;">{{PLATFORM_NAME}}</td>
+</tr>
+
+<!-- Column headers -->
+<tr>
+<td style="padding:10px 17px 7px 17px; border-bottom:1.5px solid #C9D6FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="36%" align="left" style="padding-left:29px; font-family:Arial, Helvetica, sans-serif; font-size:8.5px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA;">METRIC</td>
+<td width="38%" align="right" style="padding-right:20px; font-family:Arial, Helvetica, sans-serif; font-size:8.5px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">CURRENT (T-1)</td>
+<td width="26%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-size:8.5px; font-weight:bold; letter-spacing:.4px; text-transform:uppercase; color:#2F5FEA; white-space:nowrap;">PREVIOUS (LWD)</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Sales [MRP] -->
+<tr>
+<td style="padding:11px 17px; background-color:#FFFFFF;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="42%" align="left" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="22" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:20px; height:20px; background-color:#EAF0FF; border-radius:10px;">
+<tr><td align="center" valign="middle" style="width:20px; height:20px; line-height:0;">
+<!-- Replace icon-currency.png with your hosted PNG icon -->
+<img src="icon-currency.png" width="12" height="12" alt="₹" border="0" style="display:block;">
+</td></tr>
+</table>
+</td>
+<td style="padding-left:7px; font-family:Arial, Helvetica, sans-serif; font-size:11.5px; color:#16224A; font-weight:bold; white-space:nowrap;" valign="middle">Sales [MRP]</td>
+</tr>
+</table>
+</td>
+<td width="30%" align="right" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right">
+<tr>
+<td style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#0B1B3F; white-space:nowrap;" valign="middle">₹32.07K</td>
+<td style="padding-left:4px;" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background-color:#E1F5EA; border-radius:999px;">
+<tr>
+<td style="padding:4px 8px; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#157347; line-height:16px; white-space:nowrap;" valign="middle">&#9650; 18.0%</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="28%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#5C6B94; white-space:nowrap;" valign="middle">₹27.18K</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Sales [ASP] -->
+<tr>
+<td style="padding:11px 17px; background-color:#F6F8FD; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="42%" align="left" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="22" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:20px; height:20px; background-color:#EAF0FF; border-radius:10px;">
+<tr><td align="center" valign="middle" style="width:20px; height:20px; line-height:0;">
+<!-- Replace icon-trend.png with your hosted PNG icon -->
+<img src="icon-trend.png" width="12" height="12" alt="Trend" border="0" style="display:block;">
+</td></tr>
+</table>
+</td>
+<td style="padding-left:7px; font-family:Arial, Helvetica, sans-serif; font-size:11.5px; color:#16224A; font-weight:bold; white-space:nowrap;" valign="middle">Sales [ASP]</td>
+</tr>
+</table>
+</td>
+<td width="30%" align="right" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right">
+<tr>
+<td style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#0B1B3F; white-space:nowrap;" valign="middle">₹15.78K</td>
+<td style="padding-left:4px;" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background-color:#E1F5EA; border-radius:999px;">
+<tr>
+<td style="padding:4px 8px; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#157347; line-height:16px; white-space:nowrap;" valign="middle">&#9650; 18.1%</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="28%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#5C6B94; white-space:nowrap;" valign="middle">₹13.36K</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Qty Sold -->
+<tr>
+<td style="padding:11px 17px; background-color:#FFFFFF; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="42%" align="left" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="22" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:20px; height:20px; background-color:#EAF0FF; border-radius:10px;">
+<tr><td align="center" valign="middle" style="width:20px; height:20px; line-height:0;">
+<!-- Replace icon-stack.png with your hosted PNG icon -->
+<img src="icon-stack.png" width="12" height="12" alt="Qty" border="0" style="display:block;">
+</td></tr>
+</table>
+</td>
+<td style="padding-left:7px; font-family:Arial, Helvetica, sans-serif; font-size:11.5px; color:#16224A; font-weight:bold; white-space:nowrap;" valign="middle">Qty Sold</td>
+</tr>
+</table>
+</td>
+<td width="30%" align="right" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right">
+<tr>
+<td style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#0B1B3F; white-space:nowrap;" valign="middle">140</td>
+<td style="padding-left:4px;" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background-color:#E1F5EA; border-radius:999px;">
+<tr>
+<td style="padding:4px 8px; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#157347; line-height:16px; white-space:nowrap;" valign="middle">&#9650; 18.6%</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="28%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#5C6B94; white-space:nowrap;" valign="middle">118</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- SOV -->
+<tr>
+<td style="padding:11px 17px; background-color:#F6F8FD; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="42%" align="left" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="22" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:20px; height:20px; background-color:#EAF0FF; border-radius:10px;">
+<tr><td align="center" valign="middle" style="width:20px; height:20px; line-height:0;">
+<!-- Replace icon-sov.png with your hosted PNG icon -->
+<img src="icon-sov.png" width="12" height="12" alt="SOV" border="0" style="display:block;">
+</td></tr>
+</table>
+</td>
+<td style="padding-left:7px; font-family:Arial, Helvetica, sans-serif; font-size:11.5px; color:#16224A; font-weight:bold; white-space:nowrap;" valign="middle">SOV</td>
+</tr>
+</table>
+</td>
+<td width="30%" align="right" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right">
+<tr>
+<td style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#0B1B3F; white-space:nowrap;" valign="middle">7.5%</td>
+<td style="padding-left:4px;" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background-color:#E1F5EA; border-radius:999px;">
+<tr>
+<td style="padding:4px 8px; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#157347; line-height:16px; white-space:nowrap;" valign="middle">&#9650; 1.5%</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="28%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#5C6B94; white-space:nowrap;" valign="middle">6.0%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- OSA -->
+<tr>
+<td style="padding:11px 17px; background-color:#FFFFFF; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="42%" align="left" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="22" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:20px; height:20px; background-color:#EAF0FF; border-radius:10px;">
+<tr><td align="center" valign="middle" style="width:20px; height:20px; line-height:0;">
+<!-- Replace icon-osa.png with your hosted PNG icon -->
+<img src="icon-osa.png" width="12" height="12" alt="OSA" border="0" style="display:block;">
+</td></tr>
+</table>
+</td>
+<td style="padding-left:7px; font-family:Arial, Helvetica, sans-serif; font-size:11.5px; color:#16224A; font-weight:bold; white-space:nowrap;" valign="middle">OSA</td>
+</tr>
+</table>
+</td>
+<td width="30%" align="right" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right">
+<tr>
+<td style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#0B1B3F; white-space:nowrap;" valign="middle">65.2%</td>
+<td style="padding-left:4px;" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background-color:#FDE7E7; border-radius:999px;">
+<tr>
+<td style="padding:4px 8px; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#DC3B3B; line-height:16px; white-space:nowrap;" valign="middle">&#9660; 5.4%</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="28%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#5C6B94; white-space:nowrap;" valign="middle">70.6%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Discounting -->
+<tr>
+<td style="padding:11px 17px; background-color:#F6F8FD; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="42%" align="left" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="22" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:20px; height:20px; background-color:#EAF0FF; border-radius:10px;">
+<tr><td align="center" valign="middle" style="width:20px; height:20px; line-height:0;">
+<!-- Replace icon-discount.png with your hosted PNG icon -->
+<img src="icon-discount.png" width="12" height="12" alt="Discounting" border="0" style="display:block;">
+</td></tr>
+</table>
+</td>
+<td style="padding-left:7px; font-family:Arial, Helvetica, sans-serif; font-size:11.5px; color:#16224A; font-weight:bold; white-space:nowrap;" valign="middle">Discounting</td>
+</tr>
+</table>
+</td>
+<td width="30%" align="right" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right">
+<tr>
+<td style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#0B1B3F; white-space:nowrap;" valign="middle">50.3%</td>
+<td style="padding-left:4px;" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background-color:#E1F5EA; border-radius:999px;">
+<tr>
+<td style="padding:4px 8px; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#157347; line-height:16px; white-space:nowrap;" valign="middle">&#9650; 0.3%</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="28%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#5C6B94; white-space:nowrap;" valign="middle">50.0%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- Market Share -->
+<tr>
+<td style="padding:11px 17px; background-color:#FFFFFF; border-top:1px solid #EEF1FA;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="42%" align="left" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td width="22" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:20px; height:20px; background-color:#EAF0FF; border-radius:10px;">
+<tr><td align="center" valign="middle" style="width:20px; height:20px; line-height:0;">
+<!-- Replace icon-pie.png with your hosted PNG icon -->
+<img src="icon-pie.png" width="12" height="12" alt="Market Share" border="0" style="display:block;">
+</td></tr>
+</table>
+</td>
+<td style="padding-left:7px; font-family:Arial, Helvetica, sans-serif; font-size:11.5px; color:#16224A; font-weight:bold; white-space:nowrap;" valign="middle">Market Share</td>
+<td style="padding-left:4px;" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background-color:#C9D6FA; border-radius:50%;">
+<tr>
+<td align="center" valign="middle" title="Data calculated at T-3" style="width:13px; height:13px; font-family:Arial, Helvetica, sans-serif; font-size:8px; font-weight:bold; color:#2F5FEA; line-height:13px; cursor:help;">i</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="30%" align="right" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right">
+<tr>
+<td style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#0B1B3F; white-space:nowrap;" valign="middle">3.7%</td>
+<td style="padding-left:4px;" valign="middle">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background-color:#E1F5EA; border-radius:999px;">
+<tr>
+<td style="padding:4px 8px; font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:13px; color:#157347; line-height:16px; white-space:nowrap;" valign="middle">&#9650; 1.2%</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+<td width="28%" align="right" style="font-family:Arial, Helvetica, sans-serif; font-weight:bold; font-size:11px; color:#5C6B94; white-space:nowrap;" valign="middle">2.5%</td>
+</tr>
+</table>
+</td>
+</tr>
+
+    <!-- FOOTER -->
+    <tr>
+    <td style="height:16px; background-color:#12295E; border-radius:0 0 16px 16px; font-size:1px; line-height:16px;">&nbsp;</td>
+    </tr>
+
+</table>
+<!--[if mso]>
+</v:textbox>
+</v:roundrect>
+<![endif]-->
+</td>
+</tr>
+<!-- END PLATFORM CARD -->
+
+<!-- GLOBAL FOOTER -->
+<tr>
+<td align="center" style="padding:10px 4px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td align="center" style="font-family:Arial, Helvetica, sans-serif; font-size:9px; color:#5C6B94;">
+Automated performance summary generated by <strong>Trailytics</strong>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+</table>
+<!--[if mso]>
+</td></tr></table>
+<![endif]-->
+
+</td>
+</tr>
+</table>
+</body>
+</html>
