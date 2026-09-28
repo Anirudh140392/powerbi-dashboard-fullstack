@@ -113,6 +113,56 @@ const arrayToFilter = (v) => {
 };
 
 /**
+ * Parse month string (e.g. "Sep 2026", "September 2026", "2026-09", "Sep 26")
+ * into start and end dates of that month in YYYY-MM-DD format.
+ */
+const parseMonthToDates = (monthStr) => {
+  if (!monthStr || monthStr === "All") return null;
+  const str = String(monthStr).trim();
+
+  // Try direct dayjs
+  let d = dayjs(str);
+  if (d.isValid()) {
+    return {
+      start: d.startOf('month').format('YYYY-MM-DD'),
+      end: d.endOf('month').format('YYYY-MM-DD')
+    };
+  }
+
+  // Try JavaScript Date parser
+  const nativeDate = new Date(str);
+  if (!isNaN(nativeDate.getTime())) {
+    d = dayjs(nativeDate);
+    if (d.isValid()) {
+      return {
+        start: d.startOf('month').format('YYYY-MM-DD'),
+        end: d.endOf('month').format('YYYY-MM-DD')
+      };
+    }
+  }
+
+  // Try "MMM YY" or "MMM YYYY" or "MMMM YY" etc.
+  const parts = str.split(/[\s-]+/);
+  if (parts.length === 2) {
+    let [m, y] = parts;
+    if (y.length === 2) y = "20" + y;
+    const constructed = `${m} 1, ${y}`;
+    const cd = new Date(constructed);
+    if (!isNaN(cd.getTime())) {
+      d = dayjs(cd);
+      if (d.isValid()) {
+        return {
+          start: d.startOf('month').format('YYYY-MM-DD'),
+          end: d.endOf('month').format('YYYY-MM-DD')
+        };
+      }
+    }
+  }
+
+  return null;
+};
+
+/**
  * ---------------------------------------------------------------------------
  * DRAWER MULTI-SELECT DROPDOWN (MUI Native)
  * Uses standard MUI Select with multiple={true}.
@@ -899,6 +949,8 @@ export default function TrendsCompetitionDrawer({
       targetDimensionKey = "SKU";
     } else if (lvl.includes("platform")) {
       targetDimensionKey = "Platform";
+    } else if (lvl.includes("month")) {
+      targetDimensionKey = "Month";
     } else {
       // Fallback mapping based on initialAudience/currentAudience
       const aud = (initialAudience || allTrendMeta?.context?.audience || "Platform").toLowerCase();
@@ -961,8 +1013,21 @@ export default function TrendsCompetitionDrawer({
     }
 
     // 3. Apply the selectedColumn to the correct targetDimensionKey (this takes priority)
-    if (selectedColumn && targetDimensionKey) {
+    if (selectedColumn && targetDimensionKey && targetDimensionKey !== "Month") {
       newFilters[targetDimensionKey] = normalizeToString(selectedColumn);
+    }
+
+    // 3b. If drilling down on a Month card/level, set Date filter range to Custom with month dates
+    if ((targetDimensionKey === "Month" || lvl.includes("month")) && selectedColumn) {
+      const monthStr = normalizeToString(selectedColumn);
+      if (monthStr && monthStr !== "All") {
+        const dateRange = parseMonthToDates(monthStr);
+        if (dateRange) {
+          setRange("Custom");
+          setCustomStart(dateRange.start);
+          setCustomEnd(dateRange.end);
+        }
+      }
     }
 
     // Set platform pill selection (first value for pill display)
@@ -1276,6 +1341,8 @@ export default function TrendsCompetitionDrawer({
         if (isPlatformFiltered) shouldSendDimensionValue = false;
       } else if (lvl.includes('sku')) {
         if (isSkuFiltered) shouldSendDimensionValue = false;
+      } else if (lvl.includes('month')) {
+        shouldSendDimensionValue = false;
       }
 
       if (dynamicKey === "pricing") {
