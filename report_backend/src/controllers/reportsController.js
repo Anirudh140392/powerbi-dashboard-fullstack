@@ -402,7 +402,15 @@ export const downloadReport = async (req, res) => {
                     ${stateCol}
                     b.pincode AS Pincode,
                     b.pincode_area,
-                    b.web_pid,
+                    IF(
+                        lower(b.platform_name) IN (
+                            'flipkart', 'flipkart_minutes', 'flipkart minutes', 'fk_minutes', 'fk minutes',
+                            'amazon', 'amazon_now', 'amazon now', 'amazon_fresh', 'amazon fresh', 'amz_now', 'amz now',
+                            'instamart', 'swiggy_instamart', 'swiggy instamart'
+                        ),
+                        upper(toString(b.web_pid)),
+                        b.web_pid
+                    ) AS web_pid,
                     b.sku_name AS sku,
                     b.pdp_page_url AS pdp_page,
                     b.osa,
