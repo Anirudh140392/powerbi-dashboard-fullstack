@@ -9392,9 +9392,9 @@ const getKpiTrends = async (filters) => {
  * @param {string} platform - Selected platform filter
  * @param {string} brand - Selected brand filter (for cities)
  */
-const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, category, resellerName, dbName: propDbName }) => {
+const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, category, resellerName, sku, skuName, dbName: propDbName }) => {
     try {
-        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, subBrand=${subBrand}, category=${category}, resellerName=${resellerName}`);
+        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, subBrand=${subBrand}, category=${category}, resellerName=${resellerName}, sku=${sku || skuName}`);
         const src = await getWatchtowerSource();
 
         // Normalize arrays for multi-select support
@@ -9418,10 +9418,31 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
         };
 
         if (filterType === 'platforms') {
-            // Fetch unique platforms
-            const query = `SELECT DISTINCT ${src.f.platform} as platform FROM ${src.table} WHERE ${src.f.platform} IS NOT NULL AND ${src.f.platform} != '' ORDER BY platform`;
+            // Fetch unique platforms (optionally filtered by sku, brand, category)
+            const conditions = [`${src.f.platform} IS NOT NULL AND ${src.f.platform} != ''`];
+            const skuVal = sku || skuName;
+            let hasSkuFilter = false;
+            if (skuVal && skuVal !== 'All') {
+                const skuArr = normalizeFilterArray(skuVal);
+                if (skuArr && skuArr.length > 0) {
+                    hasSkuFilter = true;
+                    const skuCol = src.isAgg ? 'brand' : 'Product';
+                    conditions.push(`(${skuArr.map(s => `lower(${skuCol}) LIKE '%${escapeStr(s.toLowerCase())}%'`).join(' OR ')})`);
+                }
+            }
+            if (brandArr && brandArr.length > 0) {
+                const brandCol = src.isAgg ? 'brand' : 'Brand';
+                conditions.push(`(${brandArr.map(b => `lower(${brandCol}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ')})`);
+            }
+            if (catArr && catArr.length > 0) {
+                const catCol = src.f.category;
+                conditions.push(`(${catArr.map(c => `lower(${catCol}) = '${escapeStr(c.toLowerCase())}'`).join(' OR ')})`);
+            }
+            const query = hasSkuFilter
+                ? `SELECT ${src.f.platform} as platform FROM ${src.table} WHERE ${conditions.join(' AND ')} GROUP BY ${src.f.platform} ORDER BY SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) DESC, ${src.f.platform} ASC`
+                : `SELECT DISTINCT ${src.f.platform} as platform FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY ${src.f.platform} ASC`;
             const results = await queryClickHouse(query);
-            const platformList = results.map(p => p.platform).filter(p => p && p.trim()).sort();
+            const platformList = results.map(p => p.platform).filter(p => p && p.trim());
             return { options: [...platformList] };
         }
 

@@ -1030,6 +1030,35 @@ export default function TrendsCompetitionDrawer({
       }
     }
 
+    // 3c. If drilling down on an SKU card/level, auto-select the first platform where the SKU is present
+    if ((targetDimensionKey === "SKU" || lvl.includes("sku")) && selectedColumn) {
+      const skuStr = normalizeToString(selectedColumn);
+      if (skuStr && skuStr !== "All") {
+        axiosInstance.get('/watchtower/trends-filter-options', {
+          params: { filterType: 'platforms', sku: skuStr }
+        }).then(res => {
+          const opts = (res.data?.options || []).filter(p => p && p !== 'All' && String(p).trim());
+          if (opts.length > 0) {
+            setDrawerFilters(prev => {
+              const currentPlats = prev.Platform && prev.Platform !== 'All'
+                ? prev.Platform.split(',').map(s => s.trim()).filter(Boolean)
+                : [];
+              const isValid = currentPlats.length > 0 && currentPlats.every(p => opts.includes(p));
+              if (!isValid || prev.Platform === 'All') {
+                const firstPlat = opts[0];
+                console.log(`[TrendsDrawer] SKU "${skuStr}" auto-selected first available platform: ${firstPlat}`);
+                setSelectedPlatform(firstPlat);
+                return { ...prev, Platform: firstPlat };
+              }
+              return prev;
+            });
+          }
+        }).catch(err => {
+          console.error('[TrendsDrawer] Error fetching platforms for SKU:', err);
+        });
+      }
+    }
+
     // Set platform pill selection (first value for pill display)
     const platForPill = newFilters.Platform !== 'All'
       ? newFilters.Platform.split(',')[0].trim()
@@ -1157,8 +1186,12 @@ export default function TrendsCompetitionDrawer({
     const fetchStaticOptions = async () => {
       try {
         console.log("[TrendsDrawer] Fetching platform options and channels");
+        const platParams = { filterType: 'platforms' };
+        if (selectedLevel && String(selectedLevel).toLowerCase().includes('sku') && selectedColumn && selectedColumn !== 'All') {
+          platParams.sku = selectedColumn;
+        }
         const [platformsRes, platformChannelsRes] = await Promise.all([
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'platforms' } }),
+          axiosInstance.get('/watchtower/trends-filter-options', { params: platParams }),
           axiosInstance.get('/watchtower/platform-channels')
         ]);
         if (cancelled) return;
@@ -1168,8 +1201,29 @@ export default function TrendsCompetitionDrawer({
         });
         setPlatformChannelMap(channelMap);
         console.log('[TrendsDrawer] Platform→Channel map:', channelMap);
-        const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All' && p.trim()).sort();
+        const rawOptions = platformsRes.data?.options || [];
+        const platforms = rawOptions.filter(p => p !== 'All' && p.trim());
+        if (!platParams.sku) {
+          platforms.sort();
+        }
         setFilterOptions(prev => ({ ...prev, platforms, loading: false }));
+
+        if (platParams.sku && platforms.length > 0) {
+          setDrawerFilters(prev => {
+            const currentPlat = prev.Platform;
+            const currentPlatsArr = currentPlat && currentPlat !== 'All'
+              ? currentPlat.split(',').map(s => s.trim()).filter(Boolean)
+              : [];
+            const isValid = currentPlatsArr.length > 0 && currentPlatsArr.every(p => platforms.includes(p));
+            if (!isValid || currentPlat === 'All') {
+              const firstPlat = platforms[0];
+              console.log(`[TrendsDrawer] Auto-selecting top platform for SKU (${platParams.sku}): ${firstPlat}`);
+              setSelectedPlatform(firstPlat);
+              return { ...prev, Platform: firstPlat };
+            }
+            return prev;
+          });
+        }
       } catch (error) {
         console.error("[TrendsDrawer] Error fetching static filter options:", error);
         if (!cancelled) setFilterOptions(prev => ({ ...prev, loading: false }));
@@ -1177,7 +1231,7 @@ export default function TrendsCompetitionDrawer({
     };
     fetchStaticOptions();
     return () => { cancelled = true; };
-  }, [open]);
+  }, [open, selectedLevel, selectedColumn]);
 
   // Effect 2: Fetch categories + brands when platform + category + brand + subBrand + resellerName changes (cascading)
   useEffect(() => {

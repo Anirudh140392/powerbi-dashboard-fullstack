@@ -593,22 +593,32 @@ const PlatformOverview = ({
                       <Box
                         sx={{ display: "flex", alignItems: "center", gap: 1.5 }}
                       >
-                        <Tooltip title="trend performance" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => onViewTrends(platform.label, activeKpisTab.split(' ')[0])}
-                            className="trend-icon"
-                            sx={{
-                              borderRadius: 2,
-                              border: "1px solid #e5e7eb",
-                              background: "#EEF2F7",
-                              width: 32,
-                              height: 32,
-                            }}
-                          >
-                            <TrendingUp size={17} />
-                          </IconButton>
-                        </Tooltip>
+                        {(() => {
+                          const pName = (platform.label || '').toLowerCase().trim();
+                          const isPanIndia = pName === 'pan india' || pName === 'all india';
+                          const isCityTab = activeKpisTab.toLowerCase().includes('city');
+                          if (isPanIndia && isCityTab) {
+                            return null;
+                          }
+                          return (
+                            <Tooltip title="trend performance" arrow>
+                              <IconButton
+                                size="small"
+                                onClick={() => onViewTrends(platform.label, activeKpisTab.split(' ')[0])}
+                                className="trend-icon"
+                                sx={{
+                                  borderRadius: 2,
+                                  border: "1px solid #e5e7eb",
+                                  background: "#EEF2F7",
+                                  width: 32,
+                                  height: 32,
+                                }}
+                              >
+                                <TrendingUp size={17} />
+                              </IconButton>
+                            </Tooltip>
+                          );
+                        })()}
                         {(() => {
                           const pName = (platform.label || '').toLowerCase().trim();
                           const ECOM_PLATFORMS = ['amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart'];

@@ -502,13 +502,13 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                                                     transition={{ delay: idx * 0.03 }}
                                                                     className="border-b border-slate-50 dark:border-slate-800 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-colors group"
                                                                 >
-                                                                    <td className="py-3 px-4">
-                                                                        <div className="flex flex-col">
-                                                                            <span className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[280px]" title={sku.product}>
-                                                                                {sku.product.length > 50 ? sku.product.substring(0, 50) + '...' : sku.product}
+                                                                    <td className="py-3 px-4 max-w-[420px]">
+                                                                        <div className="flex flex-col min-w-0">
+                                                                            <span className="font-medium text-slate-800 dark:text-slate-200 break-words leading-snug" title={sku.product}>
+                                                                                {sku.product}
                                                                             </span>
                                                                             {sku.sampleReview && (
-                                                                                <span className="text-[10px] text-slate-400 italic mt-1 line-clamp-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                <span className="text-[10px] text-slate-400 italic mt-1 line-clamp-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                                     "{sku.sampleReview}"
                                                                                 </span>
                                                                             )}
@@ -635,7 +635,7 @@ const CharacteristicDetailPanel: React.FC<CharacteristicDetailPanelProps> = ({
                                                         {sub.topProduct && (
                                                             <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 truncate">
                                                                 <span className="text-slate-400">Most affected:</span>
-                                                                <span className="font-medium text-slate-600 dark:text-slate-300 truncate" title={sub.topProduct}>
+                                                                <span className="font-medium text-slate-600 dark:text-slate-300 break-words line-clamp-2" title={sub.topProduct}>
                                                                     {sub.topProduct}
                                                                 </span>
                                                             </div>

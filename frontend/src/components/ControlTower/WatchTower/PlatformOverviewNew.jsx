@@ -1294,16 +1294,26 @@ const PlatformOverviewNew = ({
                                                             <ExternalLink size={13} />
                                                         </a>
                                                     )}
-                                                    <button
-                                                        onClick={(evt) => {
-                                                            evt.stopPropagation();
-                                                            onViewTrends(e.name || e.label, currentDimension.label);
-                                                        }}
-                                                        className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-                                                        title={`View ${e.name} Trend`}
-                                                    >
-                                                        <LineChart size={13} className="text-slate-400" />
-                                                    </button>
+                                                    {(() => {
+                                                        const entityNameLower = safeLower(e.name || e.label).trim();
+                                                        const isPanIndia = entityNameLower === 'pan india' || entityNameLower === 'all india';
+                                                        const isCityDimension = dimension === 'city' || dimension === 'location' || (currentDimension?.label || '').toLowerCase().includes('city');
+                                                        if (isPanIndia && isCityDimension) {
+                                                            return null;
+                                                        }
+                                                        return (
+                                                            <button
+                                                                onClick={(evt) => {
+                                                                    evt.stopPropagation();
+                                                                    onViewTrends(e.name || e.label, currentDimension.label);
+                                                                }}
+                                                                className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
+                                                                title={`View ${e.name} Trend`}
+                                                            >
+                                                                <LineChart size={13} className="text-slate-400" />
+                                                            </button>
+                                                        );
+                                                    })()}
                                                     {(() => {
                                                         const entityNameLower = safeLower(e.name || e.label).trim();
 
