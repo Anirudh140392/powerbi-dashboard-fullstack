@@ -4902,6 +4902,7 @@ const getCrossPlatformPricing = async (filters = {}) => {
     const discountCol = resolveColumn(cols, 'discount');
     const nenoOsaCol = resolveColumn(cols, 'neno_osa');
     const imgCol = resolveColumn(cols, 'image_url');
+    const compFlagCol = resolveColumn(cols, 'comp_flag') || resolveColumn(cols, 'Comp_flag');
 
     // 1. Fetch Tier 1 Cities from rb_location_darkstore
     let tier1CityNames = [];
@@ -4922,16 +4923,19 @@ const getCrossPlatformPricing = async (filters = {}) => {
         tier1CityNames = ['ahmedabad', 'bengaluru', 'chennai', 'delhi', 'hyderabad', 'kolkata', 'mumbai', 'pune'];
     }
 
-    // 2. Build date filter clauses
+    // 2. Build date & comp_flag filter clauses
     const dateConditions = [];
     if (startDate) dateConditions.push(`DATE >= '${startDate}'`);
     if (endDate) dateConditions.push(`DATE <= '${endDate}'`);
+    if (compFlagCol) dateConditions.push(`(toString(${compFlagCol}) = '0' OR ${compFlagCol} = 0)`);
     const dateWhere = dateConditions.length > 0 ? `WHERE ${dateConditions.join(' AND ')}` : '';
 
     // 3. Fetch distinct platforms from rb_pdp_olap
     let platforms = [];
     try {
-        const platQuery = `SELECT DISTINCT ${platformCol} AS platform FROM rb_pdp_olap WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' ORDER BY platform`;
+        const platConditions = [`${platformCol} IS NOT NULL`, `${platformCol} != ''`];
+        if (compFlagCol) platConditions.push(`(toString(${compFlagCol}) = '0' OR ${compFlagCol} = 0)`);
+        const platQuery = `SELECT DISTINCT ${platformCol} AS platform FROM rb_pdp_olap WHERE ${platConditions.join(' AND ')} ORDER BY platform`;
         const platRows = await queryClickHouse(platQuery);
         platforms = platRows.map(r => r.platform).filter(Boolean);
     } catch (e) {
@@ -4968,6 +4972,7 @@ const getCrossPlatformPricing = async (filters = {}) => {
         `;
         let cityRows = await queryClickHouse(cityQuery);
         if (cityRows.length === 0 && (startDate || endDate)) {
+            const fallbackCityWhere = compFlagCol ? `WHERE (toString(${compFlagCol}) = '0' OR ${compFlagCol} = 0)` : '';
             const fallbackCityQuery = `
                 SELECT 
                     ${locationCol} as location_raw,
@@ -4981,6 +4986,7 @@ const getCrossPlatformPricing = async (filters = {}) => {
                         max(${mrpCol}) as ${mrpCol}, 
                         min(${spCol}) as ${spCol}
                     FROM rb_pdp_olap
+                    ${fallbackCityWhere}
                     GROUP BY ${locationCol}, ${productCol}, ${platformCol}
                 )
                 WHERE lower(${locationCol}) IN (${tier1LocationClause})
@@ -5017,6 +5023,7 @@ const getCrossPlatformPricing = async (filters = {}) => {
 
     // 5. Fetch main table SKU pricing data for selected location from rb_pdp_olap
     const conditions = [`${productCol} IS NOT NULL`, `${productCol} != ''`];
+    if (compFlagCol) conditions.push(`(toString(${compFlagCol}) = '0' OR ${compFlagCol} = 0)`);
     if (startDate) conditions.push(`DATE >= '${startDate}'`);
     if (endDate) conditions.push(`DATE <= '${endDate}'`);
 
@@ -5053,6 +5060,7 @@ const getCrossPlatformPricing = async (filters = {}) => {
         if (rows.length === 0 && (startDate || endDate)) {
             console.log("[getCrossPlatformPricing] Date filter returned 0 rows, executing fallback query...");
             const fallbackConditions = [`${productCol} IS NOT NULL`, `${productCol} != ''`];
+            if (compFlagCol) fallbackConditions.push(`(toString(${compFlagCol}) = '0' OR ${compFlagCol} = 0)`);
             if (targetCityRaw) {
                 fallbackConditions.push(`lower(${locationCol}) = '${targetCityRaw}'`);
             } else if (tier1CityNames.length > 0) {
@@ -5103,9 +5111,7 @@ const getCrossPlatformPricing = async (filters = {}) => {
             const outOfStock = r.neno_osa === 0 || sp === 0;
 
             let discountPercent = 0;
-            if (r.discount_val !== undefined && r.discount_val !== null && r.discount_val !== '' && Number(r.discount_val) > 0) {
-                discountPercent = Number(r.discount_val);
-            } else if (mrp > 0 && sp > 0) {
+            if (mrp > 0 && sp > 0) {
                 discountPercent = ((mrp - sp) / mrp) * 100;
             }
 
