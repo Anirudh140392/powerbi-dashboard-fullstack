@@ -75,20 +75,38 @@ export function resolveColumn(columnsMap, expectedName, fallback = null) {
         return columnsMap.get(lowerExpected);
     }
 
-    // 2. Specific Typos (e.g., Quantity vs Quanity)
-    const typoMap = {
-        'quantity': ['quanity'],
-        'quanity': ['quantity'],
+    // 2. Metric Synonyms and Typos Map
+    const synonymMap = {
+        'offtake': ['sales', 'offtake', 'offtakes', 'gross_sales', 'total_sales', 'sales_val', 'sales_value'],
+        'sales': ['sales', 'offtake', 'offtakes', 'gross_sales', 'total_sales', 'sales_val', 'sales_value'],
+        'units_sold': ['qty_sold', 'quantity_sold', 'units_sold', 'qty', 'quantity', 'units', 'organic_qty'],
+        'quantity_sold': ['qty_sold', 'units_sold', 'quantity_sold', 'qty', 'quantity', 'units', 'organic_qty'],
+        'qty_sold': ['qty_sold', 'units_sold', 'quantity_sold', 'qty', 'quantity', 'units', 'organic_qty'],
+        'spend': ['ad_spend', 'spend', 'sp_ad_spend', 'sd_ad_spend'],
+        'ad_spend': ['ad_spend', 'spend', 'sp_ad_spend', 'sd_ad_spend'],
+        'inorganic_sales': ['ad_sales', 'inorganic_sales', 'sp_ad_sales', 'sd_ad_sales'],
+        'ad_sales': ['ad_sales', 'inorganic_sales', 'sp_ad_sales', 'sd_ad_sales'],
+        'clicks': ['ad_clicks', 'clicks', 'sp_ad_clicks', 'sd_ad_clicks'],
+        'ad_clicks': ['ad_clicks', 'clicks', 'sp_ad_clicks', 'sd_ad_clicks'],
+        'impressions': ['ad_impressions', 'impressions', 'sp_ad_impressions', 'sd_ad_impressions'],
+        'ad_impressions': ['ad_impressions', 'impressions', 'sp_ad_impressions', 'sd_ad_impressions'],
+        'discount_percentage': ['discount', 'discount_percent', 'discount_percentage', 'promo_percentage', 'promo_percent'],
+        'discount': ['discount', 'discount_percent', 'discount_percentage', 'promo_percentage', 'promo_percent'],
+        'current_inventory': ['inventory', 'current_inventory', 'stock_inventory'],
+        'inventory': ['inventory', 'current_inventory', 'stock_inventory'],
+        'target_inventory': ['target_inventory', 'dih', 'inventory'],
+        'orders': ['orders', 'order_count', 'total_orders', 'ad_quantity_sold', 'qty_sold'],
+        'quantity': ['quanity', 'qty_sold', 'units_sold', 'quantity'],
+        'quanity': ['quantity', 'qty_sold', 'units_sold', 'quanity'],
         'market_share': ['marketshare', 'ms'],
         'marketshare': ['market_share', 'ms'],
         'image_url': ['imageurl', 'image url', 'product_image', 'image', 'picture', 'image_link', 'img_url'],
     };
 
-    for (const [key, aliases] of Object.entries(typoMap)) {
-        if (lowerExpected.includes(key)) {
+    for (const [key, aliases] of Object.entries(synonymMap)) {
+        if (lowerExpected === key || lowerExpected.includes(key)) {
             for (const alias of aliases) {
-                const search = lowerExpected.replace(key, alias);
-                if (columnsMap.has(search)) return columnsMap.get(search);
+                if (columnsMap.has(alias)) return columnsMap.get(alias);
             }
         }
     }

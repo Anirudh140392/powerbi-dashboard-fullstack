@@ -1557,8 +1557,8 @@ export const downloadPdpReport = async (req, res) => {
 
         const addFilter = (column, value) => {
             if (!value || value === 'All' || value.startsWith('All ') || value.trim() === '') return;
-            const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''")}'`).join(', ');
-            conditions.push(`${column} IN (${items})`);
+            const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+            conditions.push(`lower(${column}) IN (${items})`);
         };
 
         addFilter('pdp.platform_name', platforms);
@@ -1589,7 +1589,7 @@ export const downloadPdpReport = async (req, res) => {
         let joinClause = "";
         if (hasPortfolio) {
             selectPortfolio = "sp.portfolio AS portfolio";
-            joinClause = "LEFT JOIN rb_sku_platform AS sp ON (pdp.web_pid = sp.web_pid)";
+            joinClause = "LEFT JOIN (SELECT web_pid, any(portfolio) AS portfolio FROM rb_sku_platform GROUP BY web_pid) AS sp ON (pdp.web_pid = sp.web_pid)";
         }
 
         let selectReseller = pdpResellerCol ? `pdp.${pdpResellerCol} AS reseller_name` : "'' AS reseller_name";
@@ -1702,8 +1702,8 @@ export const previewPdpReport = async (req, res) => {
 
         const addFilter = (column, value) => {
             if (!value || value === 'All' || value.startsWith('All ') || value.trim() === '') return;
-            const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''")}'`).join(', ');
-            conditions.push(`${column} IN (${items})`);
+            const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+            conditions.push(`lower(${column}) IN (${items})`);
         };
 
         addFilter('pdp.platform_name', platforms);
@@ -1739,7 +1739,7 @@ export const previewPdpReport = async (req, res) => {
         let joinClause = "";
         if (hasPortfolio) {
             selectPortfolio = "sp.portfolio AS portfolio";
-            joinClause = "LEFT JOIN rb_sku_platform AS sp ON (pdp.web_pid = sp.web_pid)";
+            joinClause = "LEFT JOIN (SELECT web_pid, any(portfolio) AS portfolio FROM rb_sku_platform GROUP BY web_pid) AS sp ON (pdp.web_pid = sp.web_pid)";
         }
 
         let selectReseller = pdpResellerCol ? `pdp.${pdpResellerCol} AS reseller_name` : "'' AS reseller_name";
