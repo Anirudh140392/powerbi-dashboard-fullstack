@@ -1226,7 +1226,7 @@ const FormatPerformanceStudio = ({ olaMode = "absolute" }) => {
 
 const cardsAbsolute = [
   {
-    title: "Stock Availability",
+    title: "On Shelf Availability",
     value: "85.2%",
     sub: "MTD on-shelf coverage",
     change: "▲3.1% (from 82.1%)",
@@ -1248,7 +1248,7 @@ const cardsAbsolute = [
     extraChangeColor: "green",
   },
   {
-    title: "Metro City Stock Availability",
+    title: "Metro City OSA",
     value: "78.5%",
     sub: "MTD availability across metro cities",
     change: "▼2.0% (from 80.5%)",
@@ -1262,7 +1262,7 @@ const cardsAbsolute = [
 
 const cardsWeighted = [
   {
-    title: "Stock Availability",
+    title: "On Shelf Availability",
     value: "79.8%",
     sub: "MTD on-shelf coverage",
     change: "▲2.7% (from 77.1%)",
@@ -1284,7 +1284,7 @@ const cardsWeighted = [
     extraChangeColor: "green",
   },
   {
-    title: "Metro City Stock Availability",
+    title: "Metro City OSA",
     value: "73.1%",
     sub: "MTD availability across metro cities",
     change: "▼2.8% (from 75.9%)",
@@ -1313,8 +1313,10 @@ const getAvailabilityKpis = (type, context = {}) => {
 
   // Map readable titles to data center keys
   const titleToKey = {
+    "On Shelf Availability": "osa",
     "Stock Availability": "osa",
     "Days of Inventory": "doi",
+    "Metro City OSA": "availability",
     "Metro City Stock Availability": "availability"
   };
 
@@ -1478,13 +1480,13 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
 
     if (isQuickCom) {
       cards_config = [
-        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
+        { key: 'osa', title: "On Shelf Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
         { key: 'doi', title: "Days of Inventory", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'], loading: !apiData?.doi },
-        { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['availability'], loading: !apiData?.metroCity }
+        { key: 'availability', title: "Metro City OSA", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['availability'], loading: !apiData?.metroCity }
       ];
     } else {
       cards_config = [
-        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
+        { key: 'osa', title: "On Shelf Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
         { key: 'buybox', title: "Buy Box %", sub: "MTD Buy Box percentage", api: buyBoxCardData, icon: Zap, gradient: ['#2563EB', '#2563EB'] },
         { key: 'doi', title: "Days of Inventory", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'], loading: !apiData?.doi },
         { key: 'delivery', title: "Delivery time", sub: "Average delivery time", api: deliveryCardData, icon: Zap, gradient: ['#2563EB', '#2563EB'] },

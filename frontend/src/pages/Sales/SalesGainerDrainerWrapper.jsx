@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 export default function SalesGainerDrainerWrapper({ data, tabs, defaultTab, isPricing = false }) {
     // Use custom tabs if provided, otherwise use default Sales tabs
     const defaultTabs = [
-        { key: "availability", label: "Availability" },
+        { key: "availability", label: "OSA" },
         { key: "sales", label: "Sales" },
         { key: "performance", label: "Performance" },
         { key: "inventory", label: "Inventory" },

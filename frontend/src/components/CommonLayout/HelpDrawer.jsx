@@ -280,7 +280,7 @@ const HelpDrawer = ({ userDbName }) => {
 
   const availabilityAnalysisGlossary = [
     {
-      kpi: "Stock Availability",
+      kpi: "On Shelf Availability",
       definition: "The proportion of stores or locations where a product is available for purchase at a given time.",
       usage: "Identify distribution gaps.",
       interpretation: "Higher availability → better reach.",
@@ -298,7 +298,7 @@ const HelpDrawer = ({ userDbName }) => {
       logic: "DOI = (Current Inventory ÷ Last 30 Days Qty Sold) × 30",
     },
     {
-      kpi: "Metro City Stock Availability",
+      kpi: "Metro City OSA",
       definition: "The proportion of stores or locations where a product is available for purchase at a given time for metro cities.",
       usage: "Identify distribution gaps in metro cities.",
       interpretation: "Higher availability → better reach.",

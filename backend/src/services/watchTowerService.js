@@ -872,7 +872,7 @@ const generateKpiColumns = ({
         { title: "ROAS", value: fmtX(roas), change: { text: fmtChg(roasChange), positive: roasChange >= 0 }, meta: { units: "return", change: fmtChg(roasChange) } },
         { title: "Inorg Sales", value: fmtCurr(inorgSales), change: { text: fmtChg(inorgSalesChange), positive: inorgSalesChange >= 0 }, meta: { units: `${formatUnits(inorgUnits)} units`, change: fmtChg(inorgSalesChange) } },
         { title: "Conversion", value: fmtPct(conversion), change: { text: fmtChg(conversionChange, true), positive: conversionChange >= 0 }, meta: { units: "Orders / Clicks", change: fmtChg(conversionChange, true) } },
-        { title: "Availability", value: fmtPct(availability), change: { text: fmtChg(availabilityChange, true), positive: availabilityChange >= 0 }, meta: { units: "stores", change: fmtChg(availabilityChange, true) } },
+        { title: "OSA", value: fmtPct(availability), change: { text: fmtChg(availabilityChange, true), positive: availabilityChange >= 0 }, meta: { units: "stores", change: fmtChg(availabilityChange, true) } },
         { title: "Wt OSA", value: fmtPct(wtOsa), change: { text: fmtChg(wtOsaChange, true), positive: wtOsaChange >= 0 }, meta: { units: "OSA × Listing %", change: fmtChg(wtOsaChange, true) } },
         { title: "Listing %", value: fmtPct(listingPercent), change: { text: fmtChg(listingPercentChange, true), positive: listingPercentChange >= 0 }, meta: { units: "Calculated", change: fmtChg(listingPercentChange, true) } },
         { title: "Share of Search", value: fmtPct(sos), change: { text: fmtChg(sosChange, true), positive: sosChange >= 0 }, meta: { units: "index", change: fmtChg(sosChange, true) } },
@@ -2267,7 +2267,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 labels: chartLabels
             },
             {
-                name: "Availability",
+                name: "OSA",
                 label: formattedAvailability,
                 subtitle: subtitle,
                 trend: availabilityTrendStr,
@@ -3109,7 +3109,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     meta: { units: "Orders / Clicks", change: formatChange(conversionChange, true) }
                 },
                 {
-                    title: "Availability",
+                    title: "OSA",
                     value: `${availability.toFixed(2)}%`,
                     change: { text: formatChange(availabilityChange, true), positive: availabilityChange >= 0 },
                     meta: { units: "stores", change: formatChange(availabilityChange, true) }
@@ -3632,7 +3632,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             { title: "ROAS", value: `${roas.toFixed(2)}x`, meta: { units: "", change: "▲0.0%" } },
             { title: "Inorg Sales", value: formatCurrency(inorgSales), meta: { units: "", change: "▲0.0%" } },
             { title: "Conversion", value: `${conversion.toFixed(2)}%`, meta: { units: "Orders / Clicks", change: "▲0.0%" } },
-            { title: "Availability", value: `${availability.toFixed(2)}%`, meta: { units: "", change: "▲0.0%" } },
+            { title: "OSA", value: `${availability.toFixed(2)}%`, meta: { units: "", change: "▲0.0%" } },
             { title: "SOS", value: `${sos.toFixed(2)}%`, meta: { units: "", change: "▲0.0%" } },
             { title: "Market Share", value: `${marketShare.toFixed(2)}%`, meta: { units: "", change: "▲0.0%" } },
             { title: "Buy Box %", value: `${buyBoxPct.toFixed(2)}%`, meta: { units: "", change: "▲0.0%" } },

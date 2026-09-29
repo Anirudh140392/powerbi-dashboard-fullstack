@@ -1405,6 +1405,8 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
     const mapping = {
       "Discounting": "promo-my",
       "Availability": "osa",
+      "OSA": "osa",
+      "Stock Availability": "osa",
       "Offtake": "offtakes",
       "Price": "price",
       "Organic": "sos",

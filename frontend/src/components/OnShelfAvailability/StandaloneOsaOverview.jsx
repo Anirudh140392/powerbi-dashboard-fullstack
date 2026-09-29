@@ -167,8 +167,8 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
     };
 
     const cards_config = [
-      { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", data: osaCardData, icon: Layers, gradient: ['#6366f1', '#8b5cf6'] },
-      { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", data: metroCardData, icon: MapPin, gradient: ['#8b5cf6', '#a855f7'], infoTooltip: "This metric reflects stock availability exclusively across Tier 1 metro cities, providing a focused view of inventory health in high-demand urban markets." },
+      { key: 'osa', title: "On Shelf Availability", sub: "MTD on-shelf coverage", data: osaCardData, icon: Layers, gradient: ['#6366f1', '#8b5cf6'] },
+      { key: 'availability', title: "Metro City OSA", sub: "MTD availability across metro cities", data: metroCardData, icon: MapPin, gradient: ['#8b5cf6', '#a855f7'], infoTooltip: "This metric reflects stock availability exclusively across Tier 1 metro cities, providing a focused view of inventory health in high-demand urban markets." },
       { key: 'marketShare', title: `${dbDisplayName} Market Share%`, sub: "Overall Market Share", data: msCardData, icon: PieChart, gradient: ['#f43f5e', '#ec4899'] }
     ];
 

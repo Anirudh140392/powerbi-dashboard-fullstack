@@ -634,7 +634,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
     }
 
     const renderTier1CitiesHoverButton = (itemKpi) => {
-        const isMetroKpi = itemKpi?.title === "Metro City Stock Availability" || (itemKpi?.metroCities && itemKpi.metroCities.length > 0);
+        const isMetroKpi = itemKpi?.title === "Metro City Stock Availability" || itemKpi?.title === "Metro City OSA" || (itemKpi?.metroCities && itemKpi.metroCities.length > 0);
         if (!isMetroKpi) return null;
 
         const rawCities = (itemKpi?.metroCities && itemKpi.metroCities.length > 0)
