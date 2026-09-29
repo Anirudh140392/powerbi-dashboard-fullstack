@@ -402,15 +402,15 @@ export const downloadReport = async (req, res) => {
                 state_map AS
                 (
                     SELECT DISTINCT
-                        toString(pincode) AS pincode,
+                        toString(location_id) AS loc_id,
                         location_state
                     FROM rb_location_darkstore
-                    WHERE pincode IS NOT NULL AND toString(pincode) != '' AND toString(pincode) != '0'
+                    WHERE location_id IS NOT NULL AND toString(location_id) != '' AND toString(location_id) != '0'
                 )`
                 : '';
             const stateJoin = hasLocationDarkstoreTable
                 ? `LEFT JOIN state_map sm
-                    ON toString(b.pincode) = sm.pincode`
+                    ON toString(b.location_id) = sm.loc_id`
                 : '';
             const stateCol = hasLocationDarkstoreTable
                 ? `sm.location_state AS State,`
