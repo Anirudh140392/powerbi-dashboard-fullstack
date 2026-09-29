@@ -635,13 +635,13 @@ async function getPricingKpis(filters = {}) {
                     /
                     NULLIF(AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND p.${f.compFlag} = '1' THEN ${f.wSellingPrice} ELSE NULL END), 0)
                 ) AS rpi_curr,
-                
-                AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
+                         AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
                          AND ${brandCondition}
                          AND ${f.wSellingPrice} > 0
+                         AND ${f.wNenoOsa} > 0
                     THEN ${f.wSellingPrice} 
                     ELSE NULL END) AS asp_curr,
- 
+
                 -- Previous Period
                 (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev,
                 
@@ -667,6 +667,7 @@ async function getPricingKpis(filters = {}) {
                 AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                          AND ${brandCondition}
                          AND ${f.wSellingPrice} > 0
+                         AND ${f.wNenoOsa} > 0
                     THEN ${f.wSellingPrice} 
                     ELSE NULL END) AS asp_prev
 
@@ -684,7 +685,7 @@ async function getPricingKpis(filters = {}) {
                 
                 AVG(CASE WHEN ${f.wPpu} > 0 AND ${brandCondition} THEN ${f.wPpu} ELSE NULL END) AS price_per_unit_curr,
                 
-                AVG(CASE WHEN ${brandCondition} AND ${f.wSellingPrice} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp_curr
+                AVG(CASE WHEN ${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp_curr
             FROM ${src.table} p
             WHERE p.${f.date} BETWEEN '${startDate}' AND '${endDate}'
               AND ${whereClause}
@@ -1213,6 +1214,8 @@ const getDimensionOverview = async (filters = {}) => {
                     
                     AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
                              AND ${brandCondition}
+                             AND ${f.wSellingPrice} > 0
+                             AND ${f.wNenoOsa} > 0
                         THEN ${f.wSellingPrice} 
                         ELSE NULL END) AS ASP,
                     SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
@@ -1237,6 +1240,8 @@ const getDimensionOverview = async (filters = {}) => {
                     
                     AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                              AND ${brandCondition}
+                             AND ${f.wSellingPrice} > 0
+                             AND ${f.wNenoOsa} > 0
                         THEN ${f.wSellingPrice} 
                         ELSE NULL END) AS asp_prev,
                     SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
@@ -1409,7 +1414,7 @@ const getDimensionTrends = async (filters = {}) => {
                 NULLIF(AVG(CASE WHEN p.${f.compFlag} = '1' THEN ${f.wSellingPrice} ELSE NULL END), 0)
             ) AS rpi,
             
-            AVG(CASE WHEN ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
+            AVG(CASE WHEN ${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
             any(po.platform_offtake) AS offtake
         FROM ${src.table} p
         LEFT JOIN (
@@ -1436,7 +1441,7 @@ const getDimensionTrends = async (filters = {}) => {
                 count(*) AS total_rows,
                 countIf(${f.wMrp} > 0 AND ${brandCondition}) AS has_discount_data,
                 countIf(${f.wPpu} > 0 AND ${brandCondition}) AS has_ppu_data,
-                countIf(${brandCondition} AND ${f.wSellingPrice} > 0) AS has_asp_data,
+                countIf(${brandCondition} AND ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0) AS has_asp_data,
                 sum(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS has_offtake_data
             FROM ${src.table} p
             WHERE ${whereClause}
@@ -1597,7 +1602,7 @@ const getPricingCompetitionTrends = async (filters) => {
                 THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
             AVG(${f.wSellingPrice}) / NULLIF(any(c.avg_comp_val), 0) AS rpi,
-            AVG(${f.wSellingPrice}) AS asp,
+            AVG(CASE WHEN ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
             SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
         FROM ${src.table} p
         LEFT JOIN (
@@ -1742,7 +1747,7 @@ const getPricingCompetition = async (filters) => {
                 THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
             AVG(${f.wSellingPrice}) / NULLIF(platform_comp_avg, 0) AS rpi,
-            AVG(${f.wSellingPrice}) AS asp,
+            AVG(CASE WHEN ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
             SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
         FROM ${src.table} p
         WHERE ${whereClause}
@@ -1763,7 +1768,7 @@ const getPricingCompetition = async (filters) => {
                 THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
             AVG(${f.wSellingPrice}) / NULLIF(platform_comp_avg, 0) AS rpi,
-            AVG(${f.wSellingPrice}) AS asp,
+            AVG(CASE WHEN ${f.wSellingPrice} > 0 AND ${f.wNenoOsa} > 0 THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
             SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
         FROM ${src.table} p
         WHERE ${whereClause}
