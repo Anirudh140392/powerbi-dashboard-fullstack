@@ -1888,7 +1888,7 @@ export default function TrendsCompetitionDrawer({
               id: "Assortment",
               label: "Assortment",
               color: "#22C55E",
-              axis: "right",
+              axis: "assortment",
               default: false,
             },
             {
@@ -2752,27 +2752,57 @@ export default function TrendsCompetitionDrawer({
     const xData = dataSource.map((p) => p.date);
 
     const metrics = trendMeta.metrics || [];
+    const activeMetricObjs = metrics.filter((m) => activeMetrics.includes(m.id));
+
+    const isCurrencyActive = activeMetricObjs.some(
+      (m) => m.axis === "left" || (m.axis !== "right" && m.axis !== "assortment" && m.id !== "Assortment")
+    );
+    const isPercentageActive = activeMetricObjs.some(
+      (m) => m.axis === "right"
+    );
+    const isAssortmentActive = activeMetricObjs.some(
+      (m) => m.axis === "assortment" || m.id === "Assortment"
+    );
+
     const series = [];
-    metrics
-      .filter((m) => activeMetrics.includes(m.id))
-      .forEach((m) => {
-        series.push({
-          name: m.label,
-          type: "line",
-          smooth: true,
-          symbol: "circle",
-          symbolSize: 6,
-          showSymbol: true,
-          yAxisIndex: m.axis === "right" ? 1 : 0,
-          lineStyle: { width: 2 },
-          emphasis: { focus: "series" },
-          data: cleanSeriesData(dataSource.map((p) => p[m.id] ?? null)),
-          itemStyle: { color: m.color },
-        });
+    activeMetricObjs.forEach((m) => {
+      let yAxisIndex = 0;
+      if (m.axis === "assortment" || m.id === "Assortment") {
+        yAxisIndex = 2;
+      } else if (m.axis === "right") {
+        yAxisIndex = 1;
+      } else {
+        yAxisIndex = 0;
+      }
+
+      series.push({
+        name: m.label,
+        type: "line",
+        smooth: true,
+        symbol: "circle",
+        symbolSize: 6,
+        showSymbol: true,
+        yAxisIndex: yAxisIndex,
+        lineStyle: { width: 2 },
+        emphasis: { focus: "series" },
+        data: cleanSeriesData(dataSource.map((p) => p[m.id] ?? null)),
+        itemStyle: { color: m.color },
       });
+    });
+
+    let gridLeft = 60;
+    if (isCurrencyActive && isAssortmentActive) {
+      gridLeft = 115;
+    } else if (isCurrencyActive || isAssortmentActive) {
+      gridLeft = 60;
+    } else {
+      gridLeft = 45;
+    }
+
+    let gridRight = isPercentageActive ? 80 : 45;
 
     return {
-      grid: { left: 60, right: 80, top: 32, bottom: 40 },
+      grid: { left: gridLeft, right: gridRight, top: 32, bottom: 40 },
       tooltip: { trigger: "axis", formatter: createTooltipFormatter },
       xAxis: {
         type: "category",
@@ -2785,6 +2815,7 @@ export default function TrendsCompetitionDrawer({
         {
           type: "value",
           position: "left",
+          show: isCurrencyActive,
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { lineStyle: { color: "#F3F4F6" } },
@@ -2802,19 +2833,37 @@ export default function TrendsCompetitionDrawer({
         {
           type: "value",
           position: "right",
+          show: isPercentageActive,
           axisLine: { show: false },
           axisTick: { show: false },
-          splitLine: { show: false },
+          splitLine: { show: !isCurrencyActive, lineStyle: { color: "#F3F4F6" } },
           min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
           axisLabel: {
             formatter: (value) => `${parseFloat(value.toFixed(2))} %`
+          }
+        },
+        {
+          type: "value",
+          position: "left",
+          offset: isCurrencyActive ? 55 : 0,
+          show: isAssortmentActive,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: !isCurrencyActive && !isPercentageActive, lineStyle: { color: "#F3F4F6" } },
+          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
+          axisLabel: {
+            formatter: (value) => {
+              if (value >= 1000000) return `${(value / 1000000).toFixed(2).replace(/\.?0+$/, '')} M`;
+              if (value >= 1000) return `${(value / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
+              return `${parseFloat(value.toFixed(2))}`;
+            }
           }
         },
       ],
       legend: { show: false },
       series,
     };
-  }, [trendMeta, activeMetrics, trendPoints, chartData]);
+  }, [trendMeta, activeMetrics, trendPoints, chartData, currencySymbol, dynamicKey]);
   // Compare SKUs chart option (multi-KPI, multi-SKU)
   const compareOption = useMemo(() => {
     const x = compareMeta.x;
