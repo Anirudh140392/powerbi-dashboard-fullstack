@@ -212,7 +212,7 @@ const ActionIntelligenceHub: React.FC<Props> = ({ reviews, competitorReviews: _c
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                     { label: 'Open Issues', value: metrics.openIssues, icon: Target, color: 'text-red-500', sub: `${metrics.criticalCount} critical` },
-{ label: 'User Rating', value: metrics.avgRating.toFixed(2) + '★', icon: Star, color: 'text-amber-500', sub: `${metrics.total.toLocaleString()} reviews` },
+                    { label: 'User Rating', value: (metrics.avgRating != null && !isNaN(metrics.avgRating) ? metrics.avgRating.toFixed(2) : '0.00') + '★', icon: Star, color: 'text-amber-500', sub: `${metrics.total.toLocaleString()} reviews` },
                     { label: 'NPS Score', value: metrics.nps, icon: TrendingUp, color: metrics.nps >= 0 ? 'text-emerald-500' : 'text-red-500', sub: 'Net Sentiment' },
                     { label: 'Positive Rate', value: `${metrics.total > 0 ? Math.round((metrics.pos / metrics.total) * 100) : 0}%`, icon: ThumbsUp, color: 'text-emerald-500', sub: `${metrics.pos.toLocaleString()} positive` },
                 ].map(m => (
@@ -323,7 +323,7 @@ const ActionIntelligenceHub: React.FC<Props> = ({ reviews, competitorReviews: _c
                                         <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 dark:bg-indigo-900/15 rounded-xl">
                                             <Sparkles size={12} className="text-indigo-500" />
                                             <span className="text-[10px] text-slate-600 dark:text-slate-400">Fix impact:</span>
-                                            <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">+{issue.impactRating.toFixed(2)}★</span>
+                                            <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">+{((issue.impactRating ?? 0)).toFixed(2)}★</span>
                                         </div>
                                         {issue.sampleVerbatims.length > 0 && (
                                             <div className="flex-1 text-[10px] text-slate-400 italic truncate border-l border-slate-200 dark:border-slate-700 pl-3">
@@ -386,7 +386,7 @@ const ActionIntelligenceHub: React.FC<Props> = ({ reviews, competitorReviews: _c
                                 <div>
                                     <p className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 mb-2 uppercase tracking-wider">📊 KPIs</p>
                                     <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
-<p>User Rating: <strong>{metrics.avgRating.toFixed(2)}★</strong></p>
+<p>User Rating: <strong>{(metrics.avgRating != null && !isNaN(metrics.avgRating) ? metrics.avgRating.toFixed(2) : '0.00')}★</strong></p>
                                         <p>NPS: <strong className={metrics.nps >= 0 ? 'text-emerald-600' : 'text-red-600'}>{metrics.nps}</strong></p>
                                         <p>Open Issues: <strong className="text-red-600">{metrics.openIssues}</strong></p>
                                     </div>

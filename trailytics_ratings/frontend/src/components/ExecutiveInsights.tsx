@@ -764,7 +764,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                         const watchPct = healthTotal > 0 ? ((bucket?.ni?.count || 0) / healthTotal) * 100 : 0;
                                         const atRiskPct = healthTotal > 0 ? ((bucket?.issue?.count || 0) / healthTotal) * 100 : 0;
                                         // Helpers for compact number formatting
-                                        const fmtK = (n: number) => n >= 10000000 ? `${(n/10000000).toFixed(1)}Cr` : n >= 100000 ? `${(n/100000).toFixed(1)}L` : n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n);
+                                        const fmtK = (n: number | null | undefined) => !n ? '0' : n >= 10000000 ? `${(n/10000000).toFixed(1)}Cr` : n >= 100000 ? `${(n/100000).toFixed(1)}L` : n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n);
                                         const reviewsN = bucket.totalReviewCount ?? 0;
                                         const ratingsN = Number(bucket.totalRatings || 0);
 
@@ -1081,7 +1081,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                             </div>
                                             <div className="text-right shrink-0">
                                                 <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Avg</div>
-                                                <div className="text-sm font-bold text-slate-700 dark:text-slate-200 tabular-nums">{sh.avgRating.toFixed(1)}<span className="text-amber-500">★</span></div>
+                                                <div className="text-sm font-bold text-slate-700 dark:text-slate-200 tabular-nums">{(sh.avgRating != null && !isNaN(sh.avgRating) ? sh.avgRating.toFixed(1) : '0.0')}<span className="text-amber-500">★</span></div>
                                             </div>
                                         </div>
 
@@ -1269,7 +1269,7 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ reviews, competit
                                                             <span key={b.brand} className="text-[10px] font-medium px-2 py-1 rounded-md bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 shadow-sm flex items-center gap-1.5">
                                                                 <span className="truncate max-w-[80px]">{b.brand}</span>
                                                                 <span className="text-slate-400 dark:text-slate-500">|</span>
-                                                                <span className="font-bold text-slate-800 dark:text-slate-100">{benchmarkMetric === 'rating' ? `${b.avg.toFixed(1)}★` : benchmarkMetric === 'sentiment' ? `${b.positiveRate.toFixed(0)}%` : b.count}</span>
+                                                                <span className="font-bold text-slate-800 dark:text-slate-100">{benchmarkMetric === 'rating' ? `${(b.avg != null && !isNaN(b.avg) ? b.avg.toFixed(1) : '-')}★` : benchmarkMetric === 'sentiment' ? `${(b.positiveRate != null && !isNaN(b.positiveRate) ? b.positiveRate.toFixed(0) : '0')}%` : (b.count ?? 0)}</span>
                                                                 <span className="text-[9px] text-slate-400">({b.count})</span>
                                                             </span>
                                                         ))}
