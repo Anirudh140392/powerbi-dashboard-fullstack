@@ -2,6 +2,7 @@ import { useState, useMemo, useContext, useEffect, useCallback, useRef } from 'r
 import axiosInstance from '../../../api/axiosInstance'
 import { motion } from 'framer-motion'
 import { FilterContext } from '../../../utils/FilterContext'
+import { useAuth } from '../../../utils/AuthContext'
 import {
     TrendingUp,
     TrendingDown,
@@ -311,6 +312,24 @@ const PlatformOverviewNew = ({
         { key: 'buyBoxPct', label: 'Buy Box %' },
         { key: 'deliveryTime', label: 'Delivery Time' },
     ]
+    const { user } = useAuth();
+    const isDrl = useMemo(() => {
+        try {
+            const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || localStorage.getItem('user') || '{}');
+            const db = (u?.dbName || u?.db_name || u?.database || user?.dbName || '').toLowerCase();
+            return db === 'drl';
+        } catch {
+            return user?.dbName?.toLowerCase() === 'drl';
+        }
+    }, [user]);
+
+    const [drlSource, setDrlSource] = useState('rk'); // 'rk' | 'buymore' | 'all'
+
+    const handleDrlSourceChange = (newSource) => {
+        if (newSource === drlSource) return;
+        setApiLoading(true);
+        setDrlSource(newSource);
+    };
     const [dimension, setDimension] = useState('platform')
     const [localPlatformFilter, setLocalPlatformFilter] = useState('All')
     const [skuPlatformFilter, setSkuPlatformFilter] = useState('All')
@@ -712,6 +731,7 @@ const PlatformOverviewNew = ({
             reqSapCode,
             skuPlatformFilter: dimension === 'sku' ? (skuPlatformFilter !== 'All' ? skuPlatformFilter : effectivePlatform) : undefined,
             localPlatformFilter: (dimension !== 'platform' && dimension !== 'sku') ? (localPlatformFilter !== 'All' ? localPlatformFilter : effectivePlatform) : undefined,
+            drlSource: isDrl ? drlSource : undefined,
             advancedFilters: {
                 subBrands: advancedFilters.subBrands,
                 skuName: advancedFilters.skuName,
@@ -723,7 +743,7 @@ const PlatformOverviewNew = ({
             selectedMsl,
             selectedSubBrand
         });
-    }, [dimension, effectivePlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter, selectedMsl, selectedSubBrand]);
+    }, [dimension, effectivePlatform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter, selectedMsl, selectedSubBrand, isDrl, drlSource]);
 
     // Fetch data from backend API when filters change (stable version)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
@@ -749,6 +769,7 @@ const PlatformOverviewNew = ({
                 skuCode: skuCodeVal || undefined,
                 sapCode: parsed.reqSapCode || undefined,
                 filterLogic: parsed.advancedFilters.filterLogic || 'OR',
+                drlSource: isDrl ? parsed.drlSource : undefined,
                 msl: (parsed.selectedMsl && parsed.selectedMsl !== 'All') ? (Array.isArray(parsed.selectedMsl) ? parsed.selectedMsl.join(',') : parsed.selectedMsl) : (parsed.advancedFilters.msl === '1' ? '1' : undefined)
             };
 
@@ -783,44 +804,45 @@ const PlatformOverviewNew = ({
         fetchDimensionDataRef.current = fetchDimensionData
     }, [fetchDimensionData])
 
-    // Memoize stringified filter key to detect actual filter state changes
-    const [lastFetchedKey, setLastFetchedKey] = useState(null)
+    // Ref to track last fetched filter key without triggering re-render loops
+    const lastFetchedKeyRef = useRef(null);
 
     // Trigger API fetch when filterKey changes
     useEffect(() => {
-        if (!selectedChannel || !selectedLocation) return
+        if (!selectedChannel || !selectedLocation) return;
 
-        if (lastFetchedKey === filterKey) {
-            setApiLoading(false)
-            return
+        if (lastFetchedKeyRef.current === filterKey) {
+            return;
         }
 
-        setApiLoading(true)
-        const currentFetchId = ++fetchIdRef.current
+        setApiLoading(true);
+        // Clear old dimension data so previous response never renders while loading
+        setApiData(prev => ({ ...prev, [dimension]: undefined }));
+
+        const currentFetchId = ++fetchIdRef.current;
         const timer = setTimeout(() => {
             if (currentFetchId !== fetchIdRef.current) {
-                setApiLoading(false)
-                return
+                return;
             }
 
-            setLastFetchedKey(filterKey)
-            fetchDimensionDataRef.current(currentFetchId)
-        }, 50)
+            lastFetchedKeyRef.current = filterKey;
+            fetchDimensionDataRef.current(currentFetchId);
+        }, 50);
 
-        return () => clearTimeout(timer)
-    }, [filterKey, selectedChannel, selectedLocation, lastFetchedKey])
+        return () => clearTimeout(timer);
+    }, [filterKey, selectedChannel, selectedLocation, dimension]);
 
     // Manual retry handler
     const handleRetry = async () => {
-        setIsRetrying(true)
-        setApiLoading(true)
-        setApiError(null)
-        // Reset lastFetchedKey so the effect will re-trigger the fetch
-        setLastFetchedKey(null);
+        setIsRetrying(true);
+        setApiLoading(true);
+        setApiError(null);
+        setApiData(prev => ({ ...prev, [dimension]: undefined }));
+        lastFetchedKeyRef.current = null;
         const currentFetchId = ++fetchIdRef.current;
-        await fetchDimensionDataRef.current(currentFetchId)
-        setIsRetrying(false)
-    }
+        await fetchDimensionDataRef.current(currentFetchId);
+        setIsRetrying(false);
+    };
     const retryFetch = handleRetry;
 
     // Handle filter apply from modal
@@ -1010,12 +1032,60 @@ const PlatformOverviewNew = ({
                     chip={`${entities.length} ${currentDimension.label} × ${kpiCount} KPIs`}
                     headerRight={
                         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                            {/* DRL Source Toggle (RK vs Buymore vs Combined) */}
+                            {isDrl && (
+                                <div className="flex items-center gap-1 p-1 bg-amber-50/90 rounded-xl border border-amber-200/80 shadow-xs">
+                                    <span className="text-[10px] font-bold text-amber-800 px-1.5 uppercase tracking-wider hidden xs:inline">Source:</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDrlSourceChange('rk')}
+                                        className={cn(
+                                            'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                                            drlSource === 'rk'
+                                                ? 'bg-amber-600 text-white shadow-sm'
+                                                : 'text-amber-800 hover:bg-amber-100/60'
+                                        )}
+                                        title="Show data from rb_pdp_olap table (RK)"
+                                    >
+                                        RK
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDrlSourceChange('buymore')}
+                                        className={cn(
+                                            'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer',
+                                            drlSource === 'buymore'
+                                                ? 'bg-amber-600 text-white shadow-sm'
+                                                : 'text-amber-800 hover:bg-amber-100/60'
+                                        )}
+                                        title="Show data from buymore_rb_pdp_olap table (Buymore)"
+                                    >
+                                        Buymore
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDrlSourceChange('all')}
+                                        className={cn(
+                                            'px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer',
+                                            drlSource === 'all'
+                                                ? 'bg-amber-600 text-white shadow-sm'
+                                                : 'text-amber-700 hover:bg-amber-100/60'
+                                        )}
+                                        title="Show combined RK + Buymore data"
+                                    >
+                                        Combined
+                                    </button>
+                                </div>
+                            )}
                             {/* SKU dimension: Platform dropdown (single-select) instead of Channel */}
                             {dimension === 'sku' && (
                                 <div className="relative flex items-center">
                                     <select
                                         value={skuPlatformFilter === 'All' ? 'All' : (globalPlatforms?.find(p => p.toLowerCase() === (skuPlatformFilter || '').toLowerCase()) || skuPlatformFilter || 'All')}
-                                        onChange={(e) => setSkuPlatformFilter(e.target.value)}
+                                        onChange={(e) => {
+                                            setApiLoading(true);
+                                            setSkuPlatformFilter(e.target.value);
+                                        }}
                                         className="appearance-none bg-indigo-50 border border-indigo-100 text-indigo-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-indigo-100/50"
                                         style={{ fontFamily: 'Roboto, sans-serif' }}
                                     >
@@ -1032,7 +1102,10 @@ const PlatformOverviewNew = ({
                                 <div className="relative flex items-center">
                                     <select
                                         value={localPlatformFilter === 'All' ? 'All' : (globalPlatforms?.find(p => p.toLowerCase() === (localPlatformFilter || '').toLowerCase()) || localPlatformFilter || 'All')}
-                                        onChange={(e) => setLocalPlatformFilter(e.target.value)}
+                                        onChange={(e) => {
+                                            setApiLoading(true);
+                                            setLocalPlatformFilter(e.target.value);
+                                        }}
                                         className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
                                         style={{ fontFamily: 'Roboto, sans-serif' }}
                                     >
@@ -1054,6 +1127,8 @@ const PlatformOverviewNew = ({
                                         <button
                                             key={key}
                                             onClick={() => {
+                                                if (key === dimension) return;
+                                                setApiLoading(true);
                                                 if (key !== 'sku') setSkuPlatformFilter('All');
                                                 setDimension(key);
                                             }}
@@ -1110,11 +1185,11 @@ const PlatformOverviewNew = ({
                             </motion.button>
 
                             {/* Legend indicators */}
-                            <div className="hidden sm:flex items-center gap-2">
-                                <span className="flex items-center gap-1.5 text-[9px] text-emerald-600 bg-emerald-50/50 px-2 py-0.5 rounded-full font-bold border border-emerald-100/50 uppercase tracking-tight">
+                            <div className="hidden sm:flex flex-col gap-0.5 justify-center">
+                                <span className="flex items-center gap-1.5 text-[8.5px] text-emerald-600 bg-emerald-50/50 px-2 py-0.5 rounded-full font-bold border border-emerald-100/50 uppercase tracking-tight leading-none">
                                     <span className="w-1 h-1 rounded-full bg-emerald-500"></span> Growth
                                 </span>
-                                <span className="flex items-center gap-1.5 text-[9px] text-rose-600 bg-rose-50/50 px-2 py-0.5 rounded-full font-bold border border-rose-100/50 uppercase tracking-tight">
+                                <span className="flex items-center gap-1.5 text-[8.5px] text-rose-600 bg-rose-50/50 px-2 py-0.5 rounded-full font-bold border border-rose-100/50 uppercase tracking-tight leading-none">
                                     <span className="w-1 h-1 rounded-full bg-rose-500"></span> Decline
                                 </span>
                             </div>

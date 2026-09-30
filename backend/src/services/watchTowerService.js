@@ -6494,11 +6494,22 @@ const getPlatformOverview = async (filters) => {
         let currQtyVal = parseFloat(c?.qty || 0);
         let prevQtyVal = parseFloat(pv?.qty || 0);
 
-        if (isDrlDb && buymorePlatforms.includes(key)) {
-            currSalesVal += (currBuymoreMap.get(key) || 0);
-            prevSalesVal += (prevBuymoreMap.get(key) || 0);
-            currQtyVal += (currBuymoreQtyMap.get(key) || 0);
-            prevQtyVal += (prevBuymoreQtyMap.get(key) || 0);
+        const drlSource = String(filters.drlSource || filters.drl_source || filters.drlMode || 'rk').toLowerCase();
+        if (isDrlDb) {
+            if (drlSource === 'buymore') {
+                currSalesVal = buymorePlatforms.includes(key) ? (currBuymoreMap.get(key) || 0) : 0;
+                prevSalesVal = buymorePlatforms.includes(key) ? (prevBuymoreMap.get(key) || 0) : 0;
+                currQtyVal = buymorePlatforms.includes(key) ? (currBuymoreQtyMap.get(key) || 0) : 0;
+                prevQtyVal = buymorePlatforms.includes(key) ? (prevBuymoreQtyMap.get(key) || 0) : 0;
+            } else if (drlSource === 'rk') {
+                // RK ONLY: do not add buymore table values
+            } else if (buymorePlatforms.includes(key)) {
+                // All / Combined
+                currSalesVal += (currBuymoreMap.get(key) || 0);
+                prevSalesVal += (prevBuymoreMap.get(key) || 0);
+                currQtyVal += (currBuymoreQtyMap.get(key) || 0);
+                prevQtyVal += (prevBuymoreQtyMap.get(key) || 0);
+            }
         }
 
         // Calculate SOS for this platform
@@ -6630,9 +6641,28 @@ const getPlatformOverview = async (filters) => {
     ]);
 
     const allMetrics = allMetricsResult[0] || {};
+    const prevAllMetrics = prevAllMetricsResult[0] || {};
     const allPmMetrics = allPmMetricsResult[0] || {};
-    const allOfftake = allMetricsResult.length > 0 ? parseFloat(allMetrics.total_sales || 0) : null;
-    const allOfftakeUnits = allMetricsResult.length > 0 ? parseFloat(allMetrics.total_qty || 0) : null;
+    const prevAllPmMetrics = prevAllPmMetricsResult[0] || {};
+
+    let allOfftake = allMetricsResult.length > 0 ? parseFloat(allMetrics.total_sales || 0) : null;
+    let allOfftakeUnits = allMetricsResult.length > 0 ? parseFloat(allMetrics.total_qty || 0) : null;
+    let prevAllOfftake = prevAllMetricsResult.length > 0 ? parseFloat(prevAllMetrics.total_sales || 0) : null;
+    let prevAllOfftakeUnits = prevAllMetricsResult.length > 0 ? parseFloat(prevAllMetrics.total_qty || 0) : null;
+
+    if (isDrlDb) {
+        let drlSumSales = 0, drlSumQty = 0, drlPrevSumSales = 0, drlPrevSumQty = 0;
+        bulkPlatformMap.forEach(m => {
+            drlSumSales += (m.curr.sales || 0);
+            drlSumQty += (m.curr.qty || 0);
+            drlPrevSumSales += (m.prev.sales || 0);
+            drlPrevSumQty += (m.prev.qty || 0);
+        });
+        allOfftake = drlSumSales;
+        allOfftakeUnits = drlSumQty;
+        prevAllOfftake = drlPrevSumSales;
+        prevAllOfftakeUnits = drlPrevSumQty;
+    }
     const allSpend = allPmMetricsResult.length > 0 ? parseFloat(allPmMetrics.total_spend || 0) : null;
     const allAdSales = allPmMetricsResult.length > 0 ? parseFloat(allPmMetrics.total_Ad_sales || 0) : null;
     const allInorgUnits = allPmMetricsResult.length > 0 ? parseFloat(allPmMetrics.total_orders || 0) : null;
@@ -6692,11 +6722,12 @@ const getPlatformOverview = async (filters) => {
     const allWtDiscount = allMetricsResult.length > 0 ? parseFloat(allMetrics.my_wt_discount || 0) : null;
 
     // Previous period for "All" row
-    const prevAllMetrics = prevAllMetricsResult[0] || {};
-    const prevAllPmMetrics = prevAllPmMetricsResult[0] || {};
+    // (prevAllMetrics and prevAllPmMetrics are already declared above)
 
-    const prevAllOfftake = prevAllMetricsResult.length > 0 ? parseFloat(prevAllMetrics.total_sales || 0) : null;
-    const prevAllOfftakeUnits = prevAllMetricsResult.length > 0 ? parseFloat(prevAllMetrics.total_qty || 0) : null;
+    if (!isDrlDb) {
+        prevAllOfftake = prevAllMetricsResult.length > 0 ? parseFloat(prevAllMetrics.total_sales || 0) : null;
+        prevAllOfftakeUnits = prevAllMetricsResult.length > 0 ? parseFloat(prevAllMetrics.total_qty || 0) : null;
+    }
     const prevAllSpend = prevAllPmMetricsResult.length > 0 ? parseFloat(prevAllPmMetrics.total_spend || 0) : null;
     const prevAllAdSales = prevAllPmMetricsResult.length > 0 ? parseFloat(prevAllPmMetrics.total_Ad_sales || 0) : null;
     const prevAllInorgUnits = prevAllPmMetricsResult.length > 0 ? parseFloat(prevAllPmMetrics.total_orders || 0) : null;
