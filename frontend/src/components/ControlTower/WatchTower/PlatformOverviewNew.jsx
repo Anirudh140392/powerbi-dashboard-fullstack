@@ -1032,7 +1032,7 @@ const PlatformOverviewNew = ({
                     chip={`${entities.length} ${currentDimension.label} × ${kpiCount} KPIs`}
                     headerRight={
                         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                            {/* DRL Source Toggle (RK vs Buymore vs Combined) */}
+                            {/* DRL Source Toggle (Portal vs Buymore vs Combined) */}
                             {isDrl && (
                                 <div className="flex items-center gap-1 p-1 bg-amber-50/90 rounded-xl border border-amber-200/80 shadow-xs">
                                     <span className="text-[10px] font-bold text-amber-800 px-1.5 uppercase tracking-wider hidden xs:inline">Source:</span>
@@ -1041,13 +1041,13 @@ const PlatformOverviewNew = ({
                                         onClick={() => handleDrlSourceChange('rk')}
                                         className={cn(
                                             'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer',
-                                            drlSource === 'rk'
+                                            drlSource === 'rk' || drlSource === 'portal'
                                                 ? 'bg-amber-600 text-white shadow-sm'
                                                 : 'text-amber-800 hover:bg-amber-100/60'
                                         )}
-                                        title="Show data from rb_pdp_olap table (RK)"
+                                        title="Show data from rb_pdp_olap table (Portal)"
                                     >
-                                        RK
+                                        Portal
                                     </button>
                                     <button
                                         type="button"
@@ -1071,7 +1071,7 @@ const PlatformOverviewNew = ({
                                                 ? 'bg-amber-600 text-white shadow-sm'
                                                 : 'text-amber-700 hover:bg-amber-100/60'
                                         )}
-                                        title="Show combined RK + Buymore data"
+                                        title="Show combined Portal + Buymore data"
                                     >
                                         Combined
                                     </button>

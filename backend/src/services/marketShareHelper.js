@@ -1,6 +1,13 @@
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
+export const DANONE_OWN_BRANDS = ['protinex', 'aptamil', 'aptagrow', 'dexolac', 'dexogrow'];
+
+export const isDanoneDb = () => {
+    const dbName = getCurrentDbName();
+    return dbName === 'danone';
+};
+
 /**
  * Normalizes multi-value filters from frontend
  * Handles: null, string, comma-separated string, array
@@ -465,11 +472,36 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
 
         const totalSales = parseFloat(denomResult?.[0]?.total_sales || 0);
         const msMap = new Map();
-        numResults.forEach(r => {
-            const brandSales = parseFloat(r.brand_sales || 0);
-            const ms = totalSales > 0 ? (brandSales / totalSales) * 100 : 0;
-            msMap.set(r.brand.toLowerCase(), parseFloat(ms.toFixed(2)));
-        });
+
+        if (isDanoneDb()) {
+            let allDanoneSales = 0;
+            numResults.forEach(r => {
+                const bName = String(r.brand || '').toLowerCase().trim();
+                if (DANONE_OWN_BRANDS.includes(bName)) {
+                    allDanoneSales += parseFloat(r.brand_sales || 0);
+                }
+            });
+
+            numResults.forEach(r => {
+                const bName = String(r.brand || '').toLowerCase().trim();
+                const brandSales = parseFloat(r.brand_sales || 0);
+                let ms = 0;
+                if (DANONE_OWN_BRANDS.includes(bName)) {
+                    const otherDanoneSales = allDanoneSales - brandSales;
+                    const adjTotalSales = totalSales - otherDanoneSales;
+                    ms = adjTotalSales > 0 ? (brandSales / adjTotalSales) * 100 : 0;
+                } else {
+                    ms = totalSales > 0 ? (brandSales / totalSales) * 100 : 0;
+                }
+                msMap.set(bName, parseFloat(ms.toFixed(2)));
+            });
+        } else {
+            numResults.forEach(r => {
+                const brandSales = parseFloat(r.brand_sales || 0);
+                const ms = totalSales > 0 ? (brandSales / totalSales) * 100 : 0;
+                msMap.set(r.brand.toLowerCase(), parseFloat(ms.toFixed(2)));
+            });
+        }
         return msMap;
     } catch (error) {
         console.error('[MarketShareByBrand] Error:', error.message);
@@ -1588,9 +1620,33 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
         });
 
         // Build previous-period lookup
+        let allDanoneCurrSales = 0;
+        let allDanonePrevSales = 0;
+        if (isDanoneDb()) {
+            currentResults.forEach(r => {
+                if (DANONE_OWN_BRANDS.includes(String(r.brand || '').toLowerCase().trim())) {
+                    allDanoneCurrSales += parseFloat(r.total_sales || 0);
+                }
+            });
+            prevResults.forEach(r => {
+                if (DANONE_OWN_BRANDS.includes(String(r.brand || '').toLowerCase().trim())) {
+                    allDanonePrevSales += parseFloat(r.total_sales || 0);
+                }
+            });
+        }
+
         const prevMap = new Map();
         prevResults.forEach(r => {
-            const ms = prevTotalCatSales > 0 ? (parseFloat(r.total_sales || 0) / prevTotalCatSales) * 100 : 0;
+            const bName = String(r.brand || '').toLowerCase().trim();
+            const brandSales = parseFloat(r.total_sales || 0);
+            let ms = 0;
+            if (isDanoneDb() && DANONE_OWN_BRANDS.includes(bName)) {
+                const otherSales = allDanonePrevSales - brandSales;
+                const adjDenom = prevTotalCatSales - otherSales;
+                ms = adjDenom > 0 ? (brandSales / adjDenom) * 100 : 0;
+            } else {
+                ms = prevTotalCatSales > 0 ? (brandSales / prevTotalCatSales) * 100 : 0;
+            }
             prevMap.set(r.brand, { marketShare: ms });
         });
 
@@ -1603,8 +1659,16 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
 
         // 5. Build brands array with deltas (including SOS)
         const brands = currentResults.map(r => {
+            const bName = String(r.brand || '').toLowerCase().trim();
             const brandSales = parseFloat(r.total_sales || 0);
-            const ms = totalCatSales > 0 ? (brandSales / totalCatSales) * 100 : 0;
+            let ms = 0;
+            if (isDanoneDb() && DANONE_OWN_BRANDS.includes(bName)) {
+                const otherSales = allDanoneCurrSales - brandSales;
+                const adjDenom = totalCatSales - otherSales;
+                ms = adjDenom > 0 ? (brandSales / adjDenom) * 100 : 0;
+            } else {
+                ms = totalCatSales > 0 ? (brandSales / totalCatSales) * 100 : 0;
+            }
 
             const prev = prevMap.get(r.brand) || { marketShare: 0 };
             const msDelta = parseFloat((ms - prev.marketShare).toFixed(2));
@@ -2539,12 +2603,43 @@ export const getMarketShareCompetition = async (period, startDate, endDate, plat
 
         const formatNumeric = val => parseFloat(Number(val || 0).toFixed(2));
 
+        let allDanoneCurrSales = 0;
+        let allDanonePrevSales = 0;
+        if (isDanoneDb()) {
+            currRows.forEach(r => {
+                if (DANONE_OWN_BRANDS.includes(String(r.brand_name || '').toLowerCase().trim())) {
+                    allDanoneCurrSales += parseFloat(r.total_sales || 0);
+                }
+            });
+            prevRows.forEach(r => {
+                if (DANONE_OWN_BRANDS.includes(String(r.brand_name || '').toLowerCase().trim())) {
+                    allDanonePrevSales += parseFloat(r.total_sales || 0);
+                }
+            });
+        }
+
         const brands = currRows.map(curr => {
             const prev = prevMap[curr.brand_name] || { total_sales: 0 };
             const sov = sovBrandMap[curr.brand_name] || { OverallSov: 0, PaidSov: 0 };
+            const bName = String(curr.brand_name || '').toLowerCase().trim();
 
-            const msCurrRaw = totalCatSize > 0 ? (curr.total_sales / totalCatSize) * 100 : 0;
-            const msPrevRaw = totalCatSize > 0 ? (prev.total_sales / totalCatSize) * 100 : 0;
+            let msCurrRaw = 0;
+            let msPrevRaw = 0;
+
+            if (isDanoneDb() && DANONE_OWN_BRANDS.includes(bName)) {
+                const currSales = parseFloat(curr.total_sales || 0);
+                const otherSalesCurr = allDanoneCurrSales - currSales;
+                const adjCatSizeCurr = totalCatSize - otherSalesCurr;
+                msCurrRaw = adjCatSizeCurr > 0 ? (currSales / adjCatSizeCurr) * 100 : 0;
+
+                const prevSales = parseFloat(prev.total_sales || 0);
+                const otherSalesPrev = allDanonePrevSales - prevSales;
+                const adjCatSizePrev = totalCatSize - otherSalesPrev;
+                msPrevRaw = adjCatSizePrev > 0 ? (prevSales / adjCatSizePrev) * 100 : 0;
+            } else {
+                msCurrRaw = totalCatSize > 0 ? (parseFloat(curr.total_sales || 0) / totalCatSize) * 100 : 0;
+                msPrevRaw = totalCatSize > 0 ? (parseFloat(prev.total_sales || 0) / totalCatSize) * 100 : 0;
+            }
 
             const msCurr = formatNumeric(msCurrRaw);
             const msPrev = formatNumeric(msPrevRaw);
@@ -3177,15 +3272,36 @@ export const getMarketShareCompetitionTrends = async (mode, targets, period, sta
         const datesSet = new Set();
         const formatNumeric = val => parseFloat(Number(val || 0).toFixed(2));
 
+        const allDanoneSalesByDate = {};
+        if (mode === 'brand' && isDanoneDb()) {
+            trendResult.forEach(row => {
+                const dateStr = dayjs(row.d).format('YYYY-MM-DD');
+                const tLower = String(row.target || '').toLowerCase().trim();
+                if (DANONE_OWN_BRANDS.includes(tLower)) {
+                    allDanoneSalesByDate[dateStr] = (allDanoneSalesByDate[dateStr] || 0) + parseFloat(row.sales || 0);
+                }
+            });
+        }
+
         trendResult.forEach(row => {
             const dateStr = dayjs(row.d).format('YYYY-MM-DD');
             const target = row.target;
+            const targetLower = String(target || '').toLowerCase().trim();
             datesSet.add(dateStr);
 
             if (!tsByTarget[target]) tsByTarget[target] = {};
 
             const catSize = catMap[dateStr] || 0;
-            const ms = catSize > 0 ? (row.sales / catSize) * 100 : 0;
+            let ms = 0;
+            if (mode === 'brand' && isDanoneDb() && DANONE_OWN_BRANDS.includes(targetLower)) {
+                const rowSales = parseFloat(row.sales || 0);
+                const allDanoneOnDate = allDanoneSalesByDate[dateStr] || 0;
+                const otherDanoneSales = allDanoneOnDate - rowSales;
+                const adjCatSize = catSize - otherDanoneSales;
+                ms = adjCatSize > 0 ? (rowSales / adjCatSize) * 100 : 0;
+            } else {
+                ms = catSize > 0 ? (row.sales / catSize) * 100 : 0;
+            }
 
             const targetData = {
                 MarketShare: formatNumeric(ms),

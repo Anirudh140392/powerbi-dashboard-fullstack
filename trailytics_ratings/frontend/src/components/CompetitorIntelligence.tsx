@@ -549,13 +549,13 @@ export default function CompetitorIntelligence({
                                 </div>
                                 <div className="flex items-center gap-2 mb-2">
                                     {renderStars(prestigeData.avgRating)}
-                                    <span className="text-sm font-medium">{prestigeData.avgRating.toFixed(1)}</span>
+                                    <span className="text-sm font-medium">{(prestigeData.avgRating != null && !isNaN(prestigeData.avgRating) ? prestigeData.avgRating.toFixed(1) : '0.0')}</span>
                                     <span className="text-[10px] text-slate-400 border border-slate-200 dark:border-slate-600 rounded px-1">User Rating</span>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                     <div className="flex items-center gap-1">
                                         <ThumbsUp size={14} className="text-green-500" />
-                                        <span className="text-green-600 font-medium">{prestigePositiveRate.toFixed(0)}%</span>
+                                        <span className="text-green-600 font-medium">{(prestigePositiveRate != null && !isNaN(prestigePositiveRate) ? prestigePositiveRate.toFixed(0) : '0')}%</span>
                                         <span className="text-gray-500">positive</span>
                                     </div>
                                     <div className="text-right text-gray-500">
@@ -585,13 +585,13 @@ export default function CompetitorIntelligence({
                                         </div>
                                         <div className="flex items-center gap-2 mb-2">
                                             {renderStars(data.avgRating)}
-                                            <span className="text-sm font-medium">{data.avgRating.toFixed(1)}</span>
+                                            <span className="text-sm font-medium">{(data.avgRating != null && !isNaN(data.avgRating) ? data.avgRating.toFixed(1) : '0.0')}</span>
                                             <span className="text-[10px] text-slate-400 border border-slate-200 dark:border-slate-600 rounded px-1">User Rating</span>
                                         </div>
                                         <div className="grid grid-cols-2 gap-2 text-sm">
                                             <div className="flex items-center gap-1">
                                                 <ThumbsUp size={14} className={positiveRate >= prestigePositiveRate ? 'text-green-500' : 'text-orange-500'} />
-                                                <span className={positiveRate >= prestigePositiveRate ? 'text-green-600' : 'text-orange-600'}>{positiveRate.toFixed(0)}%</span>
+                                                <span className={positiveRate >= prestigePositiveRate ? 'text-green-600' : 'text-orange-600'}>{(positiveRate != null && !isNaN(positiveRate) ? positiveRate.toFixed(0) : '0')}%</span>
                                                 <span className="text-gray-500">positive</span>
                                             </div>
                                             <div className="text-right text-gray-500">
@@ -953,18 +953,18 @@ export default function CompetitorIntelligence({
                                                             </div>
                                                         </td>
                                                         <td className="text-center p-3">
-                                                            <span className="font-bold text-purple-600">{prestigeAvgRating.toFixed(1)}★</span>
+                                                            <span className="font-bold text-purple-600">{(prestigeAvgRating != null && !isNaN(prestigeAvgRating) ? prestigeAvgRating.toFixed(1) : '0.0')}★</span>
                                                         </td>
                                                         {competitorBrands.slice(0, 3).map(brand => (
                                                             <td key={brand} className="text-center p-3">
                                                                 <span className={compRatings[brand]?.count > 0 ? 'text-orange-600' : 'text-gray-300'}>
-                                                                    {compRatings[brand]?.count > 0 ? `${compRatings[brand].avg.toFixed(1)}★` : '-'}
+                                                                    {compRatings[brand]?.count > 0 && compRatings[brand]?.avg != null ? `${compRatings[brand].avg.toFixed(1)}★` : '-'}
                                                                 </span>
                                                             </td>
                                                         ))}
                                                         <td className="text-center p-3">
                                                             <span className={`font-medium ${isWinning ? 'text-green-600' : delta < 0 ? 'text-red-500' : 'text-gray-500'}`}>
-                                                                {compRatings[bestComp]?.avg > 0 ? `${isWinning ? '+' : ''}${delta.toFixed(2)}` : '-'}
+                                                                {compRatings[bestComp]?.avg > 0 && delta != null ? `${isWinning ? '+' : ''}${delta.toFixed(2)}` : '-'}
                                                             </span>
                                                         </td>
                                                         <td className="text-right p-3">
@@ -975,7 +975,7 @@ export default function CompetitorIntelligence({
                                                                 cat.prestigeNegRate > 20 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
                                                                     'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                                                 }`}>
-                                                                {cat.prestigeNegRate.toFixed(0)}%
+                                                                {(cat.prestigeNegRate != null && !isNaN(cat.prestigeNegRate) ? cat.prestigeNegRate.toFixed(0) : '0')}%
                                                             </span>
                                                         </td>
                                                     </tr>

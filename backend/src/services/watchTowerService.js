@@ -30,7 +30,7 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
 // Import Redis data layer for indexed platform data (data retrieval only, no caching)
 import { ensurePlatformData, queryByFilters, aggregateMetrics, getPlatformStats, isPlatformDataLoaded, coalesceRequest, getBrandMonthlyData } from './redisDataService.js';
-import { normalizeFilterArray as originalNormalizeFilterArray, getMarketShare, getMarketShareByMonth, getMarketShareByBrand, getMarketShareTimeSeries } from './marketShareHelper.js';
+import { normalizeFilterArray as originalNormalizeFilterArray, getMarketShare, getMarketShareByMonth, getMarketShareByBrand, getMarketShareTimeSeries, isDanoneDb, DANONE_OWN_BRANDS } from './marketShareHelper.js';
 
 const normalizeFilterArray = (value) => {
     const arr = originalNormalizeFilterArray(value);
@@ -4714,12 +4714,21 @@ const getPlatforms = async (channel) => {
             try {
                 const bmPlats = await queryClickHouse(`SELECT DISTINCT Platform as platform FROM drl.buymore_rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != ''`);
                 const existingSet = new Set(list.map(p => p.toLowerCase().trim()));
+
+                const channelStr = channel ? (Array.isArray(channel) ? channel.join(',') : String(channel)).toLowerCase() : '';
+                const isEcom = channelStr.includes('ecom') || channelStr.includes('e-com');
+                const isQcomm = channelStr.includes('quick') || channelStr.includes('qcomm');
+                const qcommPlatforms = ['blinkit', 'instamart', 'zepto', 'blinkit_darkstore', 'instamart_darkstore', 'zepto_darkstore', 'swiggy', 'swiggy instamart'];
+
                 bmPlats.forEach(r => {
                     const norm = r.platform?.toLowerCase().trim();
-                    if (norm && !existingSet.has(norm)) {
-                        existingSet.add(norm);
-                        list.push(r.platform);
-                    }
+                    if (!norm || existingSet.has(norm)) return;
+
+                    if (isEcom && qcommPlatforms.includes(norm)) return; // Skip QComm platforms under EComm
+                    if (isQcomm && !qcommPlatforms.includes(norm)) return; // Skip EComm platforms under QComm
+
+                    existingSet.add(norm);
+                    list.push(r.platform);
                 });
             } catch (e) {
                 console.warn('[getPlatforms] Could not fetch platforms from buymore_rb_pdp_olap:', e.message);
@@ -6501,8 +6510,8 @@ const getPlatformOverview = async (filters) => {
                 prevSalesVal = buymorePlatforms.includes(key) ? (prevBuymoreMap.get(key) || 0) : 0;
                 currQtyVal = buymorePlatforms.includes(key) ? (currBuymoreQtyMap.get(key) || 0) : 0;
                 prevQtyVal = buymorePlatforms.includes(key) ? (prevBuymoreQtyMap.get(key) || 0) : 0;
-            } else if (drlSource === 'rk') {
-                // RK ONLY: do not add buymore table values
+            } else if (drlSource === 'rk' || drlSource === 'portal') {
+                // RK / Portal ONLY: do not add buymore table values
             } else if (buymorePlatforms.includes(key)) {
                 // All / Combined
                 currSalesVal += (currBuymoreMap.get(key) || 0);
@@ -8753,8 +8762,7 @@ const getKpiTrends = async (filters) => {
         }
 
         if (brandArr && brandArr.length > 0) {
-            const brandConditions = brandArr.map(b => `lower(${src.f.brand}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ');
-            conds.push(`(${brandConditions})`);
+            conds.push(`lower(trim(BOTH '\t\n ' FROM ${src.f.brand})) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase().trim())}'`).join(', ')})`);
         }
 
         if (subBrandArr && subBrandArr.length > 0 && !src.isAgg) {
@@ -8815,8 +8823,7 @@ const getKpiTrends = async (filters) => {
         if (catArr && catArr.length > 0) conds.push(`lower(${pmSrc.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
 
         if (brandArr && brandArr.length > 0) {
-            const brandConditions = brandArr.map(b => `lower(${pmSrc.f.brand}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ');
-            conds.push(`(${brandConditions})`);
+            conds.push(`lower(trim(BOTH '\t\n ' FROM ${pmSrc.f.brand})) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase().trim())}'`).join(', ')})`);
         }
 
         if (subBrandArr && subBrandArr.length > 0 && pmSrc.f.subBrand) {
@@ -8947,8 +8954,7 @@ const getKpiTrends = async (filters) => {
                 }
                 if (catArr && catArr.length > 0) conds.push(`lower(trim(BOTH '\t\n ' FROM category)) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
                 if (brandArr && brandArr.length > 0) {
-                    const brandConditions = brandArr.map(b => `lower(brand) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ');
-                    conds.push(`(${brandConditions})`);
+                    conds.push(`lower(trim(BOTH '\t\n ' FROM brand)) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase().trim())}'`).join(', ')})`);
                 }
                 if (locArr && locArr.length > 0) conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
 
@@ -10161,6 +10167,22 @@ const getCompetitionData = async (filters = {}) => {
         console.log(`[getCompetitionData] Got category sales data(${categoryTotalSalesMap.size} total, ${categoryOurBrandsSalesMap.size} our brands) from rb_brand_ms`);
 
 
+        let allDanoneOwnSalesInCatMap = new Map();
+        let allDanoneOwnSalesInCatMapPrev = new Map();
+        if (isDanoneDb()) {
+            currentBrands.forEach(b => {
+                const bLower = (b.Brand || '').toLowerCase().trim();
+                if (DANONE_OWN_BRANDS.includes(bLower)) {
+                    const catLower = (b.brand_category || '').toLowerCase();
+                    const bSales = brandAbsoluteSalesMap.get(bLower) || 0;
+                    allDanoneOwnSalesInCatMap.set(catLower, (allDanoneOwnSalesInCatMap.get(catLower) || 0) + bSales);
+
+                    const bSalesPrev = brandAbsoluteSalesMapPrev.get(bLower) || 0;
+                    allDanoneOwnSalesInCatMapPrev.set(catLower, (allDanoneOwnSalesInCatMapPrev.get(catLower) || 0) + bSalesPrev);
+                }
+            });
+        }
+
         // 4. Calculate metrics for each brand
         const calcChange = (current, previous) => previous === 0 ? (current > 0 ? 100 : 0) : ((current - previous) / previous) * 100;
         const calcPPChange = (current, previous) => (parseFloat(current) || 0) - (parseFloat(previous) || 0);
@@ -10212,7 +10234,7 @@ const getCompetitionData = async (filters = {}) => {
             const prevRpi = prevAvgMrp > 0 ? (prevAvgSellingPrice / prevAvgMrp) : 0;
             const rpiDelta = calcChange(rpi, prevRpi);
 
-            const brandLower = brand.Brand?.toLowerCase() || '';
+            const brandLower = brand.Brand?.toLowerCase().trim() || '';
             const brandSales = brandAbsoluteSalesMap.get(brandLower) || 0;
             const brandSalesPrev = brandAbsoluteSalesMapPrev.get(brandLower) || 0;
 
@@ -10233,8 +10255,25 @@ const getCompetitionData = async (filters = {}) => {
             if (categoryTotalSalesPrev === 0) {
                 categoryTotalSalesPrev = Array.from(categoryTotalSalesMapPrev.values()).reduce((sum, v) => sum + v, 0);
             }
-            const categoryShare = (categoryTotalSales > 0 && brandSales > 0) ? (brandSales / categoryTotalSales) * 100 : (marketShare !== null ? marketShare : null);
-            const categorySharePrev = (categoryTotalSalesPrev > 0 && brandSalesPrev > 0) ? (brandSalesPrev / categoryTotalSalesPrev) * 100 : (marketSharePrev !== null ? marketSharePrev : 0);
+            let categoryShare = (categoryTotalSales > 0 && brandSales > 0) ? (brandSales / categoryTotalSales) * 100 : (marketShare !== null ? marketShare : null);
+            let categorySharePrev = (categoryTotalSalesPrev > 0 && brandSalesPrev > 0) ? (brandSalesPrev / categoryTotalSalesPrev) * 100 : (marketSharePrev !== null ? marketSharePrev : 0);
+
+            if (isDanoneDb() && DANONE_OWN_BRANDS.includes(brandLower)) {
+                const totalDanoneInCat = allDanoneOwnSalesInCatMap.get(lowerBrandCat) || brandSales;
+                const otherDanoneSales = totalDanoneInCat - brandSales;
+                const adjCatSales = categoryTotalSales - otherDanoneSales;
+                if (adjCatSales > 0 && brandSales > 0) {
+                    categoryShare = (brandSales / adjCatSales) * 100;
+                }
+
+                const totalDanoneInCatPrev = allDanoneOwnSalesInCatMapPrev.get(lowerBrandCat) || brandSalesPrev;
+                const otherDanoneSalesPrev = totalDanoneInCatPrev - brandSalesPrev;
+                const adjCatSalesPrev = categoryTotalSalesPrev - otherDanoneSalesPrev;
+                if (adjCatSalesPrev > 0 && brandSalesPrev > 0) {
+                    categorySharePrev = (brandSalesPrev / adjCatSalesPrev) * 100;
+                }
+            }
+
             const categoryShareDelta = categoryShare === null ? null : calcChange(categoryShare, categorySharePrev);
 
             const offtakeShare = categoryShare;
