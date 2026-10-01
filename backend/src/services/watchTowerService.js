@@ -512,7 +512,7 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
  */
 const buildLocationQueryCond = (locationArr, platformVal, locationCol = 'location', platformCol = 'platform') => {
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
-    if (!locationArr || locationArr.length === 0) return null;
+    if (!locationArr || locationArr.length === 0 || locationArr.includes('All') || locationArr.includes('All India')) return null;
 
     let platforms = [];
     if (platformVal && platformVal !== 'All') {
@@ -530,15 +530,26 @@ const buildLocationQueryCond = (locationArr, platformVal, locationCol = 'locatio
 
     const nationalLocs = ["'nation'", "'national'"].join(', ');
 
+    const expandedLocalLocs = [];
+    locationArr.forEach(l => {
+        const low = l.toLowerCase().trim();
+        expandedLocalLocs.push(`'${escapeStr(low)}'`);
+        if (low === 'bengaluru' || low === 'bangalore') {
+            expandedLocalLocs.push("'bengaluru'", "'bangalore'");
+        }
+        if (low === 'gurugram' || low === 'gurgaon') {
+            expandedLocalLocs.push("'gurugram'", "'gurgaon'");
+        }
+    });
+    const localLocsStr = [...new Set(expandedLocalLocs)].join(', ');
+
     if (isOnlyNational) {
         return `lower(${locationCol}) IN (${nationalLocs})`;
     } else if (hasNational) {
-        const localLocs = locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ');
         const nationalPlats = ['amazon', 'flipkart'].map(p => `'${p}'`).join(', ');
-        return `((lower(${platformCol}) IN (${nationalPlats}) AND lower(${locationCol}) IN (${nationalLocs})) OR (lower(${platformCol}) NOT IN (${nationalPlats}) AND lower(${locationCol}) IN (${localLocs})))`;
+        return `((lower(${platformCol}) IN (${nationalPlats}) AND lower(${locationCol}) IN (${nationalLocs})) OR (lower(${platformCol}) NOT IN (${nationalPlats}) AND lower(${locationCol}) IN (${localLocsStr})))`;
     } else {
-        const localLocs = locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ');
-        return `lower(${locationCol}) IN (${localLocs})`;
+        return `lower(${locationCol}) IN (${localLocsStr})`;
     }
 };
 
@@ -6087,12 +6098,8 @@ const getPlatformOverview = async (filters) => {
     const isDrlDb = dbNameForOverview === 'drl';
     const buymorePlatforms = ['amazon', 'flipkart', 'jiomart', 'meesho', 'myntra', 'pharmeasy', 'shopify'];
 
-    const drlExcludeBuyMoreCond = (isDrlDb)
-        ? ` AND (lower(${src.f.platform}) NOT IN (${buymorePlatforms.map(p => `'${p}'`).join(', ')}) OR lower(trim(Reseller_Name)) NOT LIKE '%buy%more%' OR Reseller_Name IS NULL OR Reseller_Name = '')`
-        : '';
-
-    const currOfftakeCondsWithDrl = currOfftakeConds + drlExcludeBuyMoreCond;
-    const prevOfftakeCondsWithDrl = prevOfftakeConds + drlExcludeBuyMoreCond;
+    const currOfftakeCondsWithDrl = currOfftakeConds;
+    const prevOfftakeCondsWithDrl = prevOfftakeConds;
 
     // Get valid brand names for market share
     const validBrandResult = await queryClickHouse(`
@@ -13686,6 +13693,10 @@ const getCityOverview = async (filters) => {
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`category IN(${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
+        if (locationArr && locationArr.length > 0) {
+            const locCond = buildLocationQueryCond(locationArr, cityPlatform, 'location', 'platform');
+            if (locCond) conds.push(locCond);
+        }
         return conds.join(' AND ');
     };
 
@@ -13934,14 +13945,34 @@ const getCityOverview = async (filters) => {
             console.error('[getCityOverview] Error querying buymore_rb_pdp_olap:', bmErr);
         }
     }
-    const prevCityMap = new Map(prevCityMetrics.map(d => [d.Location, d]));
-    const currPmMap = new Map(currPmCityMetrics.map(d => [d.Location?.toLowerCase(), d]));
-    const prevPmMap = new Map(prevPmCityMetrics.map(d => [d.Location?.toLowerCase(), d]));
+    const normCityKey = (loc) => {
+        if (!loc) return '';
+        const low = loc.toLowerCase().trim();
+        if (low === 'bangalore' || low === 'bengaluru' || low === 'bengalore' || low === 'banglore') return 'bengaluru';
+        if (low === 'gurgaon' || low === 'gurugram') return 'gurugram';
+        return low;
+    };
 
-    const currMsMap = new Map(currMsResult.map(d => [d.location?.toLowerCase(), parseFloat(d.city_market_sales || 0)]));
-    const prevMsMap = new Map(prevMsResult.map(d => [d.location?.toLowerCase(), parseFloat(d.city_market_sales || 0)]));
-    const currCityCatSizeMap = new Map(currCityCatSize.map(d => [d.location?.toLowerCase(), parseFloat(d.cat_size || 0)]));
-    const prevCityCatSizeMap = new Map(prevCityCatSize.map(d => [d.location?.toLowerCase(), parseFloat(d.cat_size || 0)]));
+    const buildNormCityMap = (rows, valKey) => {
+        const map = new Map();
+        (rows || []).forEach(d => {
+            const rawLoc = d.location || d.Location;
+            if (!rawLoc) return;
+            const key = normCityKey(rawLoc);
+            const val = parseFloat(d[valKey] || 0);
+            map.set(key, (map.get(key) || 0) + val);
+        });
+        return map;
+    };
+
+    const prevCityMap = new Map(prevCityMetrics.map(d => [d.Location, d]));
+    const currPmMap = new Map(currPmCityMetrics.map(d => [normCityKey(d.Location), d]));
+    const prevPmMap = new Map(prevPmCityMetrics.map(d => [normCityKey(d.Location), d]));
+
+    const currMsMap = buildNormCityMap(currMsResult, 'city_market_sales');
+    const prevMsMap = buildNormCityMap(prevMsResult, 'city_market_sales');
+    const currCityCatSizeMap = buildNormCityMap(currCityCatSize, 'cat_size');
+    const prevCityCatSizeMap = buildNormCityMap(prevCityCatSize, 'cat_size');
 
     // Construct Pan India Row (Aggregate across ALL cities in rb_pdp_olap)
     const allPdpCurr = allPdpCurrRes?.[0] || {};
@@ -14046,7 +14077,7 @@ const getCityOverview = async (filters) => {
     // Fetch official Tier 1 cities from rb_location_darkstore
     let tier1CitiesSet = new Set([
         'kolkata', 'mumbai', 'pune', 'chennai', 'delhi', 'lucknow',
-        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru'
+        'gurugram', 'chandigarh', 'hyderabad', 'faridabad', 'bengaluru', 'bangalore', 'gurgaon'
     ]);
     try {
         const darkstoreCheck = await queryClickHouse(`EXISTS TABLE rb_location_darkstore`);
@@ -14072,16 +14103,16 @@ const getCityOverview = async (filters) => {
         const cityName = data.Location || 'Unknown';
         const prevData = prevCityMap.get(cityName) || {};
 
-        const cityNameLower = cityName.toLowerCase();
-        const pmData = currPmMap.get(cityNameLower) || {};
-        const prevPmData = prevPmMap.get(cityNameLower) || {};
+        const cityNameLower = normCityKey(cityName);
+        const pmData = currPmMap.get(cityNameLower) || currPmMap.get(cityName.toLowerCase()) || {};
+        const prevPmData = prevPmMap.get(cityNameLower) || prevPmMap.get(cityName.toLowerCase()) || {};
 
         const hasPdp = true;
-        const hasPm = currPmMap.has(cityNameLower);
+        const hasPm = currPmMap.has(cityNameLower) || currPmMap.has(cityName.toLowerCase());
         const hasMsCheck = currMsMap.has(cityNameLower);
 
         const prevHasPdp = prevCityMap.has(cityName);
-        const prevHasPm = prevPmMap.has(cityNameLower);
+        const prevHasPm = prevPmMap.has(cityNameLower) || prevPmMap.has(cityName.toLowerCase());
         const prevHasMsCheck = prevMsMap.has(cityNameLower);
 
         // Current Metrics
@@ -14164,10 +14195,10 @@ const getCityOverview = async (filters) => {
 
         const prevWtOsa = prevAvailability !== null ? (prevListingPercent !== null ? (prevAvailability * prevListingPercent) / 100 : prevAvailability) : null;
 
-        const currCityMarket = currMsMap.get(cityName.toLowerCase()) || 0;
-        const prevCityMarket = prevMsMap.get(cityName.toLowerCase()) || 0;
+        const currCityMarket = currMsMap.get(cityNameLower) || 0;
+        const prevCityMarket = prevMsMap.get(cityNameLower) || 0;
         const lowerCityName = cityName ? cityName.toLowerCase().trim() : '';
-        const isCityTier1 = tier1CitiesSet.has(lowerCityName);
+        const isCityTier1 = tier1CitiesSet.has(lowerCityName) || tier1CitiesSet.has(cityNameLower);
         const marketShare = (isCityTier1 && hasMsCheck) ? (currCityMarket > 0 ? (offtake / currCityMarket) * 100 : null) : null;
         const prevMarketShare = (isCityTier1 && prevHasMsCheck) ? (prevCityMarket > 0 ? (prevOfftake / prevCityMarket) * 100 : null) : null;
 
@@ -14177,8 +14208,8 @@ const getCityOverview = async (filters) => {
             type: "Location",
             logo: "https://cdn-icons-png.flaticon.com/512/535/535239.png",
             columns: generateKpiColumns({
-                offtake, availability, wtOsa, listingPercent, sos: null, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? (currCityCatSizeMap.get(cityName.toLowerCase()) || null) : null,
-                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos: null, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? (prevCityCatSizeMap.get(cityName.toLowerCase()) || null) : null,
+                offtake, availability, wtOsa, listingPercent, sos: null, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, wtDiscount, categorySize: hasMsCheck ? (currCityCatSizeMap.get(cityNameLower) || null) : null,
+                prevOfftake, prevAvailability, prevWtOsa, prevListingPercent, prevSos: null, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevWtDiscount, prevCategorySize: prevHasMsCheck ? (prevCityCatSizeMap.get(cityNameLower) || null) : null,
                 offtakeUnits, inorgUnits: orders, prevOfftakeUnits, prevInorgUnits: prevOrders
             })
         };

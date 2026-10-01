@@ -134,15 +134,26 @@ const buildLocationQueryCond = (locationArr, platformVal, locationCol = 'locatio
 
     const nationalLocs = ["'nation'", "'national'"].join(', ');
 
+    const expandedLocalLocs = [];
+    locationArr.forEach(l => {
+        const low = l.toLowerCase().trim();
+        expandedLocalLocs.push(`'${escapeStr(low)}'`);
+        if (low === 'bengaluru' || low === 'bangalore') {
+            expandedLocalLocs.push("'bengaluru'", "'bangalore'");
+        }
+        if (low === 'gurugram' || low === 'gurgaon') {
+            expandedLocalLocs.push("'gurugram'", "'gurgaon'");
+        }
+    });
+    const localLocsStr = [...new Set(expandedLocalLocs)].join(', ');
+
     if (isOnlyNational) {
         return `lower(${locationCol}) IN (${nationalLocs})`;
     } else if (hasNational) {
-        const localLocs = locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ');
         const nationalPlats = ['amazon', 'flipkart'].map(p => `'${p}'`).join(', ');
-        return `((lower(${platformCol}) IN (${nationalPlats}) AND lower(${locationCol}) IN (${nationalLocs})) OR (lower(${platformCol}) NOT IN (${nationalPlats}) AND lower(${locationCol}) IN (${localLocs})))`;
+        return `((lower(${platformCol}) IN (${nationalPlats}) AND lower(${locationCol}) IN (${nationalLocs})) OR (lower(${platformCol}) NOT IN (${nationalPlats}) AND lower(${locationCol}) IN (${localLocsStr})))`;
     } else {
-        const localLocs = locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ');
-        return `lower(${locationCol}) IN (${localLocs})`;
+        return `lower(${locationCol}) IN (${localLocsStr})`;
     }
 };
 
