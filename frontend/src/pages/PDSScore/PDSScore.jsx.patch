@@ -1,0 +1,297 @@
+--- PDSScore.jsx	2026-06-30 18:26:43.000000000 +0530
++++ PDSScore.jsx.new	2026-06-30 18:26:43.000000000 +0530
+@@ -154,6 +154,142 @@
+   },
+ ];
+ 
++const AMAZON_DATA = [
++  {
++    scoreId: 1,
++    dmmhLever: "Assortment",
++    dmmhSubLever: "Blockbuster Availability",
++    weight: 35.0,
++    periods: {
++      "Period 1": { target: "92%", weightedTarget: "32.20", score: "94.55%", weightedScore: "33.09" },
++      "Period 2": { target: "95%", weightedTarget: "33.25", score: "92.29%", weightedScore: "32.30" },
++      "Period 3": { target: "95%", weightedTarget: "33.25", score: "86.54%", weightedScore: "30.29" },
++      "Period 4": { target: "88%", weightedTarget: "30.80", score: "94.74%", weightedScore: "33.16" },
++      "Period 5": { target: "89%", weightedTarget: "31.15", score: "94.94%", weightedScore: "33.23" },
++      "Period 6": { target: "90%", weightedTarget: "31.50", score: "94.93%", weightedScore: "33.23" },
++    }
++  },
++  {
++    scoreId: 2,
++    dmmhLever: "Search",
++    dmmhSubLever: "Onsite generic search",
++    weight: 15.0,
++    periods: {
++      "Period 1": { target: "25.00%", weightedTarget: "3.75", score: "21.13%", weightedScore: "3.17" },
++      "Period 2": { target: "23.00%", weightedTarget: "3.45", score: "18.43%", weightedScore: "2.76" },
++      "Period 3": { target: "23.00%", weightedTarget: "3.45", score: "17.23%", weightedScore: "2.58" },
++      "Period 4": { target: "16.00%", weightedTarget: "2.40", score: "18.51%", weightedScore: "2.78" },
++      "Period 5": { target: "20.00%", weightedTarget: "3.00", score: "15.00%", weightedScore: "2.25" },
++      "Period 6": { target: "21.00%", weightedTarget: "3.15", score: "15.51%", weightedScore: "2.33" },
++    }
++  },
++  {
++    scoreId: 3,
++    dmmhLever: "Search",
++    dmmhSubLever: "Onsite branded search",
++    weight: 10.0,
++    periods: {
++      "Period 1": { target: "85.00%", weightedTarget: "8.50", score: "72.02%", weightedScore: "7.20" },
++      "Period 2": { target: "75.00%", weightedTarget: "7.50", score: "76.82%", weightedScore: "7.68" },
++      "Period 3": { target: "80.00%", weightedTarget: "8.00", score: "85.90%", weightedScore: "8.59" },
++      "Period 4": { target: "88.00%", weightedTarget: "8.80", score: "70.00%", weightedScore: "7.00" },
++      "Period 5": { target: "75.00%", weightedTarget: "7.50", score: "76.11%", weightedScore: "7.61" },
++      "Period 6": { target: "76.00%", weightedTarget: "7.60", score: "83.20%", weightedScore: "8.32" },
++    }
++  },
++  {
++    scoreId: 4,
++    dmmhLever: "Content",
++    dmmhSubLever: "Quality hero image",
++    weight: 7.0,
++    periods: {
++      "Period 1": { target: "100%", weightedTarget: "7.00", score: "95.41%", weightedScore: "6.68" },
++      "Period 2": { target: "100%", weightedTarget: "7.00", score: "95.58%", weightedScore: "6.69" },
++      "Period 3": { target: "100%", weightedTarget: "7.00", score: "100%", weightedScore: "7.00" },
++      "Period 4": { target: "100%", weightedTarget: "7.00", score: "100%", weightedScore: "7.00" },
++      "Period 5": { target: "100%", weightedTarget: "7.00", score: "100%", weightedScore: "7.00" },
++      "Period 6": { target: "100%", weightedTarget: "7.00", score: "100%", weightedScore: "7.00" },
++    }
++  },
++  {
++    scoreId: 5,
++    dmmhLever: "Content",
++    dmmhSubLever: "Secondary images",
++    weight: 5.0,
++    periods: {
++      "Period 1": { target: "100%", weightedTarget: "5.00", score: "93.91%", weightedScore: "4.70" },
++      "Period 2": { target: "100%", weightedTarget: "5.00", score: "92.99%", weightedScore: "4.65" },
++      "Period 3": { target: "100%", weightedTarget: "5.00", score: "97.60%", weightedScore: "4.88" },
++      "Period 4": { target: "100%", weightedTarget: "5.00", score: "98.25%", weightedScore: "4.91" },
++      "Period 5": { target: "100%", weightedTarget: "5.00", score: "87.70%", weightedScore: "4.39" },
++      "Period 6": { target: "100%", weightedTarget: "5.00", score: "92.00%", weightedScore: "4.60" },
++    }
++  },
++  {
++    scoreId: 6,
++    dmmhLever: "Content",
++    dmmhSubLever: "Enhanced content",
++    weight: 3.0,
++    periods: {
++      "Period 1": { target: "100%", weightedTarget: "3.00", score: "100%", weightedScore: "3.00" },
++      "Period 2": { target: "100%", weightedTarget: "3.00", score: "100%", weightedScore: "3.00" },
++      "Period 3": { target: "100%", weightedTarget: "3.00", score: "100%", weightedScore: "3.00" },
++      "Period 4": { target: "100%", weightedTarget: "3.00", score: "100%", weightedScore: "3.00" },
++      "Period 5": { target: "100%", weightedTarget: "3.00", score: "100%", weightedScore: "3.00" },
++      "Period 6": { target: "100%", weightedTarget: "3.00", score: "100%", weightedScore: "3.00" },
++    }
++  },
++  {
++    scoreId: 7,
++    dmmhLever: "Content",
++    dmmhSubLever: "Features & Benefits",
++    weight: 3.0,
++    periods: {
++      "Period 1": { target: "60%", weightedTarget: "1.80", score: "64.13%", weightedScore: "1.92" },
++      "Period 2": { target: "70%", weightedTarget: "2.10", score: "63.45%", weightedScore: "1.90" },
++      "Period 3": { target: "70%", weightedTarget: "2.10", score: "59.52%", weightedScore: "1.79" },
++      "Period 4": { target: "70%", weightedTarget: "2.10", score: "63.16%", weightedScore: "1.89" },
++      "Period 5": { target: "65%", weightedTarget: "1.95", score: "58.00%", weightedScore: "1.74" },
++      "Period 6": { target: "69%", weightedTarget: "2.07", score: "76.00%", weightedScore: "2.28" },
++    }
++  },
++  {
++    scoreId: 8,
++    dmmhLever: "Content",
++    dmmhSubLever: "Title full usage",
++    weight: 7.0,
++    periods: {
++      "Period 1": { target: "90%", weightedTarget: "6.30", score: "84.40%", weightedScore: "5.91" },
++      "Period 2": { target: "90%", weightedTarget: "6.30", score: "84.42%", weightedScore: "5.91" },
++      "Period 3": { target: "90%", weightedTarget: "6.30", score: "92.79%", weightedScore: "6.50" },
++      "Period 4": { target: "100%", weightedTarget: "7.00", score: "94.74%", weightedScore: "6.63" },
++      "Period 5": { target: "96%", weightedTarget: "6.72", score: "84.00%", weightedScore: "5.88" },
++      "Period 6": { target: "93%", weightedTarget: "6.51", score: "74.00%", weightedScore: "5.18" },
++    }
++  },
++  {
++    scoreId: 9,
++    dmmhLever: "Content",
++    dmmhSubLever: "Ratings & Reviews",
++    weight: 5.0,
++    periods: {
++      "Period 1": { target: "75%", weightedTarget: "3.75", score: "69.54%", weightedScore: "3.48" },
++      "Period 2": { target: "75%", weightedTarget: "3.75", score: "69.38%", weightedScore: "3.47" },
++      "Period 3": { target: "75%", weightedTarget: "3.75", score: "63.53%", weightedScore: "3.18" },
++      "Period 4": { target: "75%", weightedTarget: "3.75", score: "63.16%", weightedScore: "3.16" },
++      "Period 5": { target: "64%", weightedTarget: "3.20", score: "74.00%", weightedScore: "3.70" },
++      "Period 6": { target: "65%", weightedTarget: "3.25", score: "68.00%", weightedScore: "3.40" },
++    }
++  },
++  {
++    scoreId: 10,
++    dmmhLever: "Data",
++    dmmhSubLever: "Sell-out Data by SKU",
++    weight: 5.0,
++    periods: {
++      "Period 1": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
++      "Period 2": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
++      "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
++      "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
++      "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
++      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
++    }
++  },
++  {
++    scoreId: 11,
++    dmmhLever: "Data",
++    dmmhSubLever: "Search term frequency",
++    weight: 5.0,
++    periods: {
++      "Period 1": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
++      "Period 2": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
++      "Period 3": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
++      "Period 4": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
++      "Period 5": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
++      "Period 6": { target: "100%", weightedTarget: "5.00", score: "100%", weightedScore: "5.00" },
++    }
++  }
++];
++
++const getTableData = (platform, period) => {
++  if (platform === "Amazon") {
++    return AMAZON_DATA.map(row => ({
++      scoreId: row.scoreId,
++      dmmhLever: row.dmmhLever,
++      dmmhSubLever: row.dmmhSubLever,
++      weight: row.weight,
++      target: row.periods[period]?.target || "-",
++      weightedTarget: row.periods[period]?.weightedTarget || "-",
++      score: row.periods[period]?.score || "-",
++      weightedScore: row.periods[period]?.weightedScore || "-"
++    }));
++  }
++  
++  // fallback for other platforms
++  return MOCK_PDS_DATA.map(row => {
++    const w = parseFloat(row.weight);
++    const t = parseFloat(row.target);
++    const wt = isNaN(w) || isNaN(t) ? "-" : ((w * t) / 100).toFixed(2);
++    
++    return {
++      scoreId: row.scoreId,
++      dmmhLever: row.dmmhLever,
++      dmmhSubLever: row.dmmhSubLever,
++      weight: row.weight,
++      target: row.target,
++      weightedTarget: wt,
++      score: row.score,
++      weightedScore: row.weightedScore
++    };
++  });
++};
++
+ export default function PDSScore() {
+   const { platform, selectedBrand } = useContext(FilterContext);
+ 
+@@ -166,6 +302,17 @@
+   const [isLoading, setIsLoading] = useState(false);
+ 
+   useEffect(() => {
++    // If platform context matches one of ours, update selectedPlatform (optional synchronization)
++    // Here we mainly handle internal state since we filter internally.
++    if (platform && PLATFORMS.includes(platform)) {
++      // We might want to sync the filter with context platform
++      // but we will let user manually select using local filter for now
++      // or just uncomment: setSelectedPlatform(platform);
++    }
++  }, [platform]);
++
++
++  useEffect(() => {
+     setIsLoading(true);
+     const timer = setTimeout(() => {
+       setIsLoading(false);
+@@ -181,7 +328,9 @@
+     setSortConfig({ key, direction });
+   };
+ 
+-  const filteredData = MOCK_PDS_DATA.filter((row) => {
++  const currentData = getTableData(selectedPlatform, selectedPeriod);
++
++  const filteredData = currentData.filter((row) => {
+     const matchesSearch = Object.values(row).some(
+       (val) =>
+         val &&
+@@ -231,6 +380,15 @@
+     Data: "#F4F6F6", // Very light grey
+   };
+ 
++  const calculateTotal = (key) => {
++    return currentData.reduce((acc, row) => {
++      const val = parseFloat(row[key]);
++      return acc + (isNaN(val) ? 0 : val);
++    }, 0).toFixed(2);
++  };
++
++  const totalTarget = calculateTotal("weightedTarget");
++  const totalAchievement = calculateTotal("weightedScore");
++
+   return (
+     <CommonContainer title="PDS Score">
+       <Box sx={{ p: 2 }}>
+@@ -250,11 +408,11 @@
+             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+               <Box sx={{ bgcolor: "#0052a3", color: "white", px: 2.5, py: 0.5, display: 'flex', alignItems: 'center', gap: 1, boxShadow: '0 4px 12px rgba(0,82,163,0.3)', borderRadius: '99px' }}>
+                 <Typography sx={{ fontWeight: 500, fontSize: '0.85rem' }}>Achievement :</Typography>
+-                <Typography sx={{ fontWeight: 700, fontSize: '1.1rem' }}>70</Typography>
++                <Typography sx={{ fontWeight: 700, fontSize: '1.1rem' }}>{totalAchievement}</Typography>
+               </Box>
+               <Box sx={{ bgcolor: "#0052a3", color: "white", px: 2.5, py: 0.5, display: 'flex', alignItems: 'center', gap: 1, boxShadow: '0 4px 12px rgba(0,82,163,0.3)', borderRadius: '99px' }}>
+                 <Typography sx={{ fontWeight: 500, fontSize: '0.85rem' }}>Target :</Typography>
+-                <Typography sx={{ fontWeight: 700, fontSize: '1.1rem' }}>78</Typography>
++                <Typography sx={{ fontWeight: 700, fontSize: '1.1rem' }}>{totalTarget}</Typography>
+               </Box>
+             </Box>
+           </Box>
+@@ -443,12 +601,13 @@
+                     { id: "dmmhLever", label: "DMMH Lever", width: "12%", align: "left", sortable: false },
+                     { id: "dmmhSubLever", label: "DMMH Sub-Lever", width: "24%", align: "left", sortable: false },
+                     { id: "target", label: "Target", width: "10%", align: "center", sortable: true },
++                    { id: "weightedTarget", label: "Weighted Target", width: "12%", align: "center", sortable: true },
+                     { id: "weight", label: "Weight", width: "10%", align: "center", sortable: true },
+                     { id: "score", label: "Score", width: "10%", align: "center", sortable: true },
+-                    { id: "weightedScore", label: "Weighted Score", width: "13%", align: "center", sortable: true },
++                    { id: "weightedScore", label: "Weighted Score", width: "12%", align: "center", sortable: true },
+                   ].map((headCell) => (
+                     <TableCell
+                       key={headCell.id}
+@@ -542,6 +701,17 @@
+                     >
+                       {row.target}
+                     </TableCell>
++                    <TableCell
++                      sx={{
++                        fontSize: "0.8rem",
++                        color: "#1f2937",
++                        py: 1.5,
++                        px: 2,
++                        textAlign: "center",
++                      }}
++                    >
++                      {row.weightedTarget}
++                    </TableCell>
+                     <TableCell
+                       sx={{
+                         fontSize: "0.8rem",
+@@ -613,7 +783,7 @@
+             >
+               <Typography sx={{ fontSize: "0.75rem", color: "#6b7280" }}>
+-                1 — {filteredData.length} of {MOCK_PDS_DATA.length}
++                1 — {filteredData.length} of {currentData.length}
+               </Typography>
+             </Box>
+           </>

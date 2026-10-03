@@ -1,0 +1,19 @@
+# Python deps for the ML scripts the Temporal worker spawns.
+#
+# - psycopg2-binary, python-dotenv, tqdm: shared infra used by all ML scripts
+# - textblob, vaderSentiment: used by Sentiment Backfill (light, rule-based)
+# - transformers, torch: used by BERT Inference + DeBERTa Taxonomy jobs.
+#   These are the heavy deps (~1.5GB combined). Use the CPU-only torch wheel
+#   to keep the image as small as possible. Models (~700MB) download on first
+#   inference into the HF cache and persist for the life of the container.
+# - google-generativeai: Gemini fallback path inside bert_rating_inference.py
+#   for reviews where the primary model's confidence is below threshold.
+psycopg2-binary
+python-dotenv
+tqdm
+textblob
+vaderSentiment
+transformers
+google-generativeai
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
