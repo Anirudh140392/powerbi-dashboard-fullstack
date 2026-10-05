@@ -1431,12 +1431,26 @@ export const getPdpReportFilters = async (req, res) => {
         const pdpCols = await getTableColumns(pdpTable).catch(() => new Map());
         const dateCol = pdpCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
 
-        const { platform, location, brand, brandCategory, pincode, sku, webPid, date, startDate, endDate } = req.query;
+        const { skuType, isCompetitor, platform, location, brand, brandCategory, pincode, sku, webPid, date, startDate, endDate } = req.query;
+        let competitorVal = null;
+        if (skuType === 'our' || isCompetitor === '0' || isCompetitor === 0) {
+            competitorVal = 0;
+        } else if (skuType === 'competition' || isCompetitor === '1' || isCompetitor === 1) {
+            competitorVal = 1;
+        }
+
+        const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
+        const hasIsCompetitor = skuPlatCols.has('is_competitor');
+
         const cacheKey = generateCacheKey(`pdp_report_filters_v6_${pdpTable}`, req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
             const buildWhere = (excludeField) => {
                 const conditions = [];
+
+                if (hasIsCompetitor && competitorVal !== null) {
+                    conditions.push(`(pf_id, lower(web_pid)) IN (SELECT pf_id, lower(web_pid) FROM rb_sku_platform WHERE is_competitor = ${competitorVal})`);
+                }
 
                 const addStringInClause = (column, value, targetField) => {
                     if (excludeField === targetField) return;
@@ -1552,6 +1566,7 @@ export const downloadPdpReport = async (req, res) => {
 
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
         const hasPortfolio = skuPlatCols.has('portfolio');
+        const hasIsCompetitor = skuPlatCols.has('is_competitor');
 
         const pdpRawCols = await getTableColumns(pdpTable).catch(() => new Map());
         const pdpResellerCol = pdpRawCols.has('reseller_name') ? pdpRawCols.get('reseller_name')
@@ -1559,9 +1574,19 @@ export const downloadPdpReport = async (req, res) => {
             : null;
         const dateCol = pdpRawCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
 
-        const { platforms, locations, pincodes, brands, categories, skus, webPids, dates, startDate, endDate } = req.query;
+        const { skuType, isCompetitor, platforms, locations, pincodes, brands, categories, skus, webPids, dates, startDate, endDate } = req.query;
+        let competitorVal = null;
+        if (skuType === 'our' || isCompetitor === '0' || isCompetitor === 0) {
+            competitorVal = 0;
+        } else if (skuType === 'competition' || isCompetitor === '1' || isCompetitor === 1) {
+            competitorVal = 1;
+        }
 
         const conditions = [];
+
+        if (hasIsCompetitor && competitorVal !== null) {
+            conditions.push(`(pdp.pf_id, lower(pdp.web_pid)) IN (SELECT pf_id, lower(web_pid) FROM rb_sku_platform WHERE is_competitor = ${competitorVal})`);
+        }
 
         const addFilter = (column, value) => {
             if (!value || value === 'All' || value.startsWith('All ') || value.trim() === '') return;
@@ -1700,13 +1725,25 @@ export const previewPdpReport = async (req, res) => {
 
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
         const hasPortfolio = skuPlatCols.has('portfolio');
+        const hasIsCompetitor = skuPlatCols.has('is_competitor');
 
-        const { platforms, locations, pincodes, brands, categories, skus, webPids, dates, startDate, endDate } = req.query;
+        const { skuType, isCompetitor, platforms, locations, pincodes, brands, categories, skus, webPids, dates, startDate, endDate } = req.query;
+        let competitorVal = null;
+        if (skuType === 'our' || isCompetitor === '0' || isCompetitor === 0) {
+            competitorVal = 0;
+        } else if (skuType === 'competition' || isCompetitor === '1' || isCompetitor === 1) {
+            competitorVal = 1;
+        }
+
         const page = Math.max(1, parseInt(req.query.page, 10) || 1);
         const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
         const offset = (page - 1) * limit;
 
         const conditions = [];
+
+        if (hasIsCompetitor && competitorVal !== null) {
+            conditions.push(`(pdp.pf_id, lower(pdp.web_pid)) IN (SELECT pf_id, lower(web_pid) FROM rb_sku_platform WHERE is_competitor = ${competitorVal})`);
+        }
 
         const addFilter = (column, value) => {
             if (!value || value === 'All' || value.startsWith('All ') || value.trim() === '') return;

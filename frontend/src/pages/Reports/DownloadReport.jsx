@@ -3,7 +3,7 @@ import {
   Box, Paper, Grid, Typography, Button, Autocomplete, TextField,
   CircularProgress, Snackbar, Alert, IconButton, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  TablePagination, Chip, ToggleButtonGroup, ToggleButton
+  TablePagination, Chip, ToggleButtonGroup, ToggleButton, Checkbox
 } from "@mui/material";
 import {
   CloudDownload as CloudDownloadIcon,
@@ -11,6 +11,8 @@ import {
   HelpOutline as HelpOutlineIcon,
   Visibility as VisibilityIcon,
   FilterAlt as FilterAltIcon,
+  CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
+  CheckBox as CheckBoxIcon,
 } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
@@ -21,6 +23,24 @@ import {
 import { useAuth } from "../../utils/AuthContext";
 import { saveAs } from "file-saver";
 import dayjs from "dayjs";
+
+const icon = <CheckBoxOutlineBlankIcon fontSize="small" />;
+const checkedIcon = <CheckBoxIcon fontSize="small" />;
+
+const renderCheckboxOption = (props, option, { selected }) => {
+  const { key, ...optionProps } = props;
+  return (
+    <li key={key} {...optionProps}>
+      <Checkbox
+        icon={icon}
+        checkedIcon={checkedIcon}
+        style={{ marginRight: 8 }}
+        checked={selected}
+      />
+      {option}
+    </li>
+  );
+};
 
 const PREVIEW_COLUMNS = [
   "Platform Name", "Location", "Pincode", "Portfolio", "Brand Name",
@@ -36,6 +56,7 @@ export default function DownloadReport() {
   const [activeTab, setActiveTab] = useState("raw_data");
 
   // ── RAW DATA TAB STATE ──
+  const [skuType, setSkuType] = useState("our"); // "our" (Platform Brand SKUs) | "competition" (Competition Brand SKUs)
   const [selectedPlatforms, setSelectedPlatforms] = useState([]);
   const [selectedLocations, setSelectedLocations] = useState([]);
   const [selectedPincodes, setSelectedPincodes] = useState([]);
@@ -87,6 +108,7 @@ export default function DownloadReport() {
 
   const buildParams = useCallback(() => {
     const params = {};
+    if (skuType) params.skuType = skuType;
     if (selectedPlatforms.length > 0) params.platforms = selectedPlatforms.join(",");
     if (selectedLocations.length > 0) params.locations = selectedLocations.join(",");
     if (selectedPincodes.length > 0) params.pincodes = selectedPincodes.join(",");
@@ -97,7 +119,7 @@ export default function DownloadReport() {
     if (startDate) params.startDate = startDate.format("YYYY-MM-DD");
     if (endDate) params.endDate = endDate.format("YYYY-MM-DD");
     return params;
-  }, [selectedPlatforms, selectedLocations, selectedPincodes, selectedBrands, selectedCategories, selectedSkus, selectedWebPids, startDate, endDate]);
+  }, [skuType, selectedPlatforms, selectedLocations, selectedPincodes, selectedBrands, selectedCategories, selectedSkus, selectedWebPids, startDate, endDate]);
 
   const buildPromoParams = useCallback(() => {
     const params = {};
@@ -114,6 +136,7 @@ export default function DownloadReport() {
     setLoadingFilters(true);
     try {
       const p = {};
+      if (skuType) p.skuType = skuType;
       if (selectedPlatforms.length > 0) p.platform = selectedPlatforms.join(",");
       if (selectedLocations.length > 0) p.location = selectedLocations.join(",");
       if (selectedPincodes.length > 0) p.pincode = selectedPincodes.join(",");
@@ -136,7 +159,7 @@ export default function DownloadReport() {
     } finally {
       setLoadingFilters(false);
     }
-  }, [selectedPlatforms, selectedLocations, selectedPincodes, selectedBrands, selectedCategories, selectedSkus, selectedWebPids]);
+  }, [skuType, selectedPlatforms, selectedLocations, selectedPincodes, selectedBrands, selectedCategories, selectedSkus, selectedWebPids]);
 
   const loadPromoFilters = useCallback(async () => {
     setLoadingPromoFilters(true);
@@ -172,6 +195,7 @@ export default function DownloadReport() {
   }, [loadPromoFilters]);
 
   const handleReset = () => {
+    setSkuType("our");
     setSelectedPlatforms([]); setSelectedLocations([]); setSelectedPincodes([]);
     setSelectedBrands([]); setSelectedCategories([]); setSelectedSkus([]);
     setSelectedWebPids([]); setStartDate(null); setEndDate(null);
@@ -318,7 +342,7 @@ export default function DownloadReport() {
                 boxShadow: "0 10px 30px -10px rgba(0, 0, 0, 0.04)",
               }}
             >
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3, flexWrap: "wrap", gap: 2 }}>
                 <Box>
                   <Typography variant="h5" sx={{ fontWeight: 700, color: "#1e293b", fontFamily: "'Inter', sans-serif" }}>
                     Export Raw PDP Weekly Data
@@ -327,9 +351,53 @@ export default function DownloadReport() {
                     Select filter options below to generate a customized Excel export. Leaving dropdowns empty will include all values.
                   </Typography>
                 </Box>
-                <Tooltip title="Help information">
-                  <IconButton sx={{ color: "#94a3b8" }}><HelpOutlineIcon /></IconButton>
-                </Tooltip>
+
+                <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  <ToggleButtonGroup
+                    value={skuType}
+                    exclusive
+                    onChange={(e, val) => {
+                      if (val && val !== skuType) {
+                        setSkuType(val);
+                        setSelectedBrands([]);
+                        setSelectedCategories([]);
+                        setSelectedSkus([]);
+                        setSelectedWebPids([]);
+                      }
+                    }}
+                    size="small"
+                    sx={{
+                      backgroundColor: "#f1f5f9",
+                      p: 0.5,
+                      borderRadius: "12px",
+                      border: "1px solid #cbd5e1",
+                      boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
+                      "& .MuiToggleButton-root": {
+                        border: "none",
+                        borderRadius: "9px",
+                        px: 2.8,
+                        py: 0.7,
+                        fontWeight: 700,
+                        textTransform: "none",
+                        fontSize: "0.88rem",
+                        color: "#64748b",
+                        fontFamily: "'Inter', sans-serif",
+                        "&.Mui-selected": {
+                          background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                          color: "#ffffff",
+                          boxShadow: "0 2px 8px rgba(37, 99, 235, 0.3)"
+                        }
+                      }
+                    }}
+                  >
+                    <ToggleButton value="our">Our</ToggleButton>
+                    <ToggleButton value="competition">Competition</ToggleButton>
+                  </ToggleButtonGroup>
+
+                  <Tooltip title="Help information">
+                    <IconButton sx={{ color: "#94a3b8" }}><HelpOutlineIcon /></IconButton>
+                  </Tooltip>
+                </Box>
               </Box>
 
               {/* Data Freshness Banner */}
@@ -371,43 +439,50 @@ export default function DownloadReport() {
               <Grid container spacing={3}>
                 <Grid item xs={12} sm={6} md={3}>
                   <Autocomplete multiple options={filterOptions.platforms} value={selectedPlatforms}
-                    onChange={(e, v) => setSelectedPlatforms(v)} limitTags={1}
+                    onChange={(e, v) => setSelectedPlatforms(v)} limitTags={1} disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
                     renderInput={(p) => <TextField {...p} label="Platform Name" placeholder="All Platforms" variant="outlined" InputLabelProps={{ shrink: true }} />}
                     sx={acSx} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <Autocomplete multiple options={filterOptions.locations} value={selectedLocations}
-                    onChange={(e, v) => setSelectedLocations(v)} limitTags={1}
+                    onChange={(e, v) => setSelectedLocations(v)} limitTags={1} disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
                     renderInput={(p) => <TextField {...p} label="Location" placeholder="All Locations" variant="outlined" InputLabelProps={{ shrink: true }} />}
                     sx={acSx} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <Autocomplete multiple options={filterOptions.pincodes.map(String)} value={selectedPincodes}
-                    onChange={(e, v) => setSelectedPincodes(v)} limitTags={1}
+                    onChange={(e, v) => setSelectedPincodes(v)} limitTags={1} disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
                     renderInput={(p) => <TextField {...p} label="Pincode" placeholder="All Pincodes" variant="outlined" InputLabelProps={{ shrink: true }} />}
                     sx={acSx} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <Autocomplete multiple options={filterOptions.brands} value={selectedBrands}
-                    onChange={(e, v) => setSelectedBrands(v)} limitTags={1}
+                    onChange={(e, v) => setSelectedBrands(v)} limitTags={1} disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
                     renderInput={(p) => <TextField {...p} label="Brand Name" placeholder="All Brands" variant="outlined" InputLabelProps={{ shrink: true }} />}
                     sx={acSx} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <Autocomplete multiple options={filterOptions.categories} value={selectedCategories}
-                    onChange={(e, v) => setSelectedCategories(v)} limitTags={1}
+                    onChange={(e, v) => setSelectedCategories(v)} limitTags={1} disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
                     renderInput={(p) => <TextField {...p} label="Brand Category" placeholder="All Categories" variant="outlined" InputLabelProps={{ shrink: true }} />}
                     sx={acSx} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <Autocomplete multiple options={filterOptions.skus} value={selectedSkus}
-                    onChange={(e, v) => setSelectedSkus(v)} limitTags={1}
+                    onChange={(e, v) => setSelectedSkus(v)} limitTags={1} disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
                     renderInput={(p) => <TextField {...p} label="SKU Name" placeholder="All SKUs" variant="outlined" InputLabelProps={{ shrink: true }} />}
                     sx={acSx} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <Autocomplete multiple options={filterOptions.webPids} value={selectedWebPids}
-                    onChange={(e, v) => setSelectedWebPids(v)} limitTags={1}
+                    onChange={(e, v) => setSelectedWebPids(v)} limitTags={1} disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
                     renderInput={(p) => <TextField {...p} label="Web Pid" placeholder="All Web Pids" variant="outlined" InputLabelProps={{ shrink: true }} />}
                     sx={acSx} />
                 </Grid>
@@ -573,25 +648,29 @@ export default function DownloadReport() {
               <Grid container spacing={3}>
                 <Grid item xs={12} sm={6} md={3}>
                   <Autocomplete multiple options={promoFilterOptions.kams} value={promoSelectedKams}
-                    onChange={(e, v) => setPromoSelectedKams(v)} limitTags={1}
+                    onChange={(e, v) => setPromoSelectedKams(v)} limitTags={1} disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
                     renderInput={(p) => <TextField {...p} label="KAM Name" placeholder="All KAMs" variant="outlined" InputLabelProps={{ shrink: true }} />}
                     sx={acSx} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <Autocomplete multiple options={promoFilterOptions.platforms} value={promoSelectedPlatforms}
-                    onChange={(e, v) => setPromoSelectedPlatforms(v)} limitTags={1}
+                    onChange={(e, v) => setPromoSelectedPlatforms(v)} limitTags={1} disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
                     renderInput={(p) => <TextField {...p} label="Platform Name" placeholder="All Platforms" variant="outlined" InputLabelProps={{ shrink: true }} />}
                     sx={acSx} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <Autocomplete multiple options={promoFilterOptions.skus} value={promoSelectedSkus}
-                    onChange={(e, v) => setPromoSelectedSkus(v)} limitTags={1}
+                    onChange={(e, v) => setPromoSelectedSkus(v)} limitTags={1} disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
                     renderInput={(p) => <TextField {...p} label="SKU Name" placeholder="All SKUs" variant="outlined" InputLabelProps={{ shrink: true }} />}
                     sx={acSx} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <Autocomplete multiple options={promoFilterOptions.asms} value={promoSelectedAsms}
-                    onChange={(e, v) => setPromoSelectedAsms(v)} limitTags={1}
+                    onChange={(e, v) => setPromoSelectedAsms(v)} limitTags={1} disableCloseOnSelect
+                    renderOption={renderCheckboxOption}
                     renderInput={(p) => <TextField {...p} label="ASM Name" placeholder="All ASMs" variant="outlined" InputLabelProps={{ shrink: true }} />}
                     sx={acSx} />
                 </Grid>
