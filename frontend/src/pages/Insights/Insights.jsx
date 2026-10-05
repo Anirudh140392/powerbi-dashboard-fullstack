@@ -643,18 +643,31 @@ const LiveBadge = ({ size = "sm" }) => (
 );
 
 
-const SignalStatusBadge = ({ isEmpty, isBeta }) => (
+const SignalStatusBadge = ({ isEmpty, isBeta, type }) => (
     isEmpty ? (
-        <span style={{
-            fontSize: "7.5px", fontWeight: 700, letterSpacing: "0.1em",
-            background: "#f1f5f9", color: "#94a3b8", border: "1px solid #e2e8f0",
-            borderRadius: "3px", padding: "1.5px 5px",
-            display: "inline-flex", alignItems: "center", gap: "3px",
-            textTransform: "uppercase",
-        }}>
-            <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#cbd5e1", display: "inline-block" }} />
-            NO DATA
-        </span>
+        type === "Co-Relations" ? (
+            <span style={{
+                fontSize: "7.5px", fontWeight: 700, letterSpacing: "0.08em",
+                background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe",
+                borderRadius: "3px", padding: "1.5px 5px",
+                display: "inline-flex", alignItems: "center", gap: "3px",
+                textTransform: "uppercase",
+            }}>
+                <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#3b82f6", display: "inline-block" }} />
+                CLICK TO VIEW
+            </span>
+        ) : (
+            <span style={{
+                fontSize: "7.5px", fontWeight: 700, letterSpacing: "0.1em",
+                background: "#f1f5f9", color: "#94a3b8", border: "1px solid #e2e8f0",
+                borderRadius: "3px", padding: "1.5px 5px",
+                display: "inline-flex", alignItems: "center", gap: "3px",
+                textTransform: "uppercase",
+            }}>
+                <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#cbd5e1", display: "inline-block" }} />
+                NO DATA
+            </span>
+        )
     ) : (isBeta ? <BetaBadge /> : <LiveBadge />)
 );
 
@@ -1028,7 +1041,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
                     alignItems: "center",
                     justifyContent: "space-between"
                 }}>
-                    <SignalStatusBadge isEmpty={isEmpty} isBeta={meta.isBeta !== false} />
+                    <SignalStatusBadge isEmpty={isEmpty} isBeta={meta.isBeta !== false} type={insight.type} />
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <div style={{
                             width: 22, height: 22, borderRadius: "5px",
