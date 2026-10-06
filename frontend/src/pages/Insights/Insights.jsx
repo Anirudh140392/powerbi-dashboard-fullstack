@@ -177,6 +177,13 @@ export const SIGNAL_META = {
         metricLabel: "KPI Anomalies Detected", trend: "negative",
         isBeta: true,
     },
+    "Relative Price Index": {
+        family: "Pricing Positioning",
+        color: "#2563eb", accent: "#eff6ff",
+        FamilyIcon: BadgePercent, metricKey: "impactInr",
+        metricLabel: "Cluster Risk Status", trend: "neutral",
+        isBeta: false,
+    },
 };
 
 const REQUIRED_SIGNAL_TYPES = Object.keys(SIGNAL_META);
@@ -310,6 +317,7 @@ export const buildAISegments = (insight) => {
         const category = worst.category !== "-" ? worst.category : "the category";
         const compSku = worst.competitorSku && worst.competitorSku !== "-" ? worst.competitorSku : null;
         const ourSku = worst.myTopSku && worst.myTopSku !== "-" ? worst.myTopSku : null;
+        const hasMktShare = (Number(worst.marketShare) || 0) > 0 && String(brand).toLowerCase() !== "pidilite";
 
         return [
             {
@@ -318,7 +326,9 @@ export const buildAISegments = (insight) => {
             },
             {
                 label: "Root Cause", priority: "focus",
-                text: `A ${B("visibility gap")} against competitors is the primary driver. The current market share of ${B(safePct(worst.marketShare))} in ${B(city)} requires attention.`
+                text: hasMktShare
+                    ? `A ${B("visibility gap")} against competitors is the primary driver. The current market share of ${B(safePct(worst.marketShare))} in ${B(city)} requires attention.`
+                    : `A ${B("visibility gap")} against competitors is the primary driver.`
             },
             {
                 label: "SKU Performance", priority: "neutral",
@@ -981,6 +991,33 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
             { key: "competitors", label: "Competitors", isText: true },
             { key: "psl", label: "PSL", fmt: safeINR },
         ];
+        if (t === "Relative Price Index") return [
+            { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
+            { key: "platform", label: "Platform", fmt: (v) => v || "Zepto" },
+            { key: "clusterName", label: "Cluster Name", fmt: (v) => v || "Mass" },
+            { key: "brandPrice", label: `${insight.brandName || "Brand"} Price`, fmt: (v, r) => (v != null || r.brandPpu != null) ? `₹${Number(v ?? r.brandPpu).toFixed(1)}` : "-" },
+            { key: "clusterMedianPrice", label: "Cluster Median Price", fmt: (v, r) => (v != null || r.clusterMedianPpu != null) ? `₹${Number(v ?? r.clusterMedianPpu).toFixed(1)}` : "-" },
+            { key: "brandPpu", label: `${insight.brandName || "Brand"} PPU`, fmt: (v) => v != null ? `₹${Number(v).toFixed(1)}` : "-" },
+            { key: "clusterMedianPpu", label: "Cluster Median PPU", fmt: (v) => v != null ? `₹${Number(v).toFixed(1)}` : "-" },
+            { key: "peerBrands", label: "Peer Brands", isText: true },
+            { key: "clusterContributionPct", label: "Cluster Share %", fmt: (v) => v != null ? `${Number(v).toFixed(1)}%` : "-" },
+            { key: "clusterGrowthL3M", label: "L3M Growth %", fmt: (v) => <span style={{ color: (v || 0) < 0 ? '#ef4444' : '#10b981', fontWeight: 600 }}>{(v || 0) >= 0 ? '+' : ''}{Number(v || 0).toFixed(1)}%</span> },
+            { key: "rpi", label: "RPI", fmt: (v, r) => {
+                const bP = Number(r.brandPrice ?? r.brandPpu ?? 0);
+                const cP = Number(r.clusterMedianPrice ?? r.clusterMedianPpu ?? 0);
+                const computedRpi = cP > 0 ? (bP / cP * 100) : Number(v || 100);
+                return <span style={{ fontWeight: 800, color: computedRpi > 130 ? '#dc2626' : computedRpi > 110 ? '#4f46e5' : '#16a34a' }}>{computedRpi.toFixed(1)}</span>;
+            } },
+            { key: "premiumPct", label: "Price Premium %", fmt: (v, r) => {
+                const bP = Number(r.brandPrice ?? r.brandPpu ?? 0);
+                const cP = Number(r.clusterMedianPrice ?? r.clusterMedianPpu ?? 0);
+                const computedRpi = cP > 0 ? (bP / cP * 100) : (Number(r.rpi || 100));
+                const prem = cP > 0 ? (computedRpi - 100) : Number(v || 0);
+                return <span style={{ color: prem > 30 ? '#ef4444' : prem > 0 ? '#6366f1' : '#10b981', fontWeight: 700 }}>{prem >= 0 ? '+' : ''}{prem.toFixed(1)}%</span>;
+            } },
+            { key: "status", label: "Status", isBadge: true },
+            { key: "insightMessage", label: "Business Insight", isText: true },
+        ];
         return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "city", label: "City" },
@@ -1109,7 +1146,16 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
                                 })()
                                 : insight.type === "Surplus Stock"
                                     ? `${Number(insight.totalExcessInventoryUnits || (insight.evidence || []).reduce((s, e) => s + (e.excessInventory || 0), 0)).toLocaleString('en-IN')} Units`
-                                    : formatINRCompact(insight.impactInr || 0)}
+                                    : insight.type === "Relative Price Index"
+                                        ? (() => {
+                                            const ev = insight.evidence || [];
+                                            const highRisk = ev.filter(e => e.status === "Pricing Risk").length;
+                                            if (highRisk > 0) return `${highRisk} High Risk Cluster${highRisk > 1 ? 's' : ''}`;
+                                            const healthy = ev.filter(e => e.status === "Healthy" || e.status === "Premium but Healthy").length;
+                                            if (healthy > 0) return `${healthy} Healthy Cluster${healthy > 1 ? 's' : ''}`;
+                                            return "0 Risk Clusters";
+                                        })()
+                                        : formatINRCompact(insight.impactInr || 0)}
                         </span>
                     </div>
                 </div>
@@ -1518,6 +1564,7 @@ const getEvidenceView = (type) => {
     if (type === "New Market Entry") return "newMarket";
     if (type === "Dark Store Coverage Gaps") return "dsCoverage";
     if (type === "New Dark Store Expansion") return "dsNew";
+    if (type === "Relative Price Index") return "relativePriceIndex";
     return "osa";
 };
 
@@ -1781,6 +1828,23 @@ const EvidenceTable = ({ insight, loading }) => {
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">SOB New DS (%)</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Competitors</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
+                            </>)}
+                            {view === "relativePriceIndex" && (<>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Brand</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Cluster Name</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Brand Price</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Cluster Median Price</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Brand PPU</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Cluster Median PPU</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Peer Brands</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Cluster Share %</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">L3M Growth %</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">RPI</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Price Premium %</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Status</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Business Insight</TableHead>
                             </>)}
                         </TableRow>
                     </thead>
@@ -2082,6 +2146,43 @@ const EvidenceTable = ({ insight, loading }) => {
                                                     <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-3">{safePct(d.sobNewDs)}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-600 px-3 py-3 max-w-[200px] truncate">{d.competitors || "-"}</TableCell>
                                                     <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safeINR(d.psl)}</TableCell>
+                                                </>
+                                            )}
+                                            {view === "relativePriceIndex" && (
+                                                <>
+                                                    <TableCell className="text-[11px] font-bold text-slate-800 px-3 py-3">{d.brand || insight.brandName || "Brand"}</TableCell>
+                                                    <CategoryCell category={d.category ?? insight.category ?? "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "Zepto"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3 font-semibold">{d.clusterName || "Mass"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-bold text-slate-800 px-3 py-3">₹{Number(d.brandPrice ?? d.brandPpu ?? 0).toFixed(1)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-600 px-3 py-3">₹{Number(d.clusterMedianPrice ?? d.clusterMedianPpu ?? 0).toFixed(1)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-semibold text-slate-700 px-3 py-3">₹{Number(d.brandPpu ?? d.brandPrice ?? 0).toFixed(1)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-500 px-3 py-3">₹{Number(d.clusterMedianPpu ?? d.clusterMedianPrice ?? 0).toFixed(1)}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3 max-w-[150px] truncate" title={d.peerBrands}>{d.peerBrands || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-slate-800 px-3 py-3">{d.clusterContributionPct != null ? `${Number(d.clusterContributionPct).toFixed(1)}%` : "-"}</TableCell>
+                                                    <TableCell className="text-right px-3 py-3">
+                                                        <span className={`text-[11px] font-bold ${(d.clusterGrowthL3M || 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                                                            {(d.clusterGrowthL3M || 0) >= 0 ? "+" : ""}{Number(d.clusterGrowthL3M || 0).toFixed(1)}%
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] font-black text-indigo-600 px-3 py-3">{Number(d.rpi || 100).toFixed(1)}</TableCell>
+                                                    <TableCell className="text-right px-3 py-3">
+                                                        <span className={`text-[11px] font-bold ${(d.premiumPct || 0) > 30 ? "text-red-600" : (d.premiumPct || 0) > 0 ? "text-indigo-600" : "text-emerald-600"}`}>
+                                                            {(d.premiumPct || 0) >= 0 ? "+" : ""}{Number(d.premiumPct || 0).toFixed(1)}%
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-3">
+                                                        <span style={{
+                                                            padding: "3px 10px", borderRadius: "12px", fontSize: "10px", fontWeight: 700,
+                                                            background: d.status === "Healthy" ? "#d1fae5" : d.status === "Premium but Healthy" ? "#e0e7ff" : d.status === "Pricing Risk" ? "#fee2e2" : "#fef3c7",
+                                                            color: d.status === "Healthy" ? "#047857" : d.status === "Premium but Healthy" ? "#3730a3" : d.status === "Pricing Risk" ? "#b91c1c" : "#92400e",
+                                                        }}>
+                                                            {d.status || "Healthy"}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-[11px] text-slate-600 px-3 py-3 max-w-[240px] leading-snug">
+                                                        {d.insightMessage || "-"}
+                                                    </TableCell>
                                                 </>
                                             )}
                                         </TableRow>
@@ -2621,7 +2722,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                             );
                                         })
                                     )}
-                                    {insight.type !== "New Market Entry" && (
+                                    {insight.type !== "New Market Entry" && insight.type !== "Relative Price Index" && (
                                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: "70px" }}>
                                             <p style={{ fontSize: "8px", color: "#94a3b8", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, margin: 0 }}>Impact</p>
                                             {loading ? (
@@ -2954,7 +3055,8 @@ const InsightsSignalHub = () => {
                 "New Market Entry": "new_market_entry",
                 "Dark Store Coverage Gaps": "dark_store_coverage_gaps",
                 "New Dark Store Expansion": "new_dark_store_expansion",
-                "Co-Relations": "co_relations"
+                "Co-Relations": "co_relations",
+                "Relative Price Index": "relative_price_index"
             };
 
             const key = typeToKey[insight.type];

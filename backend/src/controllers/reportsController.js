@@ -693,6 +693,8 @@ export const downloadReport = async (req, res) => {
                     round(SUM(toFloat64(t.${col('buy_box_neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as Buy_Box_Percentage,
                     round(100 - (SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage,
                     round(avg(toFloat64(t.${col('DIH')})), 2) as DOI,
+                    SUM(toFloat64(t.${col('Inventory')})) as SOH,
+                    round(SUM(assumeNotNull(t.${col('Qty_Sold')})) / 30.0, 2) as DRR,
                     round(SUM(toFloat64(t.${col('buy_box_neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as Fillrate_Percentage,
                     ${sosCol}
                     round(SUM(toFloat64(t.${col('Inventory')})) / nullIf(SUM(toFloat64(t.${col('MSL')})), 0) * 100, 2) as PSL,
@@ -820,6 +822,8 @@ export const downloadReport = async (req, res) => {
                 cteTimeAgg = `toStartOfMonth(toDate(DATE))`; 
                 cteMsDateAgg = `toStartOfMonth(toDate(${msDateCol}))`;
             }
+
+            const daysInGran = granTime === "Monthly" ? 30.0 : (granTime === "Weekly" ? 7.0 : 1.0);
 
             // 2. Geography / Location Granularity handling
             let reqDimensions = req.query.dimensions ? req.query.dimensions.split(',') : ['Platform', 'Brand', 'City', 'Category', 'Product'];
@@ -1015,6 +1019,8 @@ export const downloadReport = async (req, res) => {
 
                     -- Inventory
                     SUM(toFloat64(t.${col('Inventory')})) as Current_Inventory,
+                    SUM(toFloat64(t.${col('Inventory')})) as SOH,
+                    round(SUM(assumeNotNull(t.${col('Qty_Sold')})) / ${daysInGran}, 2) as DRR,
                     SUM(toFloat64(t.${col('MSL')})) as Target_Inventory,
 
                     -- Pricing
@@ -1134,6 +1140,8 @@ export const downloadReport = async (req, res) => {
                 SELECT 
                     ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product${resellerSelect},
                     SUM(toFloat64(${col('Inventory')})) as Current_Inventory,
+                    SUM(toFloat64(${col('Inventory')})) as SOH,
+                    round(SUM(assumeNotNull(${col('Qty_Sold')})) / 30.0, 2) as DRR,
                     SUM(toFloat64(${col('MSL')})) as Target_Inventory,
                     round(SUM(toFloat64(${col('Inventory')})) / nullIf(SUM(toFloat64(${col('MSL')})), 0) * 100, 2) as Inventory_Health_Percentage,
                     round(avg(toFloat64(${col('DIH')})), 2) as Days_Inventory_on_Hand
@@ -1248,6 +1256,9 @@ export const downloadReport = async (req, res) => {
                 "PSL": "PSL",
                 "Assortment": "Assortment",
                 "Metro City Stock Availability": "Metro_City_Stock_Availability",
+                "SOH": "SOH",
+                "DRR": "DRR",
+                "Current DRR": "DRR",
 
                 // Performance Marketing
                 "Impressions": "Impressions",

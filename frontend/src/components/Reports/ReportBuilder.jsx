@@ -109,17 +109,17 @@ const PLATFORM_UNAVAILABLE_KPIS = {
 const PAGE_METRICS = [
   {
     key: "Business Overview", label: "Business Overview", icon: <DashboardIcon />, color: "#4F46E5",
-    tags: ["Offtake", "Quantity Sold", "Orders", "Listing %", "Inorganic Sales", "ROAS", "Conversion Rate", "CPM", "CPC", "Buy Box %"],
+    tags: ["Offtake", "Quantity Sold", "Orders", "Listing %", "Inorganic Sales", "ROAS", "Conversion Rate", "CPM", "CPC", "Buy Box %", "SOH", "DRR"],
     activeInSidebar: true
   },
   {
     key: "Sales Data", label: "Sales Data", icon: <TrendingUpIcon />, color: "#2563EB",
-    tags: ["DRR"],
+    tags: ["Offtake", "Quantity Sold", "Orders", "DRR", "SOH"],
     activeInSidebar: true
   },
   {
     key: "Availability Analysis", label: "Availability Analysis", icon: <InventoryIcon />, color: "#10B981",
-    tags: ["OSA %", "Buy Box %", "DOI", "PSL", "Assortment"],
+    tags: ["OSA %", "Buy Box %", "DOI", "SOH", "DRR", "PSL", "Assortment"],
     activeInSidebar: true
   },
   {
@@ -139,7 +139,7 @@ const PAGE_METRICS = [
   },
   {
     key: "Inventory Analysis", label: "Inventory Analysis", icon: <StoreIcon />, color: "#06B6D4",
-    tags: ["Current Inventory", "Days on Hand"],
+    tags: ["Current Inventory", "SOH", "DRR", "Days on Hand"],
     activeInSidebar: true, hideForDb: ['mamaearth', 'boat']
   },
   {

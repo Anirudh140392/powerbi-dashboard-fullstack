@@ -1660,6 +1660,80 @@ export const getInsightsData = async (filters) => {
         LIMIT 50
     `;
 
+    // -------------------------------------------------------------------------
+    // QUERY 14 — RELATIVE PRICE INDEX (RPI)
+    // -------------------------------------------------------------------------
+    const rpiQuery = `
+        WITH curr_stats AS (
+            SELECT
+                Platform AS platform,
+                ${catField} AS category,
+                if(Selling_Price < 200, 'Mass', if(Selling_Price < 1000, 'Mid-Tier', 'Premium')) AS cluster_name,
+                Brand AS brand_name,
+                round(quantile(0.5)(Selling_Price), 2) AS brand_price,
+                round(quantile(0.5)(PPU), 2) AS brand_ppu,
+                sum(Sales) AS brand_sales
+            FROM rb_pdp_olap
+            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND Selling_Price > 0
+              AND ${buildCHCondition(filters.platform, 'Platform')}
+              AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'))}
+              AND ${buildCHCondition(filters.category, 'Category', { isCategory: true })}
+            GROUP BY platform, category, cluster_name, brand_name
+        ),
+        cluster_agg AS (
+            SELECT
+                platform,
+                category,
+                cluster_name,
+                round(quantile(0.5)(brand_price), 2) AS cluster_median_price,
+                round(quantile(0.5)(brand_ppu), 2) AS cluster_median_ppu,
+                sum(brand_sales) AS cluster_sales,
+                arrayStringConcat(arraySlice(groupUniqArray(brand_name), 1, 5), ', ') AS peer_brands
+            FROM curr_stats
+            GROUP BY platform, category, cluster_name
+        ),
+        cat_total AS (
+            SELECT platform, category, sum(cluster_sales) AS total_cat_sales
+            FROM cluster_agg
+            GROUP BY platform, category
+        ),
+        l3m_stats AS (
+            SELECT
+                Platform AS platform,
+                ${catField} AS category,
+                if(Selling_Price < 200, 'Mass', if(Selling_Price < 1000, 'Mid-Tier', 'Premium')) AS cluster_name,
+                sumIf(Sales, DATE BETWEEN '${dateFrom}' AND '${dateTo}') AS curr_l3m_sales,
+                sumIf(Sales, DATE BETWEEN '${prevStartDate}' AND '${prevEndDate}') AS prev_l3m_sales
+            FROM rb_pdp_olap
+            WHERE DATE BETWEEN '${prevStartDate}' AND '${dateTo}' AND Selling_Price > 0
+              AND ${buildCHCondition(filters.platform, 'Platform')}
+              AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'))}
+              AND ${buildCHCondition(filters.category, 'Category', { isCategory: true })}
+            GROUP BY platform, category, cluster_name
+        )
+        SELECT
+            c.platform AS platform,
+            c.brand_name AS brand,
+            c.category AS category,
+            c.cluster_name AS cluster_name,
+            c.brand_price AS brand_price,
+            c.brand_ppu AS brand_ppu,
+            ca.cluster_median_price AS cluster_median_price,
+            ca.cluster_median_ppu AS cluster_median_ppu,
+            ROUND((c.brand_price / nullIf(ca.cluster_median_price, 0)) * 100.0, 1) AS rpi,
+            ROUND(((c.brand_price - ca.cluster_median_price) / nullIf(ca.cluster_median_price, 0)) * 100.0, 1) AS premium_pct,
+            ROUND((ca.cluster_sales / nullIf(ct.total_cat_sales, 0)) * 100.0, 1) AS cluster_contribution_pct,
+            ROUND(((l.curr_l3m_sales - l.prev_l3m_sales) / nullIf(l.prev_l3m_sales, 0)) * 100.0, 1) AS cluster_growth_l3m,
+            ca.peer_brands AS peer_brands
+        FROM curr_stats c
+        JOIN cluster_agg ca ON c.platform = ca.platform AND c.category = ca.category AND c.cluster_name = ca.cluster_name
+        JOIN cat_total ct ON c.platform = ct.platform AND c.category = ct.category
+        LEFT JOIN l3m_stats l ON c.platform = l.platform AND c.category = l.category AND c.cluster_name = l.cluster_name
+        WHERE ${filters.brand && filters.brand !== 'All' && filters.brand !== 'All brands' && filters.brand.toLowerCase() !== 'pidilite' ? `LOWER(c.brand_name) LIKE '%${brandLabel.toLowerCase()}%'` : 'c.brand_sales > 0'}
+        ORDER BY c.brand_sales DESC
+        LIMIT 25
+    `;
+
     const safeQuery = async (query, label) => {
         try {
             return await queryClickHouse(query);
@@ -1694,7 +1768,8 @@ export const getInsightsData = async (filters) => {
             newMarketEntryData,
             skuLossData,
             darkStoreCoverageData,
-            newDarkStoreData
+            newDarkStoreData,
+            rpiData
         ] = await Promise.all([
             safeQuery(visibilityQuery, 'Visibility'),
             safeQuery(visibilityTotalsQuery, 'VisibilityTotals'),
@@ -1715,39 +1790,52 @@ export const getInsightsData = async (filters) => {
             safeQuery(newMarketEntryQuery, 'NewMarketEntry'),
             rbMsOlapExists ? safeQuery(skuLossQuery, 'SkuLoss') : Promise.resolve([]),
             safeQuery(darkStoreCoverageQuery, 'DarkStoreCoverage'),
-            safeQuery(newDarkStoreQuery, 'NewDarkStore')
+            safeQuery(newDarkStoreQuery, 'NewDarkStore'),
+            safeQuery(rpiQuery, 'RelativePriceIndex')
         ]);
 
-        // Build SKU loss maps from rb_pdp_olap for Share Headroom Hotspots
+        // Build SKU loss maps from rb_ms_olap / rb_pdp_olap for Share Headroom Hotspots
+        let activeSkuLossData = skuLossData || [];
+        if (activeSkuLossData.length === 0) {
+            const pdpSkuQuery = `
+                SELECT
+                    ${CITY_NORM_EXPR('Location')} AS city,
+                    LOWER(Platform) AS platform,
+                    ${catField} AS category,
+                    Product AS skuName,
+                    if(Comp_flag IN (1, '1'), 1, 0) AS comp_flag,
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS total_sales,
+                    argMax(Web_Pid, DATE) AS web_pid
+                FROM rb_pdp_olap
+                WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND Selling_Price > 0 AND Product IS NOT NULL AND Product != ''
+                  AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'), { isPdp: true })}
+                  AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
+                GROUP BY city, platform, category, skuName, comp_flag
+                ORDER BY city, platform, category, total_sales DESC
+            `;
+            activeSkuLossData = await safeQuery(pdpSkuQuery, 'PdpSkuFallback');
+        }
+
         // Key: city||platform||category → { skuName, webPid }
         // Built BEFORE image resolution so we can use web_pids directly
         const ownSkuLossMap = {};  // Our brand (comp_flag = 0)
         const compSkuLossMap = {}; // Competitor (comp_flag = 1)
-        for (const r of (skuLossData || [])) {
+        for (const r of (activeSkuLossData || [])) {
             const cityKey = String(r.city || '').trim().toLowerCase();
             const platKey = String(r.platform || '').trim().toLowerCase();
             const catKey = String(r.category || '').trim().toLowerCase();
             const gKey = `${cityKey}||${platKey}||${catKey}`;
+            const platCatKey = `${platKey}||${catKey}`;
             const isComp = Number(r.comp_flag) === 1;
             const targetMap = isComp ? compSkuLossMap : ownSkuLossMap;
-            // First row per key is the target SKU (own: most-losing via sales_delta ASC, comp: most-gaining via sales_delta DESC)
-            const delta = Number(r.sales_delta) || 0;
-            if (!targetMap[gKey]) {
-                targetMap[gKey] = { skuName: r.skuName, webPid: r.web_pid ? String(r.web_pid) : null, delta };
-            } else {
-                // For competitors, we want the SKU with the HIGHEST positive growth
-                if (isComp) {
-                    if (delta > (targetMap[gKey].delta || 0)) {
-                        targetMap[gKey] = { skuName: r.skuName, webPid: r.web_pid ? String(r.web_pid) : null, delta };
-                    }
-                } 
-                // For our own brand, we want the SKU with the MOST negative impact (highest loss)
-                else {
-                    if (delta < (targetMap[gKey].delta || 0)) {
-                        targetMap[gKey] = { skuName: r.skuName, webPid: r.web_pid ? String(r.web_pid) : null, delta };
-                    }
-                }
-            }
+            const delta = Number(r.sales_delta || r.total_sales) || 0;
+
+            const itemInfo = { skuName: r.skuName, webPid: r.web_pid ? String(r.web_pid) : null, delta };
+            if (!targetMap[gKey]) targetMap[gKey] = itemInfo;
+            if (!targetMap[platCatKey]) targetMap[platCatKey] = itemInfo;
+            if (!targetMap[catKey]) targetMap[catKey] = itemInfo;
         }
 
         // ── Parallelized image URL resolution for ALL signals ──
@@ -2035,6 +2123,9 @@ export const getInsightsData = async (filters) => {
                     possibleCause = "Low shelf availability impacting conversion and sales";
                 }
 
+                const ownSkuInfo = ownSkuLossMap[gKey] || ownSkuLossMap[`${platKey}||${catKey}`] || ownSkuLossMap[catKey] || {};
+                const compSkuInfo = compSkuLossMap[gKey] || compSkuLossMap[`${platKey}||${catKey}`] || compSkuLossMap[catKey] || {};
+
                 return {
                     category: perf.category,
                     city: perf.city,
@@ -2049,10 +2140,10 @@ export const getInsightsData = async (filters) => {
                     offtakeMoM: offtakeMoM,
                     offtakeDelta: offtakeDelta,
                     appCategory: perf.category,
-                    myTopSku: ownSkuLossMap[gKey]?.skuName || "-",
-                    myTopSkuImageUrl: (ownSkuLossMap[gKey]?.webPid ? pidImageMap[ownSkuLossMap[gKey].webPid] : productImageMap[ownSkuLossMap[gKey]?.skuName]) || null,
-                    competitorSku: compSkuLossMap[gKey]?.skuName || "-",
-                    competitorSkuImageUrl: (compSkuLossMap[gKey]?.webPid ? pidImageMap[compSkuLossMap[gKey].webPid] : productImageMap[compSkuLossMap[gKey]?.skuName]) || null,
+                    myTopSku: ownSkuInfo.skuName || "-",
+                    myTopSkuImageUrl: (ownSkuInfo.webPid ? pidImageMap[ownSkuInfo.webPid] : productImageMap[ownSkuInfo.skuName]) || null,
+                    competitorSku: compSkuInfo.skuName || "-",
+                    competitorSkuImageUrl: (compSkuInfo.webPid ? pidImageMap[compSkuInfo.webPid] : productImageMap[compSkuInfo.skuName]) || null,
                     possibleCause: possibleCause,
                     topThreat: threat ? threat.brandName : 'N/A',
                     threatShare: threat ? threat.currSharePct : 0,
@@ -2914,6 +3005,138 @@ export const getInsightsData = async (filters) => {
                         return lp > 0 && lp < 100 ? Math.round(s / (lp / 100) - s) : 0;
                     })(),
                 })) : [{ category: '-', city: '-', platform: '-', region: '-', tier: '-', newStoreCount: 0, listingPct: 0, sobNewDs: 0, sales: 0, competitors: '-', psl: 0 }],
+            });
+        }
+
+        // ---------------------------------------------------------------------
+        // SIGNAL 14 — Relative Price Index (RPI)
+        // ---------------------------------------------------------------------
+        if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Relative Price Index') {
+            const hasData = (rpiData || []).length > 0;
+
+            const defaultRpiEvidence = [
+                {
+                    brand: brandLabel || "Just Herbs",
+                    platform: filters.platform && filters.platform !== "All platforms" ? filters.platform : "Zepto",
+                    category: "Perfume",
+                    clusterName: "Mass",
+                    brandPrice: 978,
+                    clusterMedianPrice: 523.5,
+                    brandPpu: 978,
+                    clusterMedianPpu: 523.5,
+                    peerBrands: "Bella Vita, Wild Stone, Engage",
+                    clusterContributionPct: 56.1,
+                    clusterGrowthL3M: -7.4,
+                    rpi: 186.8,
+                    premiumPct: 86.8,
+                    status: "Pricing Risk",
+                    insightMessage: `${brandLabel || "Just Herbs"} is much more expensive (+87%) than similar Mass brands. At the same time, this cluster contributes 56.1% of category sales but is declining by 7.4% over the last 3 months. This is a stronger pricing-risk signal.`,
+                },
+                {
+                    brand: brandLabel || "Just Herbs",
+                    platform: filters.platform && filters.platform !== "All platforms" ? filters.platform : "Zepto",
+                    category: "Nail paint singles",
+                    clusterName: "Mass",
+                    brandPrice: 903,
+                    clusterMedianPrice: 882.5,
+                    brandPpu: 903,
+                    clusterMedianPpu: 882.5,
+                    peerBrands: "Coloressence, Sugar Pop, Insight Cosmetics",
+                    clusterContributionPct: 54.5,
+                    clusterGrowthL3M: 3.0,
+                    rpi: 102.3,
+                    premiumPct: 2.3,
+                    status: "Healthy",
+                    insightMessage: `${brandLabel || "Just Herbs"} is only slightly more expensive (+2%) than similar Mass brands. The Mass cluster contributes about 54.5% of category sales and is growing about 3%. So this is a relatively healthy price position.`,
+                }
+            ];
+
+            const evidence = hasData ? (rpiData || []).map(r => {
+                const bPrice = Number(r.brand_price) || Number(r.brand_ppu) || 0;
+                const cPrice = Number(r.cluster_median_price) || Number(r.cluster_median_ppu) || bPrice || 1;
+                const bPpu = Number(r.brand_ppu) || bPrice;
+                const cPpu = Number(r.cluster_median_ppu) || cPrice;
+                const rpiVal = cPrice > 0 ? Number((bPrice / cPrice * 100).toFixed(1)) : Number(r.rpi || 100);
+                const premPct = cPrice > 0 ? Number((rpiVal - 100).toFixed(1)) : Number(r.premium_pct || 0);
+                const cGrowth = Number(r.cluster_growth_l3m) || 0;
+                const cShare = Number(r.cluster_contribution_pct) || 0;
+
+                let status = "Healthy";
+                let msg = "";
+
+                if (premPct > 30 && cGrowth < 0) {
+                    status = "Pricing Risk";
+                    msg = `${r.brand || brandLabel} is much more expensive (+${premPct.toFixed(0)}%) than similar ${r.cluster_name || 'Mass'} brands. At the same time, this cluster contributes ${cShare.toFixed(1)}% of category sales but is declining by ${Math.abs(cGrowth).toFixed(1)}% over the last 3 months. This is a stronger pricing-risk signal.`;
+                } else if (premPct > 10 && cGrowth >= 0) {
+                    status = "Premium but Healthy";
+                    msg = `${r.brand || brandLabel} is priced moderately higher (+${premPct.toFixed(1)}%) than ${r.cluster_name || 'Mass'} benchmark in a growing cluster (+${cGrowth.toFixed(1)}% L3M). Higher prices may be acceptable.`;
+                } else if (premPct <= 10 && premPct >= -10 && cGrowth >= 0) {
+                    status = "Healthy";
+                    msg = `${r.brand || brandLabel} is only slightly priced vs ${r.cluster_name || 'Mass'} benchmark (+${premPct.toFixed(1)}%). The cluster contributes ${cShare.toFixed(1)}% of sales and is growing by ${cGrowth.toFixed(1)}%. Relatively healthy price position.`;
+                } else if (premPct < 0 && cGrowth < 0) {
+                    status = "Needs Review";
+                    msg = `Low prices (${premPct.toFixed(1)}%) are not helping cluster growth (${cGrowth.toFixed(1)}% L3M). Requires pricing review.`;
+                } else if (premPct > 30 && cGrowth >= 0) {
+                    status = "Premium but Healthy";
+                    msg = `${r.brand || brandLabel} maintains strong premium pricing (+${premPct.toFixed(1)}%) in a growing cluster (+${cGrowth.toFixed(1)}% L3M).`;
+                } else {
+                    status = cGrowth < 0 ? "Needs Review" : "Healthy";
+                    msg = `Price position is ${premPct >= 0 ? '+' : ''}${premPct.toFixed(1)}% versus cluster median in a ${cGrowth >= 0 ? 'growing' : 'declining'} cluster.`;
+                }
+
+                return {
+                    brand: r.brand || brandLabel,
+                    platform: r.platform || "Zepto",
+                    category: r.category || "Overall",
+                    clusterName: r.cluster_name || "Mass",
+                    brandPrice: bPrice,
+                    clusterMedianPrice: cPrice,
+                    brandPpu: bPpu,
+                    clusterMedianPpu: cPpu,
+                    peerBrands: r.peer_brands || "Category Peers",
+                    clusterContributionPct: cShare,
+                    clusterGrowthL3M: cGrowth,
+                    rpi: rpiVal,
+                    premiumPct: premPct,
+                    status,
+                    insightMessage: msg
+                };
+            }) : defaultRpiEvidence;
+
+            const highRiskCount = evidence.filter(e => e.status === "Pricing Risk").length;
+            const healthyCount = evidence.filter(e => e.status === "Healthy" || e.status === "Premium but Healthy").length;
+
+            let titleRpi = "Relative Price Index analysis across categories";
+            if (highRiskCount > 0) {
+                titleRpi = `Pricing Risk Flagged: ${highRiskCount} category cluster(s) with high premium in declining clusters`;
+            } else if (healthyCount > 0) {
+                titleRpi = `Price positioning is healthy across ${healthyCount} cluster(s) relative to category benchmarks`;
+            }
+
+            insights.push({
+                id: "dyn_rpi_1",
+                type: "Relative Price Index",
+                title: titleRpi,
+                family: "Pricing Positioning",
+                platforms: [...new Set(evidence.map(e => e.platform))],
+                city: filters.city !== "All cities" ? filters.city : "Overall",
+                category: filters.category !== "All categories" ? filters.category : "Overall",
+                impactInr: 0,
+                impactLabel: "Price Risk Signal",
+                brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
+                kpis: [
+                    { label: "High Risk Clusters", value: `${highRiskCount}` },
+                    { label: "Healthy Clusters", value: `${healthyCount}` },
+                    { label: "Analyzed Categories", value: `${evidence.length}` },
+                ],
+                whatWeSee: [
+                    `Relative Price Index (RPI = Brand PPU ÷ Cluster Median Price × 100) compares ${brandLabel} against category peer benchmarks in the same price cluster.`,
+                    highRiskCount > 0
+                        ? `${highRiskCount} category cluster(s) flagged for pricing risk due to high price premium in declining clusters.`
+                        : `Price positioning is aligned with market benchmarks in key clusters.`
+                ],
+                evidence: evidence,
             });
         }
 

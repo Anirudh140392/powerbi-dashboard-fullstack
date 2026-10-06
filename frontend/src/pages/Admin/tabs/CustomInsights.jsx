@@ -23,6 +23,7 @@ const INSIGHTS_CARDS = [
     { key: "new_market_entry", label: "New Market Entry" },
     { key: "dark_store_coverage_gaps", label: "Dark Store Coverage Gaps" },
     { key: "new_dark_store_expansion", label: "New Dark Store Expansion" },
+    { key: "relative_price_index", label: "Relative Price Index" },
     { key: "co_relations", label: "Co-Relations" }
 ];
 
