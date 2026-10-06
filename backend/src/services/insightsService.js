@@ -1664,11 +1664,10 @@ export const getInsightsData = async (filters) => {
     // QUERY 14 — RELATIVE PRICE INDEX (RPI)
     // -------------------------------------------------------------------------
     const rpiQuery = `
-        WITH curr_stats AS (
+        WITH brand_cat_stats AS (
             SELECT
                 Platform AS platform,
                 ${catField} AS category,
-                if(Selling_Price < 200, 'Mass', if(Selling_Price < 1000, 'Mid-Tier', 'Premium')) AS cluster_name,
                 Brand AS brand_name,
                 round(quantile(0.5)(Selling_Price), 2) AS brand_price,
                 round(quantile(0.5)(PPU), 2) AS brand_ppu,
@@ -1678,7 +1677,18 @@ export const getInsightsData = async (filters) => {
               AND ${buildCHCondition(filters.platform, 'Platform')}
               AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'))}
               AND ${buildCHCondition(filters.category, 'Category', { isCategory: true })}
-            GROUP BY platform, category, cluster_name, brand_name
+            GROUP BY platform, category, brand_name
+        ),
+        curr_stats AS (
+            SELECT
+                platform,
+                category,
+                if(brand_price < 200, 'Mass', if(brand_price < 1000, 'Mid-Tier', 'Premium')) AS cluster_name,
+                brand_name,
+                brand_price,
+                brand_ppu,
+                brand_sales
+            FROM brand_cat_stats
         ),
         cluster_agg AS (
             SELECT
