@@ -274,15 +274,31 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
                 brandsToQuery = ['dummy_no_brands']; // Fallback if no brands found
             }
         }
-        const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
+        const brandsSql = brandsToQuery.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ');
+
+        const dateFilter = `toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`;
 
         let categoryCond = '';
         const mappedCats = mapCategoryForMs(categoryArr);
         if (mappedCats.length > 0) {
             categoryCond = `AND lower(category) IN (${mappedCats.map(c => `'${c.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+        } else if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            const brandCatsQuery = `
+                SELECT DISTINCT category
+                FROM rb_ms_olap
+                WHERE ${dateFilter}
+                ${platformCond}
+                ${locationCond}
+                AND lower(group_brand) IN (${brandsSql})
+                AND category IS NOT NULL AND category != ''
+            `;
+            const catRes = await queryClickHouse(brandCatsQuery);
+            const brandCats = catRes.map(r => r.category).filter(Boolean);
+            if (brandCats.length > 0) {
+                categoryCond = `AND category IN (${brandCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            }
         }
 
-        const dateFilter = `toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`;
         const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
 
         // Numerator: SUM(sales) for our brands
@@ -293,7 +309,7 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
             ${baseCond}
             ${subCat.where}
             ${subBrand.where}
-            AND group_brand IN (${brandsSql})
+            AND lower(group_brand) IN (${brandsSql})
         `;
 
         // Denominator: SUM(sales) for all brands in the same categories (= category size)
@@ -305,13 +321,36 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
             ${subCat.where}
         `;
 
-        const [numResult, denomResult] = await Promise.all([
+        const ownBrandsSql = DANONE_OWN_BRANDS.map(b => `'${b}'`).join(', ');
+        const danoneSalesQuery = isDanoneDb() ? `
+            SELECT SUM(toFloat64OrZero(toString(sales))) as own_sales
+            FROM rb_ms_olap
+            WHERE ${dateFilter}
+            ${baseCond}
+            ${subCat.where}
+            AND lower(group_brand) IN (${ownBrandsSql})
+        ` : null;
+
+        const queries = [
             queryClickHouse(numQuery),
             queryClickHouse(denomQuery)
-        ]);
+        ];
+        if (danoneSalesQuery) queries.push(queryClickHouse(danoneSalesQuery));
+
+        const results = await Promise.all(queries);
+        const numResult = results[0];
+        const denomResult = results[1];
+        const danoneResult = isDanoneDb() ? results[2] : null;
 
         const ourSales = parseFloat(numResult?.[0]?.our_sales || 0);
-        const totalSales = parseFloat(denomResult?.[0]?.total_sales || 0);
+        let totalSales = parseFloat(denomResult?.[0]?.total_sales || 0);
+
+        if (isDanoneDb()) {
+            const allDanoneSales = parseFloat(danoneResult?.[0]?.own_sales || 0);
+            const otherDanoneSales = allDanoneSales - ourSales;
+            totalSales = totalSales - otherDanoneSales;
+        }
+
         const ms = totalSales > 0 ? (ourSales / totalSales) * 100 : null;
         return ms !== null ? parseFloat(ms.toFixed(2)) : null;
     } catch (error) {
@@ -353,15 +392,31 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
                 brandsToQuery = ['dummy_no_brands']; // Fallback if no brands found
             }
         }
-        const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
+        const brandsSql = brandsToQuery.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ');
+
+        const dateFilter = `toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`;
 
         let categoryCond = '';
         const mappedCats = mapCategoryForMs(categoryArr);
         if (mappedCats.length > 0) {
             categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+        } else if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            const brandCatsQuery = `
+                SELECT DISTINCT category
+                FROM rb_ms_olap
+                WHERE ${dateFilter}
+                ${platformCond}
+                ${locationCond}
+                AND lower(group_brand) IN (${brandsSql})
+                AND category IS NOT NULL AND category != ''
+            `;
+            const catRes = await queryClickHouse(brandCatsQuery);
+            const brandCats = catRes.map(r => r.category).filter(Boolean);
+            if (brandCats.length > 0) {
+                categoryCond = `AND category IN (${brandCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            }
         }
 
-        const dateFilter = `toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`;
         const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
 
         // Numerator per month
@@ -373,7 +428,7 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
             ${baseCond}
             ${subCat.where}
             ${subBrand.where}
-            AND group_brand IN (${brandsSql})
+            AND lower(group_brand) IN (${brandsSql})
             GROUP BY month_date
             ORDER BY month_date
         `;
@@ -390,17 +445,38 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
             ORDER BY month_date
         `;
 
-        const [numResults, denomResults] = await Promise.all([
+        const ownBrandsSql = DANONE_OWN_BRANDS.map(b => `'${b}'`).join(', ');
+        const danoneQuery = isDanoneDb() ? `
+            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month_date,
+                   SUM(toFloat64OrZero(toString(sales))) as own_sales
+            FROM rb_ms_olap
+            WHERE ${dateFilter}
+            ${baseCond}
+            ${subCat.where}
+            AND lower(group_brand) IN (${ownBrandsSql})
+            GROUP BY month_date
+        ` : null;
+
+        const [numResults, denomResults, danoneResults] = await Promise.all([
             queryClickHouse(numQuery),
-            queryClickHouse(denomQuery)
+            queryClickHouse(denomQuery),
+            danoneQuery ? queryClickHouse(danoneQuery) : Promise.resolve([])
         ]);
 
         const denomMap = {};
         denomResults.forEach(r => { denomMap[r.month_date] = parseFloat(r.total_sales || 0); });
 
+        const danoneMap = {};
+        danoneResults.forEach(r => { danoneMap[r.month_date] = parseFloat(r.own_sales || 0); });
+
         return numResults.map(r => {
             const ourSales = parseFloat(r.our_sales || 0);
-            const totalSales = denomMap[r.month_date] || 0;
+            let totalSales = denomMap[r.month_date] || 0;
+            if (isDanoneDb()) {
+                const allDanoneSales = danoneMap[r.month_date] || 0;
+                const otherDanoneSales = allDanoneSales - ourSales;
+                totalSales = totalSales - otherDanoneSales;
+            }
             const ms = totalSales > 0 ? (ourSales / totalSales) * 100 : 0;
             return { month_date: r.month_date, avg_market_share: parseFloat(ms.toFixed(2)) };
         });
@@ -443,7 +519,7 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
                 brandsToQuery = ['dummy_no_brands']; // Fallback if no brands found
             }
         }
-        const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
+        const brandsSql = brandsToQuery.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ');
 
         let categoryCond = '';
         const mappedCats = mapCategoryForMs(categoryArr);
@@ -463,7 +539,7 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
             ${baseCond}
             ${subCat.where}
             ${subBrand.where}
-            AND group_brand IN (${brandsSql})
+            AND lower(group_brand) IN (${brandsSql})
             GROUP BY group_brand
         `;
 
@@ -485,13 +561,17 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
         const msMap = new Map();
 
         if (isDanoneDb()) {
-            let allDanoneSales = 0;
-            numResults.forEach(r => {
-                const bName = String(r.brand || '').toLowerCase().trim();
-                if (DANONE_OWN_BRANDS.includes(bName)) {
-                    allDanoneSales += parseFloat(r.brand_sales || 0);
-                }
-            });
+            const ownBrandsSql = DANONE_OWN_BRANDS.map(b => `'${b}'`).join(', ');
+            const danoneSalesQuery = `
+                SELECT SUM(toFloat64OrZero(toString(sales))) as own_sales
+                FROM rb_ms_olap
+                WHERE ${dateFilter}
+                ${baseCond}
+                ${subCat.where}
+                AND lower(group_brand) IN (${ownBrandsSql})
+            `;
+            const danoneRes = await queryClickHouse(danoneSalesQuery);
+            const allDanoneSales = parseFloat(danoneRes?.[0]?.own_sales || 0);
 
             numResults.forEach(r => {
                 const bName = String(r.brand || '').toLowerCase().trim();
@@ -569,12 +649,29 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
                 brandsToQuery = ['dummy_no_brands']; // Fallback if no brands found
             }
         }
-        const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
+        const brandsSql = brandsToQuery.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ');
+
+        const dateFilter = `toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`;
 
         let categoryCond = '';
         const mappedCats = mapCategoryForMs(categoryArr);
         if (mappedCats.length > 0) {
             categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+        } else if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            const brandCatsQuery = `
+                SELECT DISTINCT category
+                FROM rb_ms_olap
+                WHERE ${dateFilter}
+                ${platformCond}
+                ${locationCond}
+                AND lower(group_brand) IN (${brandsSql})
+                AND category IS NOT NULL AND category != ''
+            `;
+            const catRes = await queryClickHouse(brandCatsQuery);
+            const brandCats = catRes.map(r => r.category).filter(Boolean);
+            if (brandCats.length > 0) {
+                categoryCond = `AND category IN (${brandCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            }
         }
 
         let groupExpr;
@@ -582,7 +679,6 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
         else if (timeStep === 'Weekly') groupExpr = `toYearWeek(toDate(created_on), 1)`;
         else groupExpr = `formatDateTime(toDate(created_on), '%Y-%m-%d')`;
 
-        const dateFilter = `toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`;
         const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
 
         // Numerator per time bucket
@@ -594,7 +690,7 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
             ${baseCond}
             ${subCat.where}
             ${subBrand.where}
-            AND group_brand IN (${brandsSql})
+            AND lower(group_brand) IN (${brandsSql})
             GROUP BY date_group
             ORDER BY date_group
         `;
@@ -611,19 +707,40 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
             ORDER BY date_group
         `;
 
-        const [numResults, denomResults] = await Promise.all([
+        const ownBrandsSql = DANONE_OWN_BRANDS.map(b => `'${b}'`).join(', ');
+        const danoneQuery = isDanoneDb() ? `
+            SELECT ${groupExpr} as date_group,
+                   SUM(toFloat64OrZero(toString(sales))) as own_sales
+            FROM rb_ms_olap
+            WHERE ${dateFilter}
+            ${baseCond}
+            ${subCat.where}
+            AND lower(group_brand) IN (${ownBrandsSql})
+            GROUP BY date_group
+        ` : null;
+
+        const [numResults, denomResults, danoneResults] = await Promise.all([
             queryClickHouse(numQuery),
-            queryClickHouse(denomQuery)
+            queryClickHouse(denomQuery),
+            danoneQuery ? queryClickHouse(danoneQuery) : Promise.resolve([])
         ]);
 
         const denomMap = {};
         denomResults.forEach(r => { denomMap[String(r.date_group)] = parseFloat(r.total_sales || 0); });
 
+        const danoneMap = {};
+        danoneResults.forEach(r => { danoneMap[String(r.date_group)] = parseFloat(r.own_sales || 0); });
+
         const msMap = new Map();
         numResults.forEach(r => {
             const key = String(r.date_group);
             const ourSales = parseFloat(r.our_sales || 0);
-            const totalSales = denomMap[key] || 0;
+            let totalSales = denomMap[key] || 0;
+            if (isDanoneDb()) {
+                const allDanoneSales = danoneMap[key] || 0;
+                const otherDanoneSales = allDanoneSales - ourSales;
+                totalSales = totalSales - otherDanoneSales;
+            }
             const ms = totalSales > 0 ? (ourSales / totalSales) * 100 : 0;
             msMap.set(key, parseFloat(ms.toFixed(2)));
         });
@@ -1058,6 +1175,8 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
  */
 const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEndStr, brandsSql, baseCond, subCatWhere = '', subBrandWhere = '') => {
     try {
+        const ownBrandsSql = DANONE_OWN_BRANDS.map(b => `'${b}'`).join(', ');
+
         const queryCurrent = `
             WITH
                 our_subcategories AS (
@@ -1084,7 +1203,8 @@ const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEnd
                 ),
                 total_sales_in_subcats AS (
                     SELECT
-                        SUM(toFloat64OrZero(toString(ms.sales))) AS total_subcat_sales
+                        SUM(toFloat64OrZero(toString(ms.sales))) AS total_subcat_sales,
+                        SUM(IF(lower(ms.group_brand) IN (${ownBrandsSql.toLowerCase()}), toFloat64OrZero(toString(ms.sales)), 0)) AS all_own_sales
                     FROM rb_ms_olap as ms
                     WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
                       AND ms.category IN (SELECT category FROM our_subcategories)
@@ -1093,7 +1213,8 @@ const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEnd
                 )
             SELECT
                 brand_sales,
-                total_subcat_sales
+                total_subcat_sales,
+                all_own_sales
             FROM our_sales, total_sales_in_subcats
         `;
 
@@ -1123,7 +1244,8 @@ const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEnd
                 ),
                 total_sales_in_subcats AS (
                     SELECT
-                        SUM(toFloat64OrZero(toString(ms.sales))) AS total_subcat_sales
+                        SUM(toFloat64OrZero(toString(ms.sales))) AS total_subcat_sales,
+                        SUM(IF(lower(ms.group_brand) IN (${ownBrandsSql.toLowerCase()}), toFloat64OrZero(toString(ms.sales)), 0)) AS all_own_sales
                     FROM rb_ms_olap as ms
                     WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
                       AND ms.category IN (SELECT category FROM our_subcategories)
@@ -1132,7 +1254,8 @@ const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEnd
                 )
             SELECT
                 brand_sales,
-                total_subcat_sales
+                total_subcat_sales,
+                all_own_sales
             FROM our_sales, total_sales_in_subcats
         `;
 
@@ -1142,11 +1265,21 @@ const calculateSubCategoryShare = async (startStr, endStr, prevStartStr, prevEnd
         ]);
 
         const curBrandSales = parseFloat(curRes?.[0]?.brand_sales || 0);
-        const curTotalSales = parseFloat(curRes?.[0]?.total_subcat_sales || 0);
+        let curTotalSales = parseFloat(curRes?.[0]?.total_subcat_sales || 0);
+        if (isDanoneDb()) {
+            const curAllOwn = parseFloat(curRes?.[0]?.all_own_sales || 0);
+            const otherOwnSales = curAllOwn - curBrandSales;
+            curTotalSales = curTotalSales - otherOwnSales;
+        }
         const curShare = curTotalSales > 0 ? (curBrandSales / curTotalSales) * 100 : null;
 
         const prevBrandSales = parseFloat(prevRes?.[0]?.brand_sales || 0);
-        const prevTotalSales = parseFloat(prevRes?.[0]?.total_subcat_sales || 0);
+        let prevTotalSales = parseFloat(prevRes?.[0]?.total_subcat_sales || 0);
+        if (isDanoneDb()) {
+            const prevAllOwn = parseFloat(prevRes?.[0]?.all_own_sales || 0);
+            const otherOwnSalesPrev = prevAllOwn - prevBrandSales;
+            prevTotalSales = prevTotalSales - otherOwnSalesPrev;
+        }
         const prevShare = prevTotalSales > 0 ? (prevBrandSales / prevTotalSales) * 100 : null;
 
         return {
@@ -1217,13 +1350,15 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
             ourBrands = brandResult.map(b => b.brand_name).filter(Boolean);
             if (ourBrands.length === 0) ourBrands = ['dummy_no_brands'];
         }
-        const brandsSql = ourBrands.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
+        const brandsSql = ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ');
+        const ownBrandsSql = DANONE_OWN_BRANDS.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
         // Current & Previous Share (Category-level Market Share, not filtered by Sub Category)
         const currentQuery = `
             SELECT 
                 SUM(toFloat64OrZero(toString(ms.sales))) as total_sales,
-                SUM(IF(ms.group_brand IN (${brandsSql}), toFloat64OrZero(toString(ms.sales)), 0)) as our_sales
+                SUM(IF(lower(ms.group_brand) IN (${brandsSql}), toFloat64OrZero(toString(ms.sales)), 0)) as our_sales,
+                SUM(IF(lower(ms.group_brand) IN (${ownBrandsSql.toLowerCase()}), toFloat64OrZero(toString(ms.sales)), 0)) as all_own_sales
             FROM rb_ms_olap as ms
             ${subCat.join}
             WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
@@ -1234,7 +1369,8 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
         const prevQuery = `
             SELECT 
                 SUM(toFloat64OrZero(toString(ms.sales))) as total_sales,
-                SUM(IF(ms.group_brand IN (${brandsSql}), toFloat64OrZero(toString(ms.sales)), 0)) as our_sales
+                SUM(IF(lower(ms.group_brand) IN (${brandsSql}), toFloat64OrZero(toString(ms.sales)), 0)) as our_sales,
+                SUM(IF(lower(ms.group_brand) IN (${ownBrandsSql.toLowerCase()}), toFloat64OrZero(toString(ms.sales)), 0)) as all_own_sales
             FROM rb_ms_olap as ms
             ${subCat.join}
             WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
@@ -1253,7 +1389,8 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
             SELECT 
                 ${groupExpr} as date_group,
                 SUM(toFloat64OrZero(toString(ms.sales))) as total_sales,
-                SUM(IF(ms.group_brand IN (${brandsSql}), toFloat64OrZero(toString(ms.sales)), 0)) as our_sales
+                SUM(IF(lower(ms.group_brand) IN (${brandsSql}), toFloat64OrZero(toString(ms.sales)), 0)) as our_sales,
+                SUM(IF(lower(ms.group_brand) IN (${ownBrandsSql.toLowerCase()}), toFloat64OrZero(toString(ms.sales)), 0)) as all_own_sales
             FROM rb_ms_olap as ms
             ${subCat.join}
             WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
@@ -1269,20 +1406,35 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
             queryClickHouse(trendQuery)
         ]);
 
-        const curTotal = parseFloat(currentRes?.[0]?.total_sales || 0);
         const curOur = parseFloat(currentRes?.[0]?.our_sales || 0);
+        let curTotal = parseFloat(currentRes?.[0]?.total_sales || 0);
+        if (isDanoneDb()) {
+            const curAllOwn = parseFloat(currentRes?.[0]?.all_own_sales || 0);
+            const otherOwnSales = curAllOwn - curOur;
+            curTotal = curTotal - otherOwnSales;
+        }
         const share = curTotal > 0 ? (curOur / curTotal) * 100 : null;
 
-        const prevTotal = parseFloat(prevRes?.[0]?.total_sales || 0);
         const prevOur = parseFloat(prevRes?.[0]?.our_sales || 0);
+        let prevTotal = parseFloat(prevRes?.[0]?.total_sales || 0);
+        if (isDanoneDb()) {
+            const prevAllOwn = parseFloat(prevRes?.[0]?.all_own_sales || 0);
+            const otherOwnSalesPrev = prevAllOwn - prevOur;
+            prevTotal = prevTotal - otherOwnSalesPrev;
+        }
         const prevShare = prevTotal > 0 ? (prevOur / prevTotal) * 100 : null;
 
         const delta = (share !== null && prevShare !== null) ? share - prevShare : null;
 
         const trendMap = {};
         trendRes.forEach(t => {
-            const tTotal = parseFloat(t.total_sales || 0);
             const tOur = parseFloat(t.our_sales || 0);
+            let tTotal = parseFloat(t.total_sales || 0);
+            if (isDanoneDb()) {
+                const tAllOwn = parseFloat(t.all_own_sales || 0);
+                const otherOwn = tAllOwn - tOur;
+                tTotal = tTotal - otherOwn;
+            }
             trendMap[t.date_group] = tTotal > 0 ? (tOur / tTotal) * 100 : 0;
         });
 
@@ -1464,7 +1616,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
 
         const groupBrandCol = isMamaearth ? 'ms.group_brand' : 'group_brand';
 
-        // Get total category sales for denominator (including brand & sub-brand filters when applied)
+        // Total category sales for denominator MUST be category-wide (without brand/sub-brand filters)
         const totalSalesQuery = `
             SELECT SUM(toFloat64OrZero(toString(${isMamaearth ? 'ms.sales' : 'sales'}))) as total_sales
             FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
@@ -1472,9 +1624,6 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${startStr}' AND '${endStr}'
             ${platformCond} ${locationCond}
             ${subCatCond}
-            ${brandCond}
-            ${globalBrandCond}
-            ${globalSubBrandCond}
         `;
 
         const prevTotalSalesQuery = `
@@ -1484,9 +1633,6 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
             ${platformCond} ${locationCond}
             ${subCatCond}
-            ${brandCond}
-            ${globalBrandCond}
-            ${globalSubBrandCond}
         `;
 
         // 2. Current period brand KPIs
@@ -1630,20 +1776,35 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             prevSOSMap.set(String(r.brand).toLowerCase().trim(), { overallSov, paidSov });
         });
 
-        // Build previous-period lookup
+        // Build total Danone own brands sales across entire category/platform/location
         let allDanoneCurrSales = 0;
         let allDanonePrevSales = 0;
         if (isDanoneDb()) {
-            currentResults.forEach(r => {
-                if (DANONE_OWN_BRANDS.includes(String(r.brand || '').toLowerCase().trim())) {
-                    allDanoneCurrSales += parseFloat(r.total_sales || 0);
-                }
-            });
-            prevResults.forEach(r => {
-                if (DANONE_OWN_BRANDS.includes(String(r.brand || '').toLowerCase().trim())) {
-                    allDanonePrevSales += parseFloat(r.total_sales || 0);
-                }
-            });
+            const ownBrandsSql = DANONE_OWN_BRANDS.map(b => `'${b}'`).join(', ');
+            const currDanoneSalesQuery = `
+                SELECT SUM(toFloat64OrZero(toString(${isMamaearth ? 'ms.sales' : 'sales'}))) as own_sales
+                FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
+                ${subCatJoin}
+                WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${startStr}' AND '${endStr}'
+                ${platformCond} ${locationCond}
+                ${subCatCond}
+                AND lower(${groupBrandCol}) IN (${ownBrandsSql})
+            `;
+            const prevDanoneSalesQuery = `
+                SELECT SUM(toFloat64OrZero(toString(${isMamaearth ? 'ms.sales' : 'sales'}))) as own_sales
+                FROM rb_ms_olap ${isMamaearth ? 'as ms' : ''}
+                ${subCatJoin}
+                WHERE toDate(${isMamaearth ? 'ms.created_on' : 'created_on'}) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+                ${platformCond} ${locationCond}
+                ${subCatCond}
+                AND lower(${groupBrandCol}) IN (${ownBrandsSql})
+            `;
+            const [danoneCurrRes, danonePrevRes] = await Promise.all([
+                queryClickHouse(currDanoneSalesQuery),
+                queryClickHouse(prevDanoneSalesQuery)
+            ]);
+            allDanoneCurrSales = parseFloat(danoneCurrRes?.[0]?.own_sales || 0);
+            allDanonePrevSales = parseFloat(danonePrevRes?.[0]?.own_sales || 0);
         }
 
         const prevMap = new Map();
@@ -2617,16 +2778,29 @@ export const getMarketShareCompetition = async (period, startDate, endDate, plat
         let allDanoneCurrSales = 0;
         let allDanonePrevSales = 0;
         if (isDanoneDb()) {
-            currRows.forEach(r => {
-                if (DANONE_OWN_BRANDS.includes(String(r.brand_name || '').toLowerCase().trim())) {
-                    allDanoneCurrSales += parseFloat(r.total_sales || 0);
-                }
-            });
-            prevRows.forEach(r => {
-                if (DANONE_OWN_BRANDS.includes(String(r.brand_name || '').toLowerCase().trim())) {
-                    allDanonePrevSales += parseFloat(r.total_sales || 0);
-                }
-            });
+            const ownBrandsSql = DANONE_OWN_BRANDS.map(b => `'${b}'`).join(', ');
+            const currDanoneQuery = `
+                SELECT SUM(toFloat64OrZero(toString(ms.sales))) as own_sales
+                FROM rb_ms_olap as ms
+                ${subCat.join}
+                WHERE toDate(ms.created_on) BETWEEN '${startStr}' AND '${endStr}'
+                ${denomCond} ${subCat.where}
+                AND lower(ms.group_brand) IN (${ownBrandsSql})
+            `;
+            const prevDanoneQuery = `
+                SELECT SUM(toFloat64OrZero(toString(ms.sales))) as own_sales
+                FROM rb_ms_olap as ms
+                ${subCat.join}
+                WHERE toDate(ms.created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+                ${denomCond} ${subCat.where}
+                AND lower(ms.group_brand) IN (${ownBrandsSql})
+            `;
+            const [currOwnRes, prevOwnRes] = await Promise.all([
+                queryClickHouse(currDanoneQuery),
+                queryClickHouse(prevDanoneQuery)
+            ]);
+            allDanoneCurrSales = parseFloat(currOwnRes?.[0]?.own_sales || 0);
+            allDanonePrevSales = parseFloat(prevOwnRes?.[0]?.own_sales || 0);
         }
 
         const brands = currRows.map(curr => {

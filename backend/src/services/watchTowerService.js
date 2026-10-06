@@ -5739,6 +5739,7 @@ const getPlatformOverview = async (filters) => {
     const rawCategory = filters['category[]'] || filters.category;
     const rawPlatform = filters['platform[]'] || filters.platform;
     const rawSubBrand = filters['subBrand[]'] || filters.subBrand || filters['sub_brand[]'] || filters.sub_brand;
+    const rawSubCategory = filters['subCategory[]'] || filters.subCategory || filters['sub_category[]'] || filters.sub_category;
 
     // Normalize multi-value filters using the core helper
     const brandArr = normalizeFilterArray(rawBrand);
@@ -6962,7 +6963,7 @@ const getPlatformOverview = async (filters) => {
         const totalOrders = hasPm ? (metrics.curr.orders || 0) : null;
 
         // Hardcode Market Share values as requested by user
-        let marketShare = hasTier23 ? null : await getMarketShare(startDate, endDate, p.label, rawCategory, null, locationArr, channel);
+        let marketShare = hasTier23 ? null : await getMarketShare(startDate, endDate, p.label, rawCategory, rawBrand, locationArr, channel, rawSubCategory, rawSubBrand);
 
         console.log(`[getPlatformOverview] DEBUG MS - Platform: ${p.label}, key: ${key}, hasMsCheck: ${hasMsCheck}, marketShare: ${marketShare}, currMsMap.has(key): ${currMsMap.has(key)}, currMsDenomMap.has(key): ${currMsDenomMap.has(key)}`);
 
@@ -7002,7 +7003,7 @@ const getPlatformOverview = async (filters) => {
         const prevClicks = prevHasPm ? (metrics.prev.clicks || 0) : null;
         const prevOrders = prevHasPm ? (metrics.prev.orders || 0) : null;
 
-        let prevMarketShare = hasTier23 ? null : await getMarketShare(momStart, momEnd, p.label, rawCategory, null, locationArr, channel);
+        let prevMarketShare = hasTier23 ? null : await getMarketShare(momStart, momEnd, p.label, rawCategory, rawBrand, locationArr, channel, rawSubCategory, rawSubBrand);
         const prevSos = prevHasSosCheck ? (metrics.prev.sos ?? null) : null;
         const prevAdSov = prevHasSosCheck ? (metrics.prev.adSov ?? null) : null;
         const prevOrganicSov = prevHasSosCheck ? (metrics.prev.organicSov ?? null) : null;
