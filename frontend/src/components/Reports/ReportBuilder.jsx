@@ -333,7 +333,7 @@ export default function ReportBuilder({
   }, [platforms, allTags]);
 
   const totalTags = allTags.length;
-  const onTags = useMemo(() => allTags.filter(t => tagOn[t] && availableKpis.has(t)).length, [allTags, tagOn, availableKpis]);
+  const onTags = useMemo(() => allTags.filter(t => tagOn[t] !== false && availableKpis.has(t)).length, [allTags, tagOn, availableKpis]);
 
   // ── Date range state ──
   const [startDate, setStartDate] = useState(customDateRange?.startDate || dayjs().subtract(30, 'day'));
@@ -390,7 +390,7 @@ export default function ReportBuilder({
 
     // Pass latest values to parent directly to avoid React state timing bugs
     // Only send KPIs that are both selected AND available for the chosen platforms
-    const activeTags = allTags.filter(t => tagOn[t] && availableKpis.has(t)).join(",");
+    const activeTags = allTags.filter(t => tagOn[t] !== false && availableKpis.has(t)).join(",");
     const activeDimensions = filters.join(",");
     const customDates = {
       start: dayjs(startDate).format("YYYY-MM-DD"),
@@ -775,20 +775,20 @@ export default function ReportBuilder({
                         <Button
                           onClick={() => {
                             const availableTags = allTags.filter(t => availableKpis.has(t));
-                            const allOn = availableTags.every(t => tagOn[t]);
+                            const allOn = availableTags.every(t => tagOn[t] !== false);
                             const next = {};
                             availableTags.forEach(t => { next[t] = !allOn; });
                             setTagOn(prev => ({ ...prev, ...next }));
                           }}
                           sx={{ textTransform: "none", fontSize: 13, fontWeight: 700, px: 1.5, py: 0.5 }}
                         >
-                          {allTags.filter(t => availableKpis.has(t)).every(t => tagOn[t]) ? "Deselect All" : "Select All"}
+                          {allTags.filter(t => availableKpis.has(t)).every(t => tagOn[t] !== false) ? "Deselect All" : "Select All"}
                         </Button>
                       </Box>
                       <Box sx={{ px: 2.5, py: 3, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                         {allTags.map(tag => {
                           const isAvailable = availableKpis.has(tag);
-                          const isOn = tagOn[tag] && isAvailable;
+                          const isOn = tagOn[tag] !== false && isAvailable;
                           return (
                             <Chip
                               key={tag}
@@ -802,7 +802,7 @@ export default function ReportBuilder({
                                   )}
                                 </Box>
                               }
-                              onClick={isAvailable ? () => setTagOn(prev => ({ ...prev, [tag]: !prev[tag] })) : undefined}
+                              onClick={isAvailable ? () => setTagOn(prev => ({ ...prev, [tag]: (prev[tag] === false) })) : undefined}
                               sx={{
                                 borderRadius: '8px',
                                 fontWeight: 500,
@@ -897,7 +897,7 @@ export default function ReportBuilder({
                       <Box component="span" sx={{ display: "flex", fontSize: 14 }}>{m.icon}</Box> {m.label}
                     </Typography>
                     <Typography sx={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: "#94A3B8" }}>
-                      {m.tags.filter(t => tagOn[t] && availableKpis.has(t)).length}/{m.tags.filter(t => availableKpis.has(t)).length}
+                      {m.tags.filter(t => tagOn[t] !== false && availableKpis.has(t)).length}/{m.tags.filter(t => availableKpis.has(t)).length}
                     </Typography>
                   </Box>
                 ))}
