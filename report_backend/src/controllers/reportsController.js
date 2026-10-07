@@ -545,6 +545,8 @@ export const downloadReport = async (req, res) => {
             checkTableExists('rb_kw_olap'),
             checkTableExists('rb_location_darkstore'),
         ]);
+        const granTime = req.query.granularityTime || 'Daily';
+        const daysInGran = granTime === "Monthly" ? 30.0 : (granTime === "Weekly" ? 7.0 : 1.0);
 
         if (reportType === "Availability Analysis") {
             const sosCte = hasKwOlap ? `
@@ -574,7 +576,7 @@ export const downloadReport = async (req, res) => {
                     SELECT DISTINCT location, is_metro FROM rb_location_darkstore WHERE location IS NOT NULL AND location != ''
                 ) m ON lower(t.Location) = lower(m.location)` : '';
 
-            const metroCol = hasLocationDarkstore ? `round(SUM(if(m.is_metro = 1, toFloat64(t.${col('neno_osa')}), 0)) / nullIf(SUM(if(m.is_metro = 1, toFloat64(t.${col('deno_osa')}), 0)), 0) * 100, 2) as Metro_City_Stock_Availability` : `0 as Metro_City_Stock_Availability`;
+            const metroCol = hasLocationDarkstore ? `round(SUM(if(m.is_metro = 1, toFloat64(t.${col('neno_osa')}), 0)) / nullIf(SUM(if(m.is_metro = 1, toFloat64(t.${col('deno_osa')})), 0)), 0) * 100, 2) as Metro_City_Stock_Availability` : `0 as Metro_City_Stock_Availability`;
 
             query = `
                 ${sosCte}
@@ -591,6 +593,8 @@ export const downloadReport = async (req, res) => {
                     round(SUM(toFloat64(t.${col('neno_buy_box')})) / nullIf(SUM(toFloat64(t.${col('deno_buy_box')})), 0) * 100, 2) as Buy_Box_Percentage,
                     round((1 - (SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0))) * 100, 2) as Stock_Out_Percentage,
                     round(SUM(toFloat64(t.${col('deno_listing')}) - toFloat64(t.${col('neno_listing')})) / nullIf(SUM(toFloat64(t.${col('deno_listing')})), 0) * 100, 2) as DOI,
+                    SUM(toFloat64(t.${col('Inventory')})) as SOH,
+                    round(SUM(assumeNotNull(t.${col('Qty_Sold')})) / ${daysInGran}, 2) as DRR,
                     round(SUM(toFloat64(t.${col('neno_listing')})) / nullIf(SUM(toFloat64(t.${col('deno_listing')})), 0) * 100, 2) as Listing_Percentage,
                     round(SUM(toFloat64(t.${col('neno_psl')})) / nullIf(SUM(toFloat64(t.${col('deno_psl')})), 0) * 100, 2) as PSL,
                     SUM(toFloat64(t.${col('Assortment')})) as Assortment,
@@ -639,6 +643,8 @@ export const downloadReport = async (req, res) => {
                     round(AVG(toFloat64(${col('Discount_Percentage')})), 2) as Discount_Percentage,
                     round(AVG(toFloat64(${col('RPI')})), 2) as RPI,
                     SUM(toFloat64(${col('Current_Inventory')})) as Current_Inventory,
+                    SUM(toFloat64(${col('Inventory')})) as SOH,
+                    round(SUM(assumeNotNull(${col('Qty_Sold')})) / ${daysInGran}, 2) as DRR,
                     SUM(toFloat64(${col('Target_Inventory')})) as Target_Inventory
                 FROM rb_pdp_olap
                 ${whereClause}
@@ -664,7 +670,7 @@ export const downloadReport = async (req, res) => {
 
 
         let finalData = rawData;
-        if (reportType === "Master Dump" && req.query.metrics) {
+        if (req.query.metrics) {
             const requestedTags = req.query.metrics.split(',');
             const TAG_MAP = {
                 "Offtake": "Offtake",
@@ -681,6 +687,11 @@ export const downloadReport = async (req, res) => {
                 "PSL": "PSL",
                 "Assortment": "Assortment",
                 "Metro City Stock Availability": "Metro_City_Stock_Availability",
+                "SOH": "SOH",
+                "Stock On Hand": "SOH",
+                "DRR": "DRR",
+                "Current DRR": "DRR",
+                "Daily Run Rate": "DRR",
                 "Impressions": "Impressions",
                 "Clicks": "Clicks",
                 "Spend": "Spend",
