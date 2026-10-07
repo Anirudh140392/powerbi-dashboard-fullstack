@@ -1998,7 +1998,7 @@ function AvailabilityFilterModal({
               const filtered = res.data.filter(val => {
                 if (!val) return false;
                 const s = String(val).trim().toLowerCase();
-                return validSet.has(s) && !['0', 'null', 'none', 'non pds', 'non-pds', 'non_pds'].includes(s);
+                return validSet.has(s);
               });
               const formatted = filtered.map(v => {
                 const s = String(v).trim();
@@ -3190,7 +3190,7 @@ function PricingFilterModal({
               const filtered = res.data.filter(val => {
                 if (!val) return false;
                 const s = String(val).trim().toLowerCase();
-                return validSet.has(s) && !['0', 'null', 'none', 'non pds', 'non-pds', 'non_pds'].includes(s);
+                return validSet.has(s);
               });
               const formatted = filtered.map(v => {
                 const s = String(v).trim();
@@ -4049,9 +4049,48 @@ function InventoryFilterModal({
   brands, selectedBrand, setSelectedBrand,
   locations, selectedLocation, setSelectedLocation,
   msls = [], selectedMsl, setSelectedMsl,
+  productTypes = [], selectedProductType = "All", setSelectedProductType,
   hideChannel = false,
 }) {
-  const availableTabs = hideChannel ? INVENTORY_FILTER_TABS.filter(t => t.key !== "channel") : INVENTORY_FILTER_TABS;
+  const isDrlUser = React.useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      return u?.dbName?.toLowerCase() === 'drl';
+    } catch (e) {
+      return false;
+    }
+  }, []);
+
+  const isMarsUser = React.useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      const db = u?.dbName?.toLowerCase();
+      return db === 'mars' || db === 'mars_petcare' || db === 'mars_dmart' || db?.includes('mars');
+    } catch (e) {
+      return false;
+    }
+  }, []);
+
+  const [draftProductType, setDraftProductType] = React.useState(selectedProductType);
+  const [localProductTypes, setLocalProductTypes] = React.useState(productTypes && productTypes.length > 0 ? productTypes : ["Silver", "Bronze", "Gold"]);
+
+  const baseTabs = hideChannel ? INVENTORY_FILTER_TABS.filter(t => t.key !== "channel") : INVENTORY_FILTER_TABS;
+  const availableTabs = React.useMemo(() => {
+    let nextTabs = [...baseTabs];
+    if (!isDrlUser) {
+      nextTabs = nextTabs.filter(t => t.key !== "sapCode");
+    }
+    if (isMarsUser) {
+      const catIdx = nextTabs.findIndex(t => t.key === "category");
+      if (catIdx !== -1) {
+        nextTabs.splice(catIdx + 1, 0, { key: "productType", label: "Product Type", icon: Tag });
+      } else {
+        nextTabs.push({ key: "productType", label: "Product Type", icon: Tag });
+      }
+    }
+    return nextTabs;
+  }, [baseTabs, isMarsUser, isDrlUser]);
+
   const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
@@ -4073,6 +4112,7 @@ function InventoryFilterModal({
       setDraftChannel(selectedChannel);
       setDraftPlatform(platform);
       setDraftCategory(selectedCategory);
+      setDraftProductType(selectedProductType);
       setDraftBrand(selectedBrand);
       setDraftLocation(selectedLocation);
       setDraftMsl(selectedMsl);
@@ -4089,12 +4129,39 @@ function InventoryFilterModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, hideChannel]);
 
+  React.useEffect(() => {
+    if (open && isMarsUser) {
+      axiosInstance.get("/watchtower/product-categories")
+        .then(res => {
+          if (res.data && Array.isArray(res.data)) {
+            const validSet = new Set(['silver', 'bronze', 'gold']);
+            const filtered = res.data.filter(val => {
+              if (!val) return false;
+              const s = String(val).trim().toLowerCase();
+              return validSet.has(s);
+            });
+            const formatted = filtered.map(v => {
+              const s = String(v).trim();
+              return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+            });
+            const uniqueTypes = [...new Set(formatted)];
+            const finalTypes = uniqueTypes.length > 0 ? uniqueTypes : ["Silver", "Bronze", "Gold"];
+            setLocalProductTypes(finalTypes);
+          }
+        })
+        .catch(() => {
+          setLocalProductTypes(["Silver", "Bronze", "Gold"]);
+        });
+    }
+  }, [open, isMarsUser]);
+
   // CASCADE: Channel -> Platforms
   React.useEffect(() => {
     if (!open) return;
     const channelParam = draftChannel === "All" ? undefined : (Array.isArray(draftChannel) ? draftChannel.join(",") : draftChannel);
+    const productTypeParam = draftProductType === "All" ? undefined : (Array.isArray(draftProductType) ? draftProductType.join(",") : draftProductType);
 
-    axiosInstance.get("/inventory-analysis/platforms", { params: { channel: channelParam } })
+    axiosInstance.get("/inventory-analysis/platforms", { params: { channel: channelParam, productType: productTypeParam } })
       .then(res => {
         if (res.data && Array.isArray(res.data) && res.data.length > 0) {
           setLocalPlatforms(res.data);
@@ -4108,14 +4175,15 @@ function InventoryFilterModal({
         }
       })
       .catch(() => { });
-  }, [draftChannel, open]);
+  }, [draftChannel, draftProductType, open]);
 
   // CASCADE: Platform -> Categories
   React.useEffect(() => {
     if (!open) return;
     const platformParam = draftPlatform === "All" ? undefined : (Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform);
+    const productTypeParam = draftProductType === "All" ? undefined : (Array.isArray(draftProductType) ? draftProductType.join(",") : draftProductType);
 
-    axiosInstance.get("/inventory-analysis/categories", { params: { platform: platformParam } })
+    axiosInstance.get("/inventory-analysis/categories", { params: { platform: platformParam, productType: productTypeParam } })
       .then(res => {
         if (res.data && Array.isArray(res.data) && res.data.length > 0) {
           setLocalCategories(res.data);
@@ -4129,15 +4197,16 @@ function InventoryFilterModal({
         }
       })
       .catch(() => { });
-  }, [draftPlatform, open]);
+  }, [draftPlatform, draftProductType, open]);
 
   // CASCADE: Category -> Brands
   React.useEffect(() => {
     if (!open) return;
     const platformParam = draftPlatform === "All" ? undefined : (Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform);
     const categoryParam = draftCategory === "All" ? undefined : (Array.isArray(draftCategory) ? draftCategory.join(",") : draftCategory);
+    const productTypeParam = draftProductType === "All" ? undefined : (Array.isArray(draftProductType) ? draftProductType.join(",") : draftProductType);
 
-    axiosInstance.get("/inventory-analysis/brands", { params: { platform: platformParam, category: categoryParam } })
+    axiosInstance.get("/inventory-analysis/brands", { params: { platform: platformParam, category: categoryParam, productType: productTypeParam } })
       .then(res => {
         if (res.data && Array.isArray(res.data) && res.data.length > 0) {
           setLocalBrands(res.data);
@@ -4151,7 +4220,7 @@ function InventoryFilterModal({
         }
       })
       .catch(() => { });
-  }, [draftCategory, draftPlatform, open]);
+  }, [draftCategory, draftPlatform, draftProductType, open]);
 
   // CASCADE: Brand -> Locations
   React.useEffect(() => {
@@ -4159,8 +4228,9 @@ function InventoryFilterModal({
     const platformParam = draftPlatform === "All" ? undefined : (Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform);
     const categoryParam = draftCategory === "All" ? undefined : (Array.isArray(draftCategory) ? draftCategory.join(",") : draftCategory);
     const brandParam = draftBrand === "All" ? undefined : (Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand);
+    const productTypeParam = draftProductType === "All" ? undefined : (Array.isArray(draftProductType) ? draftProductType.join(",") : draftProductType);
 
-    axiosInstance.get("/inventory-analysis/locations", { params: { platform: platformParam, brand: brandParam, category: categoryParam } })
+    axiosInstance.get("/inventory-analysis/locations", { params: { platform: platformParam, brand: brandParam, category: categoryParam, productType: productTypeParam } })
       .then(res => {
         if (res.data && Array.isArray(res.data) && res.data.length > 0) {
           setLocalLocations(res.data);
@@ -4174,7 +4244,7 @@ function InventoryFilterModal({
         }
       })
       .catch(() => { });
-  }, [draftBrand, draftCategory, draftPlatform, open]);
+  }, [draftBrand, draftCategory, draftPlatform, draftProductType, open]);
 
   // CASCADE: Location -> MSLs
   React.useEffect(() => {
@@ -4183,8 +4253,9 @@ function InventoryFilterModal({
     const categoryParam = draftCategory === "All" ? undefined : (Array.isArray(draftCategory) ? draftCategory.join(",") : draftCategory);
     const brandParam = draftBrand === "All" ? undefined : (Array.isArray(draftBrand) ? draftBrand.join(",") : draftBrand);
     const locationParam = draftLocation === "All" ? undefined : (Array.isArray(draftLocation) ? draftLocation.join(",") : draftLocation);
+    const productTypeParam = draftProductType === "All" ? undefined : (Array.isArray(draftProductType) ? draftProductType.join(",") : draftProductType);
 
-    axiosInstance.get("/inventory-analysis/msls", { params: { platform: platformParam, brand: brandParam, category: categoryParam, location: locationParam } })
+    axiosInstance.get("/inventory-analysis/msls", { params: { platform: platformParam, brand: brandParam, category: categoryParam, location: locationParam, productType: productTypeParam } })
       .then(res => {
         if (res.data && Array.isArray(res.data) && res.data.length > 0) {
           setLocalMsls(res.data);
@@ -4198,7 +4269,7 @@ function InventoryFilterModal({
         }
       })
       .catch(() => { });
-  }, [draftLocation, draftBrand, draftCategory, draftPlatform, open]);
+  }, [draftLocation, draftBrand, draftCategory, draftPlatform, draftProductType, open]);
 
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
 
@@ -4206,6 +4277,7 @@ function InventoryFilterModal({
     channel: { options: channels, value: draftChannel, onChange: setDraftChannel },
     platform: { options: localPlatforms, value: draftPlatform, onChange: setDraftPlatform },
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
+    productType: { options: localProductTypes && localProductTypes.length > 0 ? localProductTypes : ["Silver", "Bronze", "Gold"], value: draftProductType, onChange: setDraftProductType },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
     msl: { options: localMsls, value: draftMsl, onChange: setDraftMsl },
@@ -4242,8 +4314,8 @@ function InventoryFilterModal({
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
-    const v = cfg.value;
-    const opts = cfg.options;
+    const v = cfg ? cfg.value : undefined;
+    const opts = cfg ? cfg.options : undefined;
     if (v === "All" || (Array.isArray(v) && v.includes("All"))) return 0;
     if (Array.isArray(v) && v.length === (opts || []).length && (opts || []).length > 0) return 0;
     if (Array.isArray(v)) return v.length;
@@ -4255,6 +4327,7 @@ function InventoryFilterModal({
     setSelectedChannel(draftChannel);
     setPlatform(draftPlatform);
     setSelectedCategory(draftCategory);
+    if (setSelectedProductType) setSelectedProductType(draftProductType);
     setSelectedBrand(draftBrand);
     setSelectedLocation(draftLocation);
     if (setSelectedMsl) setSelectedMsl(draftMsl);
@@ -4269,6 +4342,7 @@ function InventoryFilterModal({
       setDraftPlatform("All");
     }
     setDraftCategory("All");
+    setDraftProductType("All");
     setDraftBrand("All");
     setDraftLocation("All");
     setDraftMsl("All");
@@ -5247,6 +5321,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       msls={msls}
                       selectedMsl={selectedMsl}
                       setSelectedMsl={setSelectedMsl}
+                      productTypes={productTypes}
+                      selectedProductType={selectedProductType}
+                      setSelectedProductType={setSelectedProductType}
                       hideChannel={true}
                     />
                   )}

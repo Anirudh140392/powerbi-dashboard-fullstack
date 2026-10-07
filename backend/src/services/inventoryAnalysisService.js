@@ -109,6 +109,11 @@ const inventoryAnalysisService = {
                         }
                     }
 
+                    if (filters.productType && filters.productType !== 'All') {
+                        const pTypes = filters.productType.split(',').map(p => p.trim().toLowerCase());
+                        where += ` AND lower(trim(BOTH '\t\n ' FROM toString(Product_type))) IN (${pTypes.map(p => `'${p}'`).join(',')})`;
+                    }
+
                     return where;
                 };
 
@@ -272,14 +277,18 @@ const inventoryAnalysisService = {
     /**
      * Get available platforms for filter dropdown
      */
-    async getPlatforms(channel) {
-        const cacheKey = generateCacheKey('inventory_platforms_v3', { channel });
+    async getPlatforms(channel, productType) {
+        const cacheKey = generateCacheKey('inventory_platforms_v3', { channel, productType });
         return await getCachedOrCompute(cacheKey, async () => {
             try {
                 let query = `SELECT DISTINCT Platform as platform FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' AND Comp_flag = 0`;
                 if (channel && channel !== 'All') {
                     const channels = channel.split(',').map(c => c.trim());
                     query += ` AND channel IN (${channels.map(c => `'${c}'`).join(',')})`;
+                }
+                if (productType && productType !== 'All') {
+                    const pTypes = productType.split(',').map(p => p.trim().toLowerCase());
+                    query += ` AND lower(trim(BOTH '\t\n ' FROM toString(Product_type))) IN (${pTypes.map(p => `'${p}'`).join(',')})`;
                 }
                 query += ` ORDER BY platform ASC`;
                 const results = await queryClickHouse(query);
@@ -294,8 +303,8 @@ const inventoryAnalysisService = {
     /**
      * Get available categories for filter dropdown
      */
-    async getCategories(channel, platform) {
-        const cacheKey = generateCacheKey('inventory_categories_v3', { channel, platform });
+    async getCategories(channel, platform, productType) {
+        const cacheKey = generateCacheKey('inventory_categories_v3', { channel, platform, productType });
         return await getCachedOrCompute(cacheKey, async () => {
             try {
                 let query = `SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE Category IS NOT NULL AND Category != '' AND Comp_flag = 0`;
@@ -306,6 +315,10 @@ const inventoryAnalysisService = {
                 if (platform && platform !== 'All') {
                     const platforms = platform.split(',').map(p => p.trim());
                     query += ` AND Platform IN (${platforms.map(p => `'${p}'`).join(',')})`;
+                }
+                if (productType && productType !== 'All') {
+                    const pTypes = productType.split(',').map(p => p.trim().toLowerCase());
+                    query += ` AND lower(trim(BOTH '\t\n ' FROM toString(Product_type))) IN (${pTypes.map(p => `'${p}'`).join(',')})`;
                 }
                 query += ` ORDER BY category ASC`;
                 const results = await queryClickHouse(query);
@@ -320,8 +333,8 @@ const inventoryAnalysisService = {
     /**
      * Get available brands for filter dropdown
      */
-    async getBrands(channel, platform, category) {
-        const cacheKey = generateCacheKey('inventory_brands_v4', { channel, platform, category });
+    async getBrands(channel, platform, category, productType) {
+        const cacheKey = generateCacheKey('inventory_brands_v4', { channel, platform, category, productType });
         return await getCachedOrCompute(cacheKey, async () => {
             try {
                 let query = `SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE Brand IS NOT NULL AND Brand != '' AND Comp_flag = 0`;
@@ -337,6 +350,10 @@ const inventoryAnalysisService = {
                     const categories = category.split(',').map(c => c.trim());
                     query += ` AND Category IN (${categories.map(c => `'${c}'`).join(',')})`;
                 }
+                if (productType && productType !== 'All') {
+                    const pTypes = productType.split(',').map(p => p.trim().toLowerCase());
+                    query += ` AND lower(trim(BOTH '\t\n ' FROM toString(Product_type))) IN (${pTypes.map(p => `'${p}'`).join(',')})`;
+                }
                 query += ` ORDER BY brand ASC`;
                 const results = await queryClickHouse(query);
                 return results.map(b => b.brand);
@@ -350,8 +367,8 @@ const inventoryAnalysisService = {
     /**
      * Get available locations for filter dropdown
      */
-    async getLocations(channel, platform, brand, category) {
-        const cacheKey = generateCacheKey('inventory_locations_v3', { channel, platform, brand, category });
+    async getLocations(channel, platform, brand, category, productType) {
+        const cacheKey = generateCacheKey('inventory_locations_v3', { channel, platform, brand, category, productType });
         return await getCachedOrCompute(cacheKey, async () => {
             try {
                 let query = `SELECT DISTINCT Location as location FROM rb_pdp_olap WHERE Location IS NOT NULL AND Location != '' AND Comp_flag = 0`;
@@ -371,6 +388,10 @@ const inventoryAnalysisService = {
                     const brands = brand.split(',').map(b => b.trim());
                     query += ` AND Brand IN (${brands.map(b => `'${b}'`).join(',')})`;
                 }
+                if (productType && productType !== 'All') {
+                    const pTypes = productType.split(',').map(p => p.trim().toLowerCase());
+                    query += ` AND lower(trim(BOTH '\t\n ' FROM toString(Product_type))) IN (${pTypes.map(p => `'${p}'`).join(',')})`;
+                }
                 query += ` ORDER BY location ASC`;
                 const results = await queryClickHouse(query);
                 return results.map(l => l.location);
@@ -384,8 +405,8 @@ const inventoryAnalysisService = {
     /**
      * Get available MSL values for filter dropdown
      */
-    async getMsls(channel, platform, category, brand, location) {
-        const cacheKey = generateCacheKey('inventory_msls_v1', { channel, platform, category, brand, location });
+    async getMsls(channel, platform, category, brand, location, productType) {
+        const cacheKey = generateCacheKey('inventory_msls_v1', { channel, platform, category, brand, location, productType });
         return await getCachedOrCompute(cacheKey, async () => {
             try {
                 let query = `SELECT DISTINCT toString(msl) as msl FROM rb_pdp_olap WHERE msl IS NOT NULL AND toString(msl) != '' AND Comp_flag = 0`;
@@ -408,6 +429,10 @@ const inventoryAnalysisService = {
                 if (location && location !== 'All') {
                     const locations = location.split(',').map(l => l.trim());
                     query += ` AND Location IN (${locations.map(l => `'${l}'`).join(',')})`;
+                }
+                if (productType && productType !== 'All') {
+                    const pTypes = productType.split(',').map(p => p.trim().toLowerCase());
+                    query += ` AND lower(trim(BOTH '\t\n ' FROM toString(Product_type))) IN (${pTypes.map(p => `'${p}'`).join(',')})`;
                 }
                 query += ` ORDER BY msl ASC`;
                 const results = await queryClickHouse(query);
@@ -463,6 +488,10 @@ const inventoryAnalysisService = {
                             where += ` AND toString(msl) = '1'`;
                         }
                     }
+                    if (filters.productType && filters.productType !== 'All') {
+                        const pTypes = filters.productType.split(',').map(p => p.trim().toLowerCase());
+                        where += ` AND lower(trim(BOTH '\t\n ' FROM toString(Product_type))) IN (${pTypes.map(p => `'${p}'`).join(',')})`;
+                    }
                     return where;
                 };
 
@@ -470,7 +499,7 @@ const inventoryAnalysisService = {
                 const catCol = 'Category';
 
                 let sqlWhere = buildSqlWhere(startDate, endDate);
-                const metadata = await getFilterMetadata(`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`);
+                const metadata = await getFilterMetadata(sqlWhere);
 
                 const matrixQuery = `
                     SELECT 
@@ -546,13 +575,17 @@ const inventoryAnalysisService = {
                             where += ` AND toString(msl) = '1'`;
                         }
                     }
+                    if (filters.productType && filters.productType !== 'All') {
+                        const pTypes = filters.productType.split(',').map(p => p.trim().toLowerCase());
+                        where += ` AND lower(trim(BOTH '\t\n ' FROM toString(Product_type))) IN (${pTypes.map(p => `'${p}'`).join(',')})`;
+                    }
                     return where;
                 };
 
                 const catCol = 'Category';
 
                 let sqlWhere = buildSqlWhere(startDate, endDate);
-                const metadata = await getFilterMetadata(`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`);
+                const metadata = await getFilterMetadata(sqlWhere);
 
                 const matrixQuery = `
                     SELECT 

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useContext } from "react";
 import { FilterContext } from "@/utils/FilterContext";
 
 export default function InventeryConceptMains() {
-  const { refreshFilters, platform } = useContext(FilterContext);
+  const { refreshFilters, platform, selectedProductType } = useContext(FilterContext);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)
@@ -18,6 +18,7 @@ export default function InventeryConceptMains() {
 
   const [filters, setFilters] = useState({
     platform: platform || "",
+    productType: selectedProductType || "All",
     months: 6,
     timeStep: "Monthly",
   });
@@ -26,12 +27,21 @@ export default function InventeryConceptMains() {
     months: 6,
     timeStep: "Monthly",
     platform: platform || "",
+    productType: selectedProductType || "All",
   });
 
   useEffect(() => {
-    setFilters(prev => ({ ...prev, platform: platform || prev.platform }));
-    setTrendParams(prev => ({ ...prev, platform: platform || prev.platform }));
-  }, [platform]);
+    setFilters(prev => ({ 
+      ...prev, 
+      platform: platform || prev.platform,
+      productType: selectedProductType || prev.productType || "All"
+    }));
+    setTrendParams(prev => ({ 
+      ...prev, 
+      platform: platform || prev.platform,
+      productType: selectedProductType || prev.productType || "All"
+    }));
+  }, [platform, selectedProductType]);
 
   const [trendData, setTrendData] = useState({
     timeSeries: [],
