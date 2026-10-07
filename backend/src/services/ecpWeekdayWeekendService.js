@@ -80,6 +80,13 @@ async function getEcpWeekdayWeekend(filters = {}) {
             conditions.push(`toString(msl) = '1'`);
         }
 
+        // Apply Product Type filter (supports multiselect)
+        const ptArr = parseMultiSelectFilter(filters.productType || filters.product_type);
+        if (ptArr) {
+            const escaped = ptArr.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+            conditions.push(`lower(trim(BOTH '\t\n ' FROM toString(Product_type))) IN (${escaped})`);
+        }
+
         const whereClause = conditions.join(' AND ');
 
         // SQL query to calculate average ECP by Brand split by weekday/weekend

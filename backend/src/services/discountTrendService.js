@@ -77,6 +77,13 @@ async function getDiscountByCategory(filters = {}) {
             mslClause = `AND toString(p.msl) = '1'`;
         }
 
+        let productTypeClause = '';
+        const ptArr = parseMultiSelectFilter(filters.productType || filters.product_type);
+        if (ptArr) {
+            const escaped = ptArr.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+            productTypeClause = `AND lower(trim(BOTH '\t\n ' FROM toString(p.Product_type))) IN (${escaped})`;
+        }
+
         const query = `
         SELECT
             p.${catCol} AS Category,
@@ -95,6 +102,7 @@ async function getDiscountByCategory(filters = {}) {
           AND p.${catCol} != ''
           AND p.Platform IS NOT NULL
           ${mslClause}
+          ${productTypeClause}
         GROUP BY p.${catCol}, p.Platform
         ORDER BY p.${catCol}, p.Platform
         `;
@@ -171,10 +179,20 @@ async function getDiscountByBrand(filters = {}) {
             mslClauseNoAlias = `AND toString(msl) = '1'`;
         }
 
+        let productTypeClauseP = '';
+        let productTypeClauseNoAlias = '';
+        const ptArr = parseMultiSelectFilter(filters.productType || filters.product_type);
+        if (ptArr) {
+            const escaped = ptArr.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+            productTypeClauseP = `AND lower(trim(BOTH '\t\n ' FROM toString(p.Product_type))) IN (${escaped})`;
+            productTypeClauseNoAlias = `AND lower(trim(BOTH '\t\n ' FROM toString(Product_type))) IN (${escaped})`;
+        }
+
         const platformQuery = `
             SELECT DISTINCT Platform FROM rb_pdp_olap
             WHERE DATE BETWEEN '${startDate}' AND '${endDate}' AND ${catCol} = '${category}' AND Platform IS NOT NULL
               ${mslClauseNoAlias}
+              ${productTypeClauseNoAlias}
             ORDER BY Platform
         `;
         const platformResults = await queryClickHouse(platformQuery);
@@ -189,6 +207,7 @@ async function getDiscountByBrand(filters = {}) {
               AND Comp_flag = '1'
               AND ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0
               ${mslClauseNoAlias}
+              ${productTypeClauseNoAlias}
             GROUP BY Platform
         )
         SELECT
@@ -203,6 +222,7 @@ async function getDiscountByBrand(filters = {}) {
           AND p.Brand IS NOT NULL
           AND p.Platform IS NOT NULL
           ${mslClauseP}
+          ${productTypeClauseP}
         GROUP BY p.Brand, p.Platform, c.avg_comp_val
         ORDER BY p.Brand, p.Platform
         `;

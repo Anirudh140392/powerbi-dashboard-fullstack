@@ -105,6 +105,13 @@ async function getEcpByBrand(filters = {}) {
                 whereConditions.push(`toString(p.msl) = '1'`);
             }
 
+            // Product Type filter (supports multiselect)
+            const ptArr = parseMultiSelectFilter(filters.productType || filters.product_type);
+            if (ptArr) {
+                const escaped = ptArr.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+                whereConditions.push(`lower(trim(BOTH '\t\n ' FROM toString(p.Product_type))) IN (${escaped})`);
+            }
+
             const whereClause = whereConditions.join(' AND ');
 
             // SQL query to calculate MRP, ECP, and avg gram by Brand

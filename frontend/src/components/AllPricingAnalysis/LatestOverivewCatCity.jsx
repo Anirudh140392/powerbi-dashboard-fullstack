@@ -112,6 +112,7 @@ const LatestOverivewCatCity = ({
         categories: contextCategories,
         locations: contextLocations,
         selectedMsl,
+        selectedProductType,
     } = useContext(FilterContext);
 
     // ✅ Dimension + Tier State
@@ -282,6 +283,12 @@ const LatestOverivewCatCity = ({
                     params.append('msl', mslParam);
                 }
 
+                const productTypeParam = hasMslFilter(selectedProductType) ? toParam(selectedProductType) : null;
+                if (productTypeParam) {
+                    params.append('productType', productTypeParam);
+                    params.append('product_type', productTypeParam);
+                }
+
                 params.append('dimension', dimension);
                 // if (drilldownSku) params.append('sku', drilldownSku); // No longer needed for main list
                 
@@ -313,7 +320,7 @@ const LatestOverivewCatCity = ({
         };
         fetchData();
         return () => { isMounted = false; };
-    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, globalPlatform, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.sapCodes, advancedFilters.sapCode, advancedFilters.grammages, advancedFilters.dateFrom, advancedFilters.dateTo, advancedFilters.msl, selectedMsl]);
+    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, globalPlatform, timeStart, timeEnd, compareStart, compareEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.skus, advancedFilters.sapCodes, advancedFilters.sapCode, advancedFilters.grammages, advancedFilters.dateFrom, advancedFilters.dateTo, advancedFilters.msl, selectedMsl, selectedProductType]);
 
     // Reset pagination when dimension or filters change
     useEffect(() => {

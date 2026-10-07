@@ -77,6 +77,14 @@ async function getBrandDiscountTrend(filters = {}) {
                 mslClause = `AND toString(msl) = '1'`;
             }
 
+            // Build Product Type filter clause
+            let productTypeClause = '';
+            const ptArr = parseMultiSelectFilter(filters.productType || filters.product_type);
+            if (ptArr) {
+                const escaped = ptArr.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+                productTypeClause = `AND lower(trim(BOTH '\t\n ' FROM toString(Product_type))) IN (${escaped})`;
+            }
+
             // SQL query to get monthly average discount by brand
             // Groups by Year-Month and Brand, calculates average discount
             const query = `
@@ -91,6 +99,7 @@ async function getBrandDiscountTrend(filters = {}) {
               AND Brand != ''
               ${platformClause}
               ${mslClause}
+              ${productTypeClause}
             GROUP BY Brand, monthSort, monthLabel
             ORDER BY Brand, monthSort DESC
         `;

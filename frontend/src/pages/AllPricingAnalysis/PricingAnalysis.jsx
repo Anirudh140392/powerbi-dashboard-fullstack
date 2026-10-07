@@ -27,7 +27,9 @@ export default function PricingAnalysis() {
     setSelectedMsl,
     selectedSapCode,
     selectedSubBrand,
-    setSelectedSubBrand
+    setSelectedSubBrand,
+    selectedProductType,
+    setSelectedProductType
   } = useContext(FilterContext);
 
   // Initialize filters from context
@@ -41,6 +43,7 @@ export default function PricingAnalysis() {
     channel: selectedChannel || "Ecommerce",
     msl: selectedMsl || "All",
     sapCode: selectedSapCode || "All",
+    productType: selectedProductType || "All",
     months: 6,
     timeStep: "Monthly",
     startDate: timeStart ? timeStart.format('YYYY-MM-DD') : dayjs().startOf('month').format('YYYY-MM-DD'),
@@ -65,6 +68,9 @@ export default function PricingAnalysis() {
     }
     if (newFilters.subBrand !== undefined && newFilters.subBrand !== selectedSubBrand) {
       setSelectedSubBrand(newFilters.subBrand);
+    }
+    if (newFilters.productType !== undefined && newFilters.productType !== selectedProductType) {
+      setSelectedProductType(newFilters.productType);
     }
     if (newFilters.startDate) {
       const newStart = dayjs(newFilters.startDate);
@@ -93,12 +99,13 @@ export default function PricingAnalysis() {
       channel: selectedChannel || prev.channel,
       msl: selectedMsl || prev.msl,
       sapCode: selectedSapCode || prev.sapCode,
+      productType: selectedProductType || prev.productType,
       startDate: timeStart ? timeStart.format('YYYY-MM-DD') : prev.startDate,
       endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : prev.endDate,
       compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
       compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
     }));
-  }, [platform, selectedBrand, selectedSubBrand, selectedLocation, selectedCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel, selectedMsl, selectedSapCode]);
+  }, [platform, selectedBrand, selectedSubBrand, selectedLocation, selectedCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel, selectedMsl, selectedSapCode, selectedProductType]);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)

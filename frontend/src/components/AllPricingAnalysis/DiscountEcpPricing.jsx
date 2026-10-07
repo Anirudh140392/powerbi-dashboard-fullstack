@@ -6,6 +6,8 @@ import { cn } from '../../lib/utils'
 import { KpiFilterPanel } from "@/components/KpiFilterPanel"
 import axiosInstance from "@/api/axiosInstance"
 
+import { FilterContext } from '@/utils/FilterContext'
+
 const DiscountEcpPricing = ({
     filters,
     selectedBrand,
@@ -14,6 +16,7 @@ const DiscountEcpPricing = ({
     timeStart,
     timeEnd
 }) => {
+    const { selectedProductType } = React.useContext(FilterContext) || {};
     const [apiData, setApiData] = useState([])
     const [brandDataMap, setBrandDataMap] = useState({}) // category -> brands array
     const [loading, setLoading] = useState(false)
@@ -52,6 +55,11 @@ const DiscountEcpPricing = ({
             if (brandFilter && brandFilter !== 'All') params.brand = brandFilter;
             if (selectedLocation && selectedLocation !== 'All') params.city = selectedLocation;
             if (filters?.format && filters.format !== 'All') params.format = filters.format;
+            if (selectedProductType && selectedProductType !== 'All') {
+                const pt = Array.isArray(selectedProductType) ? selectedProductType.join(',') : selectedProductType;
+                params.productType = pt;
+                params.product_type = pt;
+            }
 
             console.log("[DiscountEcpPricing] Fetching categories with params:", params);
             const res = await axiosInstance.get('/pricing-analysis/discount-by-category', { params })
@@ -86,6 +94,11 @@ const DiscountEcpPricing = ({
             if (brandFilter && brandFilter !== 'All') params.brand = brandFilter;
             if (selectedLocation && selectedLocation !== 'All') params.city = selectedLocation;
             if (filters?.format && filters.format !== 'All') params.format = filters.format;
+            if (selectedProductType && selectedProductType !== 'All') {
+                const pt = Array.isArray(selectedProductType) ? selectedProductType.join(',') : selectedProductType;
+                params.productType = pt;
+                params.product_type = pt;
+            }
 
             const res = await axiosInstance.get('/pricing-analysis/discount-by-brand', { params })
             if (res.data?.success) {
@@ -104,7 +117,7 @@ const DiscountEcpPricing = ({
         // Reset brand data when filters or metric changes significantly
         setBrandDataMap({})
         setExpandedRows([])
-    }, [metricType, timeStart, timeEnd, globalPlatform, selectedBrand, selectedLocation, filters?.format])
+    }, [metricType, timeStart, timeEnd, globalPlatform, selectedBrand, selectedLocation, filters?.format, selectedProductType])
 
     // ========================================
     // FILTER STATE & LOGIC

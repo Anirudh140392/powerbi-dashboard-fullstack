@@ -115,6 +115,10 @@ export const FilterProvider = ({ children }) => {
     const [subBrands, setSubBrands] = useState([]);
     const [selectedSubBrand, setSelectedSubBrand] = useState("All");
 
+    // Product Type filter state (for Mars DB Pricing Analysis)
+    const [productTypes, setProductTypes] = useState(["Silver", "Bronze", "Gold"]);
+    const [selectedProductType, setSelectedProductType] = useState("All");
+
     // Priority Action specific filters
     const [paPriority, setPaPriority] = useState("All");
     const [paStatus, setPaStatus] = useState("All");
@@ -174,6 +178,8 @@ export const FilterProvider = ({ children }) => {
             setSelectedSubCategory("All");
             setProductCategories([]);
             setSelectedProductCategory("All");
+            setProductTypes(["Silver", "Bronze", "Gold"]);
+            setSelectedProductType("All");
             setPlatformsFetched(false);
             setVisibilityOwnBrandsOnly(true);
             setVisibilityMode('sos');
@@ -1065,6 +1071,10 @@ export const FilterProvider = ({ children }) => {
             setSapCodes,
             selectedSapCode,
             setSelectedSapCode,
+            productTypes,
+            setProductTypes,
+            selectedProductType,
+            setSelectedProductType,
             paPriority,
             setPaPriority,
             paStatus,

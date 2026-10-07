@@ -234,6 +234,14 @@ const buildSubBrandCondition = (subBrandValue, pdpCols, columnPrefix = 'p.') => 
     return `lower(trim(BOTH '\t\n ' FROM toString(${columnPrefix}${actualSubCol}))) IN (${escaped})`;
 };
 
+const buildProductTypeCondition = (productTypeFilter, pdpCols, columnPrefix = 'p.') => {
+    const items = parseMultiSelectFilter(productTypeFilter);
+    if (!items || items.length === 0) return null;
+    const ptCol = columnExists(pdpCols, 'Product_type') ? resolveColumn(pdpCols, 'Product_type') : (columnExists(pdpCols, 'product_type') ? resolveColumn(pdpCols, 'product_type') : 'Product_type');
+    const escaped = items.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+    return `lower(trim(BOTH '\t\n ' FROM toString(${columnPrefix}${ptCol}))) IN (${escaped})`;
+};
+
 
 /**
  * Get ECP Comparison between two time periods
@@ -310,6 +318,11 @@ async function getEcpComparison(filters = {}) {
             const subBrandCond = buildSubBrandCondition(filters.subBrand || filters.sub_brand, src.cols, 'p.');
             if (subBrandCond) {
                 whereConditions.push(subBrandCond);
+            }
+
+            const productTypeCond = buildProductTypeCondition(filters.productType || filters.product_type, src.cols, 'p.');
+            if (productTypeCond) {
+                whereConditions.push(productTypeCond);
             }
 
             const whereClause = whereConditions.join(' AND ');
@@ -608,6 +621,11 @@ async function getPricingKpis(filters = {}) {
                 whereConditions.push(subBrandCond);
             }
 
+            const productTypeCond = buildProductTypeCondition(filters.productType || filters.product_type, src.cols, 'p.');
+            if (productTypeCond) {
+                whereConditions.push(productTypeCond);
+            }
+
             const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
 
             const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
@@ -835,6 +853,9 @@ async function getPricingInsights(filters = {}) {
 
             const subBrandCond = buildSubBrandCondition(filters.subBrand || filters.sub_brand, src.cols, 'p.');
             if (subBrandCond) whereConditions.push(subBrandCond);
+
+            const productTypeCond = buildProductTypeCondition(filters.productType || filters.product_type, src.cols, 'p.');
+            if (productTypeCond) whereConditions.push(productTypeCond);
 
             const whereClause = whereConditions.join(' AND ');
 
@@ -1125,6 +1146,11 @@ const getDimensionOverview = async (filters = {}) => {
                 whereConditions.push(subBrandCond);
             }
 
+            const productTypeCond = buildProductTypeCondition(filters.productType || filters.product_type, src.cols, 'p.');
+            if (productTypeCond) {
+                whereConditions.push(productTypeCond);
+            }
+
             const whereClauseNoGrammage = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
 
             // ✅ Grammage filter ONLY applies to SKU dimension
@@ -1368,6 +1394,11 @@ const getDimensionTrends = async (filters = {}) => {
             whereConditions.push(subBrandCond);
         }
 
+        const productTypeCond = buildProductTypeCondition(filters.productType || filters.product_type, src.cols, 'p.');
+        if (productTypeCond) {
+            whereConditions.push(productTypeCond);
+        }
+
         if (dimensionValue) {
             whereConditions.push(`lower(${groupByExpr}) = lower('${escapeStr(dimensionValue)}')`);
         }
@@ -1591,6 +1622,11 @@ const getPricingCompetitionTrends = async (filters) => {
             whereConditions.push(subBrandCond);
         }
 
+        const productTypeCond = buildProductTypeCondition(filters.productType || filters.product_type, src.cols, 'p.');
+        if (productTypeCond) {
+            whereConditions.push(productTypeCond);
+        }
+
         const whereClause = whereConditions.join(' AND ');
 
         const query = `
@@ -1726,6 +1762,11 @@ const getPricingCompetition = async (filters) => {
         const subBrandCond = buildSubBrandCondition(filters.subBrand || filters.sub_brand, src.cols, 'p.');
         if (subBrandCond) {
             whereConditions.push(subBrandCond);
+        }
+
+        const productTypeCond = buildProductTypeCondition(filters.productType || filters.product_type, src.cols, 'p.');
+        if (productTypeCond) {
+            whereConditions.push(productTypeCond);
         }
 
         const whereClause = whereConditions.join(' AND ');

@@ -21,7 +21,8 @@ export const getOneViewPriceGrid = async (req, res) => {
             skuType: req.query.skuType,
             format: req.query.format,
             ml: req.query.ml,
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: req.query.productType || req.query['productType[]'] || req.query.product_type || req.query['product_type[]']
         };
 
         console.log("[OneViewPriceGridController] getOneViewPriceGrid called with filters:", filters);

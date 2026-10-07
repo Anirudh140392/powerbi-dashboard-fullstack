@@ -6,6 +6,7 @@ import brandPriceOverviewService from '../services/brandPriceOverviewService.js'
 import brandDiscountTrendService from '../services/brandDiscountTrendService.js';
 import ecpByCityService from '../services/ecpByCityService.js';
 
+const getProductType = (req) => req.query.productType || req.query['productType[]'] || req.query.product_type || req.query['product_type[]'];
 
 /**
  * Get ECP and Discount data grouped by City and Brand
@@ -23,7 +24,8 @@ export const getEcpByCity = async (req, res) => {
             subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getEcpByCity called with filters:", filters);
@@ -61,7 +63,8 @@ export const getPricingKpis = async (req, res) => {
             sku: req.query.sku,
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getPricingKpis called with filters:", filters);
@@ -99,7 +102,8 @@ export const getPricingInsights = async (req, res) => {
             sku: req.query.sku,
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getPricingInsights called with filters:", filters);
@@ -139,7 +143,8 @@ export const getDimensionOverview = async (req, res) => {
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'],
             msl: req.query.msl,
-            grammage: req.query.grammage
+            grammage: req.query.grammage,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getDimensionOverview called with filters:", filters);
@@ -175,7 +180,8 @@ export const getEcpComparison = async (req, res) => {
             subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getEcpComparison called with filters:", filters);
@@ -208,7 +214,8 @@ export const getEcpByBrand = async (req, res) => {
             subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getEcpByBrand called with filters:", filters);
@@ -245,7 +252,8 @@ export const getDiscountByCategory = async (req, res) => {
             city: req.query.city,
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getDiscountByCategory called with filters:", filters);
@@ -281,7 +289,8 @@ export const getDiscountByBrand = async (req, res) => {
             city: req.query.city,
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getDiscountByBrand called with filters:", filters);
@@ -315,7 +324,8 @@ export const getEcpWeekdayWeekend = async (req, res) => {
             endDate: req.query.endDate,
             brand: req.query.brand,
             subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getEcpWeekdayWeekend called with filters:", filters);
@@ -348,7 +358,8 @@ export const getBrandPriceOverview = async (req, res) => {
             subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getBrandPriceOverview called with filters:", filters);
@@ -381,7 +392,8 @@ export const getBrandDiscountTrend = async (req, res) => {
             subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             sapCode: req.query.sapCode || req.query['sapCode[]'],
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getBrandDiscountTrend called with filters:", filters);
@@ -419,7 +431,8 @@ export const getDimensionTrends = async (req, res) => {
             category: req.query.category,
             channel: req.query.channel,
             sku: req.query.sku || req.query.skuName,
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getDimensionTrends called with filters:", filters);
@@ -452,7 +465,8 @@ export const getPricingCompetitionTrends = async (req, res) => {
             subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             category: req.query.category,
             channel: req.query.channel,
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getPricingCompetitionTrends called with filters:", filters);
@@ -483,7 +497,8 @@ export const getPricingCompetition = async (req, res) => {
             subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             category: req.query.category,
             channel: req.query.channel,
-            msl: req.query.msl
+            msl: req.query.msl,
+            productType: getProductType(req)
         };
 
         console.log("[PricingAnalysisController] getPricingCompetition called with filters:", filters);

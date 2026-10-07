@@ -67,6 +67,13 @@ async function getOneViewPriceGrid(filters = {}) {
             filterClauses.push(buildInClause('p.Brand', brands));
         }
 
+        // Product Type filter
+        const ptArr = parseMultiSelectFilter(filters.productType || filters.product_type);
+        if (ptArr) {
+            const escaped = ptArr.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+            filterClauses.push(`lower(trim(BOTH '\t\n ' FROM toString(p.Product_type))) IN (${escaped})`);
+        }
+
         // Product filter (partial match - use like with %%)
         if (filters.product) {
             filterClauses.push(`p.Product LIKE '%${filters.product}%'`);

@@ -6,6 +6,8 @@ import { generateDateOptions } from '../../lib/pricingUtils';
 import { KpiFilterPanel } from "@/components/KpiFilterPanel"
 import axiosInstance from "@/api/axiosInstance"
 
+import { FilterContext } from "@/utils/FilterContext"
+
 export const DiscountDrilldownDate = ({
     filters,
     selectedBrand,
@@ -14,6 +16,7 @@ export const DiscountDrilldownDate = ({
     timeStart,
     timeEnd
 }) => {
+    const { selectedProductType } = React.useContext(FilterContext) || {};
     const [expandedBrands, setExpandedBrands] = useState([])
     const [dayRange, setDayRange] = useState(7)
     const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount'
@@ -64,6 +67,12 @@ export const DiscountDrilldownDate = ({
                     params.format = filters.format;
                 }
 
+                if (selectedProductType && selectedProductType !== 'All') {
+                    const pt = Array.isArray(selectedProductType) ? selectedProductType.join(',') : selectedProductType;
+                    params.productType = pt;
+                    params.product_type = pt;
+                }
+
                 console.log("[DiscountDrilldownDate] Fetching with params:", params);
                 const response = await axiosInstance.get('/pricing-analysis/one-view-price-grid', { params })
 
@@ -97,7 +106,7 @@ export const DiscountDrilldownDate = ({
             }
         }
         fetchData()
-    }, [dayRange, metricType, dates, filters, selectedBrand, globalPlatform, selectedLocation])
+    }, [dayRange, metricType, dates, filters, selectedBrand, globalPlatform, selectedLocation, selectedProductType])
 
     // ========================================
     // FILTER STATE & LOGIC

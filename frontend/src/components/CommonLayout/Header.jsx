@@ -1914,6 +1914,9 @@ function AvailabilityFilterModal({
 
   const baseTabs = hideChannel ? AVAIL_FILTER_TABS.filter(t => t.key !== "channel") : AVAIL_FILTER_TABS;
   let availableTabs = [...baseTabs];
+  if (!isDrlUser) {
+    availableTabs = availableTabs.filter(t => t.key !== "sapCode");
+  }
   if (hasSubBrands) {
     const brandIdx = availableTabs.findIndex(t => t.key === "brand");
     const subBrandTab = { key: "subBrand", label: "Sub Brand", icon: Tag };
@@ -3028,6 +3031,7 @@ function PricingFilterModal({
   locations = [], selectedLocation, setSelectedLocation,
   msls = [], selectedMsl = "All", setSelectedMsl,
   sapCodes = [], selectedSapCode = "All", setSelectedSapCode,
+  productTypes = [], selectedProductType = "All", setSelectedProductType,
   hideChannel = false,
 }) {
   const isDrlUser = React.useMemo(() => {
@@ -3039,8 +3043,21 @@ function PricingFilterModal({
     }
   }, []);
 
+  const isMarsUser = React.useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      const db = u?.dbName?.toLowerCase();
+      return db === 'mars' || db === 'mars_petcare' || db === 'mars_dmart' || db?.includes('mars');
+    } catch (e) {
+      return false;
+    }
+  }, []);
+
   const [draftSubBrand, setDraftSubBrand] = React.useState(selectedSubBrand);
   const [localSubBrands, setLocalSubBrands] = React.useState(subBrands);
+
+  const [draftProductType, setDraftProductType] = React.useState(selectedProductType);
+  const [localProductTypes, setLocalProductTypes] = React.useState(productTypes && productTypes.length > 0 ? productTypes : ["Silver", "Bronze", "Gold"]);
 
   React.useEffect(() => {
     if (subBrands && subBrands.length > 0) {
@@ -3051,16 +3068,29 @@ function PricingFilterModal({
   const hasSubBrands = (localSubBrands && localSubBrands.length > 0) || (subBrands && subBrands.length > 0);
 
   const baseTabs = hideChannel ? PRICING_FILTER_TABS.filter(t => t.key !== "channel") : PRICING_FILTER_TABS;
-  const tabsWithSubBrand = React.useMemo(() => {
-    if (!hasSubBrands) return baseTabs;
-    const brandIdx = baseTabs.findIndex(t => t.key === "brand");
-    if (brandIdx === -1) return baseTabs;
-    const nextTabs = [...baseTabs];
-    nextTabs.splice(brandIdx + 1, 0, { key: "subBrand", label: "Sub Brand", icon: Tag });
+  const tabsWithExtras = React.useMemo(() => {
+    let nextTabs = [...baseTabs];
+    if (!isDrlUser) {
+      nextTabs = nextTabs.filter(t => t.key !== "sapCode");
+    }
+    if (isMarsUser) {
+      const catIdx = nextTabs.findIndex(t => t.key === "category");
+      if (catIdx !== -1) {
+        nextTabs.splice(catIdx + 1, 0, { key: "productType", label: "Product Type", icon: Tag });
+      } else {
+        nextTabs.push({ key: "productType", label: "Product Type", icon: Tag });
+      }
+    }
+    if (hasSubBrands) {
+      const brandIdx = nextTabs.findIndex(t => t.key === "brand");
+      if (brandIdx !== -1) {
+        nextTabs.splice(brandIdx + 1, 0, { key: "subBrand", label: "Sub Brand", icon: Tag });
+      }
+    }
     return nextTabs;
-  }, [baseTabs, hasSubBrands]);
+  }, [baseTabs, hasSubBrands, isMarsUser, isDrlUser]);
 
-  const availableTabs = tabsWithSubBrand;
+  const availableTabs = tabsWithExtras;
   const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
@@ -3095,12 +3125,37 @@ function PricingFilterModal({
       setDraftLocation(selectedLocation);
       setDraftMsl(selectedMsl);
       setDraftSapCode(selectedSapCode);
+      setDraftProductType(selectedProductType);
 
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalSubBrands(subBrands);
       setLocalSapCodes(sapCodes);
+
+      if (isMarsUser) {
+        axiosInstance.get("/watchtower/product-categories")
+          .then(res => {
+            if (res.data && Array.isArray(res.data)) {
+              const validSet = new Set(['silver', 'bronze', 'gold']);
+              const filtered = res.data.filter(val => {
+                if (!val) return false;
+                const s = String(val).trim().toLowerCase();
+                return validSet.has(s) && !['0', 'null', 'none', 'non pds', 'non-pds', 'non_pds'].includes(s);
+              });
+              const formatted = filtered.map(v => {
+                const s = String(v).trim();
+                return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+              });
+              const uniqueTypes = [...new Set(formatted)];
+              const finalTypes = uniqueTypes.length > 0 ? uniqueTypes : ["Silver", "Bronze", "Gold"];
+              setLocalProductTypes(finalTypes);
+            }
+          })
+          .catch(() => {
+            setLocalProductTypes(["Silver", "Bronze", "Gold"]);
+          });
+      }
 
       setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
@@ -3243,6 +3298,7 @@ function PricingFilterModal({
     channel: { options: channels, value: draftChannel, onChange: setDraftChannel },
     platform: { options: localPlatforms, value: draftPlatform, onChange: setDraftPlatform },
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
+    productType: { options: localProductTypes && localProductTypes.length > 0 ? localProductTypes : ["Silver", "Bronze", "Gold"], value: draftProductType, onChange: setDraftProductType },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     subBrand: { options: localSubBrands, value: draftSubBrand, onChange: setDraftSubBrand },
     location: { options: locations, value: draftLocation, onChange: setDraftLocation },
@@ -3298,6 +3354,7 @@ function PricingFilterModal({
     setSelectedLocation(draftLocation);
     if (setSelectedMsl) setSelectedMsl(draftMsl);
     if (setSelectedSapCode) setSelectedSapCode(draftSapCode);
+    if (setSelectedProductType) setSelectedProductType(draftProductType);
     onClose();
   };
 
@@ -3309,6 +3366,7 @@ function PricingFilterModal({
       setDraftPlatform("All");
     }
     setDraftCategory("All");
+    setDraftProductType("All");
     setDraftBrand("All");
     setDraftSubBrand("All");
     setDraftLocation("All");
@@ -4290,6 +4348,10 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     sapCodes,
     selectedSapCode,
     setSelectedSapCode,
+    productTypes,
+    setProductTypes,
+    selectedProductType,
+    setSelectedProductType,
     subBrands,
     selectedSubBrand,
     setSelectedSubBrand,
@@ -4827,6 +4889,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
                           if (selectedMsl !== "All" && !(Array.isArray(selectedMsl) && selectedMsl.includes("All"))) count++;
                           if (selectedSapCode !== "All" && !(Array.isArray(selectedSapCode) && selectedSapCode.includes("All"))) count++;
+                          if (selectedProductType !== "All" && !(Array.isArray(selectedProductType) && selectedProductType.includes("All"))) count++;
                         } else if (title === "Performance Marketing" || title === "Content Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
@@ -5054,6 +5117,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       sapCodes={sapCodes}
                       selectedSapCode={selectedSapCode}
                       setSelectedSapCode={setSelectedSapCode}
+                      productTypes={productTypes}
+                      selectedProductType={selectedProductType}
+                      setSelectedProductType={setSelectedProductType}
                       hideChannel={true}
                     />
                   )}
