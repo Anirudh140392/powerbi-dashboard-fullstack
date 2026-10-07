@@ -1877,9 +1877,20 @@ async function fetchAndProcessPromoViolationData(reqQuery) {
     const kamTable = (await checkTableExists('emami_kam_master')) ? 'emami_kam_master' : 'emami.emami_kam_master';
     const pdpCols = await getTableColumns(pdpTable).catch(() => new Map());
     const dateCol = pdpCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
+    const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
+    const hasIsCompetitor = skuPlatCols.has('is_competitor');
+
     const { kam, asm, platform, sku, startDate, endDate } = reqQuery;
 
     const conditions = ['p.price_rp > 0', 'p.price_sp > 0'];
+
+    if (pdpCols.has('is_competitor')) {
+        conditions.push(`p.is_competitor = 0`);
+    } else if (pdpCols.has('is_competitor_product')) {
+        conditions.push(`p.is_competitor_product = 0`);
+    } else if (hasIsCompetitor) {
+        conditions.push(`(p.pf_id, lower(p.web_pid)) IN (SELECT pf_id, lower(web_pid) FROM rb_sku_platform WHERE is_competitor = 0)`);
+    }
 
     if (kam && kam !== 'All' && !kam.startsWith('All ')) {
         const items = kam.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
@@ -1911,6 +1922,7 @@ async function fetchAndProcessPromoViolationData(reqQuery) {
             p.sku_name AS sku_name,
             lower(trim(p.location_name)) AS location_name,
             toString(p.pincode) AS pincode,
+            formatDateTime(p.${dateCol}, '%Y/%m/%d') AS date_str,
             p.price_rp AS price_rp,
             p.price_sp AS price_sp,
             p.guardrail AS guardrail
@@ -1954,10 +1966,16 @@ async function fetchAndProcessPromoViolationData(reqQuery) {
         const item = groups.get(key);
         if (loc) {
             if (!item.locationsMap.has(loc)) {
-                item.locationsMap.set(loc, new Set());
+                item.locationsMap.set(loc, new Map());
             }
             if (row.pincode && row.pincode !== '0' && row.pincode !== 'na') {
-                item.locationsMap.get(loc).add(row.pincode);
+                const pinMap = item.locationsMap.get(loc);
+                if (!pinMap.has(row.pincode)) {
+                    pinMap.set(row.pincode, new Set());
+                }
+                if (row.date_str) {
+                    pinMap.get(row.pincode).add(row.date_str);
+                }
             }
         }
 
@@ -1994,9 +2012,21 @@ async function fetchAndProcessPromoViolationData(reqQuery) {
 
         for (const loc of locationsList) {
             if (item.locationsMap.has(loc)) {
-                const pSet = item.locationsMap.get(loc);
-                pincodeCounts[loc] = pSet.size || (pSet.size === 0 ? 1 : 0);
-                pincodeStrings[loc] = Array.from(pSet).join(', ');
+                const pinMap = item.locationsMap.get(loc);
+                pincodeCounts[loc] = pinMap.size || '';
+
+                const formattedPins = [];
+                for (const [pin, datesSet] of pinMap.entries()) {
+                    const sortedDates = Array.from(datesSet).filter(Boolean).sort();
+                    if (sortedDates.length === 0) {
+                        formattedPins.push(pin);
+                    } else if (sortedDates.length === 1 || sortedDates[0] === sortedDates[sortedDates.length - 1]) {
+                        formattedPins.push(`${pin} - ${sortedDates[0]}`);
+                    } else {
+                        formattedPins.push(`${pin} - ${sortedDates[0]} to ${sortedDates[sortedDates.length - 1]}`);
+                    }
+                }
+                pincodeStrings[loc] = formattedPins.join(', ');
             } else {
                 pincodeCounts[loc] = '';
                 pincodeStrings[loc] = '';
@@ -2063,10 +2093,21 @@ export const getPromoViolationFilterOptions = async (req, res) => {
         const kamTable = (await checkTableExists('emami_kam_master')) ? 'emami_kam_master' : 'emami.emami_kam_master';
         const pdpCols = await getTableColumns(pdpTable).catch(() => new Map());
         const dateCol = pdpCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
+        const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
+        const hasIsCompetitor = skuPlatCols.has('is_competitor');
+
         const { kam, asm, platform, sku, startDate, endDate } = req.query;
 
         const buildWhere = (excludeField) => {
             const conds = ['p.price_rp > 0', 'p.price_sp > 0'];
+
+            if (pdpCols.has('is_competitor')) {
+                conds.push(`p.is_competitor = 0`);
+            } else if (pdpCols.has('is_competitor_product')) {
+                conds.push(`p.is_competitor_product = 0`);
+            } else if (hasIsCompetitor) {
+                conds.push(`(p.pf_id, lower(p.web_pid)) IN (SELECT pf_id, lower(web_pid) FROM rb_sku_platform WHERE is_competitor = 0)`);
+            }
 
             const addIn = (field, col, val) => {
                 if (excludeField === field || !val || val === 'All' || val.startsWith('All ') || val.trim() === '') return;
@@ -2181,7 +2222,7 @@ export const downloadPromoViolationReport = async (req, res) => {
         for (const loc of locationsList) {
             const cityLabel = loc.charAt(0).toUpperCase() + loc.slice(1);
             headerRow1.push(cityLabel, "");
-            headerRow2.push("Count of PIN Code", "Pincodes");
+            headerRow2.push("Count of PIN Code", "Pincodes / Date");
         }
 
         const dataRows = breachedRows.map(row => {

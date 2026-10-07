@@ -870,7 +870,7 @@ export default function DownloadReport() {
                               Count of PIN Code
                             </TableCell>
                             <TableCell align="center" sx={{ fontWeight: 700, backgroundColor: "#f0fdf4", color: "#166534", fontSize: "0.75rem", borderBottom: "2px solid #cbd5e1", borderRight: "1px solid #e2e8f0", whiteSpace: "nowrap", py: 1 }}>
-                              Pincodes
+                              Pincodes / Date
                             </TableCell>
                           </React.Fragment>
                         ))}
@@ -907,16 +907,44 @@ export default function DownloadReport() {
                             </TableCell>
 
                             {/* City Sub-values */}
-                            {promoLocationsList.map((loc) => (
-                              <React.Fragment key={`city-vals-${loc}`}>
-                                <TableCell align="center" sx={{ fontSize: "0.78rem", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #f1f5f9", borderRight: "1px solid #f1f5f9", py: 1 }}>
-                                  {row.pincodeCounts?.[loc] !== "" ? row.pincodeCounts[loc] : ""}
-                                </TableCell>
-                                <TableCell align="center" sx={{ fontSize: "0.76rem", color: "#475569", borderBottom: "1px solid #f1f5f9", borderRight: "1px solid #f1f5f9", py: 1, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>
-                                  {row.pincodeStrings?.[loc] || ""}
-                                </TableCell>
-                              </React.Fragment>
-                            ))}
+                            {promoLocationsList.map((loc) => {
+                              const pinStr = row.pincodeStrings?.[loc] || "";
+                              const pinList = pinStr ? pinStr.split(", ").filter(Boolean) : [];
+                              return (
+                                <React.Fragment key={`city-vals-${loc}`}>
+                                  <TableCell align="center" sx={{ fontSize: "0.78rem", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #f1f5f9", borderRight: "1px solid #f1f5f9", py: 1 }}>
+                                    {row.pincodeCounts?.[loc] !== "" ? row.pincodeCounts[loc] : ""}
+                                  </TableCell>
+                                  <TableCell align="center" sx={{ fontSize: "0.76rem", color: "#475569", borderBottom: "1px solid #f1f5f9", borderRight: "1px solid #f1f5f9", py: 1, minWidth: 170 }}>
+                                    {pinList.length === 0 ? (
+                                      "—"
+                                    ) : (
+                                      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.6, alignItems: "center", justifyContent: "center" }}>
+                                        {pinList.map((item, pIdx) => (
+                                          <Chip
+                                            key={pIdx}
+                                            label={item}
+                                            size="small"
+                                            sx={{
+                                              fontSize: "0.73rem",
+                                              height: "22px",
+                                              backgroundColor: "#eff6ff",
+                                              color: "#1d4ed8",
+                                              fontWeight: 600,
+                                              border: "1px solid #bfdbfe",
+                                              borderRadius: "6px",
+                                              whiteSpace: "nowrap",
+                                              fontFamily: "'Inter', sans-serif",
+                                              "& .MuiChip-label": { px: 1, py: 0.2 }
+                                            }}
+                                          />
+                                        ))}
+                                      </Box>
+                                    )}
+                                  </TableCell>
+                                </React.Fragment>
+                              );
+                            })}
                           </TableRow>
                         ))
                       )}
