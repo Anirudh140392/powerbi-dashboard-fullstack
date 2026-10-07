@@ -694,7 +694,7 @@ export const downloadReport = async (req, res) => {
                     round(100 - (SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage,
                     round(avg(toFloat64(t.${col('DIH')})), 2) as DOI,
                     SUM(toFloat64(t.${col('Inventory')})) as SOH,
-                    round(SUM(assumeNotNull(t.${col('Qty_Sold')})) / 30.0, 2) as DRR,
+                    round(SUM(assumeNotNull(t.${col('Qty_Sold')})) / ${daysInGran}, 2) as DRR,
                     round(SUM(toFloat64(t.${col('buy_box_neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as Fillrate_Percentage,
                     ${sosCol}
                     round(SUM(toFloat64(t.${col('Inventory')})) / nullIf(SUM(toFloat64(t.${col('MSL')})), 0) * 100, 2) as PSL,
@@ -1141,7 +1141,7 @@ export const downloadReport = async (req, res) => {
                     ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product${resellerSelect},
                     SUM(toFloat64(${col('Inventory')})) as Current_Inventory,
                     SUM(toFloat64(${col('Inventory')})) as SOH,
-                    round(SUM(assumeNotNull(${col('Qty_Sold')})) / 30.0, 2) as DRR,
+                    round(SUM(assumeNotNull(${col('Qty_Sold')})) / ${daysInGran}, 2) as DRR,
                     SUM(toFloat64(${col('MSL')})) as Target_Inventory,
                     round(SUM(toFloat64(${col('Inventory')})) / nullIf(SUM(toFloat64(${col('MSL')})), 0) * 100, 2) as Inventory_Health_Percentage,
                     round(avg(toFloat64(${col('DIH')})), 2) as Days_Inventory_on_Hand
@@ -1187,6 +1187,8 @@ export const downloadReport = async (req, res) => {
                     round(SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100, 2) as Stock_Availability,
                     round(avg(toFloat64(${col('DIH')})), 2) as DOI,
                     round(avg(ifNull(toFloat64OrZero(toString(${col('listing_percent')})), 0)), 2) as listing_percentage,
+                    SUM(toFloat64(${col('Inventory')})) as SOH,
+                    round(SUM(assumeNotNull(${col('Qty_Sold')})) / ${daysInGran}, 2) as DRR,
                     
                     -- Performance Marketing Metrics
                     SUM(toFloat64(${col('Ad_Sales')})) as Inorganic_Sales,
@@ -1232,9 +1234,9 @@ export const downloadReport = async (req, res) => {
             return res.status(204).send();
         }
 
-        // 4. Filter columns by requested tags if Master Dump is used
+        // 4. Filter columns by requested tags if metrics query param is provided
         let finalData = rawData;
-        if (reportType === "Master Dump" && req.query.metrics) {
+        if (req.query.metrics) {
             const requestedTags = req.query.metrics.split(',');
 
             // Map tag names to exact backend column aliases
@@ -1257,8 +1259,10 @@ export const downloadReport = async (req, res) => {
                 "Assortment": "Assortment",
                 "Metro City Stock Availability": "Metro_City_Stock_Availability",
                 "SOH": "SOH",
+                "Stock On Hand": "SOH",
                 "DRR": "DRR",
                 "Current DRR": "DRR",
+                "Daily Run Rate": "DRR",
 
                 // Performance Marketing
                 "Impressions": "Impressions",
@@ -1275,6 +1279,7 @@ export const downloadReport = async (req, res) => {
                 // Inventory
                 "Current Inventory": "Current_Inventory",
                 "Target Inventory": "Target_Inventory",
+                "Days on Hand": "Days_Inventory_on_Hand",
 
                 // Pricing
                 "Selling Price": "Selling_Price",
