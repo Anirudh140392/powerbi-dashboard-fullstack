@@ -1892,12 +1892,23 @@ function AvailabilityFilterModal({
   locations = [], selectedLocation, setSelectedLocation,
   msls = [], selectedMsl = "All", setSelectedMsl,
   sapCodes = [], selectedSapCode = "All", setSelectedSapCode,
+  productTypes = [], selectedProductType = "All", setSelectedProductType,
   hideChannel = false,
 }) {
   const isDrlUser = React.useMemo(() => {
     try {
       const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
       return u?.dbName?.toLowerCase() === 'drl';
+    } catch (e) {
+      return false;
+    }
+  }, []);
+
+  const isMarsUser = React.useMemo(() => {
+    try {
+      const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+      const db = u?.dbName?.toLowerCase();
+      return db === 'mars' || db === 'mars_petcare' || db === 'mars_dmart' || db?.includes('mars');
     } catch (e) {
       return false;
     }
@@ -1917,6 +1928,14 @@ function AvailabilityFilterModal({
   if (!isDrlUser) {
     availableTabs = availableTabs.filter(t => t.key !== "sapCode");
   }
+  if (isMarsUser) {
+    const catIdx = availableTabs.findIndex(t => t.key === "category");
+    if (catIdx !== -1) {
+      availableTabs.splice(catIdx + 1, 0, { key: "productType", label: "Product Type", icon: Tag });
+    } else {
+      availableTabs.push({ key: "productType", label: "Product Type", icon: Tag });
+    }
+  }
   if (hasSubBrands) {
     const brandIdx = availableTabs.findIndex(t => t.key === "brand");
     const subBrandTab = { key: "subBrand", label: "Sub Brand", icon: Tag };
@@ -1926,7 +1945,6 @@ function AvailabilityFilterModal({
       availableTabs.push(subBrandTab);
     }
   }
-
 
   const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -1939,6 +1957,8 @@ function AvailabilityFilterModal({
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
   const [draftMsl, setDraftMsl] = React.useState(selectedMsl);
   const [draftSapCode, setDraftSapCode] = React.useState(selectedSapCode);
+  const [draftProductType, setDraftProductType] = React.useState(selectedProductType);
+  const [localProductTypes, setLocalProductTypes] = React.useState(productTypes && productTypes.length > 0 ? productTypes : ["Silver", "Bronze", "Gold"]);
 
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
@@ -1962,12 +1982,38 @@ function AvailabilityFilterModal({
       setDraftLocation(selectedLocation);
       setDraftMsl(selectedMsl);
       setDraftSapCode(selectedSapCode);
+      setDraftProductType(selectedProductType);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalSubBrands(subBrands);
       setLocalLocations(locations);
       setLocalSapCodes(sapCodes);
+
+      if (isMarsUser) {
+        axiosInstance.get("/watchtower/product-categories")
+          .then(res => {
+            if (res.data && Array.isArray(res.data)) {
+              const validSet = new Set(['silver', 'bronze', 'gold']);
+              const filtered = res.data.filter(val => {
+                if (!val) return false;
+                const s = String(val).trim().toLowerCase();
+                return validSet.has(s) && !['0', 'null', 'none', 'non pds', 'non-pds', 'non_pds'].includes(s);
+              });
+              const formatted = filtered.map(v => {
+                const s = String(v).trim();
+                return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+              });
+              const uniqueTypes = [...new Set(formatted)];
+              const finalTypes = uniqueTypes.length > 0 ? uniqueTypes : ["Silver", "Bronze", "Gold"];
+              setLocalProductTypes(finalTypes);
+            }
+          })
+          .catch(() => {
+            setLocalProductTypes(["Silver", "Bronze", "Gold"]);
+          });
+      }
+
       setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
@@ -2162,6 +2208,7 @@ function AvailabilityFilterModal({
     channel: { options: channels, value: draftChannel, onChange: setDraftChannel },
     platform: { options: localPlatforms, value: draftPlatform, onChange: setDraftPlatform },
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
+    productType: { options: localProductTypes && localProductTypes.length > 0 ? localProductTypes : ["Silver", "Bronze", "Gold"], value: draftProductType, onChange: setDraftProductType },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     subBrand: { options: localSubBrands, value: draftSubBrand, onChange: setDraftSubBrand },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
@@ -2219,6 +2266,7 @@ function AvailabilityFilterModal({
     setSelectedLocation(draftLocation);
     setSelectedMsl(draftMsl);
     if (setSelectedSapCode) setSelectedSapCode(draftSapCode);
+    if (setSelectedProductType) setSelectedProductType(draftProductType);
     onClose();
   };
 
@@ -2235,6 +2283,7 @@ function AvailabilityFilterModal({
     setDraftLocation("All");
     setDraftMsl("All");
     setDraftSapCode("All");
+    setDraftProductType("All");
     setSearchTerm("");
   };
 
@@ -5055,6 +5104,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       sapCodes={sapCodes}
                       selectedSapCode={selectedSapCode}
                       setSelectedSapCode={setSelectedSapCode}
+                      productTypes={productTypes}
+                      selectedProductType={selectedProductType}
+                      setSelectedProductType={setSelectedProductType}
                       hideChannel={true}
                     />
                   )}

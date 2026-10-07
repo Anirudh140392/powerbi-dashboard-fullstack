@@ -24,6 +24,8 @@ export default function AvailablityAnalysis() {
     setSelectedCategory,
     selectedProductCategory,
     setSelectedProductCategory,
+    selectedProductType,
+    setSelectedProductType,
     compareStart,
     compareEnd,
     selectedChannel,
@@ -64,7 +66,6 @@ export default function AvailablityAnalysis() {
     }
   };
 
-  // Initialize filters from context
   const [filters, setFilters] = useState({
     platform: platform || "",
     brand: selectedBrand || "All",
@@ -72,6 +73,7 @@ export default function AvailablityAnalysis() {
     location: selectedLocation || "All",
     category: selectedCategory || "All",
     productCategory: selectedProductCategory || "All",
+    productType: selectedProductType || "All",
     zones: selectedZone || "All",
     channel: selectedChannel || "Ecommerce",
     msl: selectedMsl || "All",
@@ -112,6 +114,9 @@ export default function AvailablityAnalysis() {
     if (newFilters.productCategory && newFilters.productCategory !== selectedProductCategory) {
       setSelectedProductCategory(newFilters.productCategory);
     }
+    if (newFilters.productType !== undefined && newFilters.productType !== selectedProductType) {
+      setSelectedProductType(newFilters.productType);
+    }
     if (newFilters.msl !== undefined && newFilters.msl !== selectedMsl) {
       setSelectedMsl(newFilters.msl);
     }
@@ -145,6 +150,7 @@ export default function AvailablityAnalysis() {
       location: selectedLocation || prev.location,
       category: selectedCategory || prev.category,
       productCategory: selectedProductCategory || prev.productCategory,
+      productType: selectedProductType || prev.productType,
       zones: selectedZone || prev.zones,
       channel: selectedChannel || prev.channel,
       msl: selectedMsl || prev.msl,
@@ -159,7 +165,7 @@ export default function AvailablityAnalysis() {
       ? (selectedMsl.includes('1') && !selectedMsl.includes('0'))
       : (selectedMsl === '1');
     setMslFilter(isMslOnly ? '1' : '0');
-  }, [platform, selectedBrand, selectedSubBrand, selectedLocation, selectedCategory, selectedProductCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel, selectedMsl, selectedSapCode]);
+  }, [platform, selectedBrand, selectedSubBrand, selectedLocation, selectedCategory, selectedProductCategory, selectedProductType, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel, selectedMsl, selectedSapCode]);
 
   // Default to Quickcomm if available, otherwise Ecommerce, if current selection is 'All'
   useEffect(() => {
@@ -275,6 +281,9 @@ export default function AvailablityAnalysis() {
     params.append('ownBrandsOnly', 'true');
     if (params.has('sapCode') && !params.has('skuCode')) {
       params.getAll('sapCode').forEach(val => params.append('skuCode', val));
+    }
+    if (params.has('productType') && !params.has('product_type')) {
+      params.getAll('productType').forEach(val => params.append('product_type', val));
     }
 
     return params.toString();
@@ -582,6 +591,7 @@ export default function AvailablityAnalysis() {
       location: filters.location,
       category: filters.category,
       productCategory: filters.productCategory,
+      productType: filters.productType,
       channel: filters.channel,
       startDate: filters.startDate,
       endDate: filters.endDate,
