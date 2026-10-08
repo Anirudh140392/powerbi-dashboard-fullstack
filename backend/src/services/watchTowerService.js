@@ -43,6 +43,69 @@ const normalizeFilterArray = (value) => {
     return arr;
 };
 
+const getDrlResellerConds = (filters = {}) => {
+    const isDrl = getCurrentDbName() === 'drl';
+    const resellerVal = filters.resellerName || filters.reseller_name || filters.reseller || filters.drlReseller || filters.drl_reseller || filters['drlReseller[]'] || filters['reseller[]'];
+    const drlMode = String(filters.drlSource || filters.drl_source || filters.drlMode || '').toLowerCase();
+
+    if (!isDrl) {
+        if (resellerVal && resellerVal !== 'All' && resellerVal !== 'all') {
+            const rArr = normalizeFilterArray(resellerVal);
+            if (rArr.length > 0) {
+                return {
+                    pdpCond: `Reseller_Name IN (${rArr.map(r => `'${escapeStr(r)}'`).join(', ')})`,
+                    includeBuyMoreTable: false
+                };
+            }
+        }
+        return { pdpCond: '', includeBuyMoreTable: false };
+    }
+
+    const resellerList = (resellerVal && resellerVal !== 'All' && resellerVal !== 'all')
+        ? normalizeFilterArray(resellerVal).map(r => String(r).toLowerCase().trim()).filter(Boolean)
+        : [];
+
+    if (resellerList.length > 0) {
+        const hasBuyMore = resellerList.some(r => r.includes('buy') || r.includes('more') || r.includes('3p'));
+        const has1P = resellerList.some(r => r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal'));
+        const hasOther = resellerList.some(r => !(r.includes('buy') || r.includes('more') || r.includes('3p')));
+
+        if (hasBuyMore && !has1P && !hasOther) {
+            return {
+                pdpCond: `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`,
+                includeBuyMoreTable: true
+            };
+        } else if ((has1P || hasOther) && !hasBuyMore) {
+            return {
+                pdpCond: ``,
+                includeBuyMoreTable: false
+            };
+        } else {
+            return {
+                pdpCond: ``,
+                includeBuyMoreTable: true
+            };
+        }
+    }
+
+    if (drlMode === 'portal' || drlMode === 'rk') {
+        return {
+            pdpCond: ``,
+            includeBuyMoreTable: false
+        };
+    } else if (drlMode === 'buymore') {
+        return {
+            pdpCond: `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`,
+            includeBuyMoreTable: true
+        };
+    }
+
+    return {
+        pdpCond: '',
+        includeBuyMoreTable: true
+    };
+};
+
 const buildBuymoreCondsForTab = (sDate, eDate, filters = {}) => {
     const { platform, category, location, brand } = filters;
     const conds = [`toDate(DATE) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
@@ -1272,6 +1335,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     if (subConds) conditions.push(`(${subConds})`);
                 }
             }
+
+            const drlResellerInfoMain = getDrlResellerConds(filters);
+            if (drlResellerInfoMain.pdpCond) {
+                conditions.push(drlResellerInfoMain.pdpCond);
+            }
+
             return conditions.join(' AND ');
         };
 
@@ -2127,15 +2196,38 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             }));
         };
 
-        const hasOfftakeData = offtakeData.length > 0;
-        const totalValidSalesCount = offtakeData.reduce((sum, d) => sum + parseInt(d.valid_sales_count || 0, 10), 0);
-        const totalOfftake = (hasOfftakeData && totalValidSalesCount > 0) ? offtakeData.reduce((sum, d) => sum + parseFloat(d.total_sales || 0), 0) : null;
-        const offtakeChart = mapToWeeks(offtakeData, weekBuckets, 'total_sales');
+        let totalOfftake = (offtakeData.length > 0) ? offtakeData.reduce((sum, d) => sum + parseFloat(d.total_sales || 0), 0) : null;
+        let prevOfftakeVal = prevOfftakeResult !== null ? parseFloat(prevOfftakeResult) : null;
 
+        const isDrlDbMain = getCurrentDbName() === 'drl';
+        const drlResellerInfoMain = getDrlResellerConds(filters);
+        if (isDrlDbMain && drlResellerInfoMain.includeBuyMoreTable) {
+            try {
+                const [currBmRes, prevBmRes] = await Promise.all([
+                    queryClickHouse(`
+                        SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales
+                        FROM drl.buymore_rb_pdp_olap
+                        WHERE ${buildBuymoreCondsForTab(startDate, endDate, { platform, category, location, brand })}
+                    `),
+                    queryClickHouse(`
+                        SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as buymore_sales
+                        FROM drl.buymore_rb_pdp_olap
+                        WHERE ${buildBuymoreCondsForTab(momStartDate, momEndDate, { platform, category, location, brand })}
+                    `)
+                ]);
+                const bmCurr = parseFloat(currBmRes[0]?.buymore_sales || 0);
+                const bmPrev = parseFloat(prevBmRes[0]?.buymore_sales || 0);
+                totalOfftake = (totalOfftake || 0) + bmCurr;
+                prevOfftakeVal = (prevOfftakeVal || 0) + bmPrev;
+            } catch (bmErr) {
+                console.error('[computeSummaryMetrics] Error querying buymore_rb_pdp_olap:', bmErr.message);
+            }
+        }
+
+        const offtakeChart = mapToWeeks(offtakeData, weekBuckets, 'total_sales');
         const formattedOfftake = formatCurrency(totalOfftake);
 
         // Calculate Offtake Trend
-        const prevOfftakeVal = prevOfftakeResult !== null ? parseFloat(prevOfftakeResult) : null;
         let offtakeChange = 0;
         let offtakeTrendStr = "N/A";
 
@@ -5975,6 +6067,11 @@ const getPlatformOverview = async (filters) => {
             conds.push(platformCond);
         }
 
+        const drlResellerInfo = getDrlResellerConds(filters);
+        if (drlResellerInfo.pdpCond) {
+            conds.push(drlResellerInfo.pdpCond);
+        }
+
         // Advanced SKU Search Filters (Only supported on raw table)
         if (!src.isAgg) {
             const skuArrArr = normalizeFilterArray(skuName);
@@ -6403,7 +6500,8 @@ const getPlatformOverview = async (filters) => {
     let currBuymoreQtyMap = new Map();
     let prevBuymoreQtyMap = new Map();
 
-    if (isDrlDb) {
+    const drlResellerInfoOverview = getDrlResellerConds(filters);
+    if (isDrlDb && drlResellerInfoOverview.includeBuyMoreTable) {
         const buymorePlatforms = ['amazon', 'pharmeasy', 'nykaa', 'myntra', 'jiomart', 'shopify', 'meesho', 'flipkart'];
         const buildBuymoreCondsForOverview = (sDate, eDate) => {
             const conds = [`toDate(DATE) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
@@ -6511,22 +6609,11 @@ const getPlatformOverview = async (filters) => {
         let currQtyVal = parseFloat(c?.qty || 0);
         let prevQtyVal = parseFloat(pv?.qty || 0);
 
-        const drlSource = String(filters.drlSource || filters.drl_source || filters.drlMode || 'rk').toLowerCase();
-        if (isDrlDb) {
-            if (drlSource === 'buymore') {
-                currSalesVal = buymorePlatforms.includes(key) ? (currBuymoreMap.get(key) || 0) : 0;
-                prevSalesVal = buymorePlatforms.includes(key) ? (prevBuymoreMap.get(key) || 0) : 0;
-                currQtyVal = buymorePlatforms.includes(key) ? (currBuymoreQtyMap.get(key) || 0) : 0;
-                prevQtyVal = buymorePlatforms.includes(key) ? (prevBuymoreQtyMap.get(key) || 0) : 0;
-            } else if (drlSource === 'rk' || drlSource === 'portal') {
-                // RK / Portal ONLY: do not add buymore table values
-            } else if (buymorePlatforms.includes(key)) {
-                // All / Combined
-                currSalesVal += (currBuymoreMap.get(key) || 0);
-                prevSalesVal += (prevBuymoreMap.get(key) || 0);
-                currQtyVal += (currBuymoreQtyMap.get(key) || 0);
-                prevQtyVal += (prevBuymoreQtyMap.get(key) || 0);
-            }
+        if (isDrlDb && drlResellerInfoOverview.includeBuyMoreTable && buymorePlatforms.includes(key)) {
+            currSalesVal += (currBuymoreMap.get(key) || 0);
+            prevSalesVal += (prevBuymoreMap.get(key) || 0);
+            currQtyVal += (currBuymoreQtyMap.get(key) || 0);
+            prevQtyVal += (prevBuymoreQtyMap.get(key) || 0);
         }
 
         // Calculate SOS for this platform
@@ -6948,7 +7035,7 @@ const getPlatformOverview = async (filters) => {
         const key = p.label.toLowerCase();
         const metrics = bulkPlatformMap.get(p.label) || { curr: {}, prev: {} };
 
-        const hasPdp = Boolean(findPlatformRow(currData, key)) || (isDrlDb && buymorePlatforms.includes(key) && (currBuymoreMap.get(key) || 0) > 0);
+        const hasPdp = Boolean(findPlatformRow(currData, key)) || (isDrlDb && drlResellerInfoOverview.includeBuyMoreTable && buymorePlatforms.includes(key) && (currBuymoreMap.get(key) || 0) > 0);
         const hasPm = Boolean(findPlatformRow(currPmData, key));
         const hasMsCheck = hasMapKey(currMsMap, key) || hasMapKey(currMsDenomMap, key);
         const hasSosCheck = hasMapKey(currSosOurMap, key) || hasMapKey(currSosTotalMap, key);
@@ -6989,7 +7076,7 @@ const getPlatformOverview = async (filters) => {
         const asp = hasPdp ? (metrics.curr.asp ?? null) : null;
 
         // Previous period
-        const prevHasPdp = Boolean(findPlatformRow(prevData, key)) || (isDrlDb && buymorePlatforms.includes(key) && (prevBuymoreMap.get(key) || 0) > 0);
+        const prevHasPdp = Boolean(findPlatformRow(prevData, key)) || (isDrlDb && drlResellerInfoOverview.includeBuyMoreTable && buymorePlatforms.includes(key) && (prevBuymoreMap.get(key) || 0) > 0);
         const prevHasPm = Boolean(findPlatformRow(prevPmData, key));
         const prevHasMsCheck = prevMsMap.has(key) || prevMsDenomMap.has(key);
         const prevHasSosCheck = prevSosOurMap.has(key) || prevSosTotalMap.has(key);
@@ -7172,6 +7259,10 @@ const getMonthOverview = async (filters) => {
                 conds.push(`(${mslConds})`);
             }
         }
+        const drlResellerInfoMonth = getDrlResellerConds(filters);
+        if (drlResellerInfoMonth.pdpCond) {
+            conds.push(drlResellerInfoMonth.pdpCond);
+        }
         return conds.join(' AND ');
     };
 
@@ -7349,7 +7440,8 @@ const getMonthOverview = async (filters) => {
     const catSizeMonthMap = new Map(catSizeMonth.map(r => [r.month_date, parseFloat(r.cat_size || 0)]));
 
     const isDrlDbMonth = getCurrentDbName() === 'drl';
-    if (isDrlDbMonth) {
+    const drlResellerInfoMonth = getDrlResellerConds(filters);
+    if (isDrlDbMonth && drlResellerInfoMonth.includeBuyMoreTable) {
         try {
             const bmMonthlyRes = await queryClickHouse(`
                 SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month_date,
@@ -7643,6 +7735,11 @@ const getCategoryOverview = async (filters) => {
             }
         }
 
+        const drlResellerInfoCat = getDrlResellerConds(filters);
+        if (drlResellerInfoCat.pdpCond) {
+            conds.push(drlResellerInfoCat.pdpCond);
+        }
+
         return conds.join(' AND ');
     };
 
@@ -7828,7 +7925,8 @@ const getCategoryOverview = async (filters) => {
     ]);
 
     const isDrlDbCat = getCurrentDbName() === 'drl';
-    if (isDrlDbCat) {
+    const drlResellerInfoCat = getDrlResellerConds(filters);
+    if (isDrlDbCat && drlResellerInfoCat.includeBuyMoreTable) {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
                 queryClickHouse(`
@@ -8190,6 +8288,11 @@ const getBrandsOverview = async (filters) => {
             }
         }
 
+        const drlResellerInfoBrand = getDrlResellerConds(filters);
+        if (drlResellerInfoBrand.pdpCond) {
+            conds.push(drlResellerInfoBrand.pdpCond);
+        }
+
         return conds.join(' AND ');
     };
 
@@ -8340,7 +8443,8 @@ const getBrandsOverview = async (filters) => {
     ]);
 
     const isDrlDbBrand = getCurrentDbName() === 'drl';
-    if (isDrlDbBrand) {
+    const drlResellerInfoBrand = getDrlResellerConds(filters);
+    if (isDrlDbBrand && drlResellerInfoBrand.includeBuyMoreTable) {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
                 queryClickHouse(`
@@ -8853,16 +8957,10 @@ const getKpiTrends = async (filters) => {
 
     const pmKpiConds = buildPmConds();
 
-    // Reseller_Name condition for DRL: handle Buy More (buymore_rb_pdp_olap) and other resellers (rb_pdp_olap)
     const dbNameForTrends = getCurrentDbName();
     const isDrlDb = dbNameForTrends === 'drl';
-    const resellerList = (resellerName && resellerName !== 'All' && resellerName !== 'all')
-        ? normalizeFilterArray(resellerName).map(r => String(r).toLowerCase().trim())
-        : [];
-
-    let includeOtherResellers = true;
-    let includeBuyMore = true;
-    const nonBuyMoreList = resellerList.filter(r => !(r.includes('buy') || r.includes('more')));
+    const drlResellerInfo = getDrlResellerConds(filters);
+    const includeBuyMore = isDrlDb && drlResellerInfo.includeBuyMoreTable;
 
     // For DRL: buymore data should ONLY be included for the 8 specified platforms:
     // amazon, pharmeasy, nykaa, myntra, jiomart, shopify, meesho, flipkart
@@ -8872,23 +8970,7 @@ const getKpiTrends = async (filters) => {
         const selectedPlatforms = platArr.map(p => p.toLowerCase());
         const hasBuymorePlat = selectedPlatforms.length === 0 || selectedPlatforms.includes('all') || selectedPlatforms.some(p => buymorePlatforms.includes(p));
         if (!hasBuymorePlat) {
-            includeBuyMore = false;
-        }
-    }
-
-    if (isDrlDb && resellerList.length > 0) {
-        const hasBuy = resellerList.some(r => r.includes('buy') || r.includes('more'));
-        const hasOther = nonBuyMoreList.length > 0;
-
-        if (hasBuy && !hasOther) {
-            includeBuyMore = true;
-            includeOtherResellers = false;
-        } else if (!hasBuy && hasOther) {
-            includeBuyMore = false;
-            includeOtherResellers = true;
-        } else {
-            includeBuyMore = true;
-            includeOtherResellers = true;
+            drlResellerInfo.includeBuyMoreTable = false;
         }
     }
 
@@ -8925,7 +9007,7 @@ const getKpiTrends = async (filters) => {
                 SUM(${src.f.sellingPrice}) as sum_selling_price,
                 0 as sum_weight
             FROM ${src.table}
-            WHERE ${kpiConds} ${(isDrlDb && nonBuyMoreList.length > 0) ? `AND lower(trim(Reseller_Name)) IN (${nonBuyMoreList.map(r => `'${escapeStr(r)}'`).join(', ')})` : ''} ${(isDrlDb && includeBuyMore && includeOtherResellers && nonBuyMoreList.length === 0) ? `AND (lower(trim(Reseller_Name)) NOT LIKE '%buy%more%' OR Reseller_Name IS NULL OR Reseller_Name = '')` : ''}
+            WHERE ${kpiConds} ${drlResellerInfo.pdpCond ? `AND ${drlResellerInfo.pdpCond}` : ''}
             GROUP BY date_group
             ORDER BY ref_date ASC
         `),
@@ -8949,7 +9031,7 @@ const getKpiTrends = async (filters) => {
 
     if (isDrlDb) {
         let buymoreMap = new Map();
-        if (includeBuyMore) {
+        if (drlResellerInfo.includeBuyMoreTable) {
             const buildBuymoreConds = () => {
                 const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
                 if (dimension && dimensionValue && dimensionValue !== 'All') {
@@ -9020,19 +9102,14 @@ const getKpiTrends = async (filters) => {
         const kpiMap = new Map();
         kpiResults.forEach(r => kpiMap.set(String(r.date_group), r));
 
-        if (includeBuyMore) {
+        if (drlResellerInfo.includeBuyMoreTable) {
             buymoreMap.forEach((buyData, groupKey) => {
                 const buySales = buyData.sales;
                 const buyQty = buyData.qty;
                 if (kpiMap.has(groupKey)) {
                     const row = kpiMap.get(groupKey);
-                    if (!includeOtherResellers) {
-                        row.total_sales = buySales;
-                        row.total_qty = buyQty;
-                    } else {
-                        row.total_sales = parseFloat(row.total_sales || 0) + buySales;
-                        row.total_qty = parseFloat(row.total_qty || 0) + buyQty;
-                    }
+                    row.total_sales = parseFloat(row.total_sales || 0) + buySales;
+                    row.total_qty = parseFloat(row.total_qty || 0) + buyQty;
                 } else {
                     const newRow = {
                         date_group: groupKey,
@@ -9048,15 +9125,6 @@ const getKpiTrends = async (filters) => {
                     };
                     kpiResults.push(newRow);
                     kpiMap.set(groupKey, newRow);
-                }
-            });
-        }
-
-        if (!includeOtherResellers && includeBuyMore) {
-            kpiResults.forEach(r => {
-                if (!buymoreMap.has(String(r.date_group))) {
-                    r.total_sales = 0;
-                    r.total_qty = 0;
                 }
             });
         }
@@ -9458,7 +9526,8 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
         // Helper to add reseller condition to a conditions array
         const addResellerCondition = (conditions) => {
             if (resellerArr && resellerArr.length > 0) {
-                conditions.push(`Reseller_Name IN (${resellerArr.map(r => `'${escapeStr(r)}'`).join(',')})`);
+                const resCol = isDrl ? 'seller_name' : 'Reseller_Name';
+                conditions.push(`${resCol} IN (${resellerArr.map(r => `'${escapeStr(r)}'`).join(',')})`);
             }
         };
 
@@ -9496,32 +9565,33 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
             const table = (currentDb === 'drl' || currentDb === 'prestige') ? `${currentDb}.rb_pdp_olap` : src.table;
             const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
             const platformFilter = (platform && platform !== 'All') ? escapeStr(platform.toLowerCase()) : 'amazon';
+            const resCol = (currentDb === 'drl' || currentDb === 'prestige') ? 'seller_name' : 'Reseller_Name';
 
             let query;
             if (platformFilter === 'flipkart') {
                 // Flipkart: use Comp_flag=0 AND Sales>0
                 query = `
-                    SELECT DISTINCT Reseller_Name
+                    SELECT DISTINCT ${resCol} as Reseller_Name
                     FROM ${table}
                     WHERE buy_box_neno_osa > 0
                       AND lower(Platform) = 'flipkart'
                       AND toString(Comp_flag) = '0'
                       AND Sales > 0
-                      AND Reseller_Name IS NOT NULL
-                      AND Reseller_Name != ''
+                      AND ${resCol} IS NOT NULL
+                      AND ${resCol} != ''
                     ORDER BY Reseller_Name
                 `;
             } else {
                 // Amazon (default): same logic
                 query = `
-                    SELECT DISTINCT Reseller_Name
+                    SELECT DISTINCT ${resCol} as Reseller_Name
                     FROM ${table}
                     WHERE buy_box_neno_osa > 0
                       AND lower(Platform) = '${platformFilter}'
                       AND toString(Comp_flag) = '0'
                       AND Sales > 0
-                      AND Reseller_Name IS NOT NULL
-                      AND Reseller_Name != ''
+                      AND ${resCol} IS NOT NULL
+                      AND ${resCol} != ''
                     ORDER BY Reseller_Name
                 `;
             }
@@ -13161,6 +13231,11 @@ const getSkuOverview = async (filters) => {
             }
         }
 
+        const drlResellerInfoSku = getDrlResellerConds(filters);
+        if (drlResellerInfoSku.pdpCond) {
+            conds.push(drlResellerInfoSku.pdpCond);
+        }
+
         return conds.join(' AND ');
     };
 
@@ -13321,7 +13396,8 @@ const getSkuOverview = async (filters) => {
     ] = results;
 
     const isDrlDbSku = getCurrentDbName() === 'drl';
-    if (isDrlDbSku) {
+    const drlResellerInfoSku = getDrlResellerConds(filters);
+    if (isDrlDbSku && drlResellerInfoSku.includeBuyMoreTable) {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
                 queryClickHouse(`
@@ -13679,6 +13755,11 @@ const getCityOverview = async (filters) => {
             }
         }
 
+        const drlResellerInfoCity = getDrlResellerConds(filters);
+        if (drlResellerInfoCity.pdpCond) {
+            conds.push(drlResellerInfoCity.pdpCond);
+        }
+
         return conds.join(' AND ');
     };
 
@@ -13881,7 +13962,8 @@ const getCityOverview = async (filters) => {
     ] = results;
 
     const isDrlDbCity = getCurrentDbName() === 'drl';
-    if (isDrlDbCity) {
+    const drlResellerInfoCity = getDrlResellerConds(filters);
+    if (isDrlDbCity && drlResellerInfoCity.includeBuyMoreTable) {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
                 queryClickHouse(`
@@ -15269,8 +15351,9 @@ const getCrossPlatformBrandMatrix = async (filters) => {
     }
 };
 
-export { getMsls, getCrossPlatformBrandMatrix };
+export { getMsls, getCrossPlatformBrandMatrix, getDrlResellerConds };
 export default {
+    getDrlResellerConds,
     getCrossPlatformBrandMatrix,
     getSummaryMetrics,
     getTrendData,
