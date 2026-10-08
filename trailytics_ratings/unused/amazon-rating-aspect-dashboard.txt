@@ -1,0 +1,715 @@
+# Amazon Ratings Aspect Analytics (Light/Dark) — React + TypeScript (single-file demo)
+# Copy into: src/App.tsx (Vite React TS template)
+# Requires: recharts
+#   npm i recharts
+#
+# Optional (nice UI): shadcn/ui + tailwind (but this demo uses plain CSS-in-JS style objects)
+# Works fine as-is.
+
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  BarChart,
+  Bar,
+} from "recharts";
+
+type Sentiment = "positive" | "negative" | "neutral";
+
+type ReviewAspectRow = {
+  id: string;
+  asin: string;
+  sku: string;
+  month: string; // YYYY-MM
+  ratingBucket: 1 | 2 | 3 | 4 | 5;
+  characteristic: string; // canonical label
+  sentiment: Sentiment;
+  mentions: number; // aggregated
+  confidence: number; // 0..1
+};
+
+type Filters = {
+  theme: "light" | "dark";
+  asin: string | "ALL";
+  sku: string | "ALL";
+  sentiment: Sentiment | "ALL";
+  ratingBucket: 1 | 2 | 3 | 4 | 5 | "ALL";
+  minConfidence: number;
+  topN: number;
+  monthFrom: string; // YYYY-MM
+  monthTo: string; // YYYY-MM
+};
+
+const CHARACTERISTIC_DICTIONARY: string[] = [
+  "Color fading",
+  "Build quality",
+  "Lid leakage",
+  "Handle heating",
+  "Packaging damage",
+  "Delivery delay",
+  "Noise level",
+  "Battery life",
+  "Smell/odor",
+  "Ease of cleaning",
+  "Value for money",
+  "Fit & finish",
+  "Cooking performance",
+  "Size/capacity",
+  "Instructions/manual",
+  "Customer support",
+  "Spare parts availability",
+  "Safety/pressure release",
+  "Rust/corrosion",
+  "Warranty claim",
+  "Other",
+];
+
+// Helper: month list between two YYYY-MM (inclusive)
+function monthRange(from: string, to: string): string[] {
+  const [fy, fm] = from.split("-").map(Number);
+  const [ty, tm] = to.split("-").map(Number);
+  const res: string[] = [];
+  let y = fy, m = fm;
+  while (y < ty || (y === ty && m <= tm)) {
+    res.push(`${y}-${String(m).padStart(2, "0")}`);
+    m++;
+    if (m === 13) { m = 1; y++; }
+  }
+  return res;
+}
+
+// Mock dataset generator (replace with your real aggregated output)
+function seedMockData(): ReviewAspectRow[] {
+  const months = monthRange("2022-01", "2022-12");
+  const asins = ["B0AAAA1111", "B0BBBB2222", "B0CCCC3333"];
+  const skusByAsin: Record<string, string[]> = {
+    B0AAAA1111: ["Cooker-3L-Red", "Cooker-5L-Black"],
+    B0BBBB2222: ["Cooker-3L-Silver"],
+    B0CCCC3333: ["Cooker-5L-Blue", "Cooker-2L-Red"],
+  };
+
+  const rand = (min: number, max: number) => Math.floor(min + Math.random() * (max - min + 1));
+  const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+
+  const baseWeights: Record<string, number> = {
+    "Color fading": 8,
+    "Build quality": 10,
+    "Lid leakage": 9,
+    "Handle heating": 6,
+    "Packaging damage": 7,
+    "Delivery delay": 6,
+    "Ease of cleaning": 8,
+    "Value for money": 9,
+    "Safety/pressure release": 5,
+    "Cooking performance": 10,
+    "Rust/corrosion": 4,
+    "Warranty claim": 3,
+    "Other": 2,
+  };
+
+  const data: ReviewAspectRow[] = [];
+  let idCounter = 1;
+
+  for (const asin of asins) {
+    for (const sku of skusByAsin[asin]) {
+      for (const month of months) {
+        // Simulate a few "events" in time:
+        const monthIdx = Number(month.split("-")[1]); // 1..12
+        const shippingCrisis = monthIdx >= 3 && monthIdx <= 5; // more packaging/delivery complaints
+        const coatingIssue = monthIdx >= 7 && monthIdx <= 10; // more color fading
+        const seasonSpike = monthIdx === 10 || monthIdx === 11; // festival buying spike
+
+        for (const characteristic of CHARACTERISTIC_DICTIONARY) {
+          if (characteristic === "Other") continue; // we'll add Other separately via low chance
+
+          const w = baseWeights[characteristic] ?? 2;
+          let mean = w;
+
+          if (shippingCrisis && (characteristic === "Packaging damage" || characteristic === "Delivery delay")) mean += 8;
+          if (coatingIssue && characteristic === "Color fading") mean += 10;
+          if (seasonSpike && (characteristic === "Value for money" || characteristic === "Cooking performance")) mean += 6;
+
+          // scale down for smaller SKUs
+          if (sku.includes("2L")) mean *= 0.7;
+
+          const mentions = clamp(rand(0, Math.round(mean)), 0, 30);
+          if (mentions === 0) continue;
+
+          // sentiment mix depends on characteristic:
+          const negBias = ["Lid leakage", "Handle heating", "Packaging damage", "Delivery delay", "Color fading", "Rust/corrosion", "Warranty claim"].includes(characteristic)
+            ? 0.7
+            : 0.35;
+
+          const posBias = ["Value for money", "Ease of cleaning", "Cooking performance", "Build quality", "Fit & finish"].includes(characteristic)
+            ? 0.55
+            : 0.25;
+
+          const r = Math.random();
+          let sentiment: Sentiment = "neutral";
+          if (r < posBias) sentiment = "positive";
+          else if (r < posBias + negBias) sentiment = "negative";
+
+          // rating bucket correlates with sentiment
+          let ratingBucket: 1|2|3|4|5 = 3;
+          if (sentiment === "positive") ratingBucket = (Math.random() < 0.65 ? 5 : 4);
+          if (sentiment === "negative") ratingBucket = (Math.random() < 0.55 ? 1 : 2);
+          if (sentiment === "neutral") ratingBucket = (Math.random() < 0.6 ? 3 : (Math.random() < 0.5 ? 4 : 2));
+
+          const confidence = Math.max(0.5, Math.min(0.98, 0.62 + Math.random() * 0.35));
+
+          data.push({
+            id: `R${idCounter++}`,
+            asin,
+            sku,
+            month,
+            ratingBucket,
+            characteristic,
+            sentiment,
+            mentions,
+            confidence,
+          });
+        }
+
+        // Add some "Other" noise
+        const otherMentions = rand(0, 4);
+        if (otherMentions > 0) {
+          data.push({
+            id: `R${idCounter++}`,
+            asin,
+            sku,
+            month,
+            ratingBucket: (rand(1,5) as any),
+            characteristic: "Other",
+            sentiment: (["neutral","negative","positive"][rand(0,2)] as Sentiment),
+            mentions: otherMentions,
+            confidence: 0.55 + Math.random() * 0.25,
+          });
+        }
+      }
+    }
+  }
+
+  return data;
+}
+
+function formatPct(n: number): string {
+  if (!isFinite(n)) return "0%";
+  return `${Math.round(n * 100)}%`;
+}
+
+function clamp01(x: number): number {
+  return Math.max(0, Math.min(1, x));
+}
+
+function getThemeStyles(theme: "light" | "dark") {
+  const isDark = theme === "dark";
+  return {
+    page: {
+      minHeight: "100vh",
+      background: isDark ? "#0b0f17" : "#f6f7fb",
+      color: isDark ? "#e6e9ef" : "#111827",
+      fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+    } as React.CSSProperties,
+    card: {
+      background: isDark ? "#0f172a" : "#ffffff",
+      border: `1px solid ${isDark ? "#1f2a44" : "#e5e7eb"}`,
+      borderRadius: 14,
+      boxShadow: isDark ? "0 10px 30px rgba(0,0,0,.25)" : "0 10px 30px rgba(17,24,39,.08)",
+    } as React.CSSProperties,
+    muted: { color: isDark ? "#a8b3cf" : "#6b7280" } as React.CSSProperties,
+    input: {
+      background: isDark ? "#0b1223" : "#ffffff",
+      color: isDark ? "#e6e9ef" : "#111827",
+      border: `1px solid ${isDark ? "#23304a" : "#d1d5db"}`,
+      borderRadius: 10,
+      padding: "10px 12px",
+      outline: "none",
+      width: "100%",
+    } as React.CSSProperties,
+    button: {
+      borderRadius: 10,
+      padding: "10px 12px",
+      border: `1px solid ${isDark ? "#23304a" : "#d1d5db"}`,
+      background: isDark ? "#0b1223" : "#ffffff",
+      color: isDark ? "#e6e9ef" : "#111827",
+      cursor: "pointer",
+      fontWeight: 600,
+    } as React.CSSProperties,
+    pill: (active: boolean) =>
+      ({
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "8px 10px",
+        borderRadius: 999,
+        border: `1px solid ${isDark ? "#23304a" : "#d1d5db"}`,
+        background: active ? (isDark ? "#1d2b4b" : "#eef2ff") : (isDark ? "#0b1223" : "#ffffff"),
+        cursor: "pointer",
+        userSelect: "none",
+        fontWeight: 600,
+      } as React.CSSProperties),
+  };
+}
+
+function Card(props: { title?: string; subtitle?: string; right?: React.ReactNode; children: React.ReactNode; theme: "light"|"dark" }) {
+  const s = getThemeStyles(props.theme);
+  return (
+    <div style={{ ...s.card, padding: 16 }}>
+      {(props.title || props.subtitle || props.right) && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
+          <div>
+            {props.title && <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.2 }}>{props.title}</div>}
+            {props.subtitle && <div style={{ fontSize: 12, marginTop: 2, ...s.muted }}>{props.subtitle}</div>}
+          </div>
+          {props.right}
+        </div>
+      )}
+      {props.children}
+    </div>
+  );
+}
+
+function Metric(props: { label: string; value: string; hint?: string; theme: "light"|"dark" }) {
+  const s = getThemeStyles(props.theme);
+  return (
+    <div style={{ ...s.card, padding: 14 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, ...s.muted }}>{props.label}</div>
+      <div style={{ fontSize: 22, fontWeight: 900, marginTop: 6 }}>{props.value}</div>
+      {props.hint && <div style={{ fontSize: 12, marginTop: 6, ...s.muted }}>{props.hint}</div>}
+    </div>
+  );
+}
+
+function Select(props: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; theme: "light"|"dark" }) {
+  const s = getThemeStyles(props.theme);
+  return (
+    <select style={s.input} value={props.value} onChange={(e) => props.onChange(e.target.value)}>
+      {props.options.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  );
+}
+
+function Slider(props: { value: number; min: number; max: number; step: number; onChange: (v: number) => void; theme: "light"|"dark" }) {
+  const isDark = props.theme === "dark";
+  return (
+    <input
+      type="range"
+      min={props.min}
+      max={props.max}
+      step={props.step}
+      value={props.value}
+      onChange={(e) => props.onChange(Number(e.target.value))}
+      style={{ width: "100%", accentColor: isDark ? "#93c5fd" : "#4f46e5" }}
+    />
+  );
+}
+
+function App() {
+  const [rows] = useState<ReviewAspectRow[]>(() => seedMockData());
+
+  const asins = useMemo(() => Array.from(new Set(rows.map(r => r.asin))).sort(), [rows]);
+  const skus = useMemo(() => Array.from(new Set(rows.map(r => r.sku))).sort(), [rows]);
+  const months = useMemo(() => Array.from(new Set(rows.map(r => r.month))).sort(), [rows]);
+
+  const [filters, setFilters] = useState<Filters>(() => ({
+    theme: "dark",
+    asin: "ALL",
+    sku: "ALL",
+    sentiment: "ALL",
+    ratingBucket: "ALL",
+    minConfidence: 0.65,
+    topN: 10,
+    monthFrom: months[0] ?? "2022-01",
+    monthTo: months[months.length - 1] ?? "2022-12",
+  }));
+
+  useEffect(() => {
+    // When dataset changes (not in this demo), keep month bounds valid
+    if (!months.includes(filters.monthFrom) || !months.includes(filters.monthTo)) {
+      setFilters(f => ({ ...f, monthFrom: months[0] ?? f.monthFrom, monthTo: months[months.length-1] ?? f.monthTo }));
+    }
+  }, [months]); // eslint-disable-line
+
+  const s = useMemo(() => getThemeStyles(filters.theme), [filters.theme]);
+
+  const filtered = useMemo(() => {
+    const monthSet = new Set(monthRange(filters.monthFrom, filters.monthTo));
+    return rows.filter(r => {
+      if (!monthSet.has(r.month)) return false;
+      if (filters.asin !== "ALL" && r.asin !== filters.asin) return false;
+      if (filters.sku !== "ALL" && r.sku !== filters.sku) return false;
+      if (filters.sentiment !== "ALL" && r.sentiment !== filters.sentiment) return false;
+      if (filters.ratingBucket !== "ALL" && r.ratingBucket !== filters.ratingBucket) return false;
+      if (r.confidence < filters.minConfidence) return false;
+      return true;
+    });
+  }, [rows, filters]);
+
+  // Metrics
+  const metrics = useMemo(() => {
+    const totalMentions = filtered.reduce((a, r) => a + r.mentions, 0);
+    const negMentions = filtered.filter(r => r.sentiment === "negative").reduce((a, r) => a + r.mentions, 0);
+    const posMentions = filtered.filter(r => r.sentiment === "positive").reduce((a, r) => a + r.mentions, 0);
+    const neuMentions = totalMentions - negMentions - posMentions;
+
+    // proxy rating: weighted by bucket * mentions
+    const ratingWeightedSum = filtered.reduce((a, r) => a + r.ratingBucket * r.mentions, 0);
+    const avgRating = totalMentions ? (ratingWeightedSum / totalMentions) : 0;
+
+    return {
+      totalMentions,
+      avgRating: avgRating.toFixed(2),
+      negShare: formatPct(totalMentions ? negMentions / totalMentions : 0),
+      posShare: formatPct(totalMentions ? posMentions / totalMentions : 0),
+      neuShare: formatPct(totalMentions ? neuMentions / totalMentions : 0),
+    };
+  }, [filtered]);
+
+  // Leaderboard: top characteristics by negative mentions (or overall depending on sentiment filter)
+  const leaderboard = useMemo(() => {
+    const map = new Map<string, { characteristic: string; mentions: number; neg: number; pos: number; neu: number }>();
+    for (const r of filtered) {
+      const key = r.characteristic;
+      const cur = map.get(key) ?? { characteristic: key, mentions: 0, neg: 0, pos: 0, neu: 0 };
+      cur.mentions += r.mentions;
+      if (r.sentiment === "negative") cur.neg += r.mentions;
+      else if (r.sentiment === "positive") cur.pos += r.mentions;
+      else cur.neu += r.mentions;
+      map.set(key, cur);
+    }
+    const arr = Array.from(map.values());
+    // Sort: if user didn't filter sentiment, prioritize negative drivers; else by mentions
+    const sorted = (filters.sentiment === "ALL")
+      ? arr.sort((a, b) => b.neg - a.neg)
+      : arr.sort((a, b) => b.mentions - a.mentions);
+
+    const top = sorted.slice(0, filters.topN).map(x => ({
+      ...x,
+      negPct: x.mentions ? x.neg / x.mentions : 0,
+      posPct: x.mentions ? x.pos / x.mentions : 0,
+      neuPct: x.mentions ? x.neu / x.mentions : 0,
+    }));
+    return top;
+  }, [filtered, filters.sentiment, filters.topN]);
+
+  // Monthly trends: top characteristics lines + Other
+  const trendData = useMemo(() => {
+    const monthsInRange = monthRange(filters.monthFrom, filters.monthTo);
+
+    // Choose characteristic set from leaderboard (excluding Other)
+    const chosen = leaderboard
+      .map(l => l.characteristic)
+      .filter(c => c !== "Other")
+      .slice(0, Math.min(filters.topN, 10));
+
+    const chosenSet = new Set(chosen);
+
+    const byMonth: Record<string, any> = {};
+    for (const m of monthsInRange) {
+      byMonth[m] = { month: m };
+      for (const c of chosen) byMonth[m][c] = 0;
+      byMonth[m]["Other"] = 0;
+    }
+
+    for (const r of filtered) {
+      if (!byMonth[r.month]) continue;
+      const key = chosenSet.has(r.characteristic) ? r.characteristic : "Other";
+      byMonth[r.month][key] += r.mentions;
+    }
+
+    return monthsInRange.map(m => byMonth[m]);
+  }, [filtered, filters.monthFrom, filters.monthTo, leaderboard, filters.topN]);
+
+  // Heatmap-like table data: characteristic x sentiment distribution (compact, non-crowdy)
+  const heat = useMemo(() => {
+    return leaderboard.map(l => ({
+      characteristic: l.characteristic,
+      mentions: l.mentions,
+      positive: l.pos,
+      neutral: l.neu,
+      negative: l.neg,
+      negPct: l.mentions ? l.neg / l.mentions : 0,
+    }));
+  }, [leaderboard]);
+
+  const sentimentPills: { key: Filters["sentiment"]; label: string }[] = [
+    { key: "ALL", label: "All" },
+    { key: "negative", label: "Bad" },
+    { key: "neutral", label: "Neutral" },
+    { key: "positive", label: "Good" },
+  ];
+
+  const bucketOptions = [
+    { value: "ALL", label: "All ratings" },
+    { value: "1", label: "1★" },
+    { value: "2", label: "2★" },
+    { value: "3", label: "3★" },
+    { value: "4", label: "4★" },
+    { value: "5", label: "5★" },
+  ];
+
+  return (
+    <div style={s.page}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: 18 }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: 0.2 }}>Amazon Rating Analytics</div>
+            <div style={{ fontSize: 12, marginTop: 4, ...s.muted }}>
+              Aspect (characteristic) dictionary + sentiment + trends (2022). Replace mock data with your AI output.
+            </div>
+          </div>
+          <button
+            style={s.button}
+            onClick={() => setFilters(f => ({ ...f, theme: f.theme === "dark" ? "light" : "dark" }))}
+            title="Toggle light/dark"
+          >
+            Theme: {filters.theme === "dark" ? "Dark" : "Light"}
+          </button>
+        </div>
+
+        {/* Filters / Slicers */}
+        <Card
+          theme={filters.theme}
+          title="Slicers & Dicers"
+          subtitle="Use these controls to slice by ASIN/SKU, sentiment, rating bucket, confidence and time"
+        >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 12 }}>
+            <div style={{ gridColumn: "span 4" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6, ...s.muted }}>ASIN</div>
+              <Select
+                theme={filters.theme}
+                value={filters.asin}
+                onChange={(v) => setFilters(f => ({ ...f, asin: v as any, sku: "ALL" }))}
+                options={[{ value: "ALL", label: "All ASINs" }, ...asins.map(a => ({ value: a, label: a }))]}
+              />
+            </div>
+
+            <div style={{ gridColumn: "span 4" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6, ...s.muted }}>SKU / Variant</div>
+              <Select
+                theme={filters.theme}
+                value={filters.sku}
+                onChange={(v) => setFilters(f => ({ ...f, sku: v as any }))}
+                options={[{ value: "ALL", label: "All SKUs" }, ...skus.map(a => ({ value: a, label: a }))]}
+              />
+            </div>
+
+            <div style={{ gridColumn: "span 4" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6, ...s.muted }}>Rating Bucket</div>
+              <Select
+                theme={filters.theme}
+                value={String(filters.ratingBucket)}
+                onChange={(v) => setFilters(f => ({ ...f, ratingBucket: (v === "ALL" ? "ALL" : (Number(v) as any)) }))}
+                options={bucketOptions}
+              />
+            </div>
+
+            <div style={{ gridColumn: "span 6" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8, ...s.muted }}>Sentiment</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {sentimentPills.map(p => (
+                  <div
+                    key={p.key}
+                    style={s.pill(filters.sentiment === p.key)}
+                    onClick={() => setFilters(f => ({ ...f, sentiment: p.key }))}
+                  >
+                    {p.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ gridColumn: "span 3" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6, ...s.muted }}>
+                Min confidence: {filters.minConfidence.toFixed(2)}
+              </div>
+              <Slider theme={filters.theme} value={filters.minConfidence} min={0.5} max={0.95} step={0.01}
+                onChange={(v) => setFilters(f => ({ ...f, minConfidence: v }))}
+              />
+            </div>
+
+            <div style={{ gridColumn: "span 3" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6, ...s.muted }}>
+                Top N characteristics: {filters.topN}
+              </div>
+              <Slider theme={filters.theme} value={filters.topN} min={5} max={15} step={1}
+                onChange={(v) => setFilters(f => ({ ...f, topN: v }))}
+              />
+            </div>
+
+            <div style={{ gridColumn: "span 3" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6, ...s.muted }}>From</div>
+              <Select
+                theme={filters.theme}
+                value={filters.monthFrom}
+                onChange={(v) => setFilters(f => ({ ...f, monthFrom: v }))}
+                options={months.map(m => ({ value: m, label: m }))}
+              />
+            </div>
+
+            <div style={{ gridColumn: "span 3" }}>
+              <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6, ...s.muted }}>To</div>
+              <Select
+                theme={filters.theme}
+                value={filters.monthTo}
+                onChange={(v) => setFilters(f => ({ ...f, monthTo: v }))}
+                options={months.map(m => ({ value: m, label: m }))}
+              />
+            </div>
+          </div>
+        </Card>
+
+        {/* Metrics */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 12, marginTop: 12 }}>
+          <div style={{ gridColumn: "span 3" }}>
+            <Metric theme={filters.theme} label="Avg rating (proxy)" value={metrics.avgRating} hint="Weighted by mentions" />
+          </div>
+          <div style={{ gridColumn: "span 3" }}>
+            <Metric theme={filters.theme} label="Total mentions" value={String(metrics.totalMentions)} hint="Aspect mentions after filters" />
+          </div>
+          <div style={{ gridColumn: "span 2" }}>
+            <Metric theme={filters.theme} label="Bad share" value={metrics.negShare} />
+          </div>
+          <div style={{ gridColumn: "span 2" }}>
+            <Metric theme={filters.theme} label="Neutral share" value={metrics.neuShare} />
+          </div>
+          <div style={{ gridColumn: "span 2" }}>
+            <Metric theme={filters.theme} label="Good share" value={metrics.posShare} />
+          </div>
+        </div>
+
+        {/* Main grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 12, marginTop: 12 }}>
+          {/* Leaderboard */}
+          <div style={{ gridColumn: "span 5" }}>
+            <Card
+              theme={filters.theme}
+              title={filters.sentiment === "ALL" ? "Top Drivers (sorted by Bad mentions)" : "Top Characteristics (sorted by mentions)"}
+              subtitle="Click a row later to drill-down (wireframe)."
+            >
+              <div style={{ overflow: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ textAlign: "left" }}>
+                      <th style={{ padding: "8px 6px" }}>Characteristic</th>
+                      <th style={{ padding: "8px 6px" }}>Mentions</th>
+                      <th style={{ padding: "8px 6px" }}>Bad%</th>
+                      <th style={{ padding: "8px 6px" }}>Bad</th>
+                      <th style={{ padding: "8px 6px" }}>Good</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {heat.map((r) => (
+                      <tr key={r.characteristic} style={{ borderTop: `1px solid ${filters.theme === "dark" ? "#23304a" : "#e5e7eb"}` }}>
+                        <td style={{ padding: "8px 6px", fontWeight: 800 }}>{r.characteristic}</td>
+                        <td style={{ padding: "8px 6px" }}>{r.mentions}</td>
+                        <td style={{ padding: "8px 6px" }}>{formatPct(r.negPct)}</td>
+                        <td style={{ padding: "8px 6px" }}>{r.negative}</td>
+                        <td style={{ padding: "8px 6px" }}>{r.positive}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+
+          {/* Trend (Top lines + Other) */}
+          <div style={{ gridColumn: "span 7" }}>
+            <Card
+              theme={filters.theme}
+              title="Trend (Top characteristics + Other)"
+              subtitle="Non-crowdy: max 10 lines, everything else grouped into Other."
+            >
+              <div style={{ width: "100%", height: 290 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendData}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Legend />
+                    {Object.keys(trendData[0] ?? {})
+                      .filter(k => k !== "month")
+                      .map((k) => (
+                        <Line key={k} type="monotone" dataKey={k} dot={false} strokeWidth={2} />
+                      ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+
+          {/* Sentiment distribution */}
+          <div style={{ gridColumn: "span 6" }}>
+            <Card
+              theme={filters.theme}
+              title="Sentiment split (Top characteristics)"
+              subtitle="Stacked bars: Good vs Neutral vs Bad mentions"
+            >
+              <div style={{ width: "100%", height: 280 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={heat}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                    <XAxis dataKey="characteristic" tick={{ fontSize: 10 }} interval={0} angle={-25} height={70} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="positive" stackId="a" />
+                    <Bar dataKey="neutral" stackId="a" />
+                    <Bar dataKey="negative" stackId="a" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+
+          {/* Share over time (stacked area) */}
+          <div style={{ gridColumn: "span 6" }}>
+            <Card
+              theme={filters.theme}
+              title="Share of mentions over time"
+              subtitle="Stacked area: how characteristics share changes by month"
+            >
+              <div style={{ width: "100%", height: 280 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Legend />
+                    {Object.keys(trendData[0] ?? {})
+                      .filter(k => k !== "month")
+                      .map((k) => (
+                        <Area key={k} type="monotone" dataKey={k} stackId="1" strokeWidth={1} />
+                      ))}
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* Footer note */}
+        <div style={{ marginTop: 14, fontSize: 12, ...s.muted }}>
+          Tip: Replace <b>seedMockData()</b> with your aggregated AI output.
+          Keep a fixed <b>Characteristic Dictionary</b> (30–80 labels) to avoid UI crowding.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;

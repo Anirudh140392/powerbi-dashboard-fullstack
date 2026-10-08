@@ -1,0 +1,570 @@
+
+AI-generated content may be incorrect
+
+Anirudh started transcription
+KT
+
+Kathirvel T
+0 minutes 7 seconds0:07
+Kathirvel T 0 minutes 7 seconds
+Yeah, can I get Shankar?
+Kathirvel T 0 minutes 15 seconds
+so the one of the major concern has been that like I think this is sample data because the total number of reviews is quite low. Its lets say 20,000 or to maybe maximum of 60,000 if I change the date range. Okay, so need to check if the data.
+SJ
+
+Saurabh Jain
+0 minutes 18 seconds0:18
+Saurabh Jain 0 minutes 18 seconds
+Yes.
+A
+
+Anirudh
+0 minutes 32 seconds0:32
+Anirudh 0 minutes 32 seconds
+How many reviews? Sorry Kathe, how many reviews? So I tell you guys, I tell you I tell you see the number of reviews can has to be limited. Reason being you cannot crawl all the reviews which are there on a platform, right? The Amazon just give you the reviews to crawl which is like.
+KT
+
+Kathirvel T
+0 minutes 35 seconds0:35
+Kathirvel T 0 minutes 35 seconds
+I'll just show the data, so if you can see her right, yeah.
+A
+
+Anirudh
+0 minutes 53 seconds0:53
+Anirudh 0 minutes 53 seconds
+5 pages or 6 pages, not more than that. Okay, so it has to be every time you need to, it has to be an incremental release going forward.
+Anirudh 1 minute 2 seconds
+That is the maximum on team it has. That is the maximum.
+KT
+
+Kathirvel T
+1 minute 3 seconds1:03
+Kathirvel T 1 minute 3 seconds
+Okay.
+SS
+
+Shakti Singh
+1 minute 5 seconds1:05
+Shakti Singh 1 minute 5 seconds
+Yeah.
+Shakti Singh 1 minute 7 seconds
+So the thought is, So the thought is that we will give you a set of reviews, the they will go live with and then going forward, it will be updated. So anything which will come new after the dump or the first cut, what we will share it with you, uske baad jo bhee reviews aayega platform and then those all will be captured.
+Kathirvel T 7 minutes 26 seconds
+And how many reviews we got in that most recent set?
+Kathirvel T 7 minutes 29 seconds
+So this was the first point.
+SS
+Shakti Singh
+7 minutes 34 seconds7:34
+Shakti Singh 7 minutes 34 seconds
+Okay.
+KT
+Kathirvel T
+7 minutes 34 seconds7:34
+Kathirvel T 7 minutes 34 seconds
+The second was on the capability, so some filters we wanted. So today, lets say any of the tabs we go, we don't have any filter of sort. So earlier the team had shared a BI, right? In the BI, the filters were okay, where we had a platform filter, then we had a brand filter.
+SS
+Shakti Singh
+7 minutes 37 seconds7:37
+Shakti Singh 7 minutes 37 seconds
+Yes.
+Shakti Singh 7 minutes 46 seconds
+Okay.
+KT
+Kathirvel T
+7 minutes 53 seconds7:53
+Kathirvel T 7 minutes 53 seconds
+Then we had a category filter, then we had a SQ wise filter. So when I clicked all platforms, all, we were getting able to see a overall view. And when we double clicked on Amazon, then we go to a category mixer grinder. Then we dynamically showed the mixer grinder related reviews. So this way we can directly share it with the concerned.
+Kathirvel T 8 minutes 14 seconds
+Category team and CC, this is how the category is performing. You can take action. So if we have filters, it'll help us deep dive more effectively.
+SS
+Shakti Singh
+8 minutes 24 seconds8:24
+Shakti Singh 8 minutes 24 seconds
+We'll take that.
+KT
+Kathirvel T
+8 minutes 26 seconds8:26
+Kathirvel T 8 minutes 26 seconds
+And this filter, it will be good if it's in all pages, categories, competitor insights, GB DO insights.
+Kathirvel T 8 minutes 36 seconds
+Yeah.
+SS
+Shakti Singh
+8 minutes 36 seconds8:36
+Shakti Singh 8 minutes 36 seconds
+Sure.
+KT
+Kathirvel T
+8 minutes 39 seconds8:39
+Kathirvel T 8 minutes 39 seconds
+Okay, and the next point is executive insights in the same tab. So there was a point called brand health score, so and escalating issues and customer satisfaction. So want to understand what does this mean and what are the underlying metrics we are calculating?
+SS
+Shakti Singh
+8 minutes 59 seconds8:59
+Shakti Singh 8 minutes 59 seconds
+Okay, so if you see, got it.
+SJ
+Saurabh Jain
+9 minutes9:00
+Saurabh Jain 9 minutes
+So it is a sentiment of like whatever the ML have given the result now. So it is based on the sentiments the all the categories. all.
+KT
+Kathirvel T
+9 minutes 8 seconds9:08
+Kathirvel T 9 minutes 8 seconds
+Doctor.
+Kathirvel T 9 minutes 9 seconds
+So when I say brand health score, does it mean there are that many mentions of the brand or like sentiment would be like is positive or negative or neutral like so from there how we are okay?
+SJ
+Saurabh Jain
+9 minutes 18 seconds9:18
+Saurabh Jain 9 minutes 18 seconds
+Yeah, that is a positive one.
+KT
+Kathirvel T
+9 minutes 23 seconds9:23
+Kathirvel T 9 minutes 23 seconds
+I'm sorry, I just stopped you. Can you continue, please?
+SJ
+Saurabh Jain
+9 minutes 26 seconds9:26
+Saurabh Jain 9 minutes 26 seconds
+So that is for prestige overall, that is for the yeah.
+SS
+Shakti Singh
+9 minutes 27 seconds9:27
+Shakti Singh 9 minutes 27 seconds
+Sorry, yeah, sorry, my network.
+SJ
+Saurabh Jain
+9 minutes 32 seconds9:32
+Saurabh Jain 9 minutes 32 seconds
+Yes, Shakti.
+SS
+Shakti Singh
+9 minutes 32 seconds9:32
+Shakti Singh 9 minutes 32 seconds
+Yes, let me take this up. So there are 2 parts to it. One is at a brand level, it will consolidate all your reviews and give you a statement about the overall brand performance, positive and negative. Along with that, the moment when you filter it down to a particular category.
+Shakti Singh 9 minutes 52 seconds
+It will actually, so if you see on Amazon, there are certain bifurcations right in terms of quality, in terms of delivery, in terms of pricing, and also so and then so forth. What you have tried doing is what is the consolidation of those.
+
+Kathirvel T
+10 minutes10:00
+Kathirvel T 10 minutes
+Correct.
+SS
+Shakti Singh
+10 minutes 5 seconds10:05
+Shakti Singh 10 minutes 5 seconds
+Hello.
+KT
+Kathirvel T
+10 minutes 10 seconds10:10
+Kathirvel T 10 minutes 10 seconds
+Hello.
+Kathirvel T 10 minutes 14 seconds
+Sorry Shakti, lost you.
+SS
+Shakti Singh
+10 minutes 15 seconds10:15
+Shakti Singh 10 minutes 15 seconds
+So.
+KT
+Kathirvel T
+10 minutes 35 seconds10:35
+Kathirvel T 10 minutes 35 seconds
+Am I the only one facing issue or?
+A
+Anirudh
+10 minutes 39 seconds10:39
+Anirudh 10 minutes 39 seconds
+Interrupt your voice is breaking. I am not sure it is better now.
+AS
+
+Ankita Singh
+10 minutes 43 seconds10:43
+Ankita Singh 10 minutes 43 seconds
+I can hear, I can hear.
+KT
+Kathirvel T
+10 minutes 46 seconds10:46
+Kathirvel T 10 minutes 46 seconds
+Okay, Shakti dropped. Okay, yeah.
+Saurabh Jain 19 minutes 34 seconds
+Okay, yeah, we will keep your single town, yeah.
+KT
+Kathirvel T
+19 minutes 34 seconds19:34
+Kathirvel T 19 minutes 34 seconds
+Just for clarification.
+Kathirvel T 19 minutes 38 seconds
+so this way we want to be able to deep dive as much as possible to go to that particular issue and then solve for it directly.
+Kathirvel T 19 minutes 47 seconds
+Okay, and then the sentiment timeline is fine, okay, but in this we wanted to see. So if you see over here, let me take.
+SJ
+Saurabh Jain
+19 minutes 48 seconds19:48
+Saurabh Jain 19 minutes 48 seconds
+Okay.
+Saurabh Jain 20 minutes
+Thank you.
+Saurabh Jain 20 minutes 18 seconds
+Yeah.
+KT
+Kathirvel T
+20 minutes 18 seconds20:18
+Kathirvel T 20 minutes 18 seconds
+OK, so but we are not able to come up with any insights out of this. So even though we will retain this, but on top of this I want another view where I want to see what is the percentage of what to say quality reviews as a function of the total reviews received in that period. Let's say if I'm saying October 25 a percentage so then I know if the quality issues increased, decreased or is it just a flat line.
+SJ
+Saurabh Jain
+20 minutes 23 seconds20:23
+Saurabh Jain 20 minutes 23 seconds
+Yeah.
+Saurabh Jain 20 minutes 35 seconds
+Okay, got it.
+Saurabh Jain 20 minutes 55 seconds
+Start.
+KT
+Kathirvel T
+20 minutes 55 seconds20:55
+Kathirvel T 20 minutes 55 seconds
+Now I'm going to the competitor insights, okay?
+Kathirvel T 21 minutes
+In this also, so again, like if you are having multiple filters, we also want to have a filter for competition, let us say all competition or we also have an option to select a particular competitor and want to be able to benchmark. So I today if I go to open this particular quality rate.
+SJ
+Saurabh Jain
+21 minutes 7 seconds21:07
+Saurabh Jain 21 minutes 7 seconds
+Hello.
+Saurabh Jain 21 minutes 12 seconds
+Okay.
+Saurabh Jain 21 minutes 16 seconds
+Mhm.
+KT
+Kathirvel T
+21 minutes 20 seconds21:20
+Kathirvel T 21 minutes 20 seconds
+Oh.
+Kathirvel T 21 minutes 23 seconds
+That is also staging.
+Kathirvel T 21 minutes 29 seconds
+so if I click on mixer grinder over here, I don't know what is the basis on which this sheet has been populated. Okay, because Butterfly has some n number of mixer grinders, Preeti has n number of mixer grinders, so and also Prestige has 10 to almost 30 mixer.
+SJ
+Saurabh Jain
+21 minutes 32 seconds21:32
+Saurabh Jain 21 minutes 32 seconds
+Oh.
+KT
+Kathirvel T
+21 minutes 47 seconds21:47
+Kathirvel T 21 minutes 47 seconds
+How do I know what am I benchmarking with? Because this is showing me one particular SKU.
+Kathirvel T 21 minutes 54 seconds
+so this doesn't give me a full picture because 750 is a totally different segment, 500 is a totally different segment.
+Kathirvel T 22 minutes 1 second
+Okay, if you can see the price range also, these are different segments altogether. So this doesn't help in me taking a decision.
+SJ
+Saurabh Jain
+22 minutes 2 seconds22:02
+Saurabh Jain 22 minutes 2 seconds
+Okay.
+Saurabh Jain 22 minutes 6 seconds
+Okay.
+KT
+Kathirvel T
+22 minutes 9 seconds22:09
+Kathirvel T 22 minutes 9 seconds
+OK, so if I click on a mixer grinder and lets say the view, it would be preferable if I have a metrics of sorts, OK, which says I will give an example of mixer grinder. So there is 500 watts mixer grinder, 750 watts mixer grinder, or 1000 watts mixer grinder.
+SJ
+Saurabh Jain
+22 minutes 9 seconds22:09
+Saurabh Jain 22 minutes 9 seconds
+Got it.
+KT
+Kathirvel T
+22 minutes 32 seconds22:32
+Kathirvel T 22 minutes 32 seconds
+Edge versus price 1000 to 2000, 2000 to 3000. So in this segment like what is the performance? So here there could be one product from each of the competition. Prestige has a product, butterfly has a product and others have a product. So if we are able to view like that.
+SJ
+Saurabh Jain
+22 minutes 47 seconds22:47
+Saurabh Jain 22 minutes 47 seconds
+Yeah, hello.
+KT
+Kathirvel T
+22 minutes 51 seconds22:51
+Kathirvel T 22 minutes 51 seconds
+Okay, that would help. I know okay, where is our product standing against competition? What is the rating in that segment? What is my quality and so on?
+SJ
+Saurabh Jain
+22 minutes 54 seconds22:54
+Saurabh Jain 22 minutes 54 seconds
+Okay.
+Saurabh Jain 23 minutes 2 seconds
+Okay.
+KT
+Kathirvel T
+23 minutes 2 seconds23:02
+Kathirvel T 23 minutes 2 seconds
+OK, this wattage versus price metric will be helpful for induction with a grinder. I think almost all electrical appliances, OK, except gas stove because in gas stove we don't have anything called wattage. Yeah, there the category will be slightly different.
+SJ
+Saurabh Jain
+23 minutes 18 seconds23:18
+Saurabh Jain 23 minutes 18 seconds
+Mhm.
+KT
+Kathirvel T
+23 minutes 21 seconds23:21
+Kathirvel T 23 minutes 21 seconds
+Okay.
+
+KT
+Kathirvel T
+27 minutes 36 seconds27:36
+Kathirvel T 27 minutes 36 seconds
+Yeah.
+Kathirvel T 27 minutes 38 seconds
+Yeah, something like this. I mean similar to this not doesn't have to be like this exactly. You can give recommendations, see this type of you will help you will come to this these decisions. So something like that.
+SJ
+Saurabh Jain
+27 minutes 48 seconds27:48
+Saurabh Jain 27 minutes 48 seconds
+Okay, can you share me this excel file?
+KT
+Kathirvel T
+27 minutes 52 seconds27:52
+Kathirvel T 27 minutes 52 seconds
+Yeah, I'll share this entire file. I wanted to explain once before sharing it.
+SJ
+Saurabh Jain
+27 minutes 54 seconds27:54
+Saurabh Jain 27 minutes 54 seconds
+Okay.
+Saurabh Jain 27 minutes 58 seconds
+And also, can I have your number so that like if I have any doubt, like I can connect with you?
+KT
+Kathirvel T
+28 minutes 3 seconds28:03
+Kathirvel T 28 minutes 3 seconds
+yes.
+Kathirvel T 28 minutes 8 seconds
+Yeah, largely this. So yeah, Siddharth, Akadar, you have anything else?
+SJ
+Saurabh Jain
+28 minutes 26 seconds28:26
+Saurabh Jain 28 minutes 26 seconds
+Overall, like how was the like feedback from the product team?
+KT
+Kathirvel T
+28 minutes 34 seconds28:34
+Kathirvel T 28 minutes 34 seconds
+They were okay, see anything which they don't have and they are happy with it only. Only thing is the authenticity of the data. Like see now current data is not very helpful for taking decisions. And let me see this particular tab, this is not relevant at all. These reviews, I would say yeah.
+SJ
+Saurabh Jain
+28 minutes 40 seconds28:40
+Saurabh Jain 28 minutes 40 seconds
+Okay.
+Saurabh Jain 28 minutes 48 seconds
+Yeah, that is not relevant that I know that I have that I was working on it.
+KT
+Kathirvel T
+28 minutes 53 seconds28:53
+Kathirvel T 28 minutes 53 seconds
+We can completely remove this. So for us, primarily this categories and competitor insights are helpful. Executive insights is a good to have, okay, which we can then share to top management and say see this is how the overall summary looks like. But in these 2, we want to definitely work more so that we can keep drilling down and then take.
+SJ
+Saurabh Jain
+28 minutes 56 seconds28:56
+Saurabh Jain 28 minutes 56 seconds
+Yeah.
+Saurabh Jain 29 minutes 6 seconds
+Yeah.
+KT
+Kathirvel T
+29 minutes 13 seconds29:13
+Kathirvel T 29 minutes 13 seconds
+Action based on how it is. So one would be, lets say, what is the current trend and then we lets say then if it is a quality issue, go to the quality team. If it is a package issue, go to a packaging team safety issue, then go to the manufacturing team and so on. Sentiment also will give us the trend competitor insights will help us benchmark.
+SJ
+Saurabh Jain
+29 minutes 25 seconds29:25
+Saurabh Jain 29 minutes 25 seconds
+Yeah.
+KT
+Kathirvel T
+29 minutes 33 seconds29:33
+Kathirvel T 29 minutes 33 seconds
+OK, where do we stand? Where is the competition? So currently, this these things are not coming from the dashboard like this potential, but it is not like we are not directly usable here.
+SJ
+Saurabh Jain
+29 minutes 45 seconds29:45
+Saurabh Jain 29 minutes 45 seconds
+So like you have given like exhausted feedback, so obviously like I will work on it and if I have any doubt or any I need any clarification, I will connect with you if you like whenever you are available.
+KT
+Kathirvel T
+29 minutes 48 seconds29:48
+Kathirvel T 29 minutes 48 seconds
+Yeah.
+Kathirvel T 29 minutes 54 seconds
+Yeah.
+Kathirvel T 30 minutes 1 second
+Sure.
+Kathirvel T 30 minutes 4 seconds
+You have to.
+Kathirvel T 30 minutes 8 seconds
+Siddharth Bhardwaj Jangita.
+Kathirvel T 30 minutes 19 seconds
+And also Shakti, any other suggestions like based on what we spoke right? So anything else you would see which would be relevant to us?
+Kathirvel T 30 minutes 27 seconds
+Which we could incorporate because...
+
+
+Shakti Singh 32 minutes 47 seconds
+Yeah.
+KT
+Kathirvel T
+32 minutes 47 seconds32:47
+Kathirvel T 32 minutes 47 seconds
+Sure, Shakti helps helps. Yeah. And also like this is for the reviews and rating dashboard. Do we have anything of the sort for the content dashboard as well so that we can start the thread on that as well?
+SS
+Shakti Singh
+32 minutes 50 seconds32:50
+Shakti Singh 32 minutes 50 seconds
+Okay.
+Shakti Singh 33 minutes 1 second
+Content dashboard, content dashboard, we have already gone quite exhaustive from title to bullet point to PDP to A plus. We haven't added, if you remember last conversation, we haven't added from the brand section, but now we will we will also create one from the brand from the brand section for.
+KT
+Kathirvel T
+33 minutes 10 seconds33:10
+Kathirvel T 33 minutes 10 seconds
+Okay.
+Kathirvel T 33 minutes 15 seconds
+Okay.
+SS
+Shakti Singh
+33 minutes 22 seconds33:22
+Shakti Singh 33 minutes 22 seconds
+This one because that's something who automatically system is actually pushing up because that is also added as a KPI key from the main section. If it is meeting, it is also a content score, hit khata, OP. So we will also add that and by any which way some meta level pay scrape curry there so we can also see.
+Shakti Singh 33 minutes 42 seconds
+Which meta and without meta, what is the score difference? So we can evaluate those numbers also. Those are quite exhaustive, to be very honest, to evaluate the percentage aur uske baad because we already have done the scraping once. Amit bar currently scraping karke ek bar revisit karte hai, what are the CTRs and all.
+Shakti Singh 34 minutes 2 seconds
+And lets compare those ETRs with the previous one. So that will also give us some kind of efficacy that how do we track down when it comes to this one pre and post performance growth or performance indicator. Along with that, uske andar 8 layer abhi we are still figuring it out how to get that things.
+Shakti Singh 34 minutes 23 seconds
+Included in the competition bit because competition bit majorly what we can call out is what is their product and what is our product difference means if you have any specific KPI which you want to try want us to track in terms of perform in terms of competition, we can definitely evaluate that bit also because right now we are just typically comparing Apple to ever more.
+Shakti Singh 34 minutes 46 seconds
+Quantitative rather than qualitative for competition because over there because their brand guidelines are much different than ours, right? For them, black is the base for us, white is the base for example. So we have a red logo, they have a blue logo. So we cannot have quantitative qualitative. We consider quantitatively concern if they are doing 5 or they are doing, lets say, 7 grade A plus content. So we can typically say that we are the base hitting.
+KT
+Kathirvel T
+34 minutes 50 seconds34:50
+Kathirvel T 34 minutes 50 seconds
+yeah.
+Kathirvel T 34 minutes 54 seconds
+Yeah.
+Kathirvel T 35 minutes
+Correct, correct.
+SS
+Shakti Singh
+35 minutes 11 seconds35:11
+Shakti Singh 35 minutes 11 seconds
+Fix it, so there is a scope of improvisation. If they have a video, we don't have a video, so we can they will automatically win over and above. So it is more of a number crunching in what we can do from a competition base. But having said that, so competition ka hamaari ko benchmarking wo products karne ke liye, we can definitely take Hawkins as a benchmark, especially in case of.
+Shakti Singh 35 minutes 30 seconds
+Pressure cooker, but for rest of the category, we should also take into consideration some newly added brands. So for example, in category of pants and all, we should also take brands like Indus Valley and all.
+Shakti Singh 35 minutes 43 seconds
+So, Jahan pay, you say now the Karat has withdrawn Indian market. Otherwise, Karat is another benchmarking. Industry is another benchmarking. I am not saying from a saliency perspective, but more from a listing perspective.
+KT
+Kathirvel T
+35 minutes 43 seconds35:43
+Kathirvel T 35 minutes 43 seconds
+sure, okay.
+Kathirvel T 35 minutes 57 seconds
+Got it, got it, sure.
+SS
+Shakti Singh
+36 minutes36:00
+Shakti Singh 36 minutes
+Wo hum ek hi do ad kal dekhe usne competition layer, competition layer hum ne kiya hota hai I have shown you if you can share me a list of competition hamein ek apna generic list kiya karke aapko dekhe. Ji these are the categories and these categories these are the competition words we think from content perspective and also from a saliency perspective usmein kuchh tweet karna ho so you can definitely let us know.
+KT
+Kathirvel T
+36 minutes36:00
+Kathirvel T 36 minutes
+okay.
+AS
+Ankita Singh
+36 minutes 20 seconds36:20
+Ankita Singh 36 minutes 20 seconds
+Pustam Shakti, that was already shared as a part of onboarding process. If you want, I can reforward that mail to you.
+SS
+Shakti Singh
+36 minutes 25 seconds36:25
+
+hakti Singh
+36 minutes 25 seconds36:25
+Shakti Singh 36 minutes 25 seconds
+I was not looting. I'm sure Soundabad team must be having.
+AS
+Ankita Singh
+36 minutes 32 seconds36:32
+Ankita Singh 36 minutes 32 seconds
+I will still forward it to you that I had an exhaustive list.
+SS
+Shakti Singh
+36 minutes 33 seconds36:33
+Shakti Singh 36 minutes 33 seconds
+Hatu hoga unke baad.
+KT
+Kathirvel T
+36 minutes 38 seconds36:38
+Kathirvel T 36 minutes 38 seconds
+Yeah, and also Shakti, if you could help with like what is the limitation on like how many reviews or how many like scraping limitations, I will keep the team aligned on that one.
+SS
+Shakti Singh
+36 minutes 45 seconds36:45
+Shakti Singh 36 minutes 45 seconds
+Make that I will come back to you. Ji Ji, I will keep that posted. So from starting the moment when we started doing it. So anything which is coming in months and years to come, there is no problem. I will typically give you a threshold that what is a.
+KT
+Kathirvel T
+36 minutes 50 seconds36:50
+Kathirvel T 36 minutes 50 seconds
+Yeah.
+SS
+Shakti Singh
+37 minutes 3 seconds37:03
+Shakti Singh 37 minutes 3 seconds
+What is the calculation for the older reviews? What is what volume we can typically search about that? I'll give you a threshold so that everyone everyone should be aligned on that.
+KT
+Kathirvel T
+37 minutes 9 seconds37:09
+Kathirvel T 37 minutes 9 seconds
+Got it.
+Kathirvel T 37 minutes 14 seconds
+Yeah, got it.
+SS
+Shakti Singh
+37 minutes 17 seconds37:17
+Shakti Singh 37 minutes 17 seconds
+Okay, anything else?
+KT
+Kathirvel T
+37 minutes 20 seconds37:20
+Kathirvel T 37 minutes 20 seconds
+That's it. That's it. Thank you. Thank you for your time. Thank you, Anirudh. Thank you, Saurabh. Thank you, Shakti.
+SS
+Shakti Singh
+37 minutes 22 seconds37:22
+Shakti Singh 37 minutes 22 seconds
+Thank you. Thank you, guys. Thank you, Mr. That was great.
+AS
+Ankita Singh
+37 minutes 23 seconds37:23
+Ankita Singh 37 minutes 23 seconds
+Okay, thank you so much.
+SJ
+Saurabh Jain
+37 minutes 26 seconds37:26
+Saurabh Jain 37 minutes 26 seconds
+Yeah. Thank you. Thank you.
+SS
+Shakti Singh
+37 minutes 29 seconds37:29
+Shakti Singh 37 minutes 29 seconds
+Okay.
