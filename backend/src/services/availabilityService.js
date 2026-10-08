@@ -275,6 +275,16 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
         conditions.push(`lower(trim(BOTH '\t\n ' FROM ${prefix}${actualPcCol})) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
     }
 
+    // Product Type filter (for Mars DB: Silver, Bronze, Gold)
+    const ptVal = filters.productType || filters.product_type;
+    if (ptVal && ptVal !== 'All' && ptVal !== 'all') {
+        const ptItems = Array.isArray(ptVal) ? ptVal : String(ptVal).split(/[,|]/);
+        const ptArr = ptItems.map(v => String(v).trim()).filter(v => v && v !== 'All' && v !== 'all');
+        if (ptArr.length > 0) {
+            conditions.push(`lower(trim(BOTH '\t\n ' FROM ${prefix}${actualPcCol})) IN (${ptArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+        }
+    }
+
     // Grammage / Weight filter
     const gArr = [];
     const parseGrammage = (val) => {

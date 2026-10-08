@@ -22,6 +22,8 @@ const parseFilter = (val) => {
     return val;
 };
 
+const getProductTypeFilter = (req) => parseFilter(req.query.productType || req.query.product_type || req.query['productType[]'] || req.query['product_type[]'] || req.body?.productType || req.body?.product_type);
+
 /**
  * Helper to escape SQL single quotes
  */
@@ -105,7 +107,8 @@ export const getAvailabilityOverview = async (req, res) => {
             ownBrandsOnly: req.query.ownBrandsOnly,
             msl: req.query.msl,
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
-            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]'])
+            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
+            productType: getProductTypeFilter(req)
         };
         console.log('\n========== AVAILABILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -153,7 +156,8 @@ export const getPlatformKpiMatrix = async (req, res) => {
             ownBrandsOnly: req.query.ownBrandsOnly,
             msl: req.query.msl,
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
-            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]'])
+            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
+            productType: getProductTypeFilter(req)
         };
         console.log('\n========== PLATFORM KPI MATRIX API ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
@@ -203,7 +207,8 @@ export const getStandaloneKpiMatrix = async (req, res) => {
             ownBrandsOnly: req.query.ownBrandsOnly,
             msl: req.query.msl,
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
-            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]'])
+            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
+            productType: getProductTypeFilter(req)
         };
         console.log('\n========== STANDALONE KPI MATRIX API (OSA + Market Share) ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
@@ -254,7 +259,8 @@ export const getOsaPercentageDetail = async (req, res) => {
             grammage: parseFilter(req.query.grammage),
             weight: parseFilter(req.query.weight),
             resellerName: parseFilter(req.query.resellerName),
-            resellerNames: parseFilter(req.query.resellerNames)
+            resellerNames: parseFilter(req.query.resellerNames),
+            productType: getProductTypeFilter(req)
         };
         console.log('\n========== OSA PERCENTAGE DETAIL API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -300,7 +306,8 @@ export const getDOI = async (req, res) => {
             ownBrandsOnly: req.query.ownBrandsOnly,
             msl: req.query.msl,
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
-            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]'])
+            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
+            productType: getProductTypeFilter(req)
         };
         console.log('\n========== DOI (DAYS OF INVENTORY) API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -345,7 +352,8 @@ export const getMetroCityStockAvailability = async (req, res) => {
             ownBrandsOnly: req.query.ownBrandsOnly,
             msl: req.query.msl,
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
-            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]'])
+            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
+            productType: getProductTypeFilter(req)
         };
         console.log('\n========== METRO CITY STOCK AVAILABILITY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -427,7 +435,8 @@ export const getOsaDetailByCategory = async (req, res) => {
             ownBrandsOnly: req.query.ownBrandsOnly,
             msl: req.query.msl,
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
-            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]'])
+            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
+            productType: getProductTypeFilter(req)
         };
         console.log('\n========== OSA DETAIL BY CATEGORY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -469,7 +478,8 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
             dimension: req.query.dimension,
             dimensionValue: req.query.dimensionValue,
-            resellerName: parseFilter(req.query.resellerName)
+            resellerName: parseFilter(req.query.resellerName),
+            productType: getProductTypeFilter(req)
         };
         console.log('\n========== AVAILABILITY KPI TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -505,7 +515,8 @@ export const getAvailabilityCompetition = async (req, res) => {
             ownBrandsOnly: false,
             msl: req.query.msl,
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
-            resellerName: parseFilter(req.query.resellerName)
+            resellerName: parseFilter(req.query.resellerName),
+            productType: getProductTypeFilter(req)
         };
         console.log('\n========== AVAILABILITY COMPETITION API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -570,7 +581,8 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
             endDate,
             timeStep: timeStep || 'Daily',
             resellerName: parseFilter(req.query.resellerName || req.body.resellerName),
-            msl: req.query.msl || req.body.msl
+            msl: req.query.msl || req.body.msl,
+            productType: getProductTypeFilter(req)
         });
 
         console.log('[RESPONSE]:', Object.keys(data.timeSeries || {}).length, 'brands with trends');
@@ -603,7 +615,8 @@ export const getAvailabilityCompetitionSkuTrends = async (req, res) => {
             endDate,
             timeStep: timeStep || 'Daily',
             resellerName: parseFilter(req.query.resellerName || req.body.resellerName),
-            msl: req.query.msl || req.body.msl
+            msl: req.query.msl || req.body.msl,
+            productType: getProductTypeFilter(req)
         });
 
         console.log('[RESPONSE]:', Object.keys(data.osa || {}).length, 'SKUs with trends');

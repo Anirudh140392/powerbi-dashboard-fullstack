@@ -32,8 +32,8 @@ export const GetInventoryChannels = async (req, res) => {
  */
 export const GetInventoryPlatforms = async (req, res) => {
     try {
-        const { channel } = req.query;
-        const platforms = await inventoryAnalysisService.getPlatforms(channel);
+        const { channel, productType } = req.query;
+        const platforms = await inventoryAnalysisService.getPlatforms(channel, productType);
         res.json(platforms);
     } catch (error) {
         console.error('Error fetching inventory platforms:', error);
@@ -46,8 +46,8 @@ export const GetInventoryPlatforms = async (req, res) => {
  */
 export const GetInventoryBrands = async (req, res) => {
     try {
-        const { channel, platform, category } = req.query;
-        const brands = await inventoryAnalysisService.getBrands(channel, platform, category);
+        const { channel, platform, category, productType } = req.query;
+        const brands = await inventoryAnalysisService.getBrands(channel, platform, category, productType);
         res.json(brands);
     } catch (error) {
         console.error('Error fetching inventory brands:', error);
@@ -60,8 +60,8 @@ export const GetInventoryBrands = async (req, res) => {
  */
 export const GetInventoryCategories = async (req, res) => {
     try {
-        const { channel, platform } = req.query;
-        const categories = await inventoryAnalysisService.getCategories(channel, platform);
+        const { channel, platform, productType } = req.query;
+        const categories = await inventoryAnalysisService.getCategories(channel, platform, productType);
         res.json(categories);
     } catch (error) {
         console.error('Error fetching inventory categories:', error);
@@ -74,8 +74,8 @@ export const GetInventoryCategories = async (req, res) => {
  */
 export const GetInventoryLocations = async (req, res) => {
     try {
-        const { channel, platform, brand, category } = req.query;
-        const locations = await inventoryAnalysisService.getLocations(channel, platform, brand, category);
+        const { channel, platform, brand, category, productType } = req.query;
+        const locations = await inventoryAnalysisService.getLocations(channel, platform, brand, category, productType);
         res.json(locations);
     } catch (error) {
         console.error('Error fetching inventory locations:', error);
@@ -88,8 +88,8 @@ export const GetInventoryLocations = async (req, res) => {
  */
 export const GetInventoryMsls = async (req, res) => {
     try {
-        const { channel, platform, category, brand, location } = req.query;
-        const msls = await inventoryAnalysisService.getMsls(channel, platform, category, brand, location);
+        const { channel, platform, category, brand, location, productType } = req.query;
+        const msls = await inventoryAnalysisService.getMsls(channel, platform, category, brand, location, productType);
         res.json(msls);
     } catch (error) {
         console.error('Error fetching inventory MSL values:', error);

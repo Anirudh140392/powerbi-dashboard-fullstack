@@ -334,6 +334,7 @@ function InventeryConceptMain() {
     selectedLocation,
     selectedCategory,
     selectedMsl,
+    selectedProductType,
     timeStart,
     timeEnd,
     compareStart,
@@ -376,6 +377,9 @@ function InventeryConceptMain() {
       if (selectedMsl && selectedMsl !== "All") {
         params.msl = Array.isArray(selectedMsl) ? selectedMsl.join(",") : selectedMsl;
       }
+      if (selectedProductType && selectedProductType !== "All") {
+        params.productType = Array.isArray(selectedProductType) ? selectedProductType.join(",") : selectedProductType;
+      }
       if (timeStart) params.startDate = timeStart.format("YYYY-MM-DD");
       if (timeEnd) params.endDate = timeEnd.format("YYYY-MM-DD");
       if (compareStart) params.compareStartDate = compareStart.format("YYYY-MM-DD");
@@ -394,7 +398,7 @@ function InventeryConceptMain() {
 
   useEffect(() => {
     fetchOverview();
-  }, [platform, selectedChannel, selectedBrand, selectedLocation, selectedCategory, selectedMsl, timeStart, timeEnd, compareStart, compareEnd]);
+  }, [platform, selectedChannel, selectedBrand, selectedLocation, selectedCategory, selectedMsl, selectedProductType, timeStart, timeEnd, compareStart, compareEnd]);
 
   const retryOverview = async () => {
     setIsRetrying(true);
