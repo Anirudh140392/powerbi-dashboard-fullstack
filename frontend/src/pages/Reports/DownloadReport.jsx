@@ -240,7 +240,7 @@ export default function DownloadReport() {
       setShowPromoPreview(true);
     } catch (err) {
       console.error("[DownloadReport] Promo preview failed:", err);
-      setErrorMessage("Failed to load Promo Violation preview data.");
+      setErrorMessage("Failed to load Promo Compliance preview data.");
       setShowError(true);
     } finally {
       setPromoLoading(false);
@@ -268,13 +268,13 @@ export default function DownloadReport() {
     setIsDownloadingPromo(true);
     try {
       const blob = await downloadPromoViolationReport(buildPromoParams());
-      const fileName = `Promo_Violation_Report_${dayjs().format("YYYYMMDD_HHmmss")}.xlsx`;
+      const fileName = `Promo_Compliance_Report_${dayjs().format("YYYYMMDD_HHmmss")}.xlsx`;
       saveAs(blob, fileName);
       setShowSuccess(true);
       fetchPromoPreview(0);
     } catch (err) {
       console.error("[DownloadReport] Download promo failed:", err);
-      setErrorMessage(err.status === 204 ? "No promo violation data found." : "Failed to generate Promo Violation report.");
+      setErrorMessage(err.status === 204 ? "No promo compliance data found." : "Failed to generate Promo Compliance report.");
       setShowError(true);
     } finally {
       setIsDownloadingPromo(false);
@@ -326,7 +326,7 @@ export default function DownloadReport() {
             }}
           >
             <ToggleButton value="raw_data">Raw Data</ToggleButton>
-            <ToggleButton value="promo_violation">Promo Violation</ToggleButton>
+            <ToggleButton value="promo_violation">Promo Compliance</ToggleButton>
           </ToggleButtonGroup>
         </Box>
 
@@ -634,13 +634,13 @@ export default function DownloadReport() {
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
                 <Box>
                   <Typography variant="h5" sx={{ fontWeight: 700, color: "#1e293b", fontFamily: "'Inter', sans-serif" }}>
-                    Export Promo Violation Report
+                    Export Promo Compliance Report
                   </Typography>
                   <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5, fontFamily: "'Inter', sans-serif" }}>
-                    Calculate promo violations by joining KAM master with PDP dataset. Breached SKUs occur when Discount Operated &gt; Guardrail.
+                    Calculate promo compliance by joining KAM master with PDP dataset. Breached SKUs occur when Discount Operated &gt; Guardrail.
                   </Typography>
                 </Box>
-                <Tooltip title="Promo Violation Report Help">
+                <Tooltip title="Promo Compliance Report Help">
                   <IconButton sx={{ color: "#94a3b8" }}><HelpOutlineIcon /></IconButton>
                 </Tooltip>
               </Box>
@@ -880,7 +880,7 @@ export default function DownloadReport() {
                       {promoRows.length === 0 && !promoLoading ? (
                         <TableRow>
                           <TableCell colSpan={6 + 2 * promoLocationsList.length} align="center" sx={{ py: 6, color: "#94a3b8" }}>
-                            No promo violation breaches found for selected filters.
+                            No promo compliance breaches found for selected filters.
                           </TableCell>
                         </TableRow>
                       ) : (
