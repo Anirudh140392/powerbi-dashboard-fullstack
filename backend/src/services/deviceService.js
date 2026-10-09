@@ -17,7 +17,8 @@ export async function ensureDeviceTokenColumn() {
             { name: 'browser', type: 'String', defaultVal: "''" },
             { name: 'browser_version', type: 'String', defaultVal: "''" },
             { name: 'operating_system', type: 'String', defaultVal: "''" },
-            { name: 'platform', type: 'String', defaultVal: "''" }
+            { name: 'platform', type: 'String', defaultVal: "''" },
+            { name: 'qc_user', type: 'Int32', defaultVal: '0' }
         ];
 
         for (const col of columnsToAdd) {

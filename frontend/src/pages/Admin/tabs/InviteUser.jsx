@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { Mail, Database, Shield, Send, CheckCircle, AlertCircle, Copy, Link as LinkIcon } from "lucide-react";
+import { Mail, Database, Shield, Send, CheckCircle, AlertCircle, Copy, Link as LinkIcon, UserCheck } from "lucide-react";
 
 const InviteUser = () => {
     const [email, setEmail] = useState("");
     const [selectedDbId, setSelectedDbId] = useState("");
     const [role, setRole] = useState("user");
+    const [qcUser, setQcUser] = useState(0);
     const [databases, setDatabases] = useState([]);
     const [loading, setLoading] = useState(false);
     const [fetchingDbs, setFetchingDbs] = useState(true);
@@ -57,7 +58,7 @@ const InviteUser = () => {
 
             const response = await axios.post(
                 `${API_BASE}/admin/invite-user`,
-                { email, dbId: selectedDbId, role },
+                { email, dbId: selectedDbId, role, qcUser: Number(qcUser) },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
@@ -65,6 +66,7 @@ const InviteUser = () => {
                 setMessage({ type: "success", text: response.data.message });
                 setInviteResult(response.data);
                 setEmail("");
+                setQcUser(0);
             } else {
                 setMessage({ type: "error", text: response.data.error || "Failed to send invitation." });
             }
@@ -139,7 +141,7 @@ const InviteUser = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {/* Target Database */}
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
@@ -181,6 +183,24 @@ const InviteUser = () => {
                                 >
                                     <option value="user">Standard User</option>
                                     <option value="admin">Administrator</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* QC User */}
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                                QC User
+                            </label>
+                            <div className="relative">
+                                <UserCheck className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                <select
+                                    value={qcUser}
+                                    onChange={(e) => setQcUser(Number(e.target.value))}
+                                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 text-slate-800 text-sm transition-all appearance-none cursor-pointer font-medium"
+                                >
+                                    <option value={0}>False (0)</option>
+                                    <option value={1}>True (1)</option>
                                 </select>
                             </div>
                         </div>

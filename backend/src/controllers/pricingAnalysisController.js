@@ -1,10 +1,11 @@
 import * as pricingAnalysisService from '../services/pricingAnalysisService.js';
-
 import ecpByBrandService from '../services/ecpByBrandService.js';
 import discountTrendService from '../services/discountTrendService.js';
 import brandPriceOverviewService from '../services/brandPriceOverviewService.js';
 import brandDiscountTrendService from '../services/brandDiscountTrendService.js';
 import ecpByCityService from '../services/ecpByCityService.js';
+import ecpWeekdayWeekendService from '../services/ecpWeekdayWeekendService.js';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 const getProductType = (req) => req.query.productType || req.query['productType[]'] || req.query.product_type || req.query['product_type[]'];
 
@@ -15,7 +16,7 @@ const getProductType = (req) => req.query.productType || req.query['productType[
  */
 export const getEcpByCity = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: req.query.platform,
             startDate: req.query.startDate,
             endDate: req.query.endDate,
@@ -26,7 +27,7 @@ export const getEcpByCity = async (req, res) => {
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getEcpByCity called with filters:", filters);
 
@@ -49,7 +50,7 @@ export const getEcpByCity = async (req, res) => {
  */
 export const getPricingKpis = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             compareStartDate: req.query.compareStartDate,
@@ -65,7 +66,7 @@ export const getPricingKpis = async (req, res) => {
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getPricingKpis called with filters:", filters);
 
@@ -88,7 +89,7 @@ export const getPricingKpis = async (req, res) => {
  */
 export const getPricingInsights = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             compareStartDate: req.query.compareStartDate,
@@ -104,7 +105,7 @@ export const getPricingInsights = async (req, res) => {
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getPricingInsights called with filters:", filters);
 
@@ -127,7 +128,7 @@ export const getPricingInsights = async (req, res) => {
  */
 export const getDimensionOverview = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             compareStartDate: req.query.compareStartDate,
@@ -145,7 +146,7 @@ export const getDimensionOverview = async (req, res) => {
             msl: req.query.msl,
             grammage: req.query.grammage,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getDimensionOverview called with filters:", filters);
 
@@ -169,7 +170,7 @@ export const getDimensionOverview = async (req, res) => {
  */
 export const getEcpComparison = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: req.query.platform,
             location: req.query.location,
             startDate: req.query.startDate,
@@ -182,7 +183,7 @@ export const getEcpComparison = async (req, res) => {
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getEcpComparison called with filters:", filters);
 
@@ -206,7 +207,7 @@ export const getEcpComparison = async (req, res) => {
  */
 export const getEcpByBrand = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: req.query.platform,
             location: req.query.location,
             startDate: req.query.startDate,
@@ -216,7 +217,7 @@ export const getEcpByBrand = async (req, res) => {
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getEcpByBrand called with filters:", filters);
 
@@ -240,7 +241,7 @@ export const getEcpByBrand = async (req, res) => {
  */
 export const getDiscountByCategory = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             metricType: req.query.metricType,
@@ -254,7 +255,7 @@ export const getDiscountByCategory = async (req, res) => {
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getDiscountByCategory called with filters:", filters);
 
@@ -278,7 +279,7 @@ export const getDiscountByCategory = async (req, res) => {
  */
 export const getDiscountByBrand = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             category: req.query.category,
             startDate: req.query.startDate,
             endDate: req.query.endDate,
@@ -291,7 +292,7 @@ export const getDiscountByBrand = async (req, res) => {
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getDiscountByBrand called with filters:", filters);
 
@@ -313,11 +314,9 @@ export const getDiscountByBrand = async (req, res) => {
  * Endpoint: GET /api/pricing-analysis/ecp-weekday-weekend
  * Query params: platform, location, startDate, endDate, brand
  */
-import ecpWeekdayWeekendService from '../services/ecpWeekdayWeekendService.js';
-
 export const getEcpWeekdayWeekend = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: req.query.platform,
             location: req.query.location,
             startDate: req.query.startDate,
@@ -326,7 +325,7 @@ export const getEcpWeekdayWeekend = async (req, res) => {
             subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getEcpWeekdayWeekend called with filters:", filters);
 
@@ -351,7 +350,7 @@ export const getEcpWeekdayWeekend = async (req, res) => {
  */
 export const getBrandPriceOverview = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             platform: req.query.platform,
@@ -360,7 +359,7 @@ export const getBrandPriceOverview = async (req, res) => {
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getBrandPriceOverview called with filters:", filters);
 
@@ -385,7 +384,7 @@ export const getBrandPriceOverview = async (req, res) => {
  */
 export const getBrandDiscountTrend = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             platform: req.query.platform,
@@ -394,7 +393,7 @@ export const getBrandDiscountTrend = async (req, res) => {
             skuCode: req.query.skuCode || req.query['skuCode[]'] || req.query.sapCode || req.query['sapCode[]'],
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getBrandDiscountTrend called with filters:", filters);
 
@@ -410,6 +409,7 @@ export const getBrandDiscountTrend = async (req, res) => {
         });
     }
 };
+
 /**
  * Get Pricing Dimension Trends (time-series)
  * Endpoint: GET /api/pricing-analysis/dimension-trends
@@ -417,7 +417,7 @@ export const getBrandDiscountTrend = async (req, res) => {
  */
 export const getDimensionTrends = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             dimension: req.query.dimension,
             dimensionValue: req.query.dimensionValue,
             timeStep: req.query.timeStep,
@@ -433,7 +433,7 @@ export const getDimensionTrends = async (req, res) => {
             sku: req.query.sku || req.query.skuName,
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getDimensionTrends called with filters:", filters);
 
@@ -451,7 +451,7 @@ export const getDimensionTrends = async (req, res) => {
  */
 export const getPricingCompetitionTrends = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             mode: req.query.mode,
             targets: req.query.targets,
             dimension: req.query.dimension,
@@ -467,7 +467,7 @@ export const getPricingCompetitionTrends = async (req, res) => {
             channel: req.query.channel,
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getPricingCompetitionTrends called with filters:", filters);
 
@@ -485,7 +485,7 @@ export const getPricingCompetitionTrends = async (req, res) => {
  */
 export const getPricingCompetition = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             dimension: req.query.dimension,
             dimensionValue: req.query.dimensionValue,
             period: req.query.period,
@@ -499,7 +499,7 @@ export const getPricingCompetition = async (req, res) => {
             channel: req.query.channel,
             msl: req.query.msl,
             productType: getProductType(req)
-        };
+        }, req);
 
         console.log("[PricingAnalysisController] getPricingCompetition called with filters:", filters);
 
