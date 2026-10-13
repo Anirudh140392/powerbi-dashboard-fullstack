@@ -379,15 +379,34 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
         }
     }
 
+    // QC Date Restriction Safeguard
+    let effectiveMaxDate = filters.maxAllowedDate;
+
     // Date/Month range
     if (dates && Array.isArray(dates) && dates.length > 0) {
-        conditions.push(`${prefix}DATE IN (${dates.map(d => `'${d}'`).join(',')})`);
+        let validDates = dates;
+        if (!filters.isQcUser && effectiveMaxDate) {
+            validDates = dates.filter(d => !dayjs(d).isAfter(dayjs(effectiveMaxDate)));
+        }
+        if (validDates.length > 0) {
+            conditions.push(`${prefix}DATE IN (${validDates.map(d => `'${d}'`).join(',')})`);
+        } else if (effectiveMaxDate) {
+            conditions.push(`${prefix}DATE <= '${effectiveMaxDate}'`);
+        }
     } else if (months && Array.isArray(months) && months.length > 0) {
         conditions.push(`formatDateTime(${prefix}DATE, '%Y-%m') IN (${months.map(m => `'${m}'`).join(',')})`);
+        if (!filters.isQcUser && effectiveMaxDate) {
+            conditions.push(`${prefix}DATE <= '${effectiveMaxDate}'`);
+        }
     } else if (startDate && endDate) {
-        const startStr = dayjs(startDate).format('YYYY-MM-DD');
-        const endStr = dayjs(endDate).format('YYYY-MM-DD');
+        let startStr = dayjs(startDate).format('YYYY-MM-DD');
+        let endStr = dayjs(endDate).format('YYYY-MM-DD');
+        if (!filters.isQcUser && effectiveMaxDate && dayjs(endStr).isAfter(dayjs(effectiveMaxDate))) {
+            endStr = effectiveMaxDate;
+        }
         conditions.push(`${prefix}DATE BETWEEN '${startStr}' AND '${endStr}'`);
+    } else if (!filters.isQcUser && effectiveMaxDate) {
+        conditions.push(`${prefix}DATE <= '${effectiveMaxDate}'`);
     }
 
     // Advanced filters requiring subqueries on rb_location_darkstore
@@ -450,15 +469,21 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
 /**
  * Helper to get the latest available date from rb_pdp_olap
  */
-const getLatestDate = async () => {
+const getLatestDate = async (maxAllowedDate) => {
     try {
-        const query = 'SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap';
+        let query = 'SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap';
+        if (maxAllowedDate) {
+            query += ` WHERE toDate(DATE) <= '${maxAllowedDate}'`;
+        }
         const result = await queryClickHouse(query);
-        const date = result[0]?.maxDate ? dayjs(result[0].maxDate) : dayjs();
+        let date = result[0]?.maxDate ? dayjs(result[0].maxDate) : dayjs();
+        if (maxAllowedDate && date.isAfter(dayjs(maxAllowedDate))) {
+            date = dayjs(maxAllowedDate);
+        }
         return date;
     } catch (error) {
         console.error('[getLatestDate] Error:', error);
-        return dayjs();
+        return maxAllowedDate ? dayjs(maxAllowedDate) : dayjs();
     }
 };
 
@@ -1307,7 +1332,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 kpiRows.applicableDrillItems = [...drillItemsSet].sort();
             } else if (includeBreakdown && drillDimension === 'period') {
                 // Period breakdown (Yesterday, Last Week, MTD, L3M)
-                const latestDate = await getLatestDate();
+                const latestDate = await getLatestDate(filters?.maxAllowedDate);
                 const yesterdayStr = latestDate.subtract(1, 'day').format('YYYY-MM-DD');
                 const lastWeekStr = latestDate.subtract(7, 'day').format('YYYY-MM-DD');
                 const mtdStr = latestDate.startOf('month').format('YYYY-MM-DD');
@@ -2963,7 +2988,7 @@ const getAvailabilityKpiTrends = async (filters) => {
                 currentEndDate = dayjs(filterEnd);
                 currentStartDate = dayjs(filterStart);
             } else {
-                currentEndDate = await getLatestDate();
+                currentEndDate = await getLatestDate(filters?.maxAllowedDate);
                 currentStartDate = currentEndDate.subtract(days - 1, 'days');
             }
 
@@ -3168,7 +3193,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 endDate = dayjs(fEnd);
             } else {
                 const days = periodDays[period] || 30;
-                endDate = await getLatestDate();
+                endDate = await getLatestDate(filters?.maxAllowedDate);
                 startDate = endDate.subtract(days, 'days');
             }
 
@@ -3463,7 +3488,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                 } else {
                     const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
                     const days = periodDays[period] || 30;
-                    endDate = await getLatestDate();
+                    endDate = await getLatestDate(filters?.maxAllowedDate);
                     startDate = endDate.subtract(days, 'days');
                 }
 
@@ -3493,7 +3518,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
             } else {
                 const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
                 const days = periodDays[period] || 30;
-                endDate = await getLatestDate();
+                endDate = await getLatestDate(filters?.maxAllowedDate);
                 startDate = endDate.subtract(days, 'days');
             }
 
@@ -3626,7 +3651,7 @@ const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
                 } else {
                     const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
                     const days = periodDays[period] || 30;
-                    endDate = await getLatestDate();
+                    endDate = await getLatestDate(filters?.maxAllowedDate);
                     startDate = endDate.subtract(days, 'days');
                 }
 
@@ -3656,7 +3681,7 @@ const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
             } else {
                 const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
                 const days = periodDays[period] || 30;
-                endDate = await getLatestDate();
+                endDate = await getLatestDate(filters?.maxAllowedDate);
                 startDate = endDate.subtract(days, 'days');
             }
 

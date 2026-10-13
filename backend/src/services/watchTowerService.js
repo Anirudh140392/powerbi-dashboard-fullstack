@@ -160,11 +160,11 @@ const buildBuymoreCondsForTab = (sDate, eDate, filters = {}) => {
 // Gifting (gift, tin pack, minis) from Non-Gifting
 const PRODUCT_CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Category != '0', 
     Category, 
-    multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
+    multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'gmfc', 
             LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
                 if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 
-                   'Chocolates (Gifting)', 
-                   'Chocolates (Non Gifting)'), 
+                   'chocolates (gifting)', 
+                   'chocolates (non gifting)'), 
             'Others')
 )`;
 
@@ -636,37 +636,63 @@ const buildStateQueryCond = (stateVal, locationCol = 'location') => {
 
 /**
  * Get the latest available date in rb_pdp_olap
+ * @param {string|null} maxAllowedDate - Optional date cap (YYYY-MM-DD)
  */
-const getCachedMaxDate = async () => {
+const getCachedMaxDate = async (maxAllowedDate = null) => {
     const dbCache = getDbCache();
-    if (dbCache.maxDate.date && (Date.now() - dbCache.maxDate.timestamp) < MAX_DATE_TTL) {
-        return dbCache.maxDate.date;
+    if (!dbCache.maxDates) {
+        dbCache.maxDates = new Map();
+    }
+    const key = maxAllowedDate || 'all';
+    const cached = dbCache.maxDates.get(key);
+    if (cached?.date && (Date.now() - cached.timestamp) < MAX_DATE_TTL) {
+        return cached.date;
     }
 
-    if (dbCache.maxDate.promise) {
-        return dbCache.maxDate.promise;
+    if (cached?.promise) {
+        return cached.promise;
     }
 
-    dbCache.maxDate.promise = (async () => {
+    const promise = (async () => {
         try {
             const src = await getWatchtowerSource();
             const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
-            const result = await queryClickHouse(`SELECT MAX(${dateCol}) as maxDate FROM ${src.table}`);
+            let query = `SELECT MAX(${dateCol}) as maxDate FROM ${src.table}`;
+            if (maxAllowedDate) {
+                query += ` WHERE ${dateCol} <= '${maxAllowedDate}'`;
+            }
+            const result = await queryClickHouse(query);
             const maxDateStr = result?.[0]?.maxDate;
-            const maxDate = maxDateStr ? dayjs(maxDateStr).endOf('day') : dayjs().endOf('day');
+            let maxDate;
+            if (maxDateStr) {
+                maxDate = dayjs(maxDateStr).endOf('day');
+            } else if (maxAllowedDate) {
+                maxDate = dayjs(maxAllowedDate).endOf('day');
+            } else {
+                maxDate = dayjs().endOf('day');
+            }
+            if (maxAllowedDate && maxDate.isAfter(dayjs(maxAllowedDate).endOf('day'))) {
+                maxDate = dayjs(maxAllowedDate).endOf('day');
+            }
 
-            dbCache.maxDate = { date: maxDate, timestamp: Date.now(), promise: null };
-            console.log(`🎯 [MaxDate][${getCurrentDbName()}] Latest available date detected and cached: ${maxDate.format('YYYY-MM-DD')}`);
+            dbCache.maxDates.set(key, { date: maxDate, timestamp: Date.now(), promise: null });
+            if (key === 'all') {
+                dbCache.maxDate = { date: maxDate, timestamp: Date.now(), promise: null };
+            }
+            console.log(`🎯 [MaxDate][${getCurrentDbName()}][${key}] Latest available date detected and cached: ${maxDate.format('YYYY-MM-DD')}`);
             return maxDate;
         } catch (error) {
             console.error('Error fetching max date:', error);
-            return dayjs().endOf('day'); // Fallback to today
+            const fallback = maxAllowedDate ? dayjs(maxAllowedDate).endOf('day') : dayjs().endOf('day');
+            return fallback;
         } finally {
-            dbCache.maxDate.promise = null;
+            const entry = dbCache.maxDates.get(key);
+            if (entry) entry.promise = null;
         }
     })();
 
-    return dbCache.maxDate.promise;
+    dbCache.maxDates.set(key, { date: null, timestamp: 0, promise });
+    return promise;
 };
 
 
@@ -1171,12 +1197,22 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const monthsBack = parseInt(months, 10) || 1;
 
         // Calculate date range
-        let endDate = await getCachedMaxDate();
+        let endDate = await getCachedMaxDate(filters.maxAllowedDate);
         let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
 
         if (qStartDate && qEndDate) {
             startDate = dayjs(qStartDate, ['YYYY-MM-DD', 'DD-MM-YYYY']).startOf('day');
             endDate = dayjs(qEndDate, ['YYYY-MM-DD', 'DD-MM-YYYY']).endOf('day');
+        }
+
+        if (filters.maxAllowedDate) {
+            const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+            if (endDate.isAfter(maxAllowedDay)) {
+                endDate = maxAllowedDay;
+            }
+            if (startDate.isAfter(maxAllowedDay)) {
+                startDate = maxAllowedDay;
+            }
         }
 
         // Calculate MoM (Previous Period) Date Range
@@ -1185,6 +1221,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         if (qCompareStartDate && qCompareEndDate) {
             momStartDate = dayjs(qCompareStartDate, ['YYYY-MM-DD', 'DD-MM-YYYY']).startOf('day');
             momEndDate = dayjs(qCompareEndDate, ['YYYY-MM-DD', 'DD-MM-YYYY']).endOf('day');
+        }
+
+        if (filters.maxAllowedDate) {
+            const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+            if (momEndDate.isAfter(maxAllowedDay)) {
+                momEndDate = maxAllowedDay;
+            }
+            if (momStartDate.isAfter(maxAllowedDay)) {
+                momStartDate = maxAllowedDay;
+            }
         }
 
         console.log(`Date Range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`);
@@ -5445,7 +5491,7 @@ const computeTrendData = async (filters) => {
         const channel = extractChannel(filters);
 
         // 1. Determine Date Range
-        let endDate = await getCachedMaxDate();
+        let endDate = await getCachedMaxDate(filters.maxAllowedDate);
         let startDate = endDate.clone();
 
         if (period === 'Custom' && customStart && customEnd) {
@@ -5458,6 +5504,16 @@ const computeTrendData = async (filters) => {
                 case '6M': startDate = startDate.subtract(6, 'month'); break;
                 case '1Y': startDate = startDate.subtract(1, 'year'); break;
                 default: startDate = startDate.subtract(3, 'month'); // Default 3M
+            }
+        }
+
+        if (filters.maxAllowedDate) {
+            const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+            if (endDate.isAfter(maxAllowedDay)) {
+                endDate = maxAllowedDay;
+            }
+            if (startDate.isAfter(maxAllowedDay)) {
+                startDate = maxAllowedDay;
             }
         }
 
@@ -5863,11 +5919,16 @@ const getPlatformOverview = async (filters) => {
     const monthsBack = parseInt(months, 10) || 1;
 
     // Calculate date range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    }
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     // Helper for currency formatting
@@ -7192,11 +7253,16 @@ const getMonthOverview = async (filters) => {
     const moPlatform = monthOverviewPlatform || filters.platform || null;
 
     // Calculate date range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    }
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     // For comparison, we need one extra month at the beginning
@@ -7659,11 +7725,16 @@ const getCategoryOverview = async (filters) => {
     const catPlatform = categoryOverviewPlatform || filters.platform || 'All';
 
     // Calculate date range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    }
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     // Comparison period logic (MoM / same duration)
@@ -8022,7 +8093,16 @@ const getCategoryOverview = async (filters) => {
         GROUP BY keyword_category
     `);
 
-    const categories = distinctCategories.map(c => c.category).filter(Boolean);
+    const seenCatKeys = new Set();
+    const categories = [];
+    for (const c of distinctCategories) {
+        if (!c.category) continue;
+        const lowerKey = c.category.toLowerCase();
+        if (!seenCatKeys.has(lowerKey)) {
+            seenCatKeys.add(lowerKey);
+            categories.push(c.category);
+        }
+    }
 
     // Build maps for efficient lookup
     const buildMap = (data, keyField, valField) => new Map(data.map(r => [r[keyField] != null ? String(r[keyField]).toLowerCase() : '', r[valField]]));
@@ -8222,11 +8302,16 @@ const getBrandsOverview = async (filters) => {
     const boCategory = brandsOverviewCategory || filters.category || 'All';
 
     // Calculate date range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    }
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     // Comparison period logic (MoM / same duration)
@@ -8772,7 +8857,7 @@ const getKpiTrends = async (filters) => {
     const channel = extractChannel(filters);
 
     // 1. Determine Date Range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.clone();
 
     if (period === 'Custom' && customStart && customEnd) {
@@ -8786,6 +8871,12 @@ const getKpiTrends = async (filters) => {
             case '1Y': startDate = startDate.subtract(1, 'year'); break;
             default: startDate = startDate.subtract(3, 'month'); // Default 3M
         }
+    }
+
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     const isSkuSelected = (skuName && skuName !== 'All' && skuName !== '') || (skuCode && skuCode !== 'All' && skuCode !== '');
@@ -9762,8 +9853,14 @@ const getCompetitionData = async (filters = {}) => {
         const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
         const days = periodDays[period] || 30;
 
-        const endDate = (filters.startDate && filters.endDate) ? dayjs(filters.endDate) : dayjs();
-        const startDate = (filters.startDate && filters.endDate) ? dayjs(filters.startDate) : endDate.clone().subtract(days, 'days');
+        let endDate = (filters.startDate && filters.endDate) ? dayjs(filters.endDate) : (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : dayjs());
+        if (filters.maxAllowedDate && endDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+            endDate = dayjs(filters.maxAllowedDate).endOf('day');
+        }
+        let startDate = (filters.startDate && filters.endDate) ? dayjs(filters.startDate) : endDate.clone().subtract(days, 'days');
+        if (filters.maxAllowedDate && startDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+            startDate = dayjs(filters.maxAllowedDate).endOf('day');
+        }
         const momStartDate = startDate.clone().subtract(days, 'days');
         const momEndDate = startDate.clone().subtract(1, 'day');
 
@@ -9845,17 +9942,32 @@ const getCompetitionData = async (filters = {}) => {
         let msStartDate = (filters.startDate && filters.endDate) ? dayjs(filters.startDate) : null;
 
         if (!msEndDate || !msStartDate) {
-            const maxMsCond = (platArr && platArr.length > 0)
+            let maxMsCond = (platArr && platArr.length > 0)
                 ? `WHERE sales IS NOT NULL AND sales > 0 AND lower(platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`
                 : `WHERE sales IS NOT NULL AND sales > 0`;
+            if (filters.maxAllowedDate) {
+                maxMsCond += ` AND toDate(created_on) <= '${filters.maxAllowedDate}'`;
+            }
             const maxMsResult = await queryClickHouse(`SELECT max(toDate(created_on)) as max_date FROM rb_ms_olap ${maxMsCond}`);
             const rawMaxMs = maxMsResult[0]?.max_date;
             if (rawMaxMs && dayjs(rawMaxMs).isValid()) {
                 msEndDate = dayjs(rawMaxMs);
+            } else if (filters.maxAllowedDate) {
+                msEndDate = dayjs(filters.maxAllowedDate);
             } else {
                 msEndDate = dayjs();
             }
+            if (filters.maxAllowedDate && msEndDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+                msEndDate = dayjs(filters.maxAllowedDate).endOf('day');
+            }
             msStartDate = msEndDate.clone().subtract(days, 'days');
+        } else if (filters.maxAllowedDate) {
+            if (msEndDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+                msEndDate = dayjs(filters.maxAllowedDate).endOf('day');
+            }
+            if (msStartDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+                msStartDate = dayjs(filters.maxAllowedDate).endOf('day');
+            }
         }
 
         const msMomStartDate = msStartDate.clone().subtract(days, 'days');
@@ -10795,6 +10907,10 @@ const getLatestAvailableMonth = async (filters = {}) => {
                 contentConditions.push(`lower(brand_name) = lower('${escapeStr(brand)}')`);
             }
 
+            if (filters.maxAllowedDate) {
+                contentConditions.push(`toDate(extraction_timestamp) <= '${escapeStr(filters.maxAllowedDate)}'`);
+            }
+
             const contentWhere = contentConditions.length > 0 ? `WHERE ${contentConditions.join(' AND ')} ` : '';
 
             const contentResult = await queryClickHouse(`
@@ -10807,7 +10923,11 @@ const getLatestAvailableMonth = async (filters = {}) => {
             const latestContentDate = contentResult?.[0]?.latestDate;
             if (!latestContentDate) return { available: false };
 
-            const latestC = dayjs(latestContentDate);
+            let latestC = dayjs(latestContentDate);
+            if (filters.maxAllowedDate && latestC.isAfter(dayjs(filters.maxAllowedDate))) {
+                latestC = dayjs(filters.maxAllowedDate);
+            }
+
             return {
                 available: true,
                 minDate: minContentDate && minContentDate !== '0000-00-00' && minContentDate !== '1970-01-01' ? dayjs(minContentDate).format('YYYY-MM-DD') : undefined,
@@ -10868,6 +10988,10 @@ const getLatestAvailableMonth = async (filters = {}) => {
             conditions.push(`lower(${PRODUCT_CATEGORY_SQL}) = '${escapeStr(category.toLowerCase())}'`);
         }
 
+        if (filters.maxAllowedDate) {
+            conditions.push(`toDate(${dateCol}) <= '${escapeStr(filters.maxAllowedDate)}'`);
+        }
+
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')} ` : '';
 
         // Query target table for the min and latest dates
@@ -10884,7 +11008,10 @@ const getLatestAvailableMonth = async (filters = {}) => {
             return { available: false };
         }
 
-        const latest = dayjs(latestDate);
+        let latest = dayjs(latestDate);
+        if (filters.maxAllowedDate && latest.isAfter(dayjs(filters.maxAllowedDate))) {
+            latest = dayjs(filters.maxAllowedDate);
+        }
 
         return {
             available: true,
@@ -10951,12 +11078,15 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
         // Get the latest date from both pdp and ms tables to ensure we show the most recent data
         const [pdpMaxDateRes, msMaxDateRes] = await Promise.all([
-            getCachedMaxDate(),
-            queryClickHouse(`SELECT MAX(toDate(created_on)) as max_date FROM rb_ms_olap`)
+            getCachedMaxDate(filters.maxAllowedDate),
+            queryClickHouse(`SELECT MAX(toDate(created_on)) as max_date FROM rb_ms_olap${filters.maxAllowedDate ? ` WHERE toDate(created_on) <= '${filters.maxAllowedDate}'` : ''}`)
         ]);
         const pdpMaxDate = dayjs(pdpMaxDateRes);
         const msMaxDate = dayjs(msMaxDateRes[0]?.max_date || '2000-01-01');
-        const endDate = pdpMaxDate.isAfter(msMaxDate) ? pdpMaxDate : msMaxDate;
+        let endDate = pdpMaxDate.isAfter(msMaxDate) ? pdpMaxDate : msMaxDate;
+        if (filters.maxAllowedDate && endDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+            endDate = dayjs(filters.maxAllowedDate).endOf('day');
+        }
         let startDate;
         switch (period) {
             case '1W': startDate = endDate.subtract(7, 'days'); break;
@@ -11543,6 +11673,10 @@ const getTopActions = async (filters = {}) => {
             ? (Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()))
             : [];
 
+        const platCond = platformArr.length > 0
+            ? `lower(platform) IN (${platformArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`
+            : '1=1';
+
         const src = await getWatchtowerSource();
         const platCondOlap = buildPlatformChannelCond(platformArr, null, src.f.platform);
         const catCol = src.f.category;
@@ -11551,9 +11685,13 @@ const getTopActions = async (filters = {}) => {
             ? `AND ${catCol} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`
             : '';
 
-        const requestedEnd = (filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined')
+        let requestedEnd = (filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined')
             ? dayjs(filters.endDate).format('YYYY-MM-DD')
-            : dayjs().format('YYYY-MM-DD');
+            : (filters.maxAllowedDate ? filters.maxAllowedDate : dayjs().format('YYYY-MM-DD'));
+
+        if (filters.maxAllowedDate && dayjs(requestedEnd).isAfter(dayjs(filters.maxAllowedDate))) {
+            requestedEnd = filters.maxAllowedDate;
+        }
 
         // Check for presence of data for the EXACT requested date
         const [olapCheckRes, insightCheckRes] = await Promise.all([
@@ -11569,7 +11707,8 @@ const getTopActions = async (filters = {}) => {
 
         // Fallback: if no data for exact date, find latest available date
         if (!hasOlapData) {
-            const latestRes = await queryClickHouse(`SELECT MAX(toDate(${src.f.date})) as latest FROM ${src.table} WHERE ${platCondOlap} ${catCondOlap} `);
+            const dateCap = filters.maxAllowedDate ? `AND toDate(${src.f.date}) <= '${filters.maxAllowedDate}'` : '';
+            const latestRes = await queryClickHouse(`SELECT MAX(toDate(${src.f.date})) as latest FROM ${src.table} WHERE ${platCondOlap} ${catCondOlap} ${dateCap}`);
             if (latestRes[0]?.latest) {
                 endDateStr = dayjs(latestRes[0].latest).format('YYYY-MM-DD');
                 hasOlapData = true;
@@ -11577,12 +11716,18 @@ const getTopActions = async (filters = {}) => {
             }
         }
         if (!hasInsightData) {
-            const latestInsightRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rca_watchtower_insight WHERE ${platCond} `);
+            const dateCap = filters.maxAllowedDate ? `AND toDate(DATE) <= '${filters.maxAllowedDate}'` : '';
+            const latestInsightRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rca_watchtower_insight WHERE ${platCond} ${dateCap}`);
             if (latestInsightRes[0]?.latest) {
                 insightDateStr = dayjs(latestInsightRes[0].latest).format('YYYY-MM-DD');
                 hasInsightData = true;
                 console.log(`[getTopActions] No Insight data for ${requestedEnd}, falling back to latest: ${insightDateStr} `);
             }
+        }
+
+        if (filters.maxAllowedDate) {
+            if (dayjs(endDateStr).isAfter(dayjs(filters.maxAllowedDate))) endDateStr = filters.maxAllowedDate;
+            if (dayjs(insightDateStr).isAfter(dayjs(filters.maxAllowedDate))) insightDateStr = filters.maxAllowedDate;
         }
 
         console.log(`[getTopActions] Requested: ${requestedEnd}, Using OLAP: ${endDateStr}, Using Insight: ${insightDateStr} `);
@@ -11745,6 +11890,15 @@ const getOsaDeepDive = async (filters = {}) => {
         const platCondDarkstore = platformArr.length > 0
             ? `platform IN(${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
             : '1=1';
+        const catArr = normalizeFilterArray(filters.category || filters.categoryOverviewCategory);
+        let requestedEnd = (filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined')
+            ? dayjs(filters.endDate).format('YYYY-MM-DD')
+            : (filters.maxAllowedDate ? filters.maxAllowedDate : dayjs().format('YYYY-MM-DD'));
+
+        if (filters.maxAllowedDate && dayjs(requestedEnd).isAfter(dayjs(filters.maxAllowedDate))) {
+            requestedEnd = filters.maxAllowedDate;
+        }
+
         const src = await getWatchtowerSource();
         const platCondOlap = buildPlatformChannelCond(platformArr, null, src.f.platform);
         const catCol = src.f.category;
@@ -11752,7 +11906,7 @@ const getOsaDeepDive = async (filters = {}) => {
 
         // Check for presence of data for the EXACT requested date
         const [olapCheckRes, insightCheckRes] = await Promise.all([
-            queryClickHouse(`SELECT count(*) as count FROM ${src.table} WHERE ${platCondOlap} AND toDate(${src.f.date}) = '${requestedEnd}'`),
+            queryClickHouse(`SELECT count(*) as count FROM ${src.table} WHERE ${platCondOlap} ${catCondOlapClean} AND toDate(${src.f.date}) = '${requestedEnd}'`),
             queryClickHouse(`SELECT count(*) as count FROM rca_watchtower_insight WHERE ${platCondDarkstore} AND toDate(DATE) = '${requestedEnd}'`)
         ]);
 
@@ -11763,7 +11917,8 @@ const getOsaDeepDive = async (filters = {}) => {
 
         // Fallback: if no data for exact date, find latest available date
         if (!hasOlap) {
-            const latestRes = await queryClickHouse(`SELECT MAX(toDate(${src.f.date})) as latest FROM ${src.table} WHERE ${platCondOlap} `);
+            const dateCap = filters.maxAllowedDate ? `AND toDate(${src.f.date}) <= '${filters.maxAllowedDate}'` : '';
+            const latestRes = await queryClickHouse(`SELECT MAX(toDate(${src.f.date})) as latest FROM ${src.table} WHERE ${platCondOlap} ${catCondOlapClean} ${dateCap}`);
             if (latestRes[0]?.latest) {
                 endDateStr = dayjs(latestRes[0].latest).format('YYYY-MM-DD');
                 hasOlap = true;
@@ -11771,11 +11926,16 @@ const getOsaDeepDive = async (filters = {}) => {
             }
         }
         if (!hasInsight) {
-            const latestInsightRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rca_watchtower_insight WHERE ${platCondDarkstore} `);
+            const dateCap = filters.maxAllowedDate ? `AND toDate(DATE) <= '${filters.maxAllowedDate}'` : '';
+            const latestInsightRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rca_watchtower_insight WHERE ${platCondDarkstore} ${dateCap}`);
             if (latestInsightRes[0]?.latest) {
                 hasInsight = true;
                 console.log(`[getOsaDeepDive] No Insight data for ${requestedEnd}, falling back to latest insight date`);
             }
+        }
+
+        if (filters.maxAllowedDate && dayjs(endDateStr).isAfter(dayjs(filters.maxAllowedDate))) {
+            endDateStr = filters.maxAllowedDate;
         }
 
         // If still no data after fallback, return empty
@@ -13161,11 +13321,16 @@ const getSkuOverview = async (filters) => {
     const monthsBack = parseInt(months, 10) || 1;
 
     // Calculate current date range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    }
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     // Comparison period logic (MoM / same duration)
@@ -13665,6 +13830,32 @@ const getSkuOverview = async (filters) => {
         };
     });
 
+    skuOverview.sort((a, b) => {
+        const getOsaVal = (item) => {
+            const availCol = item.columns?.find(c => c.title === 'Availability' || c.title === 'OSA' || c.title === 'Stock Availability' || c.title === 'On Shelf Availability');
+            if (availCol && availCol.rawVal !== undefined && availCol.rawVal !== null && !isNaN(availCol.rawVal)) {
+                return Number(availCol.rawVal);
+            }
+            if (availCol && availCol.value && availCol.value !== 'N/A') {
+                const parsed = parseFloat(String(availCol.value).replace(/%/g, '').replace(/,/g, ''));
+                if (!isNaN(parsed)) return parsed;
+            }
+            const wtOsaCol = item.columns?.find(c => c.title === 'Wt OSA');
+            if (wtOsaCol && wtOsaCol.rawVal !== undefined && wtOsaCol.rawVal !== null && !isNaN(wtOsaCol.rawVal)) {
+                return Number(wtOsaCol.rawVal);
+            }
+            if (wtOsaCol && wtOsaCol.value && wtOsaCol.value !== 'N/A') {
+                const parsed = parseFloat(String(wtOsaCol.value).replace(/%/g, '').replace(/,/g, ''));
+                if (!isNaN(parsed)) return parsed;
+            }
+            return -Infinity;
+        };
+        const osaA = getOsaVal(a);
+        const osaB = getOsaVal(b);
+        if (osaA === -Infinity && osaB === -Infinity) return 0;
+        return osaB - osaA;
+    });
+
     console.log(`[getSkuOverview] Returning ${skuOverview.length} SKUs`);
     return skuOverview;
 };
@@ -13695,11 +13886,16 @@ const getCityOverview = async (filters) => {
     const monthsBack = parseInt(months, 10) || 1;
 
     // Calculate current date range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    }
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     // Comparison period logic (MoM / same duration)
@@ -14323,9 +14519,13 @@ const getPerformanceBreakdownData = async (filters) => {
         const groupByCol = groupByMap[filters.group_by] || pmSrc.f.category;
 
         // ── Apply Date Range or Fallback to MTD (Month-To-Date) ──
-        const now = new Date();
-        const dateStart = filters.startDate ? new Date(filters.startDate).toISOString().split('T')[0] : new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const dateEnd = filters.endDate ? new Date(filters.endDate).toISOString().split('T')[0] : now.toISOString().split('T')[0];
+        const now = filters.maxAllowedDate ? dayjs(filters.maxAllowedDate).toDate() : new Date();
+        let dateStart = filters.startDate ? new Date(filters.startDate).toISOString().split('T')[0] : new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        let dateEnd = filters.endDate ? new Date(filters.endDate).toISOString().split('T')[0] : now.toISOString().split('T')[0];
+        if (filters.maxAllowedDate) {
+            if (dateEnd > filters.maxAllowedDate) dateEnd = filters.maxAllowedDate;
+            if (dateStart > filters.maxAllowedDate) dateStart = filters.maxAllowedDate;
+        }
         const dateClause = `AND ${pmSrc.f.date} >= '${dateStart}' AND ${pmSrc.f.date} <= '${dateEnd}'`;
 
         // ── Build consolidated platform/channel condition ──
@@ -14988,11 +15188,16 @@ const getCrossPlatformBrandMatrix = async (filters) => {
         const locationArr = normalizeFilterArray(rawLocation);
 
         const monthsBack = parseInt(months, 10) || 1;
-        let endDate = await getCachedMaxDate();
+        let endDate = await getCachedMaxDate(filters.maxAllowedDate);
         let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
         if (qStartDate && qEndDate) {
             startDate = dayjs(qStartDate).startOf('day');
             endDate = dayjs(qEndDate).endOf('day');
+        }
+        if (filters.maxAllowedDate) {
+            const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+            if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+            if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
         }
 
         const sDateStr = startDate.format('YYYY-MM-DD');

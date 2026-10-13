@@ -33,8 +33,9 @@ axiosInstance.interceptors.request.use(
             const storedUser = sessionStorage.getItem("user");
             if (storedUser) {
                 const u = JSON.parse(storedUser);
-                if (u?.qcUser !== undefined) {
-                    config.headers["x-qc-user"] = String(u.qcUser);
+                const qcVal = u?.qcUser ?? u?.qc_user;
+                if (qcVal !== undefined && qcVal !== null) {
+                    config.headers["x-qc-user"] = String(qcVal);
                 }
             }
         } catch (e) { /* ignore */ }

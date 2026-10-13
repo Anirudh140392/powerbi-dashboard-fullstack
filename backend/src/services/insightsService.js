@@ -118,12 +118,12 @@ export const getInsightsData = async (filters) => {
     // Fallback logic for missing categories in the database.
     // If Category is null/empty/zero, we infer it from the Brand name.
     const catField = `if(Category IS NOT NULL AND Category != '' AND Category != '0' AND Category != '-', ` +
-        `LOWER(toString(Category)), multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', ` +
+        `LOWER(toString(Category)), multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'gmfc', ` +
         `LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m', 'm&m''s'), ` +
         `if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', ` +
-        `'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others'))`;
+        `'chocolates (gifting)', 'chocolates (non gifting)'), 'Others'))`;
 
-    let endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
+    let endDate = filters.endDate ? dayjs(filters.endDate) : (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : dayjs());
     let startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(30, 'day');
 
     const dateFrom = startDate.format('YYYY-MM-DD');

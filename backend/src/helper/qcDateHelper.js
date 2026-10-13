@@ -85,6 +85,14 @@ export const applyQcDateFilter = (filters = {}, req) => {
         if (filters.compareStartDate && dayjs(filters.compareStartDate).isAfter(dayjs(maxAllowedDate))) {
             filters.compareStartDate = maxAllowedDate;
         }
+    } else {
+        // For QC users, cap dates to today if set beyond today
+        if (filters.endDate && dayjs(filters.endDate).isAfter(dayjs(today))) {
+            filters.endDate = today;
+        }
+        if (filters.startDate && dayjs(filters.startDate).isAfter(dayjs(today))) {
+            filters.startDate = today;
+        }
     }
 
     return filters;

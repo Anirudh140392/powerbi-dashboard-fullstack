@@ -106,6 +106,9 @@ export default function DownloadReport() {
   const [isDownloadingPromo, setIsDownloadingPromo] = useState(false);
   const [promoKamName, setPromoKamName] = useState("Girish");
 
+  const isQcUserMode = Number(user?.qc_user ?? user?.qcUser) === 1;
+  const clientMaxAllowedDate = isQcUserMode ? dayjs() : dayjs().subtract(1, 'day');
+
   const buildParams = useCallback(() => {
     const params = {};
     if (skuType) params.skuType = skuType;
@@ -116,10 +119,16 @@ export default function DownloadReport() {
     if (selectedCategories.length > 0) params.categories = selectedCategories.join(",");
     if (selectedSkus.length > 0) params.skus = selectedSkus.join(",");
     if (selectedWebPids.length > 0) params.webPids = selectedWebPids.join(",");
-    if (startDate) params.startDate = startDate.format("YYYY-MM-DD");
-    if (endDate) params.endDate = endDate.format("YYYY-MM-DD");
+    if (startDate) {
+      const s = (!isQcUserMode && startDate.isAfter(clientMaxAllowedDate)) ? clientMaxAllowedDate : startDate;
+      params.startDate = s.format("YYYY-MM-DD");
+    }
+    if (endDate) {
+      const e = (!isQcUserMode && endDate.isAfter(clientMaxAllowedDate)) ? clientMaxAllowedDate : endDate;
+      params.endDate = e.format("YYYY-MM-DD");
+    }
     return params;
-  }, [skuType, selectedPlatforms, selectedLocations, selectedPincodes, selectedBrands, selectedCategories, selectedSkus, selectedWebPids, startDate, endDate]);
+  }, [skuType, selectedPlatforms, selectedLocations, selectedPincodes, selectedBrands, selectedCategories, selectedSkus, selectedWebPids, startDate, endDate, isQcUserMode, clientMaxAllowedDate]);
 
   const buildPromoParams = useCallback(() => {
     const params = {};
@@ -127,10 +136,16 @@ export default function DownloadReport() {
     if (promoSelectedAsms.length > 0) params.asm = promoSelectedAsms.join(",");
     if (promoSelectedPlatforms.length > 0) params.platform = promoSelectedPlatforms.join(",");
     if (promoSelectedSkus.length > 0) params.sku = promoSelectedSkus.join(",");
-    if (promoStartDate) params.startDate = promoStartDate.format("YYYY-MM-DD");
-    if (promoEndDate) params.endDate = promoEndDate.format("YYYY-MM-DD");
+    if (promoStartDate) {
+      const s = (!isQcUserMode && promoStartDate.isAfter(clientMaxAllowedDate)) ? clientMaxAllowedDate : promoStartDate;
+      params.startDate = s.format("YYYY-MM-DD");
+    }
+    if (promoEndDate) {
+      const e = (!isQcUserMode && promoEndDate.isAfter(clientMaxAllowedDate)) ? clientMaxAllowedDate : promoEndDate;
+      params.endDate = e.format("YYYY-MM-DD");
+    }
     return params;
-  }, [promoSelectedKams, promoSelectedAsms, promoSelectedPlatforms, promoSelectedSkus, promoStartDate, promoEndDate]);
+  }, [promoSelectedKams, promoSelectedAsms, promoSelectedPlatforms, promoSelectedSkus, promoStartDate, promoEndDate, isQcUserMode, clientMaxAllowedDate]);
 
   const loadFilters = useCallback(async () => {
     setLoadingFilters(true);
@@ -281,12 +296,21 @@ export default function DownloadReport() {
     }
   };
 
+  const isQc = Number(user?.qc_user ?? user?.qcUser) === 1;
+  const maxAllowedDate = isQc ? dayjs() : dayjs().subtract(1, 'day');
+
   const availableDates = filterOptions.dates || [];
   const minDbDate = availableDates.length > 0 ? dayjs(availableDates[availableDates.length - 1]) : dayjs('2024-01-01');
-  const maxDbDate = availableDates.length > 0 ? dayjs(availableDates[0]) : dayjs();
+  let maxDbDate = availableDates.length > 0 ? dayjs(availableDates[0]) : dayjs();
+  if (!isQc && maxDbDate.isAfter(maxAllowedDate)) {
+    maxDbDate = maxAllowedDate;
+  }
 
   const promoMinDbDate = promoFilterOptions.minDate ? dayjs(promoFilterOptions.minDate) : dayjs('2024-01-01');
-  const promoMaxDbDate = promoFilterOptions.maxDate ? dayjs(promoFilterOptions.maxDate) : dayjs();
+  let promoMaxDbDate = promoFilterOptions.maxDate ? dayjs(promoFilterOptions.maxDate) : dayjs();
+  if (!isQc && promoMaxDbDate.isAfter(maxAllowedDate)) {
+    promoMaxDbDate = maxAllowedDate;
+  }
 
   const acSx = { "& .MuiOutlinedInput-root": { borderRadius: "12px", backgroundColor: "#ffffff" } };
   const dpSx = { "& .MuiOutlinedInput-root": { borderRadius: "12px", backgroundColor: "#ffffff" } };
@@ -325,7 +349,7 @@ export default function DownloadReport() {
               }
             }}
           >
-            <ToggleButton value="raw_data">Raw Data</ToggleButton>
+            <ToggleButton value="raw_data">Availability/OSA</ToggleButton>
             <ToggleButton value="promo_violation">Promo Compliance</ToggleButton>
           </ToggleButtonGroup>
         </Box>
@@ -345,7 +369,7 @@ export default function DownloadReport() {
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3, flexWrap: "wrap", gap: 2 }}>
                 <Box>
                   <Typography variant="h5" sx={{ fontWeight: 700, color: "#1e293b", fontFamily: "'Inter', sans-serif" }}>
-                    Export Raw PDP Weekly Data
+                    Export Availability/OSA Weekly Data
                   </Typography>
                   <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5, fontFamily: "'Inter', sans-serif" }}>
                     Select filter options below to generate a customized Excel export. Leaving dropdowns empty will include all values.

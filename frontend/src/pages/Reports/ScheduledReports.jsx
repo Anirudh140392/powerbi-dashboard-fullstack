@@ -6,9 +6,13 @@ import { saveAs } from 'file-saver';
 import { fetchReportFilterOptions, downloadReport, fetchAvailableReportTypes, fetchReportBuilderOptions } from "../../api/reportsService";
 import { FilterContext } from "../../utils/FilterContext";
 import { useContext } from "react";
+import { useAuth } from "../../utils/AuthContext";
 
 export default function ScheduledReports() {
     const { refreshFilters } = useContext(FilterContext);
+    const { user } = useAuth();
+    const isQc = Number(user?.qc_user ?? user?.qcUser) === 1;
+    const maxAllowedDate = dayjs(isQc ? dayjs().format('YYYY-MM-DD') : dayjs().subtract(1, 'day').format('YYYY-MM-DD'));
 
     // Restore comprehensive platform list from rca_sku_dim on mount
     // (Prevents subsetting from other pages like Performance Marketing)
@@ -33,8 +37,8 @@ export default function ScheduledReports() {
     });
 
     const [customDateRange, setCustomDateRange] = useState({
-        startDate: dayjs().subtract(30, 'day'),
-        endDate: dayjs(),
+        startDate: (isQc ? dayjs() : dayjs().subtract(1, 'day')).subtract(30, 'day'),
+        endDate: isQc ? dayjs() : dayjs().subtract(1, 'day'),
     });
 
     const [showSuccess, setShowSuccess] = useState(false);
@@ -244,6 +248,17 @@ export default function ScheduledReports() {
                 params.endDate = dayjs(customDateRange.endDate).format('YYYY-MM-DD');
             }
 
+            // Cap custom dates for non-QC users
+            if (!isQc) {
+                const maxDateStr = maxAllowedDate.format('YYYY-MM-DD');
+                if (params.endDate && dayjs(params.endDate).isAfter(maxAllowedDate)) {
+                    params.endDate = maxDateStr;
+                }
+                if (params.startDate && dayjs(params.startDate).isAfter(maxAllowedDate)) {
+                    params.startDate = maxDateStr;
+                }
+            }
+
             // Call backend API — returns Blob (Excel or CSV)
             const blob = await downloadReport(params);
 
@@ -253,10 +268,12 @@ export default function ScheduledReports() {
             let sDate = params.startDate;
             let eDate = params.endDate;
             if (!sDate) {
-                const now = dayjs();
-                if (timePeriod === "Last 90 Days") { sDate = now.subtract(90, 'day').format('YYYY-MM-DD'); eDate = now.format('YYYY-MM-DD'); }
-                else if (timePeriod === "Last 6 Months") { sDate = now.subtract(6, 'month').format('YYYY-MM-DD'); eDate = now.format('YYYY-MM-DD'); }
-                else if (timePeriod === "Last Year") { sDate = now.subtract(1, 'year').format('YYYY-MM-DD'); eDate = now.format('YYYY-MM-DD'); }
+                const refDate = isQc ? dayjs() : dayjs().subtract(1, 'day');
+                if (timePeriod === "Last 7 Days") { sDate = refDate.subtract(7, 'day').format('YYYY-MM-DD'); eDate = refDate.format('YYYY-MM-DD'); }
+                else if (timePeriod === "Last 30 Days") { sDate = refDate.subtract(30, 'day').format('YYYY-MM-DD'); eDate = refDate.format('YYYY-MM-DD'); }
+                else if (timePeriod === "Last 90 Days") { sDate = refDate.subtract(90, 'day').format('YYYY-MM-DD'); eDate = refDate.format('YYYY-MM-DD'); }
+                else if (timePeriod === "Last 6 Months") { sDate = refDate.subtract(6, 'month').format('YYYY-MM-DD'); eDate = refDate.format('YYYY-MM-DD'); }
+                else if (timePeriod === "Last Year") { sDate = refDate.subtract(1, 'year').format('YYYY-MM-DD'); eDate = refDate.format('YYYY-MM-DD'); }
             }
             const isOver31Days = sDate && eDate ? (dayjs(eDate).diff(dayjs(sDate), 'day') + 1 > 31) : false;
             const isCsv = isDarkstore || isOver31Days || (blob && blob.type && blob.type.includes('csv'));
