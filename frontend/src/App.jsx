@@ -43,6 +43,7 @@ import AcceptInvitePage from "./pages/Login/AcceptInvitePage";
 import SelectWorkspacePage from "./pages/Login/SelectWorkspacePage";
 import CrossPlatformPricing from "./pages/Analytics/CrossPlatformPricing";
 import MopAnalysis from "./pages/Analytics/MopAnalysis";
+import VisitorTracker from "./components/VisitorTracker";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -53,8 +54,10 @@ function AppContent() {
   const sessionKey = isLoggedIn ? (user?.email || "authenticated") : "guest";
 
   return (
-    <HelpProvider>
-      <FilterProvider key={sessionKey}>
+    <>
+      <VisitorTracker />
+      <HelpProvider>
+        <FilterProvider key={sessionKey}>
         <SocketProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -238,6 +241,7 @@ function AppContent() {
         </SocketProvider>
       </FilterProvider>
     </HelpProvider>
+    </>
   );
 }
 
