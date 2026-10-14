@@ -227,7 +227,7 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const switchDb = async (targetDbName) => {
+    const switchDb = async (targetDbName, targetPath = null) => {
         try {
             const token = sessionStorage.getItem("token");
             const response = await axios.post(
@@ -246,8 +246,17 @@ export const AuthProvider = ({ children }) => {
                 }
                 sessionStorage.setItem("token", newToken);
                 sessionStorage.setItem("user", JSON.stringify(updatedUserData));
+                sessionStorage.setItem("workspaceSelected", "true");
+                sessionStorage.setItem("activeWorkspaceDb", targetDbName);
                 setUser(updatedUserData);
-                window.location.reload();
+
+                // If a target destination is given or currently on select-workspace, navigate directly
+                const destination = targetPath || (window.location.pathname === '/select-workspace' ? '/watch-tower' : null);
+                if (destination) {
+                    window.location.href = destination;
+                } else {
+                    window.location.reload();
+                }
                 return { success: true };
             }
             return { success: false, error: response.data.error || "Failed to switch database" };

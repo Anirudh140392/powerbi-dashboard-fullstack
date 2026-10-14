@@ -32,10 +32,10 @@ const SelectWorkspacePage = () => {
             sessionStorage.setItem('workspaceSelected', 'true');
             sessionStorage.setItem('activeWorkspaceDb', targetDbName);
 
-            // Switch database context if target is different or re-sync
-            if (targetDbName.toLowerCase() !== currentDbName) {
-                await switchDb(targetDbName);
-            } else {
+            // Always invoke switchDb so fresh permissions are loaded specifically for this workspace
+            const res = await switchDb(targetDbName, '/watch-tower');
+            if (res && !res.success) {
+                console.warn('[SelectWorkspace] switchDb error, falling back to navigate:', res.error);
                 navigate('/watch-tower', { replace: true });
             }
         } catch (error) {

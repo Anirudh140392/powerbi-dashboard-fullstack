@@ -262,7 +262,8 @@ export const updateTabPermissions = async (req, res) => {
         const updateRes = await adminService.updateUserTabPermissions(targetIdentifier, tabPermissions, dbName);
 
         // Clear permissions and platforms cache so changes apply instantly
-        if (email) clearPermissionsCache(email);
+        const targetEmail = email || (typeof targetIdentifier === 'string' && targetIdentifier.includes('@') ? targetIdentifier : null);
+        if (targetEmail) clearPermissionsCache(targetEmail);
         adminService.clearDbPlatformsCache();
 
         // Audit log permission change (log only changed key-value pairs)
