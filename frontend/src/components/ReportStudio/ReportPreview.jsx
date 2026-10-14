@@ -1,18 +1,23 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Box, Button, Chip, IconButton, LinearProgress, Paper, Skeleton, Typography } from "@mui/material";
+import { Alert, Box, Button, Chip, IconButton, LinearProgress, Paper, Skeleton, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 import {
     Close as CloseIcon,
     DragIndicator as DragIcon,
     ErrorOutline as ErrorIcon,
     LockOutlined as LockIcon,
+    PivotTableChartOutlined as PivotIcon,
     SearchOff as SearchOffIcon,
     TableChartOutlined as TableIcon,
     WarningAmberRounded as WarningIcon,
     LayersOutlined as LayersIcon,
 } from "@mui/icons-material";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
+import StatePanel from "./StatePanel";
+import PivotFieldWells from "./PivotFieldWells";
+import PivotTable from "./PivotTable";
 import { FIELD_GROUPS, FIELDS_BY_KEY, SOURCES_BY_ID } from "./reportStudioConfig";
 import { columnLetter, formatCellValue } from "./reportStudioUtils";
+import { resolvePivotLayout } from "./pivotUtils";
 
 const GUTTER_WIDTH = 52;
 const DATE_WIDTH = 124;
@@ -112,15 +117,40 @@ function ColumnOrderStrip({ columns, unsupported, onMove, onRemove }) {
     );
 }
 
-function StatePanel({ icon, tone = "#94a3b8", title, message, action }) {
-    const Icon = icon;
+function ViewToggle({ value, onChange }) {
     return (
-        <Box sx={{ minHeight: 280, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", px: 3, py: 5, border: "1px dashed #e2e8f0", borderRadius: "10px", bgcolor: "#fcfdfe" }}>
-            <Icon sx={{ fontSize: 36, color: tone, mb: 1 }} />
-            <Typography sx={{ fontSize: "0.95rem", fontWeight: 700, color: "#334155" }}>{title}</Typography>
-            {message && <Typography sx={{ fontSize: "0.8rem", color: "#64748b", mt: 0.5, maxWidth: 420 }}>{message}</Typography>}
-            {action && <Box sx={{ mt: 2 }}>{action}</Box>}
-        </Box>
+        <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={value}
+            onChange={(_, next) => next && onChange(next)}
+            aria-label="Preview view"
+            sx={{
+                bgcolor: "#f1f5f9",
+                borderRadius: "999px",
+                p: "3px",
+                "& .MuiToggleButton-root": {
+                    gap: 0.75,
+                    textTransform: "none",
+                    border: "none",
+                    borderRadius: "999px",
+                    px: 1.75,
+                    py: 0.4,
+                    fontSize: "0.82rem",
+                    fontWeight: 700,
+                    color: "#64748b",
+                    "& svg": { fontSize: "1.05rem" },
+                    "&.Mui-selected, &.Mui-selected:hover": { bgcolor: "#ffffff", color: "#1e293b", boxShadow: "0 1px 3px rgba(15, 23, 42, 0.15)", "& svg": { color: "#2563eb" } },
+                },
+            }}
+        >
+            <ToggleButton value="raw" title="Every row of the report">
+                <TableIcon /> Raw
+            </ToggleButton>
+            <ToggleButton value="custom" title="Pivot the report: rows, columns, values and filters">
+                <PivotIcon /> Custom
+            </ToggleButton>
+        </ToggleButtonGroup>
     );
 }
 
@@ -262,10 +292,15 @@ function ReportGrid({ fields, rows, startIndex, letters, selection, onSelect }) 
 }
 
 export default function ReportPreview({
+    view,
+    onViewChange,
     columns,
     unsupported,
     fields,
     preview,
+    pivot,
+    pivotConfig,
+    pivotActions,
     headerAction,
     isUpdating,
     page,
@@ -297,6 +332,7 @@ export default function ReportPreview({
     const select = (next) => setSelectionState({ ...next, report });
 
     const unsupportedLabels = unsupported.map((k) => FIELDS_BY_KEY[k].label);
+    const pivotLayout = useMemo(() => resolvePivotLayout(fields, pivotConfig.areas), [fields, pivotConfig.areas]);
 
     let body;
     if (preview.status === "loading") {
@@ -330,6 +366,8 @@ export default function ReportPreview({
                 title="No records for this time period"
             />
         );
+    } else if (view === "custom") {
+        body = <PivotTable pivot={pivot} config={pivotConfig} actions={pivotActions} isUpdating={isUpdating} />;
     } else {
         body = (
             <Box sx={{ border: "1px solid #e2e8f0", borderRadius: "10px", overflow: "hidden" }}>
@@ -364,8 +402,7 @@ export default function ReportPreview({
         <Paper elevation={0} sx={{ border: "1px solid #e2e8f0", borderRadius: "16px", bgcolor: "#ffffff", p: 2, display: "flex", flexDirection: "column", gap: 1.5, minWidth: 0 }}>
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <TableIcon sx={{ fontSize: "1.2rem", color: "#2563eb" }} />
-                    <Typography sx={{ fontSize: "0.95rem", fontWeight: 700, color: "#1e293b" }}>Live preview</Typography>
+                    <ViewToggle value={view} onChange={onViewChange} />
                     {report && (
                         <Chip
                             label={`${totalRows.toLocaleString("en-IN")} ${totalRows === 1 ? "row" : "rows"}`}
@@ -377,7 +414,13 @@ export default function ReportPreview({
                 {headerAction}
             </Box>
 
-            <ColumnOrderStrip columns={columns} unsupported={unsupported} onMove={onMoveColumn} onRemove={onRemoveColumn} />
+            {view === "custom" ? (
+                fields.length > 0 && (
+                    <PivotFieldWells layout={pivotLayout} config={pivotConfig} options={pivot?.options} actions={pivotActions} onRemoveField={onRemoveColumn} />
+                )
+            ) : (
+                <ColumnOrderStrip columns={columns} unsupported={unsupported} onMove={onMoveColumn} onRemove={onRemoveColumn} />
+            )}
 
             {unsupported.length > 0 && (
                 <Alert
@@ -389,7 +432,7 @@ export default function ReportPreview({
                 </Alert>
             )}
 
-            {preview.status === "ready" && fields.length === 1 && totalRows > 0 && (
+            {view === "raw" && preview.status === "ready" && fields.length === 1 && totalRows > 0 && (
                 <Alert severity="info" sx={{ borderRadius: "10px", "& .MuiAlert-message": { fontSize: "0.8rem" } }}>
                     Add dimensions or KPIs to build the report.
                 </Alert>

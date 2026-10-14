@@ -93,8 +93,8 @@ export const buildCsv = (fields, report) => {
     return `\uFEFF${lines.join("\r\n")}\r\n`;
 };
 
-export const buildFileName = (sources, start, end, { sample = false } = {}) => {
+export const buildFileName = (sources, start, end, { sample = false, pivot = false } = {}) => {
     const sourcePart = sources.join("-");
     const range = `${dayjs(start).format("YYYY-MM-DD")}_to_${dayjs(end).format("YYYY-MM-DD")}`;
-    return `report_studio_${sourcePart}_${range}${sample ? "_sample" : ""}.csv`;
+    return `report_studio_${sourcePart}_${range}${pivot ? "_pivot" : ""}${sample ? "_sample" : ""}.csv`;
 };

@@ -6,7 +6,8 @@
  * dimension can only be used when every selected source has it, because combined
  * sources are joined on Date + the shared dimensions. KPIs belong to exactly one
  * source, and their `formula` strings mirror the Business Overview definitions in
- * backend/src/services/watchTowerService.js.
+ * backend/src/services/watchTowerService.js. `additive` KPIs can be summed across
+ * rows in the pivot view; the rest (ratios, averages) can't.
  *
  * To add a table or KPI, extend REPORT_SOURCES / REPORT_FIELDS — the UI is driven
  * entirely from these lists.
@@ -153,14 +154,14 @@ export const REPORT_FIELDS = [
     },
 
     // ── KPIs: rb_pdp_olap ──
-    { key: "offtake", label: "Offtake", group: FIELD_GROUPS.KPI, source: "pdp", unit: "currency", formula: "SUM(Sales) for own brands" },
+    { key: "offtake", label: "Offtake", group: FIELD_GROUPS.KPI, source: "pdp", unit: "currency", formula: "SUM(Sales) for own brands", additive: true },
     { key: "osa", label: "OSA", description: "On-shelf availability", group: FIELD_GROUPS.KPI, source: "pdp", unit: "percent", formula: "SUM(neno_osa) ÷ SUM(deno_osa) × 100" },
     { key: "discount", label: "Discount", group: FIELD_GROUPS.KPI, source: "pdp", unit: "percent", formula: "(SUM(MRP) − SUM(Selling_Price)) ÷ SUM(MRP) × 100, in-stock rows" },
     { key: "wt_discount", label: "Wt. Discount", description: "Sales-weighted discount", group: FIELD_GROUPS.KPI, source: "pdp", unit: "percent", formula: "Σ(((MRP − Selling_Price) ÷ MRP) × Sales) ÷ Σ Sales × 100" },
     { key: "asp", label: "ASP", description: "Average selling price", group: FIELD_GROUPS.KPI, source: "pdp", unit: "currency", formula: "AVG(Selling_Price) for in-stock own SKUs" },
     { key: "listing", label: "Listing %", group: FIELD_GROUPS.KPI, source: "pdp", unit: "percent", formula: "AVG(listing_percent)" },
     { key: "buy_box", label: "Buy Box %", group: FIELD_GROUPS.KPI, source: "pdp", unit: "percent", formula: "SUM(buy_box_neno_osa) ÷ SUM(deno_osa) × 100" },
-    { key: "qty_sold", label: "Quantity Sold", group: FIELD_GROUPS.KPI, source: "pdp", unit: "number", formula: "SUM(Qty_Sold) for own brands" },
+    { key: "qty_sold", label: "Quantity Sold", group: FIELD_GROUPS.KPI, source: "pdp", unit: "number", formula: "SUM(Qty_Sold) for own brands", additive: true },
 
     // ── KPIs: rb_kw_olap ──
     { key: "sos", label: "SOS", description: "Share of search", group: FIELD_GROUPS.KPI, source: "kw", unit: "percent", formula: "Own-brand share of overall results in the top 10 positions" },
@@ -169,15 +170,15 @@ export const REPORT_FIELDS = [
 
     // ── KPIs: rb_ms_olap ──
     { key: "market_share", label: "Market Share", group: FIELD_GROUPS.KPI, source: "ms", unit: "percent", formula: "Own-brand SUM(sales) ÷ category SUM(sales) × 100" },
-    { key: "category_size", label: "Category Size", group: FIELD_GROUPS.KPI, source: "ms", unit: "currency", formula: "SUM(sales) across all brands" },
+    { key: "category_size", label: "Category Size", group: FIELD_GROUPS.KPI, source: "ms", unit: "currency", formula: "SUM(sales) across all brands", additive: true },
 
     // ── KPIs: rb_pm_olap ──
-    { key: "ad_spend", label: "Ad Spend", group: FIELD_GROUPS.KPI, source: "pm", unit: "currency", formula: "SUM(ad_spend)" },
-    { key: "ad_sales", label: "Ad Sales", group: FIELD_GROUPS.KPI, source: "pm", unit: "currency", formula: "SUM(ad_sales)" },
+    { key: "ad_spend", label: "Ad Spend", group: FIELD_GROUPS.KPI, source: "pm", unit: "currency", formula: "SUM(ad_spend)", additive: true },
+    { key: "ad_sales", label: "Ad Sales", group: FIELD_GROUPS.KPI, source: "pm", unit: "currency", formula: "SUM(ad_sales)", additive: true },
     { key: "roas", label: "ROAS", description: "Return on ad spend", group: FIELD_GROUPS.KPI, source: "pm", unit: "ratio", formula: "SUM(ad_sales) ÷ SUM(ad_spend)" },
-    { key: "impressions", label: "Impressions", group: FIELD_GROUPS.KPI, source: "pm", unit: "number", formula: "SUM(impressions)" },
-    { key: "clicks", label: "Clicks", group: FIELD_GROUPS.KPI, source: "pm", unit: "number", formula: "SUM(ad_click)" },
-    { key: "orders", label: "Orders", group: FIELD_GROUPS.KPI, source: "pm", unit: "number", formula: "SUM(ad_quantity_sold)" },
+    { key: "impressions", label: "Impressions", group: FIELD_GROUPS.KPI, source: "pm", unit: "number", formula: "SUM(impressions)", additive: true },
+    { key: "clicks", label: "Clicks", group: FIELD_GROUPS.KPI, source: "pm", unit: "number", formula: "SUM(ad_click)", additive: true },
+    { key: "orders", label: "Orders", group: FIELD_GROUPS.KPI, source: "pm", unit: "number", formula: "SUM(ad_quantity_sold)", additive: true },
     { key: "conversion", label: "Conversion", group: FIELD_GROUPS.KPI, source: "pm", unit: "percent", formula: "Orders ÷ Clicks × 100" },
     { key: "cpc", label: "CPC", description: "Cost per click", group: FIELD_GROUPS.KPI, source: "pm", unit: "currency", formula: "Ad Spend ÷ Clicks" },
     { key: "cpm", label: "CPM", description: "Cost per 1,000 impressions", group: FIELD_GROUPS.KPI, source: "pm", unit: "currency", formula: "Ad Spend ÷ Impressions × 1000" },
