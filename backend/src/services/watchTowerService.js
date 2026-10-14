@@ -5028,7 +5028,7 @@ const getChannels = async () => {
     }
 };
 
-const getPdpPlatforms = async () => {
+const getPdpPlatforms = async (channel) => {
     try {
         const cols = await getTableColumns('rb_pdp_olap');
         const hasPlatform = columnExists(cols, 'platform');
@@ -5037,7 +5037,30 @@ const getPdpPlatforms = async () => {
             return [];
         }
         const platformCol = resolveColumn(cols, 'platform');
-        const query = `SELECT DISTINCT ${platformCol} AS platform FROM rb_pdp_olap WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' ORDER BY platform`;
+        const channelCol = resolveColumn(cols, 'channel');
+        const hasChannel = columnExists(cols, 'channel');
+
+        let query;
+        if (hasChannel && channel && channel !== 'All') {
+            const channelStr = (Array.isArray(channel) ? channel.join(',') : String(channel)).toLowerCase().trim();
+            const isEcom = channelStr.includes('ecom') || channelStr.includes('e-com');
+            const isQcomm = channelStr.includes('quick') || channelStr.includes('qcomm');
+            const isEpharm = channelStr.includes('pharm');
+
+            let channelCondition;
+            if (isEpharm) {
+                channelCondition = `(lower(${channelCol}) LIKE '%pharm%' OR lower(${channelCol}) LIKE '%epharm%')`;
+            } else if (isEcom) {
+                channelCondition = `(lower(${channelCol}) LIKE '%ecom%' OR lower(${channelCol}) LIKE '%ecommerce%')`;
+            } else if (isQcomm) {
+                channelCondition = `(lower(${channelCol}) LIKE '%quick%' OR lower(${channelCol}) LIKE '%qcomm%')`;
+            } else {
+                channelCondition = `(lower(${channelCol}) = '${channelStr.replace(/'/g, "''")}' OR lower(${channelCol}) LIKE '%${channelStr.replace(/'/g, "''")}%')`;
+            }
+            query = `SELECT DISTINCT ${platformCol} AS platform FROM rb_pdp_olap WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND ${channelCondition} ORDER BY platform`;
+        } else {
+            query = `SELECT DISTINCT ${platformCol} AS platform FROM rb_pdp_olap WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' ORDER BY platform`;
+        }
         const results = await queryClickHouse(query);
         return results.map(r => r.platform).filter(Boolean).sort();
     } catch (error) {

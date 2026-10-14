@@ -137,10 +137,21 @@ export const getChannels = async (req, res) => {
 
 export const getPdpPlatforms = async (req, res) => {
     try {
-        const platforms = await watchTowerService.getPdpPlatforms();
+        const { channel } = req.query;
+        const platforms = await watchTowerService.getPdpPlatforms(channel);
         res.json(platforms);
     } catch (error) {
         console.error('Error fetching PDP platforms:', error);
+        res.json([]);
+    }
+};
+
+export const getPdpChannels = async (req, res) => {
+    try {
+        const channels = await watchTowerService.getChannels();
+        res.json(channels);
+    } catch (error) {
+        console.error('Error fetching PDP channels:', error);
         res.json([]);
     }
 };

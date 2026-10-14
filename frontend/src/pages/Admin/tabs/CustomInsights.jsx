@@ -24,6 +24,7 @@ const INSIGHTS_CARDS = [
     { key: "dark_store_coverage_gaps", label: "Dark Store Coverage Gaps" },
     { key: "new_dark_store_expansion", label: "New Dark Store Expansion" },
     { key: "relative_price_index", label: "Relative Price Index" },
+    { key: "under_indexed_cities", label: "Under Indexed Cities" },
     { key: "co_relations", label: "Co-Relations" }
 ];
 
