@@ -54,16 +54,20 @@ const getDrlResellerConds = (filters = {}) => {
             if (rArr.length > 0) {
                 return {
                     pdpCond: `Reseller_Name IN (${rArr.map(r => `'${escapeStr(r)}'`).join(', ')})`,
+                    pdpOfftakeCond: '',
+                    isBuymoreMode: false,
                     includeBuyMoreTable: false
                 };
             }
         }
-        return { pdpCond: '', includeBuyMoreTable: false };
+        return { pdpCond: '', pdpOfftakeCond: '', isBuymoreMode: false, includeBuyMoreTable: false };
     }
 
     const resellerList = (resellerVal && resellerVal !== 'All' && resellerVal !== 'all')
         ? normalizeFilterArray(resellerVal).map(r => String(r).toLowerCase().trim()).filter(Boolean)
         : [];
+
+    const buymoreOfftakeCondition = `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`;
 
     if (resellerList.length > 0) {
         const hasBuyMore = resellerList.some(r => r.includes('buy') || r.includes('more') || r.includes('3p'));
@@ -72,17 +76,23 @@ const getDrlResellerConds = (filters = {}) => {
 
         if (hasBuyMore && !has1P && !hasOther) {
             return {
-                pdpCond: `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`,
-                includeBuyMoreTable: false
+                pdpCond: ``, // Do NOT filter catalog crawl rows in WHERE clause so OSA, Wt OSA, Listing %, ASP work
+                pdpOfftakeCond: buymoreOfftakeCondition,
+                isBuymoreMode: true,
+                includeBuyMoreTable: true
             };
         } else if ((has1P || hasOther) && !hasBuyMore) {
             return {
                 pdpCond: ``,
+                pdpOfftakeCond: ``,
+                isBuymoreMode: false,
                 includeBuyMoreTable: false
             };
         } else {
             return {
                 pdpCond: ``,
+                pdpOfftakeCond: ``,
+                isBuymoreMode: false,
                 includeBuyMoreTable: true
             };
         }
@@ -91,17 +101,23 @@ const getDrlResellerConds = (filters = {}) => {
     if (drlMode === 'portal' || drlMode === 'rk') {
         return {
             pdpCond: ``,
+            pdpOfftakeCond: ``,
+            isBuymoreMode: false,
             includeBuyMoreTable: false
         };
     } else if (drlMode === 'buymore') {
         return {
-            pdpCond: `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`,
-            includeBuyMoreTable: false
+            pdpCond: ``, // Do NOT filter catalog crawl rows in WHERE clause so OSA, Wt OSA, Listing %, ASP work
+            pdpOfftakeCond: buymoreOfftakeCondition,
+            isBuymoreMode: true,
+            includeBuyMoreTable: true
         };
     }
 
     return {
         pdpCond: '',
+        pdpOfftakeCond: '',
+        isBuymoreMode: false,
         includeBuyMoreTable: true
     };
 };
@@ -1385,6 +1401,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const drlResellerInfoMain = getDrlResellerConds(filters);
             if (drlResellerInfoMain.pdpCond) {
                 conditions.push(drlResellerInfoMain.pdpCond);
+            }
+            if (drlResellerInfoMain.pdpOfftakeCond) {
+                conditions.push(drlResellerInfoMain.pdpOfftakeCond);
             }
 
             return conditions.join(' AND ');
@@ -6105,6 +6124,7 @@ const getPlatformOverview = async (filters) => {
     // Get the optimized data source (Materialized View table or raw table)
     const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
+    const drlResellerInfo = getDrlResellerConds(filters);
 
 
     // ===== INLINE BULK PLATFORM METRICS QUERY - USING CLICKHOUSE =====
@@ -6316,8 +6336,8 @@ const getPlatformOverview = async (filters) => {
         // Query 1: Current period offtake metrics by platform
         queryClickHouse(`
                     SELECT ${src.f.platform} as Platform,
-                        SUM(${src.f.sales}) as sales,
-                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as qty,
+                        SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as sales,
+                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ${src.f.qty} ELSE 0 END) as qty,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as neno,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as deno,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} ELSE 0 END) as buy_box_neno,
@@ -6333,8 +6353,8 @@ const getPlatformOverview = async (filters) => {
         // Query 2: Previous period offtake metrics by platform
         queryClickHouse(`
                     SELECT ${src.f.platform} as Platform,
-                        SUM(${src.f.sales}) as sales,
-                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as qty,
+                        SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as sales,
+                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ${src.f.qty} ELSE 0 END) as qty,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as neno,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as deno,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} ELSE 0 END) as buy_box_neno,
@@ -6780,8 +6800,8 @@ const getPlatformOverview = async (filters) => {
     const [allMetricsResult, prevAllMetricsResult, allPmMetricsResult, prevAllPmMetricsResult] = await Promise.all([
         queryClickHouse(`
                     SELECT 
-                        SUM(${src.f.sales}) as total_sales,
-                        SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.quantitySold} ELSE 0 END) as total_qty,
+                        SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales,
+                        SUM(CASE WHEN ${src.f.compFlag} = 0 ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ${src.f.quantitySold} ELSE 0 END) as total_qty,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
                         AVG(if(${src.f.compFlag} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
@@ -6794,8 +6814,8 @@ const getPlatformOverview = async (filters) => {
                 `),
         queryClickHouse(`
                     SELECT 
-                        SUM(${src.f.sales}) as total_sales,
-                        SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.quantitySold} ELSE 0 END) as total_qty,
+                        SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales,
+                        SUM(CASE WHEN ${src.f.compFlag} = 0 ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ${src.f.quantitySold} ELSE 0 END) as total_qty,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
                         AVG(if(${src.f.compFlag} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
@@ -7012,10 +7032,10 @@ const getPlatformOverview = async (filters) => {
             const prevOfftakeCondsNoLoc = buildOfftakeConds(momStart, momEnd, true);
 
             const [allNoLocRes, prevAllNoLocRes, cNoLoc, pNoLoc] = await Promise.all([
-                queryClickHouse(`SELECT SUM(${src.f.sales}) as total_sales FROM ${src.table} WHERE ${allCondsNoLoc}`),
-                queryClickHouse(`SELECT SUM(${src.f.sales}) as total_sales FROM ${src.table} WHERE ${prevAllCondsNoLoc}`),
-                queryClickHouse(`SELECT ${src.f.platform} as Platform, SUM(${src.f.sales}) as sales FROM ${src.table} WHERE ${currOfftakeCondsNoLoc} GROUP BY Platform`),
-                queryClickHouse(`SELECT ${src.f.platform} as Platform, SUM(${src.f.sales}) as sales FROM ${src.table} WHERE ${prevOfftakeCondsNoLoc} GROUP BY Platform`)
+                queryClickHouse(`SELECT SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales FROM ${src.table} WHERE ${allCondsNoLoc}`),
+                queryClickHouse(`SELECT SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales FROM ${src.table} WHERE ${prevAllCondsNoLoc}`),
+                queryClickHouse(`SELECT ${src.f.platform} as Platform, SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as sales FROM ${src.table} WHERE ${currOfftakeCondsNoLoc} GROUP BY Platform`),
+                queryClickHouse(`SELECT ${src.f.platform} as Platform, SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as sales FROM ${src.table} WHERE ${prevOfftakeCondsNoLoc} GROUP BY Platform`)
             ]);
             if (allNoLocRes.length > 0 && allNoLocRes[0].total_sales !== undefined) {
                 allOfftakeNoLoc = parseFloat(allNoLocRes[0].total_sales || 0);
@@ -7078,7 +7098,7 @@ const getPlatformOverview = async (filters) => {
                     const overviewMetric = overviewChangeMap[overviewName];
                     if (!overviewMetric) continue;
 
-                    const col = allRow.columns.find(c => c.title === colTitle);
+                    const col = allRow.columns.find(c => c.title === colTitle || (colTitle === 'Availability' && c.title === 'OSA'));
                     if (col && col.change) {
                         col.change.text = overviewMetric.trend;
                         col.change.positive = overviewMetric.trendType === 'positive';
@@ -7093,7 +7113,7 @@ const getPlatformOverview = async (filters) => {
                 if (offtakeCol && summaryMetrics.offtakes) {
                     offtakeCol.value = summaryMetrics.offtakes;
                 }
-                const availCol = allRow.columns.find(c => c.title === 'Availability');
+                const availCol = allRow.columns.find(c => c.title === 'Availability' || c.title === 'OSA');
                 if (availCol && summaryMetrics.stockAvailability) {
                     availCol.value = summaryMetrics.stockAvailability;
                 }
@@ -7307,6 +7327,7 @@ const getMonthOverview = async (filters) => {
     // Query all months at once with GROUP BY - USING CLICKHOUSE
     const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
+    const drlResellerInfoMonth = getDrlResellerConds(filters);
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
     // Build offtake conditions - using fetchStartDate for historical data
@@ -7348,7 +7369,6 @@ const getMonthOverview = async (filters) => {
                 conds.push(`(${mslConds})`);
             }
         }
-        const drlResellerInfoMonth = getDrlResellerConds(filters);
         if (drlResellerInfoMonth.pdpCond) {
             conds.push(drlResellerInfoMonth.pdpCond);
         }
@@ -7425,8 +7445,8 @@ const getMonthOverview = async (filters) => {
         queryClickHouse(`
                     SELECT 
                         formatDateTime(toDate(${src.f.date}), '%Y-%m-01') as month_date,
-                        SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
-                        SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.quantitySold} ELSE 0 END) as total_qty,
+                        SUM(CASE WHEN ${src.f.compFlag} = 0 ${drlResellerInfoMonth.pdpOfftakeCond ? `AND ${drlResellerInfoMonth.pdpOfftakeCond}` : ''} THEN ${src.f.sales} ELSE 0 END) as total_sales,
+                        SUM(CASE WHEN ${src.f.compFlag} = 0 ${drlResellerInfoMonth.pdpOfftakeCond ? `AND ${drlResellerInfoMonth.pdpOfftakeCond}` : ''} THEN ${src.f.quantitySold} ELSE 0 END) as total_qty,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 AND ${src.f.mrp} > 0 THEN ${src.f.mrp} * ${src.f.quantitySold} ELSE 0 END) as my_mrp_val,
@@ -7529,7 +7549,6 @@ const getMonthOverview = async (filters) => {
     const catSizeMonthMap = new Map(catSizeMonth.map(r => [r.month_date, parseFloat(r.cat_size || 0)]));
 
     const isDrlDbMonth = getCurrentDbName() === 'drl';
-    const drlResellerInfoMonth = getDrlResellerConds(filters);
     if (isDrlDbMonth && drlResellerInfoMonth.includeBuyMoreTable) {
         try {
             const bmMonthlyRes = await queryClickHouse(`
@@ -7768,6 +7787,7 @@ const getCategoryOverview = async (filters) => {
     // Get the optimized data source
     const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
+    const drlResellerInfoCat = getDrlResellerConds(filters);
 
 
 
@@ -7829,7 +7849,6 @@ const getCategoryOverview = async (filters) => {
             }
         }
 
-        const drlResellerInfoCat = getDrlResellerConds(filters);
         if (drlResellerInfoCat.pdpCond) {
             conds.push(drlResellerInfoCat.pdpCond);
         }
@@ -7943,8 +7962,8 @@ const getCategoryOverview = async (filters) => {
         `),
         // Metrics
         queryClickHouse(`SELECT ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} as Category,
-            SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
-            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+            SUM(${drlResellerInfoCat.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfoCat.pdpOfftakeCond} THEN ifNull(toFloat64OrZero(toString(${src.f.sales})), 0) ELSE 0 END` : `ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)`}) as total_sales,
+            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCat.pdpOfftakeCond ? `AND ${drlResellerInfoCat.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.deno})), 0) ELSE 0 END) as total_deno,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as my_mrp_val,
@@ -7958,8 +7977,8 @@ const getCategoryOverview = async (filters) => {
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
         FROM ${src.table} WHERE ${buildCatConds(startDate, endDate)} GROUP BY Category`),
         queryClickHouse(`SELECT ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} as Category,
-            SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
-            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+            SUM(${drlResellerInfoCat.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfoCat.pdpOfftakeCond} THEN ifNull(toFloat64OrZero(toString(${src.f.sales})), 0) ELSE 0 END` : `ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)`}) as total_sales,
+            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCat.pdpOfftakeCond ? `AND ${drlResellerInfoCat.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.deno})), 0) ELSE 0 END) as total_deno,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as my_mrp_val,
@@ -8019,7 +8038,6 @@ const getCategoryOverview = async (filters) => {
     ]);
 
     const isDrlDbCat = getCurrentDbName() === 'drl';
-    const drlResellerInfoCat = getDrlResellerConds(filters);
     if (isDrlDbCat && drlResellerInfoCat.includeBuyMoreTable) {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
@@ -8345,6 +8363,7 @@ const getBrandsOverview = async (filters) => {
     // Get the optimized data source
     const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
+    const drlResellerInfoBrand = getDrlResellerConds(filters);
 
 
     // Helper to escape strings for ClickHouse
@@ -8396,7 +8415,6 @@ const getBrandsOverview = async (filters) => {
             }
         }
 
-        const drlResellerInfoBrand = getDrlResellerConds(filters);
         if (drlResellerInfoBrand.pdpCond) {
             conds.push(drlResellerInfoBrand.pdpCond);
         }
@@ -8488,8 +8506,8 @@ const getBrandsOverview = async (filters) => {
         `),
         // Metrics
         queryClickHouse(`SELECT ${src.f.brand} as Brand,
-            SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
-            SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+            SUM(${drlResellerInfoBrand.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfoBrand.pdpOfftakeCond} THEN ifNull(toFloat64OrZero(toString(${src.f.sales})), 0) ELSE 0 END` : `ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)`}) as total_sales,
+            SUM(CASE WHEN ${src.f.compFlag} = 0 ${drlResellerInfoBrand.pdpOfftakeCond ? `AND ${drlResellerInfoBrand.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.deno})), 0) ELSE 0 END) as total_deno,
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as my_mrp_val,
@@ -8503,8 +8521,8 @@ const getBrandsOverview = async (filters) => {
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
         FROM ${src.table} WHERE ${buildBrandConds(startDate, endDate)} AND ${src.f.compFlag} = 0 GROUP BY Brand`),
         queryClickHouse(`SELECT ${src.f.brand} as Brand,
-            SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
-            SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+            SUM(${drlResellerInfoBrand.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfoBrand.pdpOfftakeCond} THEN ifNull(toFloat64OrZero(toString(${src.f.sales})), 0) ELSE 0 END` : `ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)`}) as total_sales,
+            SUM(CASE WHEN ${src.f.compFlag} = 0 ${drlResellerInfoBrand.pdpOfftakeCond ? `AND ${drlResellerInfoBrand.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.deno})), 0) ELSE 0 END) as total_deno,
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as my_mrp_val,
@@ -8551,7 +8569,6 @@ const getBrandsOverview = async (filters) => {
     ]);
 
     const isDrlDbBrand = getCurrentDbName() === 'drl';
-    const drlResellerInfoBrand = getDrlResellerConds(filters);
     if (isDrlDbBrand && drlResellerInfoBrand.includeBuyMoreTable) {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
@@ -9097,8 +9114,8 @@ const getKpiTrends = async (filters) => {
             SELECT 
                 ${groupExpression.replace('DATE', src.f.date)} as date_group,
                 MAX(toDate(${src.f.date})) as ref_date,
-                SUM(${src.f.sales}) as total_sales,
-                SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+                SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales,
+                SUM(CASE WHEN toString(${src.f.compFlag}) = '0' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
                 countIf(${src.isAgg ? 'total_sales > 0' : 'Sales IS NOT NULL AND toString(Sales) != \'\' AND toString(Sales) != \'null\''}) as valid_sales_count,
                 SUM(${src.f.adSales}) as total_Ad_sales,
                 SUM(${src.f.spend}) as total_ad_spend,
@@ -13365,6 +13382,7 @@ const getSkuOverview = async (filters) => {
 
     // Get the optimized data source
     const src = await getWatchtowerSource(filters);
+    const drlResellerInfoSku = getDrlResellerConds(filters);
 
     // Build SKU conditions for rb_pdp_olap
     const buildSkuConds = (sDate, eDate) => {
@@ -13419,7 +13437,6 @@ const getSkuOverview = async (filters) => {
             }
         }
 
-        const drlResellerInfoSku = getDrlResellerConds(filters);
         if (drlResellerInfoSku.pdpCond) {
             conds.push(drlResellerInfoSku.pdpCond);
         }
@@ -13485,8 +13502,8 @@ const getSkuOverview = async (filters) => {
     const results = await Promise.all([
         queryClickHouse(`
             SELECT ${src.isAgg ? 'brand' : 'Product'} as Product,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as total_qty,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoSku.pdpOfftakeCond ? `AND ${drlResellerInfoSku.pdpOfftakeCond}` : ''} THEN ${src.f.sales} ELSE 0 END) as total_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoSku.pdpOfftakeCond ? `AND ${drlResellerInfoSku.pdpOfftakeCond}` : ''} THEN ${src.f.qty} ELSE 0 END) as total_qty,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.spend} ELSE 0 END) as total_spend,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.adSales} ELSE 0 END) as total_Ad_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.clicks} ELSE 0 END) as total_clicks,
@@ -13513,8 +13530,8 @@ const getSkuOverview = async (filters) => {
                 `),
         queryClickHouse(`
             SELECT ${src.isAgg ? 'brand' : 'Product'} as Product,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as total_qty,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoSku.pdpOfftakeCond ? `AND ${drlResellerInfoSku.pdpOfftakeCond}` : ''} THEN ${src.f.sales} ELSE 0 END) as total_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoSku.pdpOfftakeCond ? `AND ${drlResellerInfoSku.pdpOfftakeCond}` : ''} THEN ${src.f.qty} ELSE 0 END) as total_qty,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.spend} ELSE 0 END) as total_spend,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.adSales} ELSE 0 END) as total_Ad_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.clicks} ELSE 0 END) as total_clicks,
@@ -13584,7 +13601,6 @@ const getSkuOverview = async (filters) => {
     ] = results;
 
     const isDrlDbSku = getCurrentDbName() === 'drl';
-    const drlResellerInfoSku = getDrlResellerConds(filters);
     if (isDrlDbSku && drlResellerInfoSku.includeBuyMoreTable) {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
@@ -13931,6 +13947,7 @@ const getCityOverview = async (filters) => {
     // Get the optimized data source
     const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
+    const drlResellerInfoCity = getDrlResellerConds(filters);
 
     // Build City conditions for rb_pdp_olap
     const buildCityConds = (sDate, eDate) => {
@@ -13974,7 +13991,6 @@ const getCityOverview = async (filters) => {
             }
         }
 
-        const drlResellerInfoCity = getDrlResellerConds(filters);
         if (drlResellerInfoCity.pdpCond) {
             conds.push(drlResellerInfoCity.pdpCond);
         }
@@ -14025,8 +14041,8 @@ const getCityOverview = async (filters) => {
     const results = await Promise.all([
         queryClickHouse(`
             SELECT ${src.isAgg ? 'location' : 'Location'} as Location,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as total_qty,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCity.pdpOfftakeCond ? `AND ${drlResellerInfoCity.pdpOfftakeCond}` : ''} THEN ${src.f.sales} ELSE 0 END) as total_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCity.pdpOfftakeCond ? `AND ${drlResellerInfoCity.pdpOfftakeCond}` : ''} THEN ${src.f.qty} ELSE 0 END) as total_qty,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.spend} ELSE 0 END) as total_spend,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.adSales} ELSE 0 END) as total_Ad_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.clicks} ELSE 0 END) as total_clicks,
@@ -14049,8 +14065,8 @@ const getCityOverview = async (filters) => {
                 `),
         queryClickHouse(`
             SELECT ${src.isAgg ? 'location' : 'Location'} as Location,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as total_qty,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCity.pdpOfftakeCond ? `AND ${drlResellerInfoCity.pdpOfftakeCond}` : ''} THEN ${src.f.sales} ELSE 0 END) as total_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCity.pdpOfftakeCond ? `AND ${drlResellerInfoCity.pdpOfftakeCond}` : ''} THEN ${src.f.qty} ELSE 0 END) as total_qty,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.spend} ELSE 0 END) as total_spend,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.adSales} ELSE 0 END) as total_Ad_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.clicks} ELSE 0 END) as total_clicks,
@@ -14181,7 +14197,6 @@ const getCityOverview = async (filters) => {
     ] = results;
 
     const isDrlDbCity = getCurrentDbName() === 'drl';
-    const drlResellerInfoCity = getDrlResellerConds(filters);
     if (isDrlDbCity && drlResellerInfoCity.includeBuyMoreTable) {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
