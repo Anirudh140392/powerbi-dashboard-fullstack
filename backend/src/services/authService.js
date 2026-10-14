@@ -683,7 +683,7 @@ export async function verifySession(token, deviceToken = null) {
         const currentDbId = dbId ? String(dbId) : '';
         if (currentDbId) {
             permRows = await queryAdminDB(
-                `SELECT db_status, tab_permissions, qc_user 
+                `SELECT db_status, tab_permissions 
                  FROM tb_user 
                  WHERE lower(user_email) = lower({email:String}) AND toString(db_id) = {dbId:String} AND status != 'deleted' 
                  ORDER BY last_login DESC LIMIT 1`,
@@ -692,7 +692,7 @@ export async function verifySession(token, deviceToken = null) {
         }
         if ((!permRows || permRows.length === 0 || !permRows[0].tab_permissions) && currentDbId) {
             const dbPermRows = await queryAdminDB(
-                `SELECT db_status, tab_permissions, qc_user 
+                `SELECT db_status, tab_permissions 
                  FROM tb_user 
                  WHERE toString(db_id) = {dbId:String} AND tab_permissions != '' 
                  LIMIT 1`,
@@ -705,8 +705,7 @@ export async function verifySession(token, deviceToken = null) {
             permRows = await queryAdminDB(
                 `SELECT 
                     db_status,
-                    tab_permissions,
-                    qc_user
+                    tab_permissions
                  FROM tb_user 
                  WHERE lower(user_email) = lower({email:String}) AND status != 'deleted'
                  ORDER BY last_login DESC, created_on DESC

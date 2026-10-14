@@ -31,7 +31,7 @@ export async function ensureDeviceTokenColumn() {
 
             if (cols.length === 0) {
                 await queryAdminDB(`
-                    ALTER TABLE tb_user ADD COLUMN ${col.name} ${col.type} DEFAULT ${col.defaultVal}
+                    ALTER TABLE tb_user ADD COLUMN IF NOT EXISTS ${col.name} ${col.type} DEFAULT ${col.defaultVal}
                 `);
                 console.log(`[DeviceService] ✅ Added ${col.name} column to tb_user`);
             }
