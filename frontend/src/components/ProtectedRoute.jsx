@@ -8,6 +8,7 @@ import { Lock as LockIcon } from "@mui/icons-material";
 const ROUTE_TO_TAB_LABEL = {
     "/cross-platform-pricing": "Cross Platform Pricing",
     "/watch-tower": "Business Overview",
+    "/report-studio": "Report Studio",
     "/geo-intelligence": "India Overview",
     "/insights": "Insights",
     "/availability-analysis": "Availability Analysis",
@@ -36,7 +37,7 @@ const ROUTE_PRIORITY = [
     "/watch-tower", "/cross-platform-pricing", "/geo-intelligence", "/insights", "/availability-analysis",
     "/visibility-anlysis", "/market-share", "/pricing-analysis",
     "/performance-marketing", "/content-score", "/content-analysis", "/inventory",
-    "/scheduled-reports", "/download-report", "/review-rating",
+    "/scheduled-reports", "/report-studio", "/download-report", "/review-rating",
     "/primary-overview", "/secondary-overview",
 ];
 
