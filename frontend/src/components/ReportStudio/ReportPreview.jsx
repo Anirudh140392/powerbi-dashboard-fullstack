@@ -4,7 +4,6 @@ import {
     Close as CloseIcon,
     DragIndicator as DragIcon,
     ErrorOutline as ErrorIcon,
-    FunctionsOutlined as FunctionsIcon,
     LockOutlined as LockIcon,
     SearchOff as SearchOffIcon,
     TableChartOutlined as TableIcon,
@@ -113,48 +112,6 @@ function ColumnOrderStrip({ columns, unsupported, onMove, onRemove }) {
     );
 }
 
-// ── Name box + formula bar ──
-function FormulaBar({ selection, fields, letters }) {
-    let reference = "";
-    let primary = null;
-    let secondary = null;
-
-    if (selection) {
-        const field = fields[selection.col];
-        const letter = letters[field.key];
-        const definition = field.group === FIELD_GROUPS.KPI
-            ? `${field.label} = ${field.formula}`
-            : `${field.label} · ${Object.entries(field.columns).map(([s, c]) => `${SOURCES_BY_ID[s].table}.${c}`).join(", ")}`;
-        if (selection.header) {
-            reference = `${letter}:${letter}`;
-            primary = definition;
-        } else {
-            reference = `${letter}${selection.row + 1}`;
-            primary = selection.value ?? "—";
-            secondary = definition;
-        }
-    }
-
-    return (
-        <Box sx={{ display: "flex", alignItems: "center", height: 32, border: "1px solid #e2e8f0", borderRadius: "8px", bgcolor: "#ffffff", overflow: "hidden" }}>
-            <Box sx={{ width: 76, flexShrink: 0, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid #e2e8f0", bgcolor: "#f8fafc" }}>
-                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#334155" }}>{reference}</Typography>
-            </Box>
-            <FunctionsIcon sx={{ fontSize: "1rem", color: "#94a3b8", mx: 1, flexShrink: 0 }} />
-            {selection && (
-                <Typography sx={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600, minWidth: 0 }} noWrap>
-                    {String(primary)}
-                    {secondary && (
-                        <Box component="span" sx={{ color: "#94a3b8", fontWeight: 500, ml: 1.5 }}>
-                            {secondary}
-                        </Box>
-                    )}
-                </Typography>
-            )}
-        </Box>
-    );
-}
-
 function StatePanel({ icon, tone = "#94a3b8", title, message, action }) {
     const Icon = icon;
     return (
@@ -177,7 +134,6 @@ const headCellSx = {
 
 function ReportGrid({ fields, rows, startIndex, letters, selection, onSelect }) {
     const stickyLeft = (ci) => (ci === 0 ? { position: "sticky", left: GUTTER_WIDTH, zIndex: 1, minWidth: DATE_WIDTH, boxShadow: "inset -1px 0 0 #e2e8f0" } : {});
-    const isNumeric = (f) => f.group === FIELD_GROUPS.KPI;
 
     return (
         <Box
@@ -230,7 +186,7 @@ function ReportGrid({ fields, rows, startIndex, letters, selection, onSelect }) 
                             <Box
                                 component="th"
                                 key={f.key}
-                                title={source?.table}
+                                title={source?.label}
                                 onClick={() => onSelect({ col: ci, header: true })}
                                 sx={{
                                     ...headCellSx,
@@ -239,12 +195,12 @@ function ReportGrid({ fields, rows, startIndex, letters, selection, onSelect }) 
                                     zIndex: ci === 0 ? 4 : 2,
                                     px: 1.5,
                                     py: 0.9,
-                                    minWidth: isNumeric(f) ? 112 : 120,
-                                    textAlign: isNumeric(f) ? "right" : "left",
+                                    minWidth: f.group === FIELD_GROUPS.KPI ? 112 : 120,
+                                    textAlign: "center",
                                     borderBottom: "2px solid #e2e8f0 !important",
                                 }}
                             >
-                                <Box sx={{ display: "flex", alignItems: "center", justifyContent: isNumeric(f) ? "flex-end" : "flex-start", gap: 0.6 }}>
+                                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.6 }}>
                                     {source && <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: source.accent, flexShrink: 0 }} />}
                                     <Typography component="span" sx={{ fontSize: "0.76rem", fontWeight: 800, color: "#1e293b", lineHeight: 1.2 }}>
                                         {f.label}
@@ -284,10 +240,10 @@ function ReportGrid({ fields, rows, startIndex, letters, selection, onSelect }) 
                                     <Box
                                         component="td"
                                         key={f.key}
-                                        onClick={() => onSelect({ row: rowIndex, col: ci, value: row[f.key] })}
+                                        onClick={() => onSelect({ row: rowIndex, col: ci })}
                                         sx={{
                                             ...stickyLeft(ci),
-                                            textAlign: isNumeric(f) ? "right" : "left",
+                                            textAlign: "center",
                                             fontVariantNumeric: "tabular-nums",
                                             fontWeight: ci === 0 ? 600 : 400,
                                             ...(active && { outline: "2px solid #2563eb", outlineOffset: "-2px", bgcolor: "#eff6ff !important" }),
@@ -439,7 +395,6 @@ export default function ReportPreview({
                 </Alert>
             )}
 
-            {preview.status === "ready" && totalRows > 0 && <FormulaBar selection={selection} fields={fields} letters={letters} />}
 
             {body}
         </Paper>

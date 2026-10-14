@@ -19,11 +19,6 @@ const SectionHeader = ({ title }) => (
     </Box>
 );
 
-const columnTooltip = (field) =>
-    getFieldSources(field)
-        .map((s) => `${field.columns[s]} · ${SOURCES_BY_ID[s].table}`)
-        .join("\n");
-
 const kpiTooltip = (field) => [field.description, field.formula].filter(Boolean).join(" — ");
 
 function FieldRow({ field, checked, sources, onToggle }) {
@@ -32,7 +27,7 @@ function FieldRow({ field, checked, sources, onToggle }) {
     const disabled = !available && !checked;
     const warning = !available && checked;
 
-    const tooltip = warning || disabled ? getUnavailableReason(field, sources) : isKpi ? kpiTooltip(field) : columnTooltip(field);
+    const tooltip = warning || disabled ? getUnavailableReason(field, sources) : isKpi ? kpiTooltip(field) : "";
 
     return (
         <Tooltip title={<span style={{ whiteSpace: "pre-line" }}>{tooltip}</span>} placement="right" arrow enterDelay={400}>

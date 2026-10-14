@@ -21,10 +21,10 @@ export const isFieldAvailable = (field, sources) => {
 export const getUnavailableReason = (field, sources) => {
     if (!sources.length) return "Select a data source first";
     if (field.group === FIELD_GROUPS.KPI) {
-        return `Requires ${SOURCES_BY_ID[field.source].table}`;
+        return `Requires ${SOURCES_BY_ID[field.source].label}`;
     }
     const fieldSources = getFieldSources(field);
-    const missing = sources.filter((s) => !fieldSources.includes(s)).map((s) => SOURCES_BY_ID[s].table);
+    const missing = sources.filter((s) => !fieldSources.includes(s)).map((s) => SOURCES_BY_ID[s].label);
     return `Not available in ${missing.join(", ")}`;
 };
 

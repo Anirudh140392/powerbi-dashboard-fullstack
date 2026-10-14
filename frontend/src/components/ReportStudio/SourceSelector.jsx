@@ -39,25 +39,9 @@ export default function SourceSelector({ sources, onToggle }) {
                         }}
                     >
                         <Icon sx={{ fontSize: "1.2rem", color: selected ? source.accent : "#cbd5e1" }} />
-                        <Typography sx={{ fontSize: "0.86rem", fontWeight: 700, color: "#1e293b", flex: 1, minWidth: 0 }} noWrap>
+                        <Typography sx={{ fontSize: "0.86rem", fontWeight: 700, color: "#1e293b", minWidth: 0 }} noWrap>
                             {source.label}
                         </Typography>
-                        <Box
-                            component="span"
-                            sx={{
-                                fontSize: "0.68rem",
-                                fontWeight: 600,
-                                color: "#64748b",
-                                bgcolor: selected ? "#ffffff" : "#f1f5f9",
-                                border: "1px solid #e2e8f0",
-                                borderRadius: "6px",
-                                px: 0.75,
-                                py: 0.1,
-                                flexShrink: 0,
-                            }}
-                        >
-                            {source.table}
-                        </Box>
                     </ButtonBase>
                 );
             })}
