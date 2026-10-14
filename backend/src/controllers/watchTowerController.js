@@ -357,10 +357,10 @@ export const getKpiTrends = async (req, res) => {
  */
 export const getTrendsFilterOptions = async (req, res) => {
     try {
-        const { filterType, platform, brand, subBrand, category, resellerName, sku, skuName } = req.query;
+        const { filterType, platform, brand, subBrand, category, resellerName, sku, skuName, msl } = req.query;
         const dbName = req.user?.dbName?.toLowerCase();
-        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand, subBrand, category, resellerName, sku, skuName, dbName });
-        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand, subBrand, category, resellerName, sku, skuName, dbName });
+        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand, subBrand, category, resellerName, sku, skuName, msl, dbName });
+        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand, subBrand, category, resellerName, sku, skuName, msl, dbName });
         res.json(data);
     } catch (error) {
         console.error('[getTrendsFilterOptions] Error:', error);
@@ -587,8 +587,8 @@ export const getProducts = async (req, res) => {
  */
 export const getProductsWithSap = async (req, res) => {
     try {
-        const { platform, brand, category, subBrand, sub_brand } = req.query;
-        const products = await watchTowerService.getProductsWithSap({ platform, brand, category, subBrand: subBrand || sub_brand });
+        const { platform, brand, category, subBrand, sub_brand, msl } = req.query;
+        const products = await watchTowerService.getProductsWithSap({ platform, brand, category, subBrand: subBrand || sub_brand, msl });
         res.json(products);
     } catch (error) {
         console.error('[getProductsWithSap] Error:', error);
@@ -674,7 +674,8 @@ export const getWatchTowerCascadedFilters = async (req, res) => {
 
 export const getMsls = async (req, res) => {
     try {
-        const data = await watchTowerService.getMsls();
+        const dbName = req.user?.dbName?.toLowerCase();
+        const data = await watchTowerService.getMsls({ ...req.query, dbName });
         res.json(data);
     } catch (error) {
         console.error('[getMsls] Error in controller:', error);

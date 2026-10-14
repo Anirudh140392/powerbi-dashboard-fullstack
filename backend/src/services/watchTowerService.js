@@ -9505,9 +9505,9 @@ const getKpiTrends = async (filters) => {
  * @param {string} platform - Selected platform filter
  * @param {string} brand - Selected brand filter (for cities)
  */
-const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, category, resellerName, sku, skuName, dbName: propDbName }) => {
+const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, category, resellerName, sku, skuName, msl, dbName: propDbName }) => {
     try {
-        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, subBrand=${subBrand}, category=${category}, resellerName=${resellerName}, sku=${sku || skuName}`);
+        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, subBrand=${subBrand}, category=${category}, resellerName=${resellerName}, sku=${sku || skuName}, msl=${msl}`);
         const src = await getWatchtowerSource();
 
         // Normalize arrays for multi-select support
@@ -9515,6 +9515,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
         const brandArr = normalizeFilterArray(brand);
         const subBrandArr = normalizeFilterArray(subBrand);
         const catArr = normalizeFilterArray(category);
+        const mslArr = (msl && msl !== 'All' && msl !== 'all') ? normalizeFilterArray(msl) : null;
 
         // Reseller_Name filter (DRL DB context only)
         const effectiveDb = (propDbName || getCurrentDbName() || '').toLowerCase();
@@ -9682,6 +9683,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
             // Fetch unique products - exclusive to Our SKUs (compFlag = 0)
             const pdpCols = await getTableColumns('rb_pdp_olap');
             const hasSapCode = columnExists(pdpCols, 'sap_code');
+            const mslCol = resolveColumn(pdpCols, 'msl');
 
             if (isDrl || hasSapCode) {
                 const sapCol = hasSapCode ? resolveColumn(pdpCols, 'sap_code') : "''";
@@ -9707,6 +9709,9 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
                 if (resellerArr && resellerArr.length > 0 && columnExists(pdpCols, 'Reseller_Name')) {
                     pdpConditions.push(`Reseller_Name IN (${resellerArr.map(r => `'${escapeStr(r)}'`).join(',')})`);
                 }
+                if (mslCol && mslArr && mslArr.length > 0) {
+                    pdpConditions.push(`(${mslArr.map(m => `toString(${mslCol}) = '${escapeStr(m)}'`).join(' OR ')})`);
+                }
 
                 const webPidCol = resolveColumn(pdpCols, 'Web_Pid');
                 const query = `SELECT DISTINCT ${pCol} as sku, any(${sapCol}) as sap_code, any(${webPidCol}) as web_pid FROM rb_pdp_olap WHERE ${pdpConditions.join(' AND ')} GROUP BY sku ORDER BY sku`;
@@ -9730,12 +9735,51 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
                 conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
             }
             addResellerCondition(conditions);
+            if (src.f.msl && mslArr && mslArr.length > 0) {
+                conditions.push(`(${mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ')})`);
+            }
 
             const query = `SELECT DISTINCT ${src.f.product} as sku, any(${src.f.skuCode}) as web_pid FROM ${src.table} WHERE ${conditions.join(' AND ')} GROUP BY sku ORDER BY sku`;
             const results = await queryClickHouse(query);
             const skuList = results.map(s => s.sku).filter(s => s && s.trim()).sort();
             const skuDetails = results.filter(s => s.sku && s.sku.trim()).map(s => ({ name: s.sku, webPid: s.web_pid || null }));
             return { options: [...skuList], skuDetails };
+        }
+
+        if (filterType === 'msls') {
+            const pdpCols = await getTableColumns('rb_pdp_olap');
+            const mslCol = resolveColumn(pdpCols, 'msl');
+            if (!mslCol) return { options: [] };
+
+            const cFlag = resolveColumn(pdpCols, 'Comp_flag', 'Comp_flag');
+            const platCol = resolveColumn(pdpCols, 'Platform', 'Platform');
+            const brandCol = resolveColumn(pdpCols, 'Brand', 'Brand');
+            const catCol = resolveColumn(pdpCols, 'Category', 'Category');
+
+            const pdpConditions = [`${mslCol} IS NOT NULL`, `toString(${cFlag}) = '0'`];
+            if (platArr && platArr.length > 0) {
+                pdpConditions.push(`lower(${platCol}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+            }
+            if (brandArr && brandArr.length > 0) {
+                pdpConditions.push(`lower(${brandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+            }
+            if (subBrandArr && subBrandArr.length > 0 && columnExists(pdpCols, 'sub_brand')) {
+                pdpConditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
+            }
+            if (catArr && catArr.length > 0) {
+                pdpConditions.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+            }
+            addResellerCondition(pdpConditions);
+
+            const query = `
+                SELECT DISTINCT ${mslCol} AS msl_val
+                FROM rb_pdp_olap
+                WHERE ${pdpConditions.join(' AND ')}
+                ORDER BY msl_val ASC
+            `;
+            const results = await queryClickHouse(query);
+            const mslValues = results.map(r => String(r.msl_val)).filter(v => v !== null && v !== undefined && v !== '');
+            return { options: mslValues };
         }
 
         return { options: [] };
@@ -14665,7 +14709,7 @@ const getSubBrands = async (filters = {}) => {
 const getProductsWithSap = async (filters = {}) => {
     try {
         const src = await getWatchtowerSource();
-        const { platform, brand, category, subBrand, sub_brand, sapCode, sap_code } = filters;
+        const { platform, brand, category, subBrand, sub_brand, sapCode, sap_code, msl } = filters;
         const targetSubBrand = subBrand || sub_brand;
         const targetSapCode = sapCode || sap_code;
         const conditions = [
@@ -14680,6 +14724,7 @@ const getProductsWithSap = async (filters = {}) => {
         const catArr = normalizeFilterArray(category);
         const subArr = normalizeFilterArray(targetSubBrand);
         const sapArr = normalizeFilterArray(targetSapCode);
+        const mslArr = (msl && msl !== 'All' && msl !== 'all') ? normalizeFilterArray(msl) : null;
 
         if (platArr && platArr.length > 0) {
             conditions.push(`lower(${src.f.platform}) IN(${platArr.map(p => `'${_esc(p.toLowerCase())}'`).join(', ')})`);
@@ -14694,6 +14739,11 @@ const getProductsWithSap = async (filters = {}) => {
         // Discover identifier columns safely so the same dropdown works for every client.
         const tableName = src.table || 'rb_pdp_olap';
         const cols = await getTableColumns(tableName);
+
+        const mslCol = resolveColumn(cols, 'msl');
+        if (mslCol && mslArr && mslArr.length > 0) {
+            conditions.push(`(${mslArr.map(m => `toString(${mslCol}) = '${_esc(m)}'`).join(' OR ')})`);
+        }
 
         const hasSubBrandCol = columnExists(cols, 'sub_brand') || columnExists(cols, 'subbrand');
         if (subArr && subArr.length > 0 && hasSubBrandCol) {
@@ -14945,15 +14995,44 @@ const getWatchTowerCascadedFilters = async (filters) => {
     }
 };
 
-const getMsls = async () => {
+const getMsls = async (filters = {}) => {
     try {
+        const { platform, brand, category, subBrand } = filters;
+        const platArr = normalizeFilterArray(platform);
+        const brandArr = normalizeFilterArray(brand);
+        const catArr = normalizeFilterArray(category);
+        const subBrandArr = normalizeFilterArray(subBrand);
+
         // Resolve the actual column name dynamically (could be 'msl', 'MSL', etc.)
         const cols = await getTableColumns('rb_pdp_olap');
         const mslCol = resolveColumn(cols, 'msl');
+        if (!mslCol) return [];
+
+        const conditions = [`${mslCol} IS NOT NULL`];
+        const cFlag = resolveColumn(cols, 'Comp_flag');
+        if (cFlag) conditions.push(`toString(${cFlag}) = '0'`);
+
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+        if (platArr && platArr.length > 0) {
+            const platCol = resolveColumn(cols, 'Platform');
+            if (platCol) conditions.push(`lower(${platCol}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+        }
+        if (brandArr && brandArr.length > 0) {
+            const brandCol = resolveColumn(cols, 'Brand');
+            if (brandCol) conditions.push(`lower(${brandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+        }
+        if (catArr && catArr.length > 0) {
+            const catCol = resolveColumn(cols, 'Category');
+            if (catCol) conditions.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+        }
+        if (subBrandArr && subBrandArr.length > 0 && columnExists(cols, 'sub_brand')) {
+            conditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
+        }
+
         const query = `
             SELECT DISTINCT ${mslCol} AS msl_val
             FROM rb_pdp_olap 
-            WHERE ${mslCol} IS NOT NULL 
+            WHERE ${conditions.join(' AND ')} 
             ORDER BY msl_val ASC
             LIMIT 20
         `;
