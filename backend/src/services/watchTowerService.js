@@ -73,7 +73,7 @@ const getDrlResellerConds = (filters = {}) => {
         if (hasBuyMore && !has1P && !hasOther) {
             return {
                 pdpCond: `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`,
-                includeBuyMoreTable: true
+                includeBuyMoreTable: false
             };
         } else if ((has1P || hasOther) && !hasBuyMore) {
             return {
@@ -96,7 +96,7 @@ const getDrlResellerConds = (filters = {}) => {
     } else if (drlMode === 'buymore') {
         return {
             pdpCond: `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`,
-            includeBuyMoreTable: true
+            includeBuyMoreTable: false
         };
     }
 
