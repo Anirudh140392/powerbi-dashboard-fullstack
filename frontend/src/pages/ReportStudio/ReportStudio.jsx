@@ -11,13 +11,12 @@ import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { FilterContext } from "../../utils/FilterContext";
 import SourceSelector from "../../components/ReportStudio/SourceSelector";
 import FieldPanel from "../../components/ReportStudio/FieldPanel";
-import FilterBar from "../../components/ReportStudio/FilterBar";
 import ReportPreview from "../../components/ReportStudio/ReportPreview";
 import useReportConfig from "../../components/ReportStudio/useReportConfig";
 import { FIELD_GROUPS, FIELDS_BY_KEY } from "../../components/ReportStudio/reportStudioConfig";
-import { buildCsv, buildFileName, getFilterCoverage, isFieldAvailable, isFilterActive } from "../../components/ReportStudio/reportStudioUtils";
+import { buildCsv, buildFileName, isFieldAvailable } from "../../components/ReportStudio/reportStudioUtils";
 // Sample data stands in for the report API until the backend is wired up.
-import { buildSampleReport, getSampleFilterOptions, SAMPLE_EXPORT_ROW_LIMIT } from "../../components/ReportStudio/reportStudioSampleData";
+import { buildSampleReport, SAMPLE_EXPORT_ROW_LIMIT } from "../../components/ReportStudio/reportStudioSampleData";
 
 const PREVIEW_DEBOUNCE_MS = 300;
 
@@ -39,10 +38,6 @@ export default function ReportStudio() {
     const notify = (severity, message) => setToast({ open: true, severity, message });
 
     const datesReady = Boolean(datesFetched && timeStart && timeEnd);
-    const filterOptions = useMemo(() => getSampleFilterOptions(config.filters), [config.filters]);
-    const hasActiveFilters = Object.entries(config.filters).some(
-        ([key, value]) => isFilterActive(value) && getFilterCoverage(FIELDS_BY_KEY[key], config.sources).applied.length > 0
-    );
 
     const preview = useMemo(() => {
         if (!datesReady) return { status: "loading", fields: [], attempt };
@@ -52,7 +47,6 @@ export default function ReportStudio() {
             const report = buildSampleReport({
                 sources: debouncedConfig.sources,
                 fields,
-                filters: debouncedConfig.filters,
                 startDate: timeStart,
                 endDate: timeEnd,
             });
@@ -83,25 +77,24 @@ export default function ReportStudio() {
                 const report = buildSampleReport({
                     sources: config.sources,
                     fields,
-                    filters: config.filters,
                     startDate: timeStart,
                     endDate: timeEnd,
                 });
                 const rowCount = report.totalRows.toLocaleString("en-IN");
                 if (report.totalRows === 0) {
-                    notify("warning", "No records match this configuration, so there's nothing to download.");
+                    notify("warning", "No records to download for this time period.");
                     return;
                 }
                 if (report.totalRows > SAMPLE_EXPORT_ROW_LIMIT) {
                     notify(
                         "error",
-                        `This report has ${rowCount} rows, above the ${SAMPLE_EXPORT_ROW_LIMIT.toLocaleString("en-IN")}-row limit for sample exports. Narrow the filters, time period or columns.`
+                        `${rowCount} rows exceeds the ${SAMPLE_EXPORT_ROW_LIMIT.toLocaleString("en-IN")}-row sample export limit. Shorten the time period or remove columns.`
                     );
                     return;
                 }
                 const fileName = buildFileName(config.sources, timeStart, timeEnd, { sample: true });
                 saveAs(new Blob([buildCsv(fields, report)], { type: "text/csv;charset=utf-8" }), fileName);
-                notify("success", `Downloaded ${fileName} (${rowCount} rows).`);
+                notify("success", `Downloaded ${fileName} (${rowCount} rows)`);
             } catch (error) {
                 console.error("[ReportStudio] CSV export failed:", error);
                 notify("error", "The CSV couldn't be generated. Please try again.");
@@ -152,9 +145,6 @@ export default function ReportStudio() {
                                 sx={{ height: 22, fontSize: "0.7rem", fontWeight: 700, bgcolor: "#fffbeb", color: "#b45309", border: "1px solid #fde68a", "& .MuiChip-icon": { color: "#d97706" } }}
                             />
                         </Tooltip>
-                        <Typography sx={{ color: "#64748b", fontSize: "0.82rem" }}>
-                            Build, preview, and export custom reports.
-                        </Typography>
                     </Box>
 
                     <Button
@@ -189,36 +179,25 @@ export default function ReportStudio() {
                         onClearOptional={actions.clearOptional}
                     />
 
-                    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                        <FilterBar
-                            sources={config.sources}
-                            filters={config.filters}
-                            options={filterOptions}
-                            onChange={actions.setFilter}
-                            onClear={actions.clearFilters}
-                        />
-                        <ReportPreview
-                            columns={config.columns}
-                            unsupported={validation.unsupported}
-                            fields={preview.fields}
-                            preview={preview}
-                            headerAction={downloadButton}
-                            isUpdating={isUpdating}
-                            hasActiveFilters={hasActiveFilters}
-                            page={page}
-                            pageSize={pageSize}
-                            onPageChange={setPage}
-                            onPageSizeChange={(size) => {
-                                setPageSize(size);
-                                setPage(1);
-                            }}
-                            onMoveColumn={actions.moveColumn}
-                            onRemoveColumn={(key) => actions.removeColumns([key])}
-                            onRemoveUnsupported={() => actions.removeColumns(validation.unsupported)}
-                            onClearFilters={actions.clearFilters}
-                            onRetry={() => setAttempt((n) => n + 1)}
-                        />
-                    </Box>
+                    <ReportPreview
+                        columns={config.columns}
+                        unsupported={validation.unsupported}
+                        fields={preview.fields}
+                        preview={preview}
+                        headerAction={downloadButton}
+                        isUpdating={isUpdating}
+                        page={page}
+                        pageSize={pageSize}
+                        onPageChange={setPage}
+                        onPageSizeChange={(size) => {
+                            setPageSize(size);
+                            setPage(1);
+                        }}
+                        onMoveColumn={actions.moveColumn}
+                        onRemoveColumn={(key) => actions.removeColumns([key])}
+                        onRemoveUnsupported={() => actions.removeColumns(validation.unsupported)}
+                        onRetry={() => setAttempt((n) => n + 1)}
+                    />
                 </Box>
             </Box>
 

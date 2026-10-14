@@ -10,12 +10,11 @@ import { getFieldSources, getUnavailableReason, isFieldAvailable } from "./repor
 
 const UNIT_BADGE = { currency: "₹", percent: "%", ratio: "x", number: "#" };
 
-const SectionHeader = ({ title, count }) => (
+const SectionHeader = ({ title }) => (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, pt: 1.5, pb: 0.5 }}>
         <Typography sx={{ fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.08em", color: "rgba(30, 41, 59, 0.45)", textTransform: "uppercase" }}>
             {title}
         </Typography>
-        {count && <Typography sx={{ fontSize: "0.68rem", fontWeight: 700, color: "#94a3b8" }}>{count}</Typography>}
         <Box sx={{ flex: 1, height: "1px", bgcolor: "rgba(0, 0, 0, 0.05)" }} />
     </Box>
 );
@@ -60,37 +59,13 @@ function FieldRow({ field, checked, sources, onToggle }) {
                     inputProps={{ "aria-label": field.label }}
                     sx={{ p: 0.4, color: "#cbd5e1", "&.Mui-checked": { color: warning ? "#d97706" : "#2563eb" } }}
                 />
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography sx={{ fontSize: "0.82rem", fontWeight: checked ? 700 : 500, color: "#1e293b", lineHeight: 1.3 }} noWrap>
-                        {field.label}
-                    </Typography>
-                    {field.description && (
-                        <Typography sx={{ fontSize: "0.7rem", color: "#94a3b8", lineHeight: 1.2 }} noWrap>
-                            {field.description}
-                        </Typography>
-                    )}
-                </Box>
+                <Typography sx={{ fontSize: "0.82rem", fontWeight: checked ? 700 : 500, color: "#1e293b", lineHeight: 1.3, flex: 1, minWidth: 0 }} noWrap>
+                    {field.label}
+                </Typography>
                 {warning && <WarningIcon sx={{ fontSize: "1rem", color: "#d97706" }} />}
-                {isKpi ? (
-                    <Box component="span" sx={{ fontSize: "0.7rem", fontWeight: 700, color: "#64748b", bgcolor: "#f1f5f9", borderRadius: "5px", px: 0.6, minWidth: 18, textAlign: "center" }}>
+                {isKpi && (
+                    <Box component="span" sx={{ fontSize: "0.7rem", fontWeight: 700, color: "#94a3b8", minWidth: 14, textAlign: "center" }}>
                         {UNIT_BADGE[field.unit]}
-                    </Box>
-                ) : (
-                    <Box sx={{ display: "flex", gap: 0.4 }}>
-                        {getFieldSources(field).map((s) => (
-                            <Box
-                                key={s}
-                                component="span"
-                                sx={{
-                                    fontSize: "0.6rem",
-                                    fontWeight: 800,
-                                    letterSpacing: "0.03em",
-                                    color: sources.includes(s) ? SOURCES_BY_ID[s].accent : "#cbd5e1",
-                                }}
-                            >
-                                {s.toUpperCase()}
-                            </Box>
-                        ))}
                     </Box>
                 )}
             </Box>
@@ -115,7 +90,6 @@ export default function FieldPanel({ sources, columns, onToggle, onSelectAll, on
         };
     }, [search, sources]);
 
-    const countSelected = (fields) => `${fields.filter((f) => columns.includes(f.key)).length}/${fields.length}`;
     const hasResults = visible.dateMatches || visible.dimensions.length || visible.other.length || visible.kpisBySource.some((g) => g.fields.length);
 
     return (
@@ -142,9 +116,6 @@ export default function FieldPanel({ sources, columns, onToggle, onSelectAll, on
                         sx={{ bgcolor: "#eff6ff", color: "#2563eb", fontWeight: 700, fontSize: "0.72rem", height: 22 }}
                     />
                 </Box>
-                <Typography sx={{ fontSize: "0.75rem", color: "#64748b", mt: 0.5 }}>
-                    Each checked field becomes a column in the report.
-                </Typography>
 
                 <TextField
                     size="small"
@@ -203,7 +174,7 @@ export default function FieldPanel({ sources, columns, onToggle, onSelectAll, on
 
                 {visible.dimensions.length > 0 && (
                     <>
-                        <SectionHeader title="Dimensions" count={countSelected(visible.dimensions)} />
+                        <SectionHeader title="Dimensions" />
                         {visible.dimensions.map((f) => (
                             <FieldRow key={f.key} field={f} checked={columns.includes(f.key)} sources={sources} onToggle={onToggle} />
                         ))}
@@ -218,7 +189,6 @@ export default function FieldPanel({ sources, columns, onToggle, onSelectAll, on
                                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, px: 1, pt: 0.75, pb: 0.25 }}>
                                     <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: source.accent }} />
                                     <Typography sx={{ fontSize: "0.72rem", fontWeight: 700, color: "#475569" }}>{source.label}</Typography>
-                                    <Typography sx={{ fontSize: "0.66rem", color: "#94a3b8", ml: "auto" }}>{countSelected(fields)}</Typography>
                                 </Box>
                                 {fields.map((f) => (
                                     <FieldRow key={f.key} field={f} checked={columns.includes(f.key)} sources={sources} onToggle={onToggle} />
@@ -230,7 +200,7 @@ export default function FieldPanel({ sources, columns, onToggle, onSelectAll, on
 
                 {visible.other.length > 0 && (
                     <>
-                        <SectionHeader title="Other available fields" count={countSelected(visible.other)} />
+                        <SectionHeader title="Other available fields" />
                         {visible.other.map((f) => (
                             <FieldRow key={f.key} field={f} checked={columns.includes(f.key)} sources={sources} onToggle={onToggle} />
                         ))}

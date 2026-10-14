@@ -28,15 +28,6 @@ export const getUnavailableReason = (field, sources) => {
     return `Not available in ${missing.join(", ")}`;
 };
 
-/** Filters only restrict sources that actually have the field. */
-export const getFilterCoverage = (field, sources) => {
-    const fieldSources = getFieldSources(field);
-    return {
-        applied: sources.filter((s) => fieldSources.includes(s)),
-        skipped: sources.filter((s) => !fieldSources.includes(s)),
-    };
-};
-
 export const isFilterActive = (value) => value !== undefined && value !== "All";
 
 export const validateConfig = ({ sources, columns }) => {

@@ -2,14 +2,13 @@
  * Sample data for the Report Studio UI.
  *
  * The page is not wired to the backend yet; this module stands in for the
- * future report API. It exposes the same two operations the API will:
- *   - getSampleFilterOptions(filters)  → cascading filter values
- *   - buildSampleReport(request)       → { totalRows, getRow(index) }
+ * future report API, exposing the operation the API will:
+ *   - buildSampleReport(request) → { totalRows, getRow(index) }
  * Values are fictional but deterministic, so the preview stays stable while the
  * configuration changes. Replace the imports of this module to go live.
  */
 import dayjs from "dayjs";
-import { FIELD_GROUPS, FILTER_FIELD_KEYS } from "./reportStudioConfig";
+import { FIELD_GROUPS } from "./reportStudioConfig";
 import { isFilterActive } from "./reportStudioUtils";
 
 /** Exporting more rows than this from generated data is refused, not truncated. */
@@ -69,17 +68,6 @@ const matchesFilters = (atom, fieldKeys, filters) =>
         if (!isFilterActive(value)) return true;
         return (Array.isArray(value) ? value : [value]).includes(atom[key]);
     });
-
-/** Filter values cascade within a group, e.g. Channel narrows the Platform list. */
-export const getSampleFilterOptions = (filters) =>
-    Object.fromEntries(
-        FILTER_FIELD_KEYS.map((key) => {
-            const group = GROUPS.find((g) => g.fields.includes(key));
-            const otherKeys = group.fields.filter((k) => k !== key);
-            const values = group.atoms.filter((a) => matchesFilters(a, otherKeys, filters)).map((a) => a[key]);
-            return [key, [...new Set(values)].sort((a, b) => a.localeCompare(b))];
-        })
-    );
 
 // ── Deterministic pseudo-random values (FNV-1a hash seeding mulberry32) ──
 const hashString = (str) => {
@@ -171,11 +159,11 @@ const EMPTY_REPORT = { totalRows: 0, getRow: () => ({}) };
  * @param {object}   request
  * @param {string[]} request.sources   selected source ids
  * @param {object[]} request.fields    selected field metadata, in column order
- * @param {object}   request.filters   { fieldKey: "All" | string[] }
+ * @param {object}   [request.filters] optional { fieldKey: "All" | string[] }
  * @param {dayjs}    request.startDate
  * @param {dayjs}    request.endDate
  */
-export const buildSampleReport = ({ sources, fields, filters, startDate, endDate }) => {
+export const buildSampleReport = ({ sources, fields, filters = {}, startDate, endDate }) => {
     if (!sources.length || !startDate || !endDate) return EMPTY_REPORT;
 
     const dates = enumerateDates(startDate, endDate);

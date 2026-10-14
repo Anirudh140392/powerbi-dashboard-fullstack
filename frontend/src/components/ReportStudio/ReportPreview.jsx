@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Box, Button, Chip, CircularProgress, IconButton, LinearProgress, Paper, Skeleton, Tooltip, Typography } from "@mui/material";
+import { Alert, Box, Button, Chip, IconButton, LinearProgress, Paper, Skeleton, Typography } from "@mui/material";
 import {
     Close as CloseIcon,
     DragIndicator as DragIcon,
@@ -22,7 +22,7 @@ const LETTER_ROW_HEIGHT = 24;
 const gutterSx = { width: GUTTER_WIDTH, minWidth: GUTTER_WIDTH, maxWidth: GUTTER_WIDTH, boxSizing: "border-box" };
 
 // ── Column order (drag, or Alt + ←/→ on a focused chip) ──
-function ColumnOrderStrip({ columns, unsupported, letters, onMove, onRemove }) {
+function ColumnOrderStrip({ columns, unsupported, onMove, onRemove }) {
     const [dragKey, setDragKey] = useState(null);
     const [overKey, setOverKey] = useState(null);
 
@@ -46,6 +46,7 @@ function ColumnOrderStrip({ columns, unsupported, letters, onMove, onRemove }) {
                         key={key}
                         tabIndex={0}
                         draggable={!locked}
+                        title={locked ? "Always included" : "Drag to reorder"}
                         aria-label={`${field.label}, column ${index + 1} of ${columns.length}${locked ? ", pinned" : ". Alt plus arrow keys to move, Delete to remove"}`}
                         onDragStart={(e) => {
                             e.dataTransfer.effectAllowed = "move";
@@ -96,11 +97,6 @@ function ColumnOrderStrip({ columns, unsupported, letters, onMove, onRemove }) {
                         ) : (
                             <DragIcon sx={{ fontSize: "1rem", color: "#cbd5e1" }} />
                         )}
-                        {letters[key] && (
-                            <Box component="span" sx={{ fontSize: "0.62rem", fontWeight: 800, color: "#94a3b8" }}>
-                                {letters[key]}
-                            </Box>
-                        )}
                         <Typography component="span" sx={{ fontSize: "0.78rem", fontWeight: 600, color: invalid ? "#92400e" : "#334155" }}>
                             {field.label}
                         </Typography>
@@ -113,9 +109,6 @@ function ColumnOrderStrip({ columns, unsupported, letters, onMove, onRemove }) {
                     </Box>
                 );
             })}
-            {columns.length > 1 && (
-                <Typography sx={{ fontSize: "0.7rem", color: "#94a3b8" }}>Drag to reorder</Typography>
-            )}
         </Box>
     );
 }
@@ -148,7 +141,7 @@ function FormulaBar({ selection, fields, letters }) {
                 <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#334155" }}>{reference}</Typography>
             </Box>
             <FunctionsIcon sx={{ fontSize: "1rem", color: "#94a3b8", mx: 1, flexShrink: 0 }} />
-            {selection ? (
+            {selection && (
                 <Typography sx={{ fontSize: "0.8rem", color: "#1e293b", fontWeight: 600, minWidth: 0 }} noWrap>
                     {String(primary)}
                     {secondary && (
@@ -156,10 +149,6 @@ function FormulaBar({ selection, fields, letters }) {
                             {secondary}
                         </Box>
                     )}
-                </Typography>
-            ) : (
-                <Typography sx={{ fontSize: "0.78rem", color: "#94a3b8" }} noWrap>
-                    Select a cell or column header to see its value and definition
                 </Typography>
             )}
         </Box>
@@ -237,11 +226,11 @@ function ReportGrid({ fields, rows, startIndex, letters, selection, onSelect }) 
                     </Box>
                     {fields.map((f, ci) => {
                         const source = f.group === FIELD_GROUPS.KPI ? SOURCES_BY_ID[f.source] : null;
-                        const meta = source ? source.table : f.group === FIELD_GROUPS.REQUIRED ? "Required" : "Dimension";
                         return (
                             <Box
                                 component="th"
                                 key={f.key}
+                                title={source?.table}
                                 onClick={() => onSelect({ col: ci, header: true })}
                                 sx={{
                                     ...headCellSx,
@@ -255,12 +244,11 @@ function ReportGrid({ fields, rows, startIndex, letters, selection, onSelect }) 
                                     borderBottom: "2px solid #e2e8f0 !important",
                                 }}
                             >
-                                <Typography component="div" sx={{ fontSize: "0.76rem", fontWeight: 800, color: "#1e293b", lineHeight: 1.2 }}>
-                                    {f.label}
-                                </Typography>
-                                <Box sx={{ display: "flex", alignItems: "center", justifyContent: isNumeric(f) ? "flex-end" : "flex-start", gap: 0.5, mt: 0.25 }}>
-                                    {source && <Box sx={{ width: 5, height: 5, borderRadius: "50%", bgcolor: source.accent }} />}
-                                    <Typography component="span" sx={{ fontSize: "0.64rem", fontWeight: 600, color: "#94a3b8" }}>{meta}</Typography>
+                                <Box sx={{ display: "flex", alignItems: "center", justifyContent: isNumeric(f) ? "flex-end" : "flex-start", gap: 0.6 }}>
+                                    {source && <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: source.accent, flexShrink: 0 }} />}
+                                    <Typography component="span" sx={{ fontSize: "0.76rem", fontWeight: 800, color: "#1e293b", lineHeight: 1.2 }}>
+                                        {f.label}
+                                    </Typography>
                                 </Box>
                             </Box>
                         );
@@ -324,7 +312,6 @@ export default function ReportPreview({
     preview,
     headerAction,
     isUpdating,
-    hasActiveFilters,
     page,
     pageSize,
     onPageChange,
@@ -332,7 +319,6 @@ export default function ReportPreview({
     onMoveColumn,
     onRemoveColumn,
     onRemoveUnsupported,
-    onClearFilters,
     onRetry,
 }) {
     const [selectionState, setSelectionState] = useState(null);
@@ -371,7 +357,6 @@ export default function ReportPreview({
                 icon={ErrorIcon}
                 tone="#ef4444"
                 title="We couldn't build the preview"
-                message="Something went wrong while preparing these rows. Your configuration is unchanged."
                 action={<Button variant="outlined" onClick={onRetry} sx={{ textTransform: "none", borderRadius: "10px", fontWeight: 700 }}>Try again</Button>}
             />
         );
@@ -380,16 +365,13 @@ export default function ReportPreview({
             <StatePanel
                 icon={LayersIcon}
                 title="Choose a data source to start"
-                message="Select one or more sources above. Their dimensions and KPIs will appear under Report columns."
             />
         );
     } else if (totalRows === 0) {
         body = (
             <StatePanel
                 icon={SearchOffIcon}
-                title="No records match"
-                message={hasActiveFilters ? "No rows match the current filters for this time period. Try widening or clearing the filters." : "There's no data for the selected time period."}
-                action={hasActiveFilters && <Button variant="outlined" onClick={onClearFilters} sx={{ textTransform: "none", borderRadius: "10px", fontWeight: 700 }}>Clear filters</Button>}
+                title="No records for this time period"
             />
         );
     } else {
@@ -436,32 +418,24 @@ export default function ReportPreview({
                         />
                     )}
                 </Box>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                    {isUpdating && (
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }} role="status">
-                            <CircularProgress size={14} sx={{ color: "#2563eb" }} />
-                            <Typography sx={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>Updating preview…</Typography>
-                        </Box>
-                    )}
-                    {headerAction}
-                </Box>
+                {headerAction}
             </Box>
 
-            <ColumnOrderStrip columns={columns} unsupported={unsupported} letters={letters} onMove={onMoveColumn} onRemove={onRemoveColumn} />
+            <ColumnOrderStrip columns={columns} unsupported={unsupported} onMove={onMoveColumn} onRemove={onRemoveColumn} />
 
             {unsupported.length > 0 && (
                 <Alert
                     severity="warning"
                     sx={{ borderRadius: "10px", alignItems: "center", "& .MuiAlert-message": { fontSize: "0.8rem" } }}
-                    action={<Button color="inherit" size="small" onClick={onRemoveUnsupported} sx={{ textTransform: "none", fontWeight: 700, whiteSpace: "nowrap" }}>Remove {unsupported.length === 1 ? "it" : "them"}</Button>}
+                    action={<Button color="inherit" size="small" onClick={onRemoveUnsupported} sx={{ textTransform: "none", fontWeight: 700, whiteSpace: "nowrap" }}>Remove</Button>}
                 >
-                    <strong>{unsupportedLabels.join(", ")}</strong> {unsupported.length === 1 ? "isn't" : "aren't"} available for the selected sources, so {unsupported.length === 1 ? "it's" : "they're"} left out of the preview. Remove {unsupported.length === 1 ? "it" : "them"} or change sources to download.
+                    <strong>{unsupportedLabels.join(", ")}</strong> {unsupported.length === 1 ? "isn't" : "aren't"} available for the selected sources.
                 </Alert>
             )}
 
             {preview.status === "ready" && fields.length === 1 && totalRows > 0 && (
                 <Alert severity="info" sx={{ borderRadius: "10px", "& .MuiAlert-message": { fontSize: "0.8rem" } }}>
-                    Only <strong>Date</strong> is selected. Add dimensions or KPIs from Report columns to build out the report.
+                    Add dimensions or KPIs to build the report.
                 </Alert>
             )}
 

@@ -187,13 +187,9 @@ export const REPORT_FIELDS = [
 export const FIELDS_BY_KEY = Object.fromEntries(REPORT_FIELDS.map((f) => [f.key, f]));
 export const SOURCES_BY_ID = Object.fromEntries(REPORT_SOURCES.map((s) => [s.id, s]));
 
-/** Fields offered as row filters (independent of the report columns). */
-export const FILTER_FIELD_KEYS = ["channel", "platform", "category", "brand", "city", "keyword_type"];
-
 export const UNIT_SUFFIX = { currency: "₹", percent: "%", ratio: "x" };
 
 export const DEFAULT_CONFIG = {
     sources: ["pdp"],
     columns: ["date", "platform", "brand", "offtake", "osa"],
-    filters: {},
 };

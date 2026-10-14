@@ -41,14 +41,6 @@ export const reportConfigReducer = (state, action) => {
             columns.splice(to, 0, action.key);
             return { ...state, columns };
         }
-        case "setFilter": {
-            const filters = { ...state.filters };
-            if (action.value === "All" || action.value === undefined) delete filters[action.key];
-            else filters[action.key] = action.value;
-            return { ...state, filters };
-        }
-        case "clearFilters":
-            return { ...state, filters: {} };
         case "reset":
             return DEFAULT_CONFIG;
         default:
@@ -56,7 +48,7 @@ export const reportConfigReducer = (state, action) => {
     }
 };
 
-/** Report configuration state: sources, ordered columns and row filters. */
+/** Report configuration state: selected sources and ordered columns. */
 export default function useReportConfig() {
     const [config, dispatch] = useReducer(reportConfigReducer, DEFAULT_CONFIG);
 
@@ -68,8 +60,6 @@ export default function useReportConfig() {
             clearOptional: () => dispatch({ type: "clearOptional" }),
             removeColumns: (keys) => dispatch({ type: "removeColumns", keys }),
             moveColumn: (key, toIndex) => dispatch({ type: "moveColumn", key, toIndex }),
-            setFilter: (key, value) => dispatch({ type: "setFilter", key, value }),
-            clearFilters: () => dispatch({ type: "clearFilters" }),
             reset: () => dispatch({ type: "reset" }),
         }),
         []
