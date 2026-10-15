@@ -21,7 +21,6 @@ export default function TemplateGallery({ appliedId, onApply }) {
                 <Typography sx={{ fontSize: "0.7rem", fontWeight: 800, letterSpacing: "0.06em", color: "rgba(30, 41, 59, 0.45)", textTransform: "uppercase" }}>
                     Start from a template
                 </Typography>
-                <Typography sx={{ fontSize: "0.72rem", color: "#94a3b8" }}>Sets the sources, columns and pivot — adjust anything afterwards.</Typography>
             </Box>
             <Box
                 role="list"
