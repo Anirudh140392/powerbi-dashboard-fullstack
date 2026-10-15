@@ -730,9 +730,17 @@ const TrendView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city, onBa
 
     const chartData = useMemo(() => {
         if (apiTrendData && Object.keys(apiTrendData).length > 0 && visibleIds.length > 0) {
+            const getBrandData = (bName) => {
+                if (!apiTrendData) return [];
+                if (apiTrendData[bName]?.timeSeries) return apiTrendData[bName].timeSeries;
+                const lower = String(bName || '').toLowerCase().trim();
+                const foundKey = Object.keys(apiTrendData).find(k => k.toLowerCase().trim() === lower);
+                return foundKey ? (apiTrendData[foundKey]?.timeSeries || []) : [];
+            };
+
             const allDates = new Set();
             visibleIds.forEach(brand => {
-                const brandData = apiTrendData[brand]?.timeSeries || [];
+                const brandData = getBrandData(brand);
                 brandData.forEach(point => allDates.add(point.date));
             });
 
@@ -767,7 +775,7 @@ const TrendView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city, onBa
             return sortedDates.map(date => {
                 const row = { date };
                 visibleIds.forEach(brand => {
-                    const brandData = apiTrendData[brand]?.timeSeries || [];
+                    const brandData = getBrandData(brand);
                     const point = brandData.find(p => p.date === date);
                     if (point) {
                         row[brand] = point[activeMetric] ?? null;
@@ -983,9 +991,17 @@ const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city,
 
     const chartDataFor = (metricKey) => {
         if (apiTrendData && Object.keys(apiTrendData).length > 0 && visibleIds.length > 0) {
+            const getBrandData = (bName) => {
+                if (!apiTrendData) return [];
+                if (apiTrendData[bName]?.timeSeries) return apiTrendData[bName].timeSeries;
+                const lower = String(bName || '').toLowerCase().trim();
+                const foundKey = Object.keys(apiTrendData).find(k => k.toLowerCase().trim() === lower);
+                return foundKey ? (apiTrendData[foundKey]?.timeSeries || []) : [];
+            };
+
             const allDates = new Set();
             visibleIds.forEach(brand => {
-                const brandData = apiTrendData[brand]?.timeSeries || [];
+                const brandData = getBrandData(brand);
                 brandData.forEach(point => {
                     if (point.date) allDates.add(point.date)
                 });
@@ -1022,7 +1038,7 @@ const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city,
             return sortedDates.map(date => {
                 const row = { date };
                 visibleIds.forEach(brand => {
-                    const brandData = apiTrendData[brand]?.timeSeries || [];
+                    const brandData = getBrandData(brand);
                     const point = brandData.find(p => p.date === date);
                     if (point) row[brand] = point[metricKey] ?? null;
                 });
@@ -1625,7 +1641,9 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                     platform: selectedPlatform || 'All',
                     brands: tab === 'brand' ? idList.join(',') : (filters.brands.length > 0 ? filters.brands.join(',') : 'All'),
                     skus: tab === 'sku' ? idList.join(',') : (filters.skus.length > 0 ? filters.skus.join(',') : 'All'),
-                    location: city !== 'All India' ? (Array.isArray(city) ? city.join(',') : String(city)) : 'All',
+                    location: (city !== 'All India' && city !== 'Select All' && city !== 'All') 
+                        ? (Array.isArray(city) ? city.join(',') : String(city)) 
+                        : 'All',
                     format: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                     dimension: tab,
                     period: period || '1M',

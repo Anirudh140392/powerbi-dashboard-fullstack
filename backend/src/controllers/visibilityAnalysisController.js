@@ -331,9 +331,14 @@ export const getVisibilityKpiTrends = async (req, res) => {
 export const getVisibilityCompetition = async (req, res) => {
     const startTime = Date.now();
     try {
+        let location = req.query.location || req.query.city || 'All';
+        if (typeof location === 'string' && ['select all', 'all india', 'all cities', 'all'].includes(location.toLowerCase().trim())) {
+            location = 'All';
+        }
+
         const filters = applyQcDateFilter({
             platform: req.query.platform || 'All',
-            location: req.query.location || req.query.city || 'All',  // Support both 'location' and 'city' params
+            location,  // Support both 'location' and 'city' params
             productName: req.query.productName || req.query.keyword || 'All',
             keyword: req.query.keyword || req.query.productName || 'All',
             keywordType: req.query.keywordType || 'All',
@@ -393,11 +398,16 @@ export const getBrandComparisonTrends = async (req, res) => {
             }
         }
 
+        let location = req.query.location || req.query.city || 'All';
+        if (typeof location === 'string' && ['select all', 'all india', 'all cities', 'all'].includes(location.toLowerCase().trim())) {
+            location = 'All';
+        }
+
         const filters = applyQcDateFilter({
             brands,
             skus: skus,
             platform: req.query.platform || 'All',
-            location: req.query.location || req.query.city || 'All',
+            location,
             keyword: req.query.keyword || req.query.productName || 'All',
             keywordType: req.query.keywordType || 'All',
             category: req.query.category || req.query.format || 'All',
