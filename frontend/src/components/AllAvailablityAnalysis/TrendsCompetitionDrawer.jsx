@@ -2698,6 +2698,51 @@ export default function TrendsCompetitionDrawer({
   // PM metrics are always visible - backend routes SKU-level data from rb_pdp_olap
   const trendMeta = trendMetaRaw;
 
+  // ===================== SORT TREND METRICS BY AVAILABILITY =====================
+  // Available metrics (based on table availability) come FIRST;
+  // Unavailable metrics (N/A) come LAST.
+  const sortedTrendMetrics = useMemo(() => {
+    if (!trendMeta?.metrics) return [];
+
+    const filtered = trendMeta.metrics.filter((m) => {
+      if (isEcom && m.id === "Listing") return false;
+      if (isEcom && m.id === "CPM") return false;
+      if (isQcom && m.id === "CPC") return false;
+      return true;
+    });
+
+    const mapped = filtered.map((m) => {
+      let sourceGroup = KPI_SOURCE_MAP[m.id];
+      if (dynamicKey !== "pricing" && (m.id === "Discount" || m.id === "discount")) {
+        sourceGroup = "pdp";
+      }
+      const isMetricNA = kpiAvailability && sourceGroup ? !kpiAvailability[sourceGroup] : false;
+      return { ...m, isMetricNA };
+    });
+
+    const available = mapped.filter((m) => !m.isMetricNA);
+    const unavailable = mapped.filter((m) => m.isMetricNA);
+
+    return [...available, ...unavailable];
+  }, [trendMeta?.metrics, isEcom, isQcom, dynamicKey, kpiAvailability]);
+
+  // Auto-sync active metrics: ensure unavailable (N/A) metrics are removed from active selection
+  // and at least one available metric is active so the chart does not open blank
+  useEffect(() => {
+    if (!kpiAvailability || !sortedTrendMetrics || sortedTrendMetrics.length === 0) return;
+    const available = sortedTrendMetrics.filter((m) => !m.isMetricNA);
+    if (available.length === 0) return;
+
+    setActiveMetrics((prev) => {
+      if (prev.length === 0) return [available[0].id];
+      const validActive = prev.filter((id) => available.some((m) => m.id === id));
+      if (validActive.length === 0) {
+        return [available[0].id];
+      }
+      return validActive;
+    });
+  }, [kpiAvailability, sortedTrendMetrics]);
+
   const compMeta = DASHBOARD_DATA.competition || {};
   const compareMeta = DASHBOARD_DATA.compareSkus || {};
 
@@ -2825,8 +2870,8 @@ export default function TrendsCompetitionDrawer({
     const dataSource = (chartData && chartData.length > 0) ? chartData : (['availability', 'pricing', 'marketshare', 'performance_dashboard_tower'].includes(dynamicKey) ? [] : trendPoints);
     const xData = dataSource.map((p) => p.date);
 
-    const metrics = trendMeta.metrics || [];
-    const activeMetricObjs = metrics.filter((m) => activeMetrics.includes(m.id));
+    const metrics = sortedTrendMetrics.length > 0 ? sortedTrendMetrics : (trendMeta.metrics || []);
+    const activeMetricObjs = metrics.filter((m) => activeMetrics.includes(m.id) && !m.isMetricNA);
 
     const isCurrencyActive = activeMetricObjs.some(
       (m) => m.axis === "left" || (m.axis !== "right" && m.axis !== "assortment" && m.id !== "Assortment")
@@ -2937,7 +2982,7 @@ export default function TrendsCompetitionDrawer({
       legend: { show: false },
       series,
     };
-  }, [trendMeta, activeMetrics, trendPoints, chartData, currencySymbol, dynamicKey]);
+  }, [trendMeta, activeMetrics, trendPoints, chartData, currencySymbol, dynamicKey, sortedTrendMetrics]);
   // Compare SKUs chart option (multi-KPI, multi-SKU)
   const compareOption = useMemo(() => {
     const x = compareMeta.x;
@@ -3802,39 +3847,22 @@ export default function TrendsCompetitionDrawer({
                   scrollbarWidth: "none",
                 }}
               >
-                {trendMeta.metrics
-                  .filter(m => {
-                    if (isEcom && m.id === 'Listing') return false;
-                    if (isEcom && m.id === 'CPM') return false;
-                    if (isQcom && m.id === 'CPC') return false;
-                    return true;
-                  })
-                  .map((m) => {
-                    // Determine if this metric's data source is unavailable
-                    let sourceGroup = KPI_SOURCE_MAP[m.id];
-                    // IMPORTANT FIX: In WatchTower, 'Discount' is evaluated under the 'pdp' group, not the 'Discount' flag which is pricing specific
-                    if (dynamicKey !== "pricing" && (m.id === "Discount" || m.id === "discount")) {
-                      sourceGroup = 'pdp';
+                {sortedTrendMetrics.map((m) => (
+                  <MetricChip
+                    key={m.id}
+                    label={m.label}
+                    color={m.color}
+                    active={activeMetrics.includes(m.id) && !m.isMetricNA}
+                    isNA={m.isMetricNA}
+                    onClick={() =>
+                      setActiveMetrics((prev) =>
+                        prev.includes(m.id)
+                          ? prev.filter((x) => x !== m.id)
+                          : [...prev, m.id]
+                      )
                     }
-
-                    const isMetricNA = kpiAvailability && sourceGroup ? !kpiAvailability[sourceGroup] : false;
-                    return (
-                      <MetricChip
-                        key={m.id}
-                        label={m.label}
-                        color={m.color}
-                        active={activeMetrics.includes(m.id) && !isMetricNA}
-                        isNA={isMetricNA}
-                        onClick={() =>
-                          setActiveMetrics((prev) =>
-                            prev.includes(m.id)
-                              ? prev.filter((x) => x !== m.id)
-                              : [...prev, m.id]
-                          )
-                        }
-                      />
-                    );
-                  })}
+                  />
+                ))}
               </Box>
 
               {/* Chart */}
