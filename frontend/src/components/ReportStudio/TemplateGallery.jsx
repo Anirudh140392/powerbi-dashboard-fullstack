@@ -17,11 +17,6 @@ const TEMPLATE_ICONS = { week: WeekIcon, period: PeriodIcon, region: RegionIcon,
 export default function TemplateGallery({ appliedId, onApply }) {
     return (
         <Box>
-            <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, mb: 1 }}>
-                <Typography sx={{ fontSize: "0.7rem", fontWeight: 800, letterSpacing: "0.06em", color: "rgba(30, 41, 59, 0.45)", textTransform: "uppercase" }}>
-                    Start from a template
-                </Typography>
-            </Box>
             <Box
                 role="list"
                 sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))", xl: "repeat(6, minmax(0, 1fr))" } }}
