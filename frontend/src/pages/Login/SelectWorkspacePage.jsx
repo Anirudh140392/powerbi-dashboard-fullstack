@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../utils/AuthContext';
+import { getFirstAllowedRoute } from '../../components/ProtectedRoute';
 import {
     ArrowRight,
     LogOut,
@@ -32,14 +33,20 @@ const SelectWorkspacePage = () => {
             sessionStorage.setItem('workspaceSelected', 'true');
             sessionStorage.setItem('activeWorkspaceDb', targetDbName);
 
+            const targetPath = getFirstAllowedRoute(user) || '/watch-tower';
+
             // Switch database context if target is different or re-sync
             if (targetDbName.toLowerCase() !== currentDbName) {
-                await switchDb(targetDbName);
+                const res = await switchDb(targetDbName, targetPath);
+                if (res && res.success === false) {
+                    throw new Error(res.error || 'Failed to switch workspace');
+                }
             } else {
-                navigate('/watch-tower', { replace: true });
+                window.location.href = targetPath;
             }
         } catch (error) {
             console.error('[SelectWorkspace] Error switching workspace:', error);
+            sessionStorage.removeItem('workspaceSelected');
             setSwitching(false);
             setSelectedDb(null);
         }
