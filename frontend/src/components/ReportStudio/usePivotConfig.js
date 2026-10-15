@@ -11,6 +11,11 @@ export const DEFAULT_PIVOT_CONFIG = {
     sort: null,
     subtotals: true,
     grandTotals: true,
+    // Show KPIs as columns (one per column × KPI) or as rows under each row label.
+    valuesAxis: "columns",
+    heatmap: false,
+    // Show each value's change on the previous column of its group (week on week, …).
+    compare: false,
 };
 
 export const pivotConfigReducer = (state, action) => {
@@ -38,8 +43,13 @@ export const pivotConfigReducer = (state, action) => {
         }
         case "setSort":
             return { ...state, sort: action.sort };
+        case "setOption":
+            return { ...state, [action.option]: action.value };
         case "toggleOption":
             return { ...state, [action.option]: !state[action.option] };
+        case "applyTemplate":
+            // A template describes a whole pivot; anything it leaves out starts from the default.
+            return { ...DEFAULT_PIVOT_CONFIG, ...action.pivot };
         case "reset":
             return DEFAULT_PIVOT_CONFIG;
         default:
@@ -59,7 +69,9 @@ export default function usePivotConfig() {
             clearFilters: () => dispatch({ type: "clearFilters" }),
             setDateGrain: (grain) => dispatch({ type: "setDateGrain", grain }),
             setSort: (sort) => dispatch({ type: "setSort", sort }),
+            setOption: (option, value) => dispatch({ type: "setOption", option, value }),
             toggleOption: (option) => dispatch({ type: "toggleOption", option }),
+            applyTemplate: (pivot) => dispatch({ type: "applyTemplate", pivot }),
             reset: () => dispatch({ type: "reset" }),
         }),
         []

@@ -7,10 +7,12 @@
  * sources are joined on Date + the shared dimensions. KPIs belong to exactly one
  * source, and their `formula` strings mirror the Business Overview definitions in
  * backend/src/services/watchTowerService.js. `additive` KPIs can be summed across
- * rows in the pivot view; the rest (ratios, averages) can't.
+ * rows in the pivot view; the rest (ratios, averages) can't. A KPI's optional
+ * `target` ({ good, warn }) colours the pivot heatmap against fixed thresholds
+ * instead of the visible range, and `better: "lower"` flips its colours.
  *
- * To add a table or KPI, extend REPORT_SOURCES / REPORT_FIELDS — the UI is driven
- * entirely from these lists.
+ * To add a table, KPI or template, extend REPORT_SOURCES / REPORT_FIELDS /
+ * REPORT_TEMPLATES — the UI is driven entirely from these lists.
  */
 
 export const REPORT_SOURCES = [
@@ -95,11 +97,28 @@ export const REPORT_FIELDS = [
         columns: { pdp: "Brand", kw: "brand", ms: "group_brand", pm: "brand" },
     },
     {
+        key: "region",
+        label: "Region",
+        description: "Geographic region of the dark store",
+        group: FIELD_GROUPS.DIMENSION,
+        type: "text",
+        // From rb_location_darkstore, joined on Location / location_name.
+        columns: { pdp: "region", kw: "region" },
+    },
+    {
         key: "city",
         label: "City",
         group: FIELD_GROUPS.DIMENSION,
         type: "text",
         columns: { pdp: "Location", kw: "location_name", ms: "location" },
+    },
+    {
+        key: "pds_tier",
+        label: "PDS Tier",
+        description: "Priority Demand SKU Tier (Gold, Silver, Bronze, Non-PDS)",
+        group: FIELD_GROUPS.DIMENSION,
+        type: "text",
+        columns: { pdp: "pds_tier" },
     },
 
     // ── Other available fields ──
@@ -116,6 +135,14 @@ export const REPORT_FIELDS = [
         group: FIELD_GROUPS.OTHER,
         type: "text",
         columns: { pdp: "Web_Pid", kw: "web_pid", ms: "web_pid" },
+    },
+    {
+        key: "pincode",
+        label: "Pincode",
+        group: FIELD_GROUPS.OTHER,
+        type: "text",
+        // From rb_location_darkstore for rb_pdp_olap, joined on Location.
+        columns: { pdp: "pincode", kw: "pincode" },
     },
     {
         key: "sub_category",
@@ -155,7 +182,9 @@ export const REPORT_FIELDS = [
 
     // ── KPIs: rb_pdp_olap ──
     { key: "offtake", label: "Offtake", group: FIELD_GROUPS.KPI, source: "pdp", unit: "currency", formula: "SUM(Sales) for own brands", additive: true },
-    { key: "osa", label: "OSA", description: "On-shelf availability", group: FIELD_GROUPS.KPI, source: "pdp", unit: "percent", formula: "SUM(neno_osa) ÷ SUM(deno_osa) × 100" },
+    { key: "osa", label: "OSA", description: "On-shelf availability", group: FIELD_GROUPS.KPI, source: "pdp", unit: "percent", formula: "SUM(neno_osa) ÷ SUM(deno_osa) × 100", target: { good: 80, warn: 70 } },
+    { key: "fill_rate", label: "Fill Rate", description: "Order fulfillment rate", group: FIELD_GROUPS.KPI, source: "pdp", unit: "percent", formula: "Fulfilled Orders ÷ Total Orders × 100", target: { good: 90, warn: 80 } },
+    { key: "listings_count", label: "Listings", description: "Number of SKU × store listings", group: FIELD_GROUPS.KPI, source: "pdp", unit: "number", additive: true, formula: "COUNT(*) of SKU × location rows" },
     { key: "discount", label: "Discount", group: FIELD_GROUPS.KPI, source: "pdp", unit: "percent", formula: "(SUM(MRP) − SUM(Selling_Price)) ÷ SUM(MRP) × 100, in-stock rows" },
     { key: "wt_discount", label: "Wt. Discount", description: "Sales-weighted discount", group: FIELD_GROUPS.KPI, source: "pdp", unit: "percent", formula: "Σ(((MRP − Selling_Price) ÷ MRP) × Sales) ÷ Σ Sales × 100" },
     { key: "asp", label: "ASP", description: "Average selling price", group: FIELD_GROUPS.KPI, source: "pdp", unit: "currency", formula: "AVG(Selling_Price) for in-stock own SKUs" },
@@ -180,8 +209,8 @@ export const REPORT_FIELDS = [
     { key: "clicks", label: "Clicks", group: FIELD_GROUPS.KPI, source: "pm", unit: "number", formula: "SUM(ad_click)", additive: true },
     { key: "orders", label: "Orders", group: FIELD_GROUPS.KPI, source: "pm", unit: "number", formula: "SUM(ad_quantity_sold)", additive: true },
     { key: "conversion", label: "Conversion", group: FIELD_GROUPS.KPI, source: "pm", unit: "percent", formula: "Orders ÷ Clicks × 100" },
-    { key: "cpc", label: "CPC", description: "Cost per click", group: FIELD_GROUPS.KPI, source: "pm", unit: "currency", formula: "Ad Spend ÷ Clicks" },
-    { key: "cpm", label: "CPM", description: "Cost per 1,000 impressions", group: FIELD_GROUPS.KPI, source: "pm", unit: "currency", formula: "Ad Spend ÷ Impressions × 1000" },
+    { key: "cpc", label: "CPC", description: "Cost per click", group: FIELD_GROUPS.KPI, source: "pm", unit: "currency", formula: "Ad Spend ÷ Clicks", better: "lower" },
+    { key: "cpm", label: "CPM", description: "Cost per 1,000 impressions", group: FIELD_GROUPS.KPI, source: "pm", unit: "currency", formula: "Ad Spend ÷ Impressions × 1000", better: "lower" },
     { key: "aov", label: "AOV", description: "Average order value", group: FIELD_GROUPS.KPI, source: "pm", unit: "currency", formula: "Ad Sales ÷ Orders" },
 ];
 
@@ -194,3 +223,110 @@ export const DEFAULT_CONFIG = {
     sources: ["pdp"],
     columns: ["date", "platform", "brand", "offtake", "osa"],
 };
+
+
+/** Marker colours for well-known dimension values, shown beside their labels in the pivot. */
+export const DIMENSION_VALUE_COLORS = {
+    platform: {
+        Blinkit: "#eab308",
+        Zepto: "#6d28d9",
+        "Swiggy Instamart": "#ea580c",
+        BigBasket: "#65a30d",
+        Amazon: "#0f172a",
+        Flipkart: "#2563eb",
+    },
+    pds_tier: {
+        Gold: "#ca8a04",
+        Silver: "#94a3b8",
+        Bronze: "#c2410c",
+        "Non-PDS": "#e2e8f0",
+    },
+};
+
+/**
+ * Ready-made report layouts. Applying one sets the sources, report columns and
+ * pivot configuration (any pivot option left out takes its default); `periods`
+ * also switches the reporting period to the last N fiscal periods.
+ */
+export const REPORT_TEMPLATES = [
+    {
+        id: "week_vs_week",
+        label: "Week vs Week",
+        description: "Offtake and OSA by platform, with the change on the week before",
+        icon: "week",
+        sources: ["pdp"],
+        columns: ["date", "platform", "offtake", "osa"],
+        periods: 2,
+        pivot: {
+            areas: { filters: [], rows: ["platform"], columns: ["date"], values: ["offtake", "osa"] },
+            dateGrain: "week",
+            valuesAxis: "rows",
+            compare: true,
+            grandTotals: false,
+        },
+    },
+    {
+        id: "period_vs_period",
+        label: "Period vs Period",
+        description: "Offtake, market share and OSA by platform, period on period",
+        icon: "period",
+        sources: ["pdp", "ms"],
+        columns: ["date", "platform", "offtake", "market_share", "osa"],
+        periods: 3,
+        pivot: {
+            areas: { filters: [], rows: ["platform"], columns: ["date"], values: ["offtake", "market_share", "osa"] },
+            dateGrain: "period",
+            valuesAxis: "rows",
+            compare: true,
+            grandTotals: false,
+        },
+    },
+    {
+        id: "region_osa",
+        label: "Region-wise OSA",
+        description: "OSA by platform across regions, coloured against target",
+        icon: "region",
+        sources: ["pdp"],
+        columns: ["date", "platform", "region", "osa"],
+        pivot: {
+            areas: { filters: ["date"], rows: ["platform"], columns: ["region"], values: ["osa"] },
+            heatmap: true,
+        },
+    },
+    {
+        id: "web_pid",
+        label: "Web PID-wise",
+        description: "OSA and offtake for every SKU across platforms",
+        icon: "sku",
+        sources: ["pdp"],
+        columns: ["date", "web_pid", "platform", "osa", "offtake"],
+        pivot: {
+            areas: { filters: ["date"], rows: ["web_pid"], columns: ["platform"], values: ["osa", "offtake"] },
+            heatmap: true,
+        },
+    },
+    {
+        id: "pincode_web_pid",
+        label: "Pincode × Web PID",
+        description: "OSA for each SKU within each pincode, across platforms",
+        icon: "pincode",
+        sources: ["pdp"],
+        columns: ["date", "pincode", "web_pid", "platform", "osa"],
+        pivot: {
+            areas: { filters: ["date"], rows: ["pincode", "web_pid"], columns: ["platform"], values: ["osa"] },
+            heatmap: true,
+        },
+    },
+    {
+        id: "tier_osa",
+        label: "Tier-wise OSA",
+        description: "OSA across PDS tiers (Gold, Silver, Bronze) by platform",
+        icon: "tier",
+        sources: ["pdp"],
+        columns: ["date", "pds_tier", "platform", "osa"],
+        pivot: {
+            areas: { filters: ["date"], rows: ["pds_tier"], columns: ["platform"], values: ["osa"] },
+            heatmap: true,
+        },
+    },
+];

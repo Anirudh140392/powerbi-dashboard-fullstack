@@ -3,7 +3,7 @@
  *
  * The page is not wired to the backend yet; this module stands in for the
  * future report API, exposing the operation the API will:
- *   - buildSampleReport(request) → { totalRows, getRow(index) }
+ *   - buildSampleReport(request) → { totalRows, getRow(index), startDate, endDate }
  * Values are fictional but deterministic, so the preview stays stable while the
  * configuration changes. Replace the imports of this module to go live.
  */
@@ -36,7 +36,23 @@ const PRODUCTS = [
     { brand: "Zenith", category: "Biscuits", sub_category: "Crackers", product_type: "Pack", product: "Zenith Cream Crackers 200 g", web_pid: "SKU-50052" },
 ];
 
-const CITIES = ["Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Chennai", "Pune", "Kolkata", "Ahmedabad"].map((city) => ({ city }));
+// Two dark-store pincodes per city.
+const LOCATIONS = [
+    { city: "Mumbai", region: "West", pincode: "400050" },
+    { city: "Mumbai", region: "West", pincode: "400076" },
+    { city: "Pune", region: "West", pincode: "411001" },
+    { city: "Pune", region: "West", pincode: "411057" },
+    { city: "Ahmedabad", region: "West", pincode: "380015" },
+    { city: "Delhi", region: "North", pincode: "110017" },
+    { city: "Delhi", region: "North", pincode: "110085" },
+    { city: "Bengaluru", region: "South", pincode: "560034" },
+    { city: "Bengaluru", region: "South", pincode: "560102" },
+    { city: "Hyderabad", region: "South", pincode: "500032" },
+    { city: "Chennai", region: "South", pincode: "600040" },
+    { city: "Kolkata", region: "East", pincode: "700091" },
+];
+
+const PDS_TIERS = [{ pds_tier: "Gold" }, { pds_tier: "Silver" }, { pds_tier: "Bronze" }, { pds_tier: "Non-PDS" }];
 
 const KEYWORDS = [
     { keyword_type: "Generic", keyword: "chocolate" },
@@ -57,7 +73,8 @@ const TARGETING = [{ targeting_type: "Keyword" }, { targeting_type: "Category" }
 const GROUPS = [
     { id: "channelPlatform", fields: ["channel", "platform"], sources: ["pdp", "kw", "ms", "pm"], atoms: CHANNEL_PLATFORMS },
     { id: "product", fields: ["brand", "category", "sub_category", "product_type", "product", "web_pid"], sources: ["pdp", "kw", "ms", "pm"], atoms: PRODUCTS },
-    { id: "city", fields: ["city"], sources: ["pdp", "kw", "ms"], atoms: CITIES },
+    { id: "location", fields: ["city", "region", "pincode"], sources: ["pdp", "kw", "ms"], atoms: LOCATIONS },
+    { id: "pdsTier", fields: ["pds_tier"], sources: ["pdp"], atoms: PDS_TIERS },
     { id: "keyword", fields: ["keyword_type", "keyword"], sources: ["kw", "pm"], atoms: KEYWORDS },
     { id: "targeting", fields: ["targeting_type"], sources: ["pm"], atoms: TARGETING },
 ];
@@ -105,6 +122,8 @@ const SOURCE_MEASURES = {
         return {
             offtake: round2(offtake),
             osa: round2(osa),
+            fill_rate: round2(72 + rand() * 27),
+            listings_count: Math.max(1, Math.round(weight * (0.7 + rand() * 0.3))),
             discount: round2(discount),
             wt_discount: round2(Math.max(0, discount + (rand() - 0.5) * 6)),
             asp: round2(asp),
@@ -215,5 +234,5 @@ export const buildSampleReport = ({ sources, fields, filters = {}, startDate, en
         return row;
     };
 
-    return { totalRows, getRow };
+    return { totalRows, getRow, startDate: dates[0], endDate: dates[dates.length - 1] };
 };

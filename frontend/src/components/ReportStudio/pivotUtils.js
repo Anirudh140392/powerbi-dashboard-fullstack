@@ -6,9 +6,11 @@
  * each KPI is aggregated over the rows that fall into a Row × Column cell.
  * Subtotals and grand totals aggregate the underlying rows, not the cells, so
  * an average total is the average of every row rather than of the cell averages.
+ * Weeks and periods follow the fiscal calendar (see fiscalCalendar.js).
  */
 import dayjs from "dayjs";
 import { FIELD_GROUPS } from "./reportStudioConfig";
+import { formatPeriodBucket, formatWeekBucket, getFiscalPeriod, getFiscalWeek } from "./fiscalCalendar";
 import { columnHeaderLabel, csvEscape, formatCellValue } from "./reportStudioUtils";
 
 export const PIVOT_AREAS = [
@@ -20,7 +22,9 @@ export const PIVOT_AREAS = [
 
 export const AGGREGATIONS = { sum: "Sum", avg: "Avg", min: "Min", max: "Max", count: "Count" };
 
-export const DATE_GRAINS = { day: "Day", week: "Week", month: "Month" };
+export const DATE_GRAINS = { day: "Day", week: "Week", period: "Period", month: "Month" };
+
+export const VALUES_AXES = { columns: "Columns", rows: "Rows" };
 
 /** The pivot is computed in the browser; reports with more rows are refused, not truncated. */
 export const PIVOT_SOURCE_ROW_LIMIT = 200000;
@@ -72,15 +76,33 @@ export const resolvePivotLayout = (fields, areas) => {
 
 const bucketDate = (value, grain) => {
     if (grain === "month") return value.slice(0, 7);
-    if (grain === "week") {
-        const day = dayjs(value);
-        return day.subtract((day.day() + 6) % 7, "day").format("YYYY-MM-DD"); // Monday
-    }
+    if (grain === "period") return getFiscalPeriod(value).id;
+    if (grain === "week") return getFiscalWeek(value).id;
     return value;
 };
 
-/** Reads a row's value for a dimension; dates are bucketed to the chosen grain. */
-const makeReader = (field, grain) => {
+/** A date bucket's first and last day (ISO), from any date inside it. */
+const bucketSpan = (value, grain) => {
+    if (grain === "month") {
+        const start = `${value.slice(0, 7)}-01`;
+        return [start, dayjs(start).endOf("month").format("YYYY-MM-DD")];
+    }
+    if (grain === "period") {
+        const { start, end } = getFiscalPeriod(value);
+        return [start, end];
+    }
+    if (grain === "week") {
+        const { start, end } = getFiscalWeek(value);
+        return [start, end];
+    }
+    return [value, value];
+};
+
+/**
+ * Reads a row's value for a dimension; dates are bucketed to the chosen grain,
+ * and each bucket's span is recorded in `spans`.
+ */
+const makeReader = (field, grain, spans) => {
     if (field.type === "date") {
         const buckets = new Map();
         return (row) => {
@@ -89,6 +111,7 @@ const makeReader = (field, grain) => {
             if (bucket === undefined) {
                 bucket = value ? bucketDate(value, grain) : BLANK;
                 buckets.set(value, bucket);
+                if (value && !spans.has(bucket)) spans.set(bucket, bucketSpan(value, grain));
             }
             return bucket;
         };
@@ -102,7 +125,8 @@ const makeReader = (field, grain) => {
 export const formatDimensionValue = (field, value, grain) => {
     if (field.type !== "date" || value === BLANK) return value;
     if (grain === "month") return dayjs(`${value}-01`).format("MMM YYYY");
-    if (grain === "week") return `Week of ${dayjs(value).format("DD MMM YYYY")}`;
+    if (grain === "period") return formatPeriodBucket(value);
+    if (grain === "week") return formatWeekBucket(value);
     return dayjs(value).format("DD MMM YYYY");
 };
 
@@ -111,6 +135,37 @@ const compareText = (a, b) => a.localeCompare(b, undefined, { numeric: true });
 export const formatPivotValue = ({ field, agg }, value) => {
     if (agg !== "count") return formatCellValue(field, value);
     return value === null ? "—" : value.toLocaleString("en-IN");
+};
+
+/** Rates change in percentage points; everything else in percent. */
+const changeUnit = ({ field, agg }) => (field.unit === "percent" && agg !== "count" ? "pp" : "pct");
+
+export const formatChange = ({ value, unit }) => `${Math.abs(value).toFixed(1)}${unit === "pp" ? " pp" : "%"}`;
+
+/** "up" | "down" | "flat", and whether that direction is good for the KPI. */
+export const changeDirection = ({ field }, { value }) => {
+    if (Math.abs(value) < 0.05) return { dir: "flat", good: null };
+    const dir = value > 0 ? "up" : "down";
+    return { dir, good: (dir === "up") !== (field.better === "lower") };
+};
+
+const HEAT_HUE_RED = 0;
+const HEAT_HUE_GREEN = 130;
+
+/**
+ * Heatmap colours for a cell, red (worst) → amber → green (best). KPIs with a
+ * `target` are coloured against it everywhere; others by their position in
+ * `range`, which callers pass only for leaf cells (totals would skew it).
+ */
+export const heatmapStyle = ({ field, agg }, value, range) => {
+    if (value === null || value === undefined) return undefined;
+    let t;
+    if (field.target && agg !== "count") t = value >= field.target.good ? 1 : value >= field.target.warn ? 0.5 : 0;
+    else if (range && range.max > range.min) t = (value - range.min) / (range.max - range.min);
+    else return undefined;
+    if (field.better === "lower") t = 1 - t;
+    const hue = Math.round(HEAT_HUE_RED + t * (HEAT_HUE_GREEN - HEAT_HUE_RED));
+    return { backgroundColor: `hsl(${hue}, 75%, 92%)`, color: `hsl(${hue}, 65%, 26%)` };
 };
 
 // ── Aggregation ──
@@ -135,7 +190,7 @@ const finalize = (acc, agg) => {
 
 // ── Axis trees ──
 
-const buildTree = (paths, dims, grain) => {
+const buildTree = (paths, dims, labelOf) => {
     const root = { key: "", path: [], level: -1, parent: null, children: new Map() };
     for (const path of paths) {
         let node = root;
@@ -147,7 +202,7 @@ const buildTree = (paths, dims, grain) => {
                     key: childPath.join(SEP),
                     path: childPath,
                     value,
-                    label: formatDimensionValue(dims[level], value, grain),
+                    label: labelOf(dims[level], value),
                     level,
                     parent: node,
                     children: new Map(),
@@ -197,7 +252,7 @@ const columnLabelAt = (col, level, format) => {
  * into one cell (`span` counts columns); total labels span down to the last
  * dimension row (`rowSpan`).
  */
-const buildHeaderRows = (columns, dims, grain) =>
+const buildHeaderRows = (columns, dims, labelOf) =>
     dims.map((_, level) => {
         const cells = [];
         for (const col of columns) {
@@ -212,7 +267,7 @@ const buildHeaderRows = (columns, dims, grain) =>
             const group = col.path.slice(0, level + 1).join(SEP);
             const last = cells[cells.length - 1];
             if (last?.group === group) last.span += 1;
-            else cells.push({ key: `${level}${AXIS_SEP}${group}`, group, label: formatDimensionValue(dims[level], col.path[level], grain), span: 1, rowSpan: 1 });
+            else cells.push({ key: `${level}${AXIS_SEP}${group}`, group, label: labelOf(dims[level], col.path[level]), span: 1, rowSpan: 1 });
         }
         return cells;
     });
@@ -227,7 +282,7 @@ const resolveSort = (sort, columns, values) => {
 };
 
 /**
- * @param {object}   report  { totalRows, getRow(index) } from the report API
+ * @param {object}   report  { totalRows, getRow(index), startDate?, endDate? (ISO) } from the report API
  * @param {object[]} fields  report fields the selected sources support
  * @param {object}   config  pivot configuration (see usePivotConfig)
  */
@@ -250,9 +305,10 @@ export const buildPivot = (report, fields, config) => {
     const grain = config.dateGrain;
     const rowCount = layout.rows.length;
     const colCount = layout.columns.length;
+    const dateSpans = new Map();
     const dims = [...layout.rows, ...layout.columns, ...layout.filters].map((field) => ({
         field,
-        read: makeReader(field, grain),
+        read: makeReader(field, grain, dateSpans),
         seen: new Set(),
         excluded: new Set(config.excluded[field.key] || []),
     }));
@@ -314,13 +370,52 @@ export const buildPivot = (report, fields, config) => {
     const valueAt = (rowPath, colPath, vi) =>
         finalize(cells.get(rowPath.join(SEP) + AXIS_SEP + colPath.join(SEP))?.[vi], layout.values[vi].agg);
 
+    // A week, period or month the report only partly covers says so, so its totals aren't misread.
+    const { startDate: rangeStart, endDate: rangeEnd } = report;
+    const labelOf = (field, value) => {
+        const label = formatDimensionValue(field, value, grain);
+        const span = field.type === "date" && dateSpans.get(value);
+        if (!span || !rangeStart || !rangeEnd) return label;
+        if (span[1] > rangeEnd) return `${label} (to ${dayjs(rangeEnd).format("DD MMM")})`;
+        if (span[0] < rangeStart) return `${label} (from ${dayjs(rangeStart).format("DD MMM")})`;
+        return label;
+    };
+
     const byLabel = (a, b) => compareText(a.value, b.value);
-    const colTree = sortTree(buildTree(colPaths.values(), layout.columns, grain), byLabel);
+    const colTree = sortTree(buildTree(colPaths.values(), layout.columns, labelOf), byLabel);
     const columns = colCount ? flattenColumns(colTree, config.subtotals) : [];
     if (!colCount || config.grandTotals) columns.push({ type: "grand", path: [] });
+    // Each data column compares with the one before it in the same group.
+    const lastInGroup = new Map();
     columns.forEach((col) => {
         col.key = `${col.type}${AXIS_SEP}${col.path.join(SEP)}`;
+        if (col.type !== "data") return;
+        const group = col.path.slice(0, -1).join(SEP);
+        col.prevPath = lastInGroup.get(group) || null;
+        lastInGroup.set(group, col.path);
     });
+
+    const changeAt = (rowPath, col, vi) => {
+        if (!col.prevPath) return null;
+        const current = valueAt(rowPath, col.path, vi);
+        const previous = valueAt(rowPath, col.prevPath, vi);
+        if (current === null || previous === null) return null;
+        const unit = changeUnit(layout.values[vi]);
+        if (unit === "pp") return { value: current - previous, unit };
+        return previous === 0 ? null : { value: ((current - previous) / Math.abs(previous)) * 100, unit };
+    };
+
+    // The span of each value over leaf cells, for the heatmap.
+    const valueRanges = layout.values.map(() => ({ min: Infinity, max: -Infinity }));
+    for (const leaf of leaves.values()) {
+        layout.values.forEach((v, vi) => {
+            const value = finalize(leaf.accs[vi], v.agg);
+            if (value === null) return;
+            const range = valueRanges[vi];
+            if (value < range.min) range.min = value;
+            if (value > range.max) range.max = value;
+        });
+    }
 
     const sort = resolveSort(config.sort, columns, layout.values);
     let compareRows;
@@ -337,12 +432,12 @@ export const buildPivot = (report, fields, config) => {
     } else {
         compareRows = sort.dir === "desc" ? (a, b) => byLabel(b, a) : byLabel;
     }
-    const rowTree = sortTree(buildTree(rowPaths.values(), layout.rows, grain), compareRows);
+    const rowTree = sortTree(buildTree(rowPaths.values(), layout.rows, labelOf), compareRows);
 
     const options = Object.fromEntries(
         dims.map(({ field, seen }) => [
             field.key,
-            [...seen].sort(compareText).map((value) => ({ value, label: formatDimensionValue(field, value, grain) })),
+            [...seen].sort(compareText).map((value) => ({ value, label: labelOf(field, value) })),
         ])
     );
 
@@ -354,18 +449,24 @@ export const buildPivot = (report, fields, config) => {
         status,
         layout,
         grain,
+        valuesAxis: config.valuesAxis,
+        heatmap: config.heatmap,
+        compare: config.compare,
+        canCompare: columns.some((col) => col.prevPath),
         sourceRows,
         matchedRows,
         activeFilters: dims.filter((dim) => [...dim.excluded].some((v) => dim.seen.has(v))).length,
         options,
         rowTree,
         columns,
-        headerRows: buildHeaderRows(columns, layout.columns, grain),
+        headerRows: buildHeaderRows(columns, layout.columns, labelOf),
         sort,
         subtotals: config.subtotals,
         // Without row dimensions the grand total is the only row, so it always shows.
         showGrandRow: config.grandTotals || !rowCount,
         valueAt,
+        changeAt,
+        valueRanges,
     };
 };
 
@@ -378,34 +479,60 @@ const csvValueLabel = ({ field, agg }) =>
 
 /**
  * The pivot as CSV, in tabular form: one column per row dimension with labels
- * repeated on every row, so the file filters cleanly in a spreadsheet. Like the
- * raw export, dimension values (ISO dates) and numbers are written unformatted.
+ * repeated on every row, so the file filters cleanly in a spreadsheet. With
+ * values on rows, a Metric column names each line's KPI. "Change vs previous"
+ * adds a change column after every comparable value. Like the raw export,
+ * dimension values (ISO dates, period ids) and numbers are written unformatted.
  */
 export const buildPivotCsv = (pivot) => {
-    const { layout, columns, rowTree, valueAt } = pivot;
-    const labelWidth = Math.max(1, layout.rows.length);
-    const labelCells = (labels) => [...labels, ...Array(labelWidth - labels.length).fill("")];
-    const valueCells = (rowPath) => columns.flatMap((col) => layout.values.map((_, vi) => csvNumber(valueAt(rowPath, col.path, vi))));
+    const { layout, columns, rowTree, valueAt, changeAt } = pivot;
+    const onRows = pivot.valuesAxis === "rows";
     const rawLabel = (_, value) => value;
+
+    // Output columns: every column × value (or × the line's value, on rows), each optionally followed by its change.
+    const outputs = columns.flatMap((col) =>
+        (onRows ? [null] : layout.values.map((_, vi) => vi)).flatMap((vi) =>
+            pivot.compare && col.prevPath ? [{ col, vi }, { col, vi, change: true }] : [{ col, vi }]
+        )
+    );
+    const valueHeader = ({ vi, change }) => {
+        if (onRows) return change ? "Change vs previous" : "";
+        const v = layout.values[vi];
+        return change ? `Change in ${v.field.label} (${changeUnit(v) === "pp" ? "pp" : "%"})` : csvValueLabel(v);
+    };
+
+    const rowWidth = Math.max(1, layout.rows.length);
+    const labelWidth = rowWidth + (onRows ? 1 : 0);
+    const pad = (labels) => [...labels, ...Array(rowWidth - labels.length).fill("")];
 
     const lines = layout.columns.map((dim, level) => [
         ...Array(labelWidth - 1).fill(""),
         dim.label,
-        ...columns.flatMap((col) => layout.values.map(() => columnLabelAt(col, level, rawLabel))),
+        ...outputs.map(({ col }) => columnLabelAt(col, level, rawLabel)),
     ]);
-    lines.push([...labelCells(layout.rows.map((f) => f.label)), ...columns.flatMap(() => layout.values.map(csvValueLabel))]);
+    lines.push([...pad(layout.rows.map((f) => f.label)), ...(onRows ? ["Metric"] : []), ...outputs.map(valueHeader)]);
+
+    const cells = (rowPath, lineVi) =>
+        outputs.map(({ col, vi, change }) => {
+            const index = vi ?? lineVi;
+            return csvNumber(change ? changeAt(rowPath, col, index)?.value ?? null : valueAt(rowPath, col.path, index));
+        });
+    const emit = (rowPath, labels) => {
+        if (!onRows) lines.push([...pad(labels), ...cells(rowPath)]);
+        else layout.values.forEach((v, vi) => lines.push([...pad(labels), v.field.label, ...cells(rowPath, vi)]));
+    };
 
     const walk = (node) =>
         node.children.forEach((child) => {
             if (!child.children.length) {
-                lines.push([...labelCells(child.path), ...valueCells(child.path)]);
+                emit(child.path, child.path);
                 return;
             }
-            if (pivot.subtotals) lines.push([...labelCells([...child.path, "Total"]), ...valueCells(child.path)]);
+            if (pivot.subtotals) emit(child.path, [...child.path, "Total"]);
             walk(child);
         });
     walk(rowTree);
-    if (pivot.showGrandRow) lines.push([...labelCells([GRAND_TOTAL]), ...valueCells([])]);
+    if (pivot.showGrandRow) emit([], [GRAND_TOTAL]);
 
-    return `\uFEFF${lines.map((cells) => cells.map(csvEscape).join(",")).join("\r\n")}\r\n`;
+    return `\uFEFF${lines.map((line) => line.map(csvEscape).join(",")).join("\r\n")}\r\n`;
 };

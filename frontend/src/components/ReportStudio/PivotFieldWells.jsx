@@ -13,6 +13,7 @@ import {
 } from "@mui/icons-material";
 import { FIELD_GROUPS, FIELDS_BY_KEY, SOURCES_BY_ID } from "./reportStudioConfig";
 import { AGGREGATIONS, aggregationOptions, canPlace, DATE_GRAINS, getAggregation, PIVOT_AREAS, valueLabel } from "./pivotUtils";
+import { FISCAL_CALENDAR } from "./fiscalCalendar";
 
 const AREA_ICONS = { filters: FiltersAreaIcon, columns: ColumnsAreaIcon, rows: RowsAreaIcon, values: ValuesAreaIcon };
 const DIMENSION_AREAS = PIVOT_AREAS.filter((a) => a.id !== "values");
@@ -189,6 +190,9 @@ function FieldOptions({ field, area, config, options, actions, onMove, onRemove 
                             <ToggleButton key={id} value={id}>{label}</ToggleButton>
                         ))}
                     </ToggleButtonGroup>
+                    {(config.dateGrain === "week" || config.dateGrain === "period") && (
+                        <Typography sx={hintSx}>Weeks and periods follow the {FISCAL_CALENDAR.name} fiscal calendar.</Typography>
+                    )}
                 </Box>
             )}
 

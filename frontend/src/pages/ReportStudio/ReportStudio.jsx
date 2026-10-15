@@ -10,11 +10,14 @@ import { saveAs } from "file-saver";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { FilterContext } from "../../utils/FilterContext";
 import SourceSelector from "../../components/ReportStudio/SourceSelector";
+import TemplateGallery from "../../components/ReportStudio/TemplateGallery";
+import ReportingPeriodBar from "../../components/ReportStudio/ReportingPeriodBar";
 import FieldPanel from "../../components/ReportStudio/FieldPanel";
 import ReportPreview from "../../components/ReportStudio/ReportPreview";
 import useReportConfig from "../../components/ReportStudio/useReportConfig";
 import usePivotConfig from "../../components/ReportStudio/usePivotConfig";
-import { FIELD_GROUPS, FIELDS_BY_KEY } from "../../components/ReportStudio/reportStudioConfig";
+import { FIELD_GROUPS, FIELDS_BY_KEY, REPORT_TEMPLATES } from "../../components/ReportStudio/reportStudioConfig";
+import { lastPeriods, resolvePeriodRange } from "../../components/ReportStudio/fiscalCalendar";
 import { buildCsv, buildFileName, isFieldAvailable } from "../../components/ReportStudio/reportStudioUtils";
 import { buildPivot, buildPivotCsv, PIVOT_SOURCE_ROW_LIMIT, resolvePivotLayout } from "../../components/ReportStudio/pivotUtils";
 // Sample data stands in for the report API until the backend is wired up.
@@ -26,11 +29,25 @@ const PREVIEW_DEBOUNCE_MS = 300;
 const supportedFields = ({ columns, sources }) =>
     columns.map((k) => FIELDS_BY_KEY[k]).filter((f) => f.group === FIELD_GROUPS.REQUIRED || isFieldAvailable(f, sources));
 
+const sameList = (a = [], b = []) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+/** The template whose sources, columns and pivot areas the current configuration still matches. */
+const findAppliedTemplate = (config, pivotConfig) =>
+    REPORT_TEMPLATES.find(
+        (t) =>
+            sameList(config.sources, t.sources) &&
+            sameList(config.columns, t.columns) &&
+            Object.entries(t.pivot.areas).every(([area, keys]) => sameList(pivotConfig.areas[area], keys))
+    );
+
+const defaultPeriod = () => ({ mode: "dashboard", ...lastPeriods(1) });
+
 export default function ReportStudio() {
     const { timeStart, timeEnd, datesFetched } = useContext(FilterContext);
     const { config, actions, validation } = useReportConfig();
     const { pivotConfig, pivotActions } = usePivotConfig();
     const [view, setView] = useState("raw");
+    const [period, setPeriod] = useState(defaultPeriod);
     const [debouncedConfig] = useDebounce(config, PREVIEW_DEBOUNCE_MS);
     const [attempt, setAttempt] = useState(0);
     const [pageState, setPageState] = useState({ report: null, page: 1 });
@@ -41,7 +58,12 @@ export default function ReportStudio() {
     const [toast, setToast] = useState({ open: false, severity: "success", message: "" });
     const notify = (severity, message) => setToast({ open: true, severity, message });
 
-    const datesReady = Boolean(datesFetched && timeStart && timeEnd);
+    // The report covers either the dashboard's dates or a range of fiscal periods.
+    const range = useMemo(() => {
+        if (period.mode === "fiscal") return resolvePeriodRange(period);
+        return datesFetched && timeStart && timeEnd ? { start: timeStart, end: timeEnd } : null;
+    }, [period, datesFetched, timeStart, timeEnd]);
+    const datesReady = Boolean(range);
 
     const preview = useMemo(() => {
         if (!datesReady) return { status: "loading", fields: [], attempt };
@@ -51,15 +73,15 @@ export default function ReportStudio() {
             const report = buildSampleReport({
                 sources: debouncedConfig.sources,
                 fields,
-                startDate: timeStart,
-                endDate: timeEnd,
+                startDate: range.start,
+                endDate: range.end,
             });
             return { status: "ready", fields, report, attempt };
         } catch (error) {
             console.error("[ReportStudio] Failed to build preview:", error);
             return { status: "error", fields, attempt };
         }
-    }, [debouncedConfig, datesReady, timeStart, timeEnd, attempt]);
+    }, [debouncedConfig, datesReady, range, attempt]);
 
     // The pivot summarises the previewed report, so it follows the same debounce.
     const pivot = useMemo(() => {
@@ -95,15 +117,15 @@ export default function ReportStudio() {
                 const report = buildSampleReport({
                     sources: config.sources,
                     fields,
-                    startDate: timeStart,
-                    endDate: timeEnd,
+                    startDate: range.start,
+                    endDate: range.end,
                 });
                 const rowCount = report.totalRows.toLocaleString("en-IN");
                 if (report.totalRows === 0) {
                     notify("warning", "No records to download for this time period.");
                     return;
                 }
-                const fileName = buildFileName(config.sources, timeStart, timeEnd, { sample: true, pivot: view === "custom" });
+                const fileName = buildFileName(config.sources, range.start, range.end, { sample: true, pivot: view === "custom" });
                 const save = (csv) => saveAs(new Blob([csv], { type: "text/csv;charset=utf-8" }), fileName);
 
                 if (view === "custom") {
@@ -141,6 +163,15 @@ export default function ReportStudio() {
                 setIsExporting(false);
             }
         }, 0);
+    };
+
+    const appliedTemplate = view === "custom" ? findAppliedTemplate(config, pivotConfig) : undefined;
+
+    const applyTemplate = (template) => {
+        actions.applyTemplate(template);
+        pivotActions.applyTemplate(template.pivot);
+        if (template.periods) setPeriod({ mode: "fiscal", ...lastPeriods(template.periods) });
+        setView("custom");
     };
 
     const downloadButton = (
@@ -191,6 +222,8 @@ export default function ReportStudio() {
                         onClick={() => {
                             actions.reset();
                             pivotActions.reset();
+                            setPeriod(defaultPeriod());
+                            setView("raw");
                         }}
                         startIcon={<ResetIcon />}
                         sx={{
@@ -202,7 +235,11 @@ export default function ReportStudio() {
                     </Button>
                 </Box>
 
+                <TemplateGallery appliedId={appliedTemplate?.id} onApply={applyTemplate} />
+
                 <SourceSelector sources={config.sources} onToggle={actions.toggleSource} />
+
+                <ReportingPeriodBar value={period} onChange={setPeriod} range={range} />
 
                 <Box
                     sx={{

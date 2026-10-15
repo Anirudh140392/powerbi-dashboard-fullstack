@@ -41,6 +41,11 @@ export const reportConfigReducer = (state, action) => {
             columns.splice(to, 0, action.key);
             return { ...state, columns };
         }
+        case "applyTemplate":
+            return {
+                sources: SOURCE_ORDER.filter((id) => action.template.sources.includes(id)),
+                columns: [...REQUIRED_KEYS, ...action.template.columns.filter((k) => !REQUIRED_KEYS.includes(k))],
+            };
         case "reset":
             return DEFAULT_CONFIG;
         default:
@@ -60,6 +65,7 @@ export default function useReportConfig() {
             clearOptional: () => dispatch({ type: "clearOptional" }),
             removeColumns: (keys) => dispatch({ type: "removeColumns", keys }),
             moveColumn: (key, toIndex) => dispatch({ type: "moveColumn", key, toIndex }),
+            applyTemplate: (template) => dispatch({ type: "applyTemplate", template }),
             reset: () => dispatch({ type: "reset" }),
         }),
         []
