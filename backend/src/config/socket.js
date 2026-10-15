@@ -81,8 +81,10 @@ function resolveColumn(columnsMap, expectedName, fallback = null) {
 
 /**
  * Fetch Max(Date) from all key tables for a given database
+ * @param {string} dbName
+ * @param {string|null} maxAllowedDate - Optional date cap (YYYY-MM-DD)
  */
-async function fetchMaxDates(dbName) {
+async function fetchMaxDates(dbName, maxAllowedDate = null) {
     const dates = {};
 
     // Environment detection: Prod vs Dev
@@ -265,6 +267,25 @@ async function fetchMaxDates(dbName) {
     } catch (e) {
         console.warn(`[Socket] tb_content_score_data query failed for ${dbName}:`, e.message);
         dates.tb_content_score_data = null;
+    }
+
+    if (maxAllowedDate) {
+        const clampVal = (val) => {
+            if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) {
+                return val > maxAllowedDate ? maxAllowedDate : val;
+            }
+            if (val && typeof val === 'object' && !Array.isArray(val)) {
+                const res = {};
+                for (const [k, v] of Object.entries(val)) {
+                    res[k] = clampVal(v);
+                }
+                return res;
+            }
+            return val;
+        };
+        for (const [k, v] of Object.entries(dates)) {
+            dates[k] = clampVal(v);
+        }
     }
 
     return dates;

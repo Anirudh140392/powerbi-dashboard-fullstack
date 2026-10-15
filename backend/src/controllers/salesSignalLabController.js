@@ -4,6 +4,7 @@
  */
 
 import salesSignalLabService from '../services/salesSignalLabService.js';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 /**
  * Get Visibility Signals for Keyword & SKU (Drainers/Gainers)
@@ -12,7 +13,7 @@ import salesSignalLabService from '../services/salesSignalLabService.js';
 export const getSalesVisibilitySignals = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             level: req.query.level || 'keyword',  // 'keyword' or 'sku'
             signalType: req.query.signalType || 'drainer',  // 'drainer' or 'gainer'
             platform: req.query.platform || 'All',
@@ -21,7 +22,7 @@ export const getSalesVisibilitySignals = async (req, res) => {
             endDate: req.query.endDate || null,
             compareStartDate: req.query.compareStartDate || null,
             compareEndDate: req.query.compareEndDate || null
-        };
+        }, req);
         console.log('\n========== SALES VISIBILITY SIGNALS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
@@ -59,14 +60,14 @@ export const getSalesVisibilitySignals = async (req, res) => {
 export const getSalesVisibilitySignalCityDetails = async (req, res) => {
     const startTime = Date.now();
     try {
-        const params = {
+        const params = applyQcDateFilter({
             keyword: req.query.keyword || null,
             skuName: req.query.skuName || null,
             level: req.query.level || 'keyword',
             platform: req.query.platform || 'All',
             startDate: req.query.startDate || null,
             endDate: req.query.endDate || null
-        };
+        }, req);
         console.log('\n========== SALES VISIBILITY SIGNAL CITY DETAILS API ==========');
         console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());

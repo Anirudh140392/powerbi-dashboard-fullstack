@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import http from 'http';
 import { URL } from 'url';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 const REPORT_SERVICE_URL = process.env.REPORT_SERVICE_URL || 'http://report_backend:5001';
 
@@ -146,8 +147,10 @@ async function resolvePdpTable() {
  */
 export const getReportFilterOptions = async (req, res) => {
     try {
+        const qcFilters = applyQcDateFilter(req.query, req);
+        const { isQcUser, maxAllowedDate } = qcFilters;
         const { platform, brand, city, format } = req.query;
-        const cacheKey = generateCacheKey('report_filter_options_ch_v2', req.query);
+        const cacheKey = generateCacheKey(`report_filter_options_ch_v3_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, req.query);
 
         // Dynamically determine the Category column to avoid hardcoding "Product_type"
         const pdpCols = await getTableColumns('rb_pdp_olap');
@@ -170,6 +173,7 @@ export const getReportFilterOptions = async (req, res) => {
                 if (excludeField !== 'Brand') addInClause('Brand', brand);
                 if (excludeField !== 'Location') addInClause('Location', city);
                 if (excludeField !== catCol) addInClause(catCol, format);
+                if (!isQcUser) conditions.push(`toDate(DATE) <= '${maxAllowedDate}'`);
 
                 return conditions.length > 0 ? ' AND ' + conditions.join(' AND ') : '';
             };
@@ -184,7 +188,8 @@ export const getReportFilterOptions = async (req, res) => {
 
             let skuQuery = `SELECT DISTINCT Product FROM rb_pdp_olap WHERE Product != '' AND Product IS NOT NULL ${buildWhere('Product')} ORDER BY Product`;
 
-            let monthsQuery = `SELECT DISTINCT formatDateTime(DATE, '%Y-%m') as Month FROM rb_pdp_olap WHERE DATE IS NOT NULL ORDER BY Month DESC`;
+            const monthDateCond = !isQcUser ? `AND toDate(DATE) <= '${maxAllowedDate}'` : '';
+            let monthsQuery = `SELECT DISTINCT formatDateTime(DATE, '%Y-%m') as Month FROM rb_pdp_olap WHERE DATE IS NOT NULL ${monthDateCond} ORDER BY Month DESC`;
 
             const [platforms, brands, locations, formats, skus, months] = await Promise.all([
                 queryClickHouse(platformQuery),
@@ -212,7 +217,9 @@ export const getReportFilterOptions = async (req, res) => {
                 cities: uniqueMap(locations),
                 formats: uniqueMap(formats),
                 skus: uniqueMap(skus),
-                months: months.map(getColVal).filter(Boolean)
+                months: months.map(getColVal).filter(Boolean),
+                maxAllowedDate,
+                isQcUser
             };
         }, CACHE_TTL.METRICS);
 
@@ -229,7 +236,9 @@ export const getReportFilterOptions = async (req, res) => {
  */
 export const getReportBuilderOptions = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('report_builder_options_v1', {});
+        const qcFilters = applyQcDateFilter(req.query, req);
+        const { isQcUser, maxAllowedDate } = qcFilters;
+        const cacheKey = generateCacheKey(`report_builder_options_v2_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
         const pdpCols = await getTableColumns('rb_pdp_olap');
 
         // Resolve the category column dynamically
@@ -286,16 +295,24 @@ export const getReportBuilderOptions = async (req, res) => {
             try {
                 const hasLocalDarkstore = await checkTableExists('rb_pdp_week');
                 const darkstoreTable = hasLocalDarkstore ? 'rb_pdp_week' : 'drl.rb_pdp_week';
-                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable}`).catch(() => null);
+                const darkstoreCond = !isQcUser ? `WHERE toDate(created_on) <= '${maxAllowedDate}'` : '';
+                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable} ${darkstoreCond}`).catch(() => null);
                 if (dates && dates[0] && dates[0].minDate) {
+                    let dMax = dayjs(dates[0].maxDate).format('YYYY-MM-DD');
+                    if (!isQcUser && dayjs(dMax).isAfter(dayjs(maxAllowedDate))) {
+                        dMax = maxAllowedDate;
+                    }
                     out.darkstoreDateRange = {
                         minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
-                        maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        maxDate: dMax,
                     };
                 }
             } catch (err) {
                 console.error('[getReportBuilderOptions] Error checking darkstoreDateRange:', err);
             }
+
+            out.maxAllowedDate = maxAllowedDate;
+            out.isQcUser = isQcUser;
 
             return out;
         }, CACHE_TTL.METRICS);
@@ -315,6 +332,8 @@ export const downloadReport = async (req, res) => {
     if (proxied) return;
 
     try {
+        const qcFilters = applyQcDateFilter(req.query, req);
+        const { isQcUser, currentDate, maxAllowedDate } = qcFilters;
         const { platform, brand, city, format, timePeriod, reportType, startDate: qStart, endDate: qEnd } = req.query;
 
         // Discover actual column names for rb_pdp_olap (handles case-sensitivity differences)
@@ -334,35 +353,45 @@ export const downloadReport = async (req, res) => {
         else if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category');
 
         // 1. Determine Date Range from timePeriod
+        // QC User: can download up to max(DATE) (currentDate)
+        // Non-QC User: can download strictly up to max(DATE) < currentDate (maxAllowedDate = currentDate - 1)
         let startDate, endDate;
-        const now = dayjs();
+        const refDate = isQcUser ? dayjs(currentDate) : dayjs(maxAllowedDate);
 
         if (timePeriod === "Custom Range" && qStart && qEnd) {
             startDate = qStart;
             endDate = qEnd;
         } else if (timePeriod === "Last 7 Days") {
-            startDate = now.subtract(7, 'day').format('YYYY-MM-DD');
-            endDate = now.format('YYYY-MM-DD');
+            startDate = refDate.subtract(7, 'day').format('YYYY-MM-DD');
+            endDate = refDate.format('YYYY-MM-DD');
         } else if (timePeriod === "Last 30 Days") {
-            startDate = now.subtract(30, 'day').format('YYYY-MM-DD');
-            endDate = now.format('YYYY-MM-DD');
+            startDate = refDate.subtract(30, 'day').format('YYYY-MM-DD');
+            endDate = refDate.format('YYYY-MM-DD');
         } else if (timePeriod === "Last 90 Days") {
-            startDate = now.subtract(90, 'day').format('YYYY-MM-DD');
-            endDate = now.format('YYYY-MM-DD');
+            startDate = refDate.subtract(90, 'day').format('YYYY-MM-DD');
+            endDate = refDate.format('YYYY-MM-DD');
         } else if (timePeriod === "Last 6 Months") {
-            startDate = now.subtract(6, 'month').format('YYYY-MM-DD');
-            endDate = now.format('YYYY-MM-DD');
+            startDate = refDate.subtract(6, 'month').format('YYYY-MM-DD');
+            endDate = refDate.format('YYYY-MM-DD');
         } else if (timePeriod === "Last Year") {
-            startDate = now.subtract(1, 'year').format('YYYY-MM-DD');
-            endDate = now.format('YYYY-MM-DD');
+            startDate = refDate.subtract(1, 'year').format('YYYY-MM-DD');
+            endDate = refDate.format('YYYY-MM-DD');
         } else if (/^\d{4}-\d{2}$/.test(timePeriod)) {
             // Specific month format YYYY-MM
             startDate = dayjs(timePeriod).startOf('month').format('YYYY-MM-DD');
             endDate = dayjs(timePeriod).endOf('month').format('YYYY-MM-DD');
         } else {
             // Default to last 30 days
-            startDate = now.subtract(30, 'day').format('YYYY-MM-DD');
-            endDate = now.format('YYYY-MM-DD');
+            startDate = refDate.subtract(30, 'day').format('YYYY-MM-DD');
+            endDate = refDate.format('YYYY-MM-DD');
+        }
+
+        // Clamp dates to maxAllowedDate for non-QC user, or currentDate for QC user
+        if (dayjs(endDate).isAfter(refDate)) {
+            endDate = refDate.format('YYYY-MM-DD');
+        }
+        if (dayjs(startDate).isAfter(refDate)) {
+            startDate = refDate.format('YYYY-MM-DD');
         }
 
         const buildInClause = (column, value) => {
@@ -393,6 +422,9 @@ export const downloadReport = async (req, res) => {
             if (cCond) darkstoreConds.push(cCond);
 
             darkstoreConds.push(`toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`);
+            if (!isQcUser) {
+                darkstoreConds.push(`toDate(created_on) <= '${maxAllowedDate}'`);
+            }
 
             const darkstoreWhere = darkstoreConds.length > 0 ? `WHERE ${darkstoreConds.join(' AND ')}` : '';
 
@@ -625,6 +657,9 @@ export const downloadReport = async (req, res) => {
         }
 
         conditions.push(`toDate(${col('DATE')}) BETWEEN '${startDate}' AND '${endDate}'`);
+        if (!isQcUser) {
+            conditions.push(`toDate(${col('DATE')}) <= '${maxAllowedDate}'`);
+        }
 
         // Handle Granularity constraints
         const granularitySku = req.query.granularitySku || '';
@@ -718,6 +753,7 @@ export const downloadReport = async (req, res) => {
                     round(avgIf(toInt64OrZero(toString(t.POSITION)), toInt32(t.spons) != 1), 2) as Org_Pos
                 FROM rb_kw_olap t
                 WHERE toDate(t.DATE) BETWEEN '${startDate}' AND '${endDate}'
+                ${!isQcUser ? `AND toDate(t.DATE) <= '${maxAllowedDate}'` : ''}
                 ${buildInClause('t.platform_name', platform) ? `AND ${buildInClause('t.platform_name', platform)}` : ''}
                 ${buildInClause('t.brand', brand) ? `AND ${buildInClause('t.brand', brand)}` : ''}
                 GROUP BY DATE, Platform, Brand, t.keyword_category, t.keyword_type
@@ -741,6 +777,7 @@ export const downloadReport = async (req, res) => {
                     ROUND(SUM(sales) / nullIf(SUM(SUM(sales)) OVER (PARTITION BY DATE, category, location), 0) * 100, 2) as Market_Share_Percentage
                 FROM ${msTable}
                 WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'
+                ${!isQcUser ? `AND toDate(${msDateCol}) <= '${maxAllowedDate}'` : ''}
                 ${buildInClause(msBrandCol, brand) ? `AND ${buildInClause(msBrandCol, brand)}` : ''}
                 ${buildInClause('location', city) ? `AND ${buildInClause('location', city)}` : ''}
                 ${cityFilter}
@@ -758,6 +795,7 @@ export const downloadReport = async (req, res) => {
                         SUM(assumeNotNull(Qty_Sold)) as daily_orders
                     FROM rb_pdp_olap
                     WHERE toDate(DATE) BETWEEN '${widerStartDate}' AND '${endDate}'
+                    ${!isQcUser ? `AND toDate(DATE) <= '${maxAllowedDate}'` : ''}
                     ${buildInClause('Platform', platform) ? `AND ${buildInClause('Platform', platform)}` : ''}
                     ${buildInClause('Brand', brand) ? `AND ${buildInClause('Brand', brand)}` : ''}
                     ${buildInClause('Location', city) ? `AND ${buildInClause('Location', city)}` : ''}
@@ -795,6 +833,7 @@ export const downloadReport = async (req, res) => {
                     t.Platform = pm.Platform AND t.Brand = pm.Brand AND t.City = pm.City AND t.Format = pm.Format AND t.Product = pm.Product${resellerCol ? ` AND t.${resellerCol} = pm.${resellerCol}` : ''}
                     AND t.DATE = date_add(month, 1, pm.DATE)
                 WHERE t.DATE BETWEEN '${startDate}' AND '${endDate}'
+                ${!isQcUser ? `AND toDate(t.DATE) <= '${maxAllowedDate}'` : ''}
                 ORDER BY t.DATE DESC
             `;
         } else if (reportType === "Master Dump") {
@@ -913,6 +952,7 @@ export const downloadReport = async (req, res) => {
                         avgIf(toInt64OrZero(toString(POSITION)), toInt32(spons) != 1) as org_pos
                     FROM rb_kw_olap
                     WHERE toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'
+                    ${!isQcUser ? `AND toDate(DATE) <= '${maxAllowedDate}'` : ''}
                     GROUP BY ${sosGroupCols.join(', ')}
                 ),` : 'WITH ';
 
@@ -931,6 +971,7 @@ export const downloadReport = async (req, res) => {
                         SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as brand_sales
                     FROM ${msTable}
                     WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'${msFlagCond}
+                      ${!isQcUser ? `AND toDate(${msDateCol}) <= '${maxAllowedDate}'` : ''}
                       AND sales IS NOT NULL
                     GROUP BY DATE, Brand, Category${msGroupLoc}
                 ),
@@ -940,6 +981,7 @@ export const downloadReport = async (req, res) => {
                         SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as cat_sales
                     FROM ${msTable}
                     WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'${msFlagCond}
+                      ${!isQcUser ? `AND toDate(${msDateCol}) <= '${maxAllowedDate}'` : ''}
                       AND sales IS NOT NULL
                     GROUP BY DATE, Category${msGroupLoc}
                 ),`;
@@ -955,6 +997,7 @@ export const downloadReport = async (req, res) => {
                         SUM(toFloat64(Sales)) as Cat_Size
                     FROM rb_pdp_olap
                     WHERE toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'
+                    ${!isQcUser ? `AND toDate(DATE) <= '${maxAllowedDate}'` : ''}
                     GROUP BY DATE, Platform${catSizeGroupLoc}
                 )`;
 
@@ -1132,6 +1175,7 @@ export const downloadReport = async (req, res) => {
                     description_char_count as Word_Count
                 FROM tb_content_score_data
                 WHERE toDate(${col('extraction_timestamp')}) BETWEEN '${startDate}' AND '${endDate}'
+                ${!isQcUser ? `AND toDate(${col('extraction_timestamp')}) <= '${maxAllowedDate}'` : ''}
                 ${buildInClause(col('brand_name'), brand) ? `AND ${buildInClause(col('brand_name'), brand)}` : ''}
                 ORDER BY DATE DESC
             `;
@@ -1444,6 +1488,9 @@ export const getPdpReportFilters = async (req, res) => {
             return res.status(400).json({ error: 'No PDP data table exists for this database.' });
         }
 
+        applyQcDateFilter(req.query, req);
+        const { isQcUser: isQc, maxAllowedDate } = req.query;
+
         const pdpCols = await getTableColumns(pdpTable).catch(() => new Map());
         const dateCol = pdpCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
 
@@ -1458,7 +1505,7 @@ export const getPdpReportFilters = async (req, res) => {
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
         const hasIsCompetitor = skuPlatCols.has('is_competitor');
 
-        const cacheKey = generateCacheKey(`pdp_report_filters_v6_${pdpTable}`, req.query);
+        const cacheKey = generateCacheKey(`pdp_report_filters_v7_${pdpTable}_${isQc ? 'qc' : 'nonqc_' + maxAllowedDate}`, req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
             const buildWhere = (excludeField) => {
@@ -1466,6 +1513,10 @@ export const getPdpReportFilters = async (req, res) => {
 
                 if (hasIsCompetitor && competitorVal !== null) {
                     conditions.push(`(pf_id, lower(web_pid)) IN (SELECT pf_id, lower(web_pid) FROM rb_sku_platform WHERE is_competitor = ${competitorVal})`);
+                }
+
+                if (!isQc && maxAllowedDate) {
+                    conditions.push(`toDate(${dateCol}) <= '${maxAllowedDate}'`);
                 }
 
                 const addStringInClause = (column, value, targetField) => {
@@ -1517,7 +1568,10 @@ export const getPdpReportFilters = async (req, res) => {
             const skuQuery = `SELECT DISTINCT sku_name FROM ${pdpTable} WHERE sku_name != '' AND sku_name IS NOT NULL ${buildWhere('sku')} ORDER BY sku_name LIMIT 1000000`;
             const webPidQuery = `SELECT DISTINCT web_pid FROM ${pdpTable} WHERE web_pid != '' AND web_pid IS NOT NULL ${buildWhere('webPid')} ORDER BY web_pid LIMIT 1000000`;
             const dateQuery = `SELECT DISTINCT toDate(${dateCol}) as DateStr FROM ${pdpTable} WHERE ${dateCol} IS NOT NULL ${buildWhere('date')} ORDER BY DateStr DESC`;
-            const platformMaxDatesQuery = `SELECT platform_name, formatDateTime(max(${dateCol}), '%Y-%m-%d') as maxDate FROM ${pdpTable} WHERE platform_name != '' AND platform_name IS NOT NULL GROUP BY platform_name`;
+            const platformMaxDatesWhere = !isQc && maxAllowedDate
+                ? `WHERE platform_name != '' AND platform_name IS NOT NULL AND toDate(${dateCol}) <= '${maxAllowedDate}'`
+                : `WHERE platform_name != '' AND platform_name IS NOT NULL`;
+            const platformMaxDatesQuery = `SELECT platform_name, formatDateTime(max(${dateCol}), '%Y-%m-%d') as maxDate FROM ${pdpTable} ${platformMaxDatesWhere} GROUP BY platform_name`;
 
             const [platforms, locations, pincodes, brands, categories, skus, webPids, dates, platformMaxDates] = await Promise.all([
                 queryClickHouse(platformQuery),
@@ -1556,7 +1610,9 @@ export const getPdpReportFilters = async (req, res) => {
                 skus: uniqueMap(skus),
                 webPids: uniqueMap(webPids),
                 dates: [...new Set(dates.map(getColVal).filter(Boolean).map(formatDate))],
-                platformMaxDates: maxDatesMap
+                platformMaxDates: maxDatesMap,
+                maxAllowedDate,
+                isQcUser: isQc
             };
         }, CACHE_TTL.METRICS);
 
@@ -1580,6 +1636,9 @@ export const downloadPdpReport = async (req, res) => {
             return res.status(400).json({ error: 'No PDP data table exists for this database.' });
         }
 
+        applyQcDateFilter(req.query, req);
+        const { isQcUser: isQc, maxAllowedDate } = req.query;
+
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
         const hasPortfolio = skuPlatCols.has('portfolio');
         const hasIsCompetitor = skuPlatCols.has('is_competitor');
@@ -1602,6 +1661,10 @@ export const downloadPdpReport = async (req, res) => {
 
         if (hasIsCompetitor && competitorVal !== null) {
             conditions.push(`(pdp.pf_id, lower(pdp.web_pid)) IN (SELECT pf_id, lower(web_pid) FROM rb_sku_platform WHERE is_competitor = ${competitorVal})`);
+        }
+
+        if (!isQc && maxAllowedDate) {
+            conditions.push(`toDate(pdp.${dateCol}) <= '${maxAllowedDate}'`);
         }
 
         const addFilter = (column, value) => {
@@ -1743,6 +1806,9 @@ export const previewPdpReport = async (req, res) => {
         const hasPortfolio = skuPlatCols.has('portfolio');
         const hasIsCompetitor = skuPlatCols.has('is_competitor');
 
+        applyQcDateFilter(req.query, req);
+        const { isQcUser: isQc, maxAllowedDate } = req.query;
+
         const { skuType, isCompetitor, platforms, locations, pincodes, brands, categories, skus, webPids, dates, startDate, endDate } = req.query;
         let competitorVal = null;
         if (skuType === 'our' || isCompetitor === '0' || isCompetitor === 0) {
@@ -1759,6 +1825,10 @@ export const previewPdpReport = async (req, res) => {
 
         if (hasIsCompetitor && competitorVal !== null) {
             conditions.push(`(pdp.pf_id, lower(pdp.web_pid)) IN (SELECT pf_id, lower(web_pid) FROM rb_sku_platform WHERE is_competitor = ${competitorVal})`);
+        }
+
+        if (!isQc && maxAllowedDate) {
+            conditions.push(`toDate(pdp.${dateCol}) <= '${maxAllowedDate}'`);
         }
 
         const addFilter = (column, value) => {
@@ -1872,13 +1942,16 @@ export const previewPdpReport = async (req, res) => {
 /**
  * Helper to process Promo Violation raw records
  */
-async function fetchAndProcessPromoViolationData(reqQuery) {
+async function fetchAndProcessPromoViolationData(reqQuery, req) {
     const pdpTable = await resolvePdpTable();
     const kamTable = (await checkTableExists('emami_kam_master')) ? 'emami_kam_master' : 'emami.emami_kam_master';
     const pdpCols = await getTableColumns(pdpTable).catch(() => new Map());
     const dateCol = pdpCols.has('created_on') ? 'created_on' : 'pdp_crawl_date';
     const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
     const hasIsCompetitor = skuPlatCols.has('is_competitor');
+
+    applyQcDateFilter(reqQuery, req);
+    const { isQcUser: isQc, maxAllowedDate } = reqQuery;
 
     const { kam, asm, platform, sku, startDate, endDate } = reqQuery;
 
@@ -1890,6 +1963,10 @@ async function fetchAndProcessPromoViolationData(reqQuery) {
         conditions.push(`p.is_competitor_product = 0`);
     } else if (hasIsCompetitor) {
         conditions.push(`(p.pf_id, lower(p.web_pid)) IN (SELECT pf_id, lower(web_pid) FROM rb_sku_platform WHERE is_competitor = 0)`);
+    }
+
+    if (!isQc && maxAllowedDate) {
+        conditions.push(`toDate(p.${dateCol}) <= '${maxAllowedDate}'`);
     }
 
     if (kam && kam !== 'All' && !kam.startsWith('All ')) {
@@ -2054,7 +2131,7 @@ async function fetchAndProcessPromoViolationData(reqQuery) {
  * Separate function to query min and max created_on date from PDP table for promo violation platforms
  * SQL query: SELECT MIN(created_on), MAX(created_on) FROM rb_pdp WHERE platform_name IN ('dmart', 'metro', 'reliance retail', 'walmart')
  */
-export const getPromoViolationDateRange = async () => {
+export const getPromoViolationDateRange = async (filters = {}) => {
     try {
         const pdpTable = await resolvePdpTable();
         const pdpCols = await getTableColumns(pdpTable).catch(() => new Map());
@@ -2062,12 +2139,18 @@ export const getPromoViolationDateRange = async () => {
 
         console.log(`[getPromoViolationDateRange] table=${pdpTable}, dateCol=${dateCol}, currentDb=${getCurrentDbName()}`);
 
+        const conds = [`${dateCol} IS NOT NULL`];
+        if (!filters.isQcUser && filters.maxAllowedDate) {
+            conds.push(`toDate(${dateCol}) <= '${filters.maxAllowedDate}'`);
+        }
+        const whereClause = conds.length > 0 ? `WHERE ${conds.join(' AND ')}` : '';
+
         const query = `
             SELECT 
                 formatDateTime(MIN(${dateCol}), '%Y-%m-%d') AS minDate, 
                 formatDateTime(MAX(${dateCol}), '%Y-%m-%d') AS maxDate 
             FROM ${pdpTable} 
-            WHERE ${dateCol} IS NOT NULL
+            ${whereClause}
         `;
 
         const res = await queryClickHouse(query).catch(() => []);
@@ -2096,6 +2179,9 @@ export const getPromoViolationFilterOptions = async (req, res) => {
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
         const hasIsCompetitor = skuPlatCols.has('is_competitor');
 
+        applyQcDateFilter(req.query, req);
+        const { isQcUser: isQc, maxAllowedDate } = req.query;
+
         const { kam, asm, platform, sku, startDate, endDate } = req.query;
 
         const buildWhere = (excludeField) => {
@@ -2107,6 +2193,10 @@ export const getPromoViolationFilterOptions = async (req, res) => {
                 conds.push(`p.is_competitor_product = 0`);
             } else if (hasIsCompetitor) {
                 conds.push(`(p.pf_id, lower(p.web_pid)) IN (SELECT pf_id, lower(web_pid) FROM rb_sku_platform WHERE is_competitor = 0)`);
+            }
+
+            if (!isQc && maxAllowedDate) {
+                conds.push(`toDate(p.${dateCol}) <= '${maxAllowedDate}'`);
             }
 
             const addIn = (field, col, val) => {
@@ -2140,7 +2230,7 @@ export const getPromoViolationFilterOptions = async (req, res) => {
             queryClickHouse(asmQuery).catch(() => []),
             queryClickHouse(platformQuery).catch(() => []),
             queryClickHouse(skuQuery).catch(() => []),
-            getPromoViolationDateRange(),
+            getPromoViolationDateRange(req.query),
         ]);
 
         const kams = kamsRes.map(r => r.kam).filter(Boolean);
@@ -2152,7 +2242,7 @@ export const getPromoViolationFilterOptions = async (req, res) => {
         const maxDate = dateRange.maxDate || null;
 
         console.log(`[getPromoViolationFilterOptions] Sending to frontend: minDate=${minDate}, maxDate=${maxDate}, kams=${kams.length}, platforms=${platforms.length}`);
-        res.json({ kams, asms, platforms, skus, minDate, maxDate });
+        res.json({ kams, asms, platforms, skus, minDate, maxDate, maxAllowedDate, isQcUser: isQc });
     } catch (error) {
         console.error('[getPromoViolationFilterOptions] Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -2168,7 +2258,7 @@ export const previewPromoViolationReport = async (req, res) => {
         const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
         const offset = (page - 1) * limit;
 
-        const { locationsList, breachedRows } = await fetchAndProcessPromoViolationData(req.query);
+        const { locationsList, breachedRows } = await fetchAndProcessPromoViolationData(req.query, req);
 
         const totalCount = breachedRows.length;
         const paginatedRows = breachedRows.slice(offset, offset + limit);
@@ -2198,7 +2288,7 @@ export const downloadPromoViolationReport = async (req, res) => {
     if (proxied) return;
 
     try {
-        const { locationsList, breachedRows } = await fetchAndProcessPromoViolationData(req.query);
+        const { locationsList, breachedRows } = await fetchAndProcessPromoViolationData(req.query, req);
         const kamSelected = req.query.kam ? req.query.kam.split(',')[0] : 'All KAMs';
 
         const headerRow1 = [

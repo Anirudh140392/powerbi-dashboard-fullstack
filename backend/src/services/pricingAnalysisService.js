@@ -10,11 +10,11 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 // Dynamic SQL snippet builders that use resolved column names
 const buildProductCategorySql = (categoryCol, brandCol, productCol) => `if(${categoryCol} IS NOT NULL AND ${categoryCol} != '' AND ${categoryCol} != '0', 
     ${categoryCol}, 
-    multiIf(LOWER(${brandCol}) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
+    multiIf(LOWER(${brandCol}) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'gmfc', 
             LOWER(${brandCol}) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
                 if(LOWER(toString(${productCol})) LIKE '%gift%' OR LOWER(toString(${productCol})) LIKE '%tin pack%', 
-                   'Chocolates (Gifting)', 
-                   'Chocolates (Non Gifting)'), 
+                   'chocolates (gifting)', 
+                   'chocolates (non gifting)'), 
             'Others')
 )`;
 
@@ -740,12 +740,27 @@ async function getPricingKpis(filters = {}) {
             const discountTrend = [];
             const weightedDiscountTrend = [];
             const aspTrend = [];
+            const trendDates = [];
 
             if (trendResults && trendResults.length > 0) {
                 trendResults.forEach(row => {
-                    discountTrend.push(formatVal(row.discount_curr));
-                    weightedDiscountTrend.push(formatVal(row.weighted_discount_curr));
-                    aspTrend.push(formatVal(row.asp_curr));
+                    const formattedDate = row.date ? dayjs(row.date).format('DD MMM YYYY') : '';
+                    discountTrend.push({
+                        value: formatVal(row.discount_curr),
+                        label: formattedDate,
+                        date: row.date
+                    });
+                    weightedDiscountTrend.push({
+                        value: formatVal(row.weighted_discount_curr),
+                        label: formattedDate,
+                        date: row.date
+                    });
+                    aspTrend.push({
+                        value: formatVal(row.asp_curr),
+                        label: formattedDate,
+                        date: row.date
+                    });
+                    trendDates.push(formattedDate);
                 });
             }
 
@@ -754,13 +769,15 @@ async function getPricingKpis(filters = {}) {
                     value: formatVal(r.discount_curr),
                     prev: formatVal(r.discount_prev),
                     change: calcPointsChange(formatVal(r.discount_curr), formatVal(r.discount_prev)),
-                    sparklineData: discountTrend
+                    sparklineData: discountTrend,
+                    dates: trendDates
                 },
                 weightedDiscount: {
                     value: formatVal(r.weighted_discount_curr),
                     prev: formatVal(r.weighted_discount_prev),
                     change: calcPointsChange(formatVal(r.weighted_discount_curr), formatVal(r.weighted_discount_prev)),
-                    sparklineData: weightedDiscountTrend
+                    sparklineData: weightedDiscountTrend,
+                    dates: trendDates
                 },
                 pricePerUnit: {
                     value: formatVal(r.price_per_unit_curr),
@@ -776,7 +793,8 @@ async function getPricingKpis(filters = {}) {
                     value: formatVal(r.asp_curr),
                     prev: formatVal(r.asp_prev),
                     change: calcChange(formatVal(r.asp_curr), formatVal(r.asp_prev)),
-                    sparklineData: aspTrend
+                    sparklineData: aspTrend,
+                    dates: trendDates
                 }
             };
 
@@ -1224,6 +1242,11 @@ const getDimensionOverview = async (filters = {}) => {
                     ${webPidExpr},
                     ${weightColExpr},
                     -- Current metrics (Subject Brands)
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
+                             AND ${f.wMrp} > 0 
+                             AND ${brandCondition}
+                        THEN ${f.wMrp} 
+                        ELSE NULL END) AS MRP,
                     (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS Discount,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
                              AND ${f.wPpu} > 0 
@@ -1250,6 +1273,11 @@ const getDimensionOverview = async (filters = {}) => {
                         ELSE 0 END) AS offtake,
                     
                     -- Previous metrics for change
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
+                             AND ${f.wMrp} > 0 
+                             AND ${brandCondition}
+                        THEN ${f.wMrp} 
+                        ELSE NULL END) AS mrp_prev,
                     (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                              AND ${f.wPpu} > 0 
@@ -1319,6 +1347,7 @@ const getDimensionOverview = async (filters = {}) => {
                         discount: getMetric(r.Discount, r.discount_prev),
                         pricePerUnit: getMetric(r.price_per_100g, r.price_per_100g_prev),
                         asp: getMetric(r.ASP, r.asp_prev),
+                        mrp: getMetric(r.MRP, r.mrp_prev),
                     }
                 };
             });

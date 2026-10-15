@@ -962,6 +962,30 @@ const PlatformOverviewNew = ({
                 const valB = parseKpiValue(b.data?.marketShare) ?? 0;
                 return valB - valA;
             });
+        } else if (dimension === 'sku') {
+            const allRows = result.filter(e => {
+                const k = e.key.toLowerCase();
+                const n = e.name.toLowerCase();
+                return ALL_ROW_IDENTIFIERS.includes(k) || ALL_ROW_IDENTIFIERS.includes(n);
+            });
+            const otherRows = result.filter(e => {
+                const k = e.key.toLowerCase();
+                const n = e.name.toLowerCase();
+                return !ALL_ROW_IDENTIFIERS.includes(k) && !ALL_ROW_IDENTIFIERS.includes(n);
+            });
+
+            otherRows.sort((a, b) => {
+                const valA = parseKpiValue(a.data?.availability) ?? parseKpiValue(a.data?.wtOsa);
+                const valB = parseKpiValue(b.data?.availability) ?? parseKpiValue(b.data?.wtOsa);
+
+                if (valA === null && valB === null) return 0;
+                if (valA === null) return 1;
+                if (valB === null) return -1;
+
+                return valB - valA;
+            });
+
+            result = [...allRows, ...otherRows];
         }
 
         return result

@@ -35,14 +35,11 @@ const SelectWorkspacePage = () => {
 
             const targetPath = getFirstAllowedRoute(user) || '/watch-tower';
 
-            // Switch database context if target is different or re-sync
-            if (targetDbName.toLowerCase() !== currentDbName) {
-                const res = await switchDb(targetDbName, targetPath);
-                if (res && res.success === false) {
-                    throw new Error(res.error || 'Failed to switch workspace');
-                }
-            } else {
-                window.location.href = targetPath;
+            // Always invoke switchDb so fresh permissions are loaded specifically for this workspace
+            const res = await switchDb(targetDbName, targetPath);
+            if (res && !res.success) {
+                console.warn('[SelectWorkspace] switchDb error, falling back to navigate:', res.error);
+                navigate(targetPath, { replace: true });
             }
         } catch (error) {
             console.error('[SelectWorkspace] Error switching workspace:', error);

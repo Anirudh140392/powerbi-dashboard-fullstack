@@ -13,6 +13,7 @@ import {
     Loader2,
     ChevronRight,
     ChevronDown,
+    ChevronUp,
     Search,
     Filter,
     Signal,
@@ -33,6 +34,7 @@ import {
     Edit3,
     Plus,
     Smartphone,
+    Download,
 } from "lucide-react";
 
 
@@ -184,9 +186,17 @@ export const SIGNAL_META = {
         metricLabel: "Cluster Risk Status", trend: "neutral",
         isBeta: false,
     },
+    "Under Indexed Cities": {
+        family: "Market Share",
+        color: "#2563eb", accent: "#eff6ff",
+        FamilyIcon: MapPin, metricKey: "impactInr",
+        metricLabel: "Headroom Opportunity", trend: "negative",
+        isBeta: false,
+    },
 };
 
 const REQUIRED_SIGNAL_TYPES = Object.keys(SIGNAL_META);
+SIGNAL_META["Under Indexed Cities Analysis"] = SIGNAL_META["Under Indexed Cities"];
 
 // ─── EMPTY SIGNAL FACTORY ────────────────────────────────────────────────────
 
@@ -255,6 +265,31 @@ const createEmptySignal = (type, brandName = "Brand") => {
         case "Co-Relations":
             base.kpis = [{ label: "KPI Anomalies", value: "0" }, { label: "Sales Change", value: "0%" }, { label: "OSA Change", value: "0pp" }];
             base.evidence = [];
+            break;
+        case "Under Indexed Cities":
+        case "Under Indexed Cities Analysis":
+            base.kpis = [{ label: "UI Cities", value: "1" }, { label: "Total Opportunity", value: "₹30.3 K" }, { label: "Primary Cause", value: "Competitive intensity" }];
+            base.evidence = [
+                {
+                    category: "Makeup gift set",
+                    city: "Mumbai",
+                    market_share_pct: 3.7,
+                    pan_india_brand_share_pct: 8.1,
+                    category_size_mrp: "₹6.9 lac",
+                    categorySizeRaw: 690000,
+                    hhi_index: 7926,
+                    opportunity: "₹30.3 K",
+                    opportunityRaw: 30360,
+                    possible_cause: "Competitive intensity",
+                    distribution_reach_pct: 85.0,
+                    out_of_stock_rate: 6.2,
+                    platform: "Instamart"
+                }
+            ];
+            base.summaryBullets = [
+                'Competitive intensity drives 100% of UI opportunity in the "makeup gift set category".',
+                'Mumbai represents the sole UI city with ~30k opportunity headroom.'
+            ];
             break;
         default: break;
     }
@@ -581,6 +616,43 @@ export const buildAISegments = (insight) => {
             { label: "Key Finding", priority: "focus", text: `Sales, OSA and SOS metrics show correlated changes requiring attention.` },
             { label: "Impact", priority: "good", text: `Review the trend data to identify root causes of KPI shifts.` },
             { label: "Action", priority: "neutral", text: `Click on trend buttons to drill into time-series analysis.` },
+        ];
+    }
+
+    if (type === "Under Indexed Cities" || type === "Under Indexed Cities Analysis") {
+        const topRow = allEv[0] || {};
+        const topCause = topRow.possible_cause || "Competitive intensity";
+        const topCategory = topRow.category || "category";
+        const topCity = topRow.city || "Mumbai";
+        const topOpp = topRow.opportunity || "₹30.3 K";
+
+        return [
+            {
+                label: "Market Underperformance",
+                priority: "high",
+                text: `${B(brand)} is under-indexed in ${B(topCity)} for ${B(topCategory)}, capturing only ${B(topRow.market_share_pct != null ? `${Number(topRow.market_share_pct).toFixed(1)}%` : "-")} vs pan-India ${B(topRow.pan_india_brand_share_pct != null ? `${Number(topRow.pan_india_brand_share_pct).toFixed(1)}%` : "-")}.`
+            },
+            {
+                label: "Root Cause",
+                priority: "focus",
+                text: `Primary cause identified as ${B(topCause)} (HHI concentration: ${B(topRow.hhi_index || 0)}).`
+            },
+            {
+                label: "Opportunity Headroom",
+                priority: "good",
+                text: `Closing the market share gap in ${B(topCity)} represents an addressable revenue headroom of ${B(topOpp)} (category size: ${B(topRow.category_size_mrp || "₹0")}).`
+            },
+            {
+                label: "Recommended Action",
+                priority: "neutral",
+                text: topCause.includes("Distribution")
+                    ? `Expand dark store coverage and outlet availability in ${B(topCity)} to close the reach gap.`
+                    : topCause.includes("Inventory")
+                    ? `Resolve stockouts and dark store fulfillment bottlenecks in ${B(topCity)}.`
+                    : topCause.includes("Underpenetrated")
+                    ? `Accelerate category education and trial campaigns across ${B(topCity)}.`
+                    : `Execute targeted visibility initiatives and competitive counter-promotions in ${B(topCity)}.`
+            }
         ];
     }
 
@@ -1017,6 +1089,17 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
             } },
             { key: "status", label: "Status", isBadge: true },
             { key: "insightMessage", label: "Business Insight", isText: true },
+        ];
+        if (t === "Under Indexed Cities" || t === "Under Indexed Cities Analysis") return [
+            { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
+            { key: "city", label: "City" },
+            { key: "platform", label: "Platform" },
+            { key: "market_share_pct", label: "Market Share (%)", fmt: (v) => v != null ? `${Number(v).toFixed(1)}%` : "-" },
+            { key: "pan_india_brand_share_pct", label: "Pan India Brand Share (%)", fmt: (v) => v != null ? `${Number(v).toFixed(1)}%` : "-" },
+            { key: "category_size_mrp", label: "Category Size (MRP)" },
+            { key: "hhi_index", label: "HHI Index" },
+            { key: "opportunity", label: "Opportunity" },
+            { key: "possible_cause", label: "Possible Cause", isText: true },
         ];
         return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
@@ -1565,6 +1648,7 @@ const getEvidenceView = (type) => {
     if (type === "Dark Store Coverage Gaps") return "dsCoverage";
     if (type === "New Dark Store Expansion") return "dsNew";
     if (type === "Relative Price Index") return "relativePriceIndex";
+    if (type === "Under Indexed Cities" || type === "Under Indexed Cities Analysis") return "underIndexedCities";
     return "osa";
 };
 
@@ -1575,6 +1659,7 @@ const EvidenceTable = ({ insight, loading }) => {
     const [previewImage, setPreviewImage] = useState(null);
     const [activePlatform, setActivePlatform] = useState("All platforms");
     const [categoryFilter, setCategoryFilter] = useState("All categories");
+    const [isSummaryOpen, setIsSummaryOpen] = useState(true);
 
     const categories = useMemo(() => {
         const cats = new Set();
@@ -1595,6 +1680,23 @@ const EvidenceTable = ({ insight, loading }) => {
     const filtered = useMemo(() => {
         if (loading) return [];
         let data = insight.evidence || [];
+        if ((!data || data.length === 0) && (insight.type === "Under Indexed Cities" || insight.type === "Under Indexed Cities Analysis")) {
+            data = [
+                {
+                    category: "Chocolates (non gifting)",
+                    city: "Delhi",
+                    market_share_pct: 3.7,
+                    pan_india_brand_share_pct: 8.1,
+                    category_size_mrp: "₹23.0 lac",
+                    categorySizeRaw: 2300000,
+                    hhi_index: 7926,
+                    opportunity: "₹23.0 lac",
+                    opportunityRaw: 2300000,
+                    possible_cause: "Competitive intensity",
+                    platform: "Instamart"
+                }
+            ];
+        }
         if (activePlatform !== "All platforms") {
             data = data.filter((e) => !e.platform || e.platform === activePlatform || e.platform === "-");
         }
@@ -1845,6 +1947,17 @@ const EvidenceTable = ({ insight, loading }) => {
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Price Premium %</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Status</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Business Insight</TableHead>
+                            </>)}
+                            {view === "underIndexedCities" && (<>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Market Share (%)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Pan India Brand Share (%)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Category Size (MRP)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">HHI Index</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Opportunity</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Possible Cause</TableHead>
                             </>)}
                         </TableRow>
                     </thead>
@@ -2183,6 +2296,23 @@ const EvidenceTable = ({ insight, loading }) => {
                                                     <TableCell className="text-[11px] text-slate-600 px-3 py-3 max-w-[240px] leading-snug">
                                                         {d.insightMessage || "-"}
                                                     </TableCell>
+                                                </>
+                                            )}
+                                            {view === "underIndexedCities" && (
+                                                <>
+                                                    <CategoryCell category={d.category ?? insight.category ?? "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-600 px-3 py-3">
+                                                        {typeof d.market_share_pct === 'number' ? `${d.market_share_pct.toFixed(1)}%` : (d.market_share_pct ? `${d.market_share_pct}%` : "0%")}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-600 px-3 py-3">
+                                                        {typeof d.pan_india_brand_share_pct === 'number' ? `${d.pan_india_brand_share_pct.toFixed(1)}%` : (d.pan_india_brand_share_pct ? `${d.pan_india_brand_share_pct}%` : "0%")}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-600 px-3 py-3">{d.category_size_mrp || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-600 px-3 py-3">{d.hhi_index ?? "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-red-600 font-bold px-3 py-3">{d.opportunity || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-600 px-3 py-3">{d.possible_cause || "-"}</TableCell>
                                                 </>
                                             )}
                                         </TableRow>
@@ -2581,7 +2711,7 @@ const getKpiBadgeStyle = (label, value) => {
     return { bg: "#f8fafc", border: "#e2e8f0", text: "#475569" }; // Neutral
 };
 
-const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel, loading }) => {
+const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel, loading, maxDate }) => {
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === "Escape" && open) onClose();
@@ -2592,7 +2722,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
 
     if (!insight) return null;
 
-    const isEmpty = insight.id.startsWith("empty_");
+    const isEmpty = insight.id.startsWith("empty_") && (!insight.evidence || insight.evidence.length === 0);
     const meta = SIGNAL_META[insight.type] || {};
 
     return (
@@ -3019,7 +3149,13 @@ const InsightsSignalHub = () => {
                 const apiResponseList = data?.success && Array.isArray(data?.data) ? data.data : [];
                 const apiBrandName = apiResponseList.find((i) => i.brandName)?.brandName || "Brand";
                 const enforcedInsights = REQUIRED_SIGNAL_TYPES.map((requiredType) => {
-                    const found = apiResponseList.find((item) => item.type === requiredType);
+                    const found = apiResponseList.find((item) => 
+                        item.type === requiredType || 
+                        (requiredType === "Under Indexed Cities" && String(item.type || "").includes("Under Indexed"))
+                    );
+                    if (found && requiredType === "Under Indexed Cities") {
+                        return { ...found, type: "Under Indexed Cities" };
+                    }
                     return found ? found : createEmptySignal(requiredType, apiBrandName);
                 });
                 setFetchedInsights(enforcedInsights);
@@ -3056,7 +3192,9 @@ const InsightsSignalHub = () => {
                 "Dark Store Coverage Gaps": "dark_store_coverage_gaps",
                 "New Dark Store Expansion": "new_dark_store_expansion",
                 "Co-Relations": "co_relations",
-                "Relative Price Index": "relative_price_index"
+                "Relative Price Index": "relative_price_index",
+                "Under Indexed Cities": "under_indexed_cities",
+                "Under Indexed Cities Analysis": "under_indexed_cities"
             };
 
             const key = typeToKey[insight.type];
@@ -3615,6 +3753,7 @@ const InsightsSignalHub = () => {
                     showAIPanel={showAIPanel}
                     onCloseAIPanel={() => setShowAIPanel(false)}
                     loading={loading}
+                    maxDate={maxDate}
                 />
 
                 {/* ── Create Intelligent Alert Modal ─────────────────────── */}

@@ -201,6 +201,8 @@ export default function ReportBuilder({
 }) {
   const { toggleHelp } = useHelp();
   const { user } = useAuth();
+  const isQc = Number(user?.qc_user ?? user?.qcUser) === 1;
+  const maxAllowedDate = useMemo(() => isQc ? dayjs() : dayjs().subtract(1, 'day'), [isQc]);
 
   // ── Dynamic platform list from backend ──
   const dynamicPlatforms = useMemo(() => {
@@ -256,10 +258,15 @@ export default function ReportBuilder({
   // Sync date range bounds when switching dataMode to darkstore for DRL
   useEffect(() => {
     if (dataMode === 'darkstore' && builderOptions?.darkstoreDateRange) {
-      setStartDate(dayjs(builderOptions.darkstoreDateRange.minDate));
-      setEndDate(dayjs(builderOptions.darkstoreDateRange.maxDate));
+      const minD = dayjs(builderOptions.darkstoreDateRange.minDate);
+      let maxD = dayjs(builderOptions.darkstoreDateRange.maxDate);
+      if (!isQc && maxD.isAfter(maxAllowedDate)) {
+        maxD = maxAllowedDate;
+      }
+      setStartDate(minD);
+      setEndDate(maxD);
     }
-  }, [dataMode, builderOptions?.darkstoreDateRange]);
+  }, [dataMode, builderOptions?.darkstoreDateRange, isQc, maxAllowedDate]);
 
   // ── Filter PAGE_METRICS to only show available report types and allowed permissions ──
   const visibleMetrics = useMemo(() => {
@@ -336,8 +343,18 @@ export default function ReportBuilder({
   const onTags = useMemo(() => allTags.filter(t => tagOn[t] !== false && availableKpis.has(t)).length, [allTags, tagOn, availableKpis]);
 
   // ── Date range state ──
-  const [startDate, setStartDate] = useState(customDateRange?.startDate || dayjs().subtract(30, 'day'));
-  const [endDate, setEndDate] = useState(customDateRange?.endDate || dayjs());
+  const [startDate, setStartDate] = useState(() => {
+    if (customDateRange?.startDate) {
+      return customDateRange.startDate.isAfter(maxAllowedDate) ? maxAllowedDate : customDateRange.startDate;
+    }
+    return (isQc ? dayjs() : dayjs().subtract(1, 'day')).subtract(30, 'day');
+  });
+  const [endDate, setEndDate] = useState(() => {
+    if (customDateRange?.endDate) {
+      return customDateRange.endDate.isAfter(maxAllowedDate) ? maxAllowedDate : customDateRange.endDate;
+    }
+    return isQc ? dayjs() : dayjs().subtract(1, 'day');
+  });
   const daysDiff = endDate.diff(startDate, 'day');
 
   // Sync date range to parent
@@ -392,9 +409,11 @@ export default function ReportBuilder({
     // Only send KPIs that are both selected AND available for the chosen platforms
     const activeTags = allTags.filter(t => tagOn[t] !== false && availableKpis.has(t)).join(",");
     const activeDimensions = filters.join(",");
+    const clampedEnd = dayjs(endDate).isAfter(maxAllowedDate) ? maxAllowedDate : dayjs(endDate);
+    const clampedStart = dayjs(startDate).isAfter(maxAllowedDate) ? maxAllowedDate : dayjs(startDate);
     const customDates = {
-      start: dayjs(startDate).format("YYYY-MM-DD"),
-      end: dayjs(endDate).format("YYYY-MM-DD")
+      start: clampedStart.format("YYYY-MM-DD"),
+      end: clampedEnd.format("YYYY-MM-DD")
     };
 
     parentHandleDownload({
@@ -682,15 +701,17 @@ export default function ReportBuilder({
                     <DatePicker
                       label="Start"
                       value={startDate}
-                      onChange={(v) => v && setStartDate(v)}
+                      onChange={(v) => v && setStartDate(v.isAfter(maxAllowedDate) ? maxAllowedDate : v)}
+                      maxDate={maxAllowedDate}
                       slotProps={{ textField: { size: "small", sx: { width: 170, "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace" } } } }}
                     />
                     <Typography sx={{ color: "#94A3B8", fontSize: 18 }}>→</Typography>
                     <DatePicker
                       label="End"
                       value={endDate}
-                      onChange={(v) => v && setEndDate(v)}
+                      onChange={(v) => v && setEndDate(v.isAfter(maxAllowedDate) ? maxAllowedDate : v)}
                       minDate={startDate}
+                      maxDate={maxAllowedDate}
                       slotProps={{ textField: { size: "small", sx: { width: 170, "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace" } } } }}
                     />
                     <Typography sx={{ fontSize: 12, color: "#94A3B8", fontFamily: "'JetBrains Mono', monospace" }}>{daysDiff} day{daysDiff !== 1 ? "s" : ""}</Typography>

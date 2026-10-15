@@ -1,6 +1,7 @@
-// src/services/adminService.js
 import { queryAdminDB, insertAdminDB } from '../config/adminClickhouse.js';
 import bcrypt from 'bcrypt';
+import { resolveEffectiveTabPermissions } from './authService.js';
+import { clearPermissionsCache } from '../helper/permissionMiddleware.js';
 
 /**
  * Fetch all users with their associated database name
@@ -16,6 +17,7 @@ export const getAllUsers = async () => {
                 user_role as role,
                 status as status,
                 toString(db_id) as db_id,
+                toString(qc_user) as qc_user,
                 created_on as joined,
                 last_login
             FROM tb_user
@@ -83,6 +85,8 @@ export const getAllUsers = async () => {
                 email: user.email,
                 role: user.role,
                 status: user.status,
+                qcUser: Number(user.qc_user) || 0,
+                qc_user: Number(user.qc_user) || 0,
                 dbName: finalDbName,
                 joined: user.joined ? new Date(user.joined).toISOString().split('T')[0] : 'N/A',
                 lastLogin: user.last_login ? new Date(user.last_login).toISOString().replace('T', ' ').split('.')[0] : 'Never'
@@ -279,6 +283,8 @@ export const updateUserAccess = async (id, status, userName, source = 'device') 
         const newUserId = hashRes[0].hash;
         const newRowId = Date.now().toString();
 
+        const effectiveTabPerms = await resolveEffectiveTabPermissions(user.user_email, user.db_id_str);
+
         // Insert approved/denied row with target access
         await insertAdminDB('tb_user', [{
             id: newRowId,
@@ -294,7 +300,8 @@ export const updateUserAccess = async (id, status, userName, source = 'device') 
             ip: user.ip,
             access: safeStatus,
             db_status: user.db_status || 'active',
-            tab_permissions: user.tab_permissions || '',
+            tab_permissions: effectiveTabPerms,
+            qc_user: Number(user.qc_user) || 0,
             device_token: user.device_token || '',
             browser: user.browser || '',
             browser_version: user.browser_version || '',
@@ -527,19 +534,33 @@ export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions, re
         const isUserTarget = cleanIdOrEmail && (isEmail || cleanIdOrEmail.match(/^\d+$/));
         let resolvedDbName = requestedDbName || (!isUserTarget ? cleanIdOrEmail : '');
 
+        let targetDbId = '';
+        if (resolvedDbName) {
+            try {
+                const safeDb = resolvedDbName.replace(/'/g, "\\'").toLowerCase();
+                const dbRows = await queryAdminDB(`SELECT toString(db_id) as db_id, db_name FROM tb_database WHERE lower(db_name) = '${safeDb}' LIMIT 1`);
+                if (dbRows && dbRows.length > 0) {
+                    targetDbId = dbRows[0].db_id;
+                    resolvedDbName = dbRows[0].db_name;
+                }
+            } catch (_) {}
+        }
+
         let cleanedPermissions = { ...tabPermissions };
         let foundUserId = '';
         let foundUserEmail = isEmail ? cleanIdOrEmail : '';
         let existingFlatPermissions = {};
 
         if (isUserTarget) {
+            const dbFilter = targetDbId ? ` AND toString(db_id) = '${targetDbId}'` : '';
             const userQuery = isEmail 
-                ? `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email, tab_permissions FROM tb_user WHERE lower(user_email) = lower('${cleanIdOrEmail}') ORDER BY last_login DESC LIMIT 1`
-                : `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email, tab_permissions FROM tb_user WHERE toString(user_id) = '${cleanIdOrEmail}' OR lower(user_email) = lower('${cleanIdOrEmail}') ORDER BY last_login DESC LIMIT 1`;
+                ? `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email, tab_permissions FROM tb_user WHERE lower(user_email) = lower('${cleanIdOrEmail}') ${dbFilter} ORDER BY last_login DESC LIMIT 1`
+                : `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email, tab_permissions FROM tb_user WHERE (toString(user_id) = '${cleanIdOrEmail}' OR lower(user_email) = lower('${cleanIdOrEmail}')) ${dbFilter} ORDER BY last_login DESC LIMIT 1`;
             const userRows = await queryAdminDB(userQuery);
             
             if (userRows && userRows.length > 0) {
                 const dbId = userRows[0].db_id;
+                if (!targetDbId) targetDbId = dbId;
                 foundUserId = userRows[0].user_id || '';
                 if (userRows[0].user_email) foundUserEmail = userRows[0].user_email;
 
@@ -581,15 +602,18 @@ export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions, re
                 whereConditions.push(isEmail ? `lower(user_email) = lower('${cleanIdOrEmail}')` : `toString(user_id) = '${cleanIdOrEmail}'`);
             }
 
+            const dbFilter = targetDbId ? ` AND toString(db_id) = '${targetDbId}'` : '';
             const query = `
                 ALTER TABLE tb_user 
                 UPDATE tab_permissions = '${jsonStr}' 
-                WHERE ${whereConditions.join(' OR ')}
+                WHERE (${whereConditions.join(' OR ')})${dbFilter}
             `;
             await queryAdminDB(query);
-        }
 
-        if (resolvedDbName) {
+            if (foundUserEmail) clearPermissionsCache(foundUserEmail);
+            if (cleanIdOrEmail && isEmail) clearPermissionsCache(cleanIdOrEmail);
+        } else if (resolvedDbName) {
+            // ONLY if target was a database (not a user), update database defaults!
             try {
                 const safeDb = resolvedDbName.replace(/'/g, "\\'").toLowerCase();
                 const dbRows = await queryAdminDB(`SELECT toString(db_id) as db_id FROM tb_database WHERE lower(db_name) = '${safeDb}' LIMIT 1`);
@@ -772,7 +796,7 @@ export const updateDatabaseLogo = async (dbId, logoUrl) => {
 /**
  * Create a new user (admin initiated)
  */
-export const createUser = async ({ email, password, role, status, db_id }) => {
+export const createUser = async ({ email, password, role, status, db_id, qcUser = 0 }) => {
     try {
         const password_hash = await bcrypt.hash(password, 10);
         
@@ -782,29 +806,8 @@ export const createUser = async ({ email, password, role, status, db_id }) => {
         const id = Date.now().toString();
         const currentTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0];
         
-        // Fetch tab_permissions from an existing user with the same db_id
-        // so the new user inherits the default permission set for that database
-        let defaultTabPermissions = '';
-        try {
-            const permQuery = `
-                SELECT tab_permissions
-                FROM tb_user
-                WHERE toString(db_id) = '${db_id}'
-                  AND tab_permissions != ''
-                  AND status != 'deleted'
-                ORDER BY last_login DESC
-                LIMIT 1
-            `;
-            const permRows = await queryAdminDB(permQuery);
-            if (permRows && permRows.length > 0 && permRows[0].tab_permissions) {
-                defaultTabPermissions = permRows[0].tab_permissions;
-                console.log(`[AdminService] createUser: Inherited tab_permissions from existing user for db_id=${db_id}`);
-            } else {
-                console.log(`[AdminService] createUser: No existing tab_permissions found for db_id=${db_id}, using empty`);
-            }
-        } catch (permErr) {
-            console.error('[AdminService] createUser: Failed to fetch default tab_permissions, using empty:', permErr.message);
-        }
+        const defaultTabPermissions = await resolveEffectiveTabPermissions(email, db_id);
+        const qcUserVal = (qcUser === 1 || qcUser === '1' || qcUser === true || qcUser === 'true') ? 1 : 0;
 
         await insertAdminDB('tb_user', [{
             id: id,
@@ -820,7 +823,8 @@ export const createUser = async ({ email, password, role, status, db_id }) => {
             ip: "", 
             access: "pending",
             db_status: "active",
-            tab_permissions: defaultTabPermissions
+            tab_permissions: defaultTabPermissions,
+            qc_user: qcUserVal
         }]);
 
         return { success: true, id, user_id };
@@ -944,12 +948,13 @@ export const inviteTokensMap = new Map();
 /**
  * Invite a user — either brand-new or an existing user gaining access to an additional database
  */
-export const inviteUser = async ({ email, dbId, role = 'user', frontendUrl = '' }) => {
+export const inviteUser = async ({ email, dbId, role = 'user', qcUser = 0, frontendUrl = '' }) => {
     if (!email || !dbId) {
         throw new Error('Email and Database ID are required');
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    const qcUserVal = (qcUser === 1 || qcUser === '1' || qcUser === true || qcUser === 'true') ? 1 : 0;
 
     // ── 1. Check if this exact email + dbId combo already exists and is active ──
     const sameDbActive = await queryAdminDB(
@@ -988,23 +993,7 @@ export const inviteUser = async ({ email, dbId, role = 'user', frontendUrl = '' 
     const user_id = hashRes[0]?.hash || id;
     const currentTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0];
 
-    // Fetch tab_permissions from existing user in the target database if available
-    let defaultTabPermissions = '';
-    try {
-        const permQuery = `
-            SELECT tab_permissions
-            FROM tb_user
-            WHERE toString(db_id) = '${dbId}'
-              AND tab_permissions != ''
-              AND status != 'deleted'
-            ORDER BY last_login DESC
-            LIMIT 1
-        `;
-        const permRows = await queryAdminDB(permQuery);
-        if (permRows && permRows.length > 0 && permRows[0].tab_permissions) {
-            defaultTabPermissions = permRows[0].tab_permissions;
-        }
-    } catch (e) { /* ignore */ }
+    const defaultTabPermissions = await resolveEffectiveTabPermissions(cleanEmail, dbId);
 
     // ── 3a. EXISTING ACTIVE USER → grant access to new DB directly (no invite link needed) ──
     if (existingActive && existingActive.length > 0) {
@@ -1024,7 +1013,8 @@ export const inviteUser = async ({ email, dbId, role = 'user', frontendUrl = '' 
             ip: '',
             access: 'allow',
             db_status: 'active',
-            tab_permissions: defaultTabPermissions
+            tab_permissions: defaultTabPermissions,
+            qc_user: qcUserVal
         }]);
 
         // Send notification email about new dashboard access
@@ -1048,6 +1038,7 @@ export const inviteUser = async ({ email, dbId, role = 'user', frontendUrl = '' 
         dbId: String(dbId),
         dbName,
         role: role.toLowerCase(),
+        qcUser: qcUserVal,
         expiresAt,
     });
 
@@ -1065,7 +1056,8 @@ export const inviteUser = async ({ email, dbId, role = 'user', frontendUrl = '' 
         ip: '',
         access: 'allow',
         db_status: 'active',
-        tab_permissions: defaultTabPermissions
+        tab_permissions: defaultTabPermissions,
+        qc_user: qcUserVal
     }]);
 
     const baseUrl = frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173';

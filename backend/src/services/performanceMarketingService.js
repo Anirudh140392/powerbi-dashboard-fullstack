@@ -67,7 +67,7 @@ const performanceMarketingService = {
                 const f = pmSource.f;
                 const r = pmSource.r;
 
-                const endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
+                const endDate = filters.endDate ? dayjs(filters.endDate) : (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : dayjs());
                 const startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(29, 'days');
 
                 const startStr = startDate.format('YYYY-MM-DD');
@@ -220,7 +220,7 @@ const performanceMarketingService = {
         return await getCachedOrCompute(cacheKey, async () => {
             try {
                 // 1. Date Range Setup
-                const endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
+                const endDate = filters.endDate ? dayjs(filters.endDate) : (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : dayjs());
                 const startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(29, 'days');
 
                 // Calculate previous period - based on exact duration
@@ -888,7 +888,7 @@ const performanceMarketingService = {
             try {
 
                 // Calculate date ranges
-                const endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
+                const endDate = filters.endDate ? dayjs(filters.endDate) : (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : dayjs());
                 const startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(29, 'days');
 
                 // Calculate duration of selected range

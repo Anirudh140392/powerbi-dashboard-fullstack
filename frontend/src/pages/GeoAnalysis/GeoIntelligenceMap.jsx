@@ -9,6 +9,7 @@ import { IconButton, Popover } from "@mui/material";
 import { HelpOutline as HelpIcon } from "@mui/icons-material";
 import { useHelp } from "../../utils/HelpContext";
 import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
 import { DateRange } from "react-date-range";
 import "react-date-range/dist/styles.css"; // main style file
 import "react-date-range/dist/theme/default.css"; // theme css file
@@ -39,6 +40,7 @@ const getPinSvg = (color, valueText) => `
 
 export default function GeoIntelligenceMap() {
     const { toggleHelp, openHelpWithMenu } = useHelp();
+    const { user } = useAuth();
     const {
         platform: globalPlatform,
         selectedChannel,
@@ -47,6 +49,10 @@ export default function GeoIntelligenceMap() {
         selectedBrand: globalSelectedBrand,
         setSelectedBrand: globalSetSelectedBrand,
     } = useContext(FilterContext);
+
+    // QC user date clamping: non-QC users can only see data up to current_day - 1
+    const isQcUser = Number(user?.qc_user ?? user?.qcUser) === 1;
+    const maxAllowedDate = useMemo(() => isQcUser ? new Date() : dayjs().subtract(1, 'day').toDate(), [isQcUser]);
 
     const mapContainer = useRef(null);
     const map = useRef(null);
@@ -163,9 +169,18 @@ export default function GeoIntelligenceMap() {
 
     const handleDateRangeSelect = (ranges) => {
         const { selection } = ranges;
-        setRangeSelection([selection]);
-        setCustomStartDate(dayjs(selection.startDate));
-        setCustomEndDate(dayjs(selection.endDate));
+        // Clamp selected end date to maxAllowedDate for non-QC users
+        let clampedEnd = selection.endDate;
+        if (clampedEnd > maxAllowedDate) {
+            clampedEnd = maxAllowedDate;
+        }
+        let clampedStart = selection.startDate;
+        if (clampedStart > maxAllowedDate) {
+            clampedStart = maxAllowedDate;
+        }
+        setRangeSelection([{ ...selection, startDate: clampedStart, endDate: clampedEnd }]);
+        setCustomStartDate(dayjs(clampedStart));
+        setCustomEndDate(dayjs(clampedEnd));
         setTimePeriod("Custom");
     };
 
@@ -813,6 +828,7 @@ export default function GeoIntelligenceMap() {
                                     moveRangeOnFirstSelection={false}
                                     ranges={rangeSelection}
                                     rangeColors={["#2563eb"]}
+                                    maxDate={maxAllowedDate}
                                 />
                             </Popover>
                         </div>

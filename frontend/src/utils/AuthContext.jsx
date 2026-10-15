@@ -227,7 +227,7 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const switchDb = async (targetDbName, redirectUrl = null) => {
+    const switchDb = async (targetDbName, targetPath = null) => {
         try {
             const token = sessionStorage.getItem("token");
             const response = await axios.post(
@@ -246,11 +246,14 @@ export const AuthProvider = ({ children }) => {
                 }
                 sessionStorage.setItem("token", newToken);
                 sessionStorage.setItem("user", JSON.stringify(updatedUserData));
+                sessionStorage.setItem("workspaceSelected", "true");
+                sessionStorage.setItem("activeWorkspaceDb", targetDbName);
                 setUser(updatedUserData);
-                if (redirectUrl) {
-                    window.location.href = redirectUrl;
-                } else if (window.location.pathname === '/select-workspace') {
-                    window.location.href = '/watch-tower';
+
+                // If a target destination is given or currently on select-workspace, navigate directly
+                const destination = targetPath || (window.location.pathname === '/select-workspace' ? '/watch-tower' : null);
+                if (destination) {
+                    window.location.href = destination;
                 } else {
                     window.location.reload();
                 }

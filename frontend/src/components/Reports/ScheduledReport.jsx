@@ -50,6 +50,7 @@ import { TimePicker } from "@mui/x-date-pickers/TimePicker";
 import dayjs from "dayjs";
 import React from "react";
 import { useHelp } from "../../utils/HelpContext";
+import { useAuth } from "../../utils/AuthContext";
 import PaginationFooter from "@/components/CommonLayout/PaginationFooter";
 
 export const ScheduledReport = ({
@@ -75,6 +76,9 @@ export const ScheduledReport = ({
   setScheduleSuccess,
 }) => {
   const { toggleHelp } = useHelp();
+  const { user } = useAuth();
+  const isQc = Number(user?.qc_user ?? user?.qcUser) === 1;
+  const maxAllowedDate = React.useMemo(() => isQc ? dayjs() : dayjs().subtract(1, 'day'), [isQc]);
   // Modal state
   const [scheduleModalOpen, setScheduleModalOpen] = React.useState(false);
 
@@ -552,10 +556,11 @@ export const ScheduledReport = ({
                     <DatePicker
                       label="Start"
                       value={customDateRange.startDate}
+                      maxDate={maxAllowedDate}
                       onChange={(newValue) =>
                         setCustomDateRange((prev) => ({
                           ...prev,
-                          startDate: newValue,
+                          startDate: newValue && newValue.isAfter(maxAllowedDate) ? maxAllowedDate : newValue,
                         }))
                       }
                       slotProps={{
@@ -571,13 +576,14 @@ export const ScheduledReport = ({
                     <DatePicker
                       label="End"
                       value={customDateRange.endDate}
+                      minDate={customDateRange.startDate}
+                      maxDate={maxAllowedDate}
                       onChange={(newValue) =>
                         setCustomDateRange((prev) => ({
                           ...prev,
-                          endDate: newValue,
+                          endDate: newValue && newValue.isAfter(maxAllowedDate) ? maxAllowedDate : newValue,
                         }))
                       }
-                      minDate={customDateRange.startDate}
                       slotProps={{
                         textField: {
                           size: "small",
