@@ -216,7 +216,6 @@ function ReportGrid({ fields, rows, startIndex, letters, selection, onSelect }) 
                             <Box
                                 component="th"
                                 key={f.key}
-                                title={source?.label}
                                 onClick={() => onSelect({ col: ci, header: true })}
                                 sx={{
                                     ...headCellSx,

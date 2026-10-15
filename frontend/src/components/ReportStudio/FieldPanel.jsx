@@ -19,53 +19,54 @@ const SectionHeader = ({ title }) => (
     </Box>
 );
 
-const kpiTooltip = (field) => [field.description, field.formula].filter(Boolean).join(" — ");
-
 function FieldRow({ field, checked, sources, onToggle }) {
     const isKpi = field.group === FIELD_GROUPS.KPI;
     const available = isFieldAvailable(field, sources);
     const disabled = !available && !checked;
     const warning = !available && checked;
 
-    const tooltip = warning || disabled ? getUnavailableReason(field, sources) : isKpi ? kpiTooltip(field) : "";
-
-    return (
-        <Tooltip title={<span style={{ whiteSpace: "pre-line" }}>{tooltip}</span>} placement="right" arrow enterDelay={400}>
-            <Box
-                component="label"
-                sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 0.75,
-                    px: 0.75,
-                    py: 0.35,
-                    borderRadius: "8px",
-                    cursor: disabled ? "not-allowed" : "pointer",
-                    opacity: disabled ? 0.5 : 1,
-                    bgcolor: warning ? "#fffbeb" : "transparent",
-                    "&:hover": { bgcolor: disabled ? "transparent" : warning ? "#fef3c7" : "#f8fafc" },
-                }}
-            >
-                <Checkbox
-                    size="small"
-                    checked={checked}
-                    disabled={disabled}
-                    onChange={() => onToggle(field.key)}
-                    inputProps={{ "aria-label": field.label }}
-                    sx={{ p: 0.4, color: "#cbd5e1", "&.Mui-checked": { color: warning ? "#d97706" : "#2563eb" } }}
-                />
-                <Typography sx={{ fontSize: "0.82rem", fontWeight: checked ? 700 : 500, color: "#1e293b", lineHeight: 1.3, flex: 1, minWidth: 0 }} noWrap>
-                    {field.label}
-                </Typography>
-                {warning && <WarningIcon sx={{ fontSize: "1rem", color: "#d97706" }} />}
-                {isKpi && (
-                    <Box component="span" sx={{ fontSize: "0.7rem", fontWeight: 700, color: "#94a3b8", minWidth: 14, textAlign: "center" }}>
-                        {UNIT_BADGE[field.unit]}
-                    </Box>
-                )}
-            </Box>
-        </Tooltip>
+    const tooltip = warning || disabled ? getUnavailableReason(field, sources) : "";
+    const row = (
+        <Box
+            component="label"
+            sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.75,
+                px: 0.75,
+                py: 0.35,
+                borderRadius: "8px",
+                cursor: disabled ? "not-allowed" : "pointer",
+                opacity: disabled ? 0.5 : 1,
+                bgcolor: warning ? "#fffbeb" : "transparent",
+                "&:hover": { bgcolor: disabled ? "transparent" : warning ? "#fef3c7" : "#f8fafc" },
+            }}
+        >
+            <Checkbox
+                size="small"
+                checked={checked}
+                disabled={disabled}
+                onChange={() => onToggle(field.key)}
+                inputProps={{ "aria-label": field.label }}
+                sx={{ p: 0.4, color: "#cbd5e1", "&.Mui-checked": { color: warning ? "#d97706" : "#2563eb" } }}
+            />
+            <Typography sx={{ fontSize: "0.82rem", fontWeight: checked ? 700 : 500, color: "#1e293b", lineHeight: 1.3, flex: 1, minWidth: 0 }} noWrap>
+                {field.label}
+            </Typography>
+            {warning && <WarningIcon sx={{ fontSize: "1rem", color: "#d97706" }} />}
+            {isKpi && (
+                <Box component="span" sx={{ fontSize: "0.7rem", fontWeight: 700, color: "#94a3b8", minWidth: 14, textAlign: "center" }}>
+                    {UNIT_BADGE[field.unit]}
+                </Box>
+            )}
+        </Box>
     );
+
+    return tooltip ? (
+        <Tooltip title={<span style={{ whiteSpace: "pre-line" }}>{tooltip}</span>} placement="right" arrow enterDelay={400}>
+            {row}
+        </Tooltip>
+    ) : row;
 }
 
 export default function FieldPanel({ sources, columns, onToggle, onSelectAll, onClearOptional }) {

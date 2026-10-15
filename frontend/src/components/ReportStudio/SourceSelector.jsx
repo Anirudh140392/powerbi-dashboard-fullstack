@@ -18,7 +18,6 @@ export default function SourceSelector({ sources, onToggle }) {
                         key={source.id}
                         role="checkbox"
                         aria-checked={selected}
-                        title={source.description}
                         onClick={() => onToggle(source.id)}
                         sx={{
                             display: "flex",
