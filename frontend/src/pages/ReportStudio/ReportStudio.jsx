@@ -8,6 +8,7 @@ import { useDebounce } from "use-debounce";
 import { saveAs } from "file-saver";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
 import SourceSelector from "../../components/ReportStudio/SourceSelector";
 import TemplateGallery from "../../components/ReportStudio/TemplateGallery";
 import ReportingPeriodBar from "../../components/ReportStudio/ReportingPeriodBar";
@@ -15,7 +16,7 @@ import FieldPanel from "../../components/ReportStudio/FieldPanel";
 import ReportPreview from "../../components/ReportStudio/ReportPreview";
 import useReportConfig from "../../components/ReportStudio/useReportConfig";
 import usePivotConfig from "../../components/ReportStudio/usePivotConfig";
-import { FIELD_GROUPS, FIELDS_BY_KEY, REPORT_TEMPLATES } from "../../components/ReportStudio/reportStudioConfig";
+import { FIELD_GROUPS, FIELDS_BY_KEY, getTemplateCatalog, isMarsAccount } from "../../components/ReportStudio/reportStudioConfig";
 import { lastPeriods, resolvePeriodRange } from "../../components/ReportStudio/fiscalCalendar";
 import { buildFileName, isFieldAvailable } from "../../components/ReportStudio/reportStudioUtils";
 import { buildPivot, buildPivotCsv, PIVOT_SOURCE_ROW_LIMIT, resolvePivotLayout } from "../../components/ReportStudio/pivotUtils";
@@ -30,8 +31,8 @@ const supportedFields = ({ columns, sources }) =>
 const sameList = (a = [], b = []) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 /** The template whose sources, columns and pivot areas the current configuration still matches. */
-const findAppliedTemplate = (config, pivotConfig) =>
-    REPORT_TEMPLATES.find(
+const findAppliedTemplate = (templates, config, pivotConfig) =>
+    templates.find(
         (t) =>
             sameList(config.sources, t.sources) &&
             sameList(config.columns, t.columns) &&
@@ -58,6 +59,10 @@ const toReport = ({ totalRows, rows = [] }, { offset = 0, startDate, endDate }) 
 
 export default function ReportStudio() {
     const { timeStart, timeEnd, datesFetched } = useContext(FilterContext);
+    const { user } = useAuth();
+    // Mars gets the Special templates and its fiscal reporting periods; everyone else the General templates.
+    const hasFiscalPeriods = isMarsAccount(user?.dbName);
+    const catalog = useMemo(() => getTemplateCatalog(user?.dbName), [user?.dbName]);
     const { config, actions, validation } = useReportConfig();
     const { pivotConfig, pivotActions } = usePivotConfig();
     const [view, setView] = useState("raw");
@@ -76,9 +81,9 @@ export default function ReportStudio() {
 
     // The report covers either the dashboard's dates or a range of fiscal periods.
     const range = useMemo(() => {
-        if (period.mode === "fiscal") return resolvePeriodRange(period);
+        if (hasFiscalPeriods && period.mode === "fiscal") return resolvePeriodRange(period);
         return datesFetched && timeStart && timeEnd ? { start: timeStart, end: timeEnd } : null;
-    }, [period, datesFetched, timeStart, timeEnd]);
+    }, [hasFiscalPeriods, period, datesFetched, timeStart, timeEnd]);
     const datesReady = Boolean(range);
 
     // What the report API is asked for; null until there are dates and a source.
@@ -202,12 +207,12 @@ export default function ReportStudio() {
         }
     };
 
-    const appliedTemplate = view === "custom" ? findAppliedTemplate(config, pivotConfig) : undefined;
+    const appliedTemplate = view === "custom" ? findAppliedTemplate(catalog.templates, config, pivotConfig) : undefined;
 
     const applyTemplate = (template) => {
         actions.applyTemplate(template);
         pivotActions.applyTemplate(template.pivot);
-        if (template.periods) setPeriod({ mode: "fiscal", ...lastPeriods(template.periods) });
+        if (template.periods && hasFiscalPeriods) setPeriod({ mode: "fiscal", ...lastPeriods(template.periods) });
         setView("custom");
     };
 
@@ -264,11 +269,16 @@ export default function ReportStudio() {
                     </Button>
                 </Box>
 
-                <TemplateGallery appliedId={appliedTemplate?.id} onApply={applyTemplate} />
+                <TemplateGallery
+                    category={catalog.category}
+                    templates={catalog.templates}
+                    appliedId={appliedTemplate?.id}
+                    onApply={applyTemplate}
+                />
 
                 <SourceSelector sources={config.sources} onToggle={actions.toggleSource} />
 
-                <ReportingPeriodBar value={period} onChange={setPeriod} range={range} />
+                {hasFiscalPeriods && <ReportingPeriodBar value={period} onChange={setPeriod} range={range} />}
 
                 <Box
                     sx={{

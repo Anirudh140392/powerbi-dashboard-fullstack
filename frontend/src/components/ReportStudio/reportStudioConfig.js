@@ -12,7 +12,7 @@
  * instead of the visible range, and `better: "lower"` flips its colours.
  *
  * To add a table, KPI or template, extend REPORT_SOURCES / REPORT_FIELDS /
- * REPORT_TEMPLATES — the UI is driven entirely from these lists.
+ * SPECIAL_TEMPLATES / GENERAL_TEMPLATES — the UI is driven entirely from these lists.
  */
 
 export const REPORT_SOURCES = [
@@ -248,8 +248,21 @@ export const DIMENSION_VALUE_COLORS = {
  * Ready-made report layouts. Applying one sets the sources, report columns and
  * pivot configuration (any pivot option left out takes its default); `periods`
  * also switches the reporting period to the last N fiscal periods.
+ *
+ * Special templates are built for Mars and lean on its fiscal calendar; every
+ * other account gets the General set, which uses calendar dates only.
  */
-export const REPORT_TEMPLATES = [
+export const TEMPLATE_CATEGORIES = {
+    special: { id: "special", label: "Special", accent: "#7c3aed", tint: "#f5f3ff", border: "#ddd6fe" },
+    general: { id: "general", label: "General", accent: "#2563eb", tint: "#eff6ff", border: "#bfdbfe" },
+};
+
+// Every Mars database shares the Mars fiscal calendar.
+const MARS_ACCOUNTS = ["mars", "mars_dmart", "mars_petcare"];
+
+export const isMarsAccount = (dbName) => MARS_ACCOUNTS.includes(String(dbName || "").toLowerCase().trim());
+
+export const SPECIAL_TEMPLATES = [
     {
         id: "week_vs_week",
         label: "Week vs Week",
@@ -331,3 +344,88 @@ export const REPORT_TEMPLATES = [
         },
     },
 ];
+
+export const GENERAL_TEMPLATES = [
+    {
+        id: "month_vs_month",
+        label: "Month vs Month",
+        description: "Offtake and OSA by platform, with the change on the month before",
+        icon: "month",
+        sources: ["pdp"],
+        columns: ["date", "platform", "offtake", "osa"],
+        pivot: {
+            areas: { filters: [], rows: ["platform"], columns: ["date"], values: ["offtake", "osa"] },
+            dateGrain: "month",
+            valuesAxis: "rows",
+            compare: true,
+            grandTotals: false,
+        },
+    },
+    {
+        id: "brand_scorecard",
+        label: "Brand Scorecard",
+        description: "Offtake, OSA and discount for each brand across platforms",
+        icon: "brand",
+        sources: ["pdp"],
+        columns: ["date", "brand", "platform", "offtake", "osa", "discount"],
+        pivot: {
+            areas: { filters: ["date"], rows: ["brand"], columns: ["platform"], values: ["offtake", "osa", "discount"] },
+            valuesAxis: "rows",
+        },
+    },
+    {
+        id: "category_performance",
+        label: "Category Performance",
+        description: "Offtake and quantity sold by category, month on month",
+        icon: "category",
+        sources: ["pdp"],
+        columns: ["date", "category", "offtake", "qty_sold"],
+        pivot: {
+            areas: { filters: [], rows: ["category"], columns: ["date"], values: ["offtake", "qty_sold"] },
+            dateGrain: "month",
+        },
+    },
+    {
+        id: "city_osa",
+        label: "City-wise OSA",
+        description: "OSA by city across platforms, coloured against target",
+        icon: "city",
+        sources: ["pdp"],
+        columns: ["date", "city", "platform", "osa"],
+        pivot: {
+            areas: { filters: ["date"], rows: ["city"], columns: ["platform"], values: ["osa"] },
+            heatmap: true,
+        },
+    },
+    {
+        id: "share_of_search",
+        label: "Share of Search",
+        description: "SOS, ad and organic share of voice by keyword category",
+        icon: "search",
+        sources: ["kw"],
+        columns: ["date", "category", "platform", "sos", "ad_sov", "organic_sov"],
+        pivot: {
+            areas: { filters: ["date"], rows: ["category"], columns: ["platform"], values: ["sos", "ad_sov", "organic_sov"] },
+            valuesAxis: "rows",
+        },
+    },
+    {
+        id: "ad_performance",
+        label: "Ad Performance",
+        description: "Ad spend, ad sales and ROAS by platform, month on month",
+        icon: "ads",
+        sources: ["pm"],
+        columns: ["date", "platform", "ad_spend", "ad_sales", "roas"],
+        pivot: {
+            areas: { filters: [], rows: ["platform"], columns: ["date"], values: ["ad_spend", "ad_sales", "roas"] },
+            dateGrain: "month",
+            valuesAxis: "rows",
+        },
+    },
+];
+
+/** The template category and templates an account can use. */
+export const getTemplateCatalog = (dbName) =>
+    isMarsAccount(dbName)
+        ? { category: TEMPLATE_CATEGORIES.special, templates: SPECIAL_TEMPLATES }
+        : { category: TEMPLATE_CATEGORIES.general, templates: GENERAL_TEMPLATES };

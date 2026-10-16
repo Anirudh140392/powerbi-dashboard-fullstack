@@ -1,27 +1,95 @@
 import React from "react";
 import { Box, ButtonBase, Typography } from "@mui/material";
 import {
+    AutoAwesomeOutlined as SpecialIcon,
     CalendarMonthOutlined as PeriodIcon,
+    CalendarViewMonthOutlined as MonthIcon,
+    CampaignOutlined as AdsIcon,
+    CategoryOutlined as CategoryIcon,
     CheckCircle as AppliedIcon,
     DateRangeOutlined as WeekIcon,
+    GridViewOutlined as GeneralIcon,
     Inventory2Outlined as SkuIcon,
+    LocationCityOutlined as CityIcon,
+    ManageSearchOutlined as SearchIcon,
     MapOutlined as RegionIcon,
     PinDropOutlined as PincodeIcon,
+    SellOutlined as BrandIcon,
     WorkspacePremiumOutlined as TierIcon,
     DashboardCustomizeOutlined as DefaultIcon,
 } from "@mui/icons-material";
-import { REPORT_TEMPLATES } from "./reportStudioConfig";
 
-const TEMPLATE_ICONS = { week: WeekIcon, period: PeriodIcon, region: RegionIcon, sku: SkuIcon, pincode: PincodeIcon, tier: TierIcon };
+const TEMPLATE_ICONS = {
+    week: WeekIcon,
+    period: PeriodIcon,
+    region: RegionIcon,
+    sku: SkuIcon,
+    pincode: PincodeIcon,
+    tier: TierIcon,
+    month: MonthIcon,
+    brand: BrandIcon,
+    category: CategoryIcon,
+    city: CityIcon,
+    search: SearchIcon,
+    ads: AdsIcon,
+};
 
-export default function TemplateGallery({ appliedId, onApply }) {
+const CATEGORY_ICONS = { special: SpecialIcon, general: GeneralIcon };
+
+function CategoryBadge({ category }) {
+    const Icon = CATEGORY_ICONS[category.id];
     return (
-        <Box>
+        <Box
+            component="span"
+            sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.4,
+                px: 0.9,
+                py: 0.3,
+                borderRadius: "6px",
+                border: "1px solid",
+                borderColor: category.border,
+                bgcolor: category.tint,
+                color: category.accent,
+                fontSize: "0.66rem",
+                fontWeight: 800,
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+                lineHeight: 1,
+                whiteSpace: "nowrap",
+            }}
+        >
+            <Icon sx={{ fontSize: "0.8rem" }} />
+            {category.label}
+        </Box>
+    );
+}
+
+/** The templates of the account's category (Special or General), one click to apply. */
+export default function TemplateGallery({ category, templates, appliedId, onApply }) {
+    return (
+        <Box
+            component="section"
+            aria-label={`${category.label} templates`}
+            sx={{ border: "1px solid #e2e8f0", borderRadius: "12px", bgcolor: "#ffffff", p: 1.5 }}
+        >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.25, flexWrap: "wrap" }}>
+                <Typography component="h2" sx={{ fontSize: "0.82rem", fontWeight: 750, color: "#1e293b", whiteSpace: "nowrap" }}>
+                    {category.label} templates
+                </Typography>
+                <CategoryBadge category={category} />
+                <Box sx={{ flex: 1 }} />
+                <Typography sx={{ fontSize: "0.72rem", color: "#94a3b8", whiteSpace: "nowrap" }}>
+                    {templates.length} {templates.length === 1 ? "template" : "templates"}
+                </Typography>
+            </Box>
+
             <Box
                 role="list"
                 sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))", xl: "repeat(6, minmax(0, 1fr))" } }}
             >
-                {REPORT_TEMPLATES.map((template) => {
+                {templates.map((template) => {
                     const Icon = TEMPLATE_ICONS[template.icon] || DefaultIcon;
                     const applied = template.id === appliedId;
                     return (
@@ -55,8 +123,8 @@ export default function TemplateGallery({ appliedId, onApply }) {
                                     height: 30,
                                     flexShrink: 0,
                                     borderRadius: "8px",
-                                    bgcolor: applied ? "#dbeafe" : "#f1f5f9",
-                                    color: applied ? "#1d4ed8" : "#475569",
+                                    bgcolor: applied ? "#dbeafe" : category.tint,
+                                    color: applied ? "#1d4ed8" : category.accent,
                                 }}
                             >
                                 <Icon sx={{ fontSize: "1.1rem" }} />

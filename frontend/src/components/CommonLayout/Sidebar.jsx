@@ -948,7 +948,14 @@ const Sidebar = ({
                     <TableChartIcon />
                   </ListItemIcon>
                   <ListItemText
-                    primary={"Report Studio"}
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 0 }}>
+                        <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          Report Studio
+                        </Box>
+                        <SidebarStatusBadge type="NEW" />
+                      </Box>
+                    }
                     primaryTypographyProps={{
                       fontSize: "13px",
                       fontWeight: currentPath === '/report-studio' ? 700 : 500,
