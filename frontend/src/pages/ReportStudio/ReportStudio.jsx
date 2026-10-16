@@ -1,9 +1,8 @@
-import React, { useContext, useMemo, useRef, useState } from "react";
-import { Alert, Box, Button, Chip, CircularProgress, Snackbar, Tooltip, Typography } from "@mui/material";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Box, Button, CircularProgress, Snackbar, Tooltip, Typography } from "@mui/material";
 import {
     FileDownloadOutlined as DownloadIcon,
     RestartAlt as ResetIcon,
-    ScienceOutlined as SampleIcon,
 } from "@mui/icons-material";
 import { useDebounce } from "use-debounce";
 import { saveAs } from "file-saver";
@@ -18,10 +17,9 @@ import useReportConfig from "../../components/ReportStudio/useReportConfig";
 import usePivotConfig from "../../components/ReportStudio/usePivotConfig";
 import { FIELD_GROUPS, FIELDS_BY_KEY, REPORT_TEMPLATES } from "../../components/ReportStudio/reportStudioConfig";
 import { lastPeriods, resolvePeriodRange } from "../../components/ReportStudio/fiscalCalendar";
-import { buildCsv, buildFileName, isFieldAvailable } from "../../components/ReportStudio/reportStudioUtils";
+import { buildFileName, isFieldAvailable } from "../../components/ReportStudio/reportStudioUtils";
 import { buildPivot, buildPivotCsv, PIVOT_SOURCE_ROW_LIMIT, resolvePivotLayout } from "../../components/ReportStudio/pivotUtils";
-// Sample data stands in for the report API until the backend is wired up.
-import { buildSampleReport, SAMPLE_EXPORT_ROW_LIMIT } from "../../components/ReportStudio/reportStudioSampleData";
+import { downloadStudioCsv, fetchStudioPreview, fetchStudioRows } from "../../api/reportsService";
 
 const PREVIEW_DEBOUNCE_MS = 300;
 
@@ -42,6 +40,22 @@ const findAppliedTemplate = (config, pivotConfig) =>
 
 const defaultPeriod = () => ({ mode: "dashboard", ...lastPeriods(1) });
 
+/** Fields the tenant's data can't supply are flagged, so their cells read NA. */
+const markUnavailable = (fields, unavailable = []) =>
+    fields.map((f) => (unavailable.includes(f.key) ? { ...f, unavailable: true } : f));
+
+/**
+ * The report API's rows as the report object the preview and pivot read:
+ * { totalRows, getRow(index), startDate, endDate }. A page holds rows from
+ * `offset` on; a pivot request too large to send holds none.
+ */
+const toReport = ({ totalRows, rows = [] }, { offset = 0, startDate, endDate }) => ({
+    totalRows,
+    getRow: (index) => rows[index - offset] || {},
+    startDate,
+    endDate,
+});
+
 export default function ReportStudio() {
     const { timeStart, timeEnd, datesFetched } = useContext(FilterContext);
     const { config, actions, validation } = useReportConfig();
@@ -50,8 +64,10 @@ export default function ReportStudio() {
     const [period, setPeriod] = useState(defaultPeriod);
     const [debouncedConfig] = useDebounce(config, PREVIEW_DEBOUNCE_MS);
     const [attempt, setAttempt] = useState(0);
-    const [pageState, setPageState] = useState({ report: null, page: 1 });
+    const [pageState, setPageState] = useState({ key: null, page: 1 });
     const [pageSize, setPageSize] = useState(25);
+    const [result, setResult] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const exportingRef = useRef(false);
     // Kept after closing so the toast keeps its content during the exit transition.
@@ -65,25 +81,62 @@ export default function ReportStudio() {
     }, [period, datesFetched, timeStart, timeEnd]);
     const datesReady = Boolean(range);
 
-    const preview = useMemo(() => {
-        if (!datesReady) return { status: "loading", fields: [], attempt };
-        if (!debouncedConfig.sources.length) return { status: "no-source", fields: [], attempt };
+    // What the report API is asked for; null until there are dates and a source.
+    const request = useMemo(() => {
+        if (!datesReady || !debouncedConfig.sources.length) return null;
         const fields = supportedFields(debouncedConfig);
-        try {
-            const report = buildSampleReport({
-                sources: debouncedConfig.sources,
-                fields,
-                startDate: range.start,
-                endDate: range.end,
-            });
-            return { status: "ready", fields, report, attempt };
-        } catch (error) {
-            console.error("[ReportStudio] Failed to build preview:", error);
-            return { status: "error", fields, attempt };
-        }
-    }, [debouncedConfig, datesReady, range, attempt]);
+        const params = {
+            sources: debouncedConfig.sources,
+            columns: fields.map((f) => f.key),
+            startDate: range.start.format("YYYY-MM-DD"),
+            endDate: range.end.format("YYYY-MM-DD"),
+        };
+        return { fields, params, key: JSON.stringify(params) };
+    }, [debouncedConfig, datesReady, range]);
 
-    // The pivot summarises the previewed report, so it follows the same debounce.
+    // Paging restarts whenever the report changes.
+    const page = pageState.key === request?.key ? pageState.page : 1;
+    const setPage = (next) => setPageState({ key: request?.key, page: next });
+
+    // The raw view loads one page at a time; the pivot loads every row it summarises.
+    useEffect(() => {
+        if (!request) return undefined;
+        const controller = new AbortController();
+        const { params, fields } = request;
+        const load = view === "custom"
+            ? fetchStudioRows(params, { signal: controller.signal })
+            : fetchStudioPreview({ ...params, page, pageSize }, { signal: controller.signal });
+        setIsLoading(true);
+        load
+            .then((data) => {
+                const offset = view === "custom" ? 0 : (page - 1) * pageSize;
+                setResult({
+                    view,
+                    status: "ready",
+                    fields: markUnavailable(fields, data.unavailable),
+                    report: toReport(data, { offset, startDate: params.startDate, endDate: params.endDate }),
+                });
+            })
+            .catch((error) => {
+                if (controller.signal.aborted) return;
+                console.error("[ReportStudio] Failed to load the report:", error);
+                setResult({ view, status: "error", fields });
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setIsLoading(false);
+            });
+        return () => controller.abort();
+    }, [request, view, page, pageSize, attempt]);
+
+    // While a new page or configuration loads, the previous result stays on
+    // screen; switching view waits for that view's own data.
+    let preview;
+    if (!datesReady) preview = { status: "loading", fields: [] };
+    else if (!debouncedConfig.sources.length) preview = { status: "no-source", fields: [] };
+    else if (!result || result.view !== view) preview = { status: "loading", fields: [] };
+    else preview = result;
+
+    // The pivot summarises the loaded rows, so it follows the same debounce.
     const pivot = useMemo(() => {
         if (view !== "custom" || preview.status !== "ready") return null;
         try {
@@ -94,75 +147,59 @@ export default function ReportStudio() {
         }
     }, [view, preview, pivotConfig]);
 
-    const isUpdating = datesReady && config !== debouncedConfig;
-
-    // Paging restarts whenever the report changes.
-    const page = pageState.report === preview.report ? pageState.page : 1;
-    const setPage = (next) => setPageState({ report: preview.report, page: next });
+    const isUpdating = datesReady && (config !== debouncedConfig || isLoading);
 
     const hasPivotValues = resolvePivotLayout(supportedFields(config), pivotConfig.areas).values.length > 0;
     const downloadBlockedReason = !datesReady
         ? "Waiting for the time period to load"
-        : validation.errors[0] || (view === "custom" && !hasPivotValues ? "Add a KPI to Values to download the pivot" : undefined);
+        : validation.errors[0] ||
+          (view === "custom" && !hasPivotValues ? "Add a KPI to Values to download the pivot" : undefined) ||
+          (isUpdating || preview.status !== "ready" ? "Waiting for the report to load" : undefined);
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
         if (exportingRef.current || downloadBlockedReason) return;
+        const { report } = preview;
+        const rowCount = report.totalRows.toLocaleString("en-IN");
+        if (report.totalRows === 0) {
+            notify("warning", "No records to download for this time period.");
+            return;
+        }
+        const { sources, startDate, endDate } = request.params;
+        const fileName = buildFileName(sources, startDate, endDate, { pivot: view === "custom" });
+
+        if (view === "custom") {
+            if (pivot.status === "error") {
+                notify("error", "The pivot couldn't be built. Please try again.");
+                return;
+            }
+            if (pivot.status === "too-large") {
+                notify(
+                    "error",
+                    `${rowCount} rows is more than the ${PIVOT_SOURCE_ROW_LIMIT.toLocaleString("en-IN")} rows the pivot can summarise. Shorten the time period or remove columns.`
+                );
+                return;
+            }
+            if (pivot.status === "filtered-out") {
+                notify("warning", "No rows match the pivot filters.");
+                return;
+            }
+            saveAs(new Blob([buildPivotCsv(pivot)], { type: "text/csv;charset=utf-8" }), fileName);
+            notify("success", `Downloaded ${fileName} (pivot of ${rowCount} rows)`);
+            return;
+        }
+
         exportingRef.current = true;
         setIsExporting(true);
-
-        // Yield once so the button's progress state paints before the CSV is built.
-        setTimeout(() => {
-            try {
-                const fields = supportedFields(config);
-                const report = buildSampleReport({
-                    sources: config.sources,
-                    fields,
-                    startDate: range.start,
-                    endDate: range.end,
-                });
-                const rowCount = report.totalRows.toLocaleString("en-IN");
-                if (report.totalRows === 0) {
-                    notify("warning", "No records to download for this time period.");
-                    return;
-                }
-                const fileName = buildFileName(config.sources, range.start, range.end, { sample: true, pivot: view === "custom" });
-                const save = (csv) => saveAs(new Blob([csv], { type: "text/csv;charset=utf-8" }), fileName);
-
-                if (view === "custom") {
-                    const result = buildPivot(report, fields, pivotConfig);
-                    if (result.status === "too-large") {
-                        notify(
-                            "error",
-                            `${rowCount} rows is more than the ${PIVOT_SOURCE_ROW_LIMIT.toLocaleString("en-IN")} rows the pivot can summarise. Shorten the time period or remove columns.`
-                        );
-                        return;
-                    }
-                    if (result.status === "filtered-out") {
-                        notify("warning", "No rows match the pivot filters.");
-                        return;
-                    }
-                    save(buildPivotCsv(result));
-                    notify("success", `Downloaded ${fileName} (pivot of ${rowCount} rows)`);
-                    return;
-                }
-
-                if (report.totalRows > SAMPLE_EXPORT_ROW_LIMIT) {
-                    notify(
-                        "error",
-                        `${rowCount} rows exceeds the ${SAMPLE_EXPORT_ROW_LIMIT.toLocaleString("en-IN")}-row sample export limit. Shorten the time period or remove columns.`
-                    );
-                    return;
-                }
-                save(buildCsv(fields, report));
-                notify("success", `Downloaded ${fileName} (${rowCount} rows)`);
-            } catch (error) {
-                console.error("[ReportStudio] CSV export failed:", error);
-                notify("error", "The CSV couldn't be generated. Please try again.");
-            } finally {
-                exportingRef.current = false;
-                setIsExporting(false);
-            }
-        }, 0);
+        try {
+            saveAs(await downloadStudioCsv(request.params), fileName);
+            notify("success", `Downloaded ${fileName} (${rowCount} rows)`);
+        } catch (error) {
+            console.error("[ReportStudio] CSV export failed:", error);
+            notify("error", "The CSV couldn't be generated. Please try again.");
+        } finally {
+            exportingRef.current = false;
+            setIsExporting(false);
+        }
     };
 
     const appliedTemplate = view === "custom" ? findAppliedTemplate(config, pivotConfig) : undefined;
@@ -206,14 +243,6 @@ export default function ReportStudio() {
                         <Typography component="h1" sx={{ fontWeight: 700, color: "#1e293b", fontSize: "1.15rem" }}>
                             Report Studio
                         </Typography>
-                        <Tooltip title="The preview and CSV use generated sample values until the live data connection is added." arrow>
-                            <Chip
-                                icon={<SampleIcon sx={{ fontSize: "0.95rem !important" }} />}
-                                label="Sample data"
-                                size="small"
-                                sx={{ height: 22, fontSize: "0.7rem", fontWeight: 700, bgcolor: "#fffbeb", color: "#b45309", border: "1px solid #fde68a", "& .MuiChip-icon": { color: "#d97706" } }}
-                            />
-                        </Tooltip>
                     </Box>
 
                     <Button

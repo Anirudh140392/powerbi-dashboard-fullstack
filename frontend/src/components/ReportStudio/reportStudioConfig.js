@@ -231,6 +231,7 @@ export const DIMENSION_VALUE_COLORS = {
         Blinkit: "#eab308",
         Zepto: "#6d28d9",
         "Swiggy Instamart": "#ea580c",
+        Instamart: "#ea580c",
         BigBasket: "#65a30d",
         Amazon: "#0f172a",
         Flipkart: "#2563eb",

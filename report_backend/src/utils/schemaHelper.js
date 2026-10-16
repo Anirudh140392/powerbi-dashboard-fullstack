@@ -16,10 +16,12 @@ export async function getTableColumns(tableName) {
         const result = await queryClickHouse(`DESCRIBE TABLE ${tableName}`);
         const columns = new Map();
         columns.rawColumns = new Set();
+        columns.types = new Map(); // actual column name → ClickHouse type
 
         for (const row of result) {
             const colName = row.name || row.Name;
             if (colName) {
+                columns.types.set(colName, row.type || row.Type || '');
                 const lowerColName = colName.toLowerCase();
                 if (columns.has(lowerColName)) {
                     if (colName === lowerColName) {
@@ -38,6 +40,7 @@ export async function getTableColumns(tableName) {
         console.error(`[ColumnDiscovery] Failed to describe ${tableName}:`, error.message);
         const columns = new Map();
         columns.rawColumns = new Set();
+        columns.types = new Map();
         return columns;
     }
 }

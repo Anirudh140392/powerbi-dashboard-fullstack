@@ -515,6 +515,7 @@ export const buildPivotCsv = (pivot) => {
     const cells = (rowPath, lineVi) =>
         outputs.map(({ col, vi, change }) => {
             const index = vi ?? lineVi;
+            if (layout.values[index].field.unavailable && layout.values[index].agg !== "count") return "NA";
             return csvNumber(change ? changeAt(rowPath, col, index)?.value ?? null : valueAt(rowPath, col.path, index));
         });
     const emit = (rowPath, labels) => {

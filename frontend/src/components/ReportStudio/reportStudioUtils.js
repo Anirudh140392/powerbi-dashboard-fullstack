@@ -28,8 +28,6 @@ export const getUnavailableReason = (field, sources) => {
     return `Not available in ${missing.join(", ")}`;
 };
 
-export const isFilterActive = (value) => value !== undefined && value !== "All";
-
 export const validateConfig = ({ sources, columns }) => {
     const unsupported = columns
         .map((key) => FIELDS_BY_KEY[key])
@@ -58,8 +56,12 @@ export const columnLetter = (index) => {
 
 const UNIT_FORMAT_KEY = { currency: "spend", percent: "share", ratio: "roas" };
 
-/** Preview formatting follows the app's KPI conventions (₹ K/Lacs/Cr, %, x). */
+/**
+ * Preview formatting follows the app's KPI conventions (₹ K/Lacs/Cr, %, x).
+ * Fields the tenant's data can't supply read NA.
+ */
 export const formatCellValue = (field, value) => {
+    if (field.unavailable) return "NA";
     if (value === null || value === undefined || value === "") return "—";
     if (field.type === "date") return dayjs(value).format("DD MMM YYYY");
     if (field.group !== FIELD_GROUPS.KPI) return String(value);
@@ -79,22 +81,8 @@ export const csvEscape = (value) => {
     return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
 };
 
-/**
- * Builds the CSV text for every row of the report. Values are written raw
- * (ISO dates, unformatted numbers) so the file stays machine-readable; the BOM
- * lets Excel detect UTF-8 for the ₹ in the headers.
- */
-export const buildCsv = (fields, report) => {
-    const lines = [fields.map((f) => csvEscape(columnHeaderLabel(f))).join(",")];
-    for (let i = 0; i < report.totalRows; i += 1) {
-        const row = report.getRow(i);
-        lines.push(fields.map((f) => csvEscape(row[f.key])).join(","));
-    }
-    return `\uFEFF${lines.join("\r\n")}\r\n`;
-};
-
-export const buildFileName = (sources, start, end, { sample = false, pivot = false } = {}) => {
+export const buildFileName = (sources, start, end, { pivot = false } = {}) => {
     const sourcePart = sources.join("-");
     const range = `${dayjs(start).format("YYYY-MM-DD")}_to_${dayjs(end).format("YYYY-MM-DD")}`;
-    return `report_studio_${sourcePart}_${range}${pivot ? "_pivot" : ""}${sample ? "_sample" : ""}.csv`;
+    return `report_studio_${sourcePart}_${range}${pivot ? "_pivot" : ""}.csv`;
 };
