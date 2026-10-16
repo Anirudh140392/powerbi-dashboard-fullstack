@@ -1,42 +1,44 @@
 import { Box, Card, CardContent, Typography, Chip } from "@mui/material";
 import { useState } from "react";
 
-const RCACardMetric = () => {
-  const cards = [
+const RCACardMetric = ({ cards: propCards }) => {
+  const defaultCards = [
     {
-    title: "Estimated Offtake",
-    value: "₹2.3 Cr",
-    sub: "for MTD",
-    change: "▼1.8% (₹4.3 lac)",
-    changeColor: "red",
-    prevText: "vs Previous Month",
-    extra: "#Units: 1.4 lac",
-    extraChange: "▼6.6%",
-    extraChangeColor: "red"
-  },
-  {
-    title: "Estimated Category Share",
-    value: "35.9%",
-    sub: "for MTD",
-    change: "▼5.4% (-2.0%)",
-    changeColor: "red",
-    prevText: "vs Previous Month",
-    extra: "#Units: 1.4 lac",
-    extraChange: "▼6.6%",
-    extraChangeColor: "red"
-  },
-  {
-    title: "Estimated Category Size",
-    value: "₹6.5 Cr",
-    sub: "for MTD",
-    change: "▲3.8% (₹24.1 lac)",
-    changeColor: "green",
-    prevText: "vs Previous Month",
-  }
-];
+      title: "Estimated Offtake",
+      value: "₹2.3 Cr",
+      sub: "for MTD",
+      change: "▼1.8% (₹4.3 lac)",
+      changeColor: "red",
+      prevText: "vs Previous Month",
+      extra: "#Units: 1.4 lac",
+      extraChange: "▼6.6%",
+      extraChangeColor: "red"
+    },
+    {
+      title: "Estimated Category Share",
+      value: "35.9%",
+      sub: "for MTD",
+      change: "▼5.4% (-2.0%)",
+      changeColor: "red",
+      prevText: "vs Previous Month",
+      extra: "#Units: 1.4 lac",
+      extraChange: "▼6.6%",
+      extraChangeColor: "red"
+    },
+    {
+      title: "Estimated Category Size",
+      value: "₹6.5 Cr",
+      sub: "for MTD",
+      change: "▲3.8% (₹24.1 lac)",
+      changeColor: "green",
+      prevText: "vs Previous Month",
+    }
+  ];
+
+  const cards = propCards || defaultCards;
   const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
 
-  // Generate smooth data
+  // Generate smooth data (keeping for visual trend)
   const generateValues = () => {
     return months.map(() => Math.floor(Math.random() * 60) + 20);
   };
@@ -73,7 +75,7 @@ const RCACardMetric = () => {
             <Chip label="All" size="small" variant="outlined" />
           </Box>
 
-          <Chip label="MTD vs Previous Month" variant="filled" />
+          {/* <Chip label="MTD vs Previous Month" variant="filled" /> */}
         </Box>
 
         {/* Cards Row */}
@@ -133,36 +135,36 @@ const MiniChartCard = ({ card, months, values, color, scrollNeeded, totalCards }
     <Card
       sx={{
         flexShrink: 0,
-        width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
-        borderRadius: 3,
+        width: scrollNeeded ? 550 : `${100 / Math.min(totalCards, 4) - 1}%`,
+        borderRadius: 5,
         scrollSnapAlign: "start",
         transition: "0.25s",
         "&:hover": { transform: "translateY(-5px)", boxShadow: 6 },
       }}
     >
       <CardContent>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body1" color="text.secondary" sx={{ fontSize: "1.8rem", mb: 1.0, fontWeight: 600 }}>
           {card.title}
         </Typography>
-
-        <Typography variant="h5" fontWeight={600}>
+ 
+        <Typography variant="h2" fontWeight={800} sx={{ mb: 1.5 }}>
           {card.value}{" "}
-          <Typography component="span" color="text.secondary">
+          <Typography component="span" color="text.secondary" sx={{ fontSize: "2.0rem" }}>
             {card.sub}
           </Typography>
         </Typography>
-
-        <Typography variant="body2" sx={{ color: card.changeColor, mt: 1 }}>
+ 
+        <Typography variant="body1" sx={{ color: card.changeColor, mt: 2.0, fontWeight: 700, fontSize: "1.6rem" }}>
           {card.change}{" "}
-          <Typography component="span" color="text.secondary">
+          <Typography component="span" color="text.secondary" sx={{ fontSize: "1.4rem" }}>
             {card.prevText}
           </Typography>
         </Typography>
 
         {card.extra && (
-          <Typography variant="body2" color="text.secondary" mt={0.5}>
+          <Typography variant="body1" color="text.secondary" mt={2} fontSize={24}>
             {card.extra}{" "}
-            <span style={{ color: card.extraChangeColor }}>{card.extraChange}</span>
+            <span style={{ color: card.extraChangeColor, fontWeight: 700 }}>{card.extraChange}</span>
           </Typography>
         )}
 
@@ -175,64 +177,64 @@ const MiniChartCard = ({ card, months, values, color, scrollNeeded, totalCards }
 
           {/* Dots layer - positioned absolutely to maintain circular shape */}
           {/* Dots + Tooltip */}
-{values.map((v, i) => {
-  const xPercent = (i / (values.length - 1)) * 100;
-  const yPercent = 100 - v;
+          {values.map((v, i) => {
+            const xPercent = (i / (values.length - 1)) * 100;
+            const yPercent = 100 - v;
 
-  return (
-    <Box key={i}>
-      {/* Tooltip */}
-      {hover === i && (
-        <Box
-          sx={{
-            position: "absolute",
-            left: `${xPercent}%`,
-            top: `${(yPercent / 110) * 100 - 12}%`,
-            transform: "translate(-50%, -100%)",
-            bgcolor: "white",
-            px: 1.2,
-            py: 0.6,
-            borderRadius: 1.5,
-            boxShadow: 3,
-            zIndex: 5,
-            minWidth: 55,
-            textAlign: "center",
-          }}
-        >
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>
-            {months[i]}
-          </Typography>
-          <Typography
-            variant="caption"
-            sx={{ display: "block", color: "#555", fontSize: "0.7rem", whiteSpace: "nowrap" }}
-          >
-            value : {v}
-          </Typography>
-        </Box>
-      )}
+            return (
+              <Box key={i}>
+                {/* Tooltip */}
+                {hover === i && (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      left: `${xPercent}%`,
+                      top: `${(yPercent / 110) * 100 - 12}%`,
+                      transform: "translate(-50%, -100%)",
+                      bgcolor: "white",
+                      px: 1.2,
+                      py: 0.6,
+                      borderRadius: 1.5,
+                      boxShadow: 3,
+                      zIndex: 5,
+                      minWidth: 55,
+                      textAlign: "center",
+                    }}
+                  >
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                      {months[i]}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ display: "block", color: "#555", fontSize: "0.7rem", whiteSpace: "nowrap" }}
+                    >
+                      value : {v}
+                    </Typography>
+                  </Box>
+                )}
 
-      {/* Dot */}
-      <Box
-        sx={{
-          position: "absolute",
-          left: `${xPercent}%`,
-          top: `${(yPercent / 110) * 100}%`,
-          width: hover === i ? 10 : 8,
-          height: hover === i ? 10 : 8,
-          borderRadius: "50%",
-          backgroundColor: hover === i ? color : "white",
-          border: `2px solid ${color}`,
-          transform: "translate(-50%, -50%)",
-          transition: "all 0.2s ease",
-          cursor: "pointer",
-          zIndex: 2,
-        }}
-        onMouseEnter={() => setHover(i)}
-        onMouseLeave={() => setHover(null)}
-      />
-    </Box>
-  );
-})}
+                {/* Dot */}
+                <Box
+                  sx={{
+                    position: "absolute",
+                    left: `${xPercent}%`,
+                    top: `${(yPercent / 110) * 100}%`,
+                    width: hover === i ? 10 : 8,
+                    height: hover === i ? 10 : 8,
+                    borderRadius: "50%",
+                    backgroundColor: hover === i ? color : "white",
+                    border: `2px solid ${color}`,
+                    transform: "translate(-50%, -50%)",
+                    transition: "all 0.2s ease",
+                    cursor: "pointer",
+                    zIndex: 2,
+                  }}
+                  onMouseEnter={() => setHover(i)}
+                  onMouseLeave={() => setHover(null)}
+                />
+              </Box>
+            );
+          })}
 
 
           {/* X-axis labels */}
@@ -247,7 +249,7 @@ const MiniChartCard = ({ card, months, values, color, scrollNeeded, totalCards }
                   opacity: 0.7
                 }}
               >
-               
+
               </Typography>
             ))}
           </Box>
