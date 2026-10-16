@@ -1473,9 +1473,9 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
 
     // Info tooltips for specific KPIs (shown as ℹ icon on hover)
     const KPI_INFO_TOOLTIPS = {
-      'osa': "Weighted OSA represents the average product availability within a category, factoring in each SKU’s importance alongside its individual availability percentage.",
-      'doi': "Days of Inventory refers to the estimated number of days the combined stock from both the backend warehouses and frontend darkstores can sustain, based on the average daily sales or consumption rate.",
-      'availability': "This metric reflects stock availability exclusively across Tier 1 metro cities, providing a focused view of inventory health in high-demand urban markets."
+      'osa': "The proportion of stores or locations where a product is available for purchase at a given time.",
+      'doi': "The number of days current inventory is expected to last based on the recent sales trend (last 30 days).",
+      'availability': "The proportion of stores or locations where a product is available for purchase at a given time for metro cities."
     };
 
     if (isQuickCom) {

@@ -37,6 +37,7 @@ import {
   EmojiObjects as ExampleIcon,
   Calculate as LogicIcon,
   InfoOutlined as InfoIcon,
+  StarBorder as StarBorderIcon,
 } from "@mui/icons-material";
 
 import { useHelp } from "../../utils/HelpContext";
@@ -45,13 +46,18 @@ const HelpDrawer = ({ userDbName }) => {
   const { helpDrawerOpen, activeHelpMenu, closeHelp } = useHelp();
   const [activeTab, setActiveTab] = useState(0);
   const [activeMenu, setActiveMenu] = useState("Business Overview");
-  const [expandedKpi, setExpandedKpi] = useState(null);
+  const [expandedKpi, setExpandedKpi] = useState("Offtake");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Sync with context's activeHelpMenu when opening
   React.useEffect(() => {
-    if (helpDrawerOpen && activeHelpMenu) {
-      setActiveMenu(activeHelpMenu);
+    if (helpDrawerOpen) {
+      if (activeHelpMenu) {
+        setActiveMenu(activeHelpMenu);
+      }
+      if (activeHelpMenu === "Business Overview" || (!activeHelpMenu && activeMenu === "Business Overview")) {
+        setExpandedKpi(prev => prev || "Offtake");
+      }
     }
   }, [helpDrawerOpen, activeHelpMenu]);
 
@@ -63,7 +69,9 @@ const HelpDrawer = ({ userDbName }) => {
       interpretation: "Higher offtake → strong sales performance.",
       pitfalls: "Price vs volume confusion; double counting across SKUs.",
       example: "Brand sales = ₹5 Cr in last 30 days.",
-      logic: "Sum(Sales Value). Note: Organic Sales = Offtake - Inorganic Sales.",
+      logic: "Sum(Sales Value)",
+      info: "Sales Data: Updated daily and available by 2:00 PM. Note: Organic Sales = Offtake - Inorganic Sales.",
+      aliases: ["Offtakes", "Sales Value"],
     },
     {
       kpi: "Availability",
@@ -73,6 +81,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Ignoring OOS vs not listed; denominator issues.",
       example: "Available in 80 out of 100 stores → 80%.",
       logic: "(Available Stores ÷ Total Stores) × 100",
+      aliases: ["OSA", "On-Shelf Availability", "Stock Availability"],
     },
     {
       kpi: "Share of Search (SOS)",
@@ -83,6 +92,7 @@ const HelpDrawer = ({ userDbName }) => {
       example: "4 SKUs in top 10 → 40%.",
       logic: "(Brand SKUs in Top N ÷ N) × 100",
       info: "• By default, SOS across the dashboard is calculated using Top 10 positions (POSITION ≤ 10).\n• To analyze SOS for Top 20, Top 30, or Top 40, use the rank filter available on the Visibility page.\n• Unless another rank bucket is selected in Visibility, all other pages will continue showing SOS values based on Top 10 results.",
+      aliases: ["Share of Search", "SOS"],
     },
     {
       kpi: "Market Share",
@@ -92,51 +102,18 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Crawl time variations.",
       example: "₹1 Cr / ₹5 Cr → 20%.",
       logic: "(Brand Sales ÷ Category Sales) × 100",
+      info: "Market Share data is currently available only for the 11 Tier-1 cities.",
+      aliases: ["Market Share %"],
     },
     {
-      kpi: "Promo",
+      kpi: "Discount",
       definition: "A price reduction or special offer applied to a product to encourage customer purchases.",
       usage: "Evaluate promo effectiveness.",
       interpretation: "High promo → deal-driven demand → High sales.",
       pitfalls: "Over-reliance reduces margins.",
       example: "₹2 Cr out of ₹5 Cr under discount.",
       logic: "(MRP - Selling Price)/ MRP",
-    },
-    {
-      kpi: "Inorganic Sales",
-      definition: "Sales generated through paid channels, including advertisements and sponsored placements.",
-      usage: "Measure paid contribution.",
-      interpretation: "High inorganic → dependency on ads.",
-      pitfalls: "Depends upon keyword targeting",
-      example: "₹1.5 Cr via ads.",
-      logic: "Sum(Ad Sales Value)",
-    },
-    {
-      kpi: "Conversion",
-      definition: "The rate at which user interactions (such as clicks or views) result in a purchase.",
-      usage: "Evaluate funnel efficiency.",
-      interpretation: "Higher conversion → strong product appeal.",
-      pitfalls: "",
-      example: "500 orders from 10,000 clicks → 5%.",
-      logic: "(Orders ÷ Clicks) × 100",
-    },
-    {
-      kpi: "ROAS (Return on Ad Spend)",
-      definition: "The revenue generated for every unit of advertising spend.",
-      usage: "Measure ad efficiency.",
-      interpretation: "Higher ROAS → profitable campaigns.",
-      pitfalls: "",
-      example: "₹5 revenue on ₹1 spend → ROAS = 5.",
-      logic: "Revenue ÷ Ad Spend",
-    },
-    {
-      kpi: "Orders",
-      definition: "The total number of completed purchase transactions within a given period.",
-      usage: "Track demand volume.",
-      interpretation: "Higher orders → higher demand.",
-      pitfalls: "Duplicate orders; cancellations not excluded.",
-      example: "2,000 orders in a week.",
-      logic: "Count of Orders",
+      aliases: ["Promo", "Promotion", "Discount %"],
     },
     {
       kpi: "Spend",
@@ -146,6 +123,47 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "",
       example: "₹50,000 ad spend.",
       logic: "Sum(Ad Spend)",
+      aliases: ["Ad Spend", "Total Spend"],
+    },
+    {
+      kpi: "Inorganic Sales",
+      definition: "Sales generated through paid channels, including advertisements and sponsored placements.",
+      usage: "Measure paid contribution.",
+      interpretation: "High inorganic → dependency on ads.",
+      pitfalls: "Depends upon keyword targeting",
+      example: "₹1.5 Cr via ads.",
+      logic: "Sum(Ad Sales Value)",
+      aliases: ["Inorg Sales", "Paid Sales"],
+    },
+    {
+      kpi: "Orders",
+      definition: "The total number of completed purchase transactions within a given period through ads.",
+      usage: "Track demand volume.",
+      interpretation: "Higher orders → higher demand.",
+      pitfalls: "Duplicate orders; cancellations not excluded.",
+      example: "2,000 orders in a week.",
+      logic: "Count of Orders",
+      aliases: ["Ad Units", "Ad Quantity Sold"],
+    },
+    {
+      kpi: "Conversion",
+      definition: "The rate at which user interactions (such as clicks or views) result in a purchase.",
+      usage: "Evaluate funnel efficiency.",
+      interpretation: "Higher conversion → strong product appeal.",
+      pitfalls: "",
+      example: "500 orders from 10,000 clicks → 5%.",
+      logic: "(Orders ÷ Clicks) × 100",
+      aliases: ["Orders / Clicks", "Conversion Rate"],
+    },
+    {
+      kpi: "ROAS (Return on Ad Spend)",
+      definition: "The revenue generated for every unit of advertising spend.",
+      usage: "Measure ad efficiency.",
+      interpretation: "Higher ROAS → profitable campaigns.",
+      pitfalls: "",
+      example: "₹5 revenue on ₹1 spend → ROAS = 5.",
+      logic: "Revenue ÷ Ad Spend",
+      aliases: ["ROAS", "Return on Ad Spend"],
     },
     {
       kpi: "Category Size",
@@ -155,6 +173,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Crawl time variations.",
       example: "₹10 Cr estimated category sales.",
       logic: "Total Category Sales",
+      aliases: ["Category Size", "Total Category Sales"],
     },
     {
       kpi: "Sponsored SOS",
@@ -164,6 +183,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "",
       example: "Out of 4 slots, 2 are sponsored listings of brand → 50%.",
       logic: "Sponsored SOS = (Sponsored Brand Appearances ÷ N) × 100",
+      aliases: ["Sponsored Share of Search", "Paid SOS"],
     },
     {
       kpi: "Organic SOS",
@@ -173,6 +193,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "",
       example: "Out of 6 slots, 2 organic brand listings → 33%.",
       logic: "Organic SOS = (Organic Brand Appearances ÷ N) × 100",
+      aliases: ["Organic Share of Search"],
     },
     {
       kpi: "CPM (Cost per Mille)",
@@ -182,6 +203,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Not comparing across campaigns.",
       example: "₹200 for 10,000 impressions → CPM = ₹20.",
       logic: "(Spend ÷ Impressions) × 1000",
+      aliases: ["CPM", "Cost per Mille"],
     },
     {
       kpi: "CPC (Cost per Click)",
@@ -191,6 +213,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "",
       example: "₹1,000 spend for 500 clicks → ₹2 CPC.",
       logic: "Spend ÷ Clicks",
+      aliases: ["CPC", "Cost per Click"],
     },
     {
       kpi: "Impressions",
@@ -200,6 +223,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "",
       example: "1,00,000 impressions.",
       logic: "Count of Impressions",
+      aliases: ["Total Impressions"],
     },
     {
       kpi: "Clicks",
@@ -209,6 +233,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Bot clicks.",
       example: "5,000 clicks.",
       logic: "Count of Clicks",
+      aliases: ["Total Clicks"],
     },
     {
       kpi: "CTR (Click-Through Rate)",
@@ -218,36 +243,130 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "High CTR but low conversion.",
       example: "5,000 clicks / 1,00,000 impressions = 5%.",
       logic: "(Clicks ÷ Impressions) × 100",
+      aliases: ["CTR", "Click-Through Rate"],
     },
     {
-      kpi: "Cost per Click (CPC)",
-      definition: "The average cost paid for each click on an advertisement.",
-      usage: "Monitor advertising cost efficiency.",
-      interpretation: "Lower CPC → more traffic for same spend.",
-      pitfalls: "Low CPC doesn't always mean high quality traffic.",
-      example: "₹500 for 100 clicks → CPC = ₹5.",
-      logic: "Total Spend ÷ Total Clicks",
+      kpi: "Quantity Sold",
+      definition: "The total number of completed purchase transactions within a given period.",
+      usage: "Track demand volume.",
+      interpretation: "Higher orders → higher demand.",
+      pitfalls: "Duplicate orders; cancellations not excluded.",
+      example: "2,000 orders in a week.",
+      logic: "Count of Orders",
+      aliases: ["Qty Sold", "Quantity Sold", "Units Sold", "Ad Units"],
+    },
+    {
+      kpi: "TACoS",
+      definition: "The percentage of total sales spent on advertising, showing the overall advertising cost relative to total revenue.",
+      usage: "Measure the overall impact of advertising spend on business revenue.",
+      interpretation: "Lower TACoS → better overall efficiency, assuming sales are maintained or growing.",
+      pitfalls: "Comparing TACoS across categories with different margins; ignoring organic sales contribution.",
+      example: "₹5 Lakh ad spend on ₹1 Cr total sales → TACoS = 5%.",
+      logic: "(Ad Spend ÷ Total Sales) × 100",
+      aliases: ["Total Advertising Cost of Sales", "TACOS"],
+    },
+    {
+      kpi: "Wt. OSA",
+      definition: "The availability of products weighted according to their sales contribution or business importance.",
+      usage: "Measure availability while giving greater importance to high-value/high-selling SKUs.",
+      interpretation: "Higher Wt. OSA → better availability of important SKUs.",
+      pitfalls: "Treating all SKUs equally; incorrect weighting basis; including inactive SKUs.",
+      example: "High-selling SKUs have 90% availability while low-selling SKUs have 70% → weighted OSA reflects the higher contribution of high-selling SKUs.",
+      logic: "Σ(Individual OSA × Listing)",
+      aliases: ["WT OSA", "Weighted OSA", "Weighted On-Shelf Availability"],
+    },
+    {
+      kpi: "Wt. Discount",
+      definition: "The average discount percentage weighted according to the sales or business contribution of products.",
+      usage: "Measure the effective discount level across the portfolio.",
+      interpretation: "Higher Wt. Discount → greater price promotion across the portfolio.",
+      pitfalls: "Simple averaging of discounts; ignoring SKU sales contribution; MRP inconsistencies.",
+      example: "SKU A has 20% discount and contributes 70% of sales, while SKU B has 10% discount and contributes 30% → Wt. Discount = 17%.",
+      logic: "Σ(Discount % × Sales Weight)",
+      aliases: ["WT. DISCOUNT", "Weighted Discount"],
+    },
+    {
+      kpi: "Listing%",
+      definition: "The percentage of SKUs that are listed or present on a platform.",
+      usage: "Track assortment coverage and identify listing gaps.",
+      interpretation: "Higher Listing% → better assortment coverage on the platform.",
+      pitfalls: "Including delisted/inactive SKUs; incorrect SKU mapping; duplicate listings.",
+      example: "90 out of 100 SKUs are listed → Listing% = 90%.",
+      logic: "(Listed SKUs ÷ Total SKUs) × 100",
+      aliases: ["Listing Percentage", "LISTING%"],
+    },
+    {
+      kpi: "% Spends",
+      definition: "The percentage contribution of a brand or campaign's advertising spend to the total advertising spend.",
+      usage: "Understand the distribution of advertising investment across brands, campaigns, platforms, or categories.",
+      interpretation: "Higher % Spend → greater share of the total advertising investment.",
+      pitfalls: "Comparing spend share without considering sales contribution or ROAS.",
+      example: "Brand A spends ₹2 Lakh out of total ₹10 Lakh spend → % Spend = 20%.",
+      logic: "(Brand/Campaign Ad Spend ÷ Total Ad Spend) × 100",
+      aliases: ["% SPENDS", "Percent Spends", "Spend Share"],
+    },
+    {
+      kpi: "AOV",
+      definition: "The average sales value generated per completed order during a specified period from ads.",
+      usage: "Measure the average value of each customer transaction.",
+      interpretation: "Higher AOV → higher revenue generated per order.",
+      pitfalls: "Including cancelled orders; mixing different sales definitions; using incorrect order counts.",
+      example: "₹10 Lakh sales from 2,000 orders → AOV = ₹500.",
+      logic: "Ad Sales Value ÷ Ad Quantity Sold",
+      aliases: ["Average Order Value"],
+    },
+    {
+      kpi: "Ad Sales",
+      definition: "The sales value directly attributed to advertisements or sponsored placements during a specified period.",
+      usage: "Measure revenue generated from paid advertising activities.",
+      interpretation: "Higher Ad Sales → stronger sales contribution from advertising.",
+      pitfalls: "Attribution-window differences across platforms; duplicate attribution; confusing Ad Sales with total sales.",
+      example: "₹1.5 Cr sales attributed to advertisements.",
+      logic: "Sum(Ad Sales Value)",
+      aliases: ["Advertising Sales", "Ad Sales Value"],
+    },
+    {
+      kpi: "ATC",
+      definition: "The number of times users add a product to their shopping cart after interacting with the product listing through Ads.",
+      usage: "Measure purchase intent and evaluate movement through the conversion funnel.",
+      interpretation: "Higher ATC → stronger purchase intent.",
+      pitfalls: "Duplicate events; comparing ATC without considering traffic; platform-specific tracking differences.",
+      example: "10,000 product views result in 1,000 add-to-cart actions → ATC Rate = 10%.",
+      logic: "Sum(Ad Clicks)",
+      aliases: ["Add to Cart", "ATC Rate"],
+    },
+    {
+      kpi: "ASP",
+      definition: "The average selling price of a product captured during crawling across the selected products, platforms, stores, or locations.",
+      usage: "Track the current selling price of products and identify pricing trends across platforms.",
+      interpretation: "Higher ASP → higher chances of losing customers; lower ASP → higher chances of attracting customers.",
+      pitfalls: "Comparing ASP without considering competitor pricing; differences in pack sizes or product variants",
+      example: "Selling prices captured during crawling are ₹100, ₹120, and ₹140 → ASP = ₹120.",
+      logic: "AVG(Selling Price)",
+      aliases: ["Average Selling Price"],
     },
   ];
 
   const indiaOverviewGlossary = [
     {
-      kpi: "Wt. OSA (Weighted On-Shelf Availability)",
-      definition: "Measures product availability weighted by its importance (e.g., sales contribution or store weight).",
-      usage: "Identify availability gaps for high-impact SKUs.",
-      interpretation: "Higher Wt. OSA → key products are consistently available; low → revenue loss risk.",
-      pitfalls: "Treating all SKUs equally; ignoring SKU importance; wrong weighting logic.",
-      example: "If top-selling SKUs (70% sales contribution) have 90% availability, Wt. OSA reflects higher availability impact vs low-selling SKUs.",
-      logic: "Σ(Availability × Weight) ÷ Σ(Weight) (Weight = sales/store importance)",
+      kpi: "OSA",
+      definition: "The proportion of stores or locations where a product is available for purchase at a given time.",
+      usage: "Identify distribution gaps.",
+      interpretation: "Higher availability → better reach.",
+      pitfalls: "Ignoring OOS vs not listed; denominator issues.",
+      example: "Available in 80 out of 100 stores → 80%.",
+      logic: "(Available Stores ÷ Total Stores) × 100",
+      aliases: ["OSA %", "Availability", "On-Shelf Availability", "Weighted OSA", "Wt. OSA"],
     },
     {
-      kpi: "Listing %",
-      definition: "% of total possible SKUs that are listed on the platform/store.",
-      usage: "Track distribution and assortment presence.",
-      interpretation: "Higher listing → better product coverage.",
-      pitfalls: "Counting inactive SKUs; mismatch in total SKU universe.",
-      example: "80 listed SKUs out of 100 total → 80%.",
-      logic: "(Listed SKUs ÷ Total Possible SKUs) × 100",
+      kpi: "Listing%",
+      definition: "The percentage of SKUs that are listed or present on a platform.",
+      usage: "Track assortment coverage and identify listing gaps.",
+      interpretation: "Higher Listing% → better assortment coverage on the platform.",
+      pitfalls: "Including delisted/inactive SKUs; incorrect SKU mapping; duplicate listings.",
+      example: "90 out of 100 SKUs are listed → Listing% = 90%.",
+      logic: "(Listed SKUs ÷ Total SKUs) × 100",
+      aliases: ["Listing %", "Listing Percentage"],
     },
     {
       kpi: "Market Share",
@@ -256,7 +375,8 @@ const HelpDrawer = ({ userDbName }) => {
       interpretation: "Higher share → stronger market presence.",
       pitfalls: "Crawl time variations.",
       example: "₹1 Cr / ₹5 Cr → 20%.",
-      logic: "(Brand Sales ÷ Category Size) × 100",
+      logic: "(Brand Sales ÷ Category Sales) × 100",
+      aliases: ["Market Share %"],
     },
     {
       kpi: "Sales",
@@ -266,6 +386,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Price vs volume confusion; double counting across SKUs.",
       example: "Brand sales = ₹5 Cr in last 30 days.",
       logic: "Sum(Sales Value)",
+      aliases: ["Offtake", "Sales Value", "Total Sales"],
     },
     {
       kpi: "Orders",
@@ -275,6 +396,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Duplicate orders; cancellations not excluded.",
       example: "2,000 orders in a week.",
       logic: "Count of Orders",
+      aliases: ["Order Count", "Total Orders"],
     },
   ];
 
@@ -287,6 +409,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Ignoring OOS vs not listed; denominator issues.",
       example: "Available in 80 out of 100 stores → 80%.",
       logic: "(Available Stores ÷ Total Stores) × 100",
+      aliases: ["OSA", "Availability", "On-Shelf Availability"],
     },
     {
       kpi: "Days of Inventory (DOI)",
@@ -296,6 +419,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Using incorrect time window; not updating sales data; division errors when sales = 0.",
       example: "Current Inventory = 3,000 units; Last 30 days sales = 1,500 units → DOI = 60 days.",
       logic: "DOI = (Current Inventory ÷ Last 30 Days Qty Sold) × 30",
+      aliases: ["DOI", "Days of Inventory"],
     },
     {
       kpi: "Metro City OSA",
@@ -305,15 +429,17 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Ignoring OOS vs not listed; denominator issues.",
       example: "Available in 80 out of 100 stores → 80%.",
       logic: "(Available Stores ÷ Total Stores) × 100",
+      aliases: ["Metro OSA", "Tier 1 OSA"],
     },
     {
-      kpi: "PSL (Potential Sales Loss)",
+      kpi: "PSL (Product Service Level)",
       definition: "The estimated sales loss due to unavailability, derived by comparing actual sales with expected sales adjusted for availability (OSA).",
       usage: "Identify sales loss caused by stockouts and availability gaps.",
       interpretation: "Higher PSL gap indicates greater loss due to poor availability; lower gap indicates efficient stock availability.",
       pitfalls: "Incorrect OSA calculation; division errors when OSA is very low; misinterpreting PSL as fulfilled demand.",
       example: "Sales = 1,000 units; Avg OSA = 80% → Expected Sales = 1,250 → PSL Loss = 250 units.",
-      logic: "(Sales ÷ Avg OSA) − Sales",
+      logic: "(Sales ÷ Avg OSA) - Sales",
+      aliases: ["PSL", "Potential Sales Loss", "Product Service Level"],
     },
     {
       kpi: "SOH (Stock on Hand)",
@@ -323,24 +449,17 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Not excluding reserved/damaged stock; duplication across locations.",
       example: "8,000 units available in warehouse.",
       logic: "Sum of Current Inventory Units",
-    },
-    {
-      kpi: "Wt. OSA% (Weighted On-Shelf Availability)",
-      definition: "Measures product availability weighted by its importance (e.g., sales contribution or store weight).",
-      usage: "Identify availability gaps for high-impact SKUs.",
-      interpretation: "Higher Wt. OSA → key products are consistently available; low → revenue loss risk.",
-      pitfalls: "Treating all SKUs equally; ignoring SKU importance; wrong weighting logic.",
-      example: "If top-selling SKUs (70% sales contribution) have 90% availability, Wt. OSA reflects higher availability impact vs low-selling SKUs.",
-      logic: "Σ(Availability × Weight) ÷ Σ(Weight) (Weight = sales/store importance)",
+      aliases: ["SOH", "Stock on Hand"],
     },
     {
       kpi: "Offtake Share",
-      definition: "Product/Category's contribution to total sales.",
-      usage: "Track SKU performance within category/brand.",
+      definition: "Product/ Category's contribution to total sales.",
+      usage: "Track sku performance within category/ brand.",
       interpretation: "Higher share → strong consumer demand.",
       pitfalls: "",
       example: "Category sales ₹2 Cr out of ₹10 Cr brand → 20%.",
       logic: "(Brand Offtake ÷ Total Category Offtake) × 100",
+      aliases: ["Share of Offtake"],
     },
   ];
 
@@ -353,15 +472,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Crawl time variations.",
       example: "₹10 Cr estimated category sales.",
       logic: "Total Category Sales",
-    },
-    {
-      kpi: "Market Leader Sales",
-      definition: "Total sales of the top-performing brand in the category from estimated sales.",
-      usage: "Identify benchmark competitor and performance gap.",
-      interpretation: "Higher leader sales → strong dominance.",
-      pitfalls: "Incorrect leader identification due to time window/data gaps.",
-      example: "Brand A has highest sales of ₹3 Cr in category.",
-      logic: "Max(Brand Sales across category)",
+      aliases: ["Category Size", "Total Category Sales"],
     },
     {
       kpi: "Brand Estimated Sales",
@@ -371,6 +482,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Price vs volume confusion; double counting across SKUs.",
       example: "Brand sales = ₹5 Cr in last 30 days.",
       logic: "Sum(Sales Value)",
+      aliases: ["Estimated Sales", "Brand Sales", "Brand Estimated Sales"],
     },
     {
       kpi: "Market Share %",
@@ -380,6 +492,17 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Crawl time variations.",
       example: "₹1 Cr / ₹5 Cr → 20%.",
       logic: "(Brand Sales ÷ Category Sales) × 100",
+      aliases: ["Market Share", "Market Share %", "Share %"],
+    },
+    {
+      kpi: "ML Market Share %",
+      definition: "The percentage of total category sales contributed by the market leader brand.",
+      usage: "Track competitive position.",
+      interpretation: "Higher share → stronger market presence.",
+      pitfalls: "Crawl time variations.",
+      example: "₹1.5 Cr / ₹5 Cr → 30%.",
+      logic: "(Brand Sales ÷ Category Sales) × 100",
+      aliases: ["ML Market Share", "ML Market Share %", "Market Leader Market Share", "Market Leader Sales", "Leader Market Share"],
     },
     {
       kpi: "Overall Share of Visibility",
@@ -389,6 +512,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "",
       example: "If 10 slots in top results and brand appears in 5 (3 organic + 2 sponsored) → SOS = 50%.",
       logic: "(Total Brand Appearances in Top N ÷ N) × 100",
+      aliases: ["Overall Share of Visibility", "Share of Visibility", "Overall SOS", "SOS"],
     },
     {
       kpi: "Paid Share of Visibility",
@@ -398,6 +522,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "",
       example: "Out of 4 slots, 2 are sponsored listings of brand → 50%.",
       logic: "(Sponsored Brand Appearances ÷ N) × 100",
+      aliases: ["Paid Share of Visibility", "Paid SOS", "Sponsored SOS", "Paid Visibility"],
     },
   ];
   const pricingAnalysisGlossary = [
@@ -430,6 +555,8 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "",
       example: "If 10 slots in top results and brand appears in 5 (3 organic + 2 sponsored) → SOS = 50%.",
       logic: "Overall SOS = (Total Brand Appearances in Top N ÷ N) × 100",
+      info: "• By default, SOS across the dashboard is calculated using Top 10 positions (POSITION ≤ 10).\n• To analyze SOS for Top 20, Top 30, or Top 40, use the rank filter available on the Visibility page.",
+      aliases: ["Share of Search", "SOS", "Overall SOS", "Share of Visibility"],
     },
     {
       kpi: "Sponsored SOS",
@@ -439,6 +566,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "",
       example: "Out of 4 slots, 2 are sponsored listings of brand → 50%.",
       logic: "Sponsored SOS = (Sponsored Brand Appearances ÷ N) × 100",
+      aliases: ["Paid SOS", "Paid Share of Visibility"],
     },
     {
       kpi: "Organic SOS",
@@ -448,6 +576,27 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "",
       example: "Out of 6 slots, 2 organic brand listings → 33%.",
       logic: "Organic SOS = (Organic Brand Appearances ÷ N) × 100",
+      aliases: ["Natural SOS", "Organic Share of Search"],
+    },
+    {
+      kpi: "Avg. Position (Organic)",
+      definition: "The average search ranking position of a brand’s products across organic (non-paid) search results for relevant keywords.",
+      usage: "Measure the brand’s organic search ranking and discoverability.",
+      interpretation: "Lower Avg. Position → better organic ranking and visibility.",
+      pitfalls: "Ignoring the number of keywords/SKUs considered; including sponsored positions; comparing across keywords with different search-result structures.",
+      example: "Brand products rank at positions 2, 5, and 8 across three keywords → Avg. Position = 5.",
+      logic: "Sum of Organic Positions ÷ Number of Organic Brand Appearances",
+      aliases: ["Average Position Organic", "Organic Avg Position", "Avg Position (Organic)"],
+    },
+    {
+      kpi: "Avg. Position (Ad)",
+      definition: "The average search ranking position of a brand’s products across sponsored or paid search results for relevant keywords.",
+      usage: "Measure the effectiveness and visibility of paid search placements.",
+      interpretation: "Lower Avg. Position → better paid search placement and visibility.",
+      pitfalls: "Mixing organic and sponsored positions; including keywords where the brand has no ad placement; ignoring platform-specific ad-slot structures.",
+      example: "Brand ads appear at positions 1, 3, and 5 across three keywords → Avg. Position = 3.",
+      logic: "Sum of Ad Positions ÷ Number of Ad Brand Appearances",
+      aliases: ["Average Position Ad", "Ad Avg Position", "Avg Position (Ad)", "Sponsored Avg Position"],
     },
   ];
 
@@ -526,6 +675,122 @@ const HelpDrawer = ({ userDbName }) => {
     },
   ];
 
+  const contentAnalysisGlossary = [
+    {
+      kpi: "Total Score",
+      definition: "The combined content quality score calculated from the Thumbnail Image, Thumbnail Video, Title, Bullet, and A+ Image scores.",
+      usage: "Measure the overall completeness and quality of product content.",
+      interpretation: "Higher Total Score → better overall content completeness and quality.",
+      pitfalls: "Focusing only on the total score without reviewing individual component scores; assuming a high score means better sales performance.",
+      example: "Thumbnail Image = 20, Video = 20, Title = 20, Bullets = 10, A+ Image = 20 → Total Score = 90.",
+      logic: "Thumbnail Image Score + Thumbnail Video Score + Title Score + Bullet Score + A+ Image Score",
+      aliases: ["Total Score", "Content Score", "Total Content Score", "Overall Content Score"],
+    },
+    {
+      kpi: "Thumbnail Image Score",
+      definition: "The score assigned based on the number of product images available in the product listing.",
+      usage: "Measure the completeness of product imagery.",
+      interpretation: "Higher score → better product image coverage.",
+      pitfalls: "Counting duplicate or irrelevant images; considering low-quality images as additional coverage.",
+      example: "Product has 7+ images → Score = 20.",
+      logic: "7+ images = 20; 5–6 images = 10; <5 images = 0",
+      aliases: ["Thumbnail Image Score", "Image Score", "Thumbnail Images", "Product Images"],
+    },
+    {
+      kpi: "Thumbnail Video Score",
+      definition: "The score assigned based on the presence of at least one product video in the listing.",
+      usage: "Measure the availability of video content for product presentation.",
+      interpretation: "Presence of a video → better content completeness.",
+      pitfalls: "Counting unavailable/failed videos; treating video thumbnails or images as videos.",
+      example: "Product has at least 1 video → Score = 20.",
+      logic: "At least 1 video = 20; None = 0",
+      aliases: ["Thumbnail Video Score", "Video Score", "Thumbnail Video", "Product Video"],
+    },
+    {
+      kpi: "Title Score",
+      definition: "The score assigned based on the length of the product title in the listing.",
+      usage: "Measure product title completeness and content quality.",
+      interpretation: "Longer, sufficiently detailed titles → higher score, subject to the defined threshold.",
+      pitfalls: "Excessively long or keyword-stuffed titles; counting special characters inconsistently.",
+      example: "Product title has 55 characters → Score = 20.",
+      logic: "≥50 characters = 20; 25–49 characters = 10; 0 characters = 0",
+      aliases: ["Title Score", "Product Title Score", "Title Length"],
+    },
+    {
+      kpi: "Bullet Score",
+      definition: "The score assigned based on the number of product bullet points available in the listing.",
+      usage: "Measure the completeness of key product information and features.",
+      interpretation: "More relevant bullet points → better product content completeness.",
+      pitfalls: "Counting duplicate or irrelevant bullets; platform-specific formatting differences.",
+      example: "Product has 5 bullet points → Score = 20.",
+      logic: "5+ bullets = 20; 3–4 bullets = 10; <3 bullets = 0",
+      aliases: ["Bullet Score", "Bullets Score", "Bullet Points", "Feature Bullets"],
+    },
+    {
+      kpi: "A+ Image Score",
+      definition: "The score assigned based on the presence of at least one A+ content image in the product listing.",
+      usage: "Measure the availability of enhanced visual product content.",
+      interpretation: "Presence of A+ image → better enhanced content coverage.",
+      pitfalls: "Counting standard product images as A+ content; platform-specific A+ content differences.",
+      example: "Product has at least 1 A+ image → Score = 20.",
+      logic: "At least 1 A+ image = 20; None = 0",
+      aliases: ["A+ Image Score", "A+ Content", "A+ Score", "Enhanced Content"],
+    },
+  ];
+
+  const reviewRatingGlossary = [
+    {
+      kpi: "PDP Rating",
+      definition: "The average rating displayed on the product detail page (PDP) on the platform.",
+      usage: "Measure the overall customer rating displayed for the product.",
+      interpretation: "Higher PDP Rating → better overall product rating and customer perception.",
+      pitfalls: "Platform-specific rating calculations; rating updates may not be real-time.",
+      example: "A product displays a rating of 4.3 on the PDP → PDP Rating = 4.3.",
+      logic: "Average PDP Rating available on the platform",
+      aliases: ["PDP Rating", "Product Detail Page Rating", "Average Rating", "Platform Rating"],
+    },
+    {
+      kpi: "User Rating",
+      definition: "The average PDP rating based only on ratings received from users through submitted reviews.",
+      usage: "Measure the average rating provided directly by users.",
+      interpretation: "Higher User Rating → stronger customer satisfaction based on user feedback.",
+      pitfalls: "Differences between rating and review data; excluding ratings without reviews where applicable.",
+      example: "A product has user-submitted ratings averaging 4.2 → User Rating = 4.2.",
+      logic: "Average PDP Rating from reviews received",
+      aliases: ["User Rating", "Customer Rating", "Submitted Rating"],
+    },
+    {
+      kpi: "ML Rating",
+      definition: "The average rating derived using machine learning based on the sentiment expressed in customer reviews.",
+      usage: "Measure customer sentiment from review content beyond the numerical rating.",
+      interpretation: "Higher ML Rating → more positive sentiment expressed in customer reviews.",
+      pitfalls: "Sentiment classification errors; sarcasm or ambiguous reviews; insufficient review text.",
+      example: "Reviews analyzed by the ML model result in an average sentiment rating of 4.1 → ML Rating = 4.1.",
+      logic: "Average rating derived from review sentiment using ML",
+      aliases: ["ML Rating", "Machine Learning Rating", "Sentiment Rating", "AI Rating"],
+    },
+    {
+      kpi: "Review Count",
+      definition: "The total number of customer reviews available for a product on the platform.",
+      usage: "Measure the volume of written customer feedback received.",
+      interpretation: "Higher Review Count → greater volume of customer feedback and product engagement.",
+      pitfalls: "Duplicate reviews; platform-specific review definitions; delayed review updates.",
+      example: "A product has 2,500 reviews → Review Count = 2,500.",
+      logic: "Total Reviews Count",
+      aliases: ["Review Count", "Total Reviews", "Number of Reviews"],
+    },
+    {
+      kpi: "Rating Count",
+      definition: "The total number of ratings received by a product on the platform.",
+      usage: "Measure the volume of customer ratings contributing to the product's rating.",
+      interpretation: "Higher Rating Count → greater volume of customer rating participation.",
+      pitfalls: "Confusing rating count with review count; platforms may allow ratings without written reviews.",
+      example: "A product has received 5,000 ratings → Rating Count = 5,000.",
+      logic: "Total Rating Count",
+      aliases: ["Rating Count", "Total Ratings", "Number of Ratings"],
+    },
+  ];
+
   const GlossarySection = ({ title, text, icon, bgColor, borderColor, textColor }) => {
     if (!text) return null;
     return (
@@ -561,7 +826,8 @@ const HelpDrawer = ({ userDbName }) => {
     { label: "Market Share", icon: <AutoGraphIcon sx={{ fontSize: "1rem" }} />, hideForDb: ["boat", "mars_petcare"] },
     { label: "Pricing Analysis", icon: <PriceChangeIcon sx={{ fontSize: "1rem" }} />, hideForDb: ["mamaearth"] },
     { label: "Performance Marketing", icon: <AdsClickIcon sx={{ fontSize: "1rem" }} />, hideForDb: ["mamaearth", "boat"] },
-    { label: "Content Analysis", icon: <ArticleIcon sx={{ fontSize: "1rem" }} />, showOnlyForDb: ["mars"] },
+    { label: "Content Analysis", icon: <ArticleIcon sx={{ fontSize: "1rem" }} /> },
+    { label: "Review Rating", icon: <StarBorderIcon sx={{ fontSize: "1rem" }} /> },
     { label: "Inventory Analysis", icon: <InventoryIcon sx={{ fontSize: "1rem" }} />, hideForDb: ["mamaearth", "boat"] },
     { label: "Scheduled Reports", icon: <ScheduleIcon sx={{ fontSize: "1rem" }} /> },
   ];
@@ -586,6 +852,10 @@ const HelpDrawer = ({ userDbName }) => {
         return pricingAnalysisGlossary;
       case "Performance Marketing":
         return performanceMarketingGlossary;
+      case "Content Analysis":
+        return contentAnalysisGlossary;
+      case "Review Rating":
+        return reviewRatingGlossary;
       default:
         return businessOverviewGlossary;
     }
@@ -593,12 +863,13 @@ const HelpDrawer = ({ userDbName }) => {
 
   const filteredGlossary = getGlossarySource().filter((item) => {
     if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
     return (
       item.kpi.toLowerCase().includes(q) ||
       item.definition.toLowerCase().includes(q) ||
       (item.usage && item.usage.toLowerCase().includes(q)) ||
-      (item.interpretation && item.interpretation.toLowerCase().includes(q))
+      (item.interpretation && item.interpretation.toLowerCase().includes(q)) ||
+      (item.aliases && item.aliases.some((a) => a.toLowerCase().includes(q)))
     );
   });
 
@@ -708,7 +979,10 @@ const HelpDrawer = ({ userDbName }) => {
               <ListItemButton
                 key={item.label}
                 selected={activeMenu === item.label}
-                onClick={() => setActiveMenu(item.label)}
+                onClick={() => {
+                  setActiveMenu(item.label);
+                  setExpandedKpi(null);
+                }}
                 sx={{
                   borderRadius: "8px",
                   mb: 0.5,
@@ -775,7 +1049,7 @@ const HelpDrawer = ({ userDbName }) => {
                 </Box>
               </Box>
               <Box sx={{ display: 'grid', gap: 2 }}>
-                {["Business Overview", "India Overview", "Availability Analysis", "Market Share", "Visibility Analysis", "Performance Marketing"].includes(activeMenu) ? (
+                {["Business Overview", "India Overview", "Availability Analysis", "Market Share", "Visibility Analysis", "Pricing Analysis", "Performance Marketing", "Content Analysis", "Review Rating"].includes(activeMenu) ? (
                   filteredGlossary.map((item) => {
                     const isExpanded = expandedKpi === item.kpi;
                     return (
@@ -839,20 +1113,20 @@ const HelpDrawer = ({ userDbName }) => {
                               textColor="#0369a1"
                             />
                             <GlossarySection
-                              title="Common Pitfalls"
-                              text={item.pitfalls}
-                              icon={<PitfallsIcon fontSize="small" />}
-                              bgColor="#fef2f2"
-                              borderColor="#fecaca"
-                              textColor="#b91c1c"
-                            />
-                            <GlossarySection
                               title="Interpretation"
                               text={item.interpretation}
                               icon={<InterpretationIcon fontSize="small" />}
                               bgColor="#faf5ff"
                               borderColor="#e9d5ff"
                               textColor="#7e22ce"
+                            />
+                            <GlossarySection
+                              title="Common Pitfalls"
+                              text={item.pitfalls}
+                              icon={<PitfallsIcon fontSize="small" />}
+                              bgColor="#fef2f2"
+                              borderColor="#fecaca"
+                              textColor="#b91c1c"
                             />
                             <GlossarySection
                               title="Example"

@@ -1195,6 +1195,13 @@ const SnapshotOverview = ({
                 }
             }
 
+            const defaultBottomTooltips = {
+                'spend': "The total investment made in advertising and promotional activities.",
+                'inorganic': "Sales generated through paid channels, including advertisements and sponsored placements.\n\nData Refresh: Ad sales data is typically updated daily and available by 2:00 PM.",
+                'conversion': "The rate at which user interactions (such as clicks or views) result in a purchase.",
+                'roas': "The revenue generated for every unit of advertising spend."
+            };
+
             return {
                 id: baseItem?.id || defaultId,
                 title: baseItem?.title || defaultTitle,
@@ -1204,7 +1211,7 @@ const SnapshotOverview = ({
                 icon: icon,
                 gradient: gradient,
                 subtitle: footer,
-                infoTooltip: baseItem?.infoTooltip,
+                infoTooltip: baseItem?.infoTooltip || defaultBottomTooltips[defaultId],
                 organicSales: baseItem?.organicSales || perfItem?.organicSales,
                 trendSeries: makeSeries(50 + idx * 5, 30, 0.1, seed)
             };
@@ -1239,7 +1246,7 @@ const SnapshotOverview = ({
             icon: ShoppingCart,
             gradient: ['#3b82f6', '#60a5fa'],
             subtitle: ordersItem?.footer || ordersPerf?.footer || "Ad Quantity Sold",
-            infoTooltip: ordersItem?.infoTooltip || "The total number of completed purchase transactions within a given period.\n\nData Refresh: Sales data is typically updated daily and available by 2:00 PM.",
+            infoTooltip: ordersItem?.infoTooltip || "The total number of completed purchase transactions within a given period through ads.\n\nData Refresh: Sales data is typically updated daily and available by 2:00 PM.",
             trendSeries: makeSeries(45, 30, 0.14, seed)
         };
         bottomItems.push(finalOrders);

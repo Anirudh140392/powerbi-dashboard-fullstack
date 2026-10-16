@@ -63,8 +63,10 @@ const RANK_OPTIONS = ["Top 10", "Top 20", "Top 30", "Top 40"];
 const getBrandColor = (index) => BRAND_COLORS[index % BRAND_COLORS.length];
 const KPI_TOOLTIPS = {
     'Organic SOS': "The proportion of a brand’s product visibility within organic (non-paid) search results.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
-    'Overall SOS': "Share of Search indicates the proportion of attention a product receives relative to others within the same category or type.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
+    'Overall SOS': "The proportion of a brand’s product visibility within the top search results, including both organic and sponsored placements.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
     'Sponsored SOS': "The proportion of a brand’s product visibility within sponsored or paid placements in search results.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
+    'Avg. Position (Organic)': "The average search ranking position of a brand’s products across organic (non-paid) search results for relevant keywords.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
+    'Avg. Position (Ad)': "The average search ranking position of a brand’s products across sponsored or paid search results for relevant keywords.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
 };
 
 
