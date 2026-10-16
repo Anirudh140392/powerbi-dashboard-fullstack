@@ -152,3 +152,38 @@ export const previewPromoViolationReport = async (params = {}) => {
     }
 };
 
+
+// ── Report Studio ──
+
+/** One page of the aggregated report: { totalRows, rows, unavailable }. */
+export const fetchStudioPreview = async (params, { signal } = {}) => {
+    const response = await axiosInstance.get("/reports/studio/preview", {
+        params: formatParams(params),
+        signal,
+        timeout: 2 * 60 * 1000,
+    });
+    return response.data;
+};
+
+/**
+ * Every aggregated row, for the pivot: { status: "ok", totalRows, rows, unavailable },
+ * or { status: "too-large", totalRows } when the report is over the row limit.
+ */
+export const fetchStudioRows = async (params, { signal } = {}) => {
+    const response = await axiosInstance.get("/reports/studio/rows", {
+        params: formatParams(params),
+        signal,
+        timeout: 5 * 60 * 1000,
+    });
+    return response.data;
+};
+
+/** The full report as a CSV blob, streamed by the server. */
+export const downloadStudioCsv = async (params) => {
+    const response = await axiosInstance.get("/reports/studio/export", {
+        params: formatParams(params),
+        responseType: "blob",
+        timeout: 10 * 60 * 1000,
+    });
+    return response.data;
+};

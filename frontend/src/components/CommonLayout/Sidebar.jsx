@@ -94,6 +94,7 @@ import {
   KeyboardArrowLeft as KeyboardArrowLeftIcon,
   KeyboardArrowRight as KeyboardArrowRightIcon,
   CloudDownload as CloudDownloadIcon,
+  TableChart as TableChartIcon,
 } from "@mui/icons-material";
 
 const getPlatformColors = (platformName) => {
@@ -829,7 +830,7 @@ const Sidebar = ({
         justifyContent: 'center',
       }}>
         {/* MAIN MENU Header (Top) */}
-        {!isCollapsed && (user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false || Object.values(user?.tabPermissions || {}).some(v => v === true)) && (
+        {!isCollapsed && (user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Report Studio'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false || Object.values(user?.tabPermissions || {}).some(v => v === true)) && (
           <Typography
             variant="overline"
             sx={{
@@ -909,6 +910,62 @@ const Sidebar = ({
                 </ListItemButton>
               )}
 
+              {user?.tabPermissions?.['Report Studio'] !== false && (
+                <ListItemButton
+                  onClick={() => navigate('/report-studio')}
+                  className={currentPath === '/report-studio' ? "sidebar-item-active" : ""}
+                  sx={{
+                    minWidth: 44,
+                    maxWidth: "100%",
+                    justifyContent: "flex-start",
+                    px: 2,
+                    py: 1,
+                    borderRadius: "12px",
+                    bgcolor: currentPath === '/report-studio' ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                    color: currentPath === '/report-studio' ? "#2563eb" : "#64748b",
+                    position: 'relative',
+                    overflow: 'hidden',
+                    mb: 0.5,
+                    "&:hover": {
+                      bgcolor: currentPath === '/report-studio' ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
+                      color: currentPath === '/report-studio' ? "#1d4ed8" : "#1e293b",
+                      transform: 'translateX(2px)',
+                    },
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+                      mr: 1.5,
+                      color: currentPath === '/report-studio' ? "#2563eb" : "inherit",
+                      display: 'flex',
+                      '& .MuiSvgIcon-root': {
+                        fontSize: '1.15rem',
+                      }
+                    }}
+                  >
+                    <TableChartIcon />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 0 }}>
+                        <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          Report Studio
+                        </Box>
+                        <SidebarStatusBadge type="NEW" />
+                      </Box>
+                    }
+                    primaryTypographyProps={{
+                      fontSize: "13px",
+                      fontWeight: currentPath === '/report-studio' ? 700 : 500,
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}
+                    sx={{ my: 0 }}
+                  />
+                </ListItemButton>
+              )}
+
               {user?.tabPermissions?.['Scheduled Reports'] !== false && (
                 <ListItemButton
                   onClick={() => navigate('/scheduled-reports')}
@@ -957,7 +1014,7 @@ const Sidebar = ({
                 </ListItemButton>
               )}
             </Box>
-            {(user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false) && (
+            {(user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Report Studio'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false) && (
               <Divider sx={{ mx: 2, mb: 1.5, borderColor: 'rgba(0,0,0,0.06)' }} />
             )}
           </>

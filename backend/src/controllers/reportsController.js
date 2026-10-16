@@ -143,6 +143,15 @@ async function resolvePdpTable() {
 }
 
 /**
+ * Report Studio runs only in report_backend; this forwards to it (e.g. in local
+ * dev, where every /api call reaches this server).
+ */
+export const proxyReportStudio = async (req, res) => {
+    const proxied = await proxyToReportService(req, res);
+    if (!proxied) res.status(503).json({ error: 'Report service unavailable' });
+};
+
+/**
  * Get filter options for Scheduled Reports
  */
 export const getReportFilterOptions = async (req, res) => {

@@ -107,7 +107,7 @@ export const queryClickHouse = async (query, params = {}, clickhouse_settings = 
 /**
  * Stream query results from ClickHouse as a Node.js readable stream.
  */
-export const streamClickHouse = async (query, params = {}, clickhouse_settings = {}) => {
+export const streamClickHouse = async (query, params = {}, clickhouse_settings = {}, format = 'JSONEachRow') => {
     const client = getCurrentClient();
     const dbName = getCurrentDbName();
     console.log(`[ClickHouse Stream Report Service] DB: ${dbName} | Query: ${query.replace(/\s+/g, ' ').slice(0, 200)}...`);
@@ -115,7 +115,7 @@ export const streamClickHouse = async (query, params = {}, clickhouse_settings =
     const queryOptions = {
         query,
         query_params: params,
-        format: 'JSONEachRow',
+        format,
     };
 
     if (Object.keys(clickhouse_settings).length > 0) {
