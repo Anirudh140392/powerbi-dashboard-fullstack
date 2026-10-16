@@ -4,6 +4,7 @@ import {
     FileDownloadOutlined as DownloadIcon,
     RestartAlt as ResetIcon,
 } from "@mui/icons-material";
+import dayjs from "dayjs";
 import { useDebounce } from "use-debounce";
 import { saveAs } from "file-saver";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
@@ -40,6 +41,12 @@ const findAppliedTemplate = (templates, config, pivotConfig) =>
     );
 
 const defaultPeriod = () => ({ mode: "dashboard", ...lastPeriods(1) });
+
+/** A date range ending no later than `lastDay`, as the report API enforces. */
+const capRange = ({ start, end }, lastDay) => {
+    const cappedEnd = end.isAfter(lastDay, "day") ? lastDay : end;
+    return { start: start.isAfter(cappedEnd, "day") ? cappedEnd : start, end: cappedEnd };
+};
 
 /** Fields the tenant's data can't supply are flagged, so their cells read NA. */
 const markUnavailable = (fields, unavailable = []) =>
@@ -79,11 +86,15 @@ export default function ReportStudio() {
     const [toast, setToast] = useState({ open: false, severity: "success", message: "" });
     const notify = (severity, message) => setToast({ open: true, severity, message });
 
+    // QC users can report on today; everyone else up to yesterday.
+    const isQcUser = Number(user?.qcUser) === 1;
+    const lastDataDay = useMemo(() => (isQcUser ? dayjs() : dayjs().subtract(1, "day")).startOf("day"), [isQcUser]);
+
     // The report covers either the dashboard's dates or a range of fiscal periods.
     const range = useMemo(() => {
-        if (hasFiscalPeriods && period.mode === "fiscal") return resolvePeriodRange(period);
-        return datesFetched && timeStart && timeEnd ? { start: timeStart, end: timeEnd } : null;
-    }, [hasFiscalPeriods, period, datesFetched, timeStart, timeEnd]);
+        if (hasFiscalPeriods && period.mode === "fiscal") return capRange(resolvePeriodRange(period), lastDataDay);
+        return datesFetched && timeStart && timeEnd ? capRange({ start: timeStart, end: timeEnd }, lastDataDay) : null;
+    }, [hasFiscalPeriods, period, datesFetched, timeStart, timeEnd, lastDataDay]);
     const datesReady = Boolean(range);
 
     // What the report API is asked for; null until there are dates and a source.
