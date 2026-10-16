@@ -2,9 +2,9 @@ import React from "react";
 import dayjs from "dayjs";
 import { Box, Chip, MenuItem, TextField, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 import { EventOutlined as CalendarIcon } from "@mui/icons-material";
-import { currentListedPeriod, FISCAL_CALENDAR, FISCAL_PERIODS, lastPeriods, periodLabel, periodRangeLabel, yearToDate } from "./fiscalCalendar";
+import { currentListedPeriod, FISCAL_PERIODS, lastPeriods, periodLabel, periodRangeLabel, yearToDate } from "./fiscalCalendar";
 
-const PERIOD_MODES = { dashboard: "Dashboard dates", fiscal: `${FISCAL_CALENDAR.name} periods` };
+const PERIOD_MODES = { dashboard: "Dashboard dates", fiscal: "Periods" };
 
 const QUICK_RANGES = [
     { id: "current", label: "This period", range: () => lastPeriods(1) },

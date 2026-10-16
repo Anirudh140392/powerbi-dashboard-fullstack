@@ -6,6 +6,7 @@
  * each KPI is aggregated over the rows that fall into a Row × Column cell.
  * Subtotals and grand totals aggregate the underlying rows, not the cells, so
  * an average total is the average of every row rather than of the cell averages.
+ * Rows with no value for a dimension in the pivot are left out of it.
  * Weeks and periods follow the fiscal calendar (see fiscalCalendar.js).
  */
 import dayjs from "dayjs";
@@ -31,7 +32,6 @@ export const PIVOT_SOURCE_ROW_LIMIT = 200000;
 
 export const GRAND_TOTAL = "Grand Total";
 
-const BLANK = "(Blank)";
 // Separators for path keys; dimension values never contain these control characters.
 const SEP = "\u0001";
 const AXIS_SEP = "\u0002";
@@ -98,9 +98,11 @@ const bucketSpan = (value, grain) => {
     return [value, value];
 };
 
+const isBlank = (value) => value === null || value === undefined || value === "";
+
 /**
- * Reads a row's value for a dimension; dates are bucketed to the chosen grain,
- * and each bucket's span is recorded in `spans`.
+ * Reads a row's value for a dimension, or null when the row has none; dates are
+ * bucketed to the chosen grain, and each bucket's span is recorded in `spans`.
  */
 const makeReader = (field, grain, spans) => {
     if (field.type === "date") {
@@ -109,21 +111,21 @@ const makeReader = (field, grain, spans) => {
             const value = row[field.key];
             let bucket = buckets.get(value);
             if (bucket === undefined) {
-                bucket = value ? bucketDate(value, grain) : BLANK;
+                bucket = isBlank(value) ? null : bucketDate(value, grain);
                 buckets.set(value, bucket);
-                if (value && !spans.has(bucket)) spans.set(bucket, bucketSpan(value, grain));
+                if (bucket !== null && !spans.has(bucket)) spans.set(bucket, bucketSpan(value, grain));
             }
             return bucket;
         };
     }
     return (row) => {
         const value = row[field.key];
-        return value === null || value === undefined || value === "" ? BLANK : String(value);
+        return isBlank(value) ? null : String(value);
     };
 };
 
 export const formatDimensionValue = (field, value, grain) => {
-    if (field.type !== "date" || value === BLANK) return value;
+    if (field.type !== "date") return value;
     if (grain === "month") return dayjs(`${value}-01`).format("MMM YYYY");
     if (grain === "period") return formatPeriodBucket(value);
     if (grain === "week") return formatWeekBucket(value);
@@ -318,12 +320,13 @@ export const buildPivot = (report, fields, config) => {
     let matchedRows = 0;
     for (let i = 0; i < sourceRows; i += 1) {
         const row = report.getRow(i);
+        const dimValues = dims.map((dim) => dim.read(row));
+        // A row with no value for a pivot dimension is left out, so there's no blank group.
+        if (dimValues.includes(null)) continue;
         let included = true;
-        const dimValues = dims.map((dim) => {
-            const value = dim.read(row);
-            dim.seen.add(value);
-            if (dim.excluded.has(value)) included = false;
-            return value;
+        dims.forEach((dim, d) => {
+            dim.seen.add(dimValues[d]);
+            if (dim.excluded.has(dimValues[d])) included = false;
         });
         if (!included) continue;
         matchedRows += 1;
