@@ -134,7 +134,7 @@ export const verify = async (req, res) => {
  */
 export const switchDbController = async (req, res) => {
     try {
-        const { targetDbName } = req.body || {};
+        const { targetDbName, targetDbId } = req.body || {};
         const email = req.user?.email;
         const currentDbName = req.user?.dbName;
 
@@ -143,7 +143,7 @@ export const switchDbController = async (req, res) => {
         }
 
         const { switchDatabase } = await import('../services/authService.js');
-        const result = await switchDatabase(email, currentDbName, targetDbName);
+        const result = await switchDatabase(email, currentDbName, targetDbName, targetDbId);
 
         if (result.user) {
             recordVisitor({

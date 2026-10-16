@@ -43,7 +43,7 @@ const ROUTE_PRIORITY = [
 /**
  * Check if a specific route path is allowed for the current user
  */
-function isRouteAllowed(path, user) {
+export function isRouteAllowed(path, user) {
     // Admin routes and routes without a tab mapping are always allowed
     const tabLabel = ROUTE_TO_TAB_LABEL[path];
     if (!tabLabel) return true;
