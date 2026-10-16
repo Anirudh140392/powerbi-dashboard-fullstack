@@ -30,7 +30,7 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
 // Import Redis data layer for indexed platform data (data retrieval only, no caching)
 import { ensurePlatformData, queryByFilters, aggregateMetrics, getPlatformStats, isPlatformDataLoaded, coalesceRequest, getBrandMonthlyData } from './redisDataService.js';
-import { normalizeFilterArray as originalNormalizeFilterArray, getMarketShare, getMarketShareByMonth, getMarketShareByBrand, getMarketShareTimeSeries, isDanoneDb, DANONE_OWN_BRANDS } from './marketShareHelper.js';
+import { normalizeFilterArray as originalNormalizeFilterArray, normalizePlatformArrayForMs, getMarketShare, getMarketShareByMonth, getMarketShareByBrand, getMarketShareTimeSeries, isDanoneDb, DANONE_OWN_BRANDS } from './marketShareHelper.js';
 
 const normalizeFilterArray = (value) => {
     const arr = originalNormalizeFilterArray(value);
@@ -10315,6 +10315,24 @@ const getCompetitionData = async (filters = {}) => {
         const msPlatArr = normalizeFilterArray(platform);
         if (msPlatArr && msPlatArr.length > 0) baseMsConds.push(`lower(platform) IN (${msPlatArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
 
+        // Check if selected platform exists in rb_ms_olap table
+        let isPlatformInMsOlap = true;
+        if (msPlatArr && msPlatArr.length > 0) {
+            const checkPlats = normalizePlatformArrayForMs(msPlatArr);
+            try {
+                const platRows = await queryClickHouse(`
+                    SELECT DISTINCT lower(platform) as platform 
+                    FROM rb_ms_olap 
+                    WHERE lower(platform) IN (${checkPlats.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})
+                    LIMIT 1
+                `);
+                isPlatformInMsOlap = Boolean(platRows && platRows.length > 0);
+            } catch (err) {
+                console.warn('[getCompetitionData] Failed to check platform in rb_ms_olap:', err.message);
+                isPlatformInMsOlap = false;
+            }
+        }
+
         const msLocArr = normalizeFilterArray(location);
         if (msLocArr && msLocArr.length > 0) baseMsConds.push(`lower(location) IN (${msLocArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
 
@@ -10440,6 +10458,23 @@ const getCompetitionData = async (filters = {}) => {
 
         console.log(`[getCompetitionData] Got category sales data(${categoryTotalSalesMap.size} total, ${categoryOurBrandsSalesMap.size} our brands) from rb_brand_ms`);
 
+        const hasAnyMsData = isPlatformInMsOlap && (
+            (msPlatArr && msPlatArr.length > 0)
+                ? isPlatformInMsOlap
+                : (categoryTotalSalesMap.size > 0 || skuMsMap.size > 0 || brandSalesMap.size > 0)
+        );
+
+        if (!hasAnyMsData) {
+            brandSalesMap.clear();
+            brandSalesMapPrev.clear();
+            brandAbsoluteSalesMap.clear();
+            brandAbsoluteSalesMapPrev.clear();
+            categoryTotalSalesMap.clear();
+            categoryTotalSalesMapPrev.clear();
+            skuMsMap.clear();
+            skuMsMapPrev.clear();
+        }
+
 
         let allDanoneOwnSalesInCatMap = new Map();
         let allDanoneOwnSalesInCatMapPrev = new Map();
@@ -10512,12 +10547,12 @@ const getCompetitionData = async (filters = {}) => {
             const brandSales = brandAbsoluteSalesMap.get(brandLower) || 0;
             const brandSalesPrev = brandAbsoluteSalesMapPrev.get(brandLower) || 0;
 
-            const hasMsData = brandSalesMap.has(brandLower);
+            const hasMsData = hasAnyMsData && brandSalesMap.has(brandLower);
 
             // Market Share: Individual brand's share = brand's sales / total platform sales
             const marketShare = hasMsData ? (brandSalesMap.get(brandLower) || 0) : null;
-            const marketSharePrev = brandSalesMapPrev.get(brandLower) || 0;
-            const marketShareDelta = marketShare === null ? null : calcChange(marketShare, marketSharePrev);
+            const marketSharePrev = (hasAnyMsData && hasMsData) ? (brandSalesMapPrev.get(brandLower) || 0) : null;
+            const marketShareDelta = (marketShare === null || marketSharePrev === null) ? null : calcChange(marketShare, marketSharePrev);
 
             // Category Share: Individual brand's share in its specific category
             const lowerBrandCat = brandCategory.toLowerCase();
@@ -10529,8 +10564,8 @@ const getCompetitionData = async (filters = {}) => {
             if (categoryTotalSalesPrev === 0) {
                 categoryTotalSalesPrev = Array.from(categoryTotalSalesMapPrev.values()).reduce((sum, v) => sum + v, 0);
             }
-            let categoryShare = (categoryTotalSales > 0 && brandSales > 0) ? (brandSales / categoryTotalSales) * 100 : (marketShare !== null ? marketShare : null);
-            let categorySharePrev = (categoryTotalSalesPrev > 0 && brandSalesPrev > 0) ? (brandSalesPrev / categoryTotalSalesPrev) * 100 : (marketSharePrev !== null ? marketSharePrev : 0);
+            let categoryShare = (hasAnyMsData && categoryTotalSales > 0 && brandSales > 0) ? (brandSales / categoryTotalSales) * 100 : (hasMsData && marketShare !== null ? marketShare : null);
+            let categorySharePrev = (hasAnyMsData && categoryTotalSalesPrev > 0 && brandSalesPrev > 0) ? (brandSalesPrev / categoryTotalSalesPrev) * 100 : (hasMsData && marketSharePrev !== null ? marketSharePrev : null);
 
             if (isDanoneDb() && DANONE_OWN_BRANDS.includes(brandLower)) {
                 const totalDanoneInCat = allDanoneOwnSalesInCatMap.get(lowerBrandCat) || brandSales;
@@ -10548,7 +10583,7 @@ const getCompetitionData = async (filters = {}) => {
                 }
             }
 
-            const categoryShareDelta = categoryShare === null ? null : calcChange(categoryShare, categorySharePrev);
+            const categoryShareDelta = (categoryShare === null || categorySharePrev === null) ? null : calcChange(categoryShare, categorySharePrev);
 
             const offtakeShare = categoryShare;
             const offtakeShareDelta = categoryShareDelta;
@@ -10702,7 +10737,7 @@ const getCompetitionData = async (filters = {}) => {
 
             // Calculate SKU Market Share: SKU sales in rb_ms_olap * 100.0 / Total Category sales in rb_ms_olap
             const getSkuMarketShare = (prodName, catName, msMap, catSalesMap) => {
-                if (!prodName) return null;
+                if (!hasAnyMsData || !prodName || msMap.size === 0 || catSalesMap.size === 0) return null;
                 const lowerProd = prodName.toLowerCase().trim();
                 let item = msMap.get(lowerProd);
 
@@ -10715,47 +10750,59 @@ const getCompetitionData = async (filters = {}) => {
                     }
                 }
 
-                if (!item || !item.sales || item.sales <= 0) {
-                    return 0;
-                }
-
-                const skuCat = item.category || (catName ? catName.toLowerCase().trim() : '');
+                const skuCat = (item && item.category) || (catName ? catName.toLowerCase().trim() : '');
                 let catTotal = catSalesMap.get(skuCat) || 0;
                 if (catTotal === 0) {
                     catTotal = Array.from(catSalesMap.values()).reduce((sum, val) => sum + val, 0);
                 }
 
-                if (catTotal > 0) {
-                    return (item.sales * 100.0) / catTotal;
+                if (catTotal <= 0) {
+                    return null;
                 }
-                return 0;
+
+                if (!item || !item.sales || item.sales <= 0) {
+                    return 0;
+                }
+
+                return (item.sales * 100.0) / catTotal;
             };
 
             const skuMsCurr = getSkuMarketShare(sku.Product, skuCategory, skuMsMap, categoryTotalSalesMap);
             const skuMsPrev = getSkuMarketShare(sku.Product, skuCategory, skuMsMapPrev, categoryTotalSalesMapPrev);
 
             const totalSkuSalesVal = parseFloat(sku.total_sales || 0);
-            const fallbackMs = (totalSkuSales > 0 && totalSkuSalesVal > 0) ? (totalSkuSalesVal * 100.0) / totalSkuSales : 0;
-            const marketShare = (skuMsCurr !== null && skuMsCurr > 0) ? skuMsCurr : fallbackMs;
-            const marketShareDelta = marketShare === null ? null : calcChange(marketShare, skuMsPrev || 0);
+            const marketShare = (hasAnyMsData && skuMsCurr !== null) ? skuMsCurr : null;
+            const marketShareDelta = (marketShare === null || skuMsPrev === null) ? null : calcChange(marketShare, skuMsPrev);
 
             // Category Share: Our brands' share in this SKU's specific category
             const lowerSkuCat = skuCategory.toLowerCase();
             const skuBrandSales = brandAbsoluteSalesMap.get(sku.Brand?.toLowerCase()) || 0;
             const skuCategoryTotalSales = categoryTotalSalesMap.get(lowerSkuCat) || 0;
-            const hasMsData = brandSalesMap.has(sku.Brand?.toLowerCase()) || (marketShare !== null && marketShare > 0);
-            const categoryShare = hasMsData ? (skuCategoryTotalSales > 0 ? (skuBrandSales / skuCategoryTotalSales) * 100 : 0) : null;
+            const hasMsData = hasAnyMsData && (brandSalesMap.has(sku.Brand?.toLowerCase()) || (marketShare !== null));
+            const categoryShare = hasMsData ? (skuCategoryTotalSales > 0 ? (skuBrandSales / skuCategoryTotalSales) * 100 : (marketShare !== null ? marketShare : null)) : null;
 
             const skuBrandSalesPrev = brandAbsoluteSalesMapPrev.get(sku.Brand?.toLowerCase()) || 0;
             const skuCategoryTotalSalesPrev = categoryTotalSalesMapPrev.get(lowerSkuCat) || 0;
-            const categorySharePrev = skuCategoryTotalSalesPrev > 0 ? (skuBrandSalesPrev / skuCategoryTotalSalesPrev) * 100 : 0;
-            const categoryShareDelta = categoryShare === null ? null : calcChange(categoryShare, categorySharePrev);
+            const categorySharePrev = (hasMsData && skuCategoryTotalSalesPrev > 0) ? (skuBrandSalesPrev / skuCategoryTotalSalesPrev) * 100 : null;
+            const categoryShareDelta = (categoryShare === null || categorySharePrev === null) ? null : calcChange(categoryShare, categorySharePrev);
 
             // SKU Offtake Share: SKU sales in rb_ms_olap / Total Category Sales in rb_ms_olap * 100
-            const skuOfftakeShare = (skuMsCurr !== null && skuMsCurr > 0) ? skuMsCurr : ((skuCategoryTotalSales > 0 && totalSkuSalesVal > 0) ? (totalSkuSalesVal / skuCategoryTotalSales) * 100 : 0);
-            const prevSkuSalesVal = parseFloat(prevSku.total_sales || 0);
-            const skuOfftakeSharePrev = (skuMsPrev !== null && skuMsPrev > 0) ? skuMsPrev : ((skuCategoryTotalSalesPrev > 0 && prevSkuSalesVal > 0) ? (prevSkuSalesVal / skuCategoryTotalSalesPrev) * 100 : 0);
-            const skuOfftakeShareDelta = calcChange(skuOfftakeShare, skuOfftakeSharePrev);
+            let skuOfftakeShare = null;
+            let skuOfftakeSharePrev = null;
+            if (hasAnyMsData) {
+                if (skuMsCurr !== null) {
+                    skuOfftakeShare = skuMsCurr;
+                } else if (skuCategoryTotalSales > 0 && totalSkuSalesVal > 0) {
+                    skuOfftakeShare = (totalSkuSalesVal / skuCategoryTotalSales) * 100;
+                }
+                const prevSkuSalesVal = parseFloat(prevSku.total_sales || 0);
+                if (skuMsPrev !== null) {
+                    skuOfftakeSharePrev = skuMsPrev;
+                } else if (skuCategoryTotalSalesPrev > 0 && prevSkuSalesVal > 0) {
+                    skuOfftakeSharePrev = (prevSkuSalesVal / skuCategoryTotalSalesPrev) * 100;
+                }
+            }
+            const skuOfftakeShareDelta = (skuOfftakeShare === null || skuOfftakeSharePrev === null) ? null : calcChange(skuOfftakeShare, skuOfftakeSharePrev);
 
             // Listing Percent
             const skuListingPercent = parseFloat(sku.avg_listing_percent || 0);
@@ -10772,8 +10819,8 @@ const getCompetitionData = async (filters = {}) => {
                 Price: { value: parseFloat(avgPrice.toFixed(0)), delta: parseFloat(priceDelta.toFixed(2)) },
                 CategoryShare: { value: categoryShare === null ? null : parseFloat(categoryShare.toFixed(2)), delta: categoryShareDelta === null ? null : parseFloat(categoryShareDelta.toFixed(2)) },
                 MarketShare: { value: marketShare === null ? null : parseFloat(marketShare.toFixed(2)), delta: marketShareDelta === null ? null : parseFloat(marketShareDelta.toFixed(2)) },
-                OfftakeShare: { value: parseFloat(skuOfftakeShare.toFixed(2)), delta: parseFloat(skuOfftakeShareDelta.toFixed(2)) },
-                offtake_share: parseFloat(skuOfftakeShare.toFixed(2)),
+                OfftakeShare: { value: skuOfftakeShare === null ? null : parseFloat(skuOfftakeShare.toFixed(2)), delta: (skuOfftakeShare === null || skuOfftakeShareDelta === null) ? null : parseFloat(skuOfftakeShareDelta.toFixed(2)) },
+                offtake_share: skuOfftakeShare === null ? null : parseFloat(skuOfftakeShare.toFixed(2)),
                 'Promo-My': { value: parseFloat((sku.avg_discount || 0).toFixed(2)), delta: calcChange(sku.avg_discount || 0, prevSku.avg_discount || 0) },
                 'PromoMy': { value: parseFloat((sku.avg_discount || 0).toFixed(2)), delta: calcChange(sku.avg_discount || 0, prevSku.avg_discount || 0) },
                 ListingPercent: { value: parseFloat(skuListingPercent.toFixed(2)), delta: parseFloat(skuListingPercentDelta.toFixed(2)) }
