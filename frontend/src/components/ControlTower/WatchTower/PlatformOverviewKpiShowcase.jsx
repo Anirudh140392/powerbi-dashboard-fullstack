@@ -1556,29 +1556,49 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
     return v.toFixed(1);
   };
 
+  // Sort KPI chips by table availability: available first, unavailable (N/A) last
+  const sortedPlatformKpiChips = useMemo(() => {
+    const raw = (isBrandMode ? KPI_KEYS : KPI_KEYS.filter(m => m.key !== 'sos'))
+      .filter(m => !hideMarketShare || m.key !== 'marketShare');
+
+    const mapped = raw.map((m) => {
+      const sourceGroup = KPI_SOURCE_MAP[m.key];
+      const isMetricNA = kpiAvailability && sourceGroup ? !kpiAvailability[sourceGroup] : false;
+      return { ...m, isMetricNA };
+    });
+
+    const available = mapped.filter((m) => !m.isMetricNA);
+    const unavailable = mapped.filter((m) => m.isMetricNA);
+    return [...available, ...unavailable];
+  }, [isBrandMode, hideMarketShare, kpiAvailability]);
+
+  // Ensure activeMetric is available, otherwise switch to first available metric
+  useEffect(() => {
+    if (!kpiAvailability || !sortedPlatformKpiChips || sortedPlatformKpiChips.length === 0) return;
+    const available = sortedPlatformKpiChips.filter((m) => !m.isMetricNA);
+    if (available.length === 0) return;
+    if (!available.some((m) => m.key === activeMetric)) {
+      setActiveMetric(available[0].key);
+    }
+  }, [kpiAvailability, sortedPlatformKpiChips, activeMetric]);
+
   return (
     <Card className="mt-4">
       <CardHeader className="flex flex-col gap-4 border-b pb-4">
         <div className="flex items-center justify-between w-full">
           <Box display="flex" gap={1} flexWrap="wrap">
-            {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(m => m.key !== 'sos'))
-              .filter(m => !hideMarketShare || m.key !== 'marketShare')
-              .map((m) => {
-                const sourceGroup = KPI_SOURCE_MAP[m.key];
-                const isMetricNA = kpiAvailability && sourceGroup ? !kpiAvailability[sourceGroup] : false;
-                return (
-                  <MetricChip
-                    key={m.key}
-                    label={m.label}
-                    color={m.color}
-                    active={activeMetric === m.key && !isMetricNA}
-                    isNA={isMetricNA}
-                    onClick={() => {
-                        if (!isMetricNA) setActiveMetric(m.key)
-                    }}
-                  />
-                );
-              })}
+            {sortedPlatformKpiChips.map((m) => (
+              <MetricChip
+                key={m.key}
+                label={m.label}
+                color={m.color}
+                active={activeMetric === m.key && !m.isMetricNA}
+                isNA={m.isMetricNA}
+                onClick={() => {
+                  if (!m.isMetricNA) setActiveMetric(m.key);
+                }}
+              />
+            ))}
           </Box>
           <div className="flex items-center gap-2">
             {/* Time Step Selector (Daily | Weekly | Monthly) */}

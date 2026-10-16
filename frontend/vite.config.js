@@ -87,6 +87,12 @@ export default defineConfig({
         target: 'http://localhost:5001',
         changeOrigin: true,
         ws: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            if (err.code === 'ECONNRESET' || err.code === 'EPIPE' || err.code === 'ECONNABORTED') return;
+            console.warn('[vite] ws proxy error:', err.message);
+          });
+        },
       },
     },
   },

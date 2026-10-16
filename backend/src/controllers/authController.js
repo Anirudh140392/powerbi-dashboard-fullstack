@@ -2,6 +2,7 @@
 import crypto from 'crypto';
 import { loginUser, verifySession } from '../services/authService.js';
 import { getDeviceCookieOptions, updateDeviceTokenMap } from '../services/deviceService.js';
+import { recordVisitor } from '../services/visitorService.js';
 
 /**
  * POST /api/auth/login
@@ -57,6 +58,14 @@ export const login = async (req, res) => {
                 result.deviceToken
             );
             res.cookie('device_token', updatedCookie, getDeviceCookieOptions());
+        }
+
+        if (result.user) {
+            recordVisitor({
+                email: result.user.email,
+                client_db: result.user.dbName,
+                page: '/login',
+            }).catch(e => console.warn('[VisitorTracker] login tracking failed:', e.message));
         }
 
         return res.status(200).json({
@@ -125,7 +134,7 @@ export const verify = async (req, res) => {
  */
 export const switchDbController = async (req, res) => {
     try {
-        const { targetDbName } = req.body || {};
+        const { targetDbName, targetDbId } = req.body || {};
         const email = req.user?.email;
         const currentDbName = req.user?.dbName;
 
@@ -134,7 +143,15 @@ export const switchDbController = async (req, res) => {
         }
 
         const { switchDatabase } = await import('../services/authService.js');
-        const result = await switchDatabase(email, currentDbName, targetDbName);
+        const result = await switchDatabase(email, currentDbName, targetDbName, targetDbId);
+
+        if (result.user) {
+            recordVisitor({
+                email: result.user.email,
+                client_db: result.user.dbName,
+                page: 'switch-db',
+            }).catch(e => console.warn('[VisitorTracker] switch-db tracking failed:', e.message));
+        }
 
         return res.status(200).json({
             success: true,
@@ -255,6 +272,14 @@ export const googleLogin = async (req, res) => {
             visitorId, browser, browserVersion, os, platform, ip: clientIp
         });
 
+        if (result.user) {
+            recordVisitor({
+                email: result.user.email,
+                client_db: result.user.dbName,
+                page: '/login',
+            }).catch(e => console.warn('[VisitorTracker] google login tracking failed:', e.message));
+        }
+
         return res.status(200).json({ success: true, token: result.token, user: result.user });
     } catch (error) {
         console.error('[Auth] Google login failed:', error.message);
@@ -284,6 +309,14 @@ export const microsoftLogin = async (req, res) => {
         const result = await authenticateSsoUser(ssoPayload, {
             visitorId, browser, browserVersion, os, platform, ip: clientIp
         });
+
+        if (result.user) {
+            recordVisitor({
+                email: result.user.email,
+                client_db: result.user.dbName,
+                page: '/login',
+            }).catch(e => console.warn('[VisitorTracker] microsoft login tracking failed:', e.message));
+        }
 
         return res.status(200).json({ success: true, token: result.token, user: result.user });
     } catch (error) {
@@ -449,6 +482,14 @@ export const microsoftCallback = async (req, res) => {
         }
 
         const result = await authenticateSsoUser(ssoPayload, { ip: clientIp });
+
+        if (result.user) {
+            recordVisitor({
+                email: result.user.email,
+                client_db: result.user.dbName,
+                page: '/login',
+            }).catch(e => console.warn('[VisitorTracker] microsoft callback login tracking failed:', e.message));
+        }
 
         console.log('[Auth] Microsoft callback login successful for:', ssoPayload.email);
         return res.send(buildCallbackHtml(true, result.token, result.user, null));

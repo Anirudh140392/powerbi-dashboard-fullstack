@@ -7,20 +7,45 @@ import { buildDynamicSkuUrl } from './pricingAnalysisService.js';
 const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
 const EXCLUDED_PLATFORMS = ['BigBasket', 'Amazon', 'Flipkart'];
 
+export const isAllValue = (val) => {
+    if (!val) return true;
+    if (Array.isArray(val)) {
+        if (val.length === 0) return true;
+        return val.some(v => {
+            const lower = String(v).toLowerCase().trim();
+            return (
+                lower === 'all' ||
+                lower === 'all india' ||
+                lower === 'select all' ||
+                lower === 'all platforms' ||
+                lower === 'all categories' ||
+                lower === 'all signals' ||
+                lower === 'all cities' ||
+                lower === 'all brands' ||
+                lower === 'all skus' ||
+                lower === 'multi-city'
+            );
+        });
+    }
+    const lower = String(val).toLowerCase().trim();
+    return (
+        lower === 'all' ||
+        lower === 'all india' ||
+        lower === 'select all' ||
+        lower === 'all platforms' ||
+        lower === 'all categories' ||
+        lower === 'all signals' ||
+        lower === 'all cities' ||
+        lower === 'all brands' ||
+        lower === 'all skus' ||
+        lower === 'multi-city'
+    );
+};
+
 function buildCHCondition(value, column, options = {}) {
     const { isBrand = false, isCategory = false, isKeywordType = false, isPlatform = false, isDimension = false, noSplit = false } = options;
 
-    const isAll = (val) => {
-        if (!val) return true;
-        if (Array.isArray(val)) {
-            return val.some(v => {
-                const lower = String(v).toLowerCase();
-                return lower === 'all' || lower === 'all india';
-            });
-        }
-        const lower = String(val).toLowerCase();
-        return lower === 'all' || lower === 'all india';
-    };
+    const isAll = isAllValue;
 
     const isOurBrand = (val) => {
         if (!val) return false;
@@ -266,7 +291,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
 
         results.forEach(row => {
             const date = dayjs(row.crawl_date);
-            const dateStr = date.format('MMM D');
+            const dateStr = date.format('DD MMM YYYY');
 
             overall.dates.push(dateStr);
             overall.values.push(Number(row.overall_sos) || 0);
@@ -348,13 +373,23 @@ async function getVisibilityOverviewData(filters = {}) {
 
         // Use dayjs like Watch Tower for consistent date handling
         // Default to last 7 days for a "Weekly" comparison
-        let endDate = dayjs();
+        let endDate = filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : (filters.isQcUser ? dayjs() : dayjs().subtract(1, 'day'));
         let startDate = endDate.subtract(6, 'day'); // 7 days inclusive
 
         // Override with filter dates if provided
         if (filters.startDate && filters.endDate) {
             startDate = dayjs(filters.startDate);
             endDate = dayjs(filters.endDate);
+        }
+
+        // Restrict non-QC users to maxAllowedDate (current day - 1)
+        if (!filters.isQcUser && filters.maxAllowedDate) {
+            if (endDate.isAfter(dayjs(filters.maxAllowedDate))) {
+                endDate = dayjs(filters.maxAllowedDate);
+            }
+            if (startDate.isAfter(dayjs(filters.maxAllowedDate))) {
+                startDate = dayjs(filters.maxAllowedDate);
+            }
         }
 
         // Previous period: use compare dates if provided, else shift back by duration
@@ -386,7 +421,6 @@ async function getVisibilityOverviewData(filters = {}) {
         // 1. Current period SOS (all 3 types in 1 query)
         // 2. Previous period SOS (all 3 types in 1 query)
         // 3. Sparkline trends (all 3 types in 1 query)
-        // OPTIMIZED: Only 3 database queries instead of 9
         // Fetch trend data for the SELECTED range to display weekly points
         const [currentSOS, prevSOS, trends] = await Promise.all([
             calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel, filters.rank),
@@ -409,6 +443,8 @@ async function getVisibilityOverviewData(filters = {}) {
         const organicChange = formatPPChange(currentSOS.organic, prevSOS.organic);
 
         return {
+            startDate: dateRanges.current.start,
+            endDate: dateRanges.current.end,
             cards: [
                 {
                     title: "Overall SOS",
@@ -421,6 +457,9 @@ async function getVisibilityOverviewData(filters = {}) {
                     extraChange: "",
                     extraChangeColor: "green",
                     months: dailyTrends.overall.dates,
+                    dates: dailyTrends.overall.dates,
+                    startDate: dateRanges.current.start,
+                    endDate: dateRanges.current.end,
                     sparklineData: dailyTrends.overall.values
                 },
                 {
@@ -434,6 +473,9 @@ async function getVisibilityOverviewData(filters = {}) {
                     extraChange: "",
                     extraChangeColor: "red",
                     months: dailyTrends.sponsored.dates,
+                    dates: dailyTrends.sponsored.dates,
+                    startDate: dateRanges.current.start,
+                    endDate: dateRanges.current.end,
                     sparklineData: dailyTrends.sponsored.values
                 },
                 {
@@ -447,6 +489,9 @@ async function getVisibilityOverviewData(filters = {}) {
                     extraChange: "",
                     extraChangeColor: "green",
                     months: dailyTrends.organic.dates,
+                    dates: dailyTrends.organic.dates,
+                    startDate: dateRanges.current.start,
+                    endDate: dateRanges.current.end,
                     sparklineData: dailyTrends.organic.values
                 }
             ]
@@ -733,8 +778,8 @@ class VisibilityService {
 
             if (!startDate || !endDate) {
                 // Default to last 30 days
-                endDate = dayjs().format('YYYY-MM-DD');
-                startDate = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+                endDate = filters.maxAllowedDate ? dayjs(filters.maxAllowedDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+                startDate = dayjs(endDate).subtract(30, 'day').format('YYYY-MM-DD');
             }
 
             const replacements = { startDate, endDate };
@@ -1398,7 +1443,7 @@ class VisibilityService {
                 }
 
                 let startDate = filters.startDate ? dayjs(filters.startDate).format('YYYY-MM-DD') : maxDate;
-                let endDate = filters.endDate ? dayjs(filters.endDate).format('YYYY-MM-DD') : maxDate;
+                let endDate = filters.endDate ? dayjs(filters.endDate).format('YYYY-MM-DD') : (filters.maxAllowedDate && dayjs(maxDate).isAfter(dayjs(filters.maxAllowedDate)) ? filters.maxAllowedDate : maxDate);
 
                 const start = dayjs(startDate);
                 const end = dayjs(endDate);
@@ -1774,8 +1819,8 @@ class VisibilityService {
                 const categoryClause = categoryFilter !== '1=1' ? `AND ${categoryFilter}` : '';
 
                 // 1. Calculate Period Boundaries (consistent with getTopSearchTerms)
-                const start = dayjs(filters.startDate || dayjs().subtract(7, 'day'));
-                const end = dayjs(filters.endDate || dayjs());
+                const end = dayjs(filters.endDate || (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : dayjs()));
+                const start = dayjs(filters.startDate || end.subtract(7, 'day'));
                 const duration = end.diff(start, 'day') + 1;
 
                 const currStart = start.format('YYYY-MM-DD');
@@ -2180,10 +2225,10 @@ class VisibilityService {
      * Get the latest available dates from rb_kw_olap table
      * Returns the date range of the latest month that has data
      */
-    async getLatestAvailableDates() {
-        console.log('[VisibilityService] getLatestAvailableDates (ClickHouse) called');
+    async getLatestAvailableDates(maxAllowedDate) {
+        console.log('[VisibilityService] getLatestAvailableDates (ClickHouse) called, maxAllowedDate:', maxAllowedDate);
         const dbName = getCurrentDbName();
-        const cacheKey = `visibility_latest_dates_db_${dbName}`;
+        const cacheKey = `visibility_latest_dates_db_${dbName}_${maxAllowedDate || 'all'}`;
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -2196,12 +2241,12 @@ class VisibilityService {
             `);
 
                 const minDate = results[0]?.minDate;
-                const maxDate = results[0]?.maxDate;
+                const dbMaxDate = results[0]?.maxDate;
 
-                if (!maxDate || maxDate === '0000-00-00' || maxDate === '1970-01-01') {
+                if (!dbMaxDate || dbMaxDate === '0000-00-00' || dbMaxDate === '1970-01-01') {
                     console.log('[VisibilityService] No valid data found in rb_kw_olap table, returning current month');
                     // Fallback to current month if no data
-                    const now = dayjs();
+                    const now = maxAllowedDate ? dayjs(maxAllowedDate) : dayjs();
                     return {
                         available: false,
                         minDate: undefined,
@@ -2212,7 +2257,10 @@ class VisibilityService {
                     };
                 }
 
-                const latestDate = dayjs(maxDate);
+                let latestDate = dayjs(dbMaxDate);
+                if (maxAllowedDate && latestDate.isAfter(dayjs(maxAllowedDate))) {
+                    latestDate = dayjs(maxAllowedDate);
+                }
                 const startOfMonth = latestDate.startOf('month');
 
                 console.log('[VisibilityService] Found latest date (ClickHouse):', latestDate.format('YYYY-MM-DD'));
@@ -2228,7 +2276,7 @@ class VisibilityService {
             } catch (error) {
                 console.error('[VisibilityService] Error getting latest available dates (ClickHouse):', error);
                 // Fallback to current month on error
-                const now = dayjs();
+                const now = maxAllowedDate ? dayjs(maxAllowedDate) : dayjs();
                 return {
                     available: false,
                     minDate: undefined,
@@ -2293,6 +2341,9 @@ class VisibilityService {
                     endDate = dayjs(maxDate);
                 } else {
                     endDate = dayjs();
+                }
+                if (filters.maxAllowedDate && endDate.isAfter(dayjs(filters.maxAllowedDate))) {
+                    endDate = dayjs(filters.maxAllowedDate);
                 }
 
                 const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
@@ -2504,7 +2555,10 @@ class VisibilityService {
                 return { brands: [], skus: [] };
             }
 
-            const latestDate = dayjs(maxDate);
+            let latestDate = dayjs(maxDate);
+            if (filters.maxAllowedDate && latestDate.isAfter(dayjs(filters.maxAllowedDate))) {
+                latestDate = dayjs(filters.maxAllowedDate);
+            }
             console.log('[VisibilityService] Using latest available date (ClickHouse):', latestDate.format('YYYY-MM-DD'));
 
             // Determine date ranges
@@ -2794,6 +2848,9 @@ class VisibilityService {
                 } else {
                     endDate = dayjs();
                 }
+                if (filters.maxAllowedDate && endDate.isAfter(dayjs(filters.maxAllowedDate))) {
+                    endDate = dayjs(filters.maxAllowedDate);
+                }
 
                 const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
                 const days = periodToDays[period] || 30;
@@ -2863,9 +2920,9 @@ class VisibilityService {
                 if (!val) return false;
                 if (Array.isArray(val)) {
                     if (val.length === 0) return false;
-                    return !val.some(v => String(v).toLowerCase() === 'all');
+                    return !val.some(v => isAllValue(v));
                 }
-                return String(val).toLowerCase() !== 'all';
+                return !isAllValue(val);
             };
             const hasKeywordFilter = isNotAll(filters.keyword) || isNotAll(filters.keywordType) || dimension === 'keyword';
 
@@ -2962,13 +3019,14 @@ class VisibilityService {
 
             const [brandResults, offtakeResults, msResults, msTotalResults] = await Promise.all(queries);
 
-            // Group results by brand
+            // Group results by brand (case-insensitive key mapping)
             const brandDataMap = {};
             brandResults.forEach(row => {
-                if (!brandDataMap[row.brand_name]) brandDataMap[row.brand_name] = {};
+                const bKey = String(row.brand_name || '').toLowerCase().trim();
+                if (!brandDataMap[bKey]) brandDataMap[bKey] = {};
                 const date = dayjs(row.crawl_date);
                 const dateStr = date.format(dateFormat);
-                brandDataMap[row.brand_name][dateStr] = {
+                brandDataMap[bKey][dateStr] = {
                     brand_volume: Number(row.brand_volume) || 0,
                     sponsored_volume: Number(row.sponsored_volume) || 0,
                     organic_volume: Number(row.organic_volume) || 0,
@@ -2979,9 +3037,10 @@ class VisibilityService {
             const offtakeMap = {};
             if (offtakeResults) {
                 offtakeResults.forEach(row => {
-                    if (!offtakeMap[row.brand_name]) offtakeMap[row.brand_name] = {};
+                    const bKey = String(row.brand_name || '').toLowerCase().trim();
+                    if (!offtakeMap[bKey]) offtakeMap[bKey] = {};
                     const dateStr = dayjs(row.crawl_date).format(dateFormat);
-                    offtakeMap[row.brand_name][dateStr] = parseFloat(row.total_sales || 0);
+                    offtakeMap[bKey][dateStr] = parseFloat(row.total_sales || 0);
                 });
             }
 
@@ -2996,20 +3055,22 @@ class VisibilityService {
             const msMap = {};
             if (msResults) {
                 msResults.forEach(row => {
-                    if (!msMap[row.brand_name]) msMap[row.brand_name] = {};
+                    const bKey = String(row.brand_name || '').toLowerCase().trim();
+                    if (!msMap[bKey]) msMap[bKey] = {};
                     const dateStr = dayjs(row.crawl_date).format(dateFormat);
                     const brandSales = parseFloat(row.brand_total_sales || 0);
                     const totalSales = catTotalMap[dateStr] || 0;
                     const catShare = totalSales > 0 ? (brandSales / totalSales) * 100 : 0;
-                    msMap[row.brand_name][dateStr] = parseFloat(catShare.toFixed(2));
+                    msMap[bKey][dateStr] = parseFloat(catShare.toFixed(2));
                 });
             }
 
             const brandsResult = {};
             selectedItems.forEach((brandName, index) => {
-                const brandHistory = brandDataMap[brandName] || {};
-                const offtakeHistory = offtakeMap[brandName] || {};
-                const msHistory = msMap[brandName] || {};
+                const bKey = String(brandName || '').toLowerCase().trim();
+                const brandHistory = brandDataMap[bKey] || brandDataMap[brandName] || {};
+                const offtakeHistory = offtakeMap[bKey] || offtakeMap[brandName] || {};
+                const msHistory = msMap[bKey] || msMap[brandName] || {};
 
                 const timeSeries = allDays.map(dateStr => {
                     const totalVol = volumeByDate[dateStr] || { overall: 1, spons: 1, organic: 1 };
@@ -4552,8 +4613,8 @@ class VisibilityService {
                     skuCol, bsrCol, discountCol, channelCol, flagCol, dateCol, pltCol, brdCol, locCol, catCol
                 });
 
-                const startDate = filters.startDate || dayjs().subtract(30, 'day').format('YYYY-MM-DD');
-                const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
+                const endDate = filters.endDate || (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'));
+                const startDate = filters.startDate || dayjs(endDate).subtract(30, 'day').format('YYYY-MM-DD');
 
                 // Build filters for rb_pdp_olap
                 let filterConditions = ['1=1'];
@@ -4847,8 +4908,8 @@ class VisibilityService {
                 const locCol = r('Location', 'Location');
                 const catCol = r('Category', 'Category');
 
-                const startDate = filters.startDate || dayjs().subtract(30, 'day').format('YYYY-MM-DD');
-                const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
+                const endDate = filters.endDate || (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'));
+                const startDate = filters.startDate || dayjs(endDate).subtract(30, 'day').format('YYYY-MM-DD');
 
                 // Build filters for rb_pdp_olap
                 let filterConditions = ['1=1'];

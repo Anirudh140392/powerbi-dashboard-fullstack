@@ -894,6 +894,15 @@ const VisiblityAnalysisData = ({
         const changeMatch = card.change ? card.change.match(/([▲▼])(\d+\.?\d*)/) : null;
         const deltaVal = changeMatch ? parseFloat(changeMatch[2]) * (changeMatch[1] === '▲' ? 1 : -1) : 0;
 
+        const datesList = card.dates || card.months || [];
+        const cardEndDate = card.endDate || parentFilters?.endDate || apiData?.overview?.endDate;
+        const trendData = (Array.isArray(card.sparklineData) && datesList.length === card.sparklineData.length)
+          ? card.sparklineData.map((val, i) => ({
+              value: val,
+              label: datesList[i]
+            }))
+          : (card.sparklineData || []);
+
         return {
           id: `vis-${idx}`,
           title: card.title,
@@ -903,7 +912,9 @@ const VisiblityAnalysisData = ({
           deltaLabel: card.change || '',
           icon: icons[idx] || PieChart,
           gradient: gradients[idx % gradients.length],
-          trend: card.sparklineData || [],
+          trend: trendData,
+          dates: datesList,
+          endDate: cardEndDate,
           isComingSoon: card.isComingSoon || false,
           extra: card.extra,
           extraChange: card.extraChange,
@@ -916,7 +927,7 @@ const VisiblityAnalysisData = ({
 
     // Fallback: return empty cards when API data is not yet available
     return [];
-  }, [apiData?.overview]);
+  }, [apiData?.overview, parentFilters?.endDate]);
 
   const cellHeat = (value) => {
     if (value >= 95) return "bg-emerald-100 text-emerald-900";

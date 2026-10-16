@@ -23,6 +23,7 @@ import { Skeleton, Box, Card, Typography, IconButton, Tooltip } from '@mui/mater
 import { HelpOutline as HelpIcon } from "@mui/icons-material";
 import { useHelp } from "../../utils/HelpContext";
 import React, { useRef, useState, useEffect, useMemo } from 'react'
+import dayjs from 'dayjs'
 
 // ---------- Helpers ----------
 
@@ -782,33 +783,63 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
     }
 
     const chartData = useMemo(() => {
-        if (!kpi.trendSeries) return [];
-        return kpi.trendSeries.map((item, i) => {
+        const series = (kpi.trendSeries && kpi.trendSeries.length > 0)
+            ? kpi.trendSeries
+            : (Array.isArray(kpi.trend) && kpi.trend.length > 0 ? kpi.trend : []);
+        if (!series || series.length === 0) return [];
+        return series.map((item, i) => {
+            let val = 0;
+            let isNA = false;
+            let dateLabel = null;
+
             if (typeof item === 'object' && item !== null) {
-                return {
-                    i,
-                    v: (item.value === null || item.value === undefined) ? 0 : item.value,
-                    label: item.label,
-                    isNA: item.value === null || item.value === undefined
-                };
+                val = (item.value === null || item.value === undefined) ? 0 : item.value;
+                isNA = item.value === null || item.value === undefined;
+                dateLabel = item.label || item.date;
+            } else {
+                val = (item === null || item === undefined) ? 0 : item;
+                isNA = item === null || item === undefined;
             }
+
+            if (!dateLabel && kpi.dates && kpi.dates[i]) {
+                dateLabel = kpi.dates[i];
+            }
+
+            if (!dateLabel) {
+                let defaultEndDate = dayjs();
+                try {
+                    const u = JSON.parse(sessionStorage.getItem('user'));
+                    const isQc = Number(u?.qc_user ?? u?.qcUser) === 1;
+                    if (!isQc) {
+                        defaultEndDate = dayjs().subtract(1, 'day');
+                    }
+                } catch {
+                    defaultEndDate = dayjs().subtract(1, 'day');
+                }
+                const endDateObj = kpi.endDate ? dayjs(kpi.endDate) : defaultEndDate;
+                dateLabel = endDateObj.subtract(series.length - 1 - i, 'day').format('DD MMM YYYY');
+            }
+
             return {
                 i,
-                v: (item === null || item === undefined) ? 0 : item,
-                label: `Day ${i + 1}`,
-                isNA: item === null || item === undefined
+                v: val,
+                label: dateLabel,
+                isNA
             };
         });
-    }, [kpi.trendSeries]);
+    }, [kpi.trendSeries, kpi.trend, kpi.dates, kpi.endDate]);
 
     const isCardNA = kpi.value === 'N/A' || kpi.isNA;
 
     const shouldShowChart = useMemo(() => {
+        const series = (kpi.trendSeries && kpi.trendSeries.length > 0)
+            ? kpi.trendSeries
+            : (Array.isArray(kpi.trend) && kpi.trend.length > 0 ? kpi.trend : []);
         if (!isCardNA) return true;
-        if (!kpi.trendSeries || kpi.trendSeries.length === 0) return false;
+        if (!series || series.length === 0) return false;
 
         // If the trend only contains 0, null, or undefined, don't show the chart
-        const hasValidVal = kpi.trendSeries.some(item => {
+        const hasValidVal = series.some(item => {
             if (typeof item === 'object' && item !== null) {
                 return item.value !== null && item.value !== undefined && item.value !== 0;
             }
@@ -816,7 +847,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
         });
 
         return hasValidVal;
-    }, [isCardNA, kpi.trendSeries]);
+    }, [isCardNA, kpi.trendSeries, kpi.trend]);
 
     const isPositive = (kpi.delta || 0) >= 0;
     const deltaColor = isPositive ? "text-emerald-600" : "text-rose-600";

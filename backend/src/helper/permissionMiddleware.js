@@ -8,42 +8,38 @@ const PERM_CACHE_TTL = 60 * 1000;
 
 export function clearPermissionsCache(email) {
     if (email) {
-        permissionsCache.delete(email);
-        permissionsCache.delete(email.toLowerCase().trim());
+        const clean = email.toLowerCase().trim();
+        for (const key of permissionsCache.keys()) {
+            if (key === clean || key.startsWith(`${clean}:`)) {
+                permissionsCache.delete(key);
+            }
+        }
+    } else {
+        permissionsCache.clear();
     }
-    permissionsCache.clear();
-    console.log("🧹 [Cache Clear] Cleared permissionsCache completely");
+    console.log("🧹 [Cache Clear] Cleared permissionsCache", email ? `for ${email}` : 'completely');
 }
 
 /**
- * Fetch fresh tabPermissions from admin_master.tb_user for a given email.
+ * Fetch fresh tabPermissions from admin_master.tb_user for a given email and dbId.
  * Uses a short-lived in-memory cache to avoid hitting DB on every request.
  */
-async function getFreshTabPermissions(email) {
-    const cached = permissionsCache.get(email);
+async function getFreshTabPermissions(email, dbId, dbName) {
+    if (!email) return null;
+    const cleanEmail = email.toLowerCase().trim();
+    let cleanDbId = (dbId !== undefined && dbId !== null) ? String(dbId).trim() : '';
+
+    const cacheKey = cleanDbId ? `${cleanEmail}:${cleanDbId}` : (dbName ? `${cleanEmail}:${dbName.toLowerCase().trim()}` : cleanEmail);
+    const cached = permissionsCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp) < PERM_CACHE_TTL) {
         return cached.data;
     }
 
     try {
-        const rows = await queryAdminDB(
-            `SELECT
-                tab_permissions
-             FROM tb_user
-             WHERE lower(user_email) = lower('${email.replace(/'/g, "\\'")}') AND status != 'deleted'
-             ORDER BY last_login DESC, created_on DESC
-             LIMIT 1`
-        );
-        if (rows.length === 0) {
-            return null; // Not found in DB, fallback to JWT permissions
-        }
-        let tabPerms = {};
-        if (rows[0].tab_permissions && rows[0].tab_permissions.trim()) {
-            try {
-                tabPerms = toFlatPermissions(JSON.parse(rows[0].tab_permissions));
-            } catch (e) { /* ignore parse errors */ }
-        }
-        permissionsCache.set(email, { data: tabPerms, timestamp: Date.now() });
+        const { resolveUserPermissionsForDb } = await import('../services/authService.js');
+        const permsResult = await resolveUserPermissionsForDb(cleanEmail, cleanDbId, dbName);
+        const tabPerms = permsResult.tabPermissions || {};
+        permissionsCache.set(cacheKey, { data: tabPerms, timestamp: Date.now() });
         return tabPerms;
     } catch (err) {
         console.warn('[PermissionMiddleware] Failed to fetch fresh tab permissions:', err.message);
@@ -147,7 +143,7 @@ export const platformPermissionMiddleware = async (req, res, next) => {
     }
 
     // Fetch fresh permissions from DB (cached for 60 seconds)
-    const freshPerms = await getFreshTabPermissions(req.user.email);
+    const freshPerms = await getFreshTabPermissions(req.user.email, req.user.dbId, req.user.dbName);
     if (freshPerms !== null) {
         req.user.tabPermissions = freshPerms;
     }

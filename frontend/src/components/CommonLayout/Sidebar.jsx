@@ -753,7 +753,7 @@ const Sidebar = ({
                     }
                     setIsSwitchingDb(true);
                     setDbDropdownAnchor(null);
-                    await switchDb(dbItem.dbName);
+                    await switchDb(dbItem.dbName, null, dbItem.dbId);
                     setIsSwitchingDb(false);
                   }}
                   sx={{

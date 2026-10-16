@@ -1,4 +1,5 @@
 import { getInsightsData } from '../services/insightsService.js';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 export const getInsights = async (req, res) => {
     try {
@@ -14,6 +15,8 @@ export const getInsights = async (req, res) => {
             compareStartDate: req.query.compareStartDate,
             compareEndDate: req.query.compareEndDate
         };
+
+        applyQcDateFilter(filters, req);
 
         const result = await getInsightsData(filters);
         
@@ -58,6 +61,7 @@ export const getCorrelations = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
         };
+        applyQcDateFilter(filters, req);
         const data = await getCorrelationsData(filters);
         res.status(200).json({ success: true, data });
     } catch (error) {
@@ -78,6 +82,7 @@ export const getCorrelationsTrend = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
         };
+        applyQcDateFilter(filters, req);
         const data = await getTrend(filters);
         res.status(200).json({ success: true, data });
     } catch (error) {

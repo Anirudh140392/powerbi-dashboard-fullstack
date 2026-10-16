@@ -17,11 +17,11 @@ const wrap = (col) => `ifNull(toFloat64OrZero(toString(${col})), 0)`;
 // ─── Category SQL (mirrors watchTowerService) ──────────────────────
 const PRODUCT_CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Category != '0', 
     Category, 
-    multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
+    multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'gmfc', 
             LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
                 if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 
-                   'Chocolates (Gifting)', 
-                   'Chocolates (Non Gifting)'), 
+                   'chocolates (gifting)', 
+                   'chocolates (non gifting)'), 
             'Others')
 )`;
 
@@ -82,14 +82,16 @@ async function getMsSource() {
 // ═══════════════════════════════════════════════════════════════════
 // 1) getCompareSkuDateRange — min/max DATE from rb_pdp_olap
 // ═══════════════════════════════════════════════════════════════════
-export const getCompareSkuDateRange = async () => {
+export const getCompareSkuDateRange = async (filters = {}) => {
     try {
         const src = await getSource();
+        const whereClause = filters.maxAllowedDate ? `WHERE toDate(${src.f.date}) <= '${filters.maxAllowedDate}'` : '';
         const result = await queryClickHouse(`
             SELECT 
                 MIN(toDate(${src.f.date})) as minDate,
                 MAX(toDate(${src.f.date})) as maxDate
             FROM ${src.table}
+            ${whereClause}
         `);
         const row = result?.[0] || {};
         return {
@@ -301,8 +303,12 @@ export const getCompareSkuMetrics = async (filters = {}) => {
         if (qEndDate) {
             endDate = dayjs(qEndDate).endOf('day');
         } else {
-            const maxResult = await queryClickHouse(`SELECT MAX(toDate(${src.f.date})) as maxDate FROM ${src.table}`);
-            endDate = maxResult?.[0]?.maxDate ? dayjs(maxResult[0].maxDate).endOf('day') : dayjs().endOf('day');
+            const dateCapCond = filters.maxAllowedDate ? `WHERE toDate(${src.f.date}) <= '${filters.maxAllowedDate}'` : '';
+            const maxResult = await queryClickHouse(`SELECT MAX(toDate(${src.f.date})) as maxDate FROM ${src.table} ${dateCapCond}`);
+            endDate = maxResult?.[0]?.maxDate ? dayjs(maxResult[0].maxDate).endOf('day') : (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate).endOf('day') : dayjs().endOf('day'));
+        }
+        if (filters.maxAllowedDate && endDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+            endDate = dayjs(filters.maxAllowedDate).endOf('day');
         }
 
         let startDate;
@@ -310,6 +316,9 @@ export const getCompareSkuMetrics = async (filters = {}) => {
             startDate = dayjs(qStartDate).startOf('day');
         } else {
             startDate = endDate.subtract(1, 'month').startOf('day');
+        }
+        if (filters.maxAllowedDate && startDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+            startDate = dayjs(filters.maxAllowedDate).endOf('day');
         }
 
         // Previous period (same duration)
@@ -716,8 +725,12 @@ export const getCompareSkuTrend = async (filters = {}) => {
         const brands = normalizeFilterArray(filters.brands);
         const locations = normalizeFilterArray(filters.locations);
 
-        let dStart = startDate ? dayjs(startDate).format('YYYY-MM-DD') : dayjs().subtract(1, 'month').format('YYYY-MM-DD');
-        let dEnd = endDate ? dayjs(endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+        let dStart = startDate ? dayjs(startDate).format('YYYY-MM-DD') : (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate).subtract(1, 'month').format('YYYY-MM-DD') : dayjs().subtract(1, 'month').format('YYYY-MM-DD'));
+        let dEnd = endDate ? dayjs(endDate).format('YYYY-MM-DD') : (filters.maxAllowedDate ? filters.maxAllowedDate : dayjs().format('YYYY-MM-DD'));
+        if (filters.maxAllowedDate) {
+            if (dEnd > filters.maxAllowedDate) dEnd = filters.maxAllowedDate;
+            if (dStart > filters.maxAllowedDate) dStart = filters.maxAllowedDate;
+        }
 
         const skuArr = normalizeFilterArray(skuNames);
         if (!skuArr || skuArr.length === 0) {

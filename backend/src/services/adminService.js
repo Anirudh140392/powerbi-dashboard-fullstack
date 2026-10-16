@@ -1,6 +1,7 @@
 import { queryAdminDB, insertAdminDB } from '../config/adminClickhouse.js';
 import bcrypt from 'bcrypt';
 import { resolveEffectiveTabPermissions } from './authService.js';
+import { clearPermissionsCache } from '../helper/permissionMiddleware.js';
 
 /**
  * Fetch all users with their associated database name
@@ -533,19 +534,33 @@ export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions, re
         const isUserTarget = cleanIdOrEmail && (isEmail || cleanIdOrEmail.match(/^\d+$/));
         let resolvedDbName = requestedDbName || (!isUserTarget ? cleanIdOrEmail : '');
 
+        let targetDbId = '';
+        if (resolvedDbName) {
+            try {
+                const safeDb = resolvedDbName.replace(/'/g, "\\'").toLowerCase();
+                const dbRows = await queryAdminDB(`SELECT toString(db_id) as db_id, db_name FROM tb_database WHERE lower(db_name) = '${safeDb}' LIMIT 1`);
+                if (dbRows && dbRows.length > 0) {
+                    targetDbId = dbRows[0].db_id;
+                    resolvedDbName = dbRows[0].db_name;
+                }
+            } catch (_) {}
+        }
+
         let cleanedPermissions = { ...tabPermissions };
         let foundUserId = '';
         let foundUserEmail = isEmail ? cleanIdOrEmail : '';
         let existingFlatPermissions = {};
 
         if (isUserTarget) {
+            const dbFilter = targetDbId ? ` AND toString(db_id) = '${targetDbId}'` : '';
             const userQuery = isEmail 
-                ? `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email, tab_permissions FROM tb_user WHERE lower(user_email) = lower('${cleanIdOrEmail}') ORDER BY last_login DESC LIMIT 1`
-                : `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email, tab_permissions FROM tb_user WHERE toString(user_id) = '${cleanIdOrEmail}' OR lower(user_email) = lower('${cleanIdOrEmail}') ORDER BY last_login DESC LIMIT 1`;
+                ? `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email, tab_permissions FROM tb_user WHERE lower(user_email) = lower('${cleanIdOrEmail}') ${dbFilter} ORDER BY last_login DESC LIMIT 1`
+                : `SELECT toString(db_id) as db_id, toString(user_id) as user_id, user_email, tab_permissions FROM tb_user WHERE (toString(user_id) = '${cleanIdOrEmail}' OR lower(user_email) = lower('${cleanIdOrEmail}')) ${dbFilter} ORDER BY last_login DESC LIMIT 1`;
             const userRows = await queryAdminDB(userQuery);
             
             if (userRows && userRows.length > 0) {
                 const dbId = userRows[0].db_id;
+                if (!targetDbId) targetDbId = dbId;
                 foundUserId = userRows[0].user_id || '';
                 if (userRows[0].user_email) foundUserEmail = userRows[0].user_email;
 
@@ -587,15 +602,18 @@ export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions, re
                 whereConditions.push(isEmail ? `lower(user_email) = lower('${cleanIdOrEmail}')` : `toString(user_id) = '${cleanIdOrEmail}'`);
             }
 
+            const dbFilter = targetDbId ? ` AND toString(db_id) = '${targetDbId}'` : '';
             const query = `
                 ALTER TABLE tb_user 
                 UPDATE tab_permissions = '${jsonStr}' 
-                WHERE ${whereConditions.join(' OR ')}
+                WHERE (${whereConditions.join(' OR ')})${dbFilter}
             `;
             await queryAdminDB(query);
-        }
 
-        if (resolvedDbName) {
+            if (foundUserEmail) clearPermissionsCache(foundUserEmail);
+            if (cleanIdOrEmail && isEmail) clearPermissionsCache(cleanIdOrEmail);
+        } else if (resolvedDbName) {
+            // ONLY if target was a database (not a user), update database defaults!
             try {
                 const safeDb = resolvedDbName.replace(/'/g, "\\'").toLowerCase();
                 const dbRows = await queryAdminDB(`SELECT toString(db_id) as db_id FROM tb_database WHERE lower(db_name) = '${safeDb}' LIMIT 1`);

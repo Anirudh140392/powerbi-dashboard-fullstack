@@ -135,6 +135,10 @@ app.use("/api/auth", authRoutes);
 import whatsappWebhookRoutes from "./routes/whatsappWebhookRoutes.js";
 app.use("/api/whatsapp/webhook", whatsappWebhookRoutes);
 
+// Visitor tracking routes (accessible with or without token)
+import visitorRoutes from "./routes/visitors.js";
+app.use("/api/visitors", visitorRoutes);
+
 
 // MySQL connection disabled - using ClickHouse only
 // connectDB()
