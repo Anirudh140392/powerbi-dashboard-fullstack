@@ -14,12 +14,30 @@ const axiosInstance = axios.create({
     },
 });
 
-// Request interceptor: attach JWT token to every request
+// Request interceptor: attach JWT token, current date, and qcUser to every request
 axiosInstance.interceptors.request.use(
     (config) => {
         // Ensure cache control headers are always set
         config.headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
         config.headers["Pragma"] = "no-cache";
+
+        // Attach browser local current date (YYYY-MM-DD)
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        config.headers["x-current-date"] = `${year}-${month}-${day}`;
+
+        // Attach qc_user state from sessionStorage if available
+        try {
+            const storedUser = sessionStorage.getItem("user");
+            if (storedUser) {
+                const u = JSON.parse(storedUser);
+                if (u?.qcUser !== undefined) {
+                    config.headers["x-qc-user"] = String(u.qcUser);
+                }
+            }
+        } catch (e) { /* ignore */ }
         
         const token = sessionStorage.getItem("token");
         if (token) {

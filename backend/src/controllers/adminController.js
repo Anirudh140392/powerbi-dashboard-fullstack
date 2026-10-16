@@ -488,7 +488,7 @@ export const createUser = async (req, res) => {
             });
         }
 
-        const { email, password, role, status, db_id } = req.body;
+        const { email, password, role, status, db_id, qcUser, qc_user } = req.body || {};
 
         if (!email || !password || !role || !status || !db_id) {
             return res.status(400).json({
@@ -497,7 +497,10 @@ export const createUser = async (req, res) => {
             });
         }
 
-        const result = await adminService.createUser({ email, password, role, status, db_id });
+        const rawQc = (qcUser !== undefined ? qcUser : (qc_user !== undefined ? qc_user : 0));
+        const parsedQcUser = (rawQc === 1 || rawQc === '1' || rawQc === true || rawQc === 'true') ? 1 : 0;
+
+        const result = await adminService.createUser({ email, password, role, status, db_id, qcUser: parsedQcUser });
 
         return res.status(201).json({
             success: true,
@@ -592,7 +595,7 @@ export const inviteUser = async (req, res) => {
             });
         }
 
-        const { email, dbId, role } = req.body || {};
+        const { email, dbId, role, qcUser, qc_user } = req.body || {};
         if (!email || !dbId) {
             return res.status(400).json({
                 success: false,
@@ -601,7 +604,10 @@ export const inviteUser = async (req, res) => {
         }
 
         const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
-        const result = await adminService.inviteUser({ email, dbId, role, frontendUrl: origin });
+        const rawQc = (qcUser !== undefined ? qcUser : (qc_user !== undefined ? qc_user : 0));
+        const parsedQcUser = (rawQc === 1 || rawQc === '1' || rawQc === true || rawQc === 'true') ? 1 : 0;
+
+        const result = await adminService.inviteUser({ email, dbId, role, qcUser: parsedQcUser, frontendUrl: origin });
 
         return res.status(200).json(result);
     } catch (error) {

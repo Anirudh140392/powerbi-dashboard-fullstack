@@ -6,7 +6,7 @@ import axios from 'axios';
 import { queryAdminDB } from '../config/adminClickhouse.js';
 import { toFlatPermissions } from './adminService.js';
 import { updateDeviceTokenMap } from './deviceService.js';
-import { getMappedDatabasesForDb, getUserMappedDatabases } from './authService.js';
+import { getMappedDatabasesForDb, getUserMappedDatabases, resolveEffectiveTabPermissions } from './authService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'trailytics_jwt_secret_2026';
 // Tokens are permanent (no expiration)
@@ -280,12 +280,13 @@ export async function authenticateSsoUser(ssoPayload, deviceInfo = {}) {
     }
 
     // 3. Resolve tab permissions
+    const rawTabPermissionsStr = await resolveEffectiveTabPermissions(user.user_email, resolvedDbId);
     let rawTabPermissions = {};
-    if (user.tab_permissions) {
+    if (rawTabPermissionsStr) {
         try {
-            rawTabPermissions = typeof user.tab_permissions === 'string'
-                ? JSON.parse(user.tab_permissions)
-                : user.tab_permissions;
+            rawTabPermissions = typeof rawTabPermissionsStr === 'string'
+                ? JSON.parse(rawTabPermissionsStr)
+                : rawTabPermissionsStr;
         } catch (e) {
             console.warn('[SSO] Could not parse tab_permissions:', e.message);
         }
@@ -299,6 +300,7 @@ export async function authenticateSsoUser(ssoPayload, deviceInfo = {}) {
         email: user.user_email,
         name: user.user_name || ssoPayload.name,
         role: user.user_role || 'user',
+        qcUser: Number(user.qc_user) || 0,
         dbName,
         dbId: resolvedDbId,
         company_id: companyId,
@@ -320,6 +322,7 @@ export async function authenticateSsoUser(ssoPayload, deviceInfo = {}) {
             userId: userPayload.userId,
             email: userPayload.email,
             role: userPayload.role,
+            qcUser: userPayload.qcUser,
             dbName: userPayload.dbName,
             dbId: userPayload.dbId,
             company_id: userPayload.company_id,
