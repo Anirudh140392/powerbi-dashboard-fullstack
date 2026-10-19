@@ -253,7 +253,7 @@ export default function ReportBuilder({
   const [filters, setFilters] = useState(["Category", "Brand", "City"]);
   const [showFilterOpts, setShowFilterOpts] = useState(false);
   const isDrl = user?.dbName?.toLowerCase() === 'drl';
-  const [dataMode, setDataMode] = useState("aggregated"); // "aggregated" | "darkstore"
+  const [dataMode, setDataMode] = useState("aggregated"); // "aggregated" | "darkstore" | "custom"
 
   // Sync date range bounds when switching dataMode to darkstore for DRL
   useEffect(() => {
@@ -641,6 +641,19 @@ export default function ReportBuilder({
                       >
                         Darkstore Data
                       </Button>
+                      <Button
+                        variant={dataMode === "custom" ? "contained" : "outlined"}
+                        onClick={() => setDataMode("custom")}
+                        sx={{
+                          textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                          background: dataMode === "custom" ? "linear-gradient(135deg, #10B981, #059669)" : "white",
+                          color: dataMode === "custom" ? "white" : "#64748B",
+                          borderColor: dataMode === "custom" ? "#10B981" : "#CBD5E1",
+                          "&:hover": { background: dataMode === "custom" ? "linear-gradient(135deg, #059669, #047857)" : "#F1F5F9" }
+                        }}
+                      >
+                        Custom Data
+                      </Button>
                     </Box>
                   </Box>
 
@@ -761,6 +774,19 @@ export default function ReportBuilder({
                         }}
                       >
                         Darkstore Data
+                      </Button>
+                      <Button
+                        variant={dataMode === "custom" ? "contained" : "outlined"}
+                        onClick={() => setDataMode("custom")}
+                        sx={{
+                          textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                          background: dataMode === "custom" ? "linear-gradient(135deg, #10B981, #059669)" : "white",
+                          color: dataMode === "custom" ? "white" : "#64748B",
+                          borderColor: dataMode === "custom" ? "#10B981" : "#CBD5E1",
+                          "&:hover": { background: dataMode === "custom" ? "linear-gradient(135deg, #059669, #047857)" : "#F1F5F9" }
+                        }}
+                      >
+                        Custom Data
                       </Button>
                     </Box>
                   </Box>
