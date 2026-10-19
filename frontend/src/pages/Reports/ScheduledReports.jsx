@@ -220,8 +220,11 @@ export default function ScheduledReports() {
             const currentFilters = { ...selectedFilters, ...overrideFilters };
             const { 
                 platform, brand, location, timePeriod, reportType, category, metrics, dimensions,
-                granularitySku, granularityGeo, granularityTime, overrideDates, dataMode
+                granularitySku, granularityGeo, granularityTime, overrideDates, dataMode,
+                startDate: directStart, endDate: directEnd
             } = currentFilters;
+
+            const isDarkstore = dataMode === 'darkstore' || reportType === 'Darkstore Data';
 
             // Build params for backend API
             const params = {
@@ -229,7 +232,7 @@ export default function ScheduledReports() {
                 brand: (brand && brand !== 'All Brands') ? brand : undefined,
                 city: (location && location !== 'All Locations') ? location : undefined,
                 format: (category && category !== 'All Categories') ? category : undefined,
-                timePeriod: timePeriod,
+                timePeriod: (overrideDates || (directStart && directEnd)) ? "Custom Range" : timePeriod,
                 reportType: reportType,
                 dataMode: dataMode || undefined,
                 metrics: metrics, // Send selected tags to backend
@@ -243,13 +246,16 @@ export default function ScheduledReports() {
             if (overrideDates) {
                 params.startDate = overrideDates.start;
                 params.endDate = overrideDates.end;
-            } else if (timePeriod === "Custom Range") {
+            } else if (directStart && directEnd) {
+                params.startDate = directStart;
+                params.endDate = directEnd;
+            } else if (params.timePeriod === "Custom Range") {
                 params.startDate = dayjs(customDateRange.startDate).format('YYYY-MM-DD');
                 params.endDate = dayjs(customDateRange.endDate).format('YYYY-MM-DD');
             }
 
-            // Cap custom dates for non-QC users
-            if (!isQc) {
+            // Cap custom dates for non-QC users only in aggregated mode (NOT darkstore)
+            if (!isQc && !isDarkstore) {
                 const maxDateStr = maxAllowedDate.format('YYYY-MM-DD');
                 if (params.endDate && dayjs(params.endDate).isAfter(maxAllowedDate)) {
                     params.endDate = maxDateStr;
@@ -263,8 +269,6 @@ export default function ScheduledReports() {
             const blob = await downloadReport(params);
 
             // Determine extension: darkstore mode, blob type text/csv, or date range > 31 days -> .csv
-            const isDarkstore = dataMode === 'darkstore' || reportType === 'Darkstore Data';
-
             let sDate = params.startDate;
             let eDate = params.endDate;
             if (!sDate) {

@@ -209,9 +209,10 @@ export const getReportBuilderOptions = async (req, res) => {
             if (!out.regions) out.regions = [];
 
             try {
-                const hasLocalDarkstore = await checkTableExists('rb_pdp_week');
-                const darkstoreTable = hasLocalDarkstore ? 'rb_pdp_week' : 'drl.rb_pdp_week';
-                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable}`).catch(() => null);
+                const currentDb = getCurrentDbName() || 'boat';
+                const hasLocalDarkstore = await checkTableExists(`${currentDb}.rb_pdp_week`) || await checkTableExists('rb_pdp_week');
+                const darkstoreTable = hasLocalDarkstore ? (await checkTableExists(`${currentDb}.rb_pdp_week`) ? `${currentDb}.rb_pdp_week` : 'rb_pdp_week') : 'drl.rb_pdp_week';
+                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable} WHERE created_on IS NOT NULL`).catch(() => null);
                 if (dates && dates[0] && dates[0].minDate) {
                     out.darkstoreDateRange = {
                         minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
@@ -237,7 +238,7 @@ export const getReportBuilderOptions = async (req, res) => {
  */
 export const downloadReport = async (req, res) => {
     try {
-        const { platform, brand, city, format, timePeriod, reportType, startDate: qStart, endDate: qEnd } = req.query;
+        const { platform, brand, city, format, timePeriod, reportType, dataMode, startDate: qStart, endDate: qEnd } = req.query;
 
         const pdpCols = await getTableColumns('rb_pdp_olap');
         const col = (name) => resolveColumn(pdpCols, name, '0');
@@ -252,10 +253,12 @@ export const downloadReport = async (req, res) => {
         else if (pdpCols.has('category')) catCol = pdpCols.get('category');
         else if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category');
 
+        const isDarkstoreMode = dataMode === 'darkstore' || reportType === 'Darkstore Data';
+
         let startDate, endDate;
         const now = dayjs();
 
-        if (timePeriod === "Custom Range" && qStart && qEnd) {
+        if (((timePeriod === "Custom Range" || isDarkstoreMode) || (qStart && qEnd)) && qStart && qEnd) {
             startDate = qStart;
             endDate = qEnd;
         } else if (timePeriod === "Last 7 Days") {
@@ -287,10 +290,8 @@ export const downloadReport = async (req, res) => {
             return `lower(${column}) IN (${items})`;
         };
 
-        const dataMode = req.query.dataMode || 'aggregated';
-
         // ── DARKSTORE DATA EXPORT (rb_pdp_week) — Streaming CSV ──
-        if (dataMode === 'darkstore' || reportType === 'Darkstore Data') {
+        if (isDarkstoreMode) {
             const currentDb = getCurrentDbName() || 'drl';
             const hasLocalWeekTable = await checkTableExists('rb_pdp_week');
             const weekTable = hasLocalWeekTable ? `${currentDb}.rb_pdp_week` : 'drl.rb_pdp_week';
@@ -306,7 +307,9 @@ export const downloadReport = async (req, res) => {
             const cCond = buildInClause('brand_category_name', format);
             if (cCond) darkstoreConds.push(cCond);
 
-            darkstoreConds.push(`toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`);
+            // Filter strictly by date portion of created_on without time
+            darkstoreConds.push(`toDate(created_on) >= toDate('${startDate}') AND toDate(created_on) <= toDate('${endDate}')`);
+            darkstoreConds.push(`created_on IS NOT NULL`);
 
             const darkstoreWhere = darkstoreConds.length > 0 ? `WHERE ${darkstoreConds.join(' AND ')}` : '';
 
@@ -315,15 +318,15 @@ export const downloadReport = async (req, res) => {
                 state_map AS
                 (
                     SELECT DISTINCT
-                        toString(pincode) AS pincode,
+                        toString(location_id) AS loc_id,
                         location_state
                     FROM rb_location_darkstore
-                    WHERE pincode IS NOT NULL AND toString(pincode) != '' AND toString(pincode) != '0'
+                    WHERE location_id IS NOT NULL AND toString(location_id) != '' AND toString(location_id) != '0'
                 )`
                 : '';
             const stateJoin = hasLocationDarkstoreTable
                 ? `LEFT JOIN state_map sm
-                    ON toString(b.pincode) = sm.pincode`
+                    ON toString(b.location_id) = sm.loc_id`
                 : '';
             const stateCol = hasLocationDarkstoreTable
                 ? `sm.location_state AS State,`
@@ -445,8 +448,8 @@ export const downloadReport = async (req, res) => {
 
             const csvEscape = (val) => {
                 if (val === null || val === undefined) return '';
-                const str = String(val);
-                if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                let str = String(val).replace(/[\r\n]+/g, ' ').trim();
+                if (str.includes(',') || str.includes('"')) {
                     return `"${str.replace(/"/g, '""')}"`;
                 }
                 return str;

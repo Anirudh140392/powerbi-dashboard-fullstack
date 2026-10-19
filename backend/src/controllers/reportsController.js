@@ -238,7 +238,8 @@ export const getReportBuilderOptions = async (req, res) => {
     try {
         const qcFilters = applyQcDateFilter(req.query, req);
         const { isQcUser, maxAllowedDate } = qcFilters;
-        const cacheKey = generateCacheKey(`report_builder_options_v2_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
+        const currentDb = getCurrentDbName() || 'boat';
+        const cacheKey = generateCacheKey(`report_builder_options_v3_${currentDb}_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
         const pdpCols = await getTableColumns('rb_pdp_olap');
 
         // Resolve the category column dynamically
@@ -293,18 +294,13 @@ export const getReportBuilderOptions = async (req, res) => {
             if (!out.regions) out.regions = [];
 
             try {
-                const hasLocalDarkstore = await checkTableExists('rb_pdp_week');
-                const darkstoreTable = hasLocalDarkstore ? 'rb_pdp_week' : 'drl.rb_pdp_week';
-                const darkstoreCond = !isQcUser ? `WHERE toDate(created_on) <= '${maxAllowedDate}'` : '';
-                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable} ${darkstoreCond}`).catch(() => null);
+                const hasLocalDarkstore = await checkTableExists(`${currentDb}.rb_pdp_week`) || await checkTableExists('rb_pdp_week');
+                const darkstoreTable = hasLocalDarkstore ? (await checkTableExists(`${currentDb}.rb_pdp_week`) ? `${currentDb}.rb_pdp_week` : 'rb_pdp_week') : 'drl.rb_pdp_week';
+                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable} WHERE created_on IS NOT NULL`).catch(() => null);
                 if (dates && dates[0] && dates[0].minDate) {
-                    let dMax = dayjs(dates[0].maxDate).format('YYYY-MM-DD');
-                    if (!isQcUser && dayjs(dMax).isAfter(dayjs(maxAllowedDate))) {
-                        dMax = maxAllowedDate;
-                    }
                     out.darkstoreDateRange = {
                         minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
-                        maxDate: dMax,
+                        maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
                     };
                 }
             } catch (err) {
@@ -334,7 +330,7 @@ export const downloadReport = async (req, res) => {
     try {
         const qcFilters = applyQcDateFilter(req.query, req);
         const { isQcUser, currentDate, maxAllowedDate } = qcFilters;
-        const { platform, brand, city, format, timePeriod, reportType, startDate: qStart, endDate: qEnd } = req.query;
+        const { platform, brand, city, format, timePeriod, reportType, dataMode, startDate: qStart, endDate: qEnd } = req.query;
 
         // Discover actual column names for rb_pdp_olap (handles case-sensitivity differences)
         const pdpCols = await getTableColumns('rb_pdp_olap');
@@ -352,13 +348,15 @@ export const downloadReport = async (req, res) => {
         else if (pdpCols.has('category')) catCol = pdpCols.get('category');
         else if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category');
 
+        const isDarkstoreMode = dataMode === 'darkstore' || reportType === 'Darkstore Data';
+
         // 1. Determine Date Range from timePeriod
         // QC User: can download up to max(DATE) (currentDate)
         // Non-QC User: can download strictly up to max(DATE) < currentDate (maxAllowedDate = currentDate - 1)
         let startDate, endDate;
         const refDate = isQcUser ? dayjs(currentDate) : dayjs(maxAllowedDate);
 
-        if (timePeriod === "Custom Range" && qStart && qEnd) {
+        if (((timePeriod === "Custom Range" || isDarkstoreMode) || (qStart && qEnd)) && qStart && qEnd) {
             startDate = qStart;
             endDate = qEnd;
         } else if (timePeriod === "Last 7 Days") {
@@ -386,12 +384,14 @@ export const downloadReport = async (req, res) => {
             endDate = refDate.format('YYYY-MM-DD');
         }
 
-        // Clamp dates to maxAllowedDate for non-QC user, or currentDate for QC user
-        if (dayjs(endDate).isAfter(refDate)) {
-            endDate = refDate.format('YYYY-MM-DD');
-        }
-        if (dayjs(startDate).isAfter(refDate)) {
-            startDate = refDate.format('YYYY-MM-DD');
+        // Clamp dates to maxAllowedDate for non-QC user, or currentDate for QC user (aggregated reports only)
+        if (!isDarkstoreMode) {
+            if (dayjs(endDate).isAfter(refDate)) {
+                endDate = refDate.format('YYYY-MM-DD');
+            }
+            if (dayjs(startDate).isAfter(refDate)) {
+                startDate = refDate.format('YYYY-MM-DD');
+            }
         }
 
         const buildInClause = (column, value) => {
@@ -400,12 +400,10 @@ export const downloadReport = async (req, res) => {
             return `lower(${column}) IN (${items})`;
         };
 
-        const dataMode = req.query.dataMode || 'aggregated';
-
         // ── DARKSTORE DATA EXPORT (rb_pdp_week) — Streaming CSV ──
         // Streams rows directly from ClickHouse → CSV → HTTP response.
         // This avoids loading millions of rows into memory (which caused OOM / Docker crashes).
-        if (dataMode === 'darkstore' || reportType === 'Darkstore Data') {
+        if (isDarkstoreMode) {
             const currentDb = getCurrentDbName() || 'drl';
             const hasLocalWeekTable = await checkTableExists('rb_pdp_week');
             const weekTable = hasLocalWeekTable ? `${currentDb}.rb_pdp_week` : 'drl.rb_pdp_week';
@@ -421,10 +419,9 @@ export const downloadReport = async (req, res) => {
             const cCond = buildInClause('brand_category_name', format);
             if (cCond) darkstoreConds.push(cCond);
 
-            darkstoreConds.push(`toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`);
-            if (!isQcUser) {
-                darkstoreConds.push(`toDate(created_on) <= '${maxAllowedDate}'`);
-            }
+            // Filter strictly by date portion of created_on without time
+            darkstoreConds.push(`toDate(created_on) >= toDate('${startDate}') AND toDate(created_on) <= toDate('${endDate}')`);
+            darkstoreConds.push(`created_on IS NOT NULL`);
 
             const darkstoreWhere = darkstoreConds.length > 0 ? `WHERE ${darkstoreConds.join(' AND ')}` : '';
 
@@ -565,8 +562,8 @@ export const downloadReport = async (req, res) => {
             // ── CSV helper: escape a value for CSV (handles commas, quotes, newlines) ──
             const csvEscape = (val) => {
                 if (val === null || val === undefined) return '';
-                const str = String(val);
-                if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                let str = String(val).replace(/[\r\n]+/g, ' ').trim();
+                if (str.includes(',') || str.includes('"')) {
                     return `"${str.replace(/"/g, '""')}"`;
                 }
                 return str;

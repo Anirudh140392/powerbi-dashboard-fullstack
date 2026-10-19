@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Typography,
@@ -255,18 +255,35 @@ export default function ReportBuilder({
   const isDrl = user?.dbName?.toLowerCase() === 'drl';
   const [dataMode, setDataMode] = useState("aggregated"); // "aggregated" | "darkstore"
 
-  // Sync date range bounds when switching dataMode to darkstore for DRL
+  // ── Date boundary calculations based on dataMode ──
+  const effectiveMaxDate = useMemo(() => {
+    if (dataMode === 'darkstore' && builderOptions?.darkstoreDateRange?.maxDate) {
+      return dayjs(builderOptions.darkstoreDateRange.maxDate);
+    }
+    return maxAllowedDate;
+  }, [dataMode, builderOptions?.darkstoreDateRange?.maxDate, maxAllowedDate]);
+
+  const effectiveMinDate = useMemo(() => {
+    if (dataMode === 'darkstore' && builderOptions?.darkstoreDateRange?.minDate) {
+      return dayjs(builderOptions.darkstoreDateRange.minDate);
+    }
+    return undefined;
+  }, [dataMode, builderOptions?.darkstoreDateRange?.minDate]);
+
+  // Sync date range bounds when switching dataMode to darkstore without overwriting user changes
+  const hasInitializedDarkstoreDatesRef = useRef(false);
   useEffect(() => {
-    if (dataMode === 'darkstore' && builderOptions?.darkstoreDateRange) {
+    if (dataMode === 'darkstore' && builderOptions?.darkstoreDateRange && !hasInitializedDarkstoreDatesRef.current) {
+      hasInitializedDarkstoreDatesRef.current = true;
       const minD = dayjs(builderOptions.darkstoreDateRange.minDate);
-      let maxD = dayjs(builderOptions.darkstoreDateRange.maxDate);
-      if (!isQc && maxD.isAfter(maxAllowedDate)) {
-        maxD = maxAllowedDate;
-      }
+      const maxD = dayjs(builderOptions.darkstoreDateRange.maxDate);
       setStartDate(minD);
       setEndDate(maxD);
     }
-  }, [dataMode, builderOptions?.darkstoreDateRange, isQc, maxAllowedDate]);
+    if (dataMode !== 'darkstore') {
+      hasInitializedDarkstoreDatesRef.current = false;
+    }
+  }, [dataMode, builderOptions?.darkstoreDateRange]);
 
   // ── Filter PAGE_METRICS to only show available report types and allowed permissions ──
   const visibleMetrics = useMemo(() => {
@@ -402,23 +419,31 @@ export default function ReportBuilder({
     // 2. Set time period based on date range
     handleFilterChange("timePeriod", "Custom Range");
 
-    // 3. Set report type — Send custom Master Dump to trigger massive join backend query
-    handleFilterChange("reportType", "Master Dump");
+    // 3. Set report type
+    const isDarkstoreMode = dataMode === "darkstore";
+    handleFilterChange("reportType", isDarkstoreMode ? "Darkstore Data" : "Master Dump");
 
     // Pass latest values to parent directly to avoid React state timing bugs
     // Only send KPIs that are both selected AND available for the chosen platforms
     const activeTags = allTags.filter(t => tagOn[t] !== false && availableKpis.has(t)).join(",");
     const activeDimensions = filters.join(",");
-    const clampedEnd = dayjs(endDate).isAfter(maxAllowedDate) ? maxAllowedDate : dayjs(endDate);
-    const clampedStart = dayjs(startDate).isAfter(maxAllowedDate) ? maxAllowedDate : dayjs(startDate);
+    const clampedEnd = isDarkstoreMode
+      ? (effectiveMaxDate && dayjs(endDate).isAfter(effectiveMaxDate) ? effectiveMaxDate : dayjs(endDate))
+      : (dayjs(endDate).isAfter(maxAllowedDate) ? maxAllowedDate : dayjs(endDate));
+    const clampedStart = isDarkstoreMode
+      ? (effectiveMinDate && dayjs(startDate).isBefore(effectiveMinDate) ? effectiveMinDate : dayjs(startDate))
+      : (dayjs(startDate).isAfter(maxAllowedDate) ? maxAllowedDate : dayjs(startDate));
     const customDates = {
       start: clampedStart.format("YYYY-MM-DD"),
       end: clampedEnd.format("YYYY-MM-DD")
     };
 
     parentHandleDownload({
-      reportType: dataMode === "darkstore" ? "Darkstore Data" : "Master Dump",
+      reportType: isDarkstoreMode ? "Darkstore Data" : "Master Dump",
       dataMode: dataMode,
+      timePeriod: "Custom Range",
+      startDate: customDates.start,
+      endDate: customDates.end,
       metrics: activeTags,
       dimensions: activeDimensions,
       platform: platformOverride,
@@ -701,17 +726,18 @@ export default function ReportBuilder({
                     <DatePicker
                       label="Start"
                       value={startDate}
-                      onChange={(v) => v && setStartDate(v.isAfter(maxAllowedDate) ? maxAllowedDate : v)}
-                      maxDate={maxAllowedDate}
+                      onChange={(v) => v && setStartDate((effectiveMaxDate && v.isAfter(effectiveMaxDate)) ? effectiveMaxDate : (effectiveMinDate && v.isBefore(effectiveMinDate)) ? effectiveMinDate : v)}
+                      minDate={effectiveMinDate}
+                      maxDate={effectiveMaxDate}
                       slotProps={{ textField: { size: "small", sx: { width: 170, "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace" } } } }}
                     />
                     <Typography sx={{ color: "#94A3B8", fontSize: 18 }}>→</Typography>
                     <DatePicker
                       label="End"
                       value={endDate}
-                      onChange={(v) => v && setEndDate(v.isAfter(maxAllowedDate) ? maxAllowedDate : v)}
-                      minDate={startDate}
-                      maxDate={maxAllowedDate}
+                      onChange={(v) => v && setEndDate((effectiveMaxDate && v.isAfter(effectiveMaxDate)) ? effectiveMaxDate : (startDate && v.isBefore(startDate)) ? startDate : v)}
+                      minDate={startDate || effectiveMinDate}
+                      maxDate={effectiveMaxDate}
                       slotProps={{ textField: { size: "small", sx: { width: 170, "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace" } } } }}
                     />
                     <Typography sx={{ fontSize: 12, color: "#94A3B8", fontFamily: "'JetBrains Mono', monospace" }}>{daysDiff} day{daysDiff !== 1 ? "s" : ""}</Typography>
