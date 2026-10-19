@@ -7,7 +7,7 @@ import reportsRouter from './routes/reports.js';
 import { asyncStorageMiddleware } from './config/clickhouse.js';
 
 const app = express();
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.REPORT_PORT || (process.env.PORT === '5000' ? 5001 : (process.env.PORT || 5001));
 
 // CORS configuration
 app.use(cors());

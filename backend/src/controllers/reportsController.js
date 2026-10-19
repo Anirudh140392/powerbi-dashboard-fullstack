@@ -8,7 +8,7 @@ import http from 'http';
 import { URL } from 'url';
 import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
-const REPORT_SERVICE_URL = process.env.REPORT_SERVICE_URL || 'http://report_backend:5001';
+const REPORT_SERVICE_URL = process.env.REPORT_SERVICE_URL || 'http://localhost:5001';
 
 const proxyToReportService = (req, res) => {
     return new Promise((resolve) => {
