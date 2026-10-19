@@ -255,7 +255,8 @@ export default function ReportBuilder({
   const isDrl = user?.dbName?.toLowerCase() === 'drl';
   const [dataMode, setDataMode] = useState("aggregated"); // "aggregated" | "darkstore" | "content"
   // "Content Data" is only offered when tb_user.tab_permissions has "Content Analysis": true
-  const hasContentAnalysis = user?.tabPermissions?.["Content Analysis"] === true;
+  // and the account has Content Analysis data (builder-options sends contentDateRange only then)
+  const hasContentAnalysis = user?.tabPermissions?.["Content Analysis"] === true && !!builderOptions?.contentDateRange;
 
   useEffect(() => {
     if (!hasContentAnalysis && dataMode === "content") setDataMode("aggregated");
@@ -282,19 +283,31 @@ export default function ReportBuilder({
     }
   }, [dataMode, builderOptions?.darkstoreDateRange, isQc, maxAllowedDate]);
 
+  // Date picker bounds: in content mode, limited to the days that have content data
+  const contentDateRange = builderOptions?.contentDateRange;
+  const pickerMinDate = useMemo(
+    () => (isContentMode && contentDateRange ? dayjs(contentDateRange.minDate) : undefined),
+    [isContentMode, contentDateRange]
+  );
+  const pickerMaxDate = useMemo(() => {
+    if (!isContentMode || !contentDateRange) return maxAllowedDate;
+    const maxD = dayjs(contentDateRange.maxDate);
+    return !isQc && maxD.isAfter(maxAllowedDate) ? maxAllowedDate : maxD;
+  }, [isContentMode, contentDateRange, isQc, maxAllowedDate]);
+  const clampDate = (v) => {
+    if (v.isAfter(pickerMaxDate)) return pickerMaxDate;
+    if (pickerMinDate && v.isBefore(pickerMinDate)) return pickerMinDate;
+    return v;
+  };
+
   // Content data is crawled on a few days only — jump to the available content range (last 30 days of it)
   useEffect(() => {
-    if (dataMode === 'content' && builderOptions?.contentDateRange) {
-      let maxD = dayjs(builderOptions.contentDateRange.maxDate);
-      if (!isQc && maxD.isAfter(maxAllowedDate)) {
-        maxD = maxAllowedDate;
-      }
-      const firstD = dayjs(builderOptions.contentDateRange.minDate);
-      const minD = firstD.isAfter(maxD.subtract(30, 'day')) ? firstD : maxD.subtract(30, 'day');
-      setStartDate(minD);
-      setEndDate(maxD);
+    if (isContentMode && pickerMinDate) {
+      const last30 = pickerMaxDate.subtract(30, 'day');
+      setStartDate(pickerMinDate.isAfter(last30) ? pickerMinDate : last30);
+      setEndDate(pickerMaxDate);
     }
-  }, [dataMode, builderOptions?.contentDateRange, isQc, maxAllowedDate]);
+  }, [isContentMode, pickerMinDate, pickerMaxDate]);
 
   // ── Filter PAGE_METRICS to only show available report types and allowed permissions ──
   const visibleMetrics = useMemo(() => {
@@ -449,6 +462,7 @@ export default function ReportBuilder({
       parentHandleDownload({
         reportType: "Content Data",
         dataMode,
+        timePeriod: "Custom Range",
         platform: platformOverride,
         overrideDates: customDates
       });
@@ -755,17 +769,18 @@ export default function ReportBuilder({
                     <DatePicker
                       label="Start"
                       value={startDate}
-                      onChange={(v) => v && setStartDate(v.isAfter(maxAllowedDate) ? maxAllowedDate : v)}
-                      maxDate={maxAllowedDate}
+                      onChange={(v) => v && setStartDate(clampDate(v))}
+                      minDate={pickerMinDate}
+                      maxDate={pickerMaxDate}
                       slotProps={{ textField: { size: "small", sx: { width: 170, "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace" } } } }}
                     />
                     <Typography sx={{ color: "#94A3B8", fontSize: 18 }}>→</Typography>
                     <DatePicker
                       label="End"
                       value={endDate}
-                      onChange={(v) => v && setEndDate(v.isAfter(maxAllowedDate) ? maxAllowedDate : v)}
+                      onChange={(v) => v && setEndDate(clampDate(v))}
                       minDate={startDate}
-                      maxDate={maxAllowedDate}
+                      maxDate={pickerMaxDate}
                       slotProps={{ textField: { size: "small", sx: { width: 170, "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace" } } } }}
                     />
                     <Typography sx={{ fontSize: 12, color: "#94A3B8", fontFamily: "'JetBrains Mono', monospace" }}>{daysDiff} day{daysDiff !== 1 ? "s" : ""}</Typography>
@@ -1016,9 +1031,10 @@ export default function ReportBuilder({
               </Box>
               </>)}
 
+              {/* Schedule button in sidebar — Content Data is download-only */}
+              {!isContentMode && (<>
               <Divider sx={{ my: 2 }} />
 
-              {/* Schedule button in sidebar */}
               <Button
                 fullWidth
                 variant="outlined"
@@ -1028,6 +1044,7 @@ export default function ReportBuilder({
               >
                 Schedule
               </Button>
+              </>)}
             </Paper>
           </Box>
         )}

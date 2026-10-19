@@ -4,7 +4,7 @@ import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
-import { buildContentExportQuery, buildContentOlapExportQuery } from '../services/contentExportService.js';
+import { buildContentOlapExportQuery } from '../services/contentExportService.js';
 
 const UPPERCASE_WEB_PID_TARGETS = [
     'amazon',
@@ -224,10 +224,10 @@ export const getReportBuilderOptions = async (req, res) => {
             }
 
             try {
-                const contentTable = (await checkTableExists('rb_content_olap')) ? 'rb_content_olap'
-                    : (await checkTableExists('rb_product_verify')) ? 'rb_product_verify' : null;
-                if (contentTable) {
-                    const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${contentTable}`).catch(() => null);
+                // Only accounts with Content Analysis data (rb_content_olap) get a contentDateRange;
+                // the frontend hides the "Content Data" button when it is missing
+                if (await checkTableExists('rb_content_olap')) {
+                    const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM rb_content_olap`).catch(() => null);
                     if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
                         out.contentDateRange = {
                             minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
@@ -301,6 +301,13 @@ const streamCsvResponse = async (res, query, fileName, label) => {
 
     stream.on('end', () => {
         console.log(`[downloadReport Microservice] Streamed ${rowCount} ${label} CSV rows`);
+        if (rowCount === 0 && !res.headersSent) {
+            // No rows: 204 lets the frontend show "No data found" instead of saving an empty file
+            res.removeHeader('Content-Type');
+            res.removeHeader('Content-Disposition');
+            res.removeHeader('Transfer-Encoding');
+            return res.status(204).end();
+        }
         res.end();
     });
 
@@ -371,19 +378,18 @@ export const downloadReport = async (req, res) => {
 
         const dataMode = req.query.dataMode || 'aggregated';
 
-        // ── CONTENT DATA EXPORT (rb_content_olap, fallback rb_product_verify) — Streaming CSV ──
+        // ── CONTENT DATA EXPORT (rb_content_olap) — Streaming CSV ──
         // "Content Analysis" permission is checked by the main backend (fresh tb_user.tab_permissions) before
         // proxying here — the JWT does not carry tabPermissions, so it cannot be re-checked in this service
         if (dataMode === 'content' || reportType === 'Content Data') {
-            const hasContentOlap = await checkTableExists('rb_content_olap');
-            if (!hasContentOlap && !(await checkTableExists('rb_product_verify'))) {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            if (!(await checkTableExists('rb_content_olap'))) {
                 return res.status(404).json({ error: 'Content data is not available for this account' });
             }
-            const contentFilters = { platform, brand, category: format, startDate, endDate };
-            const contentQuery = hasContentOlap
-                ? buildContentOlapExportQuery(contentFilters)
-                : buildContentExportQuery({ ...contentFilters, hasSkuPlatform: await checkTableExists('rb_sku_platform') });
-            console.log(`[downloadReport Microservice] Streaming Content Data CSV from ${hasContentOlap ? 'rb_content_olap' : 'rb_product_verify'}`);
+            const contentQuery = buildContentOlapExportQuery({ platform, brand, category: format, startDate, endDate });
+            console.log('[downloadReport Microservice] Streaming Content Data CSV from rb_content_olap');
             return streamCsvResponse(res, contentQuery, `Content_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Content Data');
         }
 

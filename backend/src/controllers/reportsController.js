@@ -7,7 +7,7 @@ import ExcelJS from 'exceljs';
 import http from 'http';
 import { URL } from 'url';
 import { applyQcDateFilter } from '../helper/qcDateHelper.js';
-import { buildContentExportQuery, buildContentOlapExportQuery } from '../services/contentAnalysisService.js';
+import { buildContentOlapExportQuery } from '../services/contentAnalysisService.js';
 
 const REPORT_SERVICE_URL = process.env.REPORT_SERVICE_URL || 'http://localhost:5001';
 
@@ -173,6 +173,13 @@ const streamCsvResponse = async (res, query, fileName, label) => {
 
     stream.on('end', () => {
         console.log(`[downloadReport] Streamed ${rowCount} ${label} CSV rows`);
+        if (rowCount === 0 && !res.headersSent) {
+            // No rows: 204 lets the frontend show "No data found" instead of saving an empty file
+            res.removeHeader('Content-Type');
+            res.removeHeader('Content-Disposition');
+            res.removeHeader('Transfer-Encoding');
+            return res.status(204).end();
+        }
         res.end();
     });
 
@@ -313,7 +320,7 @@ export const getReportBuilderOptions = async (req, res) => {
     try {
         const qcFilters = applyQcDateFilter(req.query, req);
         const { isQcUser, maxAllowedDate } = qcFilters;
-        const cacheKey = generateCacheKey(`report_builder_options_v2_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
+        const cacheKey = generateCacheKey(`report_builder_options_v4_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
         const pdpCols = await getTableColumns('rb_pdp_olap');
 
         // Resolve the category column dynamically
@@ -387,11 +394,11 @@ export const getReportBuilderOptions = async (req, res) => {
             }
 
             try {
-                const contentTable = (await checkTableExists('rb_content_olap')) ? 'rb_content_olap'
-                    : (await checkTableExists('rb_product_verify')) ? 'rb_product_verify' : null;
-                if (contentTable) {
+                // Only accounts with Content Analysis data (rb_content_olap) get a contentDateRange;
+                // the frontend hides the "Content Data" button when it is missing
+                if (await checkTableExists('rb_content_olap')) {
                     const contentCond = !isQcUser ? `WHERE toDate(created_on) <= '${maxAllowedDate}'` : '';
-                    const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${contentTable} ${contentCond}`).catch(() => null);
+                    const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM rb_content_olap ${contentCond}`).catch(() => null);
                     if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
                         out.contentDateRange = {
                             minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
@@ -500,24 +507,23 @@ export const downloadReport = async (req, res) => {
 
         const dataMode = req.query.dataMode || 'aggregated';
 
-        // ── CONTENT DATA EXPORT (rb_content_olap, fallback rb_product_verify) — Streaming CSV ──
+        // ── CONTENT DATA EXPORT (rb_content_olap) — Streaming CSV ──
         // Content Analysis KPIs per SKU per day; only for accounts with "Content Analysis" enabled in tb_user.tab_permissions
         if (isContentExport) {
-            const hasContentOlap = await checkTableExists('rb_content_olap');
-            if (!hasContentOlap && !(await checkTableExists('rb_product_verify'))) {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            if (!(await checkTableExists('rb_content_olap'))) {
                 return res.status(404).json({ error: 'Content data is not available for this account' });
             }
-            const contentFilters = {
+            const contentQuery = buildContentOlapExportQuery({
                 platform,
                 brand,
                 category: format,
                 startDate,
                 endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
-            };
-            const contentQuery = hasContentOlap
-                ? buildContentOlapExportQuery(contentFilters)
-                : buildContentExportQuery({ ...contentFilters, hasSkuPlatform: await checkTableExists('rb_sku_platform') });
-            console.log(`[downloadReport] Streaming Content Data CSV from ${hasContentOlap ? 'rb_content_olap' : 'rb_product_verify'}`);
+            });
+            console.log('[downloadReport] Streaming Content Data CSV from rb_content_olap');
             return streamCsvResponse(res, contentQuery, `Content_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Content Data');
         }
 
