@@ -969,7 +969,100 @@ export default function TrendsCompetitionDrawer({
 
   const isEcom = ECOM_PLATFORMS.some(p => platName.includes(p));
   const isQcom = QCOM_PLATFORMS.some(p => platName.includes(p));
-  // ===================== CONSOLIDATED DRAWER FILTER INITIALIZATION =====================
+  // ===================== BASELINE & CONSOLIDATED DRAWER FILTER INITIALIZATION =====================
+  const getBaselineFilters = useCallback(() => {
+    let targetDimensionKey = "Platform";
+    const lvl = selectedLevel ? String(selectedLevel).toLowerCase() : "";
+    if (lvl.includes("category") || lvl.includes("format") || lvl.includes("subcategory")) {
+      targetDimensionKey = "Format";
+    } else if (lvl.includes("brand")) {
+      targetDimensionKey = "Brand";
+    } else if (lvl.includes("city") || lvl.includes("location") || lvl.includes("region")) {
+      targetDimensionKey = "City";
+    } else if (lvl.includes("sku")) {
+      targetDimensionKey = "SKU";
+    } else if (lvl.includes("platform")) {
+      targetDimensionKey = "Platform";
+    } else if (lvl.includes("month")) {
+      targetDimensionKey = "Month";
+    } else {
+      const aud = (initialAudience || allTrendMeta?.context?.audience || "Platform").toLowerCase();
+      if (aud.includes("category") || aud.includes("format") || aud.includes("subcategory")) {
+        targetDimensionKey = "Format";
+      } else if (aud.includes("brand")) {
+        targetDimensionKey = "Brand";
+      } else if (aud.includes("city") || aud.includes("location") || aud.includes("region")) {
+        targetDimensionKey = "City";
+      } else if (aud.includes("sku")) {
+        targetDimensionKey = "SKU";
+      } else {
+        targetDimensionKey = "Platform";
+      }
+    }
+
+    const baseline = {
+      Platform: "All",
+      City: "All",
+      Brand: "All",
+      Format: "All",
+      SKU: "All",
+      SKUWebPid: "All",
+      SapCode: "All",
+      ResellerName: "All",
+      Msl: "All",
+    };
+
+    const normInitPlat = normalizeToString(initialPlatform);
+    if (normInitPlat !== 'All') {
+      baseline.Platform = normInitPlat;
+    }
+
+    const normGlobalPlat = normalizeToString(globalPlatform);
+    if (normGlobalPlat !== 'All' && normInitPlat === 'All') {
+      baseline.Platform = normGlobalPlat;
+    }
+    const normGlobalBrand = normalizeToString(globalBrand);
+    if (normGlobalBrand !== 'All') {
+      baseline.Brand = normGlobalBrand;
+    }
+    const normGlobalLoc = normalizeToString(globalLocation);
+    if (normGlobalLoc !== 'All') {
+      baseline.City = normGlobalLoc;
+    }
+    const normGlobalCat = normalizeToString(globalCategory);
+    if (normGlobalCat !== 'All') {
+      baseline.Format = normGlobalCat;
+    }
+    const normGlobalSubBrand = normalizeToString(selectedSubBrand);
+    if (normGlobalSubBrand !== 'All') {
+      baseline.SubBrand = normGlobalSubBrand;
+    }
+    const normGlobalMsl = normalizeToString(selectedMsl);
+    if (normGlobalMsl !== 'All') {
+      baseline.Msl = normGlobalMsl;
+    }
+
+    if (selectedColumn && targetDimensionKey && targetDimensionKey !== "Month") {
+      baseline[targetDimensionKey] = normalizeToString(selectedColumn);
+    }
+
+    return { baseline, targetDimensionKey };
+  }, [selectedLevel, initialAudience, allTrendMeta?.context?.audience, initialPlatform, globalPlatform, globalBrand, globalLocation, globalCategory, selectedSubBrand, selectedMsl, selectedColumn]);
+
+  const handleClearDrawerFilters = useCallback(() => {
+    const { baseline } = getBaselineFilters();
+    setDrawerFilters(baseline);
+  }, [getBaselineFilters]);
+
+  const hasActiveDrawerFilters = useMemo(() => {
+    const { baseline } = getBaselineFilters();
+    return Object.keys(baseline).some(key => {
+      const currentVal = String(drawerFilters[key] || 'All').trim().toLowerCase();
+      const baselineVal = String(baseline[key] || 'All').trim().toLowerCase();
+      return currentVal !== baselineVal;
+    });
+  }, [drawerFilters, getBaselineFilters]);
+
   // All filter initialization happens in ONE atomic state update to prevent
   // race conditions where multiple effects override each other.
   useEffect(() => {
@@ -991,89 +1084,8 @@ export default function TrendsCompetitionDrawer({
     // Set view
     setView(defaultView || "Trends");
 
-    // Determine the audience dimension being drilled into
-    const currentAudience = initialAudience || allTrendMeta.context.audience;
-
-    // Resolve which drawer filter key corresponds to the clicked selectedLevel / dimension
-    let targetDimensionKey = "Platform";
     const lvl = selectedLevel ? String(selectedLevel).toLowerCase() : "";
-    if (lvl.includes("category") || lvl.includes("format") || lvl.includes("subcategory")) {
-      targetDimensionKey = "Format";
-    } else if (lvl.includes("brand")) {
-      targetDimensionKey = "Brand";
-    } else if (lvl.includes("city") || lvl.includes("location") || lvl.includes("region")) {
-      targetDimensionKey = "City";
-    } else if (lvl.includes("sku")) {
-      targetDimensionKey = "SKU";
-    } else if (lvl.includes("platform")) {
-      targetDimensionKey = "Platform";
-    } else if (lvl.includes("month")) {
-      targetDimensionKey = "Month";
-    } else {
-      // Fallback mapping based on initialAudience/currentAudience
-      const aud = (initialAudience || allTrendMeta?.context?.audience || "Platform").toLowerCase();
-      if (aud.includes("category") || aud.includes("format") || aud.includes("subcategory")) {
-        targetDimensionKey = "Format";
-      } else if (aud.includes("brand")) {
-        targetDimensionKey = "Brand";
-      } else if (aud.includes("city") || aud.includes("location") || aud.includes("region")) {
-        targetDimensionKey = "City";
-      } else if (aud.includes("sku")) {
-        targetDimensionKey = "SKU";
-      } else {
-        targetDimensionKey = "Platform";
-      }
-    }
-
-    // Build the complete filter state atomically
-    // normalizeToString converts arrays to comma-separated strings
-    const newFilters = {
-      Platform: "All",
-      City: "All",
-      Brand: "All",
-      Format: "All",
-      SKU: "All",
-      SKUWebPid: "All",
-      ResellerName: "All",
-      Msl: "All",
-    };
-
-    // 1. Apply initialPlatform if provided (may be array from sidebar multi-select)
-    const normInitPlat = normalizeToString(initialPlatform);
-    if (normInitPlat !== 'All') {
-      newFilters.Platform = normInitPlat;
-    }
-
-    // 2. Inherit global filters from FilterContext
-    const normGlobalPlat = normalizeToString(globalPlatform);
-    if (normGlobalPlat !== 'All' && normInitPlat === 'All') {
-      newFilters.Platform = normGlobalPlat;
-    }
-    const normGlobalBrand = normalizeToString(globalBrand);
-    if (normGlobalBrand !== 'All') {
-      newFilters.Brand = normGlobalBrand;
-    }
-    const normGlobalLoc = normalizeToString(globalLocation);
-    if (normGlobalLoc !== 'All') {
-      newFilters.City = normGlobalLoc;
-    }
-    const normGlobalCat = normalizeToString(globalCategory);
-    if (normGlobalCat !== 'All') {
-      newFilters.Format = normGlobalCat;
-    }
-    const normGlobalSubBrand = normalizeToString(selectedSubBrand);
-    if (normGlobalSubBrand !== 'All') {
-      newFilters.SubBrand = normGlobalSubBrand;
-    }
-    const normGlobalMsl = normalizeToString(selectedMsl);
-    if (normGlobalMsl !== 'All') {
-      newFilters.Msl = normGlobalMsl;
-    }
-
-    // 3. Apply the selectedColumn to the correct targetDimensionKey (this takes priority)
-    if (selectedColumn && targetDimensionKey && targetDimensionKey !== "Month") {
-      newFilters[targetDimensionKey] = normalizeToString(selectedColumn);
-    }
+    const { baseline: newFilters, targetDimensionKey } = getBaselineFilters();
 
     // 3b. If drilling down on a Month card/level, set Date filter range to Custom with month dates
     if ((targetDimensionKey === "Month" || lvl.includes("month")) && selectedColumn) {
@@ -1624,6 +1636,7 @@ export default function TrendsCompetitionDrawer({
   // ===================== FETCH COMPETITION DATA =====================
   const fetchCompetitionData = useCallback(async () => {
     if (view !== "Competition" || !open) return;
+    if (['pricing', 'marketshare', 'platform_overview_tower'].includes(dynamicKey)) return;
     setCompLoading(true);
     try {
       const params = {
@@ -3207,10 +3220,10 @@ export default function TrendsCompetitionDrawer({
           )}
 
           {/* Clear All Drawer Filters */}
-          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.SubBrand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All' || drawerFilters.ResellerName !== 'All' || drawerFilters.Msl !== 'All') && (
+          {hasActiveDrawerFilters && (
             <Button
               size="small"
-              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", SubBrand: "All", City: "All", SKU: "All", SKUWebPid: "All", ResellerName: "All", Msl: "All" })}
+              onClick={handleClearDrawerFilters}
               sx={{
                 ml: 'auto',
                 fontSize: '11px',
