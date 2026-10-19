@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import axios from "axios";
 import fpPromise from "@fingerprintjs/fingerprintjs";
+import { getFirstAllowedRoute, isRouteAllowed } from "../components/ProtectedRoute";
 
 const AuthContext = createContext(null);
 
@@ -227,12 +228,12 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const switchDb = async (targetDbName, targetPath = null) => {
+    const switchDb = async (targetDbName, targetPath = null, targetDbId = null) => {
         try {
             const token = sessionStorage.getItem("token");
             const response = await axios.post(
                 `${API_BASE}/auth/switch-db`,
-                { targetDbName },
+                { targetDbName, targetDbId },
                 {
                     headers: { Authorization: `Bearer ${token}` },
                     withCredentials: true,
@@ -250,9 +251,19 @@ export const AuthProvider = ({ children }) => {
                 sessionStorage.setItem("activeWorkspaceDb", targetDbName);
                 setUser(updatedUserData);
 
-                // If a target destination is given or currently on select-workspace, navigate directly
-                const destination = targetPath || (window.location.pathname === '/select-workspace' ? '/watch-tower' : null);
-                if (destination) {
+                // Determine destination based on newly selected workspace permissions
+                const currentPath = window.location.pathname;
+                let destination = targetPath;
+                if (!destination) {
+                    if (currentPath === '/select-workspace') {
+                        destination = getFirstAllowedRoute(updatedUserData) || '/watch-tower';
+                    } else if (isRouteAllowed(currentPath, updatedUserData)) {
+                        destination = currentPath;
+                    } else {
+                        destination = getFirstAllowedRoute(updatedUserData) || '/watch-tower';
+                    }
+                }
+                if (destination && destination !== currentPath) {
                     window.location.href = destination;
                 } else {
                     window.location.reload();

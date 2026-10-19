@@ -33,13 +33,12 @@ const SelectWorkspacePage = () => {
             sessionStorage.setItem('workspaceSelected', 'true');
             sessionStorage.setItem('activeWorkspaceDb', targetDbName);
 
-            const targetPath = getFirstAllowedRoute(user) || '/watch-tower';
-
             // Always invoke switchDb so fresh permissions are loaded specifically for this workspace
-            const res = await switchDb(targetDbName, targetPath);
+            const res = await switchDb(targetDbName, null, dbItem.dbId);
             if (res && !res.success) {
                 console.warn('[SelectWorkspace] switchDb error, falling back to navigate:', res.error);
-                navigate(targetPath, { replace: true });
+                const fallbackPath = getFirstAllowedRoute(user) || '/watch-tower';
+                navigate(fallbackPath, { replace: true });
             }
         } catch (error) {
             console.error('[SelectWorkspace] Error switching workspace:', error);

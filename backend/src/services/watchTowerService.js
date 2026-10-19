@@ -9241,11 +9241,15 @@ const getKpiTrends = async (filters) => {
                     const row = kpiMap.get(groupKey);
                     row.total_sales = parseFloat(row.total_sales || 0) + buySales;
                     row.total_qty = parseFloat(row.total_qty || 0) + buyQty;
+                    if (buySales > 0 || buyQty > 0) {
+                        row.valid_sales_count = (parseInt(row.valid_sales_count || 0, 10)) + 1;
+                    }
                 } else {
                     const newRow = {
                         date_group: groupKey,
                         total_sales: buySales,
                         total_qty: buyQty,
+                        valid_sales_count: buySales > 0 ? 1 : 0,
                         total_Ad_sales: 0,
                         total_ad_spend: 0,
                         total_ad_orders: 0,
@@ -9470,7 +9474,7 @@ const getKpiTrends = async (filters) => {
         const row = scaleMarsMetrics(rowRaw, brand || category || skuName || dimensionValue);
 
         // Extract values
-        const hasValidSales = row.valid_sales_count !== undefined ? parseInt(row.valid_sales_count, 10) > 0 : (row.total_sales !== null && row.total_sales !== undefined);
+        const hasValidSales = (row.valid_sales_count !== undefined ? parseInt(row.valid_sales_count, 10) > 0 : (row.total_sales !== null && row.total_sales !== undefined)) || (parseFloat(row.total_sales || 0) > 0);
         const totalSales = (hasValidSales && row.total_sales !== null && row.total_sales !== undefined) ? parseFloat(row.total_sales) : null;
         const adSales = parseFloat(row.total_Ad_sales || 0);
         const adSpend = parseFloat(row.total_ad_spend || 0);

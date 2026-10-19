@@ -119,75 +119,156 @@ export async function getUserMappedDatabases(email) {
 }
 
 /**
+ * Helper to match a candidate db_id against a target db_id, handling BigInt precision drift (< 1000).
+ */
+export function isDbIdMatch(candidateDbId, targetDbId) {
+    if (!candidateDbId || !targetDbId) return false;
+    const strCandidate = String(candidateDbId).trim();
+    const strTarget = String(targetDbId).trim();
+    if (strCandidate === strTarget) return true;
+
+    try {
+        const numCandidate = BigInt(strCandidate);
+        const numTarget = BigInt(strTarget);
+        const diff = numCandidate > numTarget ? numCandidate - numTarget : numTarget - numCandidate;
+        return diff < BigInt('1000');
+    } catch (_) {
+        return false;
+    }
+}
+
+/**
+ * Resolve effective tab_permissions, db_status, and qc_user for a specific user email on a specific database.
+ * Priority order:
+ *   1. Exact or approximate (BigInt diff < 1000) match for user_email + db_id with non-empty tab_permissions
+ *   2. Any user's default row with non-empty tab_permissions on that db_id
+ *   3. If dbId not matched or not provided, fallback to user_email's latest row on any database with non-empty tab_permissions
+ */
+export async function resolveUserPermissionsForDb(email, targetDbId, targetDbName = '') {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    let cleanDbId = (targetDbId !== undefined && targetDbId !== null) ? String(targetDbId).trim() : '';
+
+    // If cleanDbId is empty, look up db_id by targetDbName in tb_database
+    if (!cleanDbId && targetDbName) {
+        try {
+            const dbRows = await queryAdminDB(
+                `SELECT toString(db_id) as db_id FROM tb_database WHERE lower(db_name) = '${targetDbName.toLowerCase().replace(/'/g, "\\'")}' LIMIT 1`
+            );
+            if (dbRows && dbRows.length > 0) {
+                cleanDbId = dbRows[0].db_id;
+            }
+        } catch (e) {
+            console.warn('[Auth] Error looking up db_id for db_name:', e.message);
+        }
+    }
+
+    let tabPermissions = {};
+    let rawTabPermissions = '';
+    let dbStatusBool = true;
+    let qcUserVal = 0;
+    let matchedDbId = cleanDbId;
+
+    if (!cleanEmail) {
+        return { tabPermissions, dbStatus: dbStatusBool, rawTabPermissions, qcUser: qcUserVal, matchedDbId };
+    }
+
+    try {
+        // Step 1: Query user's records from tb_user (status != 'deleted')
+        const userRows = await queryAdminDB(
+            `SELECT toString(db_id) as db_id, db_status, tab_permissions, qc_user, last_login 
+             FROM tb_user 
+             WHERE lower(user_email) = lower({email:String}) 
+               AND status != 'deleted'
+             ORDER BY last_login DESC, created_on DESC`,
+            { email: cleanEmail }
+        );
+
+        if (userRows && userRows.length > 0) {
+            // Find a row matching cleanDbId with non-empty tab_permissions
+            let matchedUserRow = null;
+            if (cleanDbId) {
+                matchedUserRow = userRows.find(r => isDbIdMatch(r.db_id, cleanDbId) && r.tab_permissions && r.tab_permissions.trim() !== '');
+                // If not found with non-empty tab_permissions, match any row for db_id
+                if (!matchedUserRow) {
+                    matchedUserRow = userRows.find(r => isDbIdMatch(r.db_id, cleanDbId));
+                }
+            }
+
+            if (matchedUserRow) {
+                if (matchedUserRow.db_status !== undefined && matchedUserRow.db_status !== null) {
+                    dbStatusBool = (!matchedUserRow.db_status || matchedUserRow.db_status === '' || matchedUserRow.db_status === 'active');
+                }
+                if (matchedUserRow.qc_user !== undefined && matchedUserRow.qc_user !== null) {
+                    qcUserVal = Number(matchedUserRow.qc_user) || 0;
+                }
+                if (matchedUserRow.tab_permissions && matchedUserRow.tab_permissions.trim() !== '') {
+                    rawTabPermissions = matchedUserRow.tab_permissions.trim();
+                    try {
+                        tabPermissions = toFlatPermissions(JSON.parse(rawTabPermissions));
+                    } catch (_) {}
+                    matchedDbId = matchedUserRow.db_id || cleanDbId;
+                }
+            }
+        }
+
+        // Step 2: Fallback to db_id general default tab_permissions across any user on THIS database
+        if (cleanDbId && Object.keys(tabPermissions).length === 0) {
+            const dbRows = await queryAdminDB(
+                `SELECT toString(db_id) as db_id, db_status, tab_permissions 
+                 FROM tb_user 
+                 WHERE tab_permissions != '' 
+                   AND status != 'deleted' 
+                 ORDER BY last_login DESC, created_on DESC 
+                 LIMIT 50`
+            );
+            if (dbRows && dbRows.length > 0) {
+                const matchedDbRow = dbRows.find(r => isDbIdMatch(r.db_id, cleanDbId));
+                if (matchedDbRow && matchedDbRow.tab_permissions && matchedDbRow.tab_permissions.trim() !== '') {
+                    rawTabPermissions = matchedDbRow.tab_permissions.trim();
+                    try {
+                        tabPermissions = toFlatPermissions(JSON.parse(rawTabPermissions));
+                    } catch (_) {}
+                    matchedDbId = matchedDbRow.db_id || cleanDbId;
+                }
+            }
+        }
+
+        // Step 3: Fallback to user_email across any db_id if still empty
+        if (Object.keys(tabPermissions).length === 0 && userRows && userRows.length > 0) {
+            const fallbackRow = userRows.find(r => r.tab_permissions && r.tab_permissions.trim() !== '');
+            if (fallbackRow) {
+                rawTabPermissions = fallbackRow.tab_permissions.trim();
+                try {
+                    tabPermissions = toFlatPermissions(JSON.parse(rawTabPermissions));
+                } catch (_) {}
+                if (fallbackRow.db_status !== undefined && fallbackRow.db_status !== null) {
+                    dbStatusBool = (!fallbackRow.db_status || fallbackRow.db_status === '' || fallbackRow.db_status === 'active');
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('[Auth] Failed to resolve user permissions for DB:', e.message);
+    }
+
+    return {
+        tabPermissions,
+        dbStatus: dbStatusBool,
+        rawTabPermissions,
+        qcUser: qcUserVal,
+        matchedDbId,
+    };
+}
+
+/**
  * Helper to resolve the effective tab_permissions for a given user email and db_id.
  * Priority order:
  *   1. Existing tab_permissions for (user_email + db_id)
  *   2. Existing tab_permissions for (db_id) default across any user
  *   3. If dbId was NOT provided, fall back to (user_email) across any db_id
  */
-export async function resolveEffectiveTabPermissions(email, dbId) {
-    const cleanEmail = (email || '').trim().toLowerCase();
-    const cleanDbId = (dbId !== undefined && dbId !== null) ? String(dbId).trim() : '';
-
-    // 1. Try user_email + db_id specific tab_permissions
-    if (cleanEmail && cleanDbId) {
-        try {
-            const emailDbRows = await queryAdminDB(
-                `SELECT tab_permissions FROM tb_user 
-                 WHERE lower(user_email) = lower({email:String}) 
-                   AND toString(db_id) = {dbId:String} 
-                   AND tab_permissions != '' 
-                   AND status != 'deleted' 
-                 ORDER BY last_login DESC, created_on DESC LIMIT 1`,
-                { email: cleanEmail, dbId: cleanDbId }
-            );
-            if (emailDbRows && emailDbRows.length > 0 && emailDbRows[0].tab_permissions) {
-                return emailDbRows[0].tab_permissions;
-            }
-        } catch (e) {
-            console.warn('[Auth] Failed to resolve tab_permissions by email+dbId:', e.message);
-        }
-    }
-
-    // 2. Fall back to db_id general default tab_permissions across any user on THIS database
-    if (cleanDbId) {
-        try {
-            const dbRows = await queryAdminDB(
-                `SELECT tab_permissions FROM tb_user 
-                 WHERE toString(db_id) = {dbId:String} 
-                   AND tab_permissions != '' 
-                   AND status != 'deleted' 
-                 ORDER BY last_login DESC, created_on DESC LIMIT 1`,
-                { dbId: cleanDbId }
-            );
-            if (dbRows && dbRows.length > 0 && dbRows[0].tab_permissions) {
-                return dbRows[0].tab_permissions;
-            }
-        } catch (e) {
-            console.warn('[Auth] Failed to resolve tab_permissions by dbId:', e.message);
-        }
-    }
-
-    // 3. ONLY if dbId was NOT provided at all, try user_email across any db_id
-    if (!cleanDbId && cleanEmail) {
-        try {
-            const emailRows = await queryAdminDB(
-                `SELECT tab_permissions FROM tb_user 
-                 WHERE lower(user_email) = lower({email:String}) 
-                   AND tab_permissions != '' 
-                   AND status != 'deleted' 
-                 ORDER BY last_login DESC, created_on DESC LIMIT 1`,
-                { email: cleanEmail }
-            );
-            if (emailRows && emailRows.length > 0 && emailRows[0].tab_permissions) {
-                return emailRows[0].tab_permissions;
-            }
-        } catch (e) {
-            console.warn('[Auth] Failed to resolve tab_permissions by email:', e.message);
-        }
-    }
-
-    return '';
+export async function resolveEffectiveTabPermissions(email, dbId, dbName = '') {
+    const res = await resolveUserPermissionsForDb(email, dbId, dbName);
+    return res.rawTabPermissions || '';
 }
 
 /**
@@ -478,49 +559,9 @@ export async function loginUser(email, password, deviceInfo = {}) {
     let tabPermissions = {};
     let dbStatusBool = true;
     try {
-        let permRows = [];
-        const currentDbId = matchedDb?.db_id ? String(matchedDb.db_id) : '';
-        if (effectiveTabPermissions) {
-            try {
-                tabPermissions = toFlatPermissions(JSON.parse(effectiveTabPermissions));
-            } catch (e) { /* ignore parse error */ }
-        } else if (currentDbId) {
-            permRows = await queryAdminDB(
-                `SELECT db_status, tab_permissions 
-                 FROM tb_user 
-                 WHERE lower(user_email) = lower({email:String}) AND toString(db_id) = {dbId:String} AND status != 'deleted' 
-                 ORDER BY last_login DESC LIMIT 1`,
-                { email: user.user_email, dbId: currentDbId }
-            );
-        }
-        if ((!permRows || permRows.length === 0 || !permRows[0].tab_permissions) && currentDbId && !effectiveTabPermissions) {
-            const dbPermRows = await queryAdminDB(
-                `SELECT db_status, tab_permissions 
-                 FROM tb_user 
-                 WHERE toString(db_id) = {dbId:String} AND tab_permissions != '' 
-                 LIMIT 1`,
-                { dbId: currentDbId }
-            );
-            if (dbPermRows && dbPermRows.length > 0) permRows = dbPermRows;
-        }
-        if ((!permRows || permRows.length === 0) && !effectiveTabPermissions) {
-            permRows = await queryAdminDB(
-                `SELECT 
-                    ifNull(argMaxIf(db_status, last_login, db_status != ''), 'active') as db_status,
-                    ifNull(argMaxIf(tab_permissions, last_login, tab_permissions != ''), '') as tab_permissions
-                 FROM tb_user 
-                 WHERE user_email = {email:String} AND toString(db_id) = {dbId:String}`,
-                { email: user.user_email, dbId: currentDbId || '' }
-            );
-        }
-        if (permRows.length > 0 && !effectiveTabPermissions) {
-            dbStatusBool = (!permRows[0].db_status || permRows[0].db_status === '' || permRows[0].db_status === 'active');
-            try {
-                if (permRows[0].tab_permissions && permRows[0].tab_permissions.trim()) {
-                    tabPermissions = toFlatPermissions(JSON.parse(permRows[0].tab_permissions));
-                }
-            } catch (e) { /* ignore parse errors */ }
-        }
+        const permsResult = await resolveUserPermissionsForDb(user.user_email, resolvedDbId || user.db_id_str, dbName);
+        tabPermissions = permsResult.tabPermissions;
+        dbStatusBool = permsResult.dbStatus;
     } catch (e) {
         console.warn('[Auth] Failed to fetch permissions during login:', e.message);
     }
@@ -676,53 +717,17 @@ export async function verifySession(token, deviceToken = null) {
 
     // 5. Fetch latest db_status and tab_permissions for this user on active database
     let dbStatus = decoded.dbStatus !== undefined ? decoded.dbStatus : true;
-    let tabPermissions = decoded.tabPermissions || {};
+    let tabPermissions = {};
     let qcUserVal = decoded.qcUser !== undefined ? Number(decoded.qcUser) : 0;
     try {
-        let permRows = [];
-        const currentDbId = dbId ? String(dbId) : '';
-        if (currentDbId) {
-            permRows = await queryAdminDB(
-                `SELECT db_status, tab_permissions 
-                 FROM tb_user 
-                 WHERE lower(user_email) = lower({email:String}) AND toString(db_id) = {dbId:String} AND status != 'deleted' 
-                 ORDER BY last_login DESC LIMIT 1`,
-                { email: decoded.email, dbId: currentDbId }
-            );
+        const permsResult = await resolveUserPermissionsForDb(decoded.email, dbId, dbName);
+        tabPermissions = permsResult.tabPermissions;
+        dbStatus = permsResult.dbStatus;
+        if (permsResult.qcUser !== undefined && permsResult.qcUser !== null) {
+            qcUserVal = permsResult.qcUser;
         }
-        if ((!permRows || permRows.length === 0 || !permRows[0].tab_permissions) && currentDbId) {
-            const dbPermRows = await queryAdminDB(
-                `SELECT db_status, tab_permissions 
-                 FROM tb_user 
-                 WHERE toString(db_id) = {dbId:String} AND tab_permissions != '' 
-                 LIMIT 1`,
-                { dbId: currentDbId }
-            );
-            if (dbPermRows && dbPermRows.length > 0) permRows = dbPermRows;
-        }
-        // Third fallback: email-only query ONLY if no dbId was provided
-        if ((!permRows || permRows.length === 0) && !currentDbId) {
-            permRows = await queryAdminDB(
-                `SELECT 
-                    db_status,
-                    tab_permissions
-                 FROM tb_user 
-                 WHERE lower(user_email) = lower({email:String}) AND status != 'deleted'
-                 ORDER BY last_login DESC, created_on DESC
-                 LIMIT 1`,
-                { email: decoded.email }
-            );
-        }
-        if (permRows.length > 0) {
-            dbStatus = (!permRows[0].db_status || permRows[0].db_status === '' || permRows[0].db_status === 'active');
-            if (permRows[0].qc_user !== undefined && permRows[0].qc_user !== null) {
-                qcUserVal = Number(permRows[0].qc_user) || 0;
-            }
-            try {
-                if (permRows[0].tab_permissions && permRows[0].tab_permissions.trim()) {
-                    tabPermissions = toFlatPermissions(JSON.parse(permRows[0].tab_permissions));
-                }
-            } catch (e) { /* ignore */ }
+        if (permsResult.matchedDbId) {
+            dbId = permsResult.matchedDbId;
         }
     } catch (e) {
         console.warn('[Auth] Failed to fetch permissions during verify:', e.message);
@@ -748,7 +753,7 @@ export async function verifySession(token, deviceToken = null) {
 /**
  * Switch active database for a user if allowed by mapped_db or user's assigned db_ids
  */
-export async function switchDatabase(email, currentDbName, targetDbName) {
+export async function switchDatabase(email, currentDbName, targetDbName, targetDbIdParam = null) {
     if (!targetDbName) {
         throw new Error('Target database name is required');
     }
@@ -794,7 +799,7 @@ export async function switchDatabase(email, currentDbName, targetDbName) {
     const users = await queryAdminDB(
         `SELECT *, toString(db_id) as db_id_str, toString(user_id) as user_id_str 
          FROM tb_user 
-         WHERE lower(user_email) = lower({email:String}) AND status = 'active'
+         WHERE lower(user_email) = lower({email:String}) AND status != 'deleted'
          ORDER BY last_login DESC
          LIMIT 1`,
         { email }
@@ -808,46 +813,12 @@ export async function switchDatabase(email, currentDbName, targetDbName) {
 
     // 5. Fetch tab_permissions and db_status for THIS USER on the TARGET database
     //    (Critical for sidebar rendering — without this, the old workspace's permissions persist)
-    let tabPermissions = {};
-    let dbStatusBool = true;
-    const targetDbId = String(targetDb.db_id);
-    try {
-        let permRows = [];
-
-        // First: look for this user's permissions on the target db_id
-        if (targetDbId) {
-            permRows = await queryAdminDB(
-                `SELECT db_status, tab_permissions 
-                 FROM tb_user 
-                 WHERE lower(user_email) = lower({email:String}) AND toString(db_id) = {dbId:String} AND status != 'deleted' 
-                 ORDER BY last_login DESC LIMIT 1`,
-                { email, dbId: targetDbId }
-            );
-        }
-
-        // Second: if user has no row on target db, get any user's permissions for that db
-        if ((!permRows || permRows.length === 0 || !permRows[0].tab_permissions) && targetDbId) {
-            const dbPermRows = await queryAdminDB(
-                `SELECT db_status, tab_permissions 
-                 FROM tb_user 
-                 WHERE toString(db_id) = {dbId:String} AND tab_permissions != '' 
-                 LIMIT 1`,
-                { dbId: targetDbId }
-            );
-            if (dbPermRows && dbPermRows.length > 0) permRows = dbPermRows;
-        }
-
-        if (permRows && permRows.length > 0) {
-            dbStatusBool = (!permRows[0].db_status || permRows[0].db_status === '' || permRows[0].db_status === 'active');
-            try {
-                if (permRows[0].tab_permissions && permRows[0].tab_permissions.trim()) {
-                    tabPermissions = toFlatPermissions(JSON.parse(permRows[0].tab_permissions));
-                }
-            } catch (e) { /* ignore parse errors */ }
-        }
-    } catch (e) {
-        console.warn('[Auth] Failed to fetch permissions during switchDatabase:', e.message);
-    }
+    const targetDbId = targetDbIdParam || String(targetDb.db_id);
+    const permsResult = await resolveUserPermissionsForDb(email, targetDbId, targetDb.db_name);
+    const tabPermissions = permsResult.tabPermissions;
+    const dbStatusBool = permsResult.dbStatus;
+    const resolvedDbId = permsResult.matchedDbId || targetDb.db_id;
+    const qcUserVal = Number(permsResult.qcUser !== undefined ? permsResult.qcUser : (user.qc_user || 0));
 
     // 6. Create new JWT token
     // NOTE: Do NOT include dbLogoUrl or tabPermissions in the JWT payload.
@@ -859,11 +830,11 @@ export async function switchDatabase(email, currentDbName, targetDbName) {
             userId: user.user_id_str || user.id_str,
             email: email,
             dbName: targetDb.db_name,
-            dbId: targetDb.db_id,
+            dbId: resolvedDbId,
             companyId: companyId,
             userName: user.user_name || email.split('@')[0],
             role: userRole,
-            qcUser: Number(user.qc_user) || 0,
+            qcUser: qcUserVal,
             dbStatus: dbStatusBool,
         },
         JWT_SECRET
@@ -875,10 +846,10 @@ export async function switchDatabase(email, currentDbName, targetDbName) {
             email: email,
             name: user.user_name || email.split('@')[0],
             dbName: targetDb.db_name,
-            dbId: targetDb.db_id,
+            dbId: resolvedDbId,
             dbLogoUrl: targetDb.logo_url || "",
             role: userRole,
-            qcUser: Number(user.qc_user) || 0,
+            qcUser: qcUserVal,
             dbStatus: dbStatusBool,
             tabPermissions,
             companyId,
