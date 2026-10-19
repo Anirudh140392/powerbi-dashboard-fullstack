@@ -38,3 +38,5 @@ dump.rdb
 # Temporary files
 *.tmp
 *.temp
+*.timestamp-*.mjs
+vite.config.*.timestamp-*
