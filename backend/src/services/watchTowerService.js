@@ -1326,11 +1326,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
             const conditions = [`${dateCol} BETWEEN '${s.format('YYYY-MM-DD')}' AND '${e.format('YYYY-MM-DD')}'`];
 
-            // Filter for Our Brands Only (Comp_flag=0) if specific brands are selected
+            // Filter for Our Brands Only (Comp_flag=0)
             const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
-            if (brandArr && brandArr.length > 0) {
-                conditions.push(`${compFlagCol} = 0`);
-            }
+            conditions.push(`toString(${compFlagCol}) = '0'`);
 
             const brandCol = src.f.brand;
             if (brandArr && brandArr.length > 0) {
@@ -7800,6 +7798,10 @@ const getCategoryOverview = async (filters) => {
         const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
         const conds = [`${dateCol} BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
 
+        // Filter for Our Brands Only (Comp_flag=0)
+        const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
+        conds.push(`toString(${compFlagCol}) = '0'`);
+
         const platformCol = src.isAgg ? 'platform' : 'Platform';
         const platformCond = buildPlatformChannelCond(catPlatform, channel, platformCol, false, src.f.channel);
         if (platformCond) conds.push(platformCond);
@@ -14048,6 +14050,10 @@ const getCityOverview = async (filters) => {
     const buildCityConds = (sDate, eDate) => {
         const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
         const conds = [`${dateCol} BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
+
+        // Filter for Our Brands Only (Comp_flag=0)
+        const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
+        conds.push(`toString(${compFlagCol}) = '0'`);
 
         const brandCol = src.isAgg ? 'brand' : 'Brand';
         if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
