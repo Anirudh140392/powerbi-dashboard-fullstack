@@ -253,7 +253,13 @@ export default function ReportBuilder({
   const [filters, setFilters] = useState(["Category", "Brand", "City"]);
   const [showFilterOpts, setShowFilterOpts] = useState(false);
   const isDrl = user?.dbName?.toLowerCase() === 'drl';
-  const [dataMode, setDataMode] = useState("aggregated"); // "aggregated" | "darkstore" | "custom"
+  const [dataMode, setDataMode] = useState("aggregated"); // "aggregated" | "darkstore" | "content"
+  // "Content Data" is only offered when tb_user.tab_permissions has "Content Analysis": true
+  const hasContentAnalysis = user?.tabPermissions?.["Content Analysis"] === true;
+
+  useEffect(() => {
+    if (!hasContentAnalysis && dataMode === "content") setDataMode("aggregated");
+  }, [hasContentAnalysis, dataMode]);
 
   // Sync date range bounds when switching dataMode to darkstore for DRL
   useEffect(() => {
@@ -641,19 +647,21 @@ export default function ReportBuilder({
                       >
                         Darkstore Data
                       </Button>
-                      <Button
-                        variant={dataMode === "custom" ? "contained" : "outlined"}
-                        onClick={() => setDataMode("custom")}
-                        sx={{
-                          textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
-                          background: dataMode === "custom" ? "linear-gradient(135deg, #10B981, #059669)" : "white",
-                          color: dataMode === "custom" ? "white" : "#64748B",
-                          borderColor: dataMode === "custom" ? "#10B981" : "#CBD5E1",
-                          "&:hover": { background: dataMode === "custom" ? "linear-gradient(135deg, #059669, #047857)" : "#F1F5F9" }
-                        }}
-                      >
-                        Custom Data
-                      </Button>
+                      {hasContentAnalysis && (
+                        <Button
+                          variant={dataMode === "content" ? "contained" : "outlined"}
+                          onClick={() => setDataMode("content")}
+                          sx={{
+                            textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                            background: dataMode === "content" ? "linear-gradient(135deg, #10B981, #059669)" : "white",
+                            color: dataMode === "content" ? "white" : "#64748B",
+                            borderColor: dataMode === "content" ? "#10B981" : "#CBD5E1",
+                            "&:hover": { background: dataMode === "content" ? "linear-gradient(135deg, #059669, #047857)" : "#F1F5F9" }
+                          }}
+                        >
+                          Content Data
+                        </Button>
+                      )}
                     </Box>
                   </Box>
 
@@ -775,19 +783,21 @@ export default function ReportBuilder({
                       >
                         Darkstore Data
                       </Button>
-                      <Button
-                        variant={dataMode === "custom" ? "contained" : "outlined"}
-                        onClick={() => setDataMode("custom")}
-                        sx={{
-                          textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
-                          background: dataMode === "custom" ? "linear-gradient(135deg, #10B981, #059669)" : "white",
-                          color: dataMode === "custom" ? "white" : "#64748B",
-                          borderColor: dataMode === "custom" ? "#10B981" : "#CBD5E1",
-                          "&:hover": { background: dataMode === "custom" ? "linear-gradient(135deg, #059669, #047857)" : "#F1F5F9" }
-                        }}
-                      >
-                        Custom Data
-                      </Button>
+                      {hasContentAnalysis && (
+                        <Button
+                          variant={dataMode === "content" ? "contained" : "outlined"}
+                          onClick={() => setDataMode("content")}
+                          sx={{
+                            textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                            background: dataMode === "content" ? "linear-gradient(135deg, #10B981, #059669)" : "white",
+                            color: dataMode === "content" ? "white" : "#64748B",
+                            borderColor: dataMode === "content" ? "#10B981" : "#CBD5E1",
+                            "&:hover": { background: dataMode === "content" ? "linear-gradient(135deg, #059669, #047857)" : "#F1F5F9" }
+                          }}
+                        >
+                          Content Data
+                        </Button>
+                      )}
                     </Box>
                   </Box>
 
