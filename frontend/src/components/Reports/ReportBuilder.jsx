@@ -282,6 +282,20 @@ export default function ReportBuilder({
     }
   }, [dataMode, builderOptions?.darkstoreDateRange, isQc, maxAllowedDate]);
 
+  // Content data is crawled on a few days only — jump to the available content range (last 30 days of it)
+  useEffect(() => {
+    if (dataMode === 'content' && builderOptions?.contentDateRange) {
+      let maxD = dayjs(builderOptions.contentDateRange.maxDate);
+      if (!isQc && maxD.isAfter(maxAllowedDate)) {
+        maxD = maxAllowedDate;
+      }
+      const firstD = dayjs(builderOptions.contentDateRange.minDate);
+      const minD = firstD.isAfter(maxD.subtract(30, 'day')) ? firstD : maxD.subtract(30, 'day');
+      setStartDate(minD);
+      setEndDate(maxD);
+    }
+  }, [dataMode, builderOptions?.contentDateRange, isQc, maxAllowedDate]);
+
   // ── Filter PAGE_METRICS to only show available report types and allowed permissions ──
   const visibleMetrics = useMemo(() => {
     // Only include metrics/pages that are active in the left sidebar
@@ -429,6 +443,17 @@ export default function ReportBuilder({
       start: clampedStart.format("YYYY-MM-DD"),
       end: clampedEnd.format("YYYY-MM-DD")
     };
+
+    // Content Data only uses platforms + date range
+    if (isContentMode) {
+      parentHandleDownload({
+        reportType: "Content Data",
+        dataMode,
+        platform: platformOverride,
+        overrideDates: customDates
+      });
+      return;
+    }
 
     parentHandleDownload({
       reportType: dataMode === "darkstore" ? "Darkstore Data" : "Master Dump",

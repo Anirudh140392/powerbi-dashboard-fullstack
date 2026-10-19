@@ -4,6 +4,7 @@ import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
+import { buildContentExportQuery, buildContentOlapExportQuery } from '../services/contentExportService.js';
 
 const UPPERCASE_WEB_PID_TARGETS = [
     'amazon',
@@ -31,7 +32,7 @@ function processWebPidUppercase(row) {
     if (!row) return row;
     const platformVal = row.Platform || row.platform || row["Platform Name"] || row.platform_name || '';
     if (shouldUppercaseWebPid(platformVal)) {
-        const keys = ['Web_Pid', 'Web Pid', 'web_pid', 'Web_pid'];
+        const keys = ['Web_Pid', 'Web Pid', 'Web PID', 'web_pid', 'Web_pid'];
         for (const key of keys) {
             if (row[key] !== undefined && row[key] !== null) {
                 row[key] = String(row[key]).toUpperCase();
@@ -222,6 +223,22 @@ export const getReportBuilderOptions = async (req, res) => {
                 console.error('[getReportBuilderOptions] Error checking darkstoreDateRange:', err);
             }
 
+            try {
+                const contentTable = (await checkTableExists('rb_content_olap')) ? 'rb_content_olap'
+                    : (await checkTableExists('rb_product_verify')) ? 'rb_product_verify' : null;
+                if (contentTable) {
+                    const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${contentTable}`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.contentDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking contentDateRange:', err);
+            }
+
             return out;
         }, CACHE_TTL.METRICS);
 
@@ -230,6 +247,71 @@ export const getReportBuilderOptions = async (req, res) => {
         console.error('[getReportBuilderOptions] Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
+};
+
+/**
+ * Streams a ClickHouse query as CSV directly to the HTTP response.
+ * Avoids loading millions of rows into memory (which caused OOM / Docker crashes).
+ */
+const csvEscape = (val) => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+};
+
+const streamCsvResponse = async (res, query, fileName, label) => {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const stream = await streamClickHouse(query);
+
+    let headerWritten = false;
+    let rowCount = 0;
+
+    // The ClickHouse client stream() emits arrays of Row objects.
+    // Each Row has .json() → parsed object, .text → raw string.
+    stream.on('data', (rows) => {
+        const rowArray = Array.isArray(rows) ? rows : [rows];
+        let needsDrain = false;
+        for (const rowObj of rowArray) {
+            const row = (typeof rowObj.json === 'function') ? rowObj.json()
+                : (Buffer.isBuffer(rowObj)) ? JSON.parse(rowObj.toString())
+                : (typeof rowObj === 'string') ? JSON.parse(rowObj)
+                : rowObj;
+
+            processWebPidUppercase(row);
+
+            if (!headerWritten) {
+                res.write(Object.keys(row).map(csvEscape).join(',') + '\n');
+                headerWritten = true;
+            }
+            if (!res.write(Object.values(row).map(csvEscape).join(',') + '\n')) needsDrain = true;
+            rowCount++;
+        }
+        // Backpressure: pause after the whole batch is written, resume once the socket drains
+        if (needsDrain) {
+            stream.pause();
+            res.once('drain', () => stream.resume());
+        }
+    });
+
+    stream.on('end', () => {
+        console.log(`[downloadReport Microservice] Streamed ${rowCount} ${label} CSV rows`);
+        res.end();
+    });
+
+    stream.on('error', (err) => {
+        console.error(`[downloadReport Microservice] ${label} stream error:`, err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Stream failed' });
+        } else {
+            res.end();
+        }
+    });
 };
 
 /**
@@ -288,6 +370,22 @@ export const downloadReport = async (req, res) => {
         };
 
         const dataMode = req.query.dataMode || 'aggregated';
+
+        // ── CONTENT DATA EXPORT (rb_content_olap, fallback rb_product_verify) — Streaming CSV ──
+        // "Content Analysis" permission is checked by the main backend (fresh tb_user.tab_permissions) before
+        // proxying here — the JWT does not carry tabPermissions, so it cannot be re-checked in this service
+        if (dataMode === 'content' || reportType === 'Content Data') {
+            const hasContentOlap = await checkTableExists('rb_content_olap');
+            if (!hasContentOlap && !(await checkTableExists('rb_product_verify'))) {
+                return res.status(404).json({ error: 'Content data is not available for this account' });
+            }
+            const contentFilters = { platform, brand, category: format, startDate, endDate };
+            const contentQuery = hasContentOlap
+                ? buildContentOlapExportQuery(contentFilters)
+                : buildContentExportQuery({ ...contentFilters, hasSkuPlatform: await checkTableExists('rb_sku_platform') });
+            console.log(`[downloadReport Microservice] Streaming Content Data CSV from ${hasContentOlap ? 'rb_content_olap' : 'rb_product_verify'}`);
+            return streamCsvResponse(res, contentQuery, `Content_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Content Data');
+        }
 
         // ── DARKSTORE DATA EXPORT (rb_pdp_week) — Streaming CSV ──
         if (dataMode === 'darkstore' || reportType === 'Darkstore Data') {
