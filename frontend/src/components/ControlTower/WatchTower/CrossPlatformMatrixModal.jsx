@@ -18,7 +18,7 @@ import {
   ToggleButtonGroup,
   ToggleButton
 } from "@mui/material";
-import { X, Filter, Download, Layers, RefreshCw } from "lucide-react";
+import { X, Filter, Download, Layers, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
 import axiosInstance from "../../../api/axiosInstance";
@@ -194,34 +194,57 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
     return num.toLocaleString("en-IN");
   };
 
-  // Download Excel export
-  const handleDownload = () => {
-    if (!data.matrix || data.matrix.length === 0) return;
-
-    const rows = [];
-    data.matrix.forEach((row) => {
-      const rowData = matrixLevel === "sku" ? { SKU: row.item, Brand: row.brand } : { Brand: row.item || row.brand };
-      data.platforms.forEach((pf) => {
-        const pfData = row.platforms?.[pf.key] || {};
-        activeKpiColumns.forEach((kpi) => {
-          const rawVal = (pfData[kpi.id] !== undefined && pfData[kpi.id] !== null) 
-            ? pfData[kpi.id] 
-            : (kpi.altId ? pfData[kpi.altId] : undefined);
-          rowData[`${pf.label} - ${kpi.label}`] = rawVal !== undefined && rawVal !== null ? rawVal : "-";
-        });
-      });
-      rows.push(rowData);
-    });
-
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, `Cross_Platform_${matrixLevel.toUpperCase()}`);
-    const fileName = `Cross_Platform_${matrixLevel.toUpperCase()}_Matrix_${dayjs().format("YYYYMMDD_HHmmss")}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
-  };
-
   const platforms = data.platforms || [];
   const rawMatrix = data.matrix || [];
+
+  // Sort state: platformKey (e.g. "blinkit"), kpiId (e.g. "osa"), direction ("desc" | "asc" | null)
+  const [sortConfig, setSortConfig] = useState({ platformKey: null, kpiId: null, direction: null });
+
+  // Reset sort when modal opens or matrixLevel toggles
+  useEffect(() => {
+    setSortConfig({ platformKey: null, kpiId: null, direction: null });
+  }, [open, matrixLevel]);
+
+  // Handler for column header clicks
+  const handleSort = (platformKey, kpiId) => {
+    setSortConfig((prev) => {
+      // If clicking same column, cycle:
+      // For 'item' (Brand/SKU name): asc -> desc -> default (null)
+      // For KPI columns: desc -> asc -> default (null)
+      if (prev.platformKey === platformKey && prev.kpiId === kpiId) {
+        if (kpiId === "item") {
+          if (prev.direction === "asc") return { platformKey, kpiId, direction: "desc" };
+          return { platformKey: null, kpiId: null, direction: null };
+        } else {
+          if (prev.direction === "desc") return { platformKey, kpiId, direction: "asc" };
+          return { platformKey: null, kpiId: null, direction: null };
+        }
+      }
+
+      // New column clicked
+      return {
+        platformKey,
+        kpiId,
+        direction: kpiId === "item" ? "asc" : "desc",
+      };
+    });
+  };
+
+  // Helper to safely extract numeric value for sorting
+  const getCellNumericValue = (row, platformKey, kpi) => {
+    if (!row || !row.platforms || !platformKey || !kpi) return null;
+    const pfData = row.platforms[platformKey] || {};
+    let val = (pfData[kpi.id] !== undefined && pfData[kpi.id] !== null)
+      ? pfData[kpi.id]
+      : (kpi.altId ? pfData[kpi.altId] : undefined);
+
+    if (val === null || val === undefined || val === "" || val === "-") return null;
+    if (typeof val === "string") {
+      val = val.replace(/[₹,%\s]/g, "");
+    }
+    const num = Number(val);
+    return isNaN(num) ? null : num;
+  };
 
   // Helper to check if a row has any valid data value across platforms and active KPI columns
   const getRowDataScore = (row) => {
@@ -251,6 +274,36 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
 
   const matrix = React.useMemo(() => {
     if (!rawMatrix.length) return [];
+
+    // If an active column sort is selected
+    if (sortConfig.kpiId !== null) {
+      const { platformKey, kpiId, direction } = sortConfig;
+
+      return [...rawMatrix].sort((a, b) => {
+        if (kpiId === "item") {
+          const strA = String(a.item || a.brand || "").toLowerCase();
+          const strB = String(b.item || b.brand || "").toLowerCase();
+          const cmp = strA.localeCompare(strB);
+          return direction === "asc" ? cmp : -cmp;
+        }
+
+        const targetKpi = activeKpiColumns.find((c) => c.id === kpiId || c.altId === kpiId) || { id: kpiId };
+        const valA = getCellNumericValue(a, platformKey, targetKpi);
+        const valB = getCellNumericValue(b, platformKey, targetKpi);
+
+        // Keep null/missing values at the bottom regardless of sort direction
+        if (valA === null && valB === null) return 0;
+        if (valA === null) return 1;
+        if (valB === null) return -1;
+
+        if (valA !== valB) {
+          return direction === "asc" ? valA - valB : valB - valA;
+        }
+        return String(a.item || a.brand || "").localeCompare(String(b.item || b.brand || ""));
+      });
+    }
+
+    // Default sorting (by data score, then name)
     return [...rawMatrix].sort((a, b) => {
       const scoreA = getRowDataScore(a);
       const scoreB = getRowDataScore(b);
@@ -263,7 +316,44 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
       }
       return String(a.item || a.brand || "").localeCompare(String(b.item || b.brand || ""));
     });
-  }, [rawMatrix, platforms, activeKpiColumns]);
+  }, [rawMatrix, platforms, activeKpiColumns, sortConfig]);
+
+  // Label for active sort pill
+  const activeSortLabel = React.useMemo(() => {
+    if (!sortConfig.kpiId) return null;
+    if (sortConfig.kpiId === "item") {
+      return `${matrixLevel === "sku" ? "SKU Name" : "Brand Name"} (${sortConfig.direction === "asc" ? "A-Z" : "Z-A"})`;
+    }
+    const pf = platforms.find((p) => p.key === sortConfig.platformKey);
+    const kpi = activeKpiColumns.find((c) => c.id === sortConfig.kpiId || c.altId === sortConfig.kpiId);
+    return `${pf?.label || sortConfig.platformKey} - ${kpi?.label || sortConfig.kpiId} (${sortConfig.direction === "desc" ? "High to Low" : "Low to High"})`;
+  }, [sortConfig, platforms, activeKpiColumns, matrixLevel]);
+
+  // Download Excel export using arranged/sorted matrix
+  const handleDownload = () => {
+    if (!matrix || matrix.length === 0) return;
+
+    const rows = [];
+    matrix.forEach((row) => {
+      const rowData = matrixLevel === "sku" ? { SKU: row.item, Brand: row.brand } : { Brand: row.item || row.brand };
+      platforms.forEach((pf) => {
+        const pfData = row.platforms?.[pf.key] || {};
+        activeKpiColumns.forEach((kpi) => {
+          const rawVal = (pfData[kpi.id] !== undefined && pfData[kpi.id] !== null) 
+            ? pfData[kpi.id] 
+            : (kpi.altId ? pfData[kpi.altId] : undefined);
+          rowData[`${pf.label} - ${kpi.label}`] = rawVal !== undefined && rawVal !== null ? rawVal : "-";
+        });
+      });
+      rows.push(rowData);
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, `Cross_Platform_${matrixLevel.toUpperCase()}`);
+    const fileName = `Cross_Platform_${matrixLevel.toUpperCase()}_Matrix_${dayjs().format("YYYYMMDD_HHmmss")}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+  };
 
   return (
     <Dialog
@@ -429,6 +519,37 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
         </Box>
 
         <Box display="flex" alignItems="center" gap={1.5}>
+          {/* Active Sort Indicator Chip */}
+          {activeSortLabel && (
+            <Box
+              onClick={() => setSortConfig({ platformKey: null, kpiId: null, direction: null })}
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.75,
+                px: 1.5,
+                py: 0.5,
+                borderRadius: "8px",
+                backgroundColor: "rgba(56, 189, 248, 0.12)",
+                border: "1px solid rgba(56, 189, 248, 0.35)",
+                color: "#38BDF8",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+                "&:hover": {
+                  backgroundColor: "rgba(56, 189, 248, 0.22)",
+                  borderColor: "rgba(56, 189, 248, 0.6)",
+                },
+              }}
+              title="Click to reset column sorting"
+            >
+              {sortConfig.direction === "asc" ? <ArrowUp size={13} strokeWidth={2.5} /> : <ArrowDown size={13} strokeWidth={2.5} />}
+              <span>Sorted: {activeSortLabel}</span>
+              <X size={13} strokeWidth={2.5} style={{ opacity: 0.7, marginLeft: 2 }} />
+            </Box>
+          )}
+
           {/* Filter Toggle Button */}
           <Button
             variant={showFilters ? "contained" : "outlined"}
@@ -625,13 +746,14 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
                 <tr>
                   <th
                     rowSpan={2}
+                    onClick={() => handleSort(null, "item")}
                     style={{
                       position: "sticky",
                       left: 0,
                       top: 0,
                       zIndex: 3,
-                      backgroundColor: "#0F172A",
-                      color: "#F8FAFC",
+                      backgroundColor: sortConfig.kpiId === "item" ? "#1E293B" : "#0F172A",
+                      color: sortConfig.kpiId === "item" ? "#38BDF8" : "#F8FAFC",
                       padding: "12px 16px",
                       textAlign: "left",
                       fontWeight: 700,
@@ -639,58 +761,124 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
                       borderBottom: "2px solid #334155",
                       borderRight: "2px solid #334155",
                       minWidth: matrixLevel === "sku" ? "240px" : "160px",
+                      cursor: "pointer",
+                      userSelect: "none",
+                      transition: "background-color 0.15s, color 0.15s",
                     }}
+                    title={`Click to sort by ${matrixLevel === "sku" ? "SKU" : "Brand"} name (${sortConfig.kpiId === "item" ? (sortConfig.direction === "asc" ? "Ascending - click for Descending" : "Descending - click to reset") : "click to sort"})`}
                   >
-                    {matrixLevel === "sku" ? "SKU / Product" : "Brand"}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                      <span>{matrixLevel === "sku" ? "SKU / Product" : "Brand"}</span>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          color: sortConfig.kpiId === "item" ? "#38BDF8" : "#64748B",
+                        }}
+                      >
+                        {sortConfig.kpiId === "item" ? (
+                          sortConfig.direction === "asc" ? (
+                            <ArrowUp size={14} strokeWidth={2.5} />
+                          ) : (
+                            <ArrowDown size={14} strokeWidth={2.5} />
+                          )
+                        ) : (
+                          <ArrowUpDown size={13} strokeWidth={1.8} style={{ opacity: 0.5 }} />
+                        )}
+                      </span>
+                    </div>
                   </th>
-                  {platforms.map((pf) => (
-                    <th
-                      key={pf.key}
-                      colSpan={activeKpiColumns.length}
-                      style={{
-                        position: "sticky",
-                        top: 0,
-                        zIndex: 2,
-                        backgroundColor: "#1E293B",
-                        color: "#38BDF8",
-                        padding: "10px 12px",
-                        textAlign: "center",
-                        fontWeight: 700,
-                        fontSize: "14px",
-                        letterSpacing: "0.03em",
-                        borderBottom: "1px solid #334155",
-                        borderRight: "2px solid #334155",
-                      }}
-                    >
-                      {pf.label}
-                    </th>
-                  ))}
+                  {platforms.map((pf) => {
+                    const isPlatformActive = sortConfig.platformKey === pf.key;
+                    return (
+                      <th
+                        key={pf.key}
+                        colSpan={activeKpiColumns.length}
+                        style={{
+                          position: "sticky",
+                          top: 0,
+                          zIndex: 2,
+                          backgroundColor: isPlatformActive ? "#0B192C" : "#1E293B",
+                          color: "#38BDF8",
+                          padding: "10px 12px",
+                          textAlign: "center",
+                          fontWeight: 700,
+                          fontSize: "14px",
+                          letterSpacing: "0.03em",
+                          borderBottom: isPlatformActive ? "2px solid #38BDF8" : "1px solid #334155",
+                          borderRight: "2px solid #334155",
+                          transition: "background-color 0.15s, border-bottom 0.15s",
+                        }}
+                      >
+                        {pf.label}
+                      </th>
+                    );
+                  })}
                 </tr>
 
                 {/* Header Row 2: KPI Columns under each platform */}
                 <tr>
                   {platforms.map((pf) =>
-                    activeKpiColumns.map((kpi, idx) => (
-                      <th
-                        key={`${pf.key}-${kpi.id}`}
-                        style={{
-                          position: "sticky",
-                          top: 38,
-                          zIndex: 2,
-                          backgroundColor: "#334155",
-                          color: "#94A3B8",
-                          padding: "8px 10px",
-                          textAlign: "right",
-                          fontWeight: 600,
-                          fontSize: "12px",
-                          borderBottom: "2px solid #475569",
-                          borderRight: idx === activeKpiColumns.length - 1 ? "2px solid #475569" : "1px solid #475569",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {kpi.label}
-                      </th>
-                    ))
+                    activeKpiColumns.map((kpi, idx) => {
+                      const isSorted = sortConfig.platformKey === pf.key && sortConfig.kpiId === kpi.id;
+                      return (
+                        <th
+                          key={`${pf.key}-${kpi.id}`}
+                          onClick={() => handleSort(pf.key, kpi.id)}
+                          onMouseEnter={(e) => {
+                            if (!isSorted) {
+                              e.currentTarget.style.backgroundColor = "#475569";
+                              e.currentTarget.style.color = "#F8FAFC";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSorted) {
+                              e.currentTarget.style.backgroundColor = "#334155";
+                              e.currentTarget.style.color = "#94A3B8";
+                            }
+                          }}
+                          style={{
+                            position: "sticky",
+                            top: 38,
+                            zIndex: 2,
+                            backgroundColor: isSorted ? "#0F172A" : "#334155",
+                            color: isSorted ? "#38BDF8" : "#94A3B8",
+                            padding: "8px 10px",
+                            textAlign: "right",
+                            fontWeight: isSorted ? 700 : 600,
+                            fontSize: "12px",
+                            borderBottom: isSorted ? "3px solid #38BDF8" : "2px solid #475569",
+                            borderRight: idx === activeKpiColumns.length - 1 ? "2px solid #475569" : "1px solid #475569",
+                            whiteSpace: "nowrap",
+                            cursor: "pointer",
+                            userSelect: "none",
+                            transition: "background-color 0.15s, color 0.15s, border-bottom 0.15s",
+                          }}
+                          title={`Click to sort by ${pf.label} ${kpi.label} (${isSorted ? (sortConfig.direction === "desc" ? "Descending - click for Ascending" : "Ascending - click to reset") : "click to sort"})`}
+                        >
+                          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: "5px" }}>
+                            <span>{kpi.label}</span>
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                color: isSorted ? "#38BDF8" : "#94A3B8",
+                              }}
+                            >
+                              {isSorted ? (
+                                sortConfig.direction === "asc" ? (
+                                  <ArrowUp size={13} strokeWidth={2.5} />
+                                ) : (
+                                  <ArrowDown size={13} strokeWidth={2.5} />
+                                )
+                              ) : (
+                                <ArrowUpDown size={12} strokeWidth={1.8} style={{ opacity: 0.5 }} />
+                              )}
+                            </span>
+                          </div>
+                        </th>
+                      );
+                    })
                   )}
                 </tr>
               </thead>
@@ -700,6 +888,7 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
                   const isEven = rIdx % 2 === 0;
                   const rowBg = isEven ? "#FFFFFF" : "#F8FAFC";
                   const displayItem = row.item || row.brand;
+                  const isItemSorted = sortConfig.kpiId === "item";
 
                   return (
                     <tr
@@ -717,12 +906,13 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
                           position: "sticky",
                           left: 0,
                           zIndex: 1,
-                          backgroundColor: rowBg,
+                          backgroundColor: isItemSorted ? (isEven ? "#F0F9FF" : "#E0F2FE") : rowBg,
                           padding: "10px 16px",
-                          fontWeight: matrixLevel === "sku" ? 500 : 700,
-                          color: "#0F172A",
+                          fontWeight: matrixLevel === "sku" ? (isItemSorted ? 600 : 500) : 700,
+                          color: isItemSorted ? "#0369A1" : "#0F172A",
                           borderBottom: "1px solid #E2E8F0",
                           borderRight: "2px solid #CBD5E1",
+                          borderLeft: isItemSorted ? "3px solid #0EA5E9" : undefined,
                           whiteSpace: "nowrap",
                           maxWidth: matrixLevel === "sku" ? "320px" : "200px",
                           overflow: "hidden",
@@ -738,6 +928,7 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
                         const pfData = row.platforms?.[pf.key] || {};
 
                         return activeKpiColumns.map((kpi, idx) => {
+                          const isSorted = sortConfig.platformKey === pf.key && sortConfig.kpiId === kpi.id;
                           const val = (pfData[kpi.id] !== undefined && pfData[kpi.id] !== null) 
                             ? pfData[kpi.id] 
                             : (kpi.altId ? pfData[kpi.altId] : undefined);
@@ -749,8 +940,9 @@ export default function CrossPlatformMatrixModal({ open, onClose, initialFilters
                               style={{
                                 padding: "10px 12px",
                                 textAlign: "right",
-                                color: val !== null && val !== undefined ? "#1E293B" : "#94A3B8",
-                                fontWeight: 400,
+                                color: val !== null && val !== undefined ? (isSorted ? "#0369A1" : "#1E293B") : "#94A3B8",
+                                fontWeight: isSorted ? 600 : 400,
+                                backgroundColor: isSorted ? "rgba(14, 165, 233, 0.08)" : undefined,
                                 borderBottom: "1px solid #E2E8F0",
                                 borderRight: idx === activeKpiColumns.length - 1 ? "2px solid #CBD5E1" : "1px solid #F1F5F9",
                                 whiteSpace: "nowrap",

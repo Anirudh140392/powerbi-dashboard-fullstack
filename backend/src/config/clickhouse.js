@@ -9,6 +9,10 @@ export const dbStorage = new AsyncLocalStorage();
 // Cache of ClickHouse clients per database name
 const clientCache = new Map();
 
+function isMaricoDb(dbName) {
+    return Boolean(dbName && String(dbName).toLowerCase().includes('marico'));
+}
+
 /**
  * Get or create a ClickHouse client for a specific database
  */
@@ -17,12 +21,23 @@ function getClientForDb(dbName) {
         return clientCache.get(dbName);
     }
 
-    const urlToUse = process.env.CLICKHOUSE_URL || 'http://localhost:8123';
+    const isMarico = isMaricoDb(dbName);
+    const urlToUse = isMarico
+        ? (process.env.MARICO_CLICKHOUSE_HOST || process.env.MARICO_CLICKHOUSE_URL || 'http://13.232.194.195:8123')
+        : (process.env.CLICKHOUSE_URL || process.env.CLICKHOUSE_HOST || 'http://13.200.55.131:8123');
+
+    const username = isMarico
+        ? (process.env.MARICO_CLICKHOUSE_USER || 'main_user')
+        : (process.env.CLICKHOUSE_USER || 'kenil_user');
+
+    const password = isMarico
+        ? (process.env.MARICO_CLICKHOUSE_PASSWORD || 'prod_dev@1215')
+        : (process.env.CLICKHOUSE_PASSWORD || 'Kenil@Kavar0604');
 
     const client = createClient({
         url: urlToUse,
-        username: process.env.CLICKHOUSE_USER || 'default',
-        password: process.env.CLICKHOUSE_PASSWORD || '',
+        username,
+        password,
         database: dbName,
         request_timeout: 600000, // 10 minutes for large report downloads
         max_open_connections: 10,
@@ -37,12 +52,12 @@ function getClientForDb(dbName) {
     });
 
     clientCache.set(dbName, client);
-    console.log(`[ClickHouse] Created client for database: ${dbName} at ${urlToUse}`);
+    console.log(`[ClickHouse] Created client for database: ${dbName} at ${urlToUse} (user: ${username})`);
     return client;
 }
 
 // Default client (uses CLICKHOUSE_DB from .env)
-const defaultDbName = process.env.CLICKHOUSE_DB;
+const defaultDbName = process.env.CLICKHOUSE_DB || 'boat';
 const clickhouse = getClientForDb(defaultDbName);
 
 /**

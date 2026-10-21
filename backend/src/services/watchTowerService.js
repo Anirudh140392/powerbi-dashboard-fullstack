@@ -10025,6 +10025,7 @@ const getCompetitionData = async (filters = {}) => {
             WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL AND brand_name != ''
         `);
         const validBrandNames = validBrandsResult.map(b => b.brand_name).filter(Boolean);
+        const validBrandNamesLower = new Set(validBrandNames.map(b => (b || '').toLowerCase().trim()));
         console.log(`[getCompetitionData] Valid brands (comp_flag=0): ${validBrandNames.length}`);
 
         // 🔹 Calculate date range for rb_ms_olap (Market Share & Offtake Share)
@@ -10599,9 +10600,15 @@ const getCompetitionData = async (filters = {}) => {
             const prevListingPercent = parseFloat(prevBrand.avg_listing_percent || 0);
             const listingPercentDelta = calcChange(listingPercent, prevListingPercent);
 
+            const brandCleanName = (brand.Brand || '').trim();
+            const isOwnBrand = validBrandNamesLower.has(brandCleanName.toLowerCase());
+
             return {
-                brand_name: brand.Brand,
-                brand: brand.Brand,
+                brand_name: brandCleanName,
+                brand: brandCleanName,
+                name: brandCleanName,
+                isOwnBrand,
+                is_my_brand: isOwnBrand,
                 OSA: { value: osa === null ? null : parseFloat(osa.toFixed(2)), delta: osaDelta === null ? null : parseFloat(osaDelta.toFixed(2)) },
                 SOS: { value: sos === null ? null : parseFloat(sos.toFixed(3)), delta: sosDelta === null ? null : parseFloat(sosDelta.toFixed(3)) },
                 Discount: { value: parseFloat(discount.toFixed(2)), delta: parseFloat(discountDelta.toFixed(2)) },
@@ -10622,11 +10629,11 @@ const getCompetitionData = async (filters = {}) => {
             };
         });
 
-        // 5. Sort by OSA descending and limit to top 10
+        // 5. Sort by OSA descending
         brandMetrics.sort((a, b) => (b.OSA?.value || 0) - (a.OSA?.value || 0));
         const topBrands = brandMetrics.slice(0, 10);
 
-        console.log(`[getCompetitionData] Returning ${topBrands.length} brands`);
+        console.log(`[getCompetitionData] Returning ${brandMetrics.length} brands (top 10 brands slice available)`);
 
         // If no brands found, help user debug by showing available values
         if (topBrands.length === 0 && (location !== 'All' || category !== 'All')) {
@@ -10850,10 +10857,12 @@ const getCompetitionData = async (filters = {}) => {
         });
         const topSkus = skuMetrics;
 
-        console.log(`[getCompetitionData] Returning ${topBrands.length} brands and ${topSkus.length} SKUs`);
+        console.log(`[getCompetitionData] Returning ${brandMetrics.length} brands and ${topSkus.length} SKUs`);
 
         return {
-            brands: topBrands,
+            brands: brandMetrics,
+            topBrands,
+            ourBrands: validBrandNames,
             skus: topSkus,  // ADDED: Return SKU data
             metadata: {
                 period,
@@ -14795,14 +14804,44 @@ const getPerformanceBreakdownData = async (filters) => {
             const periodKeys = typeof comparePeriodKeys === 'string' ? comparePeriodKeys.split(',').map(k => k.trim()) : [];
 
             const getPresetRange = (key) => {
-                const now = new Date();
-                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                if (key === 'previous_period' || key === 'prev_period') {
+                    if (filters.compareStartDate && filters.compareEndDate) {
+                        return { start: new Date(filters.compareStartDate), end: new Date(filters.compareEndDate) };
+                    }
+                    const curStart = new Date(dateStart);
+                    const curEnd = new Date(dateEnd);
+                    const durationMs = curEnd.getTime() - curStart.getTime();
+                    const prevEnd = new Date(curStart.getTime() - 86400000);
+                    const prevStart = new Date(prevEnd.getTime() - durationMs);
+                    return { start: prevStart, end: prevEnd };
+                }
+
+                const curStart = new Date(dateStart);
+                const curEnd = new Date(dateEnd);
+
                 switch (key) {
-                    case 'last_week': { const e = new Date(today); e.setDate(e.getDate() - 1); const s = new Date(e); s.setDate(s.getDate() - 6); return { start: s, end: e }; }
-                    case 'last_month': { const e = new Date(today.getFullYear(), today.getMonth(), 0); return { start: new Date(e.getFullYear(), e.getMonth(), 1), end: e }; }
-                    case 'mtd': { const s = new Date(today.getFullYear(), today.getMonth(), 1); const e = new Date(today); e.setDate(e.getDate() - 1); return { start: s, end: e }; }
-                    case 'last_3_months': { const e = new Date(today); e.setDate(e.getDate() - 1); const s = new Date(e); s.setMonth(s.getMonth() - 3); return { start: s, end: e }; }
-                    case 'ytd': { const s = new Date(today.getFullYear(), 0, 1); const e = new Date(today); e.setDate(e.getDate() - 1); return { start: s, end: e }; }
+                    case 'last_week': {
+                        // 7 days preceding current start date so periods do not overlap
+                        const e = new Date(curStart.getTime() - 86400000);
+                        const s = new Date(e.getTime() - 6 * 86400000);
+                        return { start: s, end: e };
+                    }
+                    case 'last_month': {
+                        const e = new Date(curEnd.getFullYear(), curEnd.getMonth(), 0);
+                        return { start: new Date(e.getFullYear(), e.getMonth(), 1), end: e };
+                    }
+                    case 'mtd': {
+                        const s = new Date(curEnd.getFullYear(), curEnd.getMonth(), 1);
+                        return { start: s, end: curEnd };
+                    }
+                    case 'last_3_months': {
+                        const e = new Date(curEnd.getFullYear(), curEnd.getMonth(), 0);
+                        return { start: new Date(e.getFullYear(), e.getMonth() - 2, 1), end: e };
+                    }
+                    case 'ytd': {
+                        const s = new Date(curEnd.getFullYear(), 0, 1);
+                        return { start: s, end: curEnd };
+                    }
                     default: return null;
                 }
             };

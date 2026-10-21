@@ -7,7 +7,7 @@ import {
     Eye,
     TrendingUp,
     Target,
-    DollarSign,
+    IndianRupee,
     ShoppingCart,
     Layers,
     Percent,
@@ -143,6 +143,33 @@ function HoverPopover({ open, anchorRect, children, onMouseEnter, onMouseLeave }
     );
 }
 
+function getFallbackPrevValue(valueStr, deltaNum) {
+    if (!valueStr || valueStr === 'N/A' || deltaNum == null || isNaN(deltaNum)) return null;
+    const cleanStr = String(valueStr).replace(/[₹,\s%]/g, '');
+    const match = cleanStr.match(/([\d.]+)/);
+    if (!match) return null;
+    const num = parseFloat(match[1]);
+    if (isNaN(num) || num === 0) return null;
+    if (deltaNum <= -100) return null;
+
+    const prev = num / (1 + deltaNum / 100);
+    const hasRupee = String(valueStr).includes('₹');
+    const isCr = String(valueStr).toLowerCase().includes('cr');
+    const isLac = String(valueStr).toLowerCase().includes('lac') || String(valueStr).toLowerCase().includes('lakh');
+    const isK = String(valueStr).toLowerCase().includes('k');
+    const isPct = String(valueStr).includes('%');
+
+    if (isCr) return `${hasRupee ? '₹' : ''}${prev.toFixed(2)} Cr`;
+    if (isLac) return `${hasRupee ? '₹' : ''}${prev.toFixed(2)} Lac`;
+    if (isK) return `${hasRupee ? '₹' : ''}${Math.round(prev)}K`;
+    if (isPct) return `${prev.toFixed(2)}%`;
+    if (String(valueStr).includes('.')) {
+        const decimals = String(valueStr).split('.')[1].length;
+        return `${hasRupee ? '₹' : ''}${prev.toFixed(decimals)}`;
+    }
+    return `${hasRupee ? '₹' : ''}${Math.round(prev)}`;
+}
+
 /**
  * ActionableMetricCard: Premium styled card for the bottom row (Performance Metrics).
  * NOW WITH HOVER TRENDS!
@@ -231,6 +258,11 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1", helpMen
     const hoverDeltaStr = `${scaledDelta >= 0 ? '+' : ''}${hoverDeltaPct}${suffix}`;
 
     const isNA = !kpi.value || kpi.value === '-' || String(kpi.value).trim() === '0' || String(kpi.value).trim() === '0%' || String(kpi.value).trim() === '₹0M' || String(kpi.value).trim() === '₹0';
+
+    const prevDisplay = (kpi.prevValue && kpi.prevValue !== 'N/A')
+        ? kpi.prevValue
+        : getFallbackPrevValue(kpi.value, kpi.delta);
+    const prevText = prevDisplay ? (String(prevDisplay).trim().startsWith('vs') ? prevDisplay : `vs ${prevDisplay}`) : null;
 
     const onCardEnter = (e) => {
         if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);
@@ -337,22 +369,25 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1", helpMen
                     )}
                 </Box>
 
-                <div className="flex items-end justify-between w-full mb-0.5">
-                    <Typography sx={{ fontSize: "22px", fontWeight: 700, color: themeColor, lineHeight: 1, letterSpacing: "-0.01em" }}>
+                <div className="flex flex-col items-start w-full">
+                    <Typography sx={{ fontSize: "22px", fontWeight: 700, color: themeColor, lineHeight: 1, letterSpacing: "-0.01em", mb: 1 }}>
                         {isNA ? 'N/A' : kpi.value}
                     </Typography>
 
                     {!isNA && (
-                        <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
-                            <DeltaIcon size={10} strokeWidth={3} />
-                            <span className="text-[14px] font-bold">{deltaLabel}</span>
+                        <div className="flex items-center flex-wrap gap-1.5">
+                            <div className={`inline-flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
+                                <DeltaIcon size={10} strokeWidth={3} />
+                                <span className="text-[13px] font-bold leading-tight">{deltaLabel}</span>
+                            </div>
+                            {prevText && (
+                                <span className="text-[11px] font-medium text-slate-400 whitespace-nowrap">
+                                    {prevText}
+                                </span>
+                            )}
                         </div>
                     )}
                 </div>
-
-                <Typography sx={{ fontSize: "9px", color: "text.disabled", fontWeight: 500, mt: 0.5 }}>
-                    {kpi.subtitle || "Performance Metric"}
-                </Typography>
             </Card>
         </>
     );
@@ -476,60 +511,6 @@ const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
                         <DeltaIcon size={12} strokeWidth={2.5} />
                         <span className="text-[14px] font-bold">{deltaLabel}</span>
                     </div>
-
-                    {kpi.infoTooltip && (
-                        <div className="absolute top-4 right-4 z-10">
-                            <Tooltip
-                                title={
-                                    <Box>
-                                        <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
-                                            {kpi.infoTooltip}
-                                        </Typography>
-                                        <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
-                                            <Typography
-                                                variant="caption"
-                                                sx={{
-                                                    color: '#60a5fa',
-                                                    cursor: 'pointer',
-                                                    fontWeight: 600,
-                                                    fontSize: '11px',
-                                                    '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
-                                                }}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    openHelpWithMenu(helpMenu || 'Visibility Analysis');
-                                                }}
-                                            >
-                                                Learn more →
-                                            </Typography>
-                                        </Box>
-                                    </Box>
-                                }
-                                arrow
-                                placement="top"
-                                enterDelay={200}
-                                leaveDelay={100}
-                                slotProps={{
-                                    tooltip: {
-                                        sx: {
-                                            bgcolor: '#1e293b',
-                                            color: '#f8fafc',
-                                            borderRadius: '10px',
-                                            boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
-                                            maxWidth: 300,
-                                            px: 1.5,
-                                            py: 1,
-                                        }
-                                    },
-                                    arrow: { sx: { color: '#1e293b' } }
-                                }}
-                            >
-                                <span className="flex items-center cursor-help ml-0.5" onClick={(e) => e.stopPropagation()}>
-                                    <Info size={14} color="#94a3b8" strokeWidth={2} />
-                                </span>
-                            </Tooltip>
-                        </div>
-                    )}
                 </div>
 
                 <Typography sx={{ fontSize: "1.75rem", fontWeight: 700, color: "#111827", lineHeight: 1, mb: 1, tracking: '-0.02em' }}>
@@ -540,7 +521,7 @@ const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
                     <Typography sx={{ fontSize: "11.5px", fontWeight: 500, color: "#64748b", tracking: '0.01em' }}>
                         {kpi.title}
                     </Typography>
-                    {kpi.id === 'offtake' && (kpi.organicSales || kpi.inorganicSales) && (
+                    {kpi.id === 'offtake' && (kpi.organicSales || kpi.inorganicSales) ? (
                         <Tooltip
                             title={
                                 <Box sx={{ p: 0.5, minWidth: 200 }}>
@@ -612,7 +593,57 @@ const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
                         >
                             <Info size={14} className="text-slate-400 hover:text-slate-600 transition-colors cursor-help" />
                         </Tooltip>
-                    )}
+                    ) : kpi.infoTooltip ? (
+                        <Tooltip
+                            title={
+                                <Box>
+                                    <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
+                                        {kpi.infoTooltip}
+                                    </Typography>
+                                    <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                color: '#60a5fa',
+                                                cursor: 'pointer',
+                                                fontWeight: 600,
+                                                fontSize: '11px',
+                                                '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                            }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openHelpWithMenu(helpMenu || 'Visibility Analysis');
+                                            }}
+                                        >
+                                            Learn more →
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            }
+                            arrow
+                            placement="top"
+                            enterDelay={200}
+                            leaveDelay={100}
+                            slotProps={{
+                                tooltip: {
+                                    sx: {
+                                        bgcolor: '#1e293b',
+                                        color: '#f8fafc',
+                                        borderRadius: '10px',
+                                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                                        maxWidth: 300,
+                                        px: 1.5,
+                                        py: 1,
+                                    }
+                                },
+                                arrow: { sx: { color: '#1e293b' } }
+                            }}
+                        >
+                            <span className="flex items-center cursor-help ml-0.5" onClick={(e) => e.stopPropagation()}>
+                                <Info size={14} className="text-slate-400 hover:text-slate-600 transition-colors cursor-help" strokeWidth={2} />
+                            </span>
+                        </Tooltip>
+                    ) : null}
                 </div>
             </Card>
         </>
@@ -1202,12 +1233,15 @@ const SnapshotOverview = ({
                 'roas': "The revenue generated for every unit of advertising spend."
             };
 
+            const prevVal = perfItem?.prevValue ?? baseItem?.prevValue ?? baseItem?.compareValue ?? null;
+
             return {
                 id: baseItem?.id || defaultId,
                 title: baseItem?.title || defaultTitle,
                 value: val,
                 delta: delta,
                 deltaLabel: perfItem?.tag || `${delta > 0 ? '+' : ''}${delta}%`,
+                prevValue: prevVal,
                 icon: icon,
                 gradient: gradient,
                 subtitle: footer,
@@ -1243,6 +1277,7 @@ const SnapshotOverview = ({
             value: ordersVal,
             delta: ordersDelta,
             deltaLabel: ordersItem?.tag || ordersPerf?.tag || `${ordersDelta > 0 ? '+' : ''}${ordersDelta}%`,
+            prevValue: ordersPerf?.prevValue ?? ordersItem?.prevValue ?? ordersItem?.compareValue ?? null,
             icon: ShoppingCart,
             gradient: ['#3b82f6', '#60a5fa'],
             subtitle: ordersItem?.footer || ordersPerf?.footer || "Ad Quantity Sold",
@@ -1258,7 +1293,7 @@ const SnapshotOverview = ({
 
         // 5. ROAS
         bottomItems.push(buildBottomItem(
-            roasItem, roasPerf, 'roas', 'ROAS', DollarSign, ['#eab308', '#facc15'], 4
+            roasItem, roasPerf, 'roas', 'ROAS', IndianRupee, ['#eab308', '#facc15'], 4
         ));
 
         return { topKpis: topRowItems, bottomKpis: bottomItems };
