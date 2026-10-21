@@ -196,11 +196,13 @@ const server = app.listen(port, () => {
 // Initialize WebSocket server for real-time notifications
 initSocket(server);
 
-// Start the background email alert cron scheduler
+// Start background schedulers
 import { initAlertCron } from './services/alertCronService.js';
 import { initKamAlertCron } from './services/kamAlertCronService.js';
+import { initApiLoggerScheduler } from './services/apiLoggerScheduler.js';
 initAlertCron();
 initKamAlertCron();
+initApiLoggerScheduler();
 
 // Process Error Handling for Auto-Restart Safety
 process.on('uncaughtException', (err) => {

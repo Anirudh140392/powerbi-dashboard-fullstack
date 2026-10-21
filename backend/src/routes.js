@@ -19,9 +19,13 @@ import supplyChain from './routes/supplyChain.js';
 import primarySales from './routes/primarySales.js';
 import secondarySales from './routes/secondarySales.js';
 import mopAnalysis from './routes/mopAnalysis.js';
+import apiLogs from './routes/apiLogs.js';
 
 
 export default (app) => {
+    // API Logs routes
+    apiLogs(app);
+
     // Admin routes
     admin(app);
 

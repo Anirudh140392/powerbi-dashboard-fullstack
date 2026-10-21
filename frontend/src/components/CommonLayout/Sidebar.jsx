@@ -95,6 +95,7 @@ import {
   KeyboardArrowRight as KeyboardArrowRightIcon,
   CloudDownload as CloudDownloadIcon,
   TableChart as TableChartIcon,
+  Terminal as TerminalIcon,
 } from "@mui/icons-material";
 
 const getPlatformColors = (platformName) => {
@@ -400,6 +401,7 @@ const Sidebar = ({
       // { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       { label: "Ad Auto", path: "https://frontend-mamaearth.onrender.com", icon: <CampaignIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars', 'boat', 'zydus', 'hm_zydus', 'mars_petcare'] },
       { label: "Download Report", path: "/download-report", icon: <CloudDownloadIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "API Logs", path: "/api-logs", icon: <TerminalIcon sx={{ fontSize: '1rem' }} />, showNew: true },
       { label: "Primary Summary", path: "/primary-overview", icon: <DashboardIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['drl'] },
       { label: "Secondary Summary", path: "/secondary-overview", icon: <DashboardIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['drl'] },
     ],
@@ -1013,8 +1015,63 @@ const Sidebar = ({
                   />
                 </ListItemButton>
               )}
+
+              {user?.tabPermissions?.['API Logs'] !== false && (
+                <ListItemButton
+                  onClick={() => navigate('/api-logs')}
+                  className={currentPath === '/api-logs' ? "sidebar-item-active" : ""}
+                  sx={{
+                    minWidth: 44,
+                    maxWidth: "100%",
+                    justifyContent: "flex-start",
+                    px: 2,
+                    py: 1,
+                    borderRadius: "12px",
+                    bgcolor: currentPath === '/api-logs' ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                    color: currentPath === '/api-logs' ? "#2563eb" : "#64748b",
+                    position: 'relative',
+                    overflow: 'hidden',
+                    "&:hover": {
+                      bgcolor: currentPath === '/api-logs' ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
+                      color: currentPath === '/api-logs' ? "#1d4ed8" : "#1e293b",
+                      transform: 'translateX(2px)',
+                    },
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+                      mr: 1.5,
+                      color: currentPath === '/api-logs' ? "#2563eb" : "inherit",
+                      display: 'flex',
+                      '& .MuiSvgIcon-root': {
+                        fontSize: '1.15rem',
+                      }
+                    }}
+                  >
+                    <TerminalIcon />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', minWidth: 0 }}>
+                        <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          API Logs
+                        </Box>
+                        <SidebarStatusBadge type="NEW" />
+                      </Box>
+                    }
+                    primaryTypographyProps={{
+                      fontSize: "13px",
+                      fontWeight: currentPath === '/api-logs' ? 700 : 500,
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}
+                    sx={{ my: 0 }}
+                  />
+                </ListItemButton>
+              )}
             </Box>
-            {(user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Report Studio'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false) && (
+            {(user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Report Studio'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false || user?.tabPermissions?.['API Logs'] !== false) && (
               <Divider sx={{ mx: 2, mb: 1.5, borderColor: 'rgba(0,0,0,0.06)' }} />
             )}
           </>

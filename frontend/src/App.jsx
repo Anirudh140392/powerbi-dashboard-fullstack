@@ -44,6 +44,7 @@ import AcceptInvitePage from "./pages/Login/AcceptInvitePage";
 import SelectWorkspacePage from "./pages/Login/SelectWorkspacePage";
 import CrossPlatformPricing from "./pages/Analytics/CrossPlatformPricing";
 import MopAnalysis from "./pages/Analytics/MopAnalysis";
+import ApiLogsPage from "./pages/ApiLogs/ApiLogsPage";
 import VisitorTracker from "./components/VisitorTracker";
 
 function AppContent() {
@@ -237,6 +238,12 @@ function AppContent() {
             <Route path="/admin" element={
               <ProtectedRoute>
                 <AdminPanel />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/api-logs" element={
+              <ProtectedRoute>
+                <ApiLogsPage />
               </ProtectedRoute>
             } />
 
