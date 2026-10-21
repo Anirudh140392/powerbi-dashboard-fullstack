@@ -22,7 +22,7 @@ import {
   InputAdornment,
   ListSubheader,
 } from "@mui/material";
-import { Download, Check, AlertCircle, TrendingUp, Target, Award, ShoppingCart, ShoppingBag, Layers, Eye, Clock, Percent, Info, RotateCcw, BarChart2, Package, CheckCircle2, Circle, ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { Download, Check, AlertCircle, TrendingUp, Target, Award, ShoppingCart, ShoppingBag, Layers, Eye, Clock, Percent, Info, RotateCcw, BarChart2, Package, CheckCircle2, Circle, ChevronDown, ChevronUp, Search, X, HelpCircle } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -42,8 +42,8 @@ import {
   ComposedChart,
 } from "recharts";
 import { fetchPrimarySalesAll, fetchPrimaryFilterOptions, fetchPrimaryLatestDate } from "../../../api/primarySalesService";
-import DateRangeComparePicker from "../../CommonLayout/DateRangeComparePicker";
 import { FilterContext } from "../../../utils/FilterContext";
+import { useHelp } from "../../../utils/HelpContext";
 import CategorySubcategoryDrillDown from "./CategorySubcategoryDrillDown";
 import { GainersAndDrainers } from "./PrimaryPlanVsAchieved";
 import RetailerWiseAnalysis from "./RetailerWiseAnalysis";
@@ -307,6 +307,7 @@ function SearchableDropdownFilter({ label, filterKey, currentVal, options = ["Al
 }
 
 export default function PrimarySummary() {
+  const { openHelpWithMenu } = useHelp();
   const filterCtx = useContext(FilterContext) || {};
   const {
     timeStart,
@@ -974,6 +975,28 @@ export default function PrimarySummary() {
               >
                 Export CSV
               </Button>
+
+              <Tooltip title="Primary Summary Glossary">
+                <IconButton
+                  onClick={() => openHelpWithMenu("Primary Summary")}
+                  size="small"
+                  sx={{
+                    height: 36,
+                    width: 36,
+                    borderRadius: "10px",
+                    bgcolor: "rgba(37, 99, 235, 0.06)",
+                    color: "#2563eb",
+                    border: "1px solid rgba(37, 99, 235, 0.2)",
+                    transition: "all 0.15s ease",
+                    "&:hover": {
+                      bgcolor: "rgba(37, 99, 235, 0.12)",
+                      borderColor: "#2563eb",
+                    },
+                  }}
+                >
+                  <HelpCircle size={18} />
+                </IconButton>
+              </Tooltip>
             </Box>
           </Box>
 

@@ -1,9 +1,12 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Drawer,
   Box,
   Typography,
   IconButton,
+  Button,
+  Tooltip,
   Tabs,
   Tab,
   List,
@@ -38,28 +41,22 @@ import {
   Calculate as LogicIcon,
   InfoOutlined as InfoIcon,
   StarBorder as StarBorderIcon,
+  Launch as LaunchIcon,
 } from "@mui/icons-material";
 
 import { useHelp } from "../../utils/HelpContext";
+import { useAuth } from "../../utils/AuthContext";
 
 const HelpDrawer = ({ userDbName }) => {
+  const navigate = useNavigate();
   const { helpDrawerOpen, activeHelpMenu, closeHelp } = useHelp();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
   const [activeMenu, setActiveMenu] = useState("Business Overview");
   const [expandedKpi, setExpandedKpi] = useState("Offtake");
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Sync with context's activeHelpMenu when opening
-  React.useEffect(() => {
-    if (helpDrawerOpen) {
-      if (activeHelpMenu) {
-        setActiveMenu(activeHelpMenu);
-      }
-      if (activeHelpMenu === "Business Overview" || (!activeHelpMenu && activeMenu === "Business Overview")) {
-        setExpandedKpi(prev => prev || "Offtake");
-      }
-    }
-  }, [helpDrawerOpen, activeHelpMenu]);
+  const prevHelpDrawerOpen = React.useRef(false);
+  const prevActiveHelpMenu = React.useRef(null);
 
   const businessOverviewGlossary = [
     {
@@ -344,6 +341,334 @@ const HelpDrawer = ({ userDbName }) => {
       example: "Selling prices captured during crawling are ₹100, ₹120, and ₹140 → ASP = ₹120.",
       logic: "AVG(Selling Price)",
       aliases: ["Average Selling Price"],
+    },
+  ];
+
+  const primarySummaryGlossary = [
+    {
+      kpi: "Total Sales",
+      definition: "Total value of primary sales recorded for the selected filters and dates from rb_primary_olap.",
+      usage: "Track sales billed to customers/retailers by brand, division, zone or product.",
+      interpretation: "Higher value means more primary sales in the selected scope.",
+      pitfalls: "Do not equate primary billing with consumer sell-through; confirm tax, returns and discount treatment.",
+      example: "₹7.01 Cr primary sales in the selected period.",
+      logic: "SUM(eligible primary sales value); confirm net/gross sales basis.",
+      info: "Data Source: rb_primary_olap table in ClickHouse (DRL database).",
+      aliases: ["Total Sales", "Primary Sales", "Total Primary Sales", "Total Sales Value"],
+    },
+    {
+      kpi: "Total Units Sold",
+      definition: "Quantity recorded in primary sales transactions for the selected period from rb_primary_olap.",
+      usage: "Measure product movement in quantity and compare across retailers.",
+      interpretation: "Higher units show greater primary sales volume.",
+      pitfalls: "Standardize pieces, packs and cases; returns may affect quantities.",
+      example: "1.87 L units = approximately 187,000 reporting units.",
+      logic: "SUM(eligible primary sales quantity), using standardized units.",
+      aliases: ["Total Units Sold", "Primary Units Sold", "Total Units", "Primary Units", "Total Volume"],
+    },
+    {
+      kpi: "Month-on-Month Trend",
+      definition: "Monthly time series of the selected primary sales metric from rb_primary_olap.",
+      usage: "Spot monthly sales patterns and abnormal changes.",
+      interpretation: "Rising months indicate higher metric values.",
+      pitfalls: "The visible chart says revenue but appears to show units; verify chart measure and axis.",
+      example: "July: 1.5 L units; August: 1.87 L units.",
+      logic: "Group primary records by month, SUM(selected measure). Confirm whether sales value or quantity.",
+      aliases: ["Month-on-Month Trend", "MoM Trend", "Monthly Sales Trend", "Monthly Trend"],
+    },
+    {
+      kpi: "Quarterly Sales",
+      definition: "Primary sales value or quantity aggregated within a financial quarter from rb_primary_olap.",
+      usage: "Review quarter-level performance.",
+      interpretation: "Higher quarterly figure signals stronger volume/value for that quarter.",
+      pitfalls: "Avoid comparing incomplete and complete quarters; confirm the chosen unit.",
+      example: "Q2 FY2026–27 = Jul–Sep 2026.",
+      logic: "SUM(primary KPI) for records within selected fiscal quarter.",
+      aliases: ["Quarterly Sales", "Quarterly Trend", "Quarterly Primary Sales", "Quarterly Performance"],
+    },
+    {
+      kpi: "QoQ Growth %",
+      definition: "Percentage movement in quarterly primary sales versus previous quarter.",
+      usage: "Compare business performance across sequential quarters.",
+      interpretation: "Positive denotes quarterly growth.",
+      pitfalls: "Partial quarter comparisons and missing prior data can mislead.",
+      example: "Q1 ₹8 Cr; Q2 ₹9 Cr → +12.5%.",
+      logic: "((Current quarter - Prior quarter) / Prior quarter) × 100.",
+      aliases: ["QoQ Growth %", "QoQ Growth", "Quarter-on-Quarter Growth", "Quarterly Growth"],
+    },
+    {
+      kpi: "Retailer-Wise Sales",
+      definition: "Primary sales broken down by the mapped retailer/customer entity from rb_primary_olap.",
+      usage: "Identify retailer contributions and large accounts.",
+      interpretation: "Higher retailer sales = higher contribution to primary totals.",
+      pitfalls: "Retailer legal entities may not equal e-commerce platforms; avoid duplicate mapping.",
+      example: "RK WorldInfocom: ₹3.20 Cr in the visible report.",
+      logic: "GROUP BY mapped retailer; SUM(primary sales value and units).",
+      aliases: ["Retailer-Wise Sales", "Retailer Wise Sales", "Customer-Wise Sales", "Retailer Sales"],
+    },
+    {
+      kpi: "Retailer Contribution %",
+      definition: "Retailer sales as a share of total primary sales for the same filters.",
+      usage: "Assess concentration and account importance.",
+      interpretation: "Higher share indicates greater dependence on the retailer.",
+      pitfalls: "Use the exact same base filters and period for numerator and denominator.",
+      example: "₹3.20 Cr / ₹7.01 Cr = 45.6%.",
+      logic: "Retailer sales / Total primary sales × 100.",
+      aliases: ["Retailer Contribution %", "Retailer Contribution", "Retailer Share %", "Account Contribution %"],
+    },
+    {
+      kpi: "Gainers & Drainers",
+      definition: "Retailers/entities ranked by increases or decreases in sales performance versus a comparison period.",
+      usage: "Prioritize growth opportunities and declining accounts.",
+      interpretation: "Gainers are improving; drainers are declining.",
+      pitfalls: "Confirm comparison period, ranking unit and whether ranking uses absolute or percentage delta.",
+      example: "Units grow 10 K to 15 K → +50%; 20 K to 16 K → -20%.",
+      logic: "Change % = (current – previous) / previous × 100; ranking method to confirm.",
+      aliases: ["Gainers & Drainers", "Gainers and Drainers", "Top Gainers", "Top Drainers"],
+    },
+    {
+      kpi: "Net Plan (Target)",
+      definition: "Planned sales target for the chosen reporting period.",
+      usage: "Benchmark performance against business plan.",
+      interpretation: "Higher target implies a larger expected result.",
+      pitfalls: "Plan and actual must use equivalent units, period and entity mappings.",
+      example: "Monthly net plan = ₹10 Cr.",
+      logic: "SUM(approved target values by reporting period); net definition to confirm.",
+      aliases: ["Net Plan (Target)", "Net Plan", "Target", "Sales Target", "Plan Target"],
+    },
+    {
+      kpi: "Net Achieved",
+      definition: "Actual eligible sales result counted toward the net plan.",
+      usage: "See delivered performance against target.",
+      interpretation: "Above target indicates overachievement, below indicates shortfall.",
+      pitfalls: "Net achieved may exclude items not included in the plan; verify methodology.",
+      example: "Net achieved = ₹9 Cr versus ₹10 Cr target.",
+      logic: "SUM(actual eligible sales matching target scope), source/netting rule to confirm.",
+      aliases: ["Net Achieved", "Achieved", "Target Achieved", "Actual Achieved"],
+    },
+    {
+      kpi: "Plan Achievement %",
+      definition: "Share of the sales target achieved for the selected period.",
+      usage: "Measure target attainment.",
+      interpretation: "100% meets plan; below 100% misses plan; above 100% exceeds plan.",
+      pitfalls: "Zero target cannot be used as a denominator.",
+      example: "₹9 Cr achieved / ₹10 Cr plan = 90%.",
+      logic: "Net achieved / Net plan × 100 (when plan > 0).",
+      aliases: ["Plan Achievement %", "Plan Achievement", "Target Achievement %", "Achievement %"],
+    },
+  ];
+
+  const secondarySummaryGlossary = [
+    {
+      kpi: "Secondary Sales",
+      definition: "The total sales value generated by a product or brand over a specified period at a platform level",
+      usage: "Monitor channel sell-through by seller, platform, brand and SKU.",
+      interpretation: "Higher secondary sales indicate greater downstream sales in covered channels.",
+      pitfalls: "Do not add to primary sales; check returns, cancellations and channel coverage.",
+      example: "Selected secondary-sales view displays ₹10.48 Cr total.",
+      logic: "SUM(eligible secondary sales), based on validated channel/source rules.",
+      info: "Data Source: rb_secondary_olap table in ClickHouse (DRL database).",
+      aliases: ["Secondary Sales", "Sell-Through", "Total Secondary Sales", "Downstream Sales"],
+    },
+    {
+      kpi: "Seller-Wise Sales",
+      definition: "Secondary sales value aggregated by the seller recorded in the data.",
+      usage: "Compare partner/seller performance and sales concentration.",
+      interpretation: "Higher value implies a larger share of reported secondary sales.",
+      pitfalls: "Same platform can have multiple seller",
+      example: "RK World ₹5.39 Cr; Blinkit ₹1.33 Cr in the screenshot.",
+      logic: "GROUP BY normalized seller; SUM(secondary sales value).",
+      aliases: ["Seller-Wise Sales", "Seller Wise Sales", "Seller Performance", "Seller Sales"],
+    },
+    {
+      kpi: "Seller Sales Contribution %",
+      definition: "Percentage of total secondary sales attributable to an individual seller.",
+      usage: "Identify sellers contributing most to channel sales.",
+      interpretation: "Higher percentage shows greater seller dependence.",
+      pitfalls: "Ensure seller total and overall total use identical dates, filters and metric.",
+      example: "RK World ₹5.39 Cr ÷ ₹10.48 Cr ≈ 51.4%.",
+      logic: "Seller sales / Total eligible secondary sales × 100.",
+      aliases: ["Seller Sales Contribution %", "Seller Contribution %", "Seller Share %", "Seller Contribution"],
+    },
+    {
+      kpi: "Top 5 Brands",
+      definition: "The five highest-ranked brands by secondary sales value under current filters.",
+      usage: "Identify leading brands in the sales mix.",
+      interpretation: "Rank #1 contributes the most among selected brands.",
+      pitfalls: "Top-five subtotal is not the overall total; mapping aliases can split brands.",
+      example: "Venusia ranks #1 at ₹1.64 Cr in the screenshot.",
+      logic: "GROUP BY normalized brand; SUM(secondary sales); sort descending; take first 5.",
+      aliases: ["Top 5 Brands", "Top Brands", "Leading Brands", "Brand Ranking"],
+    },
+    {
+      kpi: "Top 5 Brand Share %",
+      definition: "Share of the Top-5-brand sales subtotal attributable to each displayed brand.",
+      usage: "Compare relative contribution within the leading five brands.",
+      interpretation: "A larger share means a larger portion of Top 5 sales.",
+      pitfalls: "Do not label this as share of all brands unless denominator is total brand sales.",
+      example: "Venusia ₹1.64 Cr ÷ ₹2.99 Cr ≈ 55%.",
+      logic: "Brand sales / SUM(sales of displayed Top 5 brands) × 100; confirm dashboard denominator.",
+      aliases: ["Top 5 Brand Share %", "Brand Share %", "Top 5 Contribution", "Brand Share"],
+    },
+    {
+      kpi: "MRP Sales",
+      definition: "Sales valued using the maximum retail prices assigned to sold products.",
+      usage: "Compare volume performance at list-price valuation across segments.",
+      interpretation: "Higher MRP sales may reflect greater units, pack mix or higher MRPs.",
+      pitfalls: "MRP-valued sales are not necessarily realized revenue; MRP history and overrides matter.",
+      example: "10 units × ₹100 MRP = ₹1,000 MRP sales.",
+      logic: "Typically SUM(units sold × applicable unit MRP); confirm dashboard valuation and returns rules.",
+      aliases: ["MRP Sales", "List Price Sales", "MRP Valuation"],
+    },
+    {
+      kpi: "MRP Sales Trend",
+      definition: "Time series of secondary sales measured at MRP valuation.",
+      usage: "Visualize changes in list-price-equivalent sales over time.",
+      interpretation: "A higher point represents more MRP-valued sales during that period.",
+      pitfalls: "Do not equate with actual selling-price revenue; account for price revisions.",
+      example: "Aug-26 MRP sales point shows ₹10.48 Cr.",
+      logic: "Group by displayed time grain; SUM(MRP-valued sales), subject to confirmed calculation.",
+      aliases: ["MRP Sales Trend", "Sales Trend", "MRP Timeline", "Sales Timeline"],
+    },
+    {
+      kpi: "Secondary Units",
+      definition: "Number of units sold in downstream sales records for the selected period.",
+      usage: "Measure channel sell-through volume, separately from MRP value.",
+      interpretation: "Higher quantity suggests higher downstream product movement.",
+      pitfalls: "Units should be standardized across packs and bundles; consider cancellations/returns.",
+      example: "200 packs sold = 200 reporting units, if packs are the chosen unit.",
+      logic: "SUM(eligible secondary sold quantity), using standard pack/unit conversion.",
+      aliases: ["Secondary Units", "Units", "Total Units", "Units Sold", "Quantity Sold"],
+    },
+    {
+      kpi: "Monthly Sales Trend",
+      definition: "Monthly secondary-sales values plotted separately by sales platform.",
+      usage: "Compare platform performance, growth and seasonality.",
+      interpretation: "Higher platform point represents higher sales for that month.",
+      pitfalls: "Platform labels may combine several sellers; verify metric and units on the chart.",
+      example: "Aug-26 Amazon ₹6.29 Cr and Blinkit ₹8.40 M (as tooltip).",
+      logic: "GROUP BY calendar month and normalized platform; SUM(eligible secondary sales).",
+      aliases: ["Monthly Sales Trend", "Platform Trend", "Monthly Platform Trend", "Platform Sales"],
+    },
+    {
+      kpi: "Platform",
+      definition: "E-commerce or commerce channel associated with a secondary sales record.",
+      usage: "Filter and compare channel performance.",
+      interpretation: "Helps isolate each channel's contribution.",
+      pitfalls: "Platform and seller can differ; names such as FK B2B and Flipkart must be mapped explicitly.",
+      example: "Amazon, Blinkit, Flipkart, Nykaa and Zepto.",
+      logic: "Map raw channel/source identifier to approved platform master.",
+      aliases: ["Platform", "Channel", "E-commerce Platform", "Platform Name"],
+    },
+    {
+      kpi: "Seller",
+      definition: "Seller or commercial entity associated with a downstream sales record.",
+      usage: "Analyze which sellers generated sales.",
+      interpretation: "Separates sales across selling entities where available.",
+      pitfalls: "One seller can participate on multiple platforms; do not force one-to-one mapping.",
+      example: "RK World, Buymore and Nykaa appear as seller labels.",
+      logic: "Join source seller identifier to normalized seller master.",
+      aliases: ["Seller", "Seller Name", "Distributor", "Merchant"],
+    },
+    {
+      kpi: "Brand and Sub-brand",
+      definition: "Parent brand and lower-level brand grouping used to classify SKUs.",
+      usage: "Analyze contribution at brand hierarchy levels.",
+      interpretation: "Reveals performance within a product portfolio.",
+      pitfalls: "Inconsistent brand aliases can split the same portfolio across labels.",
+      example: "Venusia can be analyzed as its mapped brand/grouping.",
+      logic: "Join SKU → approved brand/sub-brand hierarchy; avoid many-to-many duplicates.",
+      aliases: ["Brand and Sub-brand", "Brand", "Sub-brand", "Brand Hierarchy"],
+    },
+    {
+      kpi: "SKU",
+      definition: "Stock Keeping Unit: the identifiable sellable product/pack variant.",
+      usage: "Filter and compare individual products.",
+      interpretation: "Supports granular sales analysis.",
+      pitfalls: "Platform-specific IDs may refer to the same catalog SKU; pack size differences matter.",
+      example: "100 ml and 200 ml packs normally have distinct SKUs.",
+      logic: "Map platform SKU to approved canonical product key.",
+      aliases: ["SKU", "Stock Keeping Unit", "Product Variant", "Item Code"],
+    },
+    {
+      kpi: "SAP Code",
+      definition: "Enterprise product/material identifier used for internal master-data mapping.",
+      usage: "Reconcile sales records with internal product identifiers.",
+      interpretation: "Enables SAP-level reporting where mapping is available.",
+      pitfalls: "One platform SKU can map to multiple SAP codes over time; validate effective-date rules.",
+      example: "An internal material code assigned to a product pack.",
+      logic: "Use approved effective-dated SKU–SAP mapping; resolve ambiguous matches.",
+      aliases: ["SAP Code", "DRL Sap Code", "Material Code", "Product Code"],
+    },
+    {
+      kpi: "Fiscal Year",
+      definition: "Company financial reporting year used to group sales.",
+      usage: "Filter results by financial year.",
+      interpretation: "Shows performance in an annual reporting cycle.",
+      pitfalls: "Indian FY differs from calendar year; ensure fiscal calendar alignment.",
+      example: "FY2026–27 commonly runs Apr-26 to Mar-27.",
+      logic: "Map transaction date to configured fiscal calendar.",
+      aliases: ["Fiscal Year", "FY", "Financial Year"],
+    },
+    {
+      kpi: "Quarter",
+      definition: "Three-month financial-year reporting interval.",
+      usage: "Compare secondary sales by financial quarter.",
+      interpretation: "Highlights quarterly channel performance.",
+      pitfalls: "Incomplete quarters require clear labelling.",
+      example: "Q2 FY2026–27 = Jul–Sep 2026.",
+      logic: "Map date to quarter using configured fiscal calendar.",
+      aliases: ["Quarter", "Qtr", "Fiscal Quarter"],
+    },
+    {
+      kpi: "View By",
+      definition: "Reporting time-grain selector used to aggregate and present data.",
+      usage: "Switch between monthly or other supported periodic views.",
+      interpretation: "Changes trend granularity rather than underlying eligible transactions.",
+      pitfalls: "Do not compare points from different time grains directly.",
+      example: "Monthly groups all eligible August transactions into Aug-26.",
+      logic: "DATE_BUCKET(transaction date, selected supported period).",
+      aliases: ["View By", "Granularity", "Time Grain", "Daily / Weekly / Monthly"],
+    },
+    {
+      kpi: "Time Period",
+      definition: "Date interval applied to included sales records.",
+      usage: "Limit metrics and charts to chosen dates.",
+      interpretation: "Changes displayed totals and rankings.",
+      pitfalls: "Check timezone, inclusive end-date and comparison window.",
+      example: "01-Aug-2026 to 29-Aug-2026.",
+      logic: "Filter records between configured start/end dates; confirm date boundaries.",
+      aliases: ["Time Period", "Date Range", "Date Filter", "Reporting Period"],
+    },
+    {
+      kpi: "Data Updated",
+      definition: "Most recent successful data refresh date shown by the dashboard.",
+      usage: "Assess the freshness of displayed metrics.",
+      interpretation: "Recent refresh indicates a more current processed dataset.",
+      pitfalls: "Refresh date is not necessarily latest transaction date or completeness guarantee.",
+      example: "Data Updated: 18 Oct 2026.",
+      logic: "Display latest successful ingestion/refresh timestamp; confirm data cutoff.",
+      aliases: ["Data Updated", "Last Refreshed", "Refresh Date", "Data Freshness"],
+    },
+    {
+      kpi: "Units / L / Cr / M",
+      definition: "Display abbreviations used for volume and monetary values.",
+      usage: "Read chart axes and KPI amounts consistently.",
+      interpretation: "L = lakh; Cr = crore; M = million.",
+      pitfalls: "Avoid comparing monetary and quantity units, and distinguish M from L.",
+      example: "1.87 L units = 187,000; ₹10.48 Cr = ₹104.8 M.",
+      logic: "1 L = 100,000; 1 Cr = 10,000,000; 1 M = 1,000,000.",
+      aliases: ["Units / L / Cr / M", "Number Format", "Abbreviations", "Metric Scale", "Lakh / Crore / Million"],
+    },
+    {
+      kpi: "Filters",
+      definition: "Dashboard controls that narrow reporting scope to selected business dimensions.",
+      usage: "Review specific sellers, products, periods, regions or brands.",
+      interpretation: "All means no restriction in that dimension.",
+      pitfalls: "Dependent filters and master-data gaps may exclude records.",
+      example: "Select Brand = Venusia to isolate its mapped records.",
+      logic: "Apply filters before grouping/aggregating, respecting defined master joins.",
+      aliases: ["Filters", "Dashboard Filters", "Filter Bar", "Slicers"],
     },
   ];
 
@@ -791,6 +1116,72 @@ const HelpDrawer = ({ userDbName }) => {
     },
   ];
 
+  const inventoryAnalysisGlossary = [
+    {
+      kpi: "Total Inventory",
+      definition: "The total volume or value of stock available across warehouses, dark stores, and seller locations.",
+      usage: "Monitor overall stock adequacy.",
+      interpretation: "High inventory protects against stockouts; excessive inventory increases holding cost.",
+      pitfalls: "Not differentiating between fast-moving and slow-moving SKUs.",
+      example: "15,000 units across regional fulfilment centers.",
+      logic: "Sum(Available Stock Units)",
+      aliases: ["Total Inventory", "Stock on Hand", "Current Stock"],
+    },
+    {
+      kpi: "Days of Inventory (DOI)",
+      definition: "The estimated number of days current stock will last based on recent sales run-rate.",
+      usage: "Assess replenishment urgency.",
+      interpretation: "Low DOI (< 7 days) risks imminent stockout; high DOI (> 60 days) indicates overstock.",
+      pitfalls: "Spikes in daily sales can distort forward run-rate projections.",
+      example: "Current stock 1,000 units, avg sales 100 units/day → DOI = 10 days.",
+      logic: "Current Stock ÷ Average Daily Sales",
+      aliases: ["Days of Inventory", "DOI", "Days of Cover", "DOC"],
+    },
+    {
+      kpi: "Out of Stock (OOS) Risk",
+      definition: "SKUs or locations where current inventory is below safety thresholds or approaching zero.",
+      usage: "Prioritize replenishment orders.",
+      interpretation: "High OOS risk requires immediate stock transfer or purchase order creation.",
+      pitfalls: "Ignoring transit time when calculating stock depletion.",
+      example: "3 critical SKUs with less than 2 days of cover.",
+      logic: "Count of SKUs where DOI ≤ Safety Threshold",
+      aliases: ["OOS Risk", "Out of Stock Risk", "Stockout Risk"],
+    },
+  ];
+
+  const scheduledReportsGlossary = [
+    {
+      kpi: "Scheduled Reports",
+      definition: "Automated recurring exports and downloads of reporting data across platforms and business metrics.",
+      usage: "Configure, customize, and download historical and current business reports.",
+      interpretation: "Allows users to generate sliced Excel/CSV data without manual query exports.",
+      pitfalls: "Large date ranges or multi-platform filters may increase generation time.",
+      example: "Download 30-day Business Overview report for Blinkit.",
+      logic: "Filters applied to data pipeline snapshot at export runtime.",
+      aliases: ["Scheduled Reports", "Custom Reports", "Automated Reports", "Report Export"],
+    },
+    {
+      kpi: "Report Frequency",
+      definition: "The cadence at which scheduled reports are generated and delivered (Daily, Weekly, Monthly).",
+      usage: "Automate regular reporting to stakeholders.",
+      interpretation: "Daily reports provide operational monitoring; monthly reports support strategic review.",
+      pitfalls: "Ensure downstream receivers expect the selected frequency.",
+      example: "Weekly Monday morning sales summary.",
+      logic: "Automated cron schedule based on user configuration.",
+      aliases: ["Frequency", "Schedule Cadence", "Report Schedule"],
+    },
+    {
+      kpi: "Custom Date Range",
+      definition: "Specific start and end calendar dates selected for report data extraction.",
+      usage: "Analyze specific campaigns or promotional windows.",
+      interpretation: "Extracts only transactions and logs within the selected boundary dates.",
+      pitfalls: "Selecting dates beyond available crawl data may yield partial records.",
+      example: "1 Oct 2026 to 15 Oct 2026.",
+      logic: "WHERE date BETWEEN start_date AND end_date",
+      aliases: ["Custom Date Range", "Date Range", "Reporting Period"],
+    },
+  ];
+
   const GlossarySection = ({ title, text, icon, bgColor, borderColor, textColor }) => {
     if (!text) return null;
     return (
@@ -819,24 +1210,110 @@ const HelpDrawer = ({ userDbName }) => {
   };
 
   const menuItems = [
-    { label: "Business Overview", icon: <DashboardIcon sx={{ fontSize: "1.1rem" }} /> },
-    { label: "India Overview", icon: <PublicIcon sx={{ fontSize: "1rem" }} /> },
-    { label: "Availability Analysis", icon: <ShoppingCartIcon sx={{ fontSize: "1rem" }} /> },
-    { label: "Visibility Analysis", icon: <VisibilityIcon sx={{ fontSize: "1rem" }} /> },
-    { label: "Market Share", icon: <AutoGraphIcon sx={{ fontSize: "1rem" }} />, hideForDb: ["boat", "mars_petcare"] },
-    { label: "Pricing Analysis", icon: <PriceChangeIcon sx={{ fontSize: "1rem" }} />, hideForDb: ["mamaearth"] },
-    { label: "Performance Marketing", icon: <AdsClickIcon sx={{ fontSize: "1rem" }} />, hideForDb: ["mamaearth", "boat"] },
-    { label: "Content Analysis", icon: <ArticleIcon sx={{ fontSize: "1rem" }} /> },
-    { label: "Review Rating", icon: <StarBorderIcon sx={{ fontSize: "1rem" }} /> },
-    { label: "Inventory Analysis", icon: <InventoryIcon sx={{ fontSize: "1rem" }} />, hideForDb: ["mamaearth", "boat"] },
-    { label: "Scheduled Reports", icon: <ScheduleIcon sx={{ fontSize: "1rem" }} /> },
+    { label: "Business Overview", icon: <DashboardIcon sx={{ fontSize: "1.1rem" }} />, path: "/watch-tower" },
+    { label: "India Overview", icon: <PublicIcon sx={{ fontSize: "1rem" }} />, path: "/geo-intelligence" },
+    { label: "Availability Analysis", icon: <ShoppingCartIcon sx={{ fontSize: "1rem" }} />, path: "/availability-analysis" },
+    { label: "Visibility Analysis", icon: <VisibilityIcon sx={{ fontSize: "1rem" }} />, path: "/visibility-anlysis" },
+    { label: "Market Share", icon: <AutoGraphIcon sx={{ fontSize: "1rem" }} />, path: "/market-share", hideForDb: ["boat", "mars_petcare"] },
+    { label: "Pricing Analysis", icon: <PriceChangeIcon sx={{ fontSize: "1rem" }} />, path: "/pricing-analysis", hideForDb: ["mamaearth"] },
+    { label: "Performance Marketing", icon: <AdsClickIcon sx={{ fontSize: "1rem" }} />, path: "/performance-marketing", hideForDb: ["mamaearth", "boat"] },
+    { label: "Content Analysis", icon: <ArticleIcon sx={{ fontSize: "1rem" }} />, path: "/content-analysis" },
+    { label: "Review Rating", icon: <StarBorderIcon sx={{ fontSize: "1rem" }} />, path: "/review-rating" },
+    { label: "Primary Summary", icon: <DashboardIcon sx={{ fontSize: "1rem" }} />, path: "/primary-overview", showOnlyForDb: ["drl"] },
+    { label: "Secondary Summary", icon: <DashboardIcon sx={{ fontSize: "1rem" }} />, path: "/secondary-overview", showOnlyForDb: ["drl"] },
+    { label: "Inventory Analysis", icon: <InventoryIcon sx={{ fontSize: "1rem" }} />, path: "/inventory", hideForDb: ["mamaearth", "boat"] },
+    { label: "Scheduled Reports", icon: <ScheduleIcon sx={{ fontSize: "1rem" }} />, path: "/scheduled-reports" },
   ];
 
-  const filteredMenuItems = menuItems.filter((item) => {
-    if (item.showOnlyForDb && !item.showOnlyForDb.includes(userDbName)) return false;
-    if (item.hideForDb && item.hideForDb.includes(userDbName)) return false;
-    return true;
-  });
+  const activeDbName = (
+    userDbName ||
+    user?.dbName ||
+    (() => {
+      try {
+        const u = JSON.parse(sessionStorage.getItem('user') || sessionStorage.getItem('kiryana_user') || '{}');
+        return u?.dbName;
+      } catch (_) {
+        return '';
+      }
+    })() ||
+    ''
+  ).toLowerCase();
+  const tabPerms = user?.tabPermissions;
+
+  const filteredMenuItems = React.useMemo(() => {
+    return menuItems.filter((item) => {
+      // If user's db_status is inactive, hide all dashboard modules
+      if (user?.dbStatus === false) return false;
+
+      // Database-specific restrictions
+      if (item.showOnlyForDb && (!activeDbName || !item.showOnlyForDb.some(db => activeDbName.includes(db.toLowerCase())))) return false;
+      if (item.hideForDb && activeDbName && item.hideForDb.some(db => activeDbName.includes(db.toLowerCase()))) return false;
+
+      // Tab permissions check from tb_user in admin_master
+      if (tabPerms && Object.keys(tabPerms).length > 0) {
+        const getPermVal = (val) => {
+          if (val === undefined || val === null) return undefined;
+          if (typeof val === 'boolean') return val;
+          if (typeof val === 'object' && val.access !== undefined) return Boolean(val.access);
+          return Boolean(val);
+        };
+
+        let isAllowed = getPermVal(tabPerms[item.label]);
+
+        // Fallback for label aliases in tab_permissions
+        if (isAllowed === undefined) {
+          if (item.label === "Content Analysis") {
+            isAllowed = getPermVal(tabPerms["Content Score"]) ?? getPermVal(tabPerms["Content"]);
+          } else if (item.label === "Review Rating") {
+            isAllowed = getPermVal(tabPerms["Rating"]);
+          } else if (item.label === "Pricing Analysis") {
+            isAllowed = getPermVal(tabPerms["Cross Platform Pricing"]);
+          }
+        }
+
+        // Only hide if permission is explicitly false (allow undefined so new modules like Primary/Secondary Summary aren't hidden by default)
+        if (isAllowed === false) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [activeDbName, tabPerms, user?.dbStatus]);
+
+  // Sync with context's activeHelpMenu ONLY when drawer opens or activeHelpMenu changes externally
+  React.useEffect(() => {
+    if (helpDrawerOpen && filteredMenuItems.length > 0) {
+      const justOpened = !prevHelpDrawerOpen.current;
+      const menuTriggered = prevActiveHelpMenu.current !== activeHelpMenu;
+
+      if (justOpened || menuTriggered) {
+        const isAllowed = (label) => filteredMenuItems.some((item) => item.label === label);
+
+        let targetMenu = activeHelpMenu;
+        if (!targetMenu || !isAllowed(targetMenu)) {
+          targetMenu = filteredMenuItems[0].label;
+        }
+
+        setActiveMenu(targetMenu);
+        if (targetMenu === "Business Overview") {
+          setExpandedKpi("Offtake");
+        } else if (targetMenu === "Primary Summary") {
+          setExpandedKpi("Total Sales");
+        } else if (targetMenu === "Secondary Summary") {
+          setExpandedKpi("Secondary Sales");
+        } else if (targetMenu === "Inventory Analysis") {
+          setExpandedKpi("Total Inventory");
+        } else if (targetMenu === "Scheduled Reports") {
+          setExpandedKpi("Scheduled Reports");
+        } else {
+          setExpandedKpi(null);
+        }
+      }
+    }
+    prevHelpDrawerOpen.current = helpDrawerOpen;
+    prevActiveHelpMenu.current = activeHelpMenu;
+  }, [helpDrawerOpen, activeHelpMenu, filteredMenuItems]);
 
   const getGlossarySource = () => {
     switch (activeMenu) {
@@ -856,6 +1333,14 @@ const HelpDrawer = ({ userDbName }) => {
         return contentAnalysisGlossary;
       case "Review Rating":
         return reviewRatingGlossary;
+      case "Primary Summary":
+        return primarySummaryGlossary;
+      case "Secondary Summary":
+        return secondarySummaryGlossary;
+      case "Inventory Analysis":
+        return inventoryAnalysisGlossary;
+      case "Scheduled Reports":
+        return scheduledReportsGlossary;
       default:
         return businessOverviewGlossary;
     }
@@ -981,12 +1466,27 @@ const HelpDrawer = ({ userDbName }) => {
                 selected={activeMenu === item.label}
                 onClick={() => {
                   setActiveMenu(item.label);
-                  setExpandedKpi(null);
+                  if (item.label === "Business Overview") {
+                    setExpandedKpi("Offtake");
+                  } else if (item.label === "Primary Summary") {
+                    setExpandedKpi("Total Sales");
+                  } else if (item.label === "Secondary Summary") {
+                    setExpandedKpi("Secondary Sales");
+                  } else if (item.label === "Inventory Analysis") {
+                    setExpandedKpi("Total Inventory");
+                  } else if (item.label === "Scheduled Reports") {
+                    setExpandedKpi("Scheduled Reports");
+                  } else {
+                    setExpandedKpi(null);
+                  }
                 }}
                 sx={{
                   borderRadius: "8px",
                   mb: 0.5,
                   py: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                   "&.Mui-selected": {
                     bgcolor: "rgba(37, 99, 235, 0.08)",
                     color: "#2563eb",
@@ -995,14 +1495,42 @@ const HelpDrawer = ({ userDbName }) => {
                   },
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 36, color: "#64748b" }}>{item.icon}</ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  primaryTypographyProps={{
-                    fontSize: "0.825rem",
-                    fontWeight: activeMenu === item.label ? 600 : 500,
-                  }}
-                />
+                <Box sx={{ display: "flex", alignItems: "center", minWidth: 0, flex: 1 }}>
+                  <ListItemIcon sx={{ minWidth: 36, color: "#64748b" }}>{item.icon}</ListItemIcon>
+                  <ListItemText
+                    primary={item.label}
+                    primaryTypographyProps={{
+                      fontSize: "0.825rem",
+                      fontWeight: activeMenu === item.label ? 600 : 500,
+                      noWrap: true,
+                    }}
+                  />
+                </Box>
+                {item.path && (
+                  <Tooltip title={`Go to ${item.label} page`} arrow placement="top">
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeHelp();
+                        navigate(item.path);
+                      }}
+                      sx={{
+                        p: 0.3,
+                        ml: 0.5,
+                        color: activeMenu === item.label ? "#2563eb" : "#94a3b8",
+                        opacity: activeMenu === item.label ? 0.9 : 0.4,
+                        "&:hover": {
+                          opacity: 1,
+                          color: "#2563eb",
+                          bgcolor: "rgba(37, 99, 235, 0.12)",
+                        },
+                      }}
+                    >
+                      <LaunchIcon sx={{ fontSize: "0.85rem" }} />
+                    </IconButton>
+                  </Tooltip>
+                )}
               </ListItemButton>
             ))}
           </List>
@@ -1010,7 +1538,16 @@ const HelpDrawer = ({ userDbName }) => {
 
         {/* Content Tabs & View */}
         <Box sx={{ flex: 1, display: "flex", flexDirection: "column", bgcolor: "#f8fafc" }}>
-          <Box sx={{ px: 3, bgcolor: "#ffffff", borderBottom: "1px solid #e2e8f0" }}>
+          <Box
+            sx={{
+              px: 3,
+              bgcolor: "#ffffff",
+              borderBottom: "1px solid #e2e8f0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
             <Tabs
               value={activeTab}
               onChange={handleTabChange}
@@ -1030,6 +1567,39 @@ const HelpDrawer = ({ userDbName }) => {
                 }}
               />
             </Tabs>
+
+            {(() => {
+              const currentItem = filteredMenuItems.find((m) => m.label === activeMenu);
+              if (!currentItem?.path) return null;
+              return (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  endIcon={<LaunchIcon sx={{ fontSize: "0.85rem !important" }} />}
+                  onClick={() => {
+                    closeHelp();
+                    navigate(currentItem.path);
+                  }}
+                  sx={{
+                    textTransform: "none",
+                    borderRadius: "8px",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    borderColor: "#cbd5e1",
+                    color: "#334155",
+                    py: 0.35,
+                    px: 1.2,
+                    "&:hover": {
+                      borderColor: "#2563eb",
+                      color: "#2563eb",
+                      bgcolor: "rgba(37, 99, 235, 0.04)",
+                    },
+                  }}
+                >
+                  Go to {activeMenu} Page
+                </Button>
+              );
+            })()}
           </Box>
 
           <Box sx={{ flex: 1, p: 3, overflowY: "auto" }}>
@@ -1049,7 +1619,7 @@ const HelpDrawer = ({ userDbName }) => {
                 </Box>
               </Box>
               <Box sx={{ display: 'grid', gap: 2 }}>
-                {["Business Overview", "India Overview", "Availability Analysis", "Market Share", "Visibility Analysis", "Pricing Analysis", "Performance Marketing", "Content Analysis", "Review Rating"].includes(activeMenu) ? (
+                {filteredGlossary && filteredGlossary.length > 0 ? (
                   filteredGlossary.map((item) => {
                     const isExpanded = expandedKpi === item.kpi;
                     return (
@@ -1160,7 +1730,9 @@ const HelpDrawer = ({ userDbName }) => {
                 ) : (
                   <Box sx={{ textAlign: 'center', py: 8 }}>
                     <Typography sx={{ color: "#64748b" }}>
-                      Glossary content for {activeMenu} is coming soon.
+                      {searchQuery
+                        ? `No glossary results found for "${searchQuery}".`
+                        : `Glossary content for ${activeMenu} is coming soon.`}
                     </Typography>
                   </Box>
                 )}
