@@ -10025,6 +10025,7 @@ const getCompetitionData = async (filters = {}) => {
             WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL AND brand_name != ''
         `);
         const validBrandNames = validBrandsResult.map(b => b.brand_name).filter(Boolean);
+        const validBrandNamesLower = new Set(validBrandNames.map(b => (b || '').toLowerCase().trim()));
         console.log(`[getCompetitionData] Valid brands (comp_flag=0): ${validBrandNames.length}`);
 
         // 🔹 Calculate date range for rb_ms_olap (Market Share & Offtake Share)
@@ -10599,9 +10600,15 @@ const getCompetitionData = async (filters = {}) => {
             const prevListingPercent = parseFloat(prevBrand.avg_listing_percent || 0);
             const listingPercentDelta = calcChange(listingPercent, prevListingPercent);
 
+            const brandCleanName = (brand.Brand || '').trim();
+            const isOwnBrand = validBrandNamesLower.has(brandCleanName.toLowerCase());
+
             return {
-                brand_name: brand.Brand,
-                brand: brand.Brand,
+                brand_name: brandCleanName,
+                brand: brandCleanName,
+                name: brandCleanName,
+                isOwnBrand,
+                is_my_brand: isOwnBrand,
                 OSA: { value: osa === null ? null : parseFloat(osa.toFixed(2)), delta: osaDelta === null ? null : parseFloat(osaDelta.toFixed(2)) },
                 SOS: { value: sos === null ? null : parseFloat(sos.toFixed(3)), delta: sosDelta === null ? null : parseFloat(sosDelta.toFixed(3)) },
                 Discount: { value: parseFloat(discount.toFixed(2)), delta: parseFloat(discountDelta.toFixed(2)) },
@@ -10622,11 +10629,11 @@ const getCompetitionData = async (filters = {}) => {
             };
         });
 
-        // 5. Sort by OSA descending and limit to top 10
+        // 5. Sort by OSA descending
         brandMetrics.sort((a, b) => (b.OSA?.value || 0) - (a.OSA?.value || 0));
         const topBrands = brandMetrics.slice(0, 10);
 
-        console.log(`[getCompetitionData] Returning ${topBrands.length} brands`);
+        console.log(`[getCompetitionData] Returning ${brandMetrics.length} brands (top 10 brands slice available)`);
 
         // If no brands found, help user debug by showing available values
         if (topBrands.length === 0 && (location !== 'All' || category !== 'All')) {
@@ -10850,10 +10857,12 @@ const getCompetitionData = async (filters = {}) => {
         });
         const topSkus = skuMetrics;
 
-        console.log(`[getCompetitionData] Returning ${topBrands.length} brands and ${topSkus.length} SKUs`);
+        console.log(`[getCompetitionData] Returning ${brandMetrics.length} brands and ${topSkus.length} SKUs`);
 
         return {
-            brands: topBrands,
+            brands: brandMetrics,
+            topBrands,
+            ourBrands: validBrandNames,
             skus: topSkus,  // ADDED: Return SKU data
             metadata: {
                 period,

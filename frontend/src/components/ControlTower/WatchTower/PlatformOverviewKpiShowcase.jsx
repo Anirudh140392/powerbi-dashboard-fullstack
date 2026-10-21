@@ -2099,20 +2099,118 @@ const formatLargeNumber = (value) => {
   return value.toFixed(2);
 };
 
-const BrandTable = ({ rows, loading, onTrendClick, onDownload, onBrandSelect }) => {
+const BrandTable = ({ rows = [], allRows = [], ourBrands = [], filters, loading, onTrendClick, onDownload, onBrandSelect }) => {
+  const { user } = useAuth();
+  const { brands: contextOwnBrands, selectedBrand } = useContext(FilterContext);
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
-  const totalPages = Math.ceil(rows.length / pageSize);
+  const isOurBrand = useCallback((row, brandName) => {
+    if (!row && !brandName) return false;
+    if (row?.isOwnBrand === true || row?.is_my_brand === true) return true;
+
+    const targetName = (brandName || row?.name || row?.brand_name || row?.brand || '').toLowerCase().trim();
+    if (!targetName) return false;
+
+    // 1. From API ourBrands list
+    if (ourBrands && ourBrands.length > 0) {
+      if (ourBrands.some(b => String(b).toLowerCase().trim() === targetName)) return true;
+    }
+
+    // 2. From FilterContext contextOwnBrands
+    if (contextOwnBrands && contextOwnBrands.length > 0) {
+      if (contextOwnBrands.some(b => {
+        const cb = String(b).toLowerCase().trim();
+        return cb === targetName || cb.includes(targetName) || targetName.includes(cb);
+      })) return true;
+    }
+
+    // 3. From user context / dbName
+    const dbName = (user?.dbName || '').toLowerCase().trim();
+    if (dbName && dbName !== 'admin' && dbName !== 'default') {
+      if (targetName === dbName || targetName.includes(dbName) || dbName.includes(targetName)) return true;
+    }
+    const userBrand = (user?.brand || '').toLowerCase().trim();
+    if (userBrand && (targetName === userBrand || targetName.includes(userBrand) || userBrand.includes(targetName))) return true;
+
+    // 4. From selectedBrand or filters.brands (if single brand selected and not 'All')
+    if (filters?.brands?.length === 1) {
+      const fb = String(filters.brands[0]).toLowerCase().trim();
+      if (targetName === fb || targetName.includes(fb) || fb.includes(targetName)) return true;
+    }
+    if (selectedBrand && selectedBrand !== 'All') {
+      const sb = String(selectedBrand).toLowerCase().trim();
+      if (targetName === sb || targetName.includes(sb) || sb.includes(targetName)) return true;
+    }
+
+    return false;
+  }, [ourBrands, contextOwnBrands, user, filters?.brands, selectedBrand]);
+
+  // Main list is top 10 brands
+  const fullRows = (allRows && allRows.length > 0) ? allRows : (rows || []);
+  const top10Rows = useMemo(() => {
+    return fullRows.slice(0, 10);
+  }, [fullRows]);
+
+  const isOurBrandInTop10 = useMemo(() => {
+    return top10Rows.some(r => isOurBrand(r));
+  }, [top10Rows, isOurBrand]);
+
+  // If our brand is NOT in top 10, find our brand in fullRows or fallback
+  const ourBrandOutsideTop10 = useMemo(() => {
+    if (isOurBrandInTop10) return null;
+
+    // First check remaining rows from index 10 onwards
+    const outsideMatch = fullRows.slice(10).find(r => isOurBrand(r));
+    if (outsideMatch) {
+      const rank = fullRows.findIndex(r => r === outsideMatch) + 1;
+      return { ...outsideMatch, rank };
+    }
+
+    // If not found in slice(10), search entire fullRows (e.g. if total brands < 10)
+    const anyMatch = fullRows.find(r => isOurBrand(r));
+    if (anyMatch) {
+      const rank = fullRows.findIndex(r => r === anyMatch) + 1;
+      return { ...anyMatch, rank };
+    }
+
+    // Fallback: if our brand has 0 items in competition table, build placeholder
+    const fallbackName = (filters?.brands?.length === 1 && filters.brands[0]) ||
+                         (selectedBrand && selectedBrand !== 'All' ? selectedBrand : '') ||
+                         (contextOwnBrands && contextOwnBrands.length > 0 ? contextOwnBrands[0] : '') ||
+                         (ourBrands && ourBrands.length > 0 ? ourBrands[0] : '') ||
+                         user?.dbName ||
+                         user?.brand ||
+                         'Our Brand';
+    if (fallbackName) {
+      return {
+        name: fallbackName,
+        brand_name: fallbackName,
+        brand: fallbackName,
+        OSA: { value: null },
+        SOS: { value: null },
+        Price: { value: null },
+        'Promo-My': { value: null },
+        MarketShare: { value: null },
+        rank: null,
+        isFallback: true
+      };
+    }
+
+    return null;
+  }, [isOurBrandInTop10, fullRows, isOurBrand, filters?.brands, selectedBrand, contextOwnBrands, ourBrands, user]);
+
+  const totalPages = Math.ceil(top10Rows.length / pageSize);
   const paginatedRows = useMemo(() => {
-    return rows.slice((page - 1) * pageSize, page * pageSize);
-  }, [rows, page, pageSize]);
+    return top10Rows.slice((page - 1) * pageSize, page * pageSize);
+  }, [top10Rows, page, pageSize]);
 
   return (
     <Card className="mt-3">
       <CardHeader className="border-b pb-2">
         <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
-          <span>Brands (Top {rows.length || 0})</span>
+          <span>Brands (Top {Math.min(top10Rows.length, 10)})</span>
           {onDownload && (
             <button
               type="button"
@@ -2151,19 +2249,90 @@ const BrandTable = ({ rows, loading, onTrendClick, onDownload, onBrandSelect }) 
                   <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                 </tr>
               ))}
+
+              {/* HIGHLIGHTED ROW ON TOP IF OUR BRAND IS NOT IN TOP 10 */}
+              {!loading && ourBrandOutsideTop10 && (
+                <tr className="bg-amber-50/90 hover:bg-amber-100/80 border-b-2 border-amber-300 font-semibold transition-colors shadow-2xs">
+                  <td className="px-3 py-2.5 font-medium text-slate-900 border-r border-amber-200">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className="truncate font-bold text-amber-950 capitalize"
+                          title={ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand_name || ourBrandOutsideTop10.brand}
+                        >
+                          {ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand_name || ourBrandOutsideTop10.brand}
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-amber-200/90 text-amber-900 border border-amber-400 shrink-0">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-600 animate-pulse"></span>
+                          Our Brand {ourBrandOutsideTop10.rank ? `(#${ourBrandOutsideTop10.rank})` : ''}
+                        </span>
+                      </div>
+                      {onBrandSelect && (ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand) && !ourBrandOutsideTop10.isFallback && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onBrandSelect(ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand);
+                          }}
+                          className="px-2 py-0.5 text-[10px] font-semibold text-amber-900 bg-amber-100/90 hover:bg-amber-600 hover:text-white border border-amber-300 hover:border-amber-600 rounded transition-all duration-150 flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
+                          title={`View SKUs for ${ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand}`}
+                        >
+                          <span>SKUs</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-900 font-semibold border-r border-amber-200">
+                    <KpiCell data={ourBrandOutsideTop10.OSA} suffix="%" />
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-900 font-semibold border-r border-amber-200">
+                    <KpiCell data={ourBrandOutsideTop10.SOS} format={2} suffix="%" />
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-900 font-semibold border-r border-amber-200">
+                    <KpiCell data={ourBrandOutsideTop10.Price} format={0} prefix="₹" isInverse={true} />
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-900 font-semibold border-r border-amber-200">
+                    <KpiCell data={ourBrandOutsideTop10['Promo-My'] || ourBrandOutsideTop10.PromoMy} suffix="%" />
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-900 border-x border-amber-200 font-bold text-amber-950">
+                    <KpiCell data={ourBrandOutsideTop10.MarketShare} suffix="%" />
+                  </td>
+                </tr>
+              )}
+
+              {/* TOP 10 PAGINATED ROWS */}
               {!loading && paginatedRows.map((row, idx) => {
                 const brandName = row.name || row.brand_name || row.brand;
+                const isOwn = isOurBrand(row);
                 return (
                   <tr
                     key={row.id || `brand-${idx}`}
                     className={cn(
-                      "hover:bg-slate-50",
-                      idx % 2 === 1 && "bg-slate-50/60"
+                      "hover:bg-slate-50 transition-colors",
+                      idx % 2 === 1 && "bg-slate-50/60",
+                      isOwn && "bg-emerald-50/40 hover:bg-emerald-50/70"
                     )}
                   >
                     <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
                       <div className="flex items-center justify-between gap-1.5">
-                        <span className="truncate" title={brandName}>{brandName}</span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className={cn(
+                              "truncate font-medium capitalize",
+                              isOwn && "font-semibold text-slate-900"
+                            )}
+                            title={brandName}
+                          >
+                            {brandName}
+                          </span>
+                          {isOwn && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 shrink-0">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                              Our Brand
+                            </span>
+                          )}
+                        </div>
                         {onBrandSelect && brandName && (
                           <button
                             type="button"
@@ -2199,7 +2368,7 @@ const BrandTable = ({ rows, loading, onTrendClick, onDownload, onBrandSelect }) 
                 );
               })}
 
-              {!loading && rows.length === 0 && (
+              {!loading && paginatedRows.length === 0 && !ourBrandOutsideTop10 && (
                 <tr>
                   <td
                     colSpan={6}
@@ -2214,7 +2383,7 @@ const BrandTable = ({ rows, loading, onTrendClick, onDownload, onBrandSelect }) 
         </div>
       </CardContent>
       <PaginationFooter
-        isVisible={rows.length > 0}
+        isVisible={top10Rows.length > 0}
         currentPage={page}
         totalPages={totalPages}
         pageSize={pageSize}
@@ -2367,17 +2536,18 @@ const LocationSelect = ({ cities, value, onChange }) => {
   const cleanCities = useMemo(() => {
     return (cities || [])
       .map((c) => (typeof c === "string" ? c : c?.name || String(c)))
-      .filter((c) => c !== "Select All" && c !== "All" && c !== "All India");
+      .filter((c) => c !== "Select All" && c !== "All" && c !== "All India" && c !== "All Cities");
   }, [cities]);
 
-  // Determine if 'Select All' is checked
+  // Determine if 'All Cities' / 'Select All' is checked
   const isSelectAll = useMemo(() => {
-    if (value === "Select All" || value === "All" || value === "All India") return true;
+    if (value === "Select All" || value === "All" || value === "All India" || value === "All Cities") return true;
     if (Array.isArray(value)) {
       if (value.length === 0) return false;
       return (
         value.includes("Select All") ||
         value.includes("All") ||
+        value.includes("All Cities") ||
         (cleanCities.length > 0 && value.length >= cleanCities.length)
       );
     }
@@ -2386,7 +2556,7 @@ const LocationSelect = ({ cities, value, onChange }) => {
 
   const selectedList = useMemo(() => {
     if (isSelectAll) return cleanCities;
-    if (Array.isArray(value)) return value.filter((c) => c !== "Select All" && c !== "All");
+    if (Array.isArray(value)) return value.filter((c) => c !== "Select All" && c !== "All" && c !== "All Cities");
     if (typeof value === "string" && value)
       return value.split(",").map((s) => s.trim()).filter(Boolean);
     return [];
@@ -2396,7 +2566,7 @@ const LocationSelect = ({ cities, value, onChange }) => {
     if (isSelectAll) {
       onChange([]);
     } else {
-      onChange(["Select All"]);
+      onChange(["All Cities"]);
     }
   };
 
@@ -2410,14 +2580,14 @@ const LocationSelect = ({ cities, value, onChange }) => {
     }
 
     if (cleanCities.length > 0 && next.length >= cleanCities.length) {
-      onChange(["Select All"]);
+      onChange(["All Cities"]);
     } else {
       onChange(next);
     }
   };
 
   const displayText = useMemo(() => {
-    if (isSelectAll) return "Select All";
+    if (isSelectAll) return "All Cities";
     if (selectedList.length === 0) return "Select city";
     if (selectedList.length === 1) return selectedList[0];
     if (selectedList.length === 2) return selectedList.join(", ");
@@ -2438,7 +2608,7 @@ const LocationSelect = ({ cities, value, onChange }) => {
       {open && (
         <div className="absolute right-0 z-50 mt-1 w-52 rounded-md border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5">
           <div className="max-h-56 overflow-y-auto">
-            {/* Select All */}
+            {/* All Cities */}
             <div
               className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer border-b border-slate-100"
               onClick={(e) => {
@@ -2452,7 +2622,7 @@ const LocationSelect = ({ cities, value, onChange }) => {
                 onChange={handleToggleSelectAll}
                 className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
               />
-              <span>Select All</span>
+              <span>All Cities</span>
             </div>
 
             {/* City Options */}
@@ -2496,7 +2666,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
   }, [filterOptions?.cities]);
 
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
-  const [city, setCity] = useState(["Select All"]);
+  const [city, setCity] = useState(["All Cities"]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [isCrossPlatformOpen, setIsCrossPlatformOpen] = useState(false);
   const [filters, setFilters] = useState({
@@ -2507,14 +2677,15 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
   });
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
   const [apiBrandData, setApiBrandData] = useState([]);
+  const [apiOurBrands, setApiOurBrands] = useState([]);
   const [apiSkuData, setApiSkuData] = useState([]);
   const [apiLoading, setApiLoading] = useState(false);
 
   const getLocationParam = useCallback((c) => {
     if (!c) return 'All';
-    if (c === 'Select All' || c === 'All' || c === 'All India') return 'All';
+    if (c === 'Select All' || c === 'All' || c === 'All India' || c === 'All Cities') return 'All';
     if (Array.isArray(c)) {
-      if (c.length === 0 || c.includes('Select All') || c.includes('All')) return 'All';
+      if (c.length === 0 || c.includes('Select All') || c.includes('All') || c.includes('All Cities')) return 'All';
       return c.join(',');
     }
     return String(c);
@@ -2540,6 +2711,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
         const res = await axiosInstance.get('/watchtower/competition', { params });
         if (res.data) {
           setApiBrandData(res.data.brands || []);
+          setApiOurBrands(res.data.ourBrands || []);
           setApiSkuData(res.data.skus || []);
         }
       } catch (err) {
@@ -2770,6 +2942,9 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
           {viewMode === "table" && (
             <BrandTable
               rows={brandRows}
+              allRows={brandRows}
+              ourBrands={apiOurBrands}
+              filters={filters}
               loading={apiLoading}
               onTrendClick={onTrendClick}
               onDownload={handleDownloadCompetitionExcel}

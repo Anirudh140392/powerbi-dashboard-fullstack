@@ -393,7 +393,24 @@ export function AggregatedViewTable() {
     const [periodComparison, setPeriodComparison] = useState(null);
     const [isPeriodPanelOpen, setIsPeriodPanelOpen] = useState(false);
     const [pmPlatforms, setPmPlatforms] = useState([]);
-    const [localPlatformFilter, setLocalPlatformFilter] = useState("All");
+    const [localPlatformFilter, setLocalPlatformFilter] = useState([]);
+    const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
+    const platformDropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (platformDropdownRef.current && !platformDropdownRef.current.contains(e.target) && showPlatformDropdown) {
+                setShowPlatformDropdown(false);
+            }
+        };
+        if (showPlatformDropdown) {
+            const t = setTimeout(() => document.addEventListener("mousedown", handleClickOutside), 100);
+            return () => {
+                clearTimeout(t);
+                document.removeEventListener("mousedown", handleClickOutside);
+            };
+        }
+    }, [showPlatformDropdown]);
 
     useEffect(() => {
         const fetchPmPlatforms = async () => {
@@ -402,11 +419,51 @@ export function AggregatedViewTable() {
                 const validPlatforms = res.data.filter(p => p !== "All");
                 setPmPlatforms(validPlatforms);
                 // Set default to first valid platform
-                setLocalPlatformFilter(validPlatforms[0]);
+                setLocalPlatformFilter([validPlatforms[0]]);
             }
         };
         fetchPmPlatforms();
     }, []);
+
+    const togglePlatform = (platformName) => {
+        setLocalPlatformFilter((prev) => {
+            const current = Array.isArray(prev) ? prev : (prev && prev !== "All" ? [prev] : []);
+            let next;
+            if (current.includes(platformName)) {
+                next = current.filter((p) => p !== platformName);
+            } else {
+                next = [...current, platformName];
+            }
+            setCurrentPage(1);
+            return next;
+        });
+    };
+
+    const isAllPlatformsSelected = pmPlatforms.length > 0 && Array.isArray(localPlatformFilter) && localPlatformFilter.length === pmPlatforms.length;
+
+    const toggleSelectAllPlatforms = () => {
+        if (isAllPlatformsSelected) {
+            setLocalPlatformFilter([]);
+        } else {
+            setLocalPlatformFilter([...pmPlatforms]);
+        }
+        setCurrentPage(1);
+    };
+
+    const platformButtonLabel = useMemo(() => {
+        if (!pmPlatforms || pmPlatforms.length === 0) return "Platform";
+        const selected = Array.isArray(localPlatformFilter) ? localPlatformFilter : (localPlatformFilter && localPlatformFilter !== "All" ? [localPlatformFilter] : []);
+        if (selected.length === 0 || selected.length === pmPlatforms.length) {
+            return "All Platforms";
+        }
+        if (selected.length === 1) {
+            return selected[0];
+        }
+        if (selected.length === 2) {
+            return `${selected[0]}, ${selected[1]}`;
+        }
+        return `${selected[0]} + ${selected.length - 1} more`;
+    }, [localPlatformFilter, pmPlatforms]);
 
     const [selectedPeriods, setSelectedPeriods] = useState([
         { key: "last_week", label: "Last Week", type: "preset" },
@@ -439,7 +496,16 @@ export function AggregatedViewTable() {
             if (accountId) params.set("platform_account_id", accountId);
             if (companyId) params.set("company_id", companyId);
 
-            if (localPlatformFilter && localPlatformFilter !== "All") {
+            if (Array.isArray(localPlatformFilter)) {
+                if (localPlatformFilter.length > 0 && localPlatformFilter.length < pmPlatforms.length) {
+                    const joined = localPlatformFilter.join(",");
+                    params.set("platform", joined);
+                    params.set("platform_uuid", joined);
+                } else if (localPlatformFilter.length === pmPlatforms.length || localPlatformFilter.length === 0) {
+                    params.set("platform", "All");
+                    params.set("platform_uuid", "All");
+                }
+            } else if (localPlatformFilter && localPlatformFilter !== "All") {
                 params.set("platform", localPlatformFilter);
                 params.set("platform_uuid", localPlatformFilter);
             } else if (filters.platform?.length > 0 && !filters.platform.includes("all") && !filters.platform.includes("All")) {
@@ -529,36 +595,42 @@ export function AggregatedViewTable() {
     }, [fetchData]);
 
     const isQuickcommPlatform = (platformName, channelName) => {
-        const p = String(platformName || '').toLowerCase();
         const c = String(channelName || '').toLowerCase();
         if (c === 'quickcomm' || c === 'qcommerce' || c === 'quick commerce' || c.includes('quick')) return true;
         if (c === 'ecommerce' || c === 'ecom' || c.includes('ecom')) return false;
-        if (!p || p === 'all') return false;
-        return (
-            p.includes('zepto') ||
-            p.includes('blinkit') ||
-            p.includes('instamart') ||
-            p.includes('swiggy') ||
-            p.includes('dunzo') ||
-            p.includes('bbnow') ||
-            p.includes('quick')
-        );
+        const list = Array.isArray(platformName) ? platformName : (platformName ? [platformName] : []);
+        if (list.length === 0 || list.includes('All') || list.includes('all')) return false;
+        return list.every(item => {
+            const p = String(item || '').toLowerCase();
+            return (
+                p.includes('zepto') ||
+                p.includes('blinkit') ||
+                p.includes('instamart') ||
+                p.includes('swiggy') ||
+                p.includes('dunzo') ||
+                p.includes('bbnow') ||
+                p.includes('quick')
+            );
+        });
     };
 
     const isEcommercePlatform = (platformName, channelName) => {
-        const p = String(platformName || '').toLowerCase();
         const c = String(channelName || '').toLowerCase();
         if (c === 'ecommerce' || c === 'ecom' || c.includes('ecom')) return true;
         if (c === 'quickcomm' || c === 'qcommerce' || c === 'quick commerce' || c.includes('quick')) return false;
-        if (!p || p === 'all') return false;
-        return (
-            p.includes('amazon') ||
-            p.includes('flipkart') ||
-            p.includes('myntra') ||
-            p.includes('nykaa') ||
-            p.includes('jiomart') ||
-            p.includes('ecom')
-        );
+        const list = Array.isArray(platformName) ? platformName : (platformName ? [platformName] : []);
+        if (list.length === 0 || list.includes('All') || list.includes('all')) return false;
+        return list.every(item => {
+            const p = String(item || '').toLowerCase();
+            return (
+                p.includes('amazon') ||
+                p.includes('flipkart') ||
+                p.includes('myntra') ||
+                p.includes('nykaa') ||
+                p.includes('jiomart') ||
+                p.includes('ecom')
+            );
+        });
     };
 
     const isQuick = isQuickcommPlatform(localPlatformFilter, selectedChannel);
@@ -613,24 +685,115 @@ export function AggregatedViewTable() {
                     <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
 
 
-                        {/* PM Platform Filter */}
-                        <div className="relative">
-                            <select
-                                value={localPlatformFilter}
-                                onChange={(e) => { setLocalPlatformFilter(e.target.value); setCurrentPage(1); }}
-                                className={`px-4 py-2 pr-8 rounded-xl border text-sm font-medium transition-all appearance-none cursor-pointer ${darkMode ? "bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-white" : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-900"}`}
+                        {/* PM Platform Multi-Select Filter */}
+                        <div className="relative" ref={platformDropdownRef}>
+                            <button
+                                onClick={() => {
+                                    setShowPlatformDropdown(!showPlatformDropdown);
+                                    if (!showPlatformDropdown) {
+                                        setShowDropdown(false);
+                                        setIsPeriodPanelOpen(false);
+                                    }
+                                }}
+                                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border text-sm font-medium transition-all cursor-pointer ${
+                                    showPlatformDropdown
+                                        ? darkMode
+                                            ? "bg-violet-500/20 border-violet-500/50 text-violet-400"
+                                            : "bg-violet-50 border-violet-300 text-violet-700"
+                                        : darkMode
+                                            ? "bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-white"
+                                            : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-900"
+                                }`}
                             >
-                                {pmPlatforms.map(p => (
-                                    <option key={p} value={p}>{p}</option>
-                                ))}
-                            </select>
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-slate-400" />
+                                <span className="capitalize">{platformButtonLabel}</span>
+                                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showPlatformDropdown ? "rotate-180" : ""}`} />
+                            </button>
+
+                            <AnimatePresence>
+                                {showPlatformDropdown && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                        className={`absolute left-0 mt-2 min-w-[200px] max-w-[260px] max-h-[320px] overflow-y-auto rounded-xl border shadow-xl z-50 ${
+                                            darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"
+                                        }`}
+                                    >
+                                        <div className="p-2 space-y-1">
+                                            {/* Select All Option */}
+                                            <button
+                                                onClick={toggleSelectAllPlatforms}
+                                                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors ${
+                                                    isAllPlatformsSelected
+                                                        ? darkMode
+                                                            ? "bg-violet-500/20 text-violet-300"
+                                                            : "bg-violet-50 text-violet-700"
+                                                        : darkMode
+                                                            ? "hover:bg-slate-700 text-slate-300"
+                                                            : "hover:bg-slate-50 text-slate-700"
+                                                }`}
+                                            >
+                                                <div
+                                                    className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                                        isAllPlatformsSelected
+                                                            ? "bg-violet-600 border-violet-600"
+                                                            : darkMode
+                                                                ? "border-slate-500"
+                                                                : "border-slate-300"
+                                                    }`}
+                                                >
+                                                    {isAllPlatformsSelected && <Check className="w-3 h-3 text-white" />}
+                                                </div>
+                                                <span className="flex-1">Select All</span>
+                                                <span className={`text-xs ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                                                    ({pmPlatforms.length})
+                                                </span>
+                                            </button>
+
+                                            <div className={`h-px my-1 ${darkMode ? "bg-slate-700" : "bg-slate-100"}`} />
+
+                                            {/* Platform Items */}
+                                            {pmPlatforms.map((p) => {
+                                                const isSelected = localPlatformFilter.includes(p);
+                                                return (
+                                                    <button
+                                                        key={p}
+                                                        onClick={() => togglePlatform(p)}
+                                                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
+                                                            isSelected
+                                                                ? darkMode
+                                                                    ? "bg-violet-500/20 text-violet-300 font-medium"
+                                                                    : "bg-violet-50 text-violet-700 font-medium"
+                                                                : darkMode
+                                                                    ? "hover:bg-slate-700 text-slate-300"
+                                                                    : "hover:bg-slate-50 text-slate-700"
+                                                        }`}
+                                                    >
+                                                        <div
+                                                            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                                                isSelected
+                                                                    ? "bg-violet-600 border-violet-600"
+                                                                    : darkMode
+                                                                        ? "border-slate-500"
+                                                                        : "border-slate-300"
+                                                            }`}
+                                                        >
+                                                            {isSelected && <Check className="w-3 h-3 text-white" />}
+                                                        </div>
+                                                        <span className="flex-1 capitalize truncate">{p}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
 
-                        <PeriodComparisonPanel selectedPeriods={selectedPeriods} onPeriodsChange={setSelectedPeriods} isOpen={isPeriodPanelOpen} onToggle={() => { setIsPeriodPanelOpen(!isPeriodPanelOpen); if (!isPeriodPanelOpen) setShowDropdown(false); }} />
+                        <PeriodComparisonPanel selectedPeriods={selectedPeriods} onPeriodsChange={setSelectedPeriods} isOpen={isPeriodPanelOpen} onToggle={() => { setIsPeriodPanelOpen(!isPeriodPanelOpen); if (!isPeriodPanelOpen) { setShowDropdown(false); setShowPlatformDropdown(false); } }} />
                         {untagged && untagged.percent > 0 && (<div className={`px-3 py-1.5 rounded-full text-xs font-medium ${darkMode ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-700"}`}>{untagged.percent.toFixed(1)}% untagged</div>)}
                         <div className="relative" ref={categoryDropdownRef}>
-                            <button onClick={() => { setShowDropdown(!showDropdown); if (!showDropdown) setIsPeriodPanelOpen(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${darkMode ? "bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-white" : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-900"}`}>
+                            <button onClick={() => { setShowDropdown(!showDropdown); if (!showDropdown) { setIsPeriodPanelOpen(false); setShowPlatformDropdown(false); } }} className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${darkMode ? "bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-white" : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-900"}`}>
                                 <span className="text-lg">{currentDimension.icon}</span>
                                 <span className="text-sm font-medium">{currentDimension.label}</span>
                                 <ChevronDown className={`w-4 h-4 transition-transform ${showDropdown ? "rotate-180" : ""}`} />
