@@ -419,6 +419,7 @@ export default function ReportBuilder({
     parentHandleDownload({
       reportType: dataMode === "darkstore" ? "Darkstore Data" : "Master Dump",
       dataMode: dataMode,
+      timePeriod: "Custom Range",
       metrics: activeTags,
       dimensions: activeDimensions,
       platform: platformOverride,
