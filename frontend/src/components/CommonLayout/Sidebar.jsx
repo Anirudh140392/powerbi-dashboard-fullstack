@@ -378,6 +378,8 @@ const Sidebar = ({
   const openPlatformPopover = Boolean(platformAnchorEl);
 
   const currentPath = location.pathname;
+  // Channel tabs and platform selector don't apply to these top-level pages
+  const hidePlatformSelector = ['/watch-tower', '/report-studio', '/scheduled-reports', '/cross-platform-pricing'].includes(currentPath);
 
   const menuSections = {
     "MAIN MENU": [
@@ -1020,7 +1022,7 @@ const Sidebar = ({
           </>
         )}
 
-        {user?.dbName !== 'emami' && !currentPath.startsWith('/review-rating') && channels.filter(ch => ch !== 'All').length > 0 && (<Box sx={{
+        {user?.dbName !== 'emami' && !hidePlatformSelector && !currentPath.startsWith('/review-rating') && channels.filter(ch => ch !== 'All').length > 0 && (<Box sx={{
           display: 'flex',
           flexDirection: isCollapsed ? 'column' : 'row',
           gap: isCollapsed ? 1 : 2.5,
@@ -1121,7 +1123,7 @@ const Sidebar = ({
       </Box>
 
       {/* Platform Section: Active Card & Carousel */}
-      {user?.dbName !== 'emami' && !currentPath.startsWith('/review-rating') && selectedChannel && (selectedChannel !== 'All' || (currentPath === '/content-analysis' || currentPath === '/content-score')) && !isCollapsed && (platforms.length > 0 || !platformsFetched) && (
+      {user?.dbName !== 'emami' && !hidePlatformSelector && !currentPath.startsWith('/review-rating') && selectedChannel && (selectedChannel !== 'All' || (currentPath === '/content-analysis' || currentPath === '/content-score')) && !isCollapsed && (platforms.length > 0 || !platformsFetched) && (
         <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
 
           {!platformsFetched ? (
@@ -1373,7 +1375,7 @@ const Sidebar = ({
       )}
 
       {/* Collapsed view for platform */}
-      {user?.dbName !== 'emami' && !currentPath.startsWith('/review-rating') && selectedChannel && (selectedChannel !== 'All' || (currentPath === '/content-analysis' || currentPath === '/content-score')) && isCollapsed && (platforms.length > 0 || !platformsFetched) && (
+      {user?.dbName !== 'emami' && !hidePlatformSelector && !currentPath.startsWith('/review-rating') && selectedChannel && (selectedChannel !== 'All' || (currentPath === '/content-analysis' || currentPath === '/content-score')) && isCollapsed && (platforms.length > 0 || !platformsFetched) && (
         <Box sx={{ py: 1.5, display: 'flex', justifyContent: 'center', borderBottom: "1px solid rgba(0, 0, 0, 0.04)" }}>
           {!platformsFetched ? (
             <Skeleton variant="rounded" width={32} height={32} sx={{ borderRadius: '8px' }} />
