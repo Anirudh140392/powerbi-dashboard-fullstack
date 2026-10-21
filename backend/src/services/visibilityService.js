@@ -43,7 +43,10 @@ export const isAllValue = (val) => {
 };
 
 function buildCHCondition(value, column, options = {}) {
-    const { isBrand = false, isCategory = false, isKeywordType = false, isPlatform = false, isDimension = false, noSplit = false } = options;
+    let { isBrand = false, isCategory = false, isKeywordType = false, isPlatform = false, isDimension = false, noSplit = false } = options;
+    if (column === 'keyword_search_product' || column === 'Product' || column === 'item_name') {
+        noSplit = true;
+    }
 
     const isAll = isAllValue;
 
@@ -2682,28 +2685,50 @@ class VisibilityService {
                   ${rankCondition}
                 GROUP BY brand
                 ORDER BY impressions DESC
-                LIMIT 20
+                LIMIT 100
             `;
 
+            // Get valid brand names from rca_sku_dim (comp_flag = 0)
+            let validBrandNames = [];
+            try {
+                const validBrandsResult = await queryClickHouse(`
+                    SELECT DISTINCT brand_name 
+                    FROM rca_sku_dim 
+                    WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL AND brand_name != ''
+                `);
+                validBrandNames = validBrandsResult.map(b => b.brand_name).filter(Boolean);
+            } catch (e) {
+                console.warn('[VisibilityService] Could not fetch valid brands from rca_sku_dim:', e.message);
+            }
+            const validBrandNamesLower = new Set(validBrandNames.map(b => (b || '').toLowerCase().trim()));
 
             const brandResults = await queryClickHouse(brandQuery);
 
-            const brands = brandResults.map(b => ({
-                brand: b.brand_name,
-                overall_sos: {
-                    value: Number(b.current_overall_sos) || 0,
-                    delta: Number((Number(b.current_overall_sos) - Number(b.prev_overall_sos)).toFixed(2))
-                },
-                sponsored_sos: {
-                    value: Number(b.current_sponsored_sos) || 0,
-                    delta: Number((Number(b.current_sponsored_sos) - Number(b.prev_sponsored_sos)).toFixed(2))
-                },
-                organic_sos: {
-                    value: Number(b.current_organic_sos) || 0,
-                    delta: Number((Number(b.current_organic_sos) - Number(b.prev_organic_sos)).toFixed(2))
-                },
-                display_sos: { value: 0, delta: 0 }
-            }));
+            const brands = brandResults.map((b, idx) => {
+                const brandCleanName = (b.brand_name || '').trim();
+                const isOwnBrand = validBrandNamesLower.has(brandCleanName.toLowerCase());
+                return {
+                    rank: idx + 1,
+                    brand: brandCleanName,
+                    brand_name: brandCleanName,
+                    name: brandCleanName,
+                    isOwnBrand,
+                    is_my_brand: isOwnBrand,
+                    overall_sos: {
+                        value: Number(b.current_overall_sos) || 0,
+                        delta: Number((Number(b.current_overall_sos) - Number(b.prev_overall_sos)).toFixed(2))
+                    },
+                    sponsored_sos: {
+                        value: Number(b.current_sponsored_sos) || 0,
+                        delta: Number((Number(b.current_sponsored_sos) - Number(b.prev_sponsored_sos)).toFixed(2))
+                    },
+                    organic_sos: {
+                        value: Number(b.current_organic_sos) || 0,
+                        delta: Number((Number(b.current_organic_sos) - Number(b.prev_organic_sos)).toFixed(2))
+                    },
+                    display_sos: { value: 0, delta: 0 }
+                };
+            });
 
             // 3. Query for SKU-level competition using rb_kw_olap
             const skuQuery = `
@@ -2738,7 +2763,12 @@ class VisibilityService {
                 display_sos: { value: 0, delta: 0 }
             }));
 
-            return { brands, skus };
+            return {
+                brands,
+                topBrands: brands.slice(0, 10),
+                ourBrands: validBrandNames,
+                skus
+            };
         } catch (error) {
             console.error('[VisibilityService] Error getting visibility competition (ClickHouse):', error);
             return { brands: [], skus: [] };
@@ -2772,18 +2802,67 @@ class VisibilityService {
             let selectedItems = [];
 
             if (dimension === 'sku') {
-                selectedItems = Array.isArray(filters.skus) ? filters.skus : (filters.skus ? filters.skus.split(',') : []);
-                if (selectedItems.length === 0 || selectedItems[0] === 'All') {
-                    selectedItems = Array.isArray(filters.brands) ? filters.brands : (filters.brands ? filters.brands.split(',') : []);
+                if (Array.isArray(filters.skus)) {
+                    selectedItems = filters.skus;
+                } else if (typeof filters.skus === 'string' && filters.skus.trim().startsWith('[')) {
+                    try {
+                        selectedItems = JSON.parse(filters.skus);
+                    } catch (e) {
+                        selectedItems = filters.skus.split(',');
+                    }
+                } else if (filters.skus && filters.skus !== 'All') {
+                    selectedItems = [filters.skus];
+                } else {
+                    selectedItems = [];
+                }
+
+                if (selectedItems.length === 0 || (selectedItems.length === 1 && selectedItems[0] === 'All')) {
+                    if (Array.isArray(filters.brands)) {
+                        selectedItems = filters.brands;
+                    } else if (typeof filters.brands === 'string' && filters.brands.trim().startsWith('[')) {
+                        try {
+                            selectedItems = JSON.parse(filters.brands);
+                        } catch (e) {
+                            selectedItems = filters.brands.split(',');
+                        }
+                    } else if (filters.brands && filters.brands !== 'All') {
+                        selectedItems = [filters.brands];
+                    } else {
+                        selectedItems = [];
+                    }
                 }
             } else if (dimension === 'keyword') {
-                selectedItems = Array.isArray(filters.keyword) ? filters.keyword : (filters.keyword ? filters.keyword.split(',') : []);
+                if (Array.isArray(filters.keyword)) {
+                    selectedItems = filters.keyword;
+                } else if (typeof filters.keyword === 'string' && filters.keyword.trim().startsWith('[')) {
+                    try {
+                        selectedItems = JSON.parse(filters.keyword);
+                    } catch (e) {
+                        selectedItems = filters.keyword.split(',');
+                    }
+                } else if (filters.keyword && filters.keyword !== 'All') {
+                    selectedItems = [filters.keyword];
+                } else {
+                    selectedItems = [];
+                }
             } else {
-                selectedItems = Array.isArray(filters.brands) ? filters.brands : (filters.brands ? filters.brands.split(',') : []);
+                if (Array.isArray(filters.brands)) {
+                    selectedItems = filters.brands;
+                } else if (typeof filters.brands === 'string' && filters.brands.trim().startsWith('[')) {
+                    try {
+                        selectedItems = JSON.parse(filters.brands);
+                    } catch (e) {
+                        selectedItems = filters.brands.split(',');
+                    }
+                } else if (filters.brands && filters.brands !== 'All') {
+                    selectedItems = [filters.brands];
+                } else {
+                    selectedItems = [];
+                }
             }
 
             // [FIX] Remove 'Other' brand from comparison as requested
-            selectedItems = selectedItems.filter(b => b && b.trim().toLowerCase() !== 'other');
+            selectedItems = selectedItems.filter(b => b && String(b).trim().toLowerCase() !== 'other');
 
             if (selectedItems.length === 0) {
                 return { brands: {}, days: [] };
@@ -2801,7 +2880,7 @@ class VisibilityService {
             const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
 
             // Specific conditions for the selected comparison items (the lines on the graph)
-            const targetCondition = buildCHCondition(selectedItems, dimColumn);
+            const targetCondition = buildCHCondition(selectedItems, dimColumn, { noSplit: true });
 
             // Drawer filters that apply globally
             let drawerBrandCondition = '1=1';
@@ -2809,13 +2888,13 @@ class VisibilityService {
 
             if (dimension === 'brand') {
                 // When comparing brands, apply the drawer's SKU filter if present
-                drawerSkuCondition = buildCHCondition(filters.skus, 'keyword_search_product');
+                drawerSkuCondition = buildCHCondition(filters.skus, 'keyword_search_product', { noSplit: true });
             } else if (dimension === 'sku') {
                 // When comparing SKUs, apply the drawer's brand filter if present
                 drawerBrandCondition = buildCHCondition(filters.brands, 'brand');
             } else {
                 drawerBrandCondition = buildCHCondition(filters.brands, 'brand');
-                drawerSkuCondition = buildCHCondition(filters.skus, 'keyword_search_product');
+                drawerSkuCondition = buildCHCondition(filters.skus, 'keyword_search_product', { noSplit: true });
             }
 
             let rankCondition = '';
@@ -2953,11 +3032,11 @@ class VisibilityService {
             console.log('--- getBrandComparisonTrends Numerator Query ---');
             console.log(brandDataQuery);
 
-            const queries = [queryClickHouse(brandDataQuery)];
+            const brandResults = await queryClickHouse(brandDataQuery);
 
-            let offtakeQuery = null;
-            let msBrandQuery = null;
-            let msCatTotalQuery = null;
+            let offtakeResults = [];
+            let msResults = [];
+            let msTotalResults = [];
 
             if (!hasKeywordFilter) {
                 let pdpDimCol = dimension === 'sku' ? 'Product' : 'Brand';
@@ -2969,10 +3048,10 @@ class VisibilityService {
                 const msLocationCondition = buildCHCondition(filters.location, 'location');
                 const pdpCategoryCondition = buildCHCondition(filters.category || filters.format, 'Category');
                 const msCategoryCondition = buildCHCondition(filters.category || filters.format, 'category');
-                const pdpBrandsCondition = buildCHCondition(selectedItems, pdpDimCol);
-                const msBrandsCondition = buildCHCondition(selectedItems, msDimCol);
+                const pdpBrandsCondition = buildCHCondition(selectedItems, pdpDimCol, { noSplit: true });
+                const msBrandsCondition = buildCHCondition(selectedItems, msDimCol, { noSplit: true });
 
-                offtakeQuery = `
+                const offtakeQuery = `
                         SELECT 
                             ${pdpDimCol} as brand_name,
                             ${dateAggregation.replace(/DATE/g, 'toDate(DATE)')} as crawl_date,
@@ -2986,7 +3065,7 @@ class VisibilityService {
                         GROUP BY brand_name, crawl_date
                     `;
 
-                msBrandQuery = `
+                const msBrandQuery = `
                         SELECT 
                             ${msDimCol} as brand_name,
                             ${dateAggregation.replace(/DATE/g, 'toDate(created_on)')} as crawl_date,
@@ -3000,7 +3079,7 @@ class VisibilityService {
                         GROUP BY brand_name, crawl_date
                     `;
 
-                msCatTotalQuery = `
+                const msCatTotalQuery = `
                         SELECT 
                             ${dateAggregation.replace(/DATE/g, 'toDate(created_on)')} as crawl_date,
                             SUM(toFloat64OrZero(toString(sales))) as cat_total_sales
@@ -3012,12 +3091,19 @@ class VisibilityService {
                         GROUP BY crawl_date
                     `;
 
-                queries.push(queryClickHouse(offtakeQuery));
-                queries.push(queryClickHouse(msBrandQuery));
-                queries.push(queryClickHouse(msCatTotalQuery));
+                try {
+                    const [oRes, mRes, mtRes] = await Promise.all([
+                        queryClickHouse(offtakeQuery).catch(e => { console.warn('offtakeQuery failed:', e.message); return []; }),
+                        queryClickHouse(msBrandQuery).catch(e => { console.warn('msBrandQuery failed:', e.message); return []; }),
+                        queryClickHouse(msCatTotalQuery).catch(e => { console.warn('msCatTotalQuery failed:', e.message); return []; })
+                    ]);
+                    offtakeResults = oRes || [];
+                    msResults = mRes || [];
+                    msTotalResults = mtRes || [];
+                } catch (e) {
+                    console.warn('[VisibilityService] Optional offtake/ms query error:', e.message);
+                }
             }
-
-            const [brandResults, offtakeResults, msResults, msTotalResults] = await Promise.all(queries);
 
             // Group results by brand (case-insensitive key mapping)
             const brandDataMap = {};

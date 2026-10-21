@@ -187,6 +187,8 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
             normalized === 'all' ||
             normalized === 'select all' ||
             normalized === 'select_all' ||
+            normalized === 'all cities' ||
+            normalized === 'all_cities' ||
             normalized === 'all india' ||
             normalized === 'all_india' ||
             normalized === ''
@@ -3183,7 +3185,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
     return getCachedOrCompute(cacheKey, async () => {
         try {
             let { platform = 'All', location = 'All', category = 'All', brand = 'All', period = '1M', startDate: fStart, endDate: fEnd } = filters;
-            if (location === 'All India') location = 'All';
+            if (location === 'All India' || location === 'All Cities' || location === 'Select All' || location === 'select all') location = 'All';
 
             const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
 
@@ -3199,6 +3201,15 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
             const effectiveFilters = { ...filters, ownBrandsOnly: false };
             const whereClause = await buildAvailabilityWhereClause({ ...effectiveFilters, startDate, endDate });
+
+            // Get valid brand names from rca_sku_dim (comp_flag = 0)
+            const validBrandsResult = await queryClickHouse(`
+                SELECT DISTINCT brand_name 
+                FROM rca_sku_dim 
+                WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL AND brand_name != ''
+            `);
+            const validBrandNames = validBrandsResult.map(b => b.brand_name).filter(Boolean);
+            const validBrandNamesLower = new Set(validBrandNames.map(b => (b || '').toLowerCase().trim()));
 
             const query = `
                 WITH latest_skus AS (
@@ -3224,7 +3235,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 WHERE ${whereClause}
                 GROUP BY Brand
                 ORDER BY total_deno DESC
-                LIMIT 10
+                LIMIT 100
             `;
 
 
@@ -3251,9 +3262,16 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 // PSL = (SUM(Sales) / (OSA_Percentage / 100)) - SUM(Sales)  [currency format]
                 const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
 
+                const brandCleanName = (row.brand_name || '').trim();
+                const isOwnBrand = validBrandNamesLower.has(brandCleanName.toLowerCase());
+
                 return {
                     rank: idx + 1,
-                    brand: brandName,
+                    brand: brandCleanName,
+                    brand_name: brandCleanName,
+                    name: brandCleanName,
+                    isOwnBrand,
+                    is_my_brand: isOwnBrand,
                     osa: osa !== null ? parseFloat(osa.toFixed(1)) : null,
                     osaDelta: 0,
                     listing: parseFloat(listing.toFixed(1)),
@@ -3339,6 +3357,8 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
             return {
                 brands,
+                topBrands: brands.slice(0, 10),
+                ourBrands: validBrandNames,
                 skus,
                 period,
                 filters,
@@ -3356,9 +3376,11 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
 
     try {
         const { platform = 'All', location = 'All', category = 'All', brand = 'All' } = filters;
+        let cleanLocation = location;
+        if (cleanLocation === 'All India' || cleanLocation === 'All Cities' || cleanLocation === 'Select All' || cleanLocation === 'select all') cleanLocation = 'All';
 
         // 1. Build base condition (Platform and Location)
-        const baseWhere = await buildAvailabilityWhereClause({ platform, location, channel: filters.channel, ownBrandsOnly: false, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const baseWhere = await buildAvailabilityWhereClause({ platform, location: cleanLocation, channel: filters.channel, ownBrandsOnly: false, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const baseCondsStr = baseWhere !== '1=1' ? `${baseWhere} AND ` : '';
 
         // Dynamically resolve columns
@@ -3370,12 +3392,12 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
         const catQuery = `SELECT DISTINCT ${catCol} as value FROM rb_pdp_olap WHERE ${baseCondsStr}${catCol} IS NOT NULL AND ${catCol} != '' ORDER BY value`;
 
         // 3. Build Brand conditions (filtered by Platform/Location/Advanced/Category)
-        const brandWhere = await buildAvailabilityWhereClause({ platform, location, category, channel: filters.channel, ownBrandsOnly: false, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const brandWhere = await buildAvailabilityWhereClause({ platform, location: cleanLocation, category, channel: filters.channel, ownBrandsOnly: false, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const brandCondsStr = brandWhere !== '1=1' ? `${brandWhere} AND ` : '';
         const brandQuery = `SELECT DISTINCT Brand as value FROM rb_pdp_olap WHERE ${brandCondsStr}Brand IS NOT NULL AND Brand != '' ORDER BY Brand`;
 
         // 4. Build SKU conditions (filtered by Platform/Location/Advanced/Category/Brand)
-        const skuWhere = await buildAvailabilityWhereClause({ platform, location, category, brand, channel: filters.channel, ownBrandsOnly: false, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const skuWhere = await buildAvailabilityWhereClause({ platform, location: cleanLocation, category, brand, channel: filters.channel, ownBrandsOnly: false, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const skuCondsStr = skuWhere !== '1=1' ? `${skuWhere} AND ` : '';
         const skuQuery = `SELECT DISTINCT Product as value FROM rb_pdp_olap WHERE ${skuCondsStr}Product IS NOT NULL AND Product != '' ORDER BY Product`;
 
@@ -3468,7 +3490,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
     return getCachedOrCompute(cacheKey, async () => {
         try {
             let { brands = 'All', location = 'All', category = 'All', period = '1M', startDate: fStart, endDate: fEnd, timeStep = 'Daily' } = filters;
-            if (location === 'All India') location = 'All';
+            if (location === 'All India' || location === 'All Cities' || location === 'Select All' || location === 'select all') location = 'All';
 
             let brandList = [];
             if (brands && brands !== 'All') {
@@ -3631,7 +3653,7 @@ const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
     return getCachedOrCompute(cacheKey, async () => {
         try {
             let { skus = 'All', location = 'All', category = 'All', period = '1M', startDate: fStart, endDate: fEnd, timeStep = 'Daily' } = filters;
-            if (location === 'All India') location = 'All';
+            if (location === 'All India' || location === 'All Cities' || location === 'Select All' || location === 'select all') location = 'All';
 
             let skuList = [];
             if (skus && skus !== 'All') {

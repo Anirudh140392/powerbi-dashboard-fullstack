@@ -1,9 +1,10 @@
-import React, { useMemo, useState, useContext, createContext, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useContext, createContext, useEffect, useCallback, useRef } from "react";
 import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
 import axiosInstance from "../../api/axiosInstance";
 import * as XLSX from "xlsx";
 import dayjs from "dayjs";
-// import PaginationFooter from "../CommonLayout/PaginationFooter"; // Removed pagination
+import PaginationFooter from "../CommonLayout/PaginationFooter";
 import {
     Filter,
     LineChart as LineChartIcon,
@@ -63,6 +64,16 @@ const formatKpiValue = (value, unit = "%") => {
     const num = parseFloat(value);
     if (isNaN(num)) return "N/A";
     return `${num.toFixed(1)}${unit}`;
+};
+
+const getLocationParam = (c) => {
+    if (!c) return 'All';
+    if (c === 'Select All' || c === 'All' || c === 'All India' || c === 'All Cities') return 'All';
+    if (Array.isArray(c)) {
+        if (c.length === 0 || c.includes('Select All') || c.includes('All') || c.includes('All Cities')) return 'All';
+        return c.join(',');
+    }
+    return String(c);
 };
 
 /* -------------------------------------------------------------------------- */
@@ -445,7 +456,7 @@ const TrendView = ({ mode, filters, city, platform, channel, period, globalFilte
         setTrendLoading(true);
         setTrendError(null);
         try {
-            const cleanCity = (!city || city === 'Select All' || city === 'select all' || city === 'All India' || city === 'All') ? 'All' : city;
+            const cleanCity = getLocationParam(city);
             const params = {
                 platform: platform || 'All',
                 channel: channel || 'All',
@@ -730,8 +741,63 @@ const KPI_KEYS = [
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
+const BrandTable = ({
+    rows = [],
+    allRows = [],
+    ourBrands = [],
+    filters,
+    loading,
+    isEcom,
+    onDownload,
+    onBrandSelect
+}) => {
+    const { user } = useAuth();
+    const { brands: contextOwnBrands, selectedBrand } = useContext(FilterContext);
+
     const [sortConfig, setSortConfig] = useState({ key: 'osa', direction: 'desc' });
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(5);
+
+    const isOurBrand = useCallback((row, brandName) => {
+        if (!row && !brandName) return false;
+        if (row?.isOwnBrand === true || row?.is_my_brand === true) return true;
+
+        const targetName = (brandName || row?.name || row?.brand_name || row?.brand || '').toLowerCase().trim();
+        if (!targetName) return false;
+
+        // 1. From API ourBrands list
+        if (ourBrands && ourBrands.length > 0) {
+            if (ourBrands.some(b => String(b).toLowerCase().trim() === targetName)) return true;
+        }
+
+        // 2. From FilterContext contextOwnBrands
+        if (contextOwnBrands && contextOwnBrands.length > 0) {
+            if (contextOwnBrands.some(b => {
+                const cb = String(b).toLowerCase().trim();
+                return cb === targetName || cb.includes(targetName) || targetName.includes(cb);
+            })) return true;
+        }
+
+        // 3. From user context / dbName
+        const dbName = (user?.dbName || '').toLowerCase().trim();
+        if (dbName && dbName !== 'admin' && dbName !== 'default') {
+            if (targetName === dbName || targetName.includes(dbName) || dbName.includes(targetName)) return true;
+        }
+        const userBrand = (user?.brand || '').toLowerCase().trim();
+        if (userBrand && (targetName === userBrand || targetName.includes(userBrand) || userBrand.includes(targetName))) return true;
+
+        // 4. From selectedBrand or filters.brands (if single brand selected and not 'All')
+        if (filters?.brands?.length === 1) {
+            const fb = String(filters.brands[0]).toLowerCase().trim();
+            if (targetName === fb || targetName.includes(fb) || fb.includes(targetName)) return true;
+        }
+        if (selectedBrand && selectedBrand !== 'All') {
+            const sb = String(selectedBrand).toLowerCase().trim();
+            if (targetName === sb || targetName.includes(sb) || sb.includes(targetName)) return true;
+        }
+
+        return false;
+    }, [ourBrands, contextOwnBrands, user, filters?.brands, selectedBrand]);
 
     const handleSort = (key) => {
         setSortConfig((prev) => {
@@ -742,15 +808,17 @@ const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
         });
     };
 
+    const fullRows = (allRows && allRows.length > 0) ? allRows : (rows || []);
+
     const sortedRows = useMemo(() => {
-        if (!rows || rows.length === 0) return [];
-        return [...rows].sort((a, b) => {
+        if (!fullRows || fullRows.length === 0) return [];
+        return [...fullRows].sort((a, b) => {
             const { key, direction } = sortConfig;
             const mult = direction === 'desc' ? -1 : 1;
 
             if (key === 'name') {
-                const valA = String(a.name || '');
-                const valB = String(b.name || '');
+                const valA = String(a.name || a.brand || '');
+                const valB = String(b.name || b.brand || '');
                 return mult * valA.localeCompare(valB);
             }
 
@@ -772,9 +840,64 @@ const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
             const osaB = getNumericVal(b, 'osa');
             if (osaA !== osaB) return osaB > osaA ? 1 : -1;
 
-            return (a.name || '').localeCompare(b.name || '');
+            return (a.name || a.brand || '').localeCompare(b.name || b.brand || '');
         });
-    }, [rows, sortConfig]);
+    }, [fullRows, sortConfig]);
+
+    const top10Rows = useMemo(() => {
+        return sortedRows.slice(0, 10);
+    }, [sortedRows]);
+
+    const isOurBrandInTop10 = useMemo(() => {
+        return top10Rows.some(r => isOurBrand(r));
+    }, [top10Rows, isOurBrand]);
+
+    // If our brand is NOT in top 10, find our brand in fullRows or fallback
+    const ourBrandOutsideTop10 = useMemo(() => {
+        if (isOurBrandInTop10) return null;
+
+        // First check remaining sorted rows from index 10 onwards
+        const outsideMatch = sortedRows.slice(10).find(r => isOurBrand(r));
+        if (outsideMatch) {
+            const rank = sortedRows.findIndex(r => r === outsideMatch) + 1;
+            return { ...outsideMatch, rank };
+        }
+
+        // If not found in slice(10), search entire sortedRows
+        const anyMatch = sortedRows.find(r => isOurBrand(r));
+        if (anyMatch) {
+            const rank = sortedRows.findIndex(r => r === anyMatch) + 1;
+            return { ...anyMatch, rank };
+        }
+
+        // Fallback: if our brand has 0 items in competition table, build placeholder
+        const fallbackName = (filters?.brands?.length === 1 && filters.brands[0]) ||
+                             (selectedBrand && selectedBrand !== 'All' ? selectedBrand : '') ||
+                             (contextOwnBrands && contextOwnBrands.length > 0 ? contextOwnBrands[0] : '') ||
+                             (ourBrands && ourBrands.length > 0 ? ourBrands[0] : '') ||
+                             user?.dbName ||
+                             user?.brand ||
+                             'Our Brand';
+        if (fallbackName) {
+            return {
+                name: fallbackName,
+                brand_name: fallbackName,
+                brand: fallbackName,
+                osa: null,
+                listing: null,
+                wtOsa: null,
+                rank: null,
+                isFallback: true
+            };
+        }
+
+        return null;
+    }, [isOurBrandInTop10, sortedRows, isOurBrand, filters?.brands, selectedBrand, contextOwnBrands, ourBrands, user]);
+
+    const totalPages = Math.ceil(top10Rows.length / pageSize);
+    const paginatedRows = useMemo(() => {
+        return top10Rows.slice((page - 1) * pageSize, page * pageSize);
+    }, [top10Rows, page, pageSize]);
 
     const renderSortHeader = (key, label, className = "text-center") => (
         <th
@@ -803,7 +926,7 @@ const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
         <Card className="mt-3 border-slate-200 bg-white shadow-sm">
             <CardHeader className="border-b pb-2">
                 <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
-                    <span>Brands ({sortedRows.length || 0})</span>
+                    <span>Brands (Top {Math.min(top10Rows.length, 10)})</span>
                     {onDownload && (
                         <button
                             type="button"
@@ -834,26 +957,33 @@ const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
                                     <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                                 </tr>
                             ))}
-                            {!loading && sortedRows.map((row, idx) => (
-                                <tr
-                                    key={row.id}
-                                    className={cn(
-                                        "hover:bg-slate-50",
-                                        idx % 2 === 1 && "bg-slate-50/60"
-                                    )}
-                                >
-                                    <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
+
+                            {/* HIGHLIGHTED ROW ON TOP IF OUR BRAND IS NOT IN TOP 10 */}
+                            {!loading && ourBrandOutsideTop10 && (
+                                <tr className="bg-amber-50/90 hover:bg-amber-100/80 border-b-2 border-amber-300 font-semibold transition-colors shadow-2xs">
+                                    <td className="whitespace-nowrap px-3 py-2.5 font-medium text-slate-900 border-r border-amber-200">
                                         <div className="flex items-center justify-between gap-1.5">
-                                            <span className="truncate" title={row.name}>{row.name}</span>
-                                            {onBrandSelect && row.name && (
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <span
+                                                    className="truncate font-bold text-amber-950 capitalize"
+                                                    title={ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand_name || ourBrandOutsideTop10.brand}
+                                                >
+                                                    {ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand_name || ourBrandOutsideTop10.brand}
+                                                </span>
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-amber-200/90 text-amber-900 border border-amber-400 shrink-0">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-600 animate-pulse"></span>
+                                                    Our Brand {ourBrandOutsideTop10.rank ? `(#${ourBrandOutsideTop10.rank})` : ''}
+                                                </span>
+                                            </div>
+                                            {onBrandSelect && (ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand) && !ourBrandOutsideTop10.isFallback && (
                                                 <button
                                                     type="button"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        onBrandSelect(row.name);
+                                                        onBrandSelect(ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand);
                                                     }}
-                                                    className="px-2 py-0.5 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600 rounded transition-all duration-150 flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
-                                                    title={`View SKUs for ${row.name}`}
+                                                    className="px-2 py-0.5 text-[10px] font-semibold text-amber-900 bg-amber-100/90 hover:bg-amber-600 hover:text-white border border-amber-300 hover:border-amber-600 rounded transition-all duration-150 flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
+                                                    title={`View SKUs for ${ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand}`}
                                                 >
                                                     <span>SKUs</span>
                                                     <ArrowRight className="h-3 w-3" />
@@ -861,27 +991,91 @@ const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
                                             )}
                                         </div>
                                     </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="font-semibold text-slate-700">
-                                            {formatKpiValue(row.osa)}
-                                        </span>
+                                    <td className="px-3 py-2.5 text-center text-slate-900 font-semibold border-r border-amber-200">
+                                        <span className="font-semibold text-slate-700">{formatKpiValue(ourBrandOutsideTop10.osa)}</span>
                                     </td>
                                     {!isEcom && (
-                                        <td className="px-3 py-2 text-center text-[12px]">
-                                            <span className="font-semibold text-slate-700">
-                                                {formatKpiValue(row.listing)}
-                                            </span>
+                                        <td className="px-3 py-2.5 text-center text-slate-900 font-semibold border-r border-amber-200">
+                                            <span className="font-semibold text-slate-700">{formatKpiValue(ourBrandOutsideTop10.listing)}</span>
                                         </td>
                                     )}
-                                    <td className="px-3 py-2 text-center text-[12px]">
+                                    <td className="px-3 py-2.5 text-center text-slate-900 font-semibold">
                                         <span className="font-semibold text-slate-700">
-                                            {formatKpiValue(row.wtOsa ?? row.wt_osa ?? (row.osa && row.listing ? (row.osa * row.listing) / 100 : 0))}
+                                            {formatKpiValue(ourBrandOutsideTop10.wtOsa ?? ourBrandOutsideTop10.wt_osa ?? (ourBrandOutsideTop10.osa && ourBrandOutsideTop10.listing ? (ourBrandOutsideTop10.osa * ourBrandOutsideTop10.listing) / 100 : 0))}
                                         </span>
                                     </td>
                                 </tr>
+                            )}
 
-                            ))}
-                            {!loading && sortedRows.length === 0 && (
+                            {/* TOP 10 PAGINATED ROWS */}
+                            {!loading && paginatedRows.map((row, idx) => {
+                                const brandName = row.name || row.brand_name || row.brand;
+                                const isOwn = isOurBrand(row);
+                                return (
+                                    <tr
+                                        key={row.id || `brand-${idx}`}
+                                        className={cn(
+                                            "hover:bg-slate-50 transition-colors",
+                                            idx % 2 === 1 && "bg-slate-50/60",
+                                            isOwn && "bg-emerald-50/40 hover:bg-emerald-50/70"
+                                        )}
+                                    >
+                                        <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800 border-r border-slate-100">
+                                            <div className="flex items-center justify-between gap-1.5">
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    <span
+                                                        className={cn(
+                                                            "truncate font-medium capitalize",
+                                                            isOwn && "font-semibold text-slate-900"
+                                                        )}
+                                                        title={brandName}
+                                                    >
+                                                        {brandName}
+                                                    </span>
+                                                    {isOwn && (
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 shrink-0">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                                            Our Brand
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {onBrandSelect && brandName && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onBrandSelect(brandName);
+                                                        }}
+                                                        className="px-2 py-0.5 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600 rounded transition-all duration-150 flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
+                                                        title={`View SKUs for ${brandName}`}
+                                                    >
+                                                        <span>SKUs</span>
+                                                        <ArrowRight className="h-3 w-3" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-3 py-2 text-center text-[12px] border-r border-slate-100">
+                                            <span className="font-semibold text-slate-700">
+                                                {formatKpiValue(row.osa)}
+                                            </span>
+                                        </td>
+                                        {!isEcom && (
+                                            <td className="px-3 py-2 text-center text-[12px] border-r border-slate-100">
+                                                <span className="font-semibold text-slate-700">
+                                                    {formatKpiValue(row.listing)}
+                                                </span>
+                                            </td>
+                                        )}
+                                        <td className="px-3 py-2 text-center text-[12px]">
+                                            <span className="font-semibold text-slate-700">
+                                                {formatKpiValue(row.wtOsa ?? row.wt_osa ?? (row.osa && row.listing ? (row.osa * row.listing) / 100 : 0))}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {!loading && paginatedRows.length === 0 && !ourBrandOutsideTop10 && (
                                 <tr>
                                     <td
                                         colSpan={isEcom ? 3 : 4}
@@ -895,6 +1089,17 @@ const BrandTable = ({ rows, loading, isEcom, onDownload, onBrandSelect }) => {
                     </table>
                 </div>
             </CardContent>
+            <PaginationFooter
+                isVisible={top10Rows.length > 0}
+                currentPage={page}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(s) => {
+                    setPageSize(s);
+                    setPage(1);
+                }}
+            />
         </Card>
     );
 };
@@ -1103,7 +1308,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
                 const params = new URLSearchParams();
                 if (platform) params.append('platform', platform);
                 if (channel) params.append('channel', channel);
-                if (location) params.append('location', location === 'All India' ? 'All' : location);
+                if (location) params.append('location', getLocationParam(location));
                 if (localValue.categories.length > 0) {
                     params.append('category', localValue.categories.join(','));
                 }
@@ -1297,6 +1502,153 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
 };
 
 /* -------------------------------------------------------------------------- */
+/*                          Location Checkbox Select                          */
+/* -------------------------------------------------------------------------- */
+
+const LocationSelect = ({ cities, value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const cleanCities = useMemo(() => {
+    return (cities || [])
+      .map((c) => (typeof c === "string" ? c : c?.name || String(c)))
+      .filter((c) => c !== "Select All" && c !== "All" && c !== "All India" && c !== "All Cities");
+  }, [cities]);
+
+  // Determine if 'All Cities' / 'Select All' is checked
+  const isSelectAll = useMemo(() => {
+    if (value === "Select All" || value === "All" || value === "All India" || value === "All Cities") return true;
+    if (Array.isArray(value)) {
+      if (value.length === 0) return false;
+      return (
+        value.includes("Select All") ||
+        value.includes("All") ||
+        value.includes("All Cities") ||
+        (cleanCities.length > 0 && value.length >= cleanCities.length)
+      );
+    }
+    return false;
+  }, [value, cleanCities]);
+
+  const selectedList = useMemo(() => {
+    if (isSelectAll) return cleanCities;
+    if (Array.isArray(value)) return value.filter((c) => c !== "Select All" && c !== "All" && c !== "All Cities");
+    if (typeof value === "string" && value)
+      return value.split(",").map((s) => s.trim()).filter(Boolean);
+    return [];
+  }, [isSelectAll, cleanCities, value]);
+
+  const handleToggleSelectAll = () => {
+    if (isSelectAll) {
+      onChange([]);
+    } else {
+      onChange(["All Cities"]);
+    }
+  };
+
+  const handleToggleCity = (cityName) => {
+    let next;
+    if (selectedList.includes(cityName)) {
+      next = selectedList.filter((c) => c !== cityName);
+    } else {
+      next = [...selectedList, cityName];
+    }
+
+    if (cleanCities.length > 0 && next.length >= cleanCities.length) {
+      onChange(["All Cities"]);
+    } else {
+      onChange(next);
+    }
+  };
+
+  const displayText = useMemo(() => {
+    if (isSelectAll) return "All Cities";
+    if (selectedList.length === 0) return "Select city";
+    if (selectedList.length === 1) return selectedList[0];
+    if (selectedList.length === 2) return selectedList.join(", ");
+    return `${selectedList.length} cities selected`;
+  }, [isSelectAll, selectedList]);
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex h-9 w-44 items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-1 text-xs text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none"
+      >
+        <span className="truncate">{displayText}</span>
+        <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-50 mt-1 w-52 rounded-md border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5">
+          <div className="max-h-56 overflow-y-auto">
+            {/* All Cities */}
+            <div
+              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer border-b border-slate-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleSelectAll();
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={isSelectAll}
+                onChange={handleToggleSelectAll}
+                className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <span>All Cities</span>
+            </div>
+
+            {/* City Options */}
+            {cleanCities.map((cityName) => {
+              const isChecked = selectedList.includes(cityName);
+              return (
+                <div
+                  key={cityName}
+                  className="flex items-center gap-2.5 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleCity(cityName);
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => handleToggleCity(cityName)}
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="truncate">{cityName}</span>
+                </div>
+              );
+            })}
+
+            {cleanCities.length === 0 && (
+              <div className="px-3 py-2 text-xs text-slate-400 text-center">
+                No cities available
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -1305,7 +1657,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     const [tab, setTab] = useState("brand");
 
     const { selectedChannel, selectedMsl } = useContext(FilterContext);
-    const [city, setCity] = useState("Select All");
+    const [city, setCity] = useState(["All Cities"]);
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
     const [filters, setFilters] = useState({
         categories: [],
@@ -1316,9 +1668,10 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     const [viewMode, setViewMode] = useState("table");
 
     const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
+    const [apiOurBrands, setApiOurBrands] = useState([]);
     const [trendData, setTrendData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [availableCities, setAvailableCities] = useState(["Select All"]);
+    const [availableCities, setAvailableCities] = useState(["All Cities"]);
     const [isCrossPlatformOpen, setIsCrossPlatformOpen] = useState(false);
 
     // Derive active filters and city (controlled vs uncontrolled pattern)
@@ -1335,8 +1688,13 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     }, [drawerFilters, filters]);
 
     const activeCity = useMemo(() => {
-        if (drawerFilters) {
-            return (drawerFilters.City === 'All' || drawerFilters.City === 'All India') ? 'Select All' : drawerFilters.City;
+        if (drawerFilters && drawerFilters.City !== undefined) {
+            const c = drawerFilters.City;
+            if (!c || c === 'All' || c === 'All India' || c === 'All Cities' || c === 'Select All') {
+                return ["All Cities"];
+            }
+            if (Array.isArray(c)) return c;
+            return String(c).split(',').map(s => s.trim()).filter(Boolean);
         }
         return city;
     }, [drawerFilters, city]);
@@ -1359,10 +1717,11 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     }, [setDrawerFilters]);
 
     const handleCityChange = useCallback((newCity) => {
+        const paramVal = getLocationParam(newCity);
         if (setDrawerFilters) {
             setDrawerFilters(prev => ({
                 ...prev,
-                City: (newCity === 'All India' || newCity === 'Select All' || newCity === 'All') ? 'All' : newCity
+                City: paramVal
             }));
         } else {
             setCity(newCity);
@@ -1381,20 +1740,20 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 });
                 if (response.data && response.data.locations) {
                     const rawLocs = response.data.locations || [];
-                    const cleanLocs = rawLocs.filter(c => c !== 'Select All' && c !== 'All' && c !== 'All India');
-                    setAvailableCities(['Select All', ...cleanLocs]);
+                    const cleanLocs = rawLocs.filter(c => c !== 'Select All' && c !== 'All' && c !== 'All India' && c !== 'All Cities');
+                    setAvailableCities(['All Cities', ...cleanLocs]);
                 }
             } catch (error) {
                 console.error('[AvailabilityCompetitionKpiShowcase] Error fetching cities:', error);
             }
         };
         fetchCities();
-    }, [platform]);
+    }, [platform, selectedChannel]);
 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
-            const cleanCity = (!activeCity || activeCity === 'Select All' || activeCity === 'select all' || activeCity === 'All India' || activeCity === 'All') ? 'All' : activeCity;
+            const cleanCity = getLocationParam(activeCity);
             try {
                 const params = {
                     platform: platform || 'All',
@@ -1412,6 +1771,9 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 const response = await axiosInstance.get('/availability-analysis/competition', { params });
                 if (response.data) {
                     setCompetitionData(response.data);
+                    if (response.data.ourBrands) {
+                        setApiOurBrands(response.data.ourBrands);
+                    }
                 }
             } catch (error) {
                 console.error('[AvailabilityCompetitionKpiShowcase] Error:', error);
@@ -1420,7 +1782,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
             }
         };
         fetchData();
-    }, [activeCity, activeFilters, platform, viewMode, tab, globalFilters?.startDate, globalFilters?.endDate, period, selectedMsl]);
+    }, [activeCity, activeFilters, platform, selectedChannel, viewMode, tab, globalFilters?.startDate, globalFilters?.endDate, period, selectedMsl]);
 
     const selectionCount =
         activeFilters.categories.length + activeFilters.brands.length + activeFilters.skus.length + (activeFilters.msl ? activeFilters.msl.length : 0);
@@ -1430,9 +1792,14 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
             const osa = b.osa ?? b.OSA?.value ?? null;
             const listing = b.listing ?? b.Listing?.value ?? null;
             const wtOsa = b.wtOsa ?? b.wt_osa ?? (osa !== null && osa !== undefined && listing !== null && listing !== undefined ? parseFloat(((osa * listing) / 100).toFixed(1)) : null);
+            const brandCleanName = b.brand || b.brand_name || b.name || 'Unknown';
             return {
-                id: b.brand || `brand-${idx}`,
-                name: b.brand || 'Unknown',
+                id: brandCleanName || `brand-${idx}`,
+                name: brandCleanName,
+                brand: brandCleanName,
+                brand_name: brandCleanName,
+                isOwnBrand: b.isOwnBrand || b.is_my_brand || false,
+                is_my_brand: b.isOwnBrand || b.is_my_brand || false,
                 osa: osa,
                 listing: listing,
                 wtOsa: wtOsa,
@@ -1614,16 +1981,11 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    <Select value={activeCity} onValueChange={handleCityChange}>
-                        <SelectTrigger className="h-9 w-40 bg-white">
-                            <SelectValue placeholder="Select city" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {availableCities.map((c) => (
-                                <SelectItem key={c} value={c}>{c}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <LocationSelect
+                        cities={availableCities}
+                        value={activeCity}
+                        onChange={handleCityChange}
+                    />
 
                     <Button
                         variant="outline"
@@ -1694,7 +2056,16 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
 
                 <TabsContent value="brand" className="mt-3">
                     {viewMode === "table" ? (
-                        <BrandTable rows={brandRows} loading={loading} isEcom={isEcom} onDownload={handleDownloadCompetitionExcel} onBrandSelect={handleBrandSelect} />
+                        <BrandTable
+                            rows={brandRows}
+                            allRows={brandRows}
+                            ourBrands={apiOurBrands}
+                            filters={activeFilters}
+                            loading={loading}
+                            isEcom={isEcom}
+                            onDownload={handleDownloadCompetitionExcel}
+                            onBrandSelect={handleBrandSelect}
+                        />
                     ) : (
                         <TrendView
                             mode="brand"
