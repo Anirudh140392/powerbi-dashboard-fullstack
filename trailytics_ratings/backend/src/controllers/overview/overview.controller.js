@@ -361,7 +361,7 @@ export const getTrends = async (req, res) => {
             ORDER BY change DESC
         `;
 
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         const escalating = rows.filter(r => r.change > 0.01 && r.recent_neg_rate > 0.10).slice(0, 10).map(r => ({
@@ -447,7 +447,7 @@ export const getTimeline = async (req, res) => {
             ORDER BY month, category
         `;
         
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         const monthMap = {};
@@ -493,7 +493,7 @@ export const getRatingTrend = async (req, res) => {
                   AND week_start >= addDays(today(), -{daysClamped:Int32})
                 ORDER BY week_start ASC, platform ASC
             `;
-            console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+            const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const wrows = await chRes.json();
             
             return res.json({
@@ -528,7 +528,7 @@ export const getRatingTrend = async (req, res) => {
             GROUP BY snapshot_date, platform
             ORDER BY snapshot_date ASC, platform ASC
         `;
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         res.json({
@@ -747,7 +747,7 @@ export const getExecutiveHealth = async (req, res) => {
               ORDER BY pdp_rating ASC
               SETTINGS max_memory_usage = 2000000000;
         `;
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         const classifyPareto = (status) => {
@@ -940,7 +940,7 @@ export const getRatingMismatch = async (req, res) => {
              ORDER BY abs(r.rating - r.ml_inferred_rating) DESC, r.review_date DESC
              LIMIT {limit:Int32}
         `;
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         const sumSql = `
@@ -973,7 +973,7 @@ export const getReviewTimeline = async (req, res) => {
         const lim = Math.min(parseInt(limit, 10) || 500, 2000);
         queryParams.limit = lim;
 
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: `
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: `
             SELECT id, rating, sentiment, review_date, review_title, review_text,
                    specific_issue, sentiment_category, platform
               FROM reviews
@@ -1042,7 +1042,7 @@ export const getPriceVariance = async (req, res) => {
             FROM agg a LEFT JOIN own_brand_baseline ob ON ob.master_category = a.master_category
             ORDER BY a.master_category, a.sku_count DESC
         `;
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
         res.json({ rows });
     } catch (err) {
@@ -1155,7 +1155,7 @@ export const getProductHealth = async (req, res) => {
             ORDER BY total DESC
             LIMIT 30
         `;
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
 
         // Also get monthly ratings per product (top 20 only)
@@ -1381,7 +1381,7 @@ export const getBenchmarkData = async (req, res) => {
             ORDER BY t.total_reviews DESC
         `;
         
-        console.log("SQL:", sql); const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
+        const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rawRows = await chRes.json();
         const rows = rawRows.map(row => {
             const category_scores = {};
@@ -1690,11 +1690,8 @@ export const getCategoryHealth = async (req, res) => {
             SETTINGS max_memory_usage = 2000000000;
         `;
         
-        console.log("SQL:", sql);
-        console.log("PARAMS:", queryParams);
         const chRes = await clickhouse.query({ database: getTargetDb(req), query: sql, query_params: queryParams, format: 'JSONEachRow' });
         const rows = await chRes.json();
-        console.log("FIRST ROW:", rows[0]);
         
         const totals = { skuCount: 0, catalogueSkuCount: 0, reviewSkuCount: 0, totalRatings: 0, reviewCount: 0, paretoCount: 0, nonParetoCount: 0, npdCount: 0, totalAvgPlatformRatingNumerator: 0, totalAvgPlatformRatingDenominator: 0 };
         const categories = rows.map(r => {

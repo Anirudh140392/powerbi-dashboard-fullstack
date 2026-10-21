@@ -390,8 +390,8 @@ const PlatformOverviewNew = ({
         });
 
         const worksheet = XLSX.utils.json_to_sheet(excelRows);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Platform_Overview");
+        const sheetName = `${(currentDimension?.label || 'Platform').replace(/\s+/g, '_')}_Overview`.slice(0, 31);
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
 
         const colWidths = {};
         excelRows.forEach(row => {
@@ -404,7 +404,7 @@ const PlatformOverviewNew = ({
             wch: Math.min(Math.max(colWidths[key] + 3, 12), 40)
         }));
 
-        const fileName = `Platform_Overview_${dimension}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+        const fileName = `${(currentDimension?.label || 'Platform').replace(/\s+/g, '_')}_Overview_${dimension}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
         XLSX.writeFile(workbook, fileName);
     };
 
@@ -1051,7 +1051,7 @@ const PlatformOverviewNew = ({
             <div>
                 {/* SECTION 2: Performance Matrix - Wrapped in PowerBI Container */}
                 <SectionWrapper
-                    title="Platform Overview"
+                    title={`${currentDimension.label} Overview`}
                     icon={currentDimension.icon}
                     chip={`${entities.length} ${currentDimension.label} × ${kpiCount} KPIs`}
                     headerRight={
@@ -1248,7 +1248,7 @@ const PlatformOverviewNew = ({
                                 </svg>
                             </div>
                             <div className="text-center">
-                                <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load Platform Overview</h3>
+                                <h3 className="text-lg font-semibold text-slate-800 mb-1">Failed to load {currentDimension.label} Overview</h3>
                                 <p className="text-sm text-slate-500 mb-4">{apiError}</p>
                             </div>
                             <button

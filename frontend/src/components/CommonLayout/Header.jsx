@@ -5347,7 +5347,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                     />
                   )}
                 </>
-              ) : title === "Cross Platform Pricing" || location.pathname.includes("cross-platform-pricing") || title === "MOP Analysis" || location.pathname.includes("mop-analysis") ? null : (
+              ) : title === "Cross Platform Pricing" || location.pathname.includes("cross-platform-pricing") || title === "MOP Analysis" || location.pathname.includes("mop-analysis") || title === "Report Studio" ? null : (
                 /* ============ OTHER PAGES: ORIGINAL DROPDOWNS ============ */
                 <>
                   {/* CHANNEL SELECTION */}

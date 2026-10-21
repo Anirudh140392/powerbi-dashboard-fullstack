@@ -1,4 +1,4 @@
-import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareTopFilterOptions, MarketShareCompetitionTrends, MarketShareDrilldown, MarketShareLatestDate, MarketShareCascadedFilters, MarketShareShareTable } from '../controllers/marketShareController.js';
+import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareTopFilterOptions, MarketShareCompetitionTrends, MarketShareDrilldown, MarketShareLatestDate, MarketShareCascadedFilters, MarketShareShareTable, MarketShareProductDrilldown } from '../controllers/marketShareController.js';
 import accessControlMiddleware from '../middleware/accessControlMiddleware.js';
 
 export default (app) => {
@@ -151,4 +151,16 @@ export default (app) => {
      *         description: Successful response with data array
      */
     app.get('/api/market-share/share-table', MarketShareShareTable);
+
+    /**
+     * @swagger
+     * /api/market-share/product-drilldown:
+     *   get:
+     *     summary: Get 4-Level Platform -> Category -> Brand -> Product Drilldown from rb_ms_olap
+     *     description: Returns 4-level nested tree with own brand sales, category size, and market share
+     *     responses:
+     *       200:
+     *         description: Successful response with nested tree data
+     */
+    app.get('/api/market-share/product-drilldown', MarketShareProductDrilldown);
 };

@@ -1,4 +1,4 @@
-import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getMarketShareKPI, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown, getMarketShareLatestDate, getMarketShareCascadedFilters, getMarketShareShareTable } from '../services/marketShareHelper.js';
+import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getMarketShareKPI, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown, getMarketShareLatestDate, getMarketShareCascadedFilters, getMarketShareShareTable, getMarketShareProductDrilldown } from '../services/marketShareHelper.js';
 import dayjs from 'dayjs';
 
 export const Platform = async (req, res) => {
@@ -264,6 +264,26 @@ export const MarketShareShareTable = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in Market Share Share Table:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const MarketShareProductDrilldown = async (req, res) => {
+    try {
+        const { platform, channel, category, brand, location, startDate, endDate, subCategory, subBrand } = req.query;
+        console.log("Market Share Product Drilldown request received:", req.query);
+
+        const start = startDate ? dayjs(startDate) : dayjs().subtract(30, 'day');
+        const end = endDate ? dayjs(endDate) : dayjs();
+
+        const tree = await getMarketShareProductDrilldown(start, end, platform, category, location, brand, subCategory, subBrand, channel);
+
+        res.json({
+            message: "Market Share Product Drilldown fetched successfully",
+            data: tree
+        });
+    } catch (error) {
+        console.error('Error in Market Share Product Drilldown:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
