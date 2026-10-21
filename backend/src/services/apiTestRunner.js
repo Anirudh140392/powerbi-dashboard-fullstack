@@ -176,7 +176,7 @@ export async function runPageTests(pageName = 'Pricing Analysis') {
 
         const port = process.env.PORT || 5000;
         const baseUrl = process.env.API_LOGGER_BASE_URL || `http://localhost:${port}`;
-        const targetDb = process.env.API_LOGGER_TARGET_DB || process.env.CLICKHOUSE_DB || 'demo';
+        const targetDb = pageConfig.targetDb || process.env.API_LOGGER_TARGET_DB || process.env.CLICKHOUSE_DB || 'demo';
 
         const token = generateServiceToken(targetDb);
         const authHeaders = {

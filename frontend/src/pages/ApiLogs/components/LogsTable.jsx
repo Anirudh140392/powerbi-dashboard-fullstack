@@ -17,12 +17,13 @@ export default function LogsTable({
     logs = [],
     total = 0,
     pageNumber = 1,
-    pageSize = 20,
+    pageSize = 50,
     sortBy = 'Date',
     sortOrder = 'DESC',
     loading = false,
     onSortChange,
     onPageChange,
+    onPageSizeChange,
     onRowClick,
 }) {
     const [copiedIndex, setCopiedIndex] = useState(null);
@@ -261,9 +262,23 @@ export default function LogsTable({
 
             {/* Pagination footer */}
             <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
-                <div>
-                    Showing <span className="font-semibold text-slate-700">{logs.length}</span> of{' '}
-                    <span className="font-semibold text-slate-700">{total}</span> records
+                <div className="flex items-center gap-3">
+                    <span>
+                        Showing <span className="font-semibold text-slate-700">{logs.length}</span> of{' '}
+                        <span className="font-semibold text-slate-700">{total}</span> records
+                    </span>
+                    <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                        <span>Show:</span>
+                        <select
+                            value={pageSize}
+                            onChange={(e) => onPageSizeChange && onPageSizeChange(Number(e.target.value))}
+                            className="text-xs font-semibold bg-white border border-slate-200 rounded px-2 py-0.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                        >
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                    </div>
                 </div>
 
                 {totalPages > 1 && (

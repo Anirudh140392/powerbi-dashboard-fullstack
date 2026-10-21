@@ -106,14 +106,15 @@ export async function cleanupOldLogs(retentionDays = RETENTION_DAYS) {
 export async function deleteLogsForDateAndPage(dateStr, pageName) {
     try {
         console.log(`[ApiLoggerRepo] Idempotent delete: checking existing records for date=${dateStr}, page=${pageName}...`);
+        const safeDate = String(dateStr).replace(/'/g, "''");
+        const safePage = String(pageName).replace(/'/g, "''");
         await queryAdminDB(
-            `ALTER TABLE admin_master.api_logs DELETE WHERE toDate(Date) = toDate({targetDate:String}) AND Page = {pageName:String}`,
-            { targetDate: dateStr, pageName }
+            `ALTER TABLE admin_master.api_logs DELETE WHERE toDate(Date) = toDate('${safeDate}') AND Page = '${safePage}'`
         );
         return { success: true };
     } catch (err) {
-        console.error(`[ApiLoggerRepo] Failed to delete existing records for ${pageName} on ${dateStr}:`, err.message);
-        throw err;
+        console.warn(`[ApiLoggerRepo] Note on idempotent delete:`, err.message);
+        return { success: false };
     }
 }
 

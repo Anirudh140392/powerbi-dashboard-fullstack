@@ -41,7 +41,7 @@ export default function ApiLogsPage() {
 
     // Pagination & Sort State
     const [pageNumber, setPageNumber] = useState(1);
-    const [pageSize] = useState(20);
+    const [pageSize, setPageSize] = useState(50);
     const [sortBy, setSortBy] = useState('Date');
     const [sortOrder, setSortOrder] = useState('DESC');
 
@@ -106,9 +106,9 @@ export default function ApiLogsPage() {
     }, []);
 
     // 2. Fetch Summary Metrics
-    const loadSummary = useCallback(async (currentFilters) => {
+    const loadSummary = useCallback(async (currentFilters, isSilent = false) => {
         try {
-            setLoadingSummary(true);
+            if (!isSilent) setLoadingSummary(true);
             const params = {};
             if (currentFilters.date) params.date = currentFilters.date;
             if (currentFilters.page) params.page = currentFilters.page;
@@ -122,14 +122,14 @@ export default function ApiLogsPage() {
         } catch (err) {
             console.error('[ApiLogsPage] Failed to load summary:', err);
         } finally {
-            setLoadingSummary(false);
+            if (!isSilent) setLoadingSummary(false);
         }
     }, []);
 
     // 3. Fetch Logs Table Data
-    const loadLogs = useCallback(async (currentFilters, pNum, pSize, sBy, sOrder) => {
+    const loadLogs = useCallback(async (currentFilters, pNum, pSize, sBy, sOrder, isSilent = false) => {
         try {
-            setLoadingLogs(true);
+            if (!isSilent) setLoadingLogs(true);
             const params = {
                 pageNumber: pNum,
                 pageSize: pSize,
@@ -148,7 +148,7 @@ export default function ApiLogsPage() {
             const res = await fetchApiLogs(params);
             if (res && res.success) {
                 setLogs(res.data || []);
-                setTotal(res.pagination?.total || 0);
+                setTotal(res.total ?? res.pagination?.total ?? (res.data ? res.data.length : 0));
             } else {
                 setLogs([]);
                 setTotal(0);
@@ -158,7 +158,7 @@ export default function ApiLogsPage() {
             setLogs([]);
             setTotal(0);
         } finally {
-            setLoadingLogs(false);
+            if (!isSilent) setLoadingLogs(false);
         }
     }, []);
 
@@ -182,13 +182,12 @@ export default function ApiLogsPage() {
         loadSummary(filters);
     }, [filters, loadSummary]);
 
-    // 60-Second Auto Refresh
+    // 60-Second Auto Refresh (Completely silent in background to prevent page flashing)
     useEffect(() => {
         const interval = setInterval(() => {
-            // Silently refresh if drawer is not open
             if (!drawerOpen) {
-                loadLogs(filters, pageNumber, pageSize, sortBy, sortOrder);
-                loadSummary(filters);
+                loadLogs(filters, pageNumber, pageSize, sortBy, sortOrder, true);
+                loadSummary(filters, true);
             }
         }, 60000);
 
@@ -200,20 +199,21 @@ export default function ApiLogsPage() {
         if (runningTest) return;
         try {
             setRunningTest(true);
-            showToast('Starting test run for Pricing Analysis APIs...', 'info');
+            const targetPageName = filters.page || 'All Pages';
+            showToast(`Starting automated test run for "${targetPageName}" APIs...`, 'info');
 
-            const res = await triggerApiTestRun(filters.page || 'Pricing Analysis');
+            const res = await triggerApiTestRun(filters.page || '');
             if (res && res.success) {
-                showToast(`Run initiated (ID: ${res.run_id || 'new'}). Executing tests...`, 'info');
+                showToast(`Run initiated. Executing tests in background...`, 'info');
 
-                // Wait 3.5s for runner to complete concurrency batch of 17 APIs
+                // Wait 4.5s for runner to complete concurrency batch
                 setTimeout(async () => {
                     await loadFilterOptions(false);
                     await loadSummary(filters);
                     await loadLogs(filters, pageNumber, pageSize, sortBy, sortOrder);
                     setRunningTest(false);
-                    showToast('API test run completed! Results updated.', 'success');
-                }, 3500);
+                    showToast(`API tests for "${targetPageName}" completed! Results updated.`, 'success');
+                }, 4500);
             } else {
                 setRunningTest(false);
                 showToast(res?.message || 'Failed to trigger test run.', 'error');
@@ -356,6 +356,10 @@ export default function ApiLogsPage() {
                         setPageNumber(1);
                     }}
                     onPageChange={(p) => setPageNumber(p)}
+                    onPageSizeChange={(newSize) => {
+                        setPageSize(newSize);
+                        setPageNumber(1);
+                    }}
                     onRowClick={handleRowClick}
                 />
 

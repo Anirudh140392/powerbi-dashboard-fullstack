@@ -13,6 +13,7 @@ import {
     runPageTests, 
     isTestRunActive 
 } from '../services/apiTestRunner.js';
+import { getRegisteredPages } from '../config/apiLoggerRegistry.js';
 
 /**
  * GET /api/api-logs
@@ -90,6 +91,9 @@ export async function getApiLogsSummary(req, res) {
 export async function getApiLogsFilters(req, res) {
     try {
         const filters = await getFilterOptions();
+        const registered = getRegisteredPages();
+        const mergedPages = Array.from(new Set([...registered, ...(filters.pages || [])]));
+        filters.pages = mergedPages;
 
         return res.status(200).json({
             success: true,
@@ -121,17 +125,26 @@ export async function triggerApiLogsRun(req, res) {
             });
         }
 
-        const targetPage = req.body?.page || req.query?.page || 'Pricing Analysis';
+        const targetPage = req.body?.page || req.query?.page || '';
 
         // Trigger run in background
-        runPageTests(targetPage).catch(runErr => {
+        (async () => {
+            if (!targetPage || targetPage === 'All' || targetPage === 'All Pages') {
+                const pages = getRegisteredPages();
+                for (const p of pages) {
+                    await runPageTests(p);
+                }
+            } else {
+                await runPageTests(targetPage);
+            }
+        })().catch(runErr => {
             console.error('[ApiLogsController] Background test run error:', runErr.message);
         });
 
         return res.status(202).json({
             success: true,
             status: 'started',
-            message: `API health test run initiated in background for "${targetPage}".`,
+            message: `API health test run initiated in background for "${targetPage || 'All Pages'}".`,
         });
     } catch (err) {
         console.error('[ApiLogsController] Error triggering test run:', err.message);

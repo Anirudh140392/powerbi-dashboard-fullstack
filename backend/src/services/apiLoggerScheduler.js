@@ -7,6 +7,7 @@
 import cron from 'node-cron';
 import { runPageTests } from './apiTestRunner.js';
 import { ensureApiLogsSchema, cleanupOldLogs } from './apiLoggerRepository.js';
+import { getRegisteredPages } from '../config/apiLoggerRegistry.js';
 
 const CRON_EXPRESSION = process.env.API_LOGGER_CRON || '0 1 * * *'; // 01:00 AM
 const TIMEZONE = process.env.API_LOGGER_TZ || 'Asia/Kolkata';
@@ -47,11 +48,15 @@ export async function initApiLoggerScheduler() {
         scheduledTask = cron.schedule(
             CRON_EXPRESSION,
             async () => {
-                console.log(`[ApiLoggerScheduler] ⏰ Cron triggered at 1:00 AM IST. Starting Pricing Analysis API tests...`);
-                try {
-                    await runPageTests('Pricing Analysis');
-                } catch (runErr) {
-                    console.error('[ApiLoggerScheduler] Cron test run execution error:', runErr.message);
+                console.log(`[ApiLoggerScheduler] ⏰ Cron triggered at 1:00 AM IST. Starting automated API tests for all pages...`);
+                const pages = getRegisteredPages();
+                for (const pageName of pages) {
+                    try {
+                        console.log(`[ApiLoggerScheduler] Executing scheduled tests for: "${pageName}"`);
+                        await runPageTests(pageName);
+                    } catch (runErr) {
+                        console.error(`[ApiLoggerScheduler] Cron test run execution error for "${pageName}":`, runErr.message);
+                    }
                 }
             },
             {
