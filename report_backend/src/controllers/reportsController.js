@@ -699,12 +699,13 @@ export const downloadReport = async (req, res) => {
                       AND sales IS NOT NULL
                     GROUP BY DATE, Brand, Category${msGroupLoc}
                 ),
+                -- Category total spans every brand (own + comp); applying msFlagCond here would inflate share to ~100%
                 cat_ms_stats AS (
                     SELECT 
                         ${cteMsDateAgg} as DATE, category as Category${msSelectLoc},
                         SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as cat_sales
                     FROM ${msTable}
-                    WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'${msFlagCond}
+                    WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'
                       ${!isQcUser ? `AND toDate(${msDateCol}) <= '${maxAllowedDate}'` : ''}
                       AND sales IS NOT NULL
                     GROUP BY DATE, Category${msGroupLoc}
