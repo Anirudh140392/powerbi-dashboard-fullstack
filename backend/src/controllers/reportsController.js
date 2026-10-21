@@ -1074,6 +1074,7 @@ export const downloadReport = async (req, res) => {
                     SUM(toFloat64(t.${col('Inventory')})) as SOH,
                     round(SUM(assumeNotNull(t.${col('Qty_Sold')})) / ${daysInGran}, 2) as DRR,
                     SUM(toFloat64(t.${col('MSL')})) as Target_Inventory,
+                    round(avg(toFloat64(t.${col('DIH')})), 2) as Days_Inventory_on_Hand,
 
                     -- Pricing
                     round(avg(toFloat64(t.${col('Selling_Price')})), 2) as Selling_Price,
