@@ -419,6 +419,7 @@ export default function ReportBuilder({
     parentHandleDownload({
       reportType: dataMode === "darkstore" ? "Darkstore Data" : "Master Dump",
       dataMode: dataMode,
+      timePeriod: "Custom Range",
       metrics: activeTags,
       dimensions: activeDimensions,
       platform: platformOverride,
@@ -849,7 +850,8 @@ export default function ReportBuilder({
                       variant="contained"
                       startIcon={isDownloading ? null : <DownloadIcon />}
                       onClick={handleDownload}
-                      disabled={isDownloading}
+                      // An empty metrics param is dropped from the request, which would export every column
+                      disabled={isDownloading || (dataMode !== "darkstore" && onTags === 0)}
                       sx={{
                         textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 3, py: 1.2,
                         background: "linear-gradient(135deg, #4F46E5, #7C3AED)",

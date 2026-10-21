@@ -930,6 +930,13 @@ export const downloadReport = async (req, res) => {
             const dimGroupStr = dimGroups.length > 0 ? ', ' + dimGroups.join(', ') : '';
 
             // Handle CTE mappings tightly aligned to base query
+            // SOS = this brand's share of the whole platform/category shelf (top 10 positions), as on the dashboard.
+            // The denominator sums across every brand, so it must not be split by Brand.
+            const sosPartition = ['DATE', 'Platform', ...(hasFormat ? ['Category'] : [])].join(', ');
+            const sosTop10 = 'toInt64OrZero(toString(POSITION)) <= 10';
+            const sosNumCond = hasBrand ? sosTop10 : `(toString(flag) = '1' OR flag = 1) AND ${sosTop10}`;
+            const sosPct = (c) => `round(sumIf(toFloat64OrZero(toString(${c})), ${sosNumCond}) * 100.0 / nullIf(sum(sumIf(toFloat64OrZero(toString(${c})), ${sosTop10})) OVER (PARTITION BY ${sosPartition}), 0), 2)`;
+
             let sosGroupCols = ['DATE'];
             let sosSelectCols = [`${cteTimeAgg} as DATE`];
             let sosJoinOn = [`${timeAgg} = s.DATE`];
@@ -954,9 +961,9 @@ export const downloadReport = async (req, res) => {
                 WITH sos_stats AS (
                     SELECT 
                         ${sosSelectCols.join(', ')},
-                        round(sumIf(toFloat64OrZero(toString(overall)), toString(flag) = '1' OR flag = 1) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(overall)), 1=1), 0), 2) as overall_sos_pct,
-                        round(sumIf(toFloat64OrZero(toString(spons)), toString(flag) = '1' OR flag = 1) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(spons)), 1=1), 0), 2) as spons_sos_pct,
-                        round(sumIf(toFloat64OrZero(toString(organic)), toString(flag) = '1' OR flag = 1) * 100.0 / nullIf(sumIf(toFloat64OrZero(toString(organic)), 1=1), 0), 2) as org_sos_pct,
+                        ${sosPct('overall')} as overall_sos_pct,
+                        ${sosPct('spons')} as spons_sos_pct,
+                        ${sosPct('organic')} as org_sos_pct,
                         avgIf(toInt64OrZero(toString(POSITION)), toInt32(spons) = 1) as ad_pos,
                         avgIf(toInt64OrZero(toString(POSITION)), toInt32(spons) != 1) as org_pos
                     FROM rb_kw_olap
@@ -984,12 +991,13 @@ export const downloadReport = async (req, res) => {
                       AND sales IS NOT NULL
                     GROUP BY DATE, Brand, Category${msGroupLoc}
                 ),
+                -- Category total spans every brand (own + comp); applying msFlagCond here would inflate share to ~100%
                 cat_ms_stats AS (
                     SELECT 
                         ${cteMsDateAgg} as DATE, category as Category${msSelectLoc},
                         SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as cat_sales
                     FROM ${msTable}
-                    WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'${msFlagCond}
+                    WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'
                       ${!isQcUser ? `AND toDate(${msDateCol}) <= '${maxAllowedDate}'` : ''}
                       AND sales IS NOT NULL
                     GROUP BY DATE, Category${msGroupLoc}
@@ -1074,6 +1082,7 @@ export const downloadReport = async (req, res) => {
                     SUM(toFloat64(t.${col('Inventory')})) as SOH,
                     round(SUM(assumeNotNull(t.${col('Qty_Sold')})) / ${daysInGran}, 2) as DRR,
                     SUM(toFloat64(t.${col('MSL')})) as Target_Inventory,
+                    round(avg(toFloat64(t.${col('DIH')})), 2) as Days_Inventory_on_Hand,
 
                     -- Pricing
                     round(avg(toFloat64(t.${col('Selling_Price')})), 2) as Selling_Price,

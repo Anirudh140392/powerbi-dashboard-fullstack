@@ -781,14 +781,16 @@ export default function WatchTower() {
   const perfBreakdownFilters = useMemo(() => ({
     companyId: sessionStorage.getItem('selectedCompanyId') || '',
     platform: filters.platform ? [filters.platform].flat() : [],
-    dateStart: filters.startDate || undefined,
-    dateEnd: filters.endDate || undefined,
+    dateStart: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
+    dateEnd: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+    compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
+    compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
     channel: selectedChannel || undefined,
     category: filters.category ? [filters.category].flat() : [],
     brand: selectedBrand || undefined,
     subBrand: selectedSubBrand || undefined,
     location: filters.location ? [filters.location].flat() : [],
-  }), [filters.platform, filters.startDate, filters.endDate, selectedChannel, filters.category, selectedBrand, selectedSubBrand, filters.location]);
+  }), [filters.platform, timeStart, timeEnd, compareStart, compareEnd, selectedChannel, filters.category, selectedBrand, selectedSubBrand, filters.location]);
 
   // Retry handler for error overlay — bumps fetchIdRef to trigger the effect
   const retryFetch = useCallback(() => {
@@ -1133,13 +1135,33 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
   const isEcom = ECOM_PLATFORMS.some(p => platName.includes(p));
   const isQcom = QCOM_PLATFORMS.some(p => platName.includes(p));
 
+  const categoryTotals = useMemo(() => {
+    if (!rows || rows.length === 0) return {};
+    const sumField = (field) =>
+      rows.reduce((sum, r) => {
+        const val = Number(r[field]);
+        return sum + (Number.isFinite(val) && val > 0 ? val : 0);
+      }, 0);
+
+    return {
+      offtakes: sumField("offtakes"),
+      spend: sumField("spend"),
+      roas: sumField("roas"),
+      inorgSalesPct: sumField("inorgSalesPct"),
+      conversionPct: sumField("conversionPct"),
+      marketSharePct: sumField("marketSharePct"),
+      cpm: sumField("cpm"),
+      cpc: sumField("cpc"),
+    };
+  }, [rows]);
+
   const kpiBands = [
     {
       key: "offtakes",
       label: "Offtakes",
       activeValue: active.offtakes,
       compareValue: compare?.offtakes ?? null,
-      max: 100000000,
+      max: categoryTotals.offtakes > 0 ? categoryTotals.offtakes : (active.offtakes || 1),
       format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
@@ -1147,7 +1169,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
       label: "Spend",
       activeValue: active.spend,
       compareValue: compare?.spend ?? null,
-      max: 2000000,
+      max: categoryTotals.spend > 0 ? categoryTotals.spend : (active.spend || 1),
       format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
@@ -1155,7 +1177,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
       label: "ROAS",
       activeValue: active.roas,
       compareValue: compare?.roas ?? null,
-      max: 10,
+      max: categoryTotals.roas > 0 ? categoryTotals.roas : (active.roas || 1),
       format: (v) => Number.isFinite(v) ? `${v.toFixed(1)}x` : "N/A",
     },
     {
@@ -1163,7 +1185,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
       label: "Inorg Sales",
       activeValue: active.inorgSalesPct,
       compareValue: compare?.inorgSalesPct ?? null,
-      max: 50000000,
+      max: categoryTotals.inorgSalesPct > 0 ? categoryTotals.inorgSalesPct : (active.inorgSalesPct || 1),
       format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
@@ -1171,7 +1193,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
       label: "Conversion",
       activeValue: active.conversionPct,
       compareValue: compare?.conversionPct ?? null,
-      max: 15,
+      max: categoryTotals.conversionPct > 0 ? categoryTotals.conversionPct : (active.conversionPct || 100),
       format: (v) => Number.isFinite(v) ? `${v.toFixed(1)}%` : "N/A",
     },
     {
@@ -1179,7 +1201,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
       label: "Market Share",
       activeValue: active.marketSharePct,
       compareValue: compare?.marketSharePct ?? null,
-      max: 100,
+      max: categoryTotals.marketSharePct > 0 ? categoryTotals.marketSharePct : (active.marketSharePct || 100),
       format: (v) => Number.isFinite(v) ? `${v.toFixed(1)}%` : "N/A",
     },
     {
@@ -1187,7 +1209,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
       label: "CPM",
       activeValue: isEcom ? null : active.cpm,
       compareValue: isEcom ? null : (compare?.cpm ?? null),
-      max: 800000,
+      max: categoryTotals.cpm > 0 ? categoryTotals.cpm : (active.cpm || 1),
       format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
@@ -1195,7 +1217,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
       label: "CPC",
       activeValue: isQcom ? null : active.cpc,
       compareValue: isQcom ? null : (compare?.cpc ?? null),
-      max: 5000000,
+      max: categoryTotals.cpc > 0 ? categoryTotals.cpc : (active.cpc || 1),
       format: (v) => `₹${formatCurrencyShort(v)}`,
     },
   ];
@@ -1501,7 +1523,10 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
                             </button>
                           </div>
                         </div>
-                        <div className="h-3 rounded-full bg-white/80 overflow-hidden relative">
+                        <div
+                          className="h-3 rounded-full bg-white/80 overflow-hidden relative cursor-help"
+                          title={`${k.label}: ${Number.isFinite(activeRatio) ? (activeRatio * 100).toFixed(1) : 0}% of all categories${compare && compareRatio != null ? ` (vs ${compare.name}: ${(compareRatio * 100).toFixed(1)}%)` : ''}`}
+                        >
                           {compareRatio != null && (
                             <motion.div
                               className="absolute inset-y-[3px] left-0 rounded-full bg-violet-300/70"

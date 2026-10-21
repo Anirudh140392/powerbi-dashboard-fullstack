@@ -1130,6 +1130,7 @@ export default function TrendsCompetitionDrawer({
     }
 
     // Set platform pill selection (first value for pill display)
+    const normInitPlat = normalizeToString(initialPlatform);
     const platForPill = newFilters.Platform !== 'All'
       ? newFilters.Platform.split(',')[0].trim()
       : (normInitPlat !== 'All'
@@ -1735,7 +1736,7 @@ export default function TrendsCompetitionDrawer({
               id: "QuantitySold",
               label: "Quantity Sold",
               color: "#0EA5E9",
-              axis: "left",
+              axis: "quantity",
               default: false,
             },
             {
@@ -2343,7 +2344,7 @@ export default function TrendsCompetitionDrawer({
               id: "QuantitySold",
               label: "Quantity Sold",
               color: "#0EA5E9",
-              axis: "left",
+              axis: "quantity",
             },
             {
               id: "Conversion",
@@ -2886,8 +2887,22 @@ export default function TrendsCompetitionDrawer({
     const metrics = sortedTrendMetrics.length > 0 ? sortedTrendMetrics : (trendMeta.metrics || []);
     const activeMetricObjs = metrics.filter((m) => activeMetrics.includes(m.id) && !m.isMetricNA);
 
+    const isQuantityMetric = (m) =>
+      m.id === "QuantitySold" ||
+      m.id === "quantitySold" ||
+      m.id === "Quantity_Sold" ||
+      m.id === "QtySold" ||
+      m.id === "Quantity" ||
+      m.axis === "quantity";
+
     const isCurrencyActive = activeMetricObjs.some(
-      (m) => m.axis === "left" || (m.axis !== "right" && m.axis !== "assortment" && m.id !== "Assortment")
+      (m) =>
+        !isQuantityMetric(m) &&
+        (m.axis === "left" ||
+          (m.axis !== "right" &&
+            m.axis !== "assortment" &&
+            m.axis !== "quantity" &&
+            m.id !== "Assortment"))
     );
     const isPercentageActive = activeMetricObjs.some(
       (m) => m.axis === "right"
@@ -2895,11 +2910,16 @@ export default function TrendsCompetitionDrawer({
     const isAssortmentActive = activeMetricObjs.some(
       (m) => m.axis === "assortment" || m.id === "Assortment"
     );
+    const isQuantityActive = activeMetricObjs.some(
+      (m) => isQuantityMetric(m)
+    );
 
     const series = [];
     activeMetricObjs.forEach((m) => {
       let yAxisIndex = 0;
-      if (m.axis === "assortment" || m.id === "Assortment") {
+      if (isQuantityMetric(m)) {
+        yAxisIndex = 3;
+      } else if (m.axis === "assortment" || m.id === "Assortment") {
         yAxisIndex = 2;
       } else if (m.axis === "right") {
         yAxisIndex = 1;
@@ -2917,7 +2937,16 @@ export default function TrendsCompetitionDrawer({
         yAxisIndex: yAxisIndex,
         lineStyle: { width: 2 },
         emphasis: { focus: "series" },
-        data: cleanSeriesData(dataSource.map((p) => p[m.id] ?? null)),
+        data: cleanSeriesData(
+          dataSource.map(
+            (p) =>
+              p[m.id] ??
+              (isQuantityMetric(m)
+                ? (p.QuantitySold ?? p.quantitySold ?? p.Quantity_Sold ?? p.QtySold ?? p.Quantity)
+                : null) ??
+              null
+          )
+        ),
         itemStyle: { color: m.color },
       });
     });
@@ -2925,13 +2954,24 @@ export default function TrendsCompetitionDrawer({
     let gridLeft = 60;
     if (isCurrencyActive && isAssortmentActive) {
       gridLeft = 115;
-    } else if (isCurrencyActive || isAssortmentActive) {
+    } else if (isCurrencyActive || isAssortmentActive || (!isCurrencyActive && isQuantityActive)) {
       gridLeft = 60;
     } else {
       gridLeft = 45;
     }
 
-    let gridRight = isPercentageActive ? 80 : 45;
+    let gridRight = 45;
+    if (isCurrencyActive || isAssortmentActive) {
+      if (isPercentageActive && isQuantityActive) {
+        gridRight = 135;
+      } else if (isPercentageActive || isQuantityActive) {
+        gridRight = 75;
+      } else {
+        gridRight = 45;
+      }
+    } else {
+      gridRight = isPercentageActive ? 75 : 45;
+    }
 
     return {
       grid: { left: gridLeft, right: gridRight, top: 32, bottom: 40 },
@@ -2953,6 +2993,8 @@ export default function TrendsCompetitionDrawer({
           splitLine: { lineStyle: { color: "#F3F4F6" } },
           min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
           axisLabel: {
+            color: "#000000",
+            fontSize: 11,
             formatter: (value) => {
               const prefix = currencySymbol + " ";
               if (value >= 10000000) return `${prefix}${(value / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
@@ -2968,9 +3010,11 @@ export default function TrendsCompetitionDrawer({
           show: isPercentageActive,
           axisLine: { show: false },
           axisTick: { show: false },
-          splitLine: { show: !isCurrencyActive, lineStyle: { color: "#F3F4F6" } },
+          splitLine: { show: !isCurrencyActive && !isQuantityActive, lineStyle: { color: "#F3F4F6" } },
           min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
           axisLabel: {
+            color: "#000000",
+            fontSize: 11,
             formatter: (value) => `${parseFloat(value.toFixed(2))} %`
           }
         },
@@ -2981,11 +3025,33 @@ export default function TrendsCompetitionDrawer({
           show: isAssortmentActive,
           axisLine: { show: false },
           axisTick: { show: false },
-          splitLine: { show: !isCurrencyActive && !isPercentageActive, lineStyle: { color: "#F3F4F6" } },
+          splitLine: { show: !isCurrencyActive && !isPercentageActive && !isQuantityActive, lineStyle: { color: "#F3F4F6" } },
           min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
           axisLabel: {
+            color: "#000000",
+            fontSize: 11,
             formatter: (value) => {
               if (value >= 1000000) return `${(value / 1000000).toFixed(2).replace(/\.?0+$/, '')} M`;
+              if (value >= 1000) return `${(value / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
+              return `${parseFloat(value.toFixed(2))}`;
+            }
+          }
+        },
+        {
+          type: "value",
+          position: (isCurrencyActive || isAssortmentActive) ? "right" : "left",
+          offset: (isCurrencyActive || isAssortmentActive) ? (isPercentageActive ? 65 : 0) : 0,
+          show: isQuantityActive,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: !isCurrencyActive && !isPercentageActive && !isAssortmentActive, lineStyle: { color: "#F3F4F6" } },
+          min: (value) => (value.min < 0 ? Math.floor(value.min * 1.1) : 0),
+          axisLabel: {
+            color: "#000000",
+            fontSize: 11,
+            formatter: (value) => {
+              if (value >= 10000000) return `${(value / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
+              if (value >= 100000) return `${(value / 100000).toFixed(2).replace(/\.?0+$/, '')} lac`;
               if (value >= 1000) return `${(value / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
               return `${parseFloat(value.toFixed(2))}`;
             }

@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import {
     TrendingUp,
-    DollarSign,
+    IndianRupee,
     BarChart3,
     Zap,
     Percent,
@@ -169,7 +169,7 @@ const PerformanceMatrixNew = () => {
         { id: 'sos', title: 'SOS', value: '25%', delta: -1.3, deltaLabel: '-0.4%', icon: Eye, gradient: ['#f97316', '#fb923c'], trend: [28, 27, 26.5, 26, 25.5, 25.8, 25.3, 25.1, 25.4, 25.2, 25.1, 25] },
         { id: 'inorg', title: 'Inorganic Sales', value: '11%', delta: 5.4, deltaLabel: '+1.2%', icon: TrendingUp, gradient: ['#22c55e', '#4ade80'], trend: [8, 8.5, 9, 9.2, 9.5, 10, 10.2, 10.5, 10.8, 11, 10.8, 11] },
         { id: 'conversion', title: 'Conversion', value: '1%', delta: 28, deltaLabel: '+0.2%', icon: Target, gradient: ['#06b6d4', '#22d3ee'], trend: [0.7, 0.72, 0.75, 0.78, 0.82, 0.85, 0.88, 0.9, 0.92, 0.95, 0.98, 1.0] },
-        { id: 'roas', title: 'ROAS', value: '2x', delta: 16.5, deltaLabel: '+0.3x', icon: DollarSign, gradient: ['#eab308', '#facc15'], trend: [1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.92, 1.95, 2.0] },
+        { id: 'roas', title: 'ROAS', value: '2x', delta: 16.5, deltaLabel: '+0.3x', icon: IndianRupee, gradient: ['#eab308', '#facc15'], trend: [1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.92, 1.95, 2.0] },
     ]
     return (
         <div>
