@@ -781,14 +781,16 @@ export default function WatchTower() {
   const perfBreakdownFilters = useMemo(() => ({
     companyId: sessionStorage.getItem('selectedCompanyId') || '',
     platform: filters.platform ? [filters.platform].flat() : [],
-    dateStart: filters.startDate || undefined,
-    dateEnd: filters.endDate || undefined,
+    dateStart: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
+    dateEnd: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+    compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
+    compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
     channel: selectedChannel || undefined,
     category: filters.category ? [filters.category].flat() : [],
     brand: selectedBrand || undefined,
     subBrand: selectedSubBrand || undefined,
     location: filters.location ? [filters.location].flat() : [],
-  }), [filters.platform, filters.startDate, filters.endDate, selectedChannel, filters.category, selectedBrand, selectedSubBrand, filters.location]);
+  }), [filters.platform, timeStart, timeEnd, compareStart, compareEnd, selectedChannel, filters.category, selectedBrand, selectedSubBrand, filters.location]);
 
   // Retry handler for error overlay — bumps fetchIdRef to trigger the effect
   const retryFetch = useCallback(() => {

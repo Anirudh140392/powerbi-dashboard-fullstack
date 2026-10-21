@@ -14804,14 +14804,44 @@ const getPerformanceBreakdownData = async (filters) => {
             const periodKeys = typeof comparePeriodKeys === 'string' ? comparePeriodKeys.split(',').map(k => k.trim()) : [];
 
             const getPresetRange = (key) => {
-                const now = new Date();
-                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                if (key === 'previous_period' || key === 'prev_period') {
+                    if (filters.compareStartDate && filters.compareEndDate) {
+                        return { start: new Date(filters.compareStartDate), end: new Date(filters.compareEndDate) };
+                    }
+                    const curStart = new Date(dateStart);
+                    const curEnd = new Date(dateEnd);
+                    const durationMs = curEnd.getTime() - curStart.getTime();
+                    const prevEnd = new Date(curStart.getTime() - 86400000);
+                    const prevStart = new Date(prevEnd.getTime() - durationMs);
+                    return { start: prevStart, end: prevEnd };
+                }
+
+                const curStart = new Date(dateStart);
+                const curEnd = new Date(dateEnd);
+
                 switch (key) {
-                    case 'last_week': { const e = new Date(today); e.setDate(e.getDate() - 1); const s = new Date(e); s.setDate(s.getDate() - 6); return { start: s, end: e }; }
-                    case 'last_month': { const e = new Date(today.getFullYear(), today.getMonth(), 0); return { start: new Date(e.getFullYear(), e.getMonth(), 1), end: e }; }
-                    case 'mtd': { const s = new Date(today.getFullYear(), today.getMonth(), 1); const e = new Date(today); e.setDate(e.getDate() - 1); return { start: s, end: e }; }
-                    case 'last_3_months': { const e = new Date(today); e.setDate(e.getDate() - 1); const s = new Date(e); s.setMonth(s.getMonth() - 3); return { start: s, end: e }; }
-                    case 'ytd': { const s = new Date(today.getFullYear(), 0, 1); const e = new Date(today); e.setDate(e.getDate() - 1); return { start: s, end: e }; }
+                    case 'last_week': {
+                        // 7 days preceding current start date so periods do not overlap
+                        const e = new Date(curStart.getTime() - 86400000);
+                        const s = new Date(e.getTime() - 6 * 86400000);
+                        return { start: s, end: e };
+                    }
+                    case 'last_month': {
+                        const e = new Date(curEnd.getFullYear(), curEnd.getMonth(), 0);
+                        return { start: new Date(e.getFullYear(), e.getMonth(), 1), end: e };
+                    }
+                    case 'mtd': {
+                        const s = new Date(curEnd.getFullYear(), curEnd.getMonth(), 1);
+                        return { start: s, end: curEnd };
+                    }
+                    case 'last_3_months': {
+                        const e = new Date(curEnd.getFullYear(), curEnd.getMonth(), 0);
+                        return { start: new Date(e.getFullYear(), e.getMonth() - 2, 1), end: e };
+                    }
+                    case 'ytd': {
+                        const s = new Date(curEnd.getFullYear(), 0, 1);
+                        return { start: s, end: curEnd };
+                    }
                     default: return null;
                 }
             };
