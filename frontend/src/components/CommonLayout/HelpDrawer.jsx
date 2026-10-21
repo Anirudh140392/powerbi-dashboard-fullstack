@@ -852,6 +852,26 @@ const HelpDrawer = ({ userDbName }) => {
   ];
   const pricingAnalysisGlossary = [
     {
+      kpi: "Average Selling Price (ASP)",
+      definition: "Average Selling Price (ASP) represents the average price at which SKUs are sold across the platform during the selected period.",
+      usage: "Track SKU-level and brand pricing trends over time to identify price erosion or premiumization.",
+      interpretation: "Higher ASP indicates premium product mix or reduced promotional discounting; lower ASP reflects promotional pressure or smaller pack adoption.",
+      pitfalls: "Shifts in pack-size sales mix can move ASP up or down even if underlying per-unit prices remain unchanged.",
+      example: "Total sales value of ₹38,928 across 100 units → ASP = ₹389.28.",
+      logic: "Sum(Sales Value) ÷ Sum(Sales Quantity) (or Average Listed Selling Price across active SKUs)",
+      aliases: ["Average selling price", "Average Selling Price", "ASP", "Selling Price"],
+    },
+    {
+      kpi: "Discount",
+      definition: "Discount represents the average discount percentage applied across all active SKUs on the selected platform during the current period.",
+      usage: "Measure promotional depth and price discounting across the product portfolio.",
+      interpretation: "Higher discount indicates deeper promotional deals to drive sales velocity.",
+      pitfalls: "Continuous high discounts may reduce brand value perception and erode gross margins.",
+      example: "MRP ₹500, Selling Price ₹342 → Discount = 31.6%.",
+      logic: "((MRP - Selling Price) ÷ MRP) × 100",
+      aliases: ["Discount", "Average Discount", "Discount %", "Promo %"],
+    },
+    {
       kpi: "Weighted Discount %",
       definition: "Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.",
       usage: "Evaluate average promotional intensity while prioritizing high-volume products.",
@@ -859,6 +879,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Can mask low discounts on low-volume items.",
       example: "SKU A (50% sales) at 10% off + SKU B (50% sales) at 20% off → Weighted Discount = 15%.",
       logic: "Σ(Discount % × Sales) ÷ Σ(Sales)",
+      aliases: ["Weighted Discount", "Weighted Discount %", "Sales Weighted Discount"],
     },
     {
       kpi: "Wt. PPU (Price per Unit)",
@@ -868,6 +889,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Ignoring pack size differences (e.g., 1g vs 1kg).",
       example: "Average price paid per unit across all brands in the category.",
       logic: "Σ(Price per Unit × Sales Volume) ÷ Σ(Total Sales Volume)",
+      aliases: ["Wt. PPU", "Price per Unit", "Weighted Price per Unit"],
     },
   ];
 
@@ -1302,6 +1324,8 @@ const HelpDrawer = ({ userDbName }) => {
           setExpandedKpi("Total Sales");
         } else if (targetMenu === "Secondary Summary") {
           setExpandedKpi("Secondary Sales");
+        } else if (targetMenu === "Pricing Analysis") {
+          setExpandedKpi("Average Selling Price (ASP)");
         } else if (targetMenu === "Inventory Analysis") {
           setExpandedKpi("Total Inventory");
         } else if (targetMenu === "Scheduled Reports") {
@@ -1472,6 +1496,8 @@ const HelpDrawer = ({ userDbName }) => {
                     setExpandedKpi("Total Sales");
                   } else if (item.label === "Secondary Summary") {
                     setExpandedKpi("Secondary Sales");
+                  } else if (item.label === "Pricing Analysis") {
+                    setExpandedKpi("Average Selling Price (ASP)");
                   } else if (item.label === "Inventory Analysis") {
                     setExpandedKpi("Total Inventory");
                   } else if (item.label === "Scheduled Reports") {
