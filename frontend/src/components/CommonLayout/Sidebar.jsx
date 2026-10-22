@@ -959,7 +959,7 @@ const Sidebar = ({
                         <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           Report Studio
                         </Box>
-                        <SidebarStatusBadge type="NEW" />
+                        {!isCollapsed && <SidebarStatusBadge type="BETA" />}
                       </Box>
                     }
                     primaryTypographyProps={{

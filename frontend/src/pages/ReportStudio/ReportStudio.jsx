@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Box, Button, CircularProgress, Snackbar, Tooltip, Typography } from "@mui/material";
+import { Alert, Box, Button, Chip, CircularProgress, Snackbar, Tooltip, Typography } from "@mui/material";
 import {
     FileDownloadOutlined as DownloadIcon,
     RestartAlt as ResetIcon,
@@ -313,6 +313,19 @@ export default function ReportStudio() {
                         <Typography component="h1" sx={{ fontWeight: 700, color: "#1e293b", fontSize: "1.15rem" }}>
                             Report Studio
                         </Typography>
+                        <Chip
+                            label="BETA"
+                            size="small"
+                            sx={{
+                                height: 20,
+                                fontSize: "0.68rem",
+                                fontWeight: 800,
+                                bgcolor: "#eff6ff",
+                                color: "#2563eb",
+                                border: "1px solid #bfdbfe",
+                                letterSpacing: "0.05em",
+                            }}
+                        />
                     </Box>
 
                     <Button
