@@ -3277,6 +3277,22 @@ const InsightsSignalHub = () => {
     const { user } = useAuth();
     const [insightsKpiConfig, setInsightsKpiConfig] = useState(user?.tabPermissions?.Insights?.kpi || {});
 
+    useEffect(() => {
+        if (user?.tabPermissions?.Insights?.kpi) {
+            setInsightsKpiConfig(user.tabPermissions.Insights.kpi);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        const handleConfigUpdated = (e) => {
+            if (e.detail && typeof e.detail === 'object') {
+                setInsightsKpiConfig(e.detail);
+            }
+        };
+        window.addEventListener("insights_config_updated", handleConfigUpdated);
+        return () => window.removeEventListener("insights_config_updated", handleConfigUpdated);
+    }, []);
+
     const {
         refreshFilters,
         maxDate,
@@ -3437,8 +3453,20 @@ const InsightsSignalHub = () => {
                     ...(compareEnd ? { compareEndDate: compareEnd.format("YYYY-MM-DD") } : {}),
                 };
                 const data = await fetchInsights(apiPayload);
-                if (data?.insightsKpi) {
+                if (data?.insightsKpi && typeof data.insightsKpi === 'object' && Object.keys(data.insightsKpi).length > 0) {
                     setInsightsKpiConfig(data.insightsKpi);
+                    try {
+                        const storedUser = sessionStorage.getItem("user");
+                        if (storedUser) {
+                            const u = JSON.parse(storedUser);
+                            if (!u.tabPermissions) u.tabPermissions = {};
+                            if (typeof u.tabPermissions.Insights !== 'object' || u.tabPermissions.Insights === null) {
+                                u.tabPermissions.Insights = { access: true, kpi: {} };
+                            }
+                            u.tabPermissions.Insights.kpi = data.insightsKpi;
+                            sessionStorage.setItem("user", JSON.stringify(u));
+                        }
+                    } catch (_) {}
                 }
                 const apiResponseList = data?.success && Array.isArray(data?.data) ? data.data : [];
                 const apiBrandName = apiResponseList.find((i) => i.brandName)?.brandName || "Brand";

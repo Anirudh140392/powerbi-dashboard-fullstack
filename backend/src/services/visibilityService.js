@@ -2669,6 +2669,7 @@ class VisibilityService {
             const brandQuery = `
                 SELECT 
                     brand as brand_name,
+                    max(toInt32(flag)) as flag,
                     ROUND(sumIf(toInt32(overall), DATE BETWEEN '${dateFrom}' AND '${dateTo}') * 100.0 / ${currV.overall}, 2) AS current_overall_sos,
                     ROUND(sumIf(toInt32(spons), DATE BETWEEN '${dateFrom}' AND '${dateTo}') * 100.0 / ${currV.spons}, 2) AS current_sponsored_sos,
                     ROUND(sumIf(toInt32(organic), DATE BETWEEN '${dateFrom}' AND '${dateTo}') * 100.0 / ${currV.organic}, 2) AS current_organic_sos,
@@ -2681,10 +2682,9 @@ class VisibilityService {
                   ${allFilters}
                   AND brand IS NOT NULL AND brand != ''
                   AND lower(brand) != 'other'
-                  AND flag = 0
                   ${rankCondition}
                 GROUP BY brand
-                ORDER BY impressions DESC
+                ORDER BY current_overall_sos DESC, impressions DESC
                 LIMIT 100
             `;
 
@@ -2706,7 +2706,7 @@ class VisibilityService {
 
             const brands = brandResults.map((b, idx) => {
                 const brandCleanName = (b.brand_name || '').trim();
-                const isOwnBrand = validBrandNamesLower.has(brandCleanName.toLowerCase());
+                const isOwnBrand = Boolean(Number(b.flag) === 1 || validBrandNamesLower.has(brandCleanName.toLowerCase()));
                 return {
                     rank: idx + 1,
                     brand: brandCleanName,
@@ -2735,6 +2735,7 @@ class VisibilityService {
                 SELECT 
                     keyword_search_product as sku_name,
                     brand as brand_name,
+                    max(toInt32(flag)) as flag,
                     ROUND(sum(toInt32(overall)) * 100.0 / ${currV.overall}, 2) AS overall_sos,
                     ROUND(sum(toInt32(spons)) * 100.0 / ${currV.spons}, 2) AS sponsored_sos,
                     ROUND(sum(toInt32(organic)) * 100.0 / ${currV.organic}, 2) AS organic_sos,
@@ -2744,24 +2745,30 @@ class VisibilityService {
                   ${allFilters}
                   AND keyword IS NOT NULL AND keyword != ''
                   AND lower(brand) != 'other'
-                  AND flag = 0
                   ${rankCondition}
                 GROUP BY sku_name, brand_name
-                ORDER BY impressions DESC
-                LIMIT 20
+                ORDER BY overall_sos DESC, impressions DESC
+                LIMIT 50
             `;
 
             console.log(`[VisibilityService] ClickHouse SKU Competition Query: ${skuQuery}`);
             const skuResults = await queryClickHouse(skuQuery);
 
-            const skus = skuResults.map(s => ({
-                sku: s.sku_name,
-                brand: s.brand_name,
-                overall_sos: { value: Number(s.overall_sos) || 0, delta: 0 },
-                sponsored_sos: { value: Number(s.sponsored_sos) || 0, delta: 0 },
-                organic_sos: { value: Number(s.organic_sos) || 0, delta: 0 },
-                display_sos: { value: 0, delta: 0 }
-            }));
+            const skus = skuResults.map(s => {
+                const isOwn = Boolean(Number(s.flag) === 1 || validBrandNamesLower.has((s.brand_name || '').toLowerCase().trim()));
+                return {
+                    sku: s.sku_name,
+                    name: s.sku_name,
+                    brand: s.brand_name,
+                    brand_name: s.brand_name,
+                    isOwnBrand: isOwn,
+                    is_my_brand: isOwn,
+                    overall_sos: { value: Number(s.overall_sos) || 0, delta: 0 },
+                    sponsored_sos: { value: Number(s.sponsored_sos) || 0, delta: 0 },
+                    organic_sos: { value: Number(s.organic_sos) || 0, delta: 0 },
+                    display_sos: { value: 0, delta: 0 }
+                };
+            });
 
             return {
                 brands,

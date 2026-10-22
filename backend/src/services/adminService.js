@@ -587,6 +587,11 @@ export const updateUserTabPermissions = async (userIdOrEmail, tabPermissions, re
             }
         }
 
+        // Preserve detailed Insights.kpi configuration if general permissions modal sends boolean
+        if (typeof cleanedPermissions.Insights === 'boolean' && existingFlatPermissions?.Insights?.kpi) {
+            cleanedPermissions.Insights = { access: cleanedPermissions.Insights, kpi: existingFlatPermissions.Insights.kpi };
+        }
+
         const nestedPermissions = toNestedPermissions(cleanedPermissions);
         const jsonStr = JSON.stringify(nestedPermissions).replace(/'/g, "\\'");
 
@@ -662,14 +667,14 @@ export const getDatabaseInsights = async (dbId) => {
             WHERE (toString(db_id) = '${dbId}' OR toString(db_id) = '${precisionLostDbId}')
               AND tab_permissions != ''
               AND status != 'deleted'
-            ORDER BY last_login DESC
+            ORDER BY (position(tab_permissions, 'share_headroom_hotspots') > 0) DESC, last_login DESC
             LIMIT 1
         `;
         const rows = await queryAdminDB(query);
         if (rows && rows.length > 0 && rows[0].tab_permissions) {
             try {
                 const perms = JSON.parse(rows[0].tab_permissions);
-                if (perms && perms.Insights && perms.Insights.kpi) {
+                if (perms && perms.Insights && perms.Insights.kpi && typeof perms.Insights.kpi === 'object') {
                     return perms.Insights.kpi;
                 }
             } catch (e) {
@@ -691,7 +696,7 @@ export const updateDatabaseInsights = async (dbId, insightsKpi) => {
         // Fetch all users for this db_id
         const precisionLostDbId = Number(dbId).toString();
         const query = `
-            SELECT toString(user_id) as user_id, tab_permissions
+            SELECT toString(id) as id, toString(user_id) as user_id, user_email, tab_permissions
             FROM tb_user
             WHERE (toString(db_id) = '${dbId}' OR toString(db_id) = '${precisionLostDbId}')
               AND status != 'deleted'
@@ -700,8 +705,26 @@ export const updateDatabaseInsights = async (dbId, insightsKpi) => {
         console.log(`[AdminService] updateDatabaseInsights: dbId=${dbId}, usersFound=${users?.length}`);
         
         if (!users || users.length === 0) {
-            console.log(`[AdminService] updateDatabaseInsights: No users found, cannot update tab_permissions.`);
-            return { success: false, error: 'No active users found for this client database to apply settings to.' };
+            console.log(`[AdminService] updateDatabaseInsights: No users found, creating default database user.`);
+            try {
+                const dbRows = await queryAdminDB(`SELECT db_name FROM tb_database WHERE (toString(db_id) = '${dbId}' OR toString(db_id) = '${precisionLostDbId}') LIMIT 1`);
+                const dbName = dbRows?.[0]?.db_name || 'client';
+                const defaultPerms = {
+                    Insights: {
+                        access: true,
+                        kpi: { ...insightsKpi }
+                    }
+                };
+                const jsonStr = JSON.stringify(defaultPerms).replace(/'/g, "\\'");
+                await queryAdminDB(`
+                    INSERT INTO tb_user (id, user_id, user_email, user_name, user_role, password_hash, db_id, last_login, created_on, status, ip, access, db_status, tab_permissions, qc_user)
+                    VALUES ('${Date.now()}', '0', '${dbName}_default@trailytics.com', '${dbName} Default', 'user', '', ${dbId}, now(), now(), 'active', '', 1, 'active', '${jsonStr}', 0)
+                `);
+                return { success: true };
+            } catch (createErr) {
+                console.warn('[AdminService] Could not insert default database user row:', createErr.message);
+                return { success: false, error: 'No active users found for this client database to apply settings to.' };
+            }
         }
 
         // Group users by the new tab_permissions string to minimize mutations
@@ -715,10 +738,11 @@ export const updateDatabaseInsights = async (dbId, insightsKpi) => {
                 }
             } catch (e) {}
 
-            if (!perms.Insights) {
-                perms.Insights = { access: true, kpi: {} };
+            // Ensure perms.Insights is an object with access and kpi
+            if (typeof perms.Insights !== 'object' || perms.Insights === null) {
+                perms.Insights = { access: Boolean(perms.Insights), kpi: {} };
             }
-            if (!perms.Insights.kpi) {
+            if (!perms.Insights.kpi || typeof perms.Insights.kpi !== 'object') {
                 perms.Insights.kpi = {};
             }
 
@@ -730,19 +754,19 @@ export const updateDatabaseInsights = async (dbId, insightsKpi) => {
             if (!updateGroups[jsonStr]) {
                 updateGroups[jsonStr] = [];
             }
-            updateGroups[jsonStr].push(user.user_id);
+            updateGroups[jsonStr].push(user.id);
         }
 
         // Execute batch updates
-        for (const [jsonStr, userIds] of Object.entries(updateGroups)) {
-            const userIdsList = userIds.map(id => `'${id}'`).join(',');
+        for (const [jsonStr, rowIds] of Object.entries(updateGroups)) {
+            const idsList = rowIds.map(id => `'${id}'`).join(',');
             const updateQuery = `
                 ALTER TABLE tb_user
                 UPDATE tab_permissions = '${jsonStr}'
-                WHERE toString(user_id) IN (${userIdsList})
+                WHERE toString(id) IN (${idsList})
                 SETTINGS mutations_sync = 1
             `;
-            console.log(`[AdminService] updateDatabaseInsights executing query for ${userIds.length} users...`);
+            console.log(`[AdminService] updateDatabaseInsights executing query for ${rowIds.length} rows...`);
             await queryAdminDB(updateQuery);
             console.log(`[AdminService] updateDatabaseInsights query successful.`);
         }

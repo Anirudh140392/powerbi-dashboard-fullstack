@@ -39,6 +39,10 @@ export const authMiddleware = (req, res, next) => {
                 dbName = overrideDb;
                 req.user.dbName = dbName;
             }
+            const overrideDbId = req.headers['x-db-id'] || req.query.dbId || req.query.db_id;
+            if (overrideDbId) {
+                req.user.dbId = overrideDbId;
+            }
         }
 
         setCurrentDbName(dbName);

@@ -1391,8 +1391,13 @@ const BrandTable = ({
             return { ...anyMatch, rank };
         }
 
+        // If user specifically filtered for competitor brands (not our brand), don't show our brand fallback
+        if (filters?.brands?.length > 0 && !filters.brands.some(b => isOurBrand(null, b))) {
+            return null;
+        }
+
         // Fallback: if our brand has 0 items in competition table, build placeholder
-        const fallbackName = (filters?.brands?.length === 1 && filters.brands[0]) ||
+        const fallbackName = (filters?.brands?.length === 1 && isOurBrand(null, filters.brands[0]) ? filters.brands[0] : '') ||
                              (selectedBrand && selectedBrand !== 'All' ? selectedBrand : '') ||
                              (contextOwnBrands && contextOwnBrands.length > 0 ? contextOwnBrands[0] : '') ||
                              (ourBrands && ourBrands.length > 0 ? ourBrands[0] : '') ||
@@ -1400,7 +1405,7 @@ const BrandTable = ({
                              user?.brand ||
                              'Our Brand';
 
-        if (fallbackName) {
+        if (fallbackName && fallbackName !== 'All') {
             return {
                 name: fallbackName,
                 brand_name: fallbackName,
@@ -1984,7 +1989,13 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
 
     const brandRows = useMemo(() => {
         let rows = apiBrandData;
-        if (filters.brands.length) rows = rows.filter((r) => filters.brands.includes(r.name));
+        if (filters.brands && filters.brands.length) {
+            const allowed = filters.brands.map(b => b.toLowerCase().trim());
+            rows = rows.filter((r) => {
+                const bName = (r.name || r.brand || r.brand_name || '').toLowerCase().trim();
+                return allowed.includes(bName);
+            });
+        }
         return rows;
     }, [apiBrandData, filters.brands]);
 
@@ -1997,7 +2008,13 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 return allowed.some(ab => bName.includes(ab) || ab.includes(bName));
             });
         }
-        if (filters.skus && filters.skus.length) rows = rows.filter((r) => filters.skus.includes(r.name));
+        if (filters.skus && filters.skus.length) {
+            const allowedSkus = filters.skus.map(s => s.toLowerCase().trim());
+            rows = rows.filter((r) => {
+                const sName = (r.name || r.sku || r.sku_name || '').toLowerCase().trim();
+                return allowedSkus.some(as => sName.includes(as) || as.includes(sName));
+            });
+        }
         return rows;
     }, [apiSkuData, filters.brands, filters.skus]);
 
