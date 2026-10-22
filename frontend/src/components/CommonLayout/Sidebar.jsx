@@ -403,7 +403,6 @@ const Sidebar = ({
       // { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       { label: "Ad Auto", path: "https://frontend-mamaearth.onrender.com", icon: <CampaignIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars', 'boat', 'zydus', 'hm_zydus', 'mars_petcare'] },
       { label: "Download Report", path: "/download-report", icon: <CloudDownloadIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "API Logs", path: "/api-logs", icon: <TerminalIcon sx={{ fontSize: '1rem' }} />, showNew: true },
       { label: "Primary Summary", path: "/primary-overview", icon: <DashboardIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['drl'] },
       { label: "Secondary Summary", path: "/secondary-overview", icon: <DashboardIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['drl'] },
     ],

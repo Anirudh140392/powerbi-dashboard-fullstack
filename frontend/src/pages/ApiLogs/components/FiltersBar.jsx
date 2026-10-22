@@ -47,15 +47,12 @@ export default function FiltersBar({
                         onChange={(e) => onChange({ ...filters, date: e.target.value })}
                         className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                     >
-                        {availableOptions.dates?.length > 0 ? (
-                            availableOptions.dates.map((d) => (
-                                <option key={d} value={d}>
-                                    {d}
-                                </option>
-                            ))
-                        ) : (
-                            <option value="">No log dates available</option>
-                        )}
+                        <option value="">All Dates</option>
+                        {availableOptions.dates?.map((d) => (
+                            <option key={d} value={d}>
+                                {d}
+                            </option>
+                        ))}
                     </select>
                 </div>
 

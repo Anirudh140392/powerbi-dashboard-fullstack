@@ -100,6 +100,12 @@ export default defineConfig({
         changeOrigin: true,
         timeout: 10 * 60 * 1000,       // 10 minutes for large report downloads
         proxyTimeout: 10 * 60 * 1000,   // 10 minutes proxy timeout
+        bypass(req) {
+          // Do not proxy frontend SPA routes (like /api-logs) to the backend
+          if (!req.url.startsWith('/api/') && req.url !== '/api') {
+            return req.url;
+          }
+        },
       },
       // Proxy for trailytics_ratings backend API (port 3001)
       // DS frontend calls /ratings-api/... → ratings Express server /api/...
