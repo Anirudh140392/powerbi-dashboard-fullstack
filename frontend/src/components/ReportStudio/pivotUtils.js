@@ -315,9 +315,14 @@ export const buildPivot = (report, fields, config) => {
         excluded: new Set(config.excluded[field.key] || []),
     }));
 
-    // Pass 1: one accumulator per distinct Row × Column path.
+    const { currStart, currEnd, prevStart, prevEnd } = report.periods || {};
+    const hasPeriods = Boolean(currStart && currEnd && prevStart && prevEnd);
+
+    // Pass 1: one accumulator per distinct Row × Column path for current and previous period.
     const leaves = new Map();
     let matchedRows = 0;
+    let currMatchedRows = 0;
+
     for (let i = 0; i < sourceRows; i += 1) {
         const row = report.getRow(i);
         const dimValues = dims.map((dim) => dim.read(row));
@@ -325,10 +330,20 @@ export const buildPivot = (report, fields, config) => {
         if (dimValues.includes(null)) continue;
         let included = true;
         dims.forEach((dim, d) => {
-            dim.seen.add(dimValues[d]);
             if (dim.excluded.has(dimValues[d])) included = false;
         });
         if (!included) continue;
+
+        const rowDate = String(row.date || row.Date || row.DATE || "").slice(0, 10);
+        const isCurrent = !hasPeriods || (rowDate >= currStart && rowDate <= currEnd);
+        const isPrevious = hasPeriods && (rowDate >= prevStart && rowDate <= prevEnd);
+
+        if (!isCurrent && !isPrevious) continue;
+
+        if (isCurrent) {
+            dims.forEach((dim, d) => dim.seen.add(dimValues[d]));
+            currMatchedRows += 1;
+        }
         matchedRows += 1;
 
         const rowPath = dimValues.slice(0, rowCount);
@@ -336,27 +351,46 @@ export const buildPivot = (report, fields, config) => {
         const id = rowPath.join(SEP) + AXIS_SEP + colPath.join(SEP);
         let leaf = leaves.get(id);
         if (!leaf) {
-            leaf = { rowPath, colPath, accs: layout.values.map(newAcc) };
+            leaf = {
+                rowPath,
+                colPath,
+                accs: layout.values.map(newAcc),
+                prevAccs: layout.values.map(newAcc),
+                hasCurrent: false,
+            };
             leaves.set(id, leaf);
         }
+        if (isCurrent) leaf.hasCurrent = true;
         layout.values.forEach(({ field }, vi) => {
             const value = row[field.key];
             if (typeof value !== "number" || !Number.isFinite(value)) return;
-            const acc = leaf.accs[vi];
-            acc.sum += value;
-            acc.count += 1;
-            if (value < acc.min) acc.min = value;
-            if (value > acc.max) acc.max = value;
+            if (isCurrent) {
+                const acc = leaf.accs[vi];
+                acc.sum += value;
+                acc.count += 1;
+                if (value < acc.min) acc.min = value;
+                if (value > acc.max) acc.max = value;
+            }
+            if (isPrevious) {
+                const acc = leaf.prevAccs[vi];
+                acc.sum += value;
+                acc.count += 1;
+                if (value < acc.min) acc.min = value;
+                if (value > acc.max) acc.max = value;
+            }
         });
     }
 
     // Pass 2: roll leaves up into every row-prefix × column-prefix (subtotals and totals).
     const cells = new Map();
+    const prevCells = new Map();
     const rowPaths = new Map();
     const colPaths = new Map();
     for (const leaf of leaves.values()) {
-        rowPaths.set(leaf.rowPath.join(SEP), leaf.rowPath);
-        colPaths.set(leaf.colPath.join(SEP), leaf.colPath);
+        if (!hasPeriods || leaf.hasCurrent) {
+            rowPaths.set(leaf.rowPath.join(SEP), leaf.rowPath);
+            colPaths.set(leaf.colPath.join(SEP), leaf.colPath);
+        }
         for (let r = 0; r <= rowCount; r += 1) {
             const rowKey = leaf.rowPath.slice(0, r).join(SEP);
             for (let c = 0; c <= colCount; c += 1) {
@@ -367,11 +401,21 @@ export const buildPivot = (report, fields, config) => {
                     cells.set(key, accs);
                 }
                 leaf.accs.forEach((acc, vi) => mergeAcc(accs[vi], acc));
+
+                let prevAccs = prevCells.get(key);
+                if (!prevAccs) {
+                    prevAccs = layout.values.map(newAcc);
+                    prevCells.set(key, prevAccs);
+                }
+                leaf.prevAccs.forEach((acc, vi) => mergeAcc(prevAccs[vi], acc));
             }
         }
     }
     const valueAt = (rowPath, colPath, vi) =>
         finalize(cells.get(rowPath.join(SEP) + AXIS_SEP + colPath.join(SEP))?.[vi], layout.values[vi].agg);
+
+    const prevValueAt = (rowPath, colPath, vi) =>
+        finalize(prevCells.get(rowPath.join(SEP) + AXIS_SEP + colPath.join(SEP))?.[vi], layout.values[vi].agg);
 
     // A week, period or month the report only partly covers says so, so its totals aren't misread.
     const { startDate: rangeStart, endDate: rangeEnd } = report;
@@ -388,7 +432,8 @@ export const buildPivot = (report, fields, config) => {
     const colTree = sortTree(buildTree(colPaths.values(), layout.columns, labelOf), byLabel);
     const columns = colCount ? flattenColumns(colTree, config.subtotals) : [];
     if (!colCount || config.grandTotals) columns.push({ type: "grand", path: [] });
-    // Each data column compares with the one before it in the same group.
+
+    // Track sequential previous column for when Date is in Columns
     const lastInGroup = new Map();
     columns.forEach((col) => {
         col.key = `${col.type}${AXIS_SEP}${col.path.join(SEP)}`;
@@ -398,11 +443,29 @@ export const buildPivot = (report, fields, config) => {
         lastInGroup.set(group, col.path);
     });
 
+    const hasDateInColumns = layout.columns.some((f) => f.type === "date");
+
     const changeAt = (rowPath, col, vi) => {
-        if (!col.prevPath) return null;
         const current = valueAt(rowPath, col.path, vi);
-        const previous = valueAt(rowPath, col.prevPath, vi);
-        if (current === null || previous === null) return null;
+        if (current === null || current === undefined) return null;
+
+        let previous = null;
+        if (!hasDateInColumns) {
+            // When Date is NOT in columns (e.g. Platform is in columns),
+            // compare each column (Blinkit, Instamart, Zepto, Grand Total)
+            // to ITS OWN value in the previous period!
+            previous = prevValueAt(rowPath, col.path, vi);
+        } else {
+            // When Date IS in columns, compare to the preceding column in the group;
+            // for the very first column in the group, compare to prevValueAt if available.
+            if (col.prevPath) {
+                previous = valueAt(rowPath, col.prevPath, vi);
+            } else {
+                previous = prevValueAt(rowPath, col.path, vi);
+            }
+        }
+
+        if (previous === null || previous === undefined) return null;
         const unit = changeUnit(layout.values[vi]);
         if (unit === "pp") return { value: current - previous, unit };
         return previous === 0 ? null : { value: ((current - previous) / Math.abs(previous)) * 100, unit };
@@ -455,9 +518,9 @@ export const buildPivot = (report, fields, config) => {
         valuesAxis: config.valuesAxis,
         heatmap: config.heatmap,
         compare: config.compare,
-        canCompare: columns.some((col) => col.prevPath),
-        sourceRows,
-        matchedRows,
+        canCompare: Boolean(layout.values.length > 0 && (hasPeriods || columns.some((col) => col.prevPath))),
+        sourceRows: hasPeriods ? currMatchedRows : sourceRows,
+        matchedRows: hasPeriods ? currMatchedRows : matchedRows,
         activeFilters: dims.filter((dim) => [...dim.excluded].some((v) => dim.seen.has(v))).length,
         options,
         rowTree,
@@ -495,7 +558,7 @@ export const buildPivotCsv = (pivot) => {
     // Output columns: every column × value (or × the line's value, on rows), each optionally followed by its change.
     const outputs = columns.flatMap((col) =>
         (onRows ? [null] : layout.values.map((_, vi) => vi)).flatMap((vi) =>
-            pivot.compare && col.prevPath ? [{ col, vi }, { col, vi, change: true }] : [{ col, vi }]
+            pivot.compare ? [{ col, vi }, { col, vi, change: true }] : [{ col, vi }]
         )
     );
     const valueHeader = ({ vi, change }) => {

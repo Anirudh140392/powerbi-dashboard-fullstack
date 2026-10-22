@@ -18,7 +18,7 @@ import ReportPreview from "../../components/ReportStudio/ReportPreview";
 import useReportConfig from "../../components/ReportStudio/useReportConfig";
 import usePivotConfig from "../../components/ReportStudio/usePivotConfig";
 import { FIELD_GROUPS, FIELDS_BY_KEY, getTemplateCatalog, isMarsAccount } from "../../components/ReportStudio/reportStudioConfig";
-import { lastPeriods, resolvePeriodRange } from "../../components/ReportStudio/fiscalCalendar";
+import { FISCAL_PERIODS, lastPeriods, resolvePeriodRange } from "../../components/ReportStudio/fiscalCalendar";
 import { buildFileName, isFieldAvailable } from "../../components/ReportStudio/reportStudioUtils";
 import { buildPivot, buildPivotCsv, PIVOT_SOURCE_ROW_LIMIT, resolvePivotLayout } from "../../components/ReportStudio/pivotUtils";
 import { downloadStudioCsv, fetchStudioPreview, fetchStudioRows } from "../../api/reportsService";
@@ -57,15 +57,16 @@ const markUnavailable = (fields, unavailable = []) =>
  * { totalRows, getRow(index), startDate, endDate }. A page holds rows from
  * `offset` on; a pivot request too large to send holds none.
  */
-const toReport = ({ totalRows, rows = [] }, { offset = 0, startDate, endDate }) => ({
+const toReport = ({ totalRows, rows = [] }, { offset = 0, startDate, endDate, periods }) => ({
     totalRows,
     getRow: (index) => rows[index - offset] || {},
     startDate,
     endDate,
+    periods,
 });
 
 export default function ReportStudio() {
-    const { timeStart, timeEnd, datesFetched } = useContext(FilterContext);
+    const { timeStart, timeEnd, datesFetched, compareStart, compareEnd } = useContext(FilterContext);
     const { user } = useAuth();
     // Mars gets the Special templates and its fiscal reporting periods; everyone else the General templates.
     const hasFiscalPeriods = isMarsAccount(user?.dbName);
@@ -101,14 +102,62 @@ export default function ReportStudio() {
     const request = useMemo(() => {
         if (!datesReady || !debouncedConfig.sources.length) return null;
         const fields = supportedFields(debouncedConfig);
+        const currStartStr = range.start.format("YYYY-MM-DD");
+        const currEndStr = range.end.format("YYYY-MM-DD");
+
+        // Calculate previous period dates
+        let prevStartStr = null;
+        let prevEndStr = null;
+
+        if (hasFiscalPeriods && period.mode === "fiscal") {
+            const fromIdx = FISCAL_PERIODS.findIndex((p) => p.id === period.from);
+            const toIdx = FISCAL_PERIODS.findIndex((p) => p.id === period.to);
+            if (fromIdx >= 0 && toIdx >= fromIdx) {
+                const count = toIdx - fromIdx + 1;
+                if (fromIdx >= count && FISCAL_PERIODS[fromIdx - count]) {
+                    prevStartStr = FISCAL_PERIODS[fromIdx - count].start;
+                    prevEndStr = FISCAL_PERIODS[toIdx - count].end;
+                }
+            }
+        } else if (compareStart && compareEnd) {
+            prevStartStr = dayjs(compareStart).format("YYYY-MM-DD");
+            prevEndStr = dayjs(compareEnd).format("YYYY-MM-DD");
+        }
+
+        if (!prevStartStr || !prevEndStr) {
+            const durationDays = dayjs(currEndStr).diff(dayjs(currStartStr), "day") + 1;
+            const isFullMonth = dayjs(currStartStr).date() === 1 && dayjs(currEndStr).isSame(dayjs(currEndStr).endOf("month"), "day");
+            if (isFullMonth) {
+                prevStartStr = dayjs(currStartStr).subtract(1, "month").startOf("month").format("YYYY-MM-DD");
+                prevEndStr = dayjs(currStartStr).subtract(1, "month").endOf("month").format("YYYY-MM-DD");
+            } else {
+                prevEndStr = dayjs(currStartStr).subtract(1, "day").format("YYYY-MM-DD");
+                prevStartStr = dayjs(prevEndStr).subtract(durationDays - 1, "day").format("YYYY-MM-DD");
+            }
+        }
+
+        const fetchStartDate = view === "custom" && prevStartStr && prevStartStr < currStartStr
+            ? prevStartStr
+            : currStartStr;
+
         const params = {
             sources: debouncedConfig.sources,
             columns: fields.map((f) => f.key),
-            startDate: range.start.format("YYYY-MM-DD"),
-            endDate: range.end.format("YYYY-MM-DD"),
+            startDate: fetchStartDate,
+            endDate: currEndStr,
         };
-        return { fields, params, key: JSON.stringify(params) };
-    }, [debouncedConfig, datesReady, range]);
+        return {
+            fields,
+            params,
+            key: JSON.stringify(params),
+            periods: {
+                currStart: currStartStr,
+                currEnd: currEndStr,
+                prevStart: prevStartStr,
+                prevEnd: prevEndStr,
+            },
+        };
+    }, [debouncedConfig, datesReady, range, hasFiscalPeriods, period, compareStart, compareEnd, view]);
 
     // Paging restarts whenever the report changes.
     const page = pageState.key === request?.key ? pageState.page : 1;
@@ -130,7 +179,12 @@ export default function ReportStudio() {
                     view,
                     status: "ready",
                     fields: markUnavailable(fields, data.unavailable),
-                    report: toReport(data, { offset, startDate: params.startDate, endDate: params.endDate }),
+                    report: toReport(data, {
+                        offset,
+                        startDate: request.periods?.currStart || params.startDate,
+                        endDate: request.periods?.currEnd || params.endDate,
+                        periods: request.periods,
+                    }),
                 });
             })
             .catch((error) => {

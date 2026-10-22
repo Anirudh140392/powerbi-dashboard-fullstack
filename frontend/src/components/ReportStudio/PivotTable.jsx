@@ -267,14 +267,14 @@ export default function PivotTable({ pivot, config, actions, isUpdating }) {
         const v = values[vi];
         const value = valueAt(rowPath, col.path, vi);
         const style = pivot.heatmap ? heatmapStyle(v, value, leafRow && col.type === "data" ? valueRanges[vi] : null) : undefined;
-        const change = pivot.compare && col.prevPath ? changeAt(rowPath, col, vi) : null;
+        const change = pivot.compare ? changeAt(rowPath, col, vi) : null;
         const direction = change && changeDirection(v, change);
         return (
             <td key={key} className={className} style={style}>
                 {formatPivotValue(v, value)}
                 {/* Comparable columns keep the slot even when empty, so values stay aligned. */}
-                {pivot.compare && col.prevPath && (
-                    <span className={`pv-delta${direction?.good === true ? " is-good" : direction?.good === false ? " is-bad" : ""}`} title="Change on the previous column">
+                {pivot.compare && (
+                    <span className={`pv-delta${direction?.good === true ? " is-good" : direction?.good === false ? " is-bad" : ""}`} title="Change vs previous period">
                         {change ? `${DIRECTION_ARROWS[direction.dir]} ${formatChange(change)}` : ""}
                     </span>
                 )}
@@ -352,7 +352,7 @@ export default function PivotTable({ pivot, config, actions, isUpdating }) {
                             control={<Switch size="small" checked={pivot.compare && pivot.canCompare} onChange={() => actions.toggleOption("compare")} />}
                             label="Change vs previous"
                             disabled={!pivot.canCompare}
-                            title={pivot.canCompare ? "Show each value's change on the column before it" : "Put Date (or another dimension) in Columns to compare"}
+                            title={pivot.canCompare ? "Show each value's change vs previous period" : "Add a KPI to Values to compare"}
                             sx={switchLabelSx}
                         />
                         <FormControlLabel
