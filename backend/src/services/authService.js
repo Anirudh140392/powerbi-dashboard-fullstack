@@ -175,17 +175,17 @@ export async function resolveUserPermissionsForDb(email, targetDbId, targetDbNam
     try {
         // Step 1: Query user's records from tb_user (status != 'deleted')
         const userRows = await queryAdminDB(
-            `SELECT toString(db_id) as db_id, db_status, tab_permissions, qc_user, last_login 
+            `SELECT toString(db_id) as db_id, db_status, tab_permissions, qc_user, last_login, created_on 
              FROM tb_user 
              WHERE lower(user_email) = lower({email:String}) 
                AND status != 'deleted'
-             ORDER BY last_login DESC, created_on DESC`,
+             ORDER BY created_on DESC, last_login DESC`,
             { email: cleanEmail }
         );
 
+        let matchedUserRow = null;
         if (userRows && userRows.length > 0) {
             // Find a row matching cleanDbId with non-empty tab_permissions
-            let matchedUserRow = null;
             if (cleanDbId) {
                 matchedUserRow = userRows.find(r => isDbIdMatch(r.db_id, cleanDbId) && r.tab_permissions && r.tab_permissions.trim() !== '');
                 // If not found with non-empty tab_permissions, match any row for db_id
@@ -213,28 +213,66 @@ export async function resolveUserPermissionsForDb(email, targetDbId, targetDbNam
 
         // Step 2: Fallback to db_id general default tab_permissions across any user on THIS database
         if (cleanDbId && Object.keys(tabPermissions).length === 0) {
+            const prefix = cleanDbId.length >= 15 ? cleanDbId.slice(0, 15) : cleanDbId;
             const dbRows = await queryAdminDB(
-                `SELECT toString(db_id) as db_id, db_status, tab_permissions 
+                `SELECT toString(db_id) as db_id, db_status, tab_permissions, qc_user 
                  FROM tb_user 
-                 WHERE tab_permissions != '' 
+                 WHERE (toString(db_id) = '${cleanDbId}' OR toString(db_id) LIKE '${prefix}%' OR abs(toInt128OrZero(toString(db_id)) - toInt128OrZero('${cleanDbId}')) < 1000)
+                   AND tab_permissions != '' 
                    AND status != 'deleted' 
-                 ORDER BY last_login DESC, created_on DESC 
-                 LIMIT 50`
+                 ORDER BY created_on DESC, last_login DESC 
+                 LIMIT 20`
             );
             if (dbRows && dbRows.length > 0) {
-                const matchedDbRow = dbRows.find(r => isDbIdMatch(r.db_id, cleanDbId));
-                if (matchedDbRow && matchedDbRow.tab_permissions && matchedDbRow.tab_permissions.trim() !== '') {
+                const matchedDbRow = dbRows.find(r => isDbIdMatch(r.db_id, cleanDbId) && r.tab_permissions && r.tab_permissions.trim() !== '');
+                if (matchedDbRow) {
                     rawTabPermissions = matchedDbRow.tab_permissions.trim();
                     try {
                         tabPermissions = toFlatPermissions(JSON.parse(rawTabPermissions));
                     } catch (_) {}
                     matchedDbId = matchedDbRow.db_id || cleanDbId;
+                    if (dbStatusBool === undefined || !matchedUserRow) {
+                        dbStatusBool = (!matchedDbRow.db_status || matchedDbRow.db_status === '' || matchedDbRow.db_status === 'active');
+                    }
+                    if (qcUserVal === 0 && matchedDbRow.qc_user) {
+                        qcUserVal = Number(matchedDbRow.qc_user) || 0;
+                    }
                 }
             }
         }
 
-        // Step 3: Fallback to user_email across any db_id if still empty
-        if (Object.keys(tabPermissions).length === 0 && userRows && userRows.length > 0) {
+        // Step 2b: Fallback to workspace email matching targetDbName if tab_permissions still empty
+        if (targetDbName && Object.keys(tabPermissions).length === 0) {
+            const cleanName = targetDbName.toLowerCase().replace(/'/g, "\\'");
+            const nameRows = await queryAdminDB(
+                `SELECT toString(db_id) as db_id, db_status, tab_permissions, qc_user 
+                 FROM tb_user 
+                 WHERE (lower(user_email) LIKE '${cleanName}%@trailytics.com' OR lower(user_name) LIKE '%${cleanName}%')
+                   AND tab_permissions != '' 
+                   AND status != 'deleted' 
+                 ORDER BY created_on DESC, last_login DESC 
+                 LIMIT 10`
+            );
+            if (nameRows && nameRows.length > 0) {
+                const matchedNameRow = nameRows.find(r => r.tab_permissions && r.tab_permissions.trim() !== '');
+                if (matchedNameRow) {
+                    rawTabPermissions = matchedNameRow.tab_permissions.trim();
+                    try {
+                        tabPermissions = toFlatPermissions(JSON.parse(rawTabPermissions));
+                    } catch (_) {}
+                    matchedDbId = matchedNameRow.db_id || cleanDbId;
+                    if (dbStatusBool === undefined || !matchedUserRow) {
+                        dbStatusBool = (!matchedNameRow.db_status || matchedNameRow.db_status === '' || matchedNameRow.db_status === 'active');
+                    }
+                    if (qcUserVal === 0 && matchedNameRow.qc_user) {
+                        qcUserVal = Number(matchedNameRow.qc_user) || 0;
+                    }
+                }
+            }
+        }
+
+        // Step 3: Only fallback to user_email across any db_id if neither cleanDbId nor targetDbName was specified
+        if (!cleanDbId && !targetDbName && Object.keys(tabPermissions).length === 0 && userRows && userRows.length > 0) {
             const fallbackRow = userRows.find(r => r.tab_permissions && r.tab_permissions.trim() !== '');
             if (fallbackRow) {
                 rawTabPermissions = fallbackRow.tab_permissions.trim();

@@ -184,6 +184,33 @@ export const AuthProvider = ({ children }) => {
         verifySession();
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Periodically / on window focus re-sync permissions so admin toggles apply immediately
+    useEffect(() => {
+        let lastVerify = Date.now();
+        const handleFocus = async () => {
+            const token = sessionStorage.getItem("token");
+            const storedLoggedIn = sessionStorage.getItem("isLoggedIn") === "true";
+            if (!storedLoggedIn || !token) return;
+            if (Date.now() - lastVerify < 10000) return; // 10s throttle
+            lastVerify = Date.now();
+            try {
+                const response = await axios.get(`${API_BASE}/auth/verify`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    withCredentials: true,
+                });
+                if (response.data.success && response.data.user) {
+                    const userData = response.data.user;
+                    if (userData.role) userData.role = userData.role.toLowerCase();
+                    setUser(userData);
+                    sessionStorage.setItem("user", JSON.stringify(userData));
+                }
+            } catch (_) {}
+        };
+
+        window.addEventListener("focus", handleFocus);
+        return () => window.removeEventListener("focus", handleFocus);
+    }, []);
+
     const loginWithToken = (token, userData) => {
         if (userData?.role) {
             userData.role = userData.role.toLowerCase();
