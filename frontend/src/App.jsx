@@ -25,6 +25,7 @@ import LoginPage from "./pages/Login/LoginPage";
 import InventeryConceptMains from "./pages/InventeryConcept/InventeryConceptMains";
 import ScheduledReports from "./pages/Reports/ScheduledReports";
 import DownloadReport from "./pages/Reports/DownloadReport";
+import ReportStudio from "./pages/ReportStudio/ReportStudio";
 import GeoIntelligenceMap from "./pages/GeoAnalysis/GeoIntelligenceMap.jsx";
 import Insights from "./pages/Insights/Insights";
 import CompareSkuMatrix from "./components/ControlTower/WatchTower/CompareSkuMatrix";
@@ -86,6 +87,12 @@ function AppContent() {
             <Route path="/watch-tower" element={
               <ProtectedRoute>
                 <WatchTower />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/report-studio" element={
+              <ProtectedRoute>
+                <ReportStudio />
               </ProtectedRoute>
             } />
 

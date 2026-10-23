@@ -4,7 +4,7 @@ import {
     previewPdpReport, getPromoViolationFilterOptions,
     downloadPromoViolationReport, previewPromoViolationReport,
     getPriceViolationFilterOptions, downloadPriceViolationReport,
-    previewPriceViolationReport
+    previewPriceViolationReport, proxyReportStudio
 } from '../controllers/reportsController.js';
 
 export default (app) => {
@@ -21,5 +21,6 @@ export default (app) => {
     app.get('/api/reports/price-violation-filters', getPriceViolationFilterOptions);
     app.get('/api/reports/download-price-violation-report', downloadPriceViolationReport);
     app.get('/api/reports/preview-price-violation-report', previewPriceViolationReport);
+    app.get('/api/reports/studio/:action', proxyReportStudio);
 };
 

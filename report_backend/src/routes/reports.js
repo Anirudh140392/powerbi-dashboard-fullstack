@@ -7,6 +7,7 @@ import {
     getPriceViolationFilterOptions, downloadPriceViolationReport,
     previewPriceViolationReport
 } from '../controllers/reportsController.js';
+import { previewStudioReport, getStudioRows, exportStudioReport } from '../controllers/reportStudioController.js';
 import { authMiddleware } from '../helper/authMiddleware.js';
 
 const router = express.Router();
@@ -26,5 +27,8 @@ router.get('/preview-promo-violation-report', previewPromoViolationReport);
 router.get('/price-violation-filters', getPriceViolationFilterOptions);
 router.get('/download-price-violation-report', downloadPriceViolationReport);
 router.get('/preview-price-violation-report', previewPriceViolationReport);
+router.get('/studio/preview', previewStudioReport);
+router.get('/studio/rows', getStudioRows);
+router.get('/studio/export', exportStudioReport);
 
 export default router;

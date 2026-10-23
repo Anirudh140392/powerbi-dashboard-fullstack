@@ -25,6 +25,7 @@ import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetition
 import MarketShareDrilldown from "./MarketShareDrilldown";
 import SubCategoryMarket from "./SubCategoryMarket";
 import MarketShareShareTable from "./MarketShareShareTable";
+import MarketShareProductDrilldown from "./MarketShareProductDrilldown";
 
 const marketShareKpis = [
   {
@@ -539,6 +540,9 @@ export default function MarketShareAnalysis() {
 
       {/* Category & Sub-Category Share Table — Mamaearth only */}
       {isMamaearth && <MarketShareShareTable loading={loading} />}
+
+      {/* Platform > Category > Brand > Product Drilldown Hierarchy View Segment */}
+      <MarketShareProductDrilldown />
 
       {/* <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-2">
         <div className="text-sm font-semibold">

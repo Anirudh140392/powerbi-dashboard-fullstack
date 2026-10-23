@@ -28,7 +28,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, BrainCircuit, Loader2, Sparkles, RefreshCw } from "lucide-react";
-import { buildAISegments, SIGNAL_META } from "../../pages/Insights/Insights";
+import { buildAISegments, SIGNAL_META, checkIsInsightEmpty, getSignalConditionInfo } from "../../pages/Insights/Insights";
 
 // ─── Helpers (copied from Insights.jsx so this file is self-contained) ────────
 
@@ -157,13 +157,16 @@ RULES:
    - New Market Entry → "New Entrant", "Market Expansion", "Threat Assessment", "Action"`;
 
     // ── User Prompt ───────────────────────────────────────────────────────────
+    const condInfo = getSignalConditionInfo(moduleType);
     const userPrompt = isEmptySignal
         ? `Client: **${clientName}**
 Module: ${moduleType}
-Data Status: EMPTY — no actionable data detected for this signal.
-Total Financial Impact: ${impactStr}
+Data Status: CONDITION NOT REACHED — no threshold breach or anomaly detected for this signal rule.
+Evaluated Trigger Rule: ${condInfo.condition}
+Condition Message: ${condInfo.shortMessage}
+Total Financial Impact: ₹0 (No financial loss)
 
-Generate 4 strategic "monitoring" insight bullets appropriate for an empty ${moduleType} signal. Focus on what ${clientName} should watch for and prepare.`
+Generate 4 strategic "monitoring" insight bullets confirming that the condition was not reached, the trigger rule evaluated was clear, operations are within normal healthy thresholds, and what ${clientName} should keep monitoring.`
         : `Client: **${clientName}**
 Module: ${moduleType}
 Total Financial Impact: ${impactStr}
@@ -184,6 +187,15 @@ Generate 4 precise, high-value insight bullets for the AI Insights panel.`;
  * Returns 4 segments in the same shape as the Claude JSON response.
  */
 const staticFallback = (insight) => {
+    if (checkIsInsightEmpty(insight)) {
+        const cond = getSignalConditionInfo(insight.type);
+        return [
+            { label: "Status", text: cond.shortMessage },
+            { label: "Trigger Rule", text: `Rule evaluated: ${cond.condition}` },
+            { label: "Impact", text: "Zero estimated revenue loss or operational penalty under current parameters." },
+            { label: "Action", text: "AI engine continues active real-time monitoring across all retail channels." },
+        ];
+    }
     const brand  = insight.brandName || "Brand";
     const ev     = (insight.evidence || [])[0] || {};
     const impact = formatINRCompact(insight.impactInr || 0);
