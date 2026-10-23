@@ -3,7 +3,9 @@ import {
     getReportFilterOptions, downloadReport, getAvailableReportTypes,
     getReportBuilderOptions, getPdpReportFilters, downloadPdpReport,
     previewPdpReport, getPromoViolationFilterOptions,
-    downloadPromoViolationReport, previewPromoViolationReport
+    downloadPromoViolationReport, previewPromoViolationReport,
+    getPriceViolationFilterOptions, downloadPriceViolationReport,
+    previewPriceViolationReport
 } from '../controllers/reportsController.js';
 import { authMiddleware } from '../helper/authMiddleware.js';
 
@@ -21,5 +23,8 @@ router.get('/preview-pdp-report', previewPdpReport);
 router.get('/promo-violation-filters', getPromoViolationFilterOptions);
 router.get('/download-promo-violation-report', downloadPromoViolationReport);
 router.get('/preview-promo-violation-report', previewPromoViolationReport);
+router.get('/price-violation-filters', getPriceViolationFilterOptions);
+router.get('/download-price-violation-report', downloadPriceViolationReport);
+router.get('/preview-price-violation-report', previewPriceViolationReport);
 
 export default router;

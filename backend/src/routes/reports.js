@@ -2,7 +2,9 @@ import {
     getReportFilterOptions, downloadReport, getAvailableReportTypes,
     getReportBuilderOptions, getPdpReportFilters, downloadPdpReport,
     previewPdpReport, getPromoViolationFilterOptions,
-    downloadPromoViolationReport, previewPromoViolationReport
+    downloadPromoViolationReport, previewPromoViolationReport,
+    getPriceViolationFilterOptions, downloadPriceViolationReport,
+    previewPriceViolationReport
 } from '../controllers/reportsController.js';
 
 export default (app) => {
@@ -16,5 +18,8 @@ export default (app) => {
     app.get('/api/reports/promo-violation-filters', getPromoViolationFilterOptions);
     app.get('/api/reports/download-promo-violation-report', downloadPromoViolationReport);
     app.get('/api/reports/preview-promo-violation-report', previewPromoViolationReport);
+    app.get('/api/reports/price-violation-filters', getPriceViolationFilterOptions);
+    app.get('/api/reports/download-price-violation-report', downloadPriceViolationReport);
+    app.get('/api/reports/preview-price-violation-report', previewPriceViolationReport);
 };
 

@@ -44,6 +44,12 @@ axiosInstance.interceptors.request.use(
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+
+        const activeWorkspaceDb = sessionStorage.getItem("activeWorkspaceDb");
+        if (activeWorkspaceDb) {
+            config.headers["x-db-name"] = activeWorkspaceDb;
+        }
+
         return config;
     },
     (error) => {

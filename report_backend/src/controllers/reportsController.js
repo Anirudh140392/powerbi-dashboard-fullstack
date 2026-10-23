@@ -1623,3 +1623,270 @@ export const downloadPromoViolationReport = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+/**
+ * ─────────────────────────────────────────────────────────────
+ * Price Violation Report Logic
+ * Tables: emami_mrp_master & rb_pdp_olap
+ * Condition: rb_pdp_olap.MRP > emami_mrp_master.Price
+ * Columns: sku, web_pid, location, Mrp_master, current_mrp, selling_price
+ * ─────────────────────────────────────────────────────────────
+ */
+
+async function resolvePriceViolationTables() {
+    const currentDb = (getCurrentDbName() || '').toLowerCase().trim();
+
+    // Price Violation report is strictly for Emami database
+    if (!currentDb.includes('emami')) {
+        return { pdpTable: null, mrpTable: null };
+    }
+
+    const pdpTable = (await checkTableExists(`${currentDb}.rb_pdp_olap`))
+        ? `${currentDb}.rb_pdp_olap`
+        : (await checkTableExists('rb_pdp_olap'))
+            ? 'rb_pdp_olap'
+            : 'emami.rb_pdp_olap';
+
+    const mrpTable = (await checkTableExists(`${currentDb}.emami_mrp_master`))
+        ? `${currentDb}.emami_mrp_master`
+        : (await checkTableExists('emami_mrp_master'))
+            ? 'emami_mrp_master'
+            : 'emami.emami_mrp_master';
+
+    return { pdpTable, mrpTable };
+}
+
+async function fetchAndProcessPriceViolationData(reqQuery) {
+    const { pdpTable, mrpTable } = await resolvePriceViolationTables();
+    if (!pdpTable || !mrpTable) {
+        return [];
+    }
+    const { platform, location, sku, web_pid, webPid, startDate, endDate } = reqQuery;
+
+    const conditions = ['p.MRP > m.Mrp_master'];
+
+    if (platform && platform !== 'All' && !platform.startsWith('All ') && platform.trim() !== '') {
+        const items = platform.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+        conditions.push(`lower(trim(p.Platform)) IN (${items})`);
+    }
+    if (location && location !== 'All' && !location.startsWith('All ') && location.trim() !== '') {
+        const items = location.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+        conditions.push(`lower(trim(p.Location)) IN (${items})`);
+    }
+    if (sku && sku !== 'All' && !sku.startsWith('All ') && sku.trim() !== '') {
+        const items = sku.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+        conditions.push(`lower(trim(m.sku)) IN (${items})`);
+    }
+    const pidVal = web_pid || webPid;
+    if (pidVal && pidVal !== 'All' && !pidVal.startsWith('All ') && pidVal.trim() !== '') {
+        const items = pidVal.split(',').map(v => `'${v.trim().replace(/'/g, "''")}'`).join(', ');
+        conditions.push(`toString(p.Web_Pid) IN (${items})`);
+    }
+    if (startDate && endDate) {
+        conditions.push(`toDate(p.DATE) >= '${startDate}' AND toDate(p.DATE) <= '${endDate}'`);
+    } else if (startDate) {
+        conditions.push(`toDate(p.DATE) >= '${startDate}'`);
+    } else if (endDate) {
+        conditions.push(`toDate(p.DATE) <= '${endDate}'`);
+    }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    const query = `
+        WITH latest_mrp AS (
+            SELECT 
+                toString(web_pid) AS mrp_web_pid,
+                lower(trim(platform_name)) AS mrp_platform,
+                any(\`Sku- Final\`) AS sku,
+                argMax(Price, Year * 100 + Month) AS Mrp_master
+            FROM ${mrpTable}
+            WHERE Price IS NOT NULL AND Price > 0
+            GROUP BY mrp_web_pid, mrp_platform
+        )
+        SELECT 
+            m.sku AS sku,
+            toString(p.Web_Pid) AS web_pid,
+            p.Location AS location,
+            round(toFloat64(m.Mrp_master), 2) AS Mrp_master,
+            round(toFloat64(p.MRP), 2) AS current_mrp,
+            round(toFloat64(p.Selling_Price), 2) AS selling_price,
+            p.Platform AS platform,
+            formatDateTime(p.DATE, '%Y-%m-%d') AS date,
+            round(toFloat64(p.MRP) - toFloat64(m.Mrp_master), 2) AS price_violation
+        FROM ${pdpTable} AS p
+        INNER JOIN latest_mrp AS m 
+            ON toString(p.Web_Pid) = m.mrp_web_pid
+            AND lower(trim(p.Platform)) = m.mrp_platform
+        ${whereClause}
+        ORDER BY p.DATE DESC, price_violation DESC
+    `;
+
+    const rows = await queryClickHouse(query);
+    return rows;
+}
+
+export const getPriceViolationFilterOptions = async (req, res) => {
+    try {
+        const { pdpTable, mrpTable } = await resolvePriceViolationTables();
+        if (!pdpTable || !mrpTable) {
+            return res.json({ platforms: [], locations: [], skus: [], webPids: [], minDate: null, maxDate: null });
+        }
+        const { platform, location, sku, web_pid, webPid, startDate, endDate } = req.query;
+
+        const buildWhere = (excludeField) => {
+            const conds = ['p.MRP > m.Mrp_master'];
+
+            const addIn = (field, col, val) => {
+                if (excludeField === field || !val || val === 'All' || val.startsWith('All ') || val.trim() === '') return;
+                const items = val.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+                conds.push(`lower(trim(${col})) IN (${items})`);
+            };
+
+            addIn('platform', 'p.Platform', platform);
+            addIn('location', 'p.Location', location);
+            addIn('sku', 'm.sku', sku);
+
+            const pidVal = web_pid || webPid;
+            if (excludeField !== 'web_pid' && pidVal && pidVal !== 'All' && !pidVal.startsWith('All ') && pidVal.trim() !== '') {
+                const items = pidVal.split(',').map(v => `'${v.trim().replace(/'/g, "''")}'`).join(', ');
+                conds.push(`toString(p.Web_Pid) IN (${items})`);
+            }
+
+            if (startDate && endDate) {
+                conds.push(`toDate(p.DATE) >= '${startDate}' AND toDate(p.DATE) <= '${endDate}'`);
+            }
+
+            return conds.length > 0 ? 'WHERE ' + conds.join(' AND ') : '';
+        };
+
+        const cte = `
+            WITH latest_mrp AS (
+                SELECT 
+                    toString(web_pid) AS mrp_web_pid,
+                    lower(trim(platform_name)) AS mrp_platform,
+                    any(\`Sku- Final\`) AS sku,
+                    argMax(Price, Year * 100 + Month) AS Mrp_master
+                FROM ${mrpTable}
+                WHERE Price IS NOT NULL AND Price > 0
+                GROUP BY mrp_web_pid, mrp_platform
+            )
+        `;
+
+        const baseFrom = `
+            FROM ${pdpTable} AS p
+            INNER JOIN latest_mrp AS m 
+                ON toString(p.Web_Pid) = m.mrp_web_pid
+                AND lower(trim(p.Platform)) = m.mrp_platform
+        `;
+
+        const platformQuery = `${cte} SELECT DISTINCT p.Platform AS platform ${baseFrom} ${buildWhere('platform')} AND p.Platform != '' AND p.Platform IS NOT NULL ORDER BY platform`;
+        const locationQuery = `${cte} SELECT DISTINCT p.Location AS location ${baseFrom} ${buildWhere('location')} AND p.Location != '' AND p.Location IS NOT NULL ORDER BY location`;
+        const skuQuery = `${cte} SELECT DISTINCT m.sku AS sku ${baseFrom} ${buildWhere('sku')} AND m.sku != '' AND m.sku IS NOT NULL ORDER BY sku`;
+        const webPidQuery = `${cte} SELECT DISTINCT toString(p.Web_Pid) AS web_pid ${baseFrom} ${buildWhere('web_pid')} AND p.Web_Pid != '' AND p.Web_Pid IS NOT NULL ORDER BY web_pid`;
+        const dateRangeQuery = `${cte} SELECT formatDateTime(MIN(p.DATE), '%Y-%m-%d') AS minDate, formatDateTime(MAX(p.DATE), '%Y-%m-%d') AS maxDate ${baseFrom} ${buildWhere()}`;
+
+        const [platformsRes, locationsRes, skusRes, webPidsRes, dateRangeRes] = await Promise.all([
+            queryClickHouse(platformQuery).catch(() => []),
+            queryClickHouse(locationQuery).catch(() => []),
+            queryClickHouse(skuQuery).catch(() => []),
+            queryClickHouse(webPidQuery).catch(() => []),
+            queryClickHouse(dateRangeQuery).catch(() => []),
+        ]);
+
+        const platforms = platformsRes.map(r => r.platform).filter(Boolean);
+        const locations = locationsRes.map(r => r.location).filter(Boolean);
+        const skus = skusRes.map(r => r.sku).filter(Boolean);
+        const webPids = webPidsRes.map(r => r.web_pid).filter(Boolean);
+        const minDate = dateRangeRes?.[0]?.minDate || null;
+        const maxDate = dateRangeRes?.[0]?.maxDate || null;
+
+        res.json({ platforms, locations, skus, webPids, minDate, maxDate });
+    } catch (error) {
+        console.error('[getPriceViolationFilterOptions] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const previewPriceViolationReport = async (req, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
+        const offset = (page - 1) * limit;
+
+        const allRows = await fetchAndProcessPriceViolationData(req.query);
+        const totalCount = allRows.length;
+        const paginatedRows = allRows.slice(offset, offset + limit);
+
+        const uniqueSkus = new Set(allRows.map(r => r.sku)).size;
+        const uniquePlatforms = new Set(allRows.map(r => r.platform)).size;
+        const maxViolation = allRows.reduce((max, r) => Math.max(max, r.price_violation || 0), 0);
+
+        res.json({
+            rows: paginatedRows,
+            totalCount,
+            page,
+            limit,
+            totalPages: Math.ceil(totalCount / limit),
+            summary: {
+                totalBreaches: totalCount,
+                uniqueSkus,
+                uniquePlatforms,
+                maxViolation: Math.round(maxViolation * 100) / 100
+            }
+        });
+    } catch (error) {
+        console.error('[previewPriceViolationReport] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const downloadPriceViolationReport = async (req, res) => {
+    try {
+        const { pdpTable, mrpTable } = await resolvePriceViolationTables();
+        if (!pdpTable || !mrpTable) {
+            return res.status(403).json({ error: 'Price Violation report is only available for the Emami dashboard.' });
+        }
+        const allRows = await fetchAndProcessPriceViolationData(req.query);
+
+        const headerRow = [
+            "SKU",
+            "Web PID",
+            "Platform",
+            "Location",
+            "Date",
+            "MRP Master",
+            "Current MRP",
+            "Selling Price",
+            "Price Violation (Diff)"
+        ];
+
+        const dataRows = allRows.map(row => [
+            row.sku || "",
+            row.web_pid || "",
+            row.platform || "",
+            row.location || "",
+            row.date || "",
+            row.Mrp_master !== undefined ? row.Mrp_master : "",
+            row.current_mrp !== undefined ? row.current_mrp : "",
+            row.selling_price !== undefined ? row.selling_price : "",
+            row.price_violation !== undefined ? row.price_violation : ""
+        ]);
+
+        const sheetData = [headerRow, ...dataRows];
+        const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Price Violation Report");
+
+        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        const fileName = `Price_Violation_Report_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`;
+
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.send(buffer);
+    } catch (error) {
+        console.error('[downloadPriceViolationReport] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+

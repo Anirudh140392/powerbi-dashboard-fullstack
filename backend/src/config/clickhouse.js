@@ -113,7 +113,7 @@ export const queryClickHouse = async (query, params = {}, clickhouse_settings = 
         const dbName = getCurrentDbName();
         // LOG ALL QUERIES FOR DEBUGGING
         console.log(`[ClickHouse Debug] DB: ${dbName} | Query: ${query.replace(/\s+/g, ' ')}`);
-        
+
         const queryOptions = {
             query,
             query_params: params,
