@@ -253,7 +253,22 @@ export default function ReportBuilder({
   const [filters, setFilters] = useState(["Category", "Brand", "City"]);
   const [showFilterOpts, setShowFilterOpts] = useState(false);
   const isDrl = user?.dbName?.toLowerCase() === 'drl';
-  const [dataMode, setDataMode] = useState("aggregated"); // "aggregated" | "darkstore"
+  const [dataMode, setDataMode] = useState("aggregated"); // "aggregated" | "darkstore" | "content"
+  // "Content Data" is only offered when tb_user.tab_permissions has "Content Analysis": true
+  // and the account has Content Analysis data (builder-options sends contentDateRange only then)
+  const hasContentAnalysis = user?.tabPermissions?.["Content Analysis"] === true && !!builderOptions?.contentDateRange;
+
+  useEffect(() => {
+    if (!hasContentAnalysis && dataMode === "content") setDataMode("aggregated");
+  }, [hasContentAnalysis, dataMode]);
+
+  // Content Data only needs a date range: no granularity, no metrics step
+  const isContentMode = dataMode === "content";
+  const visibleSteps = isContentMode ? STEPS.filter(s => s.id !== 2) : STEPS;
+
+  useEffect(() => {
+    if (isContentMode && step === 2) setStep(1);
+  }, [isContentMode, step]);
 
   // ── Date boundary calculations based on dataMode ──
   const effectiveMaxDate = useMemo(() => {
@@ -284,6 +299,33 @@ export default function ReportBuilder({
       hasInitializedDarkstoreDatesRef.current = false;
     }
   }, [dataMode, builderOptions?.darkstoreDateRange]);
+
+  // Date picker bounds: in content mode, limited to the days that have content data
+  const contentDateRange = builderOptions?.contentDateRange;
+  // Otherwise, fall back to the darkstore/aggregated bounds above
+  const pickerMinDate = useMemo(
+    () => (isContentMode && contentDateRange ? dayjs(contentDateRange.minDate) : effectiveMinDate),
+    [isContentMode, contentDateRange, effectiveMinDate]
+  );
+  const pickerMaxDate = useMemo(() => {
+    if (!isContentMode || !contentDateRange) return effectiveMaxDate;
+    const maxD = dayjs(contentDateRange.maxDate);
+    return !isQc && maxD.isAfter(maxAllowedDate) ? maxAllowedDate : maxD;
+  }, [isContentMode, contentDateRange, isQc, maxAllowedDate, effectiveMaxDate]);
+  const clampDate = (v) => {
+    if (v.isAfter(pickerMaxDate)) return pickerMaxDate;
+    if (pickerMinDate && v.isBefore(pickerMinDate)) return pickerMinDate;
+    return v;
+  };
+
+  // Content data is crawled on a few days only — jump to the available content range (last 30 days of it)
+  useEffect(() => {
+    if (isContentMode && pickerMinDate) {
+      const last30 = pickerMaxDate.subtract(30, 'day');
+      setStartDate(pickerMinDate.isAfter(last30) ? pickerMinDate : last30);
+      setEndDate(pickerMaxDate);
+    }
+  }, [isContentMode, pickerMinDate, pickerMaxDate]);
 
   // ── Filter PAGE_METRICS to only show available report types and allowed permissions ──
   const visibleMetrics = useMemo(() => {
@@ -438,6 +480,18 @@ export default function ReportBuilder({
       end: clampedEnd.format("YYYY-MM-DD")
     };
 
+    // Content Data only uses platforms + date range
+    if (isContentMode) {
+      parentHandleDownload({
+        reportType: "Content Data",
+        dataMode,
+        timePeriod: "Custom Range",
+        platform: platformOverride,
+        overrideDates: customDates
+      });
+      return;
+    }
+
     parentHandleDownload({
       reportType: isDarkstoreMode ? "Darkstore Data" : "Master Dump",
       dataMode: dataMode,
@@ -505,7 +559,7 @@ export default function ReportBuilder({
 
             {/* ── STEP RAIL ── */}
             <Paper elevation={0} sx={{ width: 72, flexShrink: 0, border: "1px solid #E2E8F0", borderRadius: "16px", display: "flex", flexDirection: "column", alignItems: "center", py: 2.5, gap: 0.5, background: "white" }}>
-              {STEPS.map((s, i) => (
+              {visibleSteps.map((s, i) => (
                 <React.Fragment key={s.id}>
                   <Box
                     onClick={() => setStep(s.id)}
@@ -527,7 +581,7 @@ export default function ReportBuilder({
                       {String(s.id + 1).padStart(2, "0")}
                     </Typography>
                   </Box>
-                  {i < STEPS.length - 1 && (
+                  {i < visibleSteps.length - 1 && (
                     <Box sx={{ width: "1.5px", height: 14, background: step > s.id ? "#10B981" : "#E2E8F0", borderRadius: 1 }} />
                   )}
                 </React.Fragment>
@@ -631,8 +685,8 @@ export default function ReportBuilder({
               {/* ── STEP 1: GRANULARITY ── */}
               {step === 1 && (
                 <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: "#1E293B", mb: 0.5 }}>Set Granularity</Typography>
-                  <Typography variant="body2" sx={{ color: "#64748B", mb: 3 }}>Define how data is grouped across SKU, geography, and time</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: "#1E293B", mb: 0.5 }}>{isContentMode ? "Select Date Range" : "Set Granularity"}</Typography>
+                  <Typography variant="body2" sx={{ color: "#64748B", mb: 3 }}>{isContentMode ? "Choose the date range for the content data export" : "Define how data is grouped across SKU, geography, and time"}</Typography>
 
                   {/* Data Source Toggle */}
                   <Box sx={{ mb: 3, p: 2, borderRadius: "14px", background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
@@ -666,10 +720,25 @@ export default function ReportBuilder({
                       >
                         Darkstore Data
                       </Button>
+                      {hasContentAnalysis && (
+                        <Button
+                          variant={dataMode === "content" ? "contained" : "outlined"}
+                          onClick={() => setDataMode("content")}
+                          sx={{
+                            textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                            background: dataMode === "content" ? "linear-gradient(135deg, #10B981, #059669)" : "white",
+                            color: dataMode === "content" ? "white" : "#64748B",
+                            borderColor: dataMode === "content" ? "#10B981" : "#CBD5E1",
+                            "&:hover": { background: dataMode === "content" ? "linear-gradient(135deg, #059669, #047857)" : "#F1F5F9" }
+                          }}
+                        >
+                          Content Data
+                        </Button>
+                      )}
                     </Box>
                   </Box>
 
-                  {dataMode === "darkstore" ? (
+                  {isContentMode ? null : dataMode === "darkstore" ? (
                     <Box sx={{ mb: 3, p: 2.5, borderRadius: "14px", background: "#F0F9FF", border: "1.5px solid #0EA5E9" }}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
                         <StoreIcon sx={{ color: "#0EA5E9", fontSize: 22 }} />
@@ -726,18 +795,18 @@ export default function ReportBuilder({
                     <DatePicker
                       label="Start"
                       value={startDate}
-                      onChange={(v) => v && setStartDate((effectiveMaxDate && v.isAfter(effectiveMaxDate)) ? effectiveMaxDate : (effectiveMinDate && v.isBefore(effectiveMinDate)) ? effectiveMinDate : v)}
-                      minDate={effectiveMinDate}
-                      maxDate={effectiveMaxDate}
+                      onChange={(v) => v && setStartDate(clampDate(v))}
+                      minDate={pickerMinDate}
+                      maxDate={pickerMaxDate}
                       slotProps={{ textField: { size: "small", sx: { width: 170, "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace" } } } }}
                     />
                     <Typography sx={{ color: "#94A3B8", fontSize: 18 }}>→</Typography>
                     <DatePicker
                       label="End"
                       value={endDate}
-                      onChange={(v) => v && setEndDate((effectiveMaxDate && v.isAfter(effectiveMaxDate)) ? effectiveMaxDate : (startDate && v.isBefore(startDate)) ? startDate : v)}
-                      minDate={startDate || effectiveMinDate}
-                      maxDate={effectiveMaxDate}
+                      onChange={(v) => v && setEndDate((startDate && v.isBefore(startDate)) ? startDate : clampDate(v))}
+                      minDate={startDate || pickerMinDate}
+                      maxDate={pickerMaxDate}
                       slotProps={{ textField: { size: "small", sx: { width: 170, "& .MuiOutlinedInput-root": { borderRadius: "10px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace" } } } }}
                     />
                     <Typography sx={{ fontSize: 12, color: "#94A3B8", fontFamily: "'JetBrains Mono', monospace" }}>{daysDiff} day{daysDiff !== 1 ? "s" : ""}</Typography>
@@ -745,7 +814,23 @@ export default function ReportBuilder({
 
                   <Box sx={{ display: "flex", justifyContent: "space-between", pt: 2, borderTop: "1px solid #E2E8F0" }}>
                     <Button startIcon={<ArrowBackIcon />} onClick={() => setStep(0)} sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px", color: "#64748B", borderColor: "#E2E8F0" }} variant="outlined">Back</Button>
-                    <Button variant="contained" endIcon={<ArrowForwardIcon />} onClick={() => setStep(2)} sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px", background: "#4F46E5", "&:hover": { background: "#4338CA" } }}>Continue</Button>
+                    {isContentMode ? (
+                      <Button
+                        variant="contained"
+                        startIcon={isDownloading ? null : <DownloadIcon />}
+                        onClick={handleDownload}
+                        disabled={isDownloading}
+                        sx={{
+                          textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 3, py: 1.2,
+                          background: "linear-gradient(135deg, #4F46E5, #7C3AED)",
+                          "&:hover": { background: "linear-gradient(135deg, #4338CA, #6D28D9)", boxShadow: "0 6px 20px rgba(79,70,229,0.3)" },
+                        }}
+                      >
+                        {isDownloading ? "Generating…" : "Download Report"}
+                      </Button>
+                    ) : (
+                      <Button variant="contained" endIcon={<ArrowForwardIcon />} onClick={() => setStep(2)} sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px", background: "#4F46E5", "&:hover": { background: "#4338CA" } }}>Continue</Button>
+                    )}
                   </Box>
                 </Box>
               )}
@@ -788,6 +873,21 @@ export default function ReportBuilder({
                       >
                         Darkstore Data
                       </Button>
+                      {hasContentAnalysis && (
+                        <Button
+                          variant={dataMode === "content" ? "contained" : "outlined"}
+                          onClick={() => setDataMode("content")}
+                          sx={{
+                            textTransform: "none", fontWeight: 600, borderRadius: "10px", px: 2.5, py: 1,
+                            background: dataMode === "content" ? "linear-gradient(135deg, #10B981, #059669)" : "white",
+                            color: dataMode === "content" ? "white" : "#64748B",
+                            borderColor: dataMode === "content" ? "#10B981" : "#CBD5E1",
+                            "&:hover": { background: dataMode === "content" ? "linear-gradient(135deg, #059669, #047857)" : "#F1F5F9" }
+                          }}
+                        >
+                          Content Data
+                        </Button>
+                      )}
                     </Box>
                   </Box>
 
@@ -913,6 +1013,7 @@ export default function ReportBuilder({
               <Divider sx={{ my: 1.5 }} />
 
               {/* Granularity */}
+              {!isContentMode && (<>
               <Box sx={{ mb: 2 }}>
                 <Typography sx={{ fontSize: 10, color: "#94A3B8", mb: 0.8, fontFamily: "'JetBrains Mono', monospace" }}>// granularity</Typography>
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
@@ -927,6 +1028,7 @@ export default function ReportBuilder({
               </Box>
 
               <Divider sx={{ my: 1.5 }} />
+              </>)}
 
               {/* Date Range */}
               <Box sx={{ mb: 2 }}>
@@ -934,6 +1036,7 @@ export default function ReportBuilder({
                 <Chip label={`${startDate.format("DD MMM")}–${endDate.format("DD MMM")}`} size="small" sx={{ borderRadius: "100px", fontSize: 11, height: 24, border: "1px solid #E2E8F0", background: "#F8FAFC", color: "#64748B" }} />
               </Box>
 
+              {!isContentMode && (<>
               <Divider sx={{ my: 1.5 }} />
 
               {/* Metrics */}
@@ -953,10 +1056,12 @@ export default function ReportBuilder({
                   {onTags}/{totalTags} total
                 </Typography>
               </Box>
+              </>)}
 
+              {/* Schedule button in sidebar — Content Data is download-only */}
+              {!isContentMode && (<>
               <Divider sx={{ my: 2 }} />
 
-              {/* Schedule button in sidebar */}
               <Button
                 fullWidth
                 variant="outlined"
@@ -966,6 +1071,7 @@ export default function ReportBuilder({
               >
                 Schedule
               </Button>
+              </>)}
             </Paper>
           </Box>
         )}
