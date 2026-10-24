@@ -417,21 +417,22 @@ export const getBrandDiscountTrend = async (req, res) => {
  */
 export const getDimensionTrends = async (req, res) => {
     try {
+        const src = req.method === 'POST' ? { ...req.query, ...req.body } : req.query;
         const filters = {
-            dimension: req.query.dimension,
-            dimensionValue: req.query.dimensionValue,
-            timeStep: req.query.timeStep,
-            period: req.query.period,
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            platform: req.query.platform,
-            location: req.query.location,
-            brand: req.query.brand,
-            subBrand: req.query.subBrand || req.query['subBrand[]'] || req.query.sub_brand || req.query['sub_brand[]'],
-            category: req.query.category,
-            channel: req.query.channel,
-            sku: req.query.sku || req.query.skuName,
-            msl: req.query.msl,
+            dimension: src.dimension,
+            dimensionValue: src.dimensionValue,
+            timeStep: src.timeStep,
+            period: src.period,
+            startDate: src.startDate,
+            endDate: src.endDate,
+            platform: src.platform,
+            location: src.location,
+            brand: src.brand,
+            subBrand: src.subBrand || src['subBrand[]'] || src.sub_brand || src['sub_brand[]'],
+            category: src.category,
+            channel: src.channel,
+            sku: src.sku || src.skuName,
+            msl: src.msl,
             productType: getProductType(req)
         };
 

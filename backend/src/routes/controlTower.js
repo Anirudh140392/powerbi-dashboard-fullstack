@@ -167,6 +167,7 @@ export default (app) => {
 
     // KPI Trends endpoint for Performance Metrics section
     app.get('/api/watchtower/kpi-trends', getKpiTrends);
+    app.post('/api/watchtower/kpi-trends', getKpiTrends);
     app.get('/api/watchtower/trends-filter-options', getTrendsFilterOptions);
     app.get('/api/watchtower/cascaded-filters', getWatchTowerCascadedFilters);
     app.get('/api/watchtower/msls', getMsls);

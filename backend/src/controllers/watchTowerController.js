@@ -326,22 +326,26 @@ export const getBrandsOverview = async (req, res) => {
  */
 export const getKpiTrends = async (req, res) => {
     try {
+        const src = req.method === 'POST' ? { ...req.query, ...req.body } : req.query;
         // UPDATED: Extract all 4 filter keys with default values
         const filters = {
-            platform: req.query.platform || "All",
-            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
-            brand: req.query.brand || "All",
-            subBrand: req.query.subBrand || req.query.sub_brand || "All",
-            category: req.query.category || "All",
-            channel: req.query.channel,
-            period: req.query.period,
-            timeStep: req.query.timeStep,
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            skuName: req.query.skuName,
-            skuCode: req.query.skuCode,
-            msl: req.query.msl,
-            resellerName: req.query.resellerName
+            platform: src.platform || "All",
+            location: src.location && src.location !== 'All India' ? src.location : 'All',
+            brand: src.brand || "All",
+            subBrand: src.subBrand || src.sub_brand || "All",
+            category: src.category || "All",
+            channel: src.channel,
+            period: src.period,
+            timeStep: src.timeStep,
+            startDate: src.startDate,
+            endDate: src.endDate,
+            skuName: src.skuName || src.sku,
+            skuCode: src.skuCode,
+            sapCode: src.sapCode,
+            msl: src.msl,
+            resellerName: src.resellerName,
+            dimension: src.dimension,
+            dimensionValue: src.dimensionValue
         };
         console.log('[getKpiTrends] API call received with filters:', filters);
         const data = await watchTowerService.getKpiTrends(filters);
