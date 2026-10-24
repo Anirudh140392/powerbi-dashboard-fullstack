@@ -1,5 +1,6 @@
 import visibilityService from '../services/visibilityService.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 /**
  * Legacy endpoint - kept for backward compatibility
@@ -29,7 +30,7 @@ export const VisibilityWorkspace = async (req, res) => {
 export const getVisibilityOverview = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
@@ -46,7 +47,7 @@ export const getVisibilityOverview = async (req, res) => {
             compareStartDate: req.query.compareStartDate || null,
             compareEndDate: req.query.compareEndDate || null,
             sku: req.query.sku || 'All'
-        };
+        }, req);
         console.log('\n========== VISIBILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
@@ -75,7 +76,7 @@ export const getVisibilityOverview = async (req, res) => {
 export const getVisibilityPlatformKpiMatrix = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             viewMode: req.query.viewMode || 'Platform',  // Platform, Format, or City
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
@@ -93,7 +94,7 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
             compareEndDate: req.query.compareEndDate || null,
             rank: req.query.rank || 'All',
             sku: req.query.sku || 'All'
-        };
+        }, req);
         console.log('\n========== VISIBILITY PLATFORM KPI MATRIX API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
@@ -122,7 +123,7 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
 export const getVisibilityKeywordsAtGlance = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
@@ -141,7 +142,7 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
             compareStartDate: req.query.compareStartDate || null,
             compareEndDate: req.query.compareEndDate || null,
             channel: req.query.channel || 'All'
-        };
+        }, req);
         console.log('\n========== VISIBILITY KEYWORDS AT GLANCE API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
@@ -172,7 +173,7 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
 export const getVisibilityFilterOptions = async (req, res) => {
     const startTime = Date.now();
     try {
-        const params = {
+        const params = applyQcDateFilter({
             filterType: req.query.filterType,
             platform: req.query.platform || 'All',
             format: req.query.format || 'All',
@@ -184,7 +185,7 @@ export const getVisibilityFilterOptions = async (req, res) => {
             sku: req.query.sku || 'All',
             ownBrandsOnly: req.query.ownBrandsOnly === 'true' || req.query.ownOnly === 'true',
             channel: req.query.channel || 'All'
-        };
+        }, req);
         console.log('\n========== VISIBILITY FILTER OPTIONS API ==========');
         console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
 
@@ -212,7 +213,7 @@ export const getVisibilityFilterOptions = async (req, res) => {
 export const getVisibilityBrandDrilldown = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             keyword: req.query.keyword,
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
@@ -224,7 +225,7 @@ export const getVisibilityBrandDrilldown = async (req, res) => {
             endDate: req.query.endDate,
             compareStartDate: req.query.compareStartDate || null,
             compareEndDate: req.query.compareEndDate || null
-        };
+        }, req);
 
         if (!filters.keyword) {
             return res.status(400).json({ error: 'Keyword is required' });
@@ -261,9 +262,10 @@ export const getVisibilityLatestAvailableDates = async (req, res) => {
         console.log('\n========== VISIBILITY LATEST AVAILABLE DATES API ==========');
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const cacheKey = generateCacheKey('visibility_dates', {});
+        const filters = applyQcDateFilter({}, req);
+        const cacheKey = generateCacheKey('visibility_dates', { isQcUser: filters.isQcUser, maxAllowedDate: filters.maxAllowedDate });
         const data = await getCachedOrCompute(cacheKey, async () => {
-            return await visibilityService.getLatestAvailableDates();
+            return await visibilityService.getLatestAvailableDates(filters.maxAllowedDate);
         }, CACHE_TTL.SHORT);
 
         const duration = Date.now() - startTime;
@@ -286,7 +288,7 @@ export const getVisibilityLatestAvailableDates = async (req, res) => {
 export const getVisibilityKpiTrends = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || req.query.city || 'All',
@@ -301,7 +303,7 @@ export const getVisibilityKpiTrends = async (req, res) => {
             compareEndDate: req.query.compareEndDate || null,
             sku: req.query.sku || req.query.skus || 'All',
             rank: req.query.rank || 'All'
-        };
+        }, req);
         console.log('\n========== VISIBILITY KPI TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
@@ -329,18 +331,34 @@ export const getVisibilityKpiTrends = async (req, res) => {
 export const getVisibilityCompetition = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        let location = req.query.location || req.query.city || 'All';
+        if (typeof location === 'string' && ['select all', 'all india', 'all cities', 'all'].includes(location.toLowerCase().trim())) {
+            location = 'All';
+        }
+
+        let skuParam = req.query.sku || req.query.skus || 'All';
+        if (typeof skuParam === 'string' && skuParam.trim().startsWith('[')) {
+            try {
+                skuParam = JSON.parse(skuParam);
+            } catch (e) {
+                // keep as string
+            }
+        }
+
+        const filters = applyQcDateFilter({
             platform: req.query.platform || 'All',
-            location: req.query.location || req.query.city || 'All',  // Support both 'location' and 'city' params
+            location,  // Support both 'location' and 'city' params
             productName: req.query.productName || req.query.keyword || 'All',
             keyword: req.query.keyword || req.query.productName || 'All',
             keywordType: req.query.keywordType || 'All',
             category: req.query.category || req.query.format || 'All',
             brand: req.query.brand || 'All',  // Filter by specific competitor brand
             period: req.query.period || '1M',
-            sku: req.query.sku || req.query.skus || 'All',
-            rank: req.query.rank || 'All'
-        };
+            sku: skuParam,
+            rank: req.query.rank || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        }, req);
         console.log('\n========== VISIBILITY COMPETITION API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
@@ -368,12 +386,18 @@ export const getVisibilityCompetition = async (req, res) => {
 export const getBrandComparisonTrends = async (req, res) => {
     const startTime = Date.now();
     try {
-        // Parse brands from query - can be comma-separated string or array
+        // Parse brands from query - can be JSON array, comma-separated string, or array
         let brandsParam = req.query.brands;
         let brands = [];
         if (brandsParam) {
             if (Array.isArray(brandsParam)) {
                 brands = brandsParam;
+            } else if (typeof brandsParam === 'string' && brandsParam.trim().startsWith('[')) {
+                try {
+                    brands = JSON.parse(brandsParam);
+                } catch (e) {
+                    brands = brandsParam.split(',').map(b => b.trim()).filter(Boolean);
+                }
             } else {
                 brands = brandsParam.split(',').map(b => b.trim()).filter(Boolean);
             }
@@ -384,16 +408,27 @@ export const getBrandComparisonTrends = async (req, res) => {
         if (skusParam) {
             if (Array.isArray(skusParam)) {
                 skus = skusParam;
+            } else if (typeof skusParam === 'string' && skusParam.trim().startsWith('[')) {
+                try {
+                    skus = JSON.parse(skusParam);
+                } catch (e) {
+                    skus = skusParam.split(',').map(s => s.trim()).filter(Boolean);
+                }
             } else {
                 skus = skusParam.split(',').map(s => s.trim()).filter(Boolean);
             }
         }
 
-        const filters = {
+        let location = req.query.location || req.query.city || 'All';
+        if (typeof location === 'string' && ['select all', 'all india', 'all cities', 'all'].includes(location.toLowerCase().trim())) {
+            location = 'All';
+        }
+
+        const filters = applyQcDateFilter({
             brands,
             skus: skus,
             platform: req.query.platform || 'All',
-            location: req.query.location || req.query.city || 'All',
+            location,
             keyword: req.query.keyword || req.query.productName || 'All',
             keywordType: req.query.keywordType || 'All',
             category: req.query.category || req.query.format || 'All',
@@ -407,7 +442,7 @@ export const getBrandComparisonTrends = async (req, res) => {
             compareStartDate: req.query.compareStartDate || null,
             compareEndDate: req.query.compareEndDate || null,
             rank: req.query.rank || 'All'
-        };
+        }, req);
 
         console.log('\n========== BRAND COMPARISON TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -477,7 +512,7 @@ export const getVisibilityKeywordTypes = async (req, res) => {
 export const getVisibilitySkuDrilldown = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             keyword: req.query.keyword,
             platform: req.query.platform || 'All',
             location: req.query.location || 'All',
@@ -490,7 +525,7 @@ export const getVisibilitySkuDrilldown = async (req, res) => {
             compareEndDate: req.query.compareEndDate || null,
             rank: req.query.rank || 'All',
             ownBrandsOnly: req.query.ownBrandsOnly === 'true'
-        };
+        }, req);
 
 
         if (!filters.keyword) {
@@ -523,7 +558,7 @@ export const getVisibilitySkuDrilldown = async (req, res) => {
 export const getVisibilityCityDrilldown = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             keyword: req.query.keyword,
             sku: req.query.sku,
             platform: req.query.platform || 'All',
@@ -536,7 +571,7 @@ export const getVisibilityCityDrilldown = async (req, res) => {
             compareStartDate: req.query.compareStartDate || null,
             compareEndDate: req.query.compareEndDate || null,
             rank: req.query.rank || 'All'
-        };
+        }, req);
 
 
         if (!filters.keyword || !filters.sku) {
@@ -570,7 +605,7 @@ export const getVisibilityCityDrilldown = async (req, res) => {
 export const getVisibilityGainersAndDrainers = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
@@ -586,7 +621,7 @@ export const getVisibilityGainersAndDrainers = async (req, res) => {
             compareStartDate: req.query.compareStartDate || null,
             compareEndDate: req.query.compareEndDate || null,
             channel: req.query.channel || 'All'
-        };
+        }, req);
         console.log('\n========== VISIBILITY GAINERS & DRAINERS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
@@ -614,7 +649,7 @@ export const getVisibilityGainersAndDrainers = async (req, res) => {
 export const getSearchTermsPerformance = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             viewMode: req.query.viewMode || 'keyword',
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
@@ -631,7 +666,7 @@ export const getSearchTermsPerformance = async (req, res) => {
             compareEndDate: req.query.compareEndDate || null,
             channel: req.query.channel || 'All',
             sku: req.query.sku || 'All'
-        };
+        }, req);
         console.log('\n========== SEARCH TERMS PERFORMANCE API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
@@ -659,7 +694,7 @@ export const getSearchTermsPerformance = async (req, res) => {
 export const getSearchTermsLocationDrilldown = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             keyword: req.query.keyword,
             sku: req.query.sku,
             viewMode: req.query.viewMode || (req.query.sku && req.query.sku !== 'All' ? 'sku' : 'keyword'),
@@ -673,7 +708,7 @@ export const getSearchTermsLocationDrilldown = async (req, res) => {
             rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
-        };
+        }, req);
 
         if (!filters.keyword && !filters.sku) {
             return res.status(400).json({ error: 'Keyword or SKU is required' });
@@ -708,7 +743,7 @@ export const getSearchTermsLocationDrilldown = async (req, res) => {
 export const getSearchTermsBrandBreakdown = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: req.query.platform || 'All',
             keyword: req.query.keyword || 'All',
             channel: req.query.channel || 'All',
@@ -721,7 +756,7 @@ export const getSearchTermsBrandBreakdown = async (req, res) => {
             endDate: req.query.endDate,
             compareStartDate: req.query.compareStartDate || null,
             compareEndDate: req.query.compareEndDate || null
-        };
+        }, req);
         console.log('\n========== SEARCH TERMS BRAND BREAKDOWN API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
@@ -750,7 +785,7 @@ export const getSearchTermsBrandBreakdown = async (req, res) => {
 export const getVisibilityBSRData = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || req.query.city || 'All',
@@ -760,7 +795,7 @@ export const getVisibilityBSRData = async (req, res) => {
             endDate: req.query.endDate,
             compareStartDate: req.query.compareStartDate || null,
             compareEndDate: req.query.compareEndDate || null
-        };
+        }, req);
         console.log('\n========== VISIBILITY BSR DATA API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
@@ -783,7 +818,7 @@ export const getVisibilityBSRData = async (req, res) => {
 export const getVisibilityBSRTrends = async (req, res) => {
     const startTime = Date.now();
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || req.query.city || 'All',
@@ -793,7 +828,7 @@ export const getVisibilityBSRTrends = async (req, res) => {
             endDate: req.query.endDate,
             compareStartDate: req.query.compareStartDate || null,
             compareEndDate: req.query.compareEndDate || null
-        };
+        }, req);
         console.log('\n========== VISIBILITY BSR TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 

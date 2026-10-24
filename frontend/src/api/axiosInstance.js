@@ -14,12 +14,44 @@ const axiosInstance = axios.create({
     },
 });
 
-// Request interceptor: attach JWT token to every request
+// Request interceptor: attach JWT token, current date, and qcUser to every request
 axiosInstance.interceptors.request.use(
     (config) => {
         // Ensure cache control headers are always set
         config.headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
         config.headers["Pragma"] = "no-cache";
+
+        // Attach browser local current date (YYYY-MM-DD)
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        config.headers["x-current-date"] = `${year}-${month}-${day}`;
+
+        // Attach qc_user and active database state from sessionStorage if available
+        try {
+            const storedUser = sessionStorage.getItem("user");
+            if (storedUser) {
+                const u = JSON.parse(storedUser);
+                const qcVal = u?.qcUser ?? u?.qc_user;
+                if (qcVal !== undefined && qcVal !== null) {
+                    config.headers["x-qc-user"] = String(qcVal);
+                }
+                const activeDb = u?.dbName || sessionStorage.getItem("activeWorkspaceDb");
+                if (activeDb) {
+                    config.headers["x-db-name"] = activeDb;
+                }
+                const activeDbId = u?.dbId;
+                if (activeDbId) {
+                    config.headers["x-db-id"] = String(activeDbId);
+                }
+            } else {
+                const activeDb = sessionStorage.getItem("activeWorkspaceDb");
+                if (activeDb) {
+                    config.headers["x-db-name"] = activeDb;
+                }
+            }
+        } catch (e) { /* ignore */ }
         
         const token = sessionStorage.getItem("token");
         if (token) {

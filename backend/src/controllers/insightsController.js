@@ -1,4 +1,5 @@
 import { getInsightsData } from '../services/insightsService.js';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 export const getInsights = async (req, res) => {
     try {
@@ -15,12 +16,39 @@ export const getInsights = async (req, res) => {
             compareEndDate: req.query.compareEndDate
         };
 
+        applyQcDateFilter(filters, req);
+
         const result = await getInsightsData(filters);
-        
+
+        // Retrieve client database-level insights config first
+        let insightsKpi = null;
+        try {
+            const { getCurrentDbName } = await import('../config/clickhouse.js');
+            const { getDatabaseInsights } = await import('../services/adminService.js');
+            const { queryAdminDB } = await import('../config/adminClickhouse.js');
+            const activeDbName = getCurrentDbName() || req.user?.dbName;
+            if (activeDbName) {
+                const dbRows = await queryAdminDB(`SELECT toString(db_id) as db_id FROM tb_database WHERE lower(db_name) = lower('${activeDbName.replace(/'/g, "\\'")}') LIMIT 1`);
+                if (dbRows && dbRows.length > 0) {
+                    insightsKpi = await getDatabaseInsights(dbRows[0].db_id);
+                }
+            }
+            if ((!insightsKpi || Object.keys(insightsKpi).length === 0) && req.user?.dbId) {
+                insightsKpi = await getDatabaseInsights(req.user.dbId);
+            }
+        } catch (err) {
+            console.warn('[InsightsController] Failed to resolve database insights config:', err.message);
+        }
+
+        // Fallback to user's tabPermissions.Insights.kpi if database lookup was empty
+        if (!insightsKpi || Object.keys(insightsKpi).length === 0) {
+            insightsKpi = req.user?.tabPermissions?.Insights?.kpi || {};
+        }
+
         res.status(200).json({
             success: true,
             data: result,
-            insightsKpi: req.user?.tabPermissions?.Insights?.kpi || {}
+            insightsKpi: insightsKpi || {}
         });
     } catch (error) {
         console.error('Error in getInsights:', error);
@@ -58,6 +86,7 @@ export const getCorrelations = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
         };
+        applyQcDateFilter(filters, req);
         const data = await getCorrelationsData(filters);
         res.status(200).json({ success: true, data });
     } catch (error) {
@@ -78,6 +107,7 @@ export const getCorrelationsTrend = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
         };
+        applyQcDateFilter(filters, req);
         const data = await getTrend(filters);
         res.status(200).json({ success: true, data });
     } catch (error) {

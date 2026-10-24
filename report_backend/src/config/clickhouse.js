@@ -1,12 +1,24 @@
 import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createClient } from '@clickhouse/client';
 import { AsyncLocalStorage } from 'node:async_hooks';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../../backend/.env') });
 
 // AsyncLocalStorage to store the current user's database name per request
 export const dbStorage = new AsyncLocalStorage();
 
 // Cache of ClickHouse clients per database name
 const clientCache = new Map();
+
+function isMaricoDb(dbName) {
+    return Boolean(dbName && String(dbName).toLowerCase().includes('marico'));
+}
 
 /**
  * Get or create a ClickHouse client for a specific database
@@ -16,12 +28,23 @@ function getClientForDb(dbName) {
         return clientCache.get(dbName);
     }
 
-    const urlToUse = process.env.CLICKHOUSE_URL || 'http://localhost:8123';
+    const isMarico = isMaricoDb(dbName);
+    const urlToUse = isMarico
+        ? (process.env.MARICO_CLICKHOUSE_HOST || process.env.MARICO_CLICKHOUSE_URL || 'http://13.232.194.195:8123')
+        : (process.env.CLICKHOUSE_URL || process.env.CLICKHOUSE_HOST || 'http://13.200.55.131:8123');
+
+    const username = isMarico
+        ? (process.env.MARICO_CLICKHOUSE_USER || 'main_user')
+        : (process.env.CLICKHOUSE_USER || 'kenil_user');
+
+    const password = isMarico
+        ? (process.env.MARICO_CLICKHOUSE_PASSWORD || 'prod_dev@1215')
+        : (process.env.CLICKHOUSE_PASSWORD || 'Kenil@Kavar0604');
 
     const client = createClient({
         url: urlToUse,
-        username: process.env.CLICKHOUSE_USER || 'default',
-        password: process.env.CLICKHOUSE_PASSWORD || '',
+        username,
+        password,
         database: dbName,
         request_timeout: 600000, // 10 minutes for large report downloads
         max_open_connections: 50,
@@ -36,12 +59,12 @@ function getClientForDb(dbName) {
     });
 
     clientCache.set(dbName, client);
-    console.log(`[ClickHouse Report Service] Created client for database: ${dbName} at ${urlToUse}`);
+    console.log(`[ClickHouse Report Service] Created client for database: ${dbName} at ${urlToUse} (user: ${username})`);
     return client;
 }
 
 // Default client (uses CLICKHOUSE_DB from .env)
-const defaultDbName = process.env.CLICKHOUSE_DB || 'colpal';
+const defaultDbName = process.env.CLICKHOUSE_DB || 'boat';
 const clickhouse = getClientForDb(defaultDbName);
 
 /**
@@ -107,7 +130,7 @@ export const queryClickHouse = async (query, params = {}, clickhouse_settings = 
 /**
  * Stream query results from ClickHouse as a Node.js readable stream.
  */
-export const streamClickHouse = async (query, params = {}, clickhouse_settings = {}) => {
+export const streamClickHouse = async (query, params = {}, clickhouse_settings = {}, format = 'JSONEachRow') => {
     const client = getCurrentClient();
     const dbName = getCurrentDbName();
     console.log(`[ClickHouse Stream Report Service] DB: ${dbName} | Query: ${query.replace(/\s+/g, ' ').slice(0, 200)}...`);
@@ -115,7 +138,7 @@ export const streamClickHouse = async (query, params = {}, clickhouse_settings =
     const queryOptions = {
         query,
         query_params: params,
-        format: 'JSONEachRow',
+        format,
     };
 
     if (Object.keys(clickhouse_settings).length > 0) {

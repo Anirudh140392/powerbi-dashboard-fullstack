@@ -2,6 +2,7 @@ import availabilityService, { buildPlatformChannelCond } from '../services/avail
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 import dayjs from 'dayjs';
 
 /**
@@ -59,7 +60,7 @@ const scaleMarsMetrics = (data, key) => {
 
 export const AvailabilityControlTower = async (req, res) => {
     try {
-        const filters = req.query;
+        const filters = applyQcDateFilter({ ...req.query }, req);
         console.log("analytical analysis api request received", filters);
 
         const assortment = await availabilityService.getAssortment(filters);
@@ -84,7 +85,7 @@ export const AvailabilityControlTower = async (req, res) => {
  */
 export const getAvailabilityOverview = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: parseFilter(req.query.platform),
             brand: parseFilter(req.query.brand),
             location: parseFilter(req.query.location),
@@ -109,7 +110,7 @@ export const getAvailabilityOverview = async (req, res) => {
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
             subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
             productType: getProductTypeFilter(req)
-        };
+        }, req);
         console.log('\n========== AVAILABILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
@@ -130,7 +131,7 @@ export const getAvailabilityOverview = async (req, res) => {
  */
 export const getPlatformKpiMatrix = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             viewMode: req.query.viewMode || 'Platform',  // Platform, Format, or City
             platform: parseFilter(req.query.platform),
             brand: parseFilter(req.query.brand),
@@ -158,7 +159,7 @@ export const getPlatformKpiMatrix = async (req, res) => {
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
             subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
             productType: getProductTypeFilter(req)
-        };
+        }, req);
         console.log('\n========== PLATFORM KPI MATRIX API ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -181,7 +182,7 @@ export const getPlatformKpiMatrix = async (req, res) => {
  */
 export const getStandaloneKpiMatrix = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             viewMode: req.query.viewMode || 'Platform',  // Platform, Format, or City
             platform: parseFilter(req.query.platform),
             brand: parseFilter(req.query.brand),
@@ -209,7 +210,7 @@ export const getStandaloneKpiMatrix = async (req, res) => {
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
             subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
             productType: getProductTypeFilter(req)
-        };
+        }, req);
         console.log('\n========== STANDALONE KPI MATRIX API (OSA + Market Share) ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -232,7 +233,7 @@ export const getStandaloneKpiMatrix = async (req, res) => {
  */
 export const getOsaPercentageDetail = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: parseFilter(req.query.platform),
             brand: parseFilter(req.query.brand),
             location: parseFilter(req.query.location),
@@ -261,7 +262,7 @@ export const getOsaPercentageDetail = async (req, res) => {
             resellerName: parseFilter(req.query.resellerName),
             resellerNames: parseFilter(req.query.resellerNames),
             productType: getProductTypeFilter(req)
-        };
+        }, req);
         console.log('\n========== OSA PERCENTAGE DETAIL API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
@@ -283,7 +284,7 @@ export const getOsaPercentageDetail = async (req, res) => {
  */
 export const getDOI = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: parseFilter(req.query.platform),
             brand: parseFilter(req.query.brand),
             location: parseFilter(req.query.location),
@@ -308,7 +309,7 @@ export const getDOI = async (req, res) => {
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
             subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
             productType: getProductTypeFilter(req)
-        };
+        }, req);
         console.log('\n========== DOI (DAYS OF INVENTORY) API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
@@ -329,7 +330,7 @@ export const getDOI = async (req, res) => {
  */
 export const getMetroCityStockAvailability = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: parseFilter(req.query.platform),
             brand: parseFilter(req.query.brand),
             location: parseFilter(req.query.location),
@@ -354,7 +355,7 @@ export const getMetroCityStockAvailability = async (req, res) => {
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
             subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
             productType: getProductTypeFilter(req)
-        };
+        }, req);
         console.log('\n========== METRO CITY STOCK AVAILABILITY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
@@ -381,7 +382,7 @@ export const getAvailabilityFilterOptions = async (req, res) => {
         console.log('\n========== AVAILABILITY FILTER OPTIONS API ==========');
         console.log('[REQUEST] filterType:', filterType, 'platform:', platform, 'brand:', brand, 'category:', category, 'productCategory:', productCategory, 'format:', format, 'city:', city, 'location:', location, 'months:', months, 'metroFlag:', metroFlag);
 
-        const data = await availabilityService.getAvailabilityFilterOptions({
+        const filters = applyQcDateFilter({
             filterType: filterType || 'platforms',
             platform: parseFilter(platform),
             brand: parseFilter(brand),
@@ -393,7 +394,9 @@ export const getAvailabilityFilterOptions = async (req, res) => {
             metroFlag: parseFilter(metroFlag),
             channel: req.query.channel,
             ownBrandsOnly: req.query.ownBrandsOnly
-        });
+        }, req);
+
+        const data = await availabilityService.getAvailabilityFilterOptions(filters);
 
         console.log('[RESPONSE]:', data.options?.length, 'options returned');
         console.log('=====================================================\n');
@@ -411,7 +414,7 @@ export const getAvailabilityFilterOptions = async (req, res) => {
  */
 export const getOsaDetailByCategory = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: parseFilter(req.query.platform),
             brand: parseFilter(req.query.brand),
             location: parseFilter(req.query.location),
@@ -437,7 +440,7 @@ export const getOsaDetailByCategory = async (req, res) => {
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
             subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
             productType: getProductTypeFilter(req)
-        };
+        }, req);
         console.log('\n========== OSA DETAIL BY CATEGORY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
@@ -460,7 +463,7 @@ export const getOsaDetailByCategory = async (req, res) => {
 export const getAvailabilityKpiTrends = async (req, res) => {
     try {
         const src = req.method === 'POST' ? { ...req.query, ...req.body } : req.query;
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: parseFilter(src.platform),
             brand: parseFilter(src.brand),
             subBrand: parseFilter(src.subBrand || src.sub_brand || src['subBrand[]'] || src['sub_brand[]']),
@@ -481,7 +484,7 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             dimensionValue: src.dimensionValue,
             resellerName: parseFilter(src.resellerName),
             productType: getProductTypeFilter(req)
-        };
+        }, req);
         console.log('\n========== AVAILABILITY KPI TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
@@ -503,7 +506,7 @@ export const getAvailabilityKpiTrends = async (req, res) => {
  */
 export const getAvailabilityCompetition = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: parseFilter(req.query.platform),
             location: parseFilter(req.query.location),
             category: parseFilter(req.query.category),
@@ -518,7 +521,7 @@ export const getAvailabilityCompetition = async (req, res) => {
             sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
             resellerName: parseFilter(req.query.resellerName),
             productType: getProductTypeFilter(req)
-        };
+        }, req);
         console.log('\n========== AVAILABILITY COMPETITION API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
@@ -544,13 +547,15 @@ export const getAvailabilityCompetitionFilterOptions = async (req, res) => {
         console.log('\n========== AVAILABILITY COMPETITION FILTER OPTIONS API ==========');
         console.log('[REQUEST] platform:', platform, 'location:', location, 'category:', category, 'brand:', brand);
 
-        const data = await availabilityService.getAvailabilityCompetitionFilterOptions({
+        const filters = applyQcDateFilter({
             platform: parseFilter(platform),
             location: parseFilter(location),
             category: parseFilter(category),
             brand: parseFilter(brand),
             channel: req.query.channel
-        });
+        }, req);
+
+        const data = await availabilityService.getAvailabilityCompetitionFilterOptions(filters);
 
         console.log('[RESPONSE]:', data.locations?.length, 'locations,', data.categories?.length, 'categories,', data.brands?.length, 'brands');
         console.log('=================================================================\n');
@@ -568,23 +573,25 @@ export const getAvailabilityCompetitionFilterOptions = async (req, res) => {
  */
 export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
     try {
-        const { brands, location, category, period, startDate, endDate, channel, timeStep } = { ...req.query, ...req.body };
+        const raw = { ...req.query, ...req.body };
         console.log('\n========== AVAILABILITY COMPETITION BRAND TRENDS API ==========');
-        console.log('[REQUEST] brands:', brands, 'location:', location, 'category:', category, 'period:', period, 'startDate:', startDate, 'endDate:', endDate, 'timeStep:', timeStep);
+        console.log('[REQUEST] raw filters:', raw);
 
-        const data = await availabilityService.getAvailabilityCompetitionBrandTrends({
-            brands: parseFilter(brands || 'All'),
-            location: parseFilter(location || 'All'),
-            category: parseFilter(category || 'All'),
-            period: period || '1M',
-            channel: channel,
-            startDate,
-            endDate,
-            timeStep: timeStep || 'Daily',
-            resellerName: parseFilter(req.query.resellerName || req.body.resellerName),
-            msl: req.query.msl || req.body.msl,
+        const filters = applyQcDateFilter({
+            brands: parseFilter(raw.brands || 'All'),
+            location: parseFilter(raw.location || 'All'),
+            category: parseFilter(raw.category || 'All'),
+            period: raw.period || '1M',
+            channel: raw.channel,
+            startDate: raw.startDate,
+            endDate: raw.endDate,
+            timeStep: raw.timeStep || 'Daily',
+            resellerName: parseFilter(raw.resellerName),
+            msl: raw.msl,
             productType: getProductTypeFilter(req)
-        });
+        }, req);
+
+        const data = await availabilityService.getAvailabilityCompetitionBrandTrends(filters);
 
         console.log('[RESPONSE]:', Object.keys(data.timeSeries || {}).length, 'brands with trends');
         console.log('===============================================================\n');
@@ -602,23 +609,25 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
  */
 export const getAvailabilityCompetitionSkuTrends = async (req, res) => {
     try {
-        const { skus, location, category, period, startDate, endDate, channel, timeStep } = { ...req.query, ...req.body };
+        const raw = { ...req.query, ...req.body };
         console.log('\n========== AVAILABILITY COMPETITION SKU TRENDS API ==========');
-        console.log('[REQUEST] skus:', skus, 'location:', location, 'category:', category, 'period:', period, 'timeStep:', timeStep);
+        console.log('[REQUEST] raw filters:', raw);
 
-        const data = await availabilityService.getAvailabilityCompetitionSkuTrends({
-            skus: parseFilter(skus || 'All'),
-            location: parseFilter(location || 'All'),
-            category: parseFilter(category || 'All'),
-            period: period || '1M',
-            channel: channel,
-            startDate,
-            endDate,
-            timeStep: timeStep || 'Daily',
-            resellerName: parseFilter(req.query.resellerName || req.body.resellerName),
-            msl: req.query.msl || req.body.msl,
+        const filters = applyQcDateFilter({
+            skus: parseFilter(raw.skus || 'All'),
+            location: parseFilter(raw.location || 'All'),
+            category: parseFilter(raw.category || 'All'),
+            period: raw.period || '1M',
+            channel: raw.channel,
+            startDate: raw.startDate,
+            endDate: raw.endDate,
+            timeStep: raw.timeStep || 'Daily',
+            resellerName: parseFilter(raw.resellerName),
+            msl: raw.msl,
             productType: getProductTypeFilter(req)
-        });
+        }, req);
+
+        const data = await availabilityService.getAvailabilityCompetitionSkuTrends(filters);
 
         console.log('[RESPONSE]:', Object.keys(data.osa || {}).length, 'SKUs with trends');
         console.log('=============================================================\n');
@@ -638,7 +647,8 @@ export const getAvailabilityCompetitionSkuTrends = async (req, res) => {
  */
 export const getSignalLabData = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('signal_lab_v9', req.query);
+        const queryParams = applyQcDateFilter({ ...req.query }, req);
+        const cacheKey = generateCacheKey('signal_lab_v9', queryParams);
         const data = await getCachedOrCompute(cacheKey, async () => {
             // Dynamically resolve ad-related column names (case varies across DBs)
             const cols = await getTableColumns('rb_pdp_olap');
@@ -1553,17 +1563,18 @@ export const getSignalLabData = async (req, res) => {
  */
 export const getCityDetailsForProduct = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('signal_lab_city_details_v5', req.query);
+        const queryParams = applyQcDateFilter({ ...req.query }, req);
+        const cacheKey = generateCacheKey('signal_lab_city_details_v5', queryParams);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
-            const { webPid, startDate, endDate, compareStartDate, compareEndDate, type: metricType = 'availability', signalType = 'gainer', groupBy = 'sku' } = req.query;
+            const { webPid, startDate, endDate, compareStartDate, compareEndDate, type: metricType = 'availability', signalType = 'gainer', groupBy = 'sku' } = queryParams;
 
             if (!webPid) throw new Error('webPid is required');
 
             const isBrandGroup = groupBy === 'brand';
             const filterCol = isBrandGroup ? 'Brand' : 'Web_Pid';
 
-            const end = endDate || dayjs().format('YYYY-MM-DD');
+            const end = endDate || queryParams.maxAllowedDate || dayjs().format('YYYY-MM-DD');
             const start = startDate || dayjs(end).subtract(30, 'day').format('YYYY-MM-DD');
             const compEnd = compareEndDate || dayjs(start).subtract(1, 'day').format('YYYY-MM-DD');
             const compStart = compareStartDate || dayjs(compEnd).subtract(dayjs(end).diff(dayjs(start), 'day'), 'day').format('YYYY-MM-DD');
@@ -1944,7 +1955,7 @@ export const getCityDetailsForProduct = async (req, res) => {
 // ==========================================
 export const getBrandSkuCityDayLevel = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             dayRange: parseInt(req.query.dayRange) || 7,
             platform: parseFilter(req.query.platform),
             brand: parseFilter(req.query.brand),
@@ -1954,7 +1965,7 @@ export const getBrandSkuCityDayLevel = async (req, res) => {
             metroFlag: parseFilter(req.query.metroFlag),
             months: parseFilter(req.query.months),
             ownBrandsOnly: req.query.ownBrandsOnly
-        };
+        }, req);
         console.log('[Controller] getBrandSkuCityDayLevel filters:', filters);
 
         const result = await availabilityService.getBrandSkuCityDayLevel(filters);
@@ -1970,11 +1981,11 @@ export const getBrandSkuCityDayLevel = async (req, res) => {
  */
 export const getBrandOptions = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             platform: parseFilter(req.query.platform),
             channel: req.query.channel,
             category: parseFilter(req.query.category),
-        };
+        }, req);
         const brands = await availabilityService.getDistinctBrands(filters);
         res.json({ brands });
     } catch (error) {

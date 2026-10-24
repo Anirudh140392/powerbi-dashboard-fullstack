@@ -303,13 +303,36 @@ export const FilterProvider = ({ children }) => {
             if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                 console.log("[FilterContext] Fetched channels from DB:", res.data);
                 setChannels(res.data);
-                // Keep current selection if still valid, otherwise select first non-All
+                // Keep current selection if still valid, or match by channel family, otherwise select first non-All
                 setSelectedChannel(prev => {
                     const validChannels = res.data.filter(c => c !== 'All');
-                    // If prev is a valid channel in the new list, keep it
-                    if (prev !== "All" && validChannels.includes(prev)) return prev;
-                    // Otherwise select the first available channel
-                    return validChannels.length > 0 ? validChannels[0] : 'All';
+                    if (validChannels.length === 0) return 'All';
+                    if (prev === "All") return validChannels[0];
+
+                    const lowerPrev = prev.toLowerCase();
+                    const isQcommFamily = (ch) => ['quickcomm', 'quick commerce', 'quick_commerce', 'qcomm'].includes(ch?.toLowerCase()) || ch?.toLowerCase().includes('quick');
+                    const isEcommFamily = (ch) => ['ecommerce', 'ecom', 'e-commerce'].includes(ch?.toLowerCase());
+                    const isModernTradeFamily = (ch) => ['modern trades', 'moderntrade', 'modern_trade'].includes(ch?.toLowerCase());
+
+                    // 1. Exact match
+                    const exact = validChannels.find(c => c.toLowerCase() === lowerPrev);
+                    if (exact) return exact;
+
+                    // 2. Family match
+                    if (isQcommFamily(lowerPrev)) {
+                        const qm = validChannels.find(c => isQcommFamily(c));
+                        if (qm) return qm;
+                    }
+                    if (isEcommFamily(lowerPrev)) {
+                        const em = validChannels.find(c => isEcommFamily(c));
+                        if (em) return em;
+                    }
+                    if (isModernTradeFamily(lowerPrev)) {
+                        const mm = validChannels.find(c => isModernTradeFamily(c));
+                        if (mm) return mm;
+                    }
+
+                    return validChannels[0];
                 });
             } else {
                 setChannels(FALLBACK_CHANNELS);
@@ -519,11 +542,24 @@ export const FilterProvider = ({ children }) => {
                     setPlatform("");
                 }
             } else if ((currentPath + window.location.hash).includes('/cross-platform-pricing')) {
+                // Refresh channels from rb_pdp_olap to ensure sidebar channels match rb_pdp_olap
+                fetchChannels();
+
                 const reqId = ++activePlatformReq.current;
-                const res = await axiosInstance.get("/watchtower/pdp-platforms");
+                const effectiveChannel = (selectedChannel && selectedChannel !== "All")
+                    ? selectedChannel
+                    : (channels.find(c => c !== "All") || "ecommerce");
+
+                if (selectedChannel === "All" && effectiveChannel !== "All") {
+                    setSelectedChannel(effectiveChannel);
+                }
+
+                const res = await axiosInstance.get("/watchtower/pdp-platforms", {
+                    params: { channel: effectiveChannel }
+                });
                 if (reqId !== activePlatformReq.current) return;
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-                    console.log("[FilterContext] Fetched dynamic PDP platforms from rb_pdp_olap for Cross Platform Pricing:", res.data);
+                    console.log("[FilterContext] Fetched dynamic PDP platforms from rb_pdp_olap for channel:", effectiveChannel, res.data);
                     setPlatforms(res.data);
                     setPlatform(prevPlatform => {
                         if (channelChanged || !prevPlatform) return res.data[0];

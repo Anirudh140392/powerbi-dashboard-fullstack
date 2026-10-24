@@ -2250,6 +2250,13 @@ export default function PricingAnalysisData() {
     { id: "brand", label: "Brand", sortable: true },
     { id: "platform", label: "Platform", sortable: true },
     {
+      id: "mrp",
+      label: `MRP (${currencySymbol})`,
+      sortable: true,
+      numeric: true,
+      render: (val) => val || 0
+    },
+    {
       id: "ecp",
       label: `ECP (${currencySymbol})`,
       sortable: true,
@@ -2473,9 +2480,9 @@ export default function PricingAnalysisData() {
 
     if (!pricingKpiData) {
       return [
-        { id: 'vis-0', title: 'Discount', value: '-', subtitle: 'Loading...', icon: icons[0], gradient: gradients[0] },
-        { id: 'vis-1', title: 'Weighted Discount', value: '-', subtitle: 'Loading...', icon: icons[1], gradient: gradients[1] },
-        { id: 'vis-2', title: 'Average selling price', value: '-', subtitle: 'Loading...', icon: icons[2], gradient: gradients[2] },
+        { id: 'vis-0', title: 'Discount', value: '-', subtitle: 'Loading...', icon: icons[0], gradient: gradients[0], infoTooltip: 'Discount represents the average discount percentage applied across all active SKUs on the selected platform during the current period.' },
+        { id: 'vis-1', title: 'Weighted Discount', value: '-', subtitle: 'Loading...', icon: icons[1], gradient: gradients[1], infoTooltip: 'Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.' },
+        { id: 'vis-2', title: 'Average selling price', value: '-', subtitle: 'Loading...', icon: icons[2], gradient: gradients[2], infoTooltip: 'Average Selling Price (ASP) represents the average price at which SKUs are sold across the platform during the selected period.' },
       ];
     }
 
@@ -2492,6 +2499,8 @@ export default function PricingAnalysisData() {
         icon: icons[0],
         gradient: gradients[0],
         trend: d.discount?.sparklineData || [],
+        trendSeries: d.discount?.sparklineData || [],
+        dates: d.discount?.dates || [],
         trendDir: (d.discount?.change || 0) >= 0 ? 'up' : 'down',
         prevText: 'vs Previous Period',
         infoTooltip: 'Discount represents the average discount percentage applied across all active SKUs on the selected platform during the current period.'
@@ -2506,6 +2515,8 @@ export default function PricingAnalysisData() {
         icon: icons[1],
         gradient: gradients[1],
         trend: d.weightedDiscount?.sparklineData || [],
+        trendSeries: d.weightedDiscount?.sparklineData || [],
+        dates: d.weightedDiscount?.dates || [],
         trendDir: (d.weightedDiscount?.change || 0) >= 0 ? 'up' : 'down',
         prevText: 'vs Previous Period',
         infoTooltip: 'Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.'
@@ -2520,8 +2531,11 @@ export default function PricingAnalysisData() {
         icon: icons[2],
         gradient: gradients[2],
         trend: d.asp?.sparklineData || [],
+        trendSeries: d.asp?.sparklineData || [],
+        dates: d.asp?.dates || [],
         trendDir: (d.asp?.change || 0) >= 0 ? 'up' : 'down',
-        prevText: 'vs Previous Period'
+        prevText: 'vs Previous Period',
+        infoTooltip: 'Average Selling Price (ASP) represents the average price at which SKUs are sold across the platform during the selected period.'
       }
     ];
   }, [pricingKpiData, pricingKpiLoading]);

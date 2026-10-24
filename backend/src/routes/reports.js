@@ -2,7 +2,7 @@ import {
     getReportFilterOptions, downloadReport, getAvailableReportTypes,
     getReportBuilderOptions, getPdpReportFilters, downloadPdpReport,
     previewPdpReport, getPromoViolationFilterOptions,
-    downloadPromoViolationReport, previewPromoViolationReport
+    downloadPromoViolationReport, previewPromoViolationReport, proxyReportStudio
 } from '../controllers/reportsController.js';
 
 export default (app) => {
@@ -16,5 +16,6 @@ export default (app) => {
     app.get('/api/reports/promo-violation-filters', getPromoViolationFilterOptions);
     app.get('/api/reports/download-promo-violation-report', downloadPromoViolationReport);
     app.get('/api/reports/preview-promo-violation-report', previewPromoViolationReport);
+    app.get('/api/reports/studio/:action', proxyReportStudio);
 };
 

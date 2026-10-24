@@ -4,6 +4,7 @@
  */
 
 import oneViewPriceGridService from '../services/oneViewPriceGridService.js';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 /**
  * Get One View Price Grid data
@@ -12,7 +13,7 @@ import oneViewPriceGridService from '../services/oneViewPriceGridService.js';
  */
 export const getOneViewPriceGrid = async (req, res) => {
     try {
-        const filters = {
+        const filters = applyQcDateFilter({
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             platform: req.query.platform,
@@ -23,7 +24,7 @@ export const getOneViewPriceGrid = async (req, res) => {
             ml: req.query.ml,
             msl: req.query.msl,
             productType: req.query.productType || req.query['productType[]'] || req.query.product_type || req.query['product_type[]']
-        };
+        }, req);
 
         console.log("[OneViewPriceGridController] getOneViewPriceGrid called with filters:", filters);
 

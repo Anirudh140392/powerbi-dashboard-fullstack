@@ -1,7 +1,8 @@
-import React, { useMemo, useState, useContext, createContext, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useContext, createContext, useEffect, useCallback, useRef } from "react";
 import dayjs from "dayjs";
 import axiosInstance from "../../api/axiosInstance";
 import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
 import {
     Filter,
     LineChart as LineChartIcon,
@@ -11,6 +12,9 @@ import {
     Download,
     ArrowRight,
     Layers,
+    ChevronDown,
+    ChevronUp,
+    ArrowUpDown,
 } from "lucide-react";
 import CrossPlatformMatrixModal, { VISIBILITY_KPI_COLUMNS } from "../ControlTower/WatchTower/CrossPlatformMatrixModal";
 import * as XLSX from "xlsx";
@@ -45,6 +49,16 @@ const formatKpiValue = (value, unit = "%") => {
     return `${num.toFixed(1)}${unit}`;
 };
 
+const getLocationParam = (c) => {
+    if (!c) return 'All';
+    if (c === 'Select All' || c === 'All' || c === 'All India' || c === 'All Cities') return 'All';
+    if (Array.isArray(c)) {
+        if (c.length === 0 || c.includes('Select All') || c.includes('All') || c.includes('All Cities')) return 'All';
+        return c.join(',');
+    }
+    return String(c);
+};
+
 const BRAND_COLORS = [
     "#2563EB", // Blue
     "#DC2626", // Red
@@ -63,8 +77,10 @@ const RANK_OPTIONS = ["Top 10", "Top 20", "Top 30", "Top 40"];
 const getBrandColor = (index) => BRAND_COLORS[index % BRAND_COLORS.length];
 const KPI_TOOLTIPS = {
     'Organic SOS': "The proportion of a brand’s product visibility within organic (non-paid) search results.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
-    'Overall SOS': "Share of Search indicates the proportion of attention a product receives relative to others within the same category or type.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
+    'Overall SOS': "The proportion of a brand’s product visibility within the top search results, including both organic and sponsored placements.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
     'Sponsored SOS': "The proportion of a brand’s product visibility within sponsored or paid placements in search results.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
+    'Avg. Position (Organic)': "The average search ranking position of a brand’s products across organic (non-paid) search results for relevant keywords.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
+    'Avg. Position (Ad)': "The average search ranking position of a brand’s products across sponsored or paid search results for relevant keywords.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
 };
 
 
@@ -730,9 +746,17 @@ const TrendView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city, onBa
 
     const chartData = useMemo(() => {
         if (apiTrendData && Object.keys(apiTrendData).length > 0 && visibleIds.length > 0) {
+            const getBrandData = (bName) => {
+                if (!apiTrendData) return [];
+                if (apiTrendData[bName]?.timeSeries) return apiTrendData[bName].timeSeries;
+                const lower = String(bName || '').toLowerCase().trim();
+                const foundKey = Object.keys(apiTrendData).find(k => k.toLowerCase().trim() === lower);
+                return foundKey ? (apiTrendData[foundKey]?.timeSeries || []) : [];
+            };
+
             const allDates = new Set();
             visibleIds.forEach(brand => {
-                const brandData = apiTrendData[brand]?.timeSeries || [];
+                const brandData = getBrandData(brand);
                 brandData.forEach(point => allDates.add(point.date));
             });
 
@@ -767,7 +791,7 @@ const TrendView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city, onBa
             return sortedDates.map(date => {
                 const row = { date };
                 visibleIds.forEach(brand => {
-                    const brandData = apiTrendData[brand]?.timeSeries || [];
+                    const brandData = getBrandData(brand);
                     const point = brandData.find(p => p.date === date);
                     if (point) {
                         row[brand] = point[activeMetric] ?? null;
@@ -810,7 +834,7 @@ const TrendView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city, onBa
 
                 <div className="flex flex-col gap-2">
                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                        Select {isBrandMode ? 'Brands' : 'SKUs'} to Plot ({city})
+                        Select {isBrandMode ? 'Brands' : 'SKUs'} to Plot ({Array.isArray(city) ? (city.length === 0 || city.includes('All Cities') || city.includes('Select All') ? 'All Cities' : city.join(', ')) : (city || 'All Cities')})
                     </div>
                     <Box display="flex" gap={1} flexWrap="wrap">
                         {(() => {
@@ -983,9 +1007,17 @@ const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city,
 
     const chartDataFor = (metricKey) => {
         if (apiTrendData && Object.keys(apiTrendData).length > 0 && visibleIds.length > 0) {
+            const getBrandData = (bName) => {
+                if (!apiTrendData) return [];
+                if (apiTrendData[bName]?.timeSeries) return apiTrendData[bName].timeSeries;
+                const lower = String(bName || '').toLowerCase().trim();
+                const foundKey = Object.keys(apiTrendData).find(k => k.toLowerCase().trim() === lower);
+                return foundKey ? (apiTrendData[foundKey]?.timeSeries || []) : [];
+            };
+
             const allDates = new Set();
             visibleIds.forEach(brand => {
-                const brandData = apiTrendData[brand]?.timeSeries || [];
+                const brandData = getBrandData(brand);
                 brandData.forEach(point => {
                     if (point.date) allDates.add(point.date)
                 });
@@ -1022,7 +1054,7 @@ const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city,
             return sortedDates.map(date => {
                 const row = { date };
                 visibleIds.forEach(brand => {
-                    const brandData = apiTrendData[brand]?.timeSeries || [];
+                    const brandData = getBrandData(brand);
                     const point = brandData.find(p => p.date === date);
                     if (point) row[brand] = point[metricKey] ?? null;
                 });
@@ -1042,7 +1074,7 @@ const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city,
 
                 <div className="flex flex-col gap-2">
                     <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                        Select {isBrandMode ? 'Brands' : 'SKUs'} to Plot ({city})
+                        Select {isBrandMode ? 'Brands' : 'SKUs'} to Plot ({Array.isArray(city) ? (city.length === 0 || city.includes('All Cities') || city.includes('Select All') ? 'All Cities' : city.join(', ')) : (city || 'All Cities')})
                     </div>
                     <Box display="flex" gap={1} flexWrap="wrap">
                         {(() => {
@@ -1231,18 +1263,197 @@ const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city,
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows, loading, onDownload, onBrandSelect }) => {
+const BrandTable = ({
+    rows = [],
+    allRows = [],
+    ourBrands = [],
+    filters,
+    loading,
+    onDownload,
+    onBrandSelect
+}) => {
+    const { user } = useAuth();
+    const { brands: contextOwnBrands, selectedBrand } = useContext(FilterContext);
+
+    const [sortConfig, setSortConfig] = useState({ key: 'overall_sos', direction: 'desc' });
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
 
-    const totalPages = Math.ceil(rows.length / pageSize);
-    const paginatedRows = useMemo(() => rows.slice((page - 1) * pageSize, page * pageSize), [rows, page, pageSize]);
+    const isOurBrand = useCallback((row, brandName) => {
+        if (!row && !brandName) return false;
+        if (row?.isOwnBrand === true || row?.is_my_brand === true) return true;
+
+        const targetName = (brandName || row?.name || row?.brand_name || row?.brand || '').toLowerCase().trim();
+        if (!targetName) return false;
+
+        // 1. From API ourBrands list
+        if (ourBrands && ourBrands.length > 0) {
+            if (ourBrands.some(b => String(b).toLowerCase().trim() === targetName)) return true;
+        }
+
+        // 2. From FilterContext contextOwnBrands
+        if (contextOwnBrands && contextOwnBrands.length > 0) {
+            if (contextOwnBrands.some(b => {
+                const cb = String(b).toLowerCase().trim();
+                return cb === targetName || cb.includes(targetName) || targetName.includes(cb);
+            })) return true;
+        }
+
+        // 3. From user context / dbName
+        const dbName = (user?.dbName || '').toLowerCase().trim();
+        if (dbName && dbName !== 'admin' && dbName !== 'default') {
+            if (targetName === dbName || targetName.includes(dbName) || dbName.includes(targetName)) return true;
+        }
+        const userBrand = (user?.brand || '').toLowerCase().trim();
+        if (userBrand && (targetName === userBrand || targetName.includes(userBrand) || userBrand.includes(targetName))) return true;
+
+        // 4. From selectedBrand or filters.brands (if single brand selected and not 'All')
+        if (filters?.brands?.length === 1) {
+            const fb = String(filters.brands[0]).toLowerCase().trim();
+            if (targetName === fb || targetName.includes(fb) || fb.includes(targetName)) return true;
+        }
+        if (selectedBrand && selectedBrand !== 'All') {
+            const sb = String(selectedBrand).toLowerCase().trim();
+            if (targetName === sb || targetName.includes(sb) || sb.includes(targetName)) return true;
+        }
+
+        return false;
+    }, [ourBrands, contextOwnBrands, user, filters?.brands, selectedBrand]);
+
+    const handleSort = (key) => {
+        setSortConfig((prev) => {
+            if (prev.key === key) {
+                return { key, direction: prev.direction === 'desc' ? 'asc' : 'desc' };
+            }
+            return { key, direction: key === 'name' ? 'asc' : 'desc' };
+        });
+    };
+
+    const fullRows = (allRows && allRows.length > 0) ? allRows : (rows || []);
+
+    const sortedRows = useMemo(() => {
+        if (!fullRows || fullRows.length === 0) return [];
+        return [...fullRows].sort((a, b) => {
+            const { key, direction } = sortConfig;
+            const mult = direction === 'desc' ? -1 : 1;
+
+            if (key === 'name') {
+                const valA = String(a.name || a.brand || a.brand_name || '');
+                const valB = String(b.name || b.brand || b.brand_name || '');
+                return mult * valA.localeCompare(valB);
+            }
+
+            const getNumericVal = (item, k) => {
+                const val = item[k];
+                if (val === null || val === undefined || val === 'N/A' || val === '') return -Infinity;
+                const num = typeof val === 'object' ? Number(val.value ?? val.val) : Number(val);
+                return isNaN(num) ? -Infinity : num;
+            };
+
+            const numA = getNumericVal(a, key);
+            const numB = getNumericVal(b, key);
+
+            if (numA !== numB) {
+                return mult * (numA > numB ? 1 : -1);
+            }
+
+            const sosA = getNumericVal(a, 'overall_sos');
+            const sosB = getNumericVal(b, 'overall_sos');
+            if (sosA !== sosB) return sosB > sosA ? 1 : -1;
+
+            return (a.name || a.brand || a.brand_name || '').localeCompare(b.name || b.brand || b.brand_name || '');
+        });
+    }, [fullRows, sortConfig]);
+
+    const top10Rows = useMemo(() => {
+        return sortedRows.slice(0, 10);
+    }, [sortedRows]);
+
+    const isOurBrandInTop10 = useMemo(() => {
+        return top10Rows.some(r => isOurBrand(r));
+    }, [top10Rows, isOurBrand]);
+
+    // If our brand is NOT in top 10, find our brand in fullRows or fallback
+    const ourBrandOutsideTop10 = useMemo(() => {
+        if (isOurBrandInTop10) return null;
+
+        // First check remaining sorted rows from index 10 onwards
+        const outsideMatch = sortedRows.slice(10).find(r => isOurBrand(r));
+        if (outsideMatch) {
+            const rank = sortedRows.findIndex(r => r === outsideMatch) + 1;
+            return { ...outsideMatch, rank };
+        }
+
+        // If not found in slice(10), search entire sortedRows
+        const anyMatch = sortedRows.find(r => isOurBrand(r));
+        if (anyMatch) {
+            const rank = sortedRows.findIndex(r => r === anyMatch) + 1;
+            return { ...anyMatch, rank };
+        }
+
+        // If user specifically filtered for competitor brands (not our brand), don't show our brand fallback
+        if (filters?.brands?.length > 0 && !filters.brands.some(b => isOurBrand(null, b))) {
+            return null;
+        }
+
+        // Fallback: if our brand has 0 items in competition table, build placeholder
+        const fallbackName = (filters?.brands?.length === 1 && isOurBrand(null, filters.brands[0]) ? filters.brands[0] : '') ||
+                             (selectedBrand && selectedBrand !== 'All' ? selectedBrand : '') ||
+                             (contextOwnBrands && contextOwnBrands.length > 0 ? contextOwnBrands[0] : '') ||
+                             (ourBrands && ourBrands.length > 0 ? ourBrands[0] : '') ||
+                             user?.dbName ||
+                             user?.brand ||
+                             'Our Brand';
+
+        if (fallbackName && fallbackName !== 'All') {
+            return {
+                name: fallbackName,
+                brand_name: fallbackName,
+                brand: fallbackName,
+                overall_sos: null,
+                sponsored_sos: null,
+                organic_sos: null,
+                rank: null,
+                isFallback: true
+            };
+        }
+
+        return null;
+    }, [isOurBrandInTop10, sortedRows, isOurBrand, filters?.brands, selectedBrand, contextOwnBrands, ourBrands, user]);
+
+    const totalPages = Math.ceil(top10Rows.length / pageSize);
+    const paginatedRows = useMemo(() => {
+        return top10Rows.slice((page - 1) * pageSize, page * pageSize);
+    }, [top10Rows, page, pageSize]);
+
+    const renderSortHeader = (key, label, className = "text-right") => (
+        <th
+            onClick={() => handleSort(key)}
+            className={cn(
+                "px-3 py-2 cursor-pointer select-none hover:bg-slate-100 transition-colors",
+                className
+            )}
+        >
+            <div className={cn("inline-flex items-center gap-1", className.includes("text-left") ? "justify-start" : "justify-end")}>
+                <span>{label}</span>
+                {sortConfig.key === key ? (
+                    sortConfig.direction === 'desc' ? (
+                        <ChevronDown className="h-3.5 w-3.5 text-blue-600" />
+                    ) : (
+                        <ChevronUp className="h-3.5 w-3.5 text-blue-600" />
+                    )
+                ) : (
+                    <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 hover:opacity-100" />
+                )}
+            </div>
+        </th>
+    );
 
     return (
         <Card className="mt-3">
             <CardHeader className="border-b pb-2">
                 <CardTitle className="text-sm font-medium text-slate-800 flex justify-between items-center">
-                    <span>Brands (Top {rows.length || 0})</span>
+                    <span>Brands (Top {Math.min(top10Rows.length, 10)})</span>
                     {onDownload && (
                         <button
                             type="button"
@@ -1258,12 +1469,12 @@ const BrandTable = ({ rows, loading, onDownload, onBrandSelect }) => {
             <CardContent className="pt-3">
                 <div className="max-h-[380px] overflow-auto rounded-md border text-slate-900">
                     <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
-                        <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 shadow-sm">
                             <tr>
-                                <th className="px-3 py-2 text-left w-[25%]">Brand</th>
-                                <th className="px-3 py-2 text-right w-[25%]">Overall SOS</th>
-                                <th className="px-3 py-2 text-right w-[25%]">Sponsored SOS</th>
-                                <th className="px-3 py-2 text-right w-[25%]">Organic SOS</th>
+                                {renderSortHeader('name', 'Brand', 'text-left w-[28%]')}
+                                {renderSortHeader('overall_sos', 'Overall SOS', 'text-right w-[24%]')}
+                                {renderSortHeader('sponsored_sos', 'Sponsored SOS', 'text-right w-[24%]')}
+                                {renderSortHeader('organic_sos', 'Organic SOS', 'text-right w-[24%]')}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
@@ -1274,43 +1485,138 @@ const BrandTable = ({ rows, loading, onDownload, onBrandSelect }) => {
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                 </tr>
-                            )) : paginatedRows.map((row, idx) => {
-                                const brandName = row.name || row.brand_name || row.brand;
-                                return (
-                                    <tr key={row.id || `brand-${idx}`} className={cn("hover:bg-slate-50", idx % 2 === 1 && "bg-slate-50/60")}>
-                                        <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">
-                                            <div className="flex items-center justify-between gap-1.5">
-                                                <span className="truncate" title={brandName}>{brandName}</span>
-                                                {onBrandSelect && brandName && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onBrandSelect(brandName);
-                                                        }}
-                                                        className="px-2 py-0.5 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600 rounded transition-all duration-150 flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
-                                                        title={`View SKUs for ${brandName}`}
-                                                    >
-                                                        <span>SKUs</span>
-                                                        <ArrowRight className="h-3 w-3" />
-                                                    </button>
+                            )) : (
+                                <>
+                                    {/* HIGHLIGHTED ROW ON TOP IF OUR BRAND IS NOT IN TOP 10 */}
+                                    {ourBrandOutsideTop10 && (
+                                        <tr className="bg-amber-50/90 hover:bg-amber-100/80 border-b-2 border-amber-300 font-semibold transition-colors shadow-2xs">
+                                            <td className="whitespace-nowrap px-3 py-2.5 font-medium text-slate-900 border-r border-amber-200">
+                                                <div className="flex items-center justify-between gap-1.5">
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                        <span
+                                                            className="truncate font-bold text-amber-950 capitalize"
+                                                            title={ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand_name || ourBrandOutsideTop10.brand}
+                                                        >
+                                                            {ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand_name || ourBrandOutsideTop10.brand}
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-amber-200/90 text-amber-900 border border-amber-400 shrink-0">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-amber-600 animate-pulse"></span>
+                                                            Our Brand {ourBrandOutsideTop10.rank ? `(#${ourBrandOutsideTop10.rank})` : ''}
+                                                        </span>
+                                                    </div>
+                                                    {onBrandSelect && (ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand) && !ourBrandOutsideTop10.isFallback && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onBrandSelect(ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand);
+                                                            }}
+                                                            className="px-2 py-0.5 text-[10px] font-semibold text-amber-900 bg-amber-100/90 hover:bg-amber-600 hover:text-white border border-amber-300 hover:border-amber-600 rounded transition-all duration-150 flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
+                                                            title={`View SKUs for ${ourBrandOutsideTop10.name || ourBrandOutsideTop10.brand}`}
+                                                        >
+                                                            <span>SKUs</span>
+                                                            <ArrowRight className="h-3 w-3" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-3 py-2.5 text-right text-slate-900 font-semibold border-r border-amber-200">
+                                                <span className="font-semibold text-slate-700">{formatKpiValue(ourBrandOutsideTop10.overall_sos)}</span>
+                                            </td>
+                                            <td className="px-3 py-2.5 text-right text-slate-900 font-semibold border-r border-amber-200">
+                                                <span className="font-semibold text-slate-700">{formatKpiValue(ourBrandOutsideTop10.sponsored_sos)}</span>
+                                            </td>
+                                            <td className="px-3 py-2.5 text-right text-slate-900 font-semibold">
+                                                <span className="font-semibold text-slate-700">{formatKpiValue(ourBrandOutsideTop10.organic_sos)}</span>
+                                            </td>
+                                        </tr>
+                                    )}
+
+                                    {/* TOP 10 PAGINATED ROWS */}
+                                    {paginatedRows.map((row, idx) => {
+                                        const brandName = row.name || row.brand_name || row.brand;
+                                        const isOwn = isOurBrand(row);
+                                        return (
+                                            <tr
+                                                key={row.id || `brand-${idx}`}
+                                                className={cn(
+                                                    "hover:bg-slate-50 transition-colors",
+                                                    idx % 2 === 1 && "bg-slate-50/60",
+                                                    isOwn && "bg-emerald-50/40 hover:bg-emerald-50/70"
                                                 )}
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-2 text-right text-slate-900 font-medium">{formatKpiValue(row.overall_sos)}</td>
-                                        <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.sponsored_sos)}</td>
-                                        <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.organic_sos)}</td>
-                                    </tr>
-                                );
-                            })}
-                            {!loading && rows.length === 0 && (
-                                <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">No data is available</td></tr>
+                                            >
+                                                <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800 border-r border-slate-100">
+                                                    <div className="flex items-center justify-between gap-1.5">
+                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                            <span
+                                                                className={cn(
+                                                                    "truncate font-medium capitalize",
+                                                                    isOwn && "font-semibold text-slate-900"
+                                                                )}
+                                                                title={brandName}
+                                                            >
+                                                                {brandName}
+                                                            </span>
+                                                            {isOwn && (
+                                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 shrink-0">
+                                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                                                    Our Brand
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {onBrandSelect && brandName && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    onBrandSelect(brandName);
+                                                                }}
+                                                                className="px-2 py-0.5 text-[10px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 hover:border-blue-600 rounded transition-all duration-150 flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
+                                                                title={`View SKUs for ${brandName}`}
+                                                            >
+                                                                <span>SKUs</span>
+                                                                <ArrowRight className="h-3 w-3" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-3 py-2 text-right text-slate-900 font-medium">
+                                                    {formatKpiValue(row.overall_sos)}
+                                                </td>
+                                                <td className="px-3 py-2 text-right text-slate-900">
+                                                    {formatKpiValue(row.sponsored_sos)}
+                                                </td>
+                                                <td className="px-3 py-2 text-right text-slate-900">
+                                                    {formatKpiValue(row.organic_sos)}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+
+                                    {paginatedRows.length === 0 && !ourBrandOutsideTop10 && (
+                                        <tr>
+                                            <td colSpan={4} className="px-3 py-6 text-center text-slate-400">
+                                                No brands matching current filters.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </>
                             )}
                         </tbody>
                     </table>
                 </div>
             </CardContent>
-            <PaginationFooter isVisible={rows.length > 0} currentPage={page} totalPages={totalPages} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(s) => { setPageSize(s); setPage(1); }} />
+            <PaginationFooter
+                isVisible={top10Rows.length > 0}
+                currentPage={page}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(s) => {
+                    setPageSize(s);
+                    setPage(1);
+                }}
+            />
         </Card>
     );
 };
@@ -1382,13 +1688,165 @@ const SkuTable = ({ rows, loading, onDownload }) => {
 };
 
 /* -------------------------------------------------------------------------- */
+/*                          Location Checkbox Select                          */
+/* -------------------------------------------------------------------------- */
+
+const LocationSelect = ({ cities, value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const cleanCities = useMemo(() => {
+    return (cities || [])
+      .map((c) => (typeof c === "string" ? c : c?.name || String(c)))
+      .filter((c) => c !== "Select All" && c !== "All" && c !== "All India" && c !== "All Cities");
+  }, [cities]);
+
+  // Determine if 'All Cities' / 'Select All' is checked
+  const isSelectAll = useMemo(() => {
+    if (value === "Select All" || value === "All" || value === "All India" || value === "All Cities") return true;
+    if (Array.isArray(value)) {
+      if (value.length === 0) return false;
+      return (
+        value.includes("Select All") ||
+        value.includes("All") ||
+        value.includes("All Cities") ||
+        (cleanCities.length > 0 && value.length >= cleanCities.length)
+      );
+    }
+    return false;
+  }, [value, cleanCities]);
+
+  const selectedList = useMemo(() => {
+    if (isSelectAll) return cleanCities;
+    if (Array.isArray(value)) return value.filter((c) => c !== "Select All" && c !== "All" && c !== "All Cities");
+    if (typeof value === "string" && value)
+      return value.split(",").map((s) => s.trim()).filter(Boolean);
+    return [];
+  }, [isSelectAll, cleanCities, value]);
+
+  const handleToggleSelectAll = () => {
+    if (isSelectAll) {
+      onChange([]);
+    } else {
+      onChange(["All Cities"]);
+    }
+  };
+
+  const handleToggleCity = (cityName) => {
+    let next;
+    if (selectedList.includes(cityName)) {
+      next = selectedList.filter((c) => c !== cityName);
+    } else {
+      next = [...selectedList, cityName];
+    }
+
+    if (cleanCities.length > 0 && next.length >= cleanCities.length) {
+      onChange(["All Cities"]);
+    } else {
+      onChange(next);
+    }
+  };
+
+  const displayText = useMemo(() => {
+    if (isSelectAll) return "All Cities";
+    if (selectedList.length === 0) return "Select city";
+    if (selectedList.length === 1) return selectedList[0];
+    if (selectedList.length === 2) return selectedList.join(", ");
+    return `${selectedList.length} cities selected`;
+  }, [isSelectAll, selectedList]);
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex h-9 w-44 items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-1 text-xs text-slate-800 shadow-sm hover:bg-slate-50 focus:outline-none"
+      >
+        <span className="truncate">{displayText}</span>
+        <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-50 mt-1 w-52 rounded-md border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5">
+          <div className="max-h-56 overflow-y-auto">
+            {/* All Cities */}
+            <div
+              className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer border-b border-slate-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleSelectAll();
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={isSelectAll}
+                onChange={handleToggleSelectAll}
+                className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <span>All Cities</span>
+            </div>
+
+            {/* City Options */}
+            {cleanCities.map((cityName) => {
+              const isChecked = selectedList.includes(cityName);
+              return (
+                <div
+                  key={cityName}
+                  className="flex items-center gap-2.5 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleCity(cityName);
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => handleToggleCity(cityName)}
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="truncate">{cityName}</span>
+                </div>
+              );
+            })}
+
+            {cleanCities.length === 0 && (
+              <div className="px-3 py-2 text-xs text-slate-400 text-center">
+                No cities available
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
 const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeStep, externalFilters, externalCity }) => {
     const { selectedChannel, compareStart, compareEnd } = useContext(FilterContext);
     const [tab, setTab] = useState("brand");
-    const [city, setCity] = useState(externalCity && externalCity !== "All India" ? externalCity : "Select All");
+    const [city, setCity] = useState(() => {
+        if (externalCity && externalCity !== "All India" && externalCity !== "All Cities" && externalCity !== "All" && externalCity !== "Select All") {
+            return [externalCity];
+        }
+        return ["All Cities"];
+    });
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
     const [filters, setFilters] = useState(externalFilters || {
         categories: [],
@@ -1424,17 +1882,22 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
 
     useEffect(() => {
         if (externalCity) {
-            setCity(externalCity === "All India" ? "Select All" : externalCity);
+            if (externalCity === "All India" || externalCity === "All Cities" || externalCity === "All" || externalCity === "Select All") {
+                setCity(["All Cities"]);
+            } else {
+                setCity(Array.isArray(externalCity) ? externalCity : [externalCity]);
+            }
         }
     }, [externalCity]);
 
     const [filterOptions, setFilterOptions] = useState({
-        locations: ['Select All'],
+        locations: ['All Cities'],
         brands: ['All'],
         skus: ['All']
     });
     const [apiBrandData, setApiBrandData] = useState([]);
     const [apiSkuData, setApiSkuData] = useState([]);
+    const [apiOurBrands, setApiOurBrands] = useState([]);
     const [apiLoading, setApiLoading] = useState(true);
     const [apiTrendData, setApiTrendData] = useState({});
     const [trendLoading, setTrendLoading] = useState(false);
@@ -1445,8 +1908,8 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 const res = await axiosInstance.get(`/visibility-analysis/filter-options?filterType=cities&channel=${selectedChannel || 'All'}&platform=${selectedPlatform || 'All'}`);
                 if (res.data) {
                     const raw = res.data.options || [];
-                    const clean = raw.filter(c => c !== 'Select All' && c !== 'All' && c !== 'All India');
-                    setFilterOptions(prev => ({ ...prev, locations: ['Select All', ...clean] }));
+                    const clean = raw.filter(c => c !== 'Select All' && c !== 'All' && c !== 'All India' && c !== 'All Cities');
+                    setFilterOptions(prev => ({ ...prev, locations: ['All Cities', ...clean] }));
                 }
             } catch (err) {
                 console.error('Failed to fetch city options:', err);
@@ -1459,14 +1922,13 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
         const fetchCompetitionData = async () => {
             setApiLoading(true);
             try {
+                const cleanCity = getLocationParam(city);
                 const params = {
                     platform: selectedPlatform || 'All',
-                    location: (city !== 'All India' && city !== 'Select All' && city !== 'All') 
-                        ? (Array.isArray(city) ? city.join(',').toLowerCase() : String(city).toLowerCase()) 
-                        : 'all',
+                    location: cleanCity.toLowerCase(),
                     format: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                     brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
-                    skus: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
+                    skus: filters.skus.length > 0 ? (filters.skus.length === 1 ? filters.skus[0] : JSON.stringify(filters.skus)) : 'All',
                     period: period || '1M',
                     channel: selectedChannel || 'All',
                     keyword: filters.keywords.length > 0 ? filters.keywords.join(',') : 'All',
@@ -1480,9 +1942,16 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 if (res.data) {
                     console.log('[VisibilityPlatformOverviewKpiShowcase] Received competition data:', res.data.brands?.length, 'brands,', res.data.skus?.length, 'skus');
 
+                    setApiOurBrands(res.data.ourBrands || []);
+
                     setApiBrandData((res.data.brands || []).map((b, idx) => ({
-                        id: b.brand?.toLowerCase().replace(/\s+/g, '-') || `brand-${idx}`,
-                        name: b.brand || 'Unknown',
+                        id: (b.brand || b.name || b.brand_name || '').toLowerCase().replace(/\s+/g, '-') || `brand-${idx}`,
+                        name: b.brand || b.name || b.brand_name || 'Unknown',
+                        brand: b.brand || b.name || b.brand_name || 'Unknown',
+                        brand_name: b.brand_name || b.brand || b.name || 'Unknown',
+                        isOwnBrand: b.isOwnBrand || b.is_my_brand || false,
+                        is_my_brand: b.is_my_brand || b.isOwnBrand || false,
+                        rank: b.rank ?? (idx + 1),
                         overall_sos: b.overall_sos?.value ?? b.overall_sos ?? 0,
                         overall_sos_delta: b.overall_sos?.delta ?? 0,
                         sponsored_sos: b.sponsored_sos?.value ?? b.sponsored_sos ?? 0,
@@ -1520,7 +1989,13 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
 
     const brandRows = useMemo(() => {
         let rows = apiBrandData;
-        if (filters.brands.length) rows = rows.filter((r) => filters.brands.includes(r.name));
+        if (filters.brands && filters.brands.length) {
+            const allowed = filters.brands.map(b => b.toLowerCase().trim());
+            rows = rows.filter((r) => {
+                const bName = (r.name || r.brand || r.brand_name || '').toLowerCase().trim();
+                return allowed.includes(bName);
+            });
+        }
         return rows;
     }, [apiBrandData, filters.brands]);
 
@@ -1533,7 +2008,13 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 return allowed.some(ab => bName.includes(ab) || ab.includes(bName));
             });
         }
-        if (filters.skus && filters.skus.length) rows = rows.filter((r) => filters.skus.includes(r.name));
+        if (filters.skus && filters.skus.length) {
+            const allowedSkus = filters.skus.map(s => s.toLowerCase().trim());
+            rows = rows.filter((r) => {
+                const sName = (r.name || r.sku || r.sku_name || '').toLowerCase().trim();
+                return allowedSkus.some(as => sName.includes(as) || as.includes(sName));
+            });
+        }
         return rows;
     }, [apiSkuData, filters.brands, filters.skus]);
 
@@ -1623,9 +2104,9 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
 
                 const params = {
                     platform: selectedPlatform || 'All',
-                    brands: tab === 'brand' ? idList.join(',') : (filters.brands.length > 0 ? filters.brands.join(',') : 'All'),
-                    skus: tab === 'sku' ? idList.join(',') : (filters.skus.length > 0 ? filters.skus.join(',') : 'All'),
-                    location: city !== 'All India' ? (Array.isArray(city) ? city.join(',') : String(city)) : 'All',
+                    brands: tab === 'brand' ? (idList.length > 0 ? JSON.stringify(idList) : 'All') : (filters.brands.length > 0 ? (filters.brands.length === 1 ? filters.brands[0] : JSON.stringify(filters.brands)) : 'All'),
+                    skus: tab === 'sku' ? (idList.length > 0 ? JSON.stringify(idList) : 'All') : (filters.skus.length > 0 ? (filters.skus.length === 1 ? filters.skus[0] : JSON.stringify(filters.skus)) : 'All'),
+                    location: getLocationParam(city),
                     format: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                     dimension: tab,
                     period: period || '1M',
@@ -1675,12 +2156,11 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    <Select value={city} onValueChange={setCity}>
-                        <SelectTrigger className="h-9 w-40 bg-white"><SelectValue placeholder="Select city" /></SelectTrigger>
-                        <SelectContent>
-                            {filterOptions.locations.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+                    <LocationSelect
+                        cities={filterOptions.locations}
+                        value={city}
+                        onChange={setCity}
+                    />
 
                     <Button variant="outline" size="sm" className="relative bg-white" onClick={() => setFilterDialogOpen(true)}>
                         <Filter className="mr-1.5 h-4 w-4" /> Filters
@@ -1738,7 +2218,17 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 </div>
 
                 <TabsContent value="brand" className="mt-3">
-                    {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} onDownload={handleDownloadCompetitionExcel} onBrandSelect={handleBrandSelect} />}
+                    {viewMode === "table" && (
+                        <BrandTable
+                            rows={brandRows}
+                            allRows={brandRows}
+                            ourBrands={apiOurBrands}
+                            filters={filters}
+                            loading={apiLoading}
+                            onDownload={handleDownloadCompetitionExcel}
+                            onBrandSelect={handleBrandSelect}
+                        />
+                    )}
                     {viewMode === "trend" && <TrendView mode="brand" visibleIds={visibleIds} setVisibleIds={setVisibleIds} allPossibleIds={allPossibleIds} city={city} onBackToTable={() => setViewMode("table")} onSwitchToKpi={() => setViewMode("kpi")} apiTrendData={apiTrendData} trendLoading={trendLoading} />}
                     {viewMode === "kpi" && <KpiCompareView mode="brand" visibleIds={visibleIds} setVisibleIds={setVisibleIds} allPossibleIds={allPossibleIds} city={city} onBackToTrend={() => setViewMode("trend")} apiTrendData={apiTrendData} trendLoading={trendLoading} />}
                 </TabsContent>

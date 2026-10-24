@@ -4,6 +4,7 @@ import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
+import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 const UPPERCASE_WEB_PID_TARGETS = [
     'amazon',
@@ -209,9 +210,10 @@ export const getReportBuilderOptions = async (req, res) => {
             if (!out.regions) out.regions = [];
 
             try {
-                const hasLocalDarkstore = await checkTableExists('rb_pdp_week');
-                const darkstoreTable = hasLocalDarkstore ? 'rb_pdp_week' : 'drl.rb_pdp_week';
-                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable}`).catch(() => null);
+                const currentDb = getCurrentDbName() || 'boat';
+                const hasLocalDarkstore = await checkTableExists(`${currentDb}.rb_pdp_week`) || await checkTableExists('rb_pdp_week');
+                const darkstoreTable = hasLocalDarkstore ? (await checkTableExists(`${currentDb}.rb_pdp_week`) ? `${currentDb}.rb_pdp_week` : 'rb_pdp_week') : 'drl.rb_pdp_week';
+                const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM ${darkstoreTable} WHERE created_on IS NOT NULL`).catch(() => null);
                 if (dates && dates[0] && dates[0].minDate) {
                     out.darkstoreDateRange = {
                         minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
@@ -237,7 +239,8 @@ export const getReportBuilderOptions = async (req, res) => {
  */
 export const downloadReport = async (req, res) => {
     try {
-        const { platform, brand, city, format, timePeriod, reportType, startDate: qStart, endDate: qEnd } = req.query;
+        const { isQcUser, maxAllowedDate } = applyQcDateFilter(req.query, req);
+        const { platform, brand, city, format, timePeriod, reportType, dataMode, startDate: qStart, endDate: qEnd } = req.query;
 
         const pdpCols = await getTableColumns('rb_pdp_olap');
         const col = (name) => resolveColumn(pdpCols, name, '0');
@@ -252,10 +255,12 @@ export const downloadReport = async (req, res) => {
         else if (pdpCols.has('category')) catCol = pdpCols.get('category');
         else if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category');
 
+        const isDarkstoreMode = dataMode === 'darkstore' || reportType === 'Darkstore Data';
+
         let startDate, endDate;
         const now = dayjs();
 
-        if (timePeriod === "Custom Range" && qStart && qEnd) {
+        if (((timePeriod === "Custom Range" || isDarkstoreMode) || (qStart && qEnd)) && qStart && qEnd) {
             startDate = qStart;
             endDate = qEnd;
         } else if (timePeriod === "Last 7 Days") {
@@ -287,10 +292,8 @@ export const downloadReport = async (req, res) => {
             return `lower(${column}) IN (${items})`;
         };
 
-        const dataMode = req.query.dataMode || 'aggregated';
-
         // ── DARKSTORE DATA EXPORT (rb_pdp_week) — Streaming CSV ──
-        if (dataMode === 'darkstore' || reportType === 'Darkstore Data') {
+        if (isDarkstoreMode) {
             const currentDb = getCurrentDbName() || 'drl';
             const hasLocalWeekTable = await checkTableExists('rb_pdp_week');
             const weekTable = hasLocalWeekTable ? `${currentDb}.rb_pdp_week` : 'drl.rb_pdp_week';
@@ -306,7 +309,9 @@ export const downloadReport = async (req, res) => {
             const cCond = buildInClause('brand_category_name', format);
             if (cCond) darkstoreConds.push(cCond);
 
-            darkstoreConds.push(`toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`);
+            // Filter strictly by date portion of created_on without time
+            darkstoreConds.push(`toDate(created_on) >= toDate('${startDate}') AND toDate(created_on) <= toDate('${endDate}')`);
+            darkstoreConds.push(`created_on IS NOT NULL`);
 
             const darkstoreWhere = darkstoreConds.length > 0 ? `WHERE ${darkstoreConds.join(' AND ')}` : '';
 
@@ -315,15 +320,15 @@ export const downloadReport = async (req, res) => {
                 state_map AS
                 (
                     SELECT DISTINCT
-                        toString(pincode) AS pincode,
+                        toString(location_id) AS loc_id,
                         location_state
                     FROM rb_location_darkstore
-                    WHERE pincode IS NOT NULL AND toString(pincode) != '' AND toString(pincode) != '0'
+                    WHERE location_id IS NOT NULL AND toString(location_id) != '' AND toString(location_id) != '0'
                 )`
                 : '';
             const stateJoin = hasLocationDarkstoreTable
                 ? `LEFT JOIN state_map sm
-                    ON toString(b.pincode) = sm.pincode`
+                    ON toString(b.location_id) = sm.loc_id`
                 : '';
             const stateCol = hasLocationDarkstoreTable
                 ? `sm.location_state AS State,`
@@ -445,8 +450,8 @@ export const downloadReport = async (req, res) => {
 
             const csvEscape = (val) => {
                 if (val === null || val === undefined) return '';
-                const str = String(val);
-                if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                let str = String(val).replace(/[\r\n]+/g, ' ').trim();
+                if (str.includes(',') || str.includes('"')) {
                     return `"${str.replace(/"/g, '""')}"`;
                 }
                 return str;
@@ -529,6 +534,9 @@ export const downloadReport = async (req, res) => {
         }
 
         conditions.push(`toDate(${col('DATE')}) BETWEEN '${startDate}' AND '${endDate}'`);
+        if (!isQcUser) {
+            conditions.push(`toDate(${col('DATE')}) <= '${maxAllowedDate}'`);
+        }
 
         const granularitySku = req.query.granularitySku || '';
         if (granularitySku.includes('(Own)') && !granularitySku.includes('Comp')) {
@@ -548,7 +556,281 @@ export const downloadReport = async (req, res) => {
         const granTime = req.query.granularityTime || 'Daily';
         const daysInGran = granTime === "Monthly" ? 30.0 : (granTime === "Weekly" ? 7.0 : 1.0);
 
-        if (reportType === "Availability Analysis") {
+        if (reportType === "Master Dump") {
+            const [hasKwOlap, hasLocationDarkstore, hasBrandMs] = await Promise.all([
+                checkTableExists('rb_kw_olap'),
+                checkTableExists('rb_location_darkstore'),
+                checkTableExists('rb_brand_ms')
+            ]);
+            const msTable = hasBrandMs ? 'rb_brand_ms' : 'rb_ms_olap';
+            const msDateCol = hasBrandMs ? 'created_on' : 'created_on';
+            const msBrandCol = hasBrandMs ? 'brand' : 'group_brand';
+
+            // 1. Time Granularity handling
+            let timeAgg = `toDate(t.DATE)`;
+            let cteTimeAgg = `toDate(DATE)`;
+            let cteMsDateAgg = `toDate(${msDateCol})`;
+            const granTime = req.query.granularityTime || "Daily";
+            if (granTime === "Weekly") { 
+                timeAgg = `toStartOfWeek(toDate(t.DATE))`; 
+                cteTimeAgg = `toStartOfWeek(toDate(DATE))`; 
+                cteMsDateAgg = `toStartOfWeek(toDate(${msDateCol}))`;
+            }
+            if (granTime === "Monthly") { 
+                timeAgg = `toStartOfMonth(toDate(t.DATE))`; 
+                cteTimeAgg = `toStartOfMonth(toDate(DATE))`; 
+                cteMsDateAgg = `toStartOfMonth(toDate(${msDateCol}))`;
+            }
+
+            const daysInGran = granTime === "Monthly" ? 30.0 : (granTime === "Weekly" ? 7.0 : 1.0);
+
+            // 2. Geography / Location Granularity handling
+            let reqDimensions = req.query.dimensions ? req.query.dimensions.split(',') : ['Platform', 'Brand', 'City', 'Category', 'Product'];
+            if (req.query.granularityGeo === "Pan India") {
+                reqDimensions = reqDimensions.filter(d => d !== 'City');
+            }
+
+            const granSku = req.query.granularitySku || '';
+            const isOwnOnly = granSku.includes('(Own)') && !granSku.includes('Comp');
+
+            const [msCols, kwCols] = await Promise.all([
+                getTableColumns(msTable).catch(() => new Map()),
+                getTableColumns('rb_kw_olap').catch(() => new Map()),
+            ]);
+
+            let kwFlagCond = "";
+            if (isOwnOnly) {
+                if (kwCols.has('flag')) kwFlagCond = " AND toString(flag) = '1'";
+                else if (kwCols.has('comp_flag')) kwFlagCond = " AND comp_flag = 0";
+                else if (kwCols.has('Comp_flag')) kwFlagCond = " AND Comp_flag = 0";
+            }
+
+            let msFlagCond = "";
+            if (isOwnOnly) {
+                if (msCols.has('flag')) msFlagCond = " AND toString(flag) = '1'";
+                else if (msCols.has('comp_flag')) msFlagCond = " AND comp_flag = 0";
+                else if (msCols.has('Comp_flag')) msFlagCond = " AND Comp_flag = 0";
+            }
+
+            let hasPlatform = true; // Platform is ALWAYS included in exported report!
+            let hasBrand = reqDimensions.includes('Brand');
+            let hasCity = reqDimensions.includes('City');
+            let hasFormat = reqDimensions.includes('Category') || reqDimensions.includes('Format');
+            let hasProduct = reqDimensions.includes('Product');
+
+            // Force override dimensions based on explicit SKU constraints
+            if (granSku.includes('SKU')) {
+                hasProduct = true;
+                hasBrand = true;
+            } else if (granSku.includes('Brand')) {
+                hasBrand = true;
+            } else if (granSku.includes('Category')) {
+                hasFormat = true;
+            }
+
+            const dimSelects = [];
+            const dimGroups = [];
+            if (hasPlatform) { dimSelects.push(`t.${col('Platform')} as Platform`); dimGroups.push(`Platform`); }
+            if (hasBrand) { dimSelects.push(`t.${col('Brand')} as Brand`); dimGroups.push(`Brand`); }
+            if (hasCity) { dimSelects.push(`t.${col('Location')} as City`); dimGroups.push(`City`); }
+            if (hasFormat) { dimSelects.push(`t.${catCol} as Format`); dimGroups.push(`Format`); }
+            if (hasProduct) { dimSelects.push(`t.${col('Product')} as Product`); dimGroups.push(`Product`); }
+            if (granSku.includes('SKU')) { dimSelects.push(`t.${col('Web_Pid')} as Web_Pid`); dimGroups.push(`Web_Pid`); }
+            if (resellerCol) { dimSelects.push(`t.${resellerCol} as Reseller_Name`); dimGroups.push(`Reseller_Name`); }
+
+            const dimGroupStr = dimGroups.length > 0 ? ', ' + dimGroups.join(', ') : '';
+
+            // Handle CTE mappings tightly aligned to base query
+            // SOS = this brand's share of the whole platform/category shelf (top 10 positions), as on the dashboard.
+            // The denominator sums across every brand, so it must not be split by Brand.
+            const sosPartition = ['DATE', 'Platform', ...(hasFormat ? ['Category'] : [])].join(', ');
+            const sosTop10 = 'toInt64OrZero(toString(POSITION)) <= 10';
+            const sosNumCond = hasBrand ? sosTop10 : `(toString(flag) = '1' OR flag = 1) AND ${sosTop10}`;
+            const sosPct = (c) => `round(sumIf(toFloat64OrZero(toString(${c})), ${sosNumCond}) * 100.0 / nullIf(sum(sumIf(toFloat64OrZero(toString(${c})), ${sosTop10})) OVER (PARTITION BY ${sosPartition}), 0), 2)`;
+
+            let sosGroupCols = ['DATE'];
+            let sosSelectCols = [`${cteTimeAgg} as DATE`];
+            let sosJoinOn = [`${timeAgg} = s.DATE`];
+
+            let totGroupCols = ['DATE'];
+            let totSelectCols = [`${cteTimeAgg} as DATE`];
+            let totJoinOn = [`${timeAgg} = tot.DATE`];
+
+            if (hasPlatform) {
+                sosGroupCols.push('Platform'); sosSelectCols.push('platform_name as Platform'); sosJoinOn.push('t.Platform = s.Platform');
+                totGroupCols.push('Platform'); totSelectCols.push('platform_name as Platform'); totJoinOn.push('t.Platform = tot.Platform');
+            }
+            if (hasBrand) {
+                sosGroupCols.push('Brand'); sosSelectCols.push('brand as Brand'); sosJoinOn.push('t.Brand = s.Brand');
+            }
+            if (hasFormat) {
+                sosGroupCols.push('Category'); sosSelectCols.push('keyword_category as Category'); sosJoinOn.push(`t.${catCol} = s.Category`);
+                totGroupCols.push('Category'); totSelectCols.push('keyword_category as Category'); totJoinOn.push(`t.${catCol} = tot.Category`);
+            }
+
+            const sosCte = hasKwOlap ? `
+                WITH sos_stats AS (
+                    SELECT 
+                        ${sosSelectCols.join(', ')},
+                        ${sosPct('overall')} as overall_sos_pct,
+                        ${sosPct('spons')} as spons_sos_pct,
+                        ${sosPct('organic')} as org_sos_pct,
+                        avgIf(toInt64OrZero(toString(POSITION)), toInt32(spons) = 1) as ad_pos,
+                        avgIf(toInt64OrZero(toString(POSITION)), toInt32(spons) != 1) as org_pos
+                    FROM rb_kw_olap
+                    WHERE toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'
+                    ${!isQcUser ? `AND toDate(DATE) <= '${maxAllowedDate}'` : ''}
+                    GROUP BY ${sosGroupCols.join(', ')}
+                ),` : 'WITH ';
+
+            const pricingCte = '';
+            const pricingJoin = '';
+
+            const msSelectLoc = hasCity ? ", location as Location" : "";
+            const msGroupLoc = hasCity ? ", Location" : "";
+            const msJoinLoc = hasCity ? " AND t.Location = ms.Location" : "";
+            const cmsJoinLoc = hasCity ? " AND t.Location = cms.Location" : "";
+
+            const msCte = `
+                ms_stats AS (
+                    SELECT 
+                        ${cteMsDateAgg} as DATE, ${msBrandCol} as Brand, category as Category${msSelectLoc},
+                        SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as brand_sales
+                    FROM ${msTable}
+                    WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'${msFlagCond}
+                      ${!isQcUser ? `AND toDate(${msDateCol}) <= '${maxAllowedDate}'` : ''}
+                      AND sales IS NOT NULL
+                    GROUP BY DATE, Brand, Category${msGroupLoc}
+                ),
+                -- Category total spans every brand (own + comp); applying msFlagCond here would inflate share to ~100%
+                cat_ms_stats AS (
+                    SELECT 
+                        ${cteMsDateAgg} as DATE, category as Category${msSelectLoc},
+                        SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as cat_sales
+                    FROM ${msTable}
+                    WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'
+                      ${!isQcUser ? `AND toDate(${msDateCol}) <= '${maxAllowedDate}'` : ''}
+                      AND sales IS NOT NULL
+                    GROUP BY DATE, Category${msGroupLoc}
+                ),`;
+
+            const catSizeSelectLoc = hasCity ? ", Location" : "";
+            const catSizeGroupLoc = hasCity ? ", Location" : "";
+            const catSizeJoinLoc = hasCity ? " AND t.Location = cs.Location" : "";
+
+            const catSizeCte = `
+                cat_size_stats AS (
+                    SELECT 
+                        ${cteTimeAgg} as DATE, Platform${catSizeSelectLoc},
+                        SUM(toFloat64(Sales)) as Cat_Size
+                    FROM rb_pdp_olap
+                    WHERE toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'
+                    ${!isQcUser ? `AND toDate(DATE) <= '${maxAllowedDate}'` : ''}
+                    GROUP BY DATE, Platform${catSizeGroupLoc}
+                )`;
+
+            const metroJoin = hasLocationDarkstore ? `
+                LEFT JOIN (
+                    SELECT DISTINCT LOWER(location) as location, 1 as is_metro
+                    FROM rb_location_darkstore
+                    WHERE tier = 'Tier 1'
+                ) m ON LOWER(t.Location) = m.location` : '';
+
+            const sosJoin = hasKwOlap ? `
+                LEFT JOIN sos_stats s ON ${sosJoinOn.join(' AND ')}` : '';
+
+
+
+            const msJoin = `
+                LEFT JOIN ms_stats ms ON ${timeAgg} = ms.DATE AND t.Brand = ms.Brand AND t.${catCol} = ms.Category${msJoinLoc}
+                LEFT JOIN cat_ms_stats cms ON ${timeAgg} = cms.DATE AND t.${catCol} = cms.Category${cmsJoinLoc}`;
+
+            const catSizeJoin = `
+                LEFT JOIN cat_size_stats cs ON ${timeAgg} = cs.DATE AND t.Platform = cs.Platform${catSizeJoinLoc}`;
+
+            const sosCol = hasKwOlap ? `
+                    any(s.overall_sos_pct) as SOS_Percentage,
+                    any(s.overall_sos_pct) as Overall_SOS_Percentage,
+                    any(s.spons_sos_pct) as Sponsored_SOS_Percentage,
+                    any(s.org_sos_pct) as Organic_SOS_Percentage,
+                    round(any(s.ad_pos), 2) as Ad_POS,
+                    round(any(s.org_pos), 2) as Org_Pos,
+            ` : '';
+
+            const metroCol = hasLocationDarkstore ? `round(SUM(if(m.is_metro = 1, toFloat64(t.${col('neno_osa')}), 0)) / nullIf(SUM(if(m.is_metro = 1, toFloat64(t.${col('deno_osa')}), 0)), 0) * 100, 2) as Metro_City_Stock_Availability,` : `0 as Metro_City_Stock_Availability,`;
+
+            // If sosCte is empty, we must ensure the CTE starts properly with WITH
+            const fullCte = (hasKwOlap ? sosCte : 'WITH ') + pricingCte + msCte + catSizeCte;
+
+            query = `
+                ${fullCte}
+                SELECT 
+                    ${timeAgg} as DATE${dimSelects.length > 0 ? ', ' + dimSelects.join(', ') : ''},
+                    -- Sales / Basics
+                    SUM(toFloat64(t.${col('Sales')})) as Offtake,
+                    SUM(assumeNotNull(t.${col('Qty_Sold')})) as Units_Sold,
+                    SUM(assumeNotNull(t.${col('Qty_Sold')})) as Orders,
+                    round(SUM(toFloat64(t.${col('Sales')})) / nullIf(SUM(assumeNotNull(t.${col('Qty_Sold')})), 0), 2) as ASP,
+
+                    -- Availability
+                    round(SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as Stock_Availability,
+                    round(avg(toFloat64(t.${col('DIH')})), 2) as DOI,
+                    round(avg(ifNull(toFloat64OrZero(toString(t.${col('listing_percent')})), 0)), 2) as Listing_Percentage,
+
+                    -- PM
+                    SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Impressions')})), 0)) as Impressions,
+                    SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0)) as Clicks,
+                    round(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)), 2) as Spend,
+                    round(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Sales')})), 0)), 2) as Inorganic_Sales,
+                    round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)) > 0, SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Sales')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)), 0), 2) as ROAS,
+                    round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0)) > 0, (SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Quantity_sold')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0))) * 100, 0), 2) as Conversion_Rate,
+                    round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Impressions')})), 0)) > 0, (SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Impressions')})), 0))) * 1000, 0), 2) as CPM,
+                    round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0)) > 0, SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Spend')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Clicks')})), 0)), 0), 2) as CPC,
+                    round(if(SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Quantity_sold')})), 0)) > 0, SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Sales')})), 0)) / SUM(ifNull(toFloat64OrZero(toString(t.${col('Ad_Quantity_sold')})), 0)), 0), 2) as AOV,
+
+                    -- Inventory
+                    SUM(toFloat64(t.${col('Inventory')})) as Current_Inventory,
+                    SUM(toFloat64(t.${col('Inventory')})) as SOH,
+                    round(SUM(assumeNotNull(t.${col('Qty_Sold')})) / ${daysInGran}, 2) as DRR,
+                    SUM(toFloat64(t.${col('MSL')})) as Target_Inventory,
+                    round(avg(toFloat64(t.${col('DIH')})), 2) as Days_Inventory_on_Hand,
+
+                    -- Pricing
+                    round(avg(toFloat64(t.${col('Selling_Price')})), 2) as Selling_Price,
+                    round(avg(toFloat64(t.${col('Selling_Price')})), 2) as ECP,
+                    round(avg(toFloat64(t.${col('MRP')})), 2) as MRP,
+                    round(avg((toFloat64(t.${col('MRP')}) - toFloat64(t.${col('Selling_Price')})) / nullIf(toFloat64(t.${col('MRP')}), 0) * 100), 2) as Discount_Percentage,
+                    
+                    ${sosCol}
+                    
+                    round((SUM(toFloat64(t.${col('Ad_Spend')})) / nullIf(SUM(toFloat64(t.${col('Sales')})), 0)) * 100, 2) as BMI_Sales_Ratio,
+                    round(avg(toFloat64(t.${col('Discount')})), 2) as Promo_Percentage,
+
+                    -- Additional Availability KPIs
+                    round(SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as OSA_Percentage,
+                    round(SUM(toFloat64(t.${col('buy_box_neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as Buy_Box_Percentage,
+                    round(100 - (SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage,
+                    
+                    round(SUM(toFloat64(t.${col('Inventory')})) / nullIf(SUM(toFloat64(t.${col('MSL')})), 0) * 100, 2) as PSL,
+                    COUNT(DISTINCT t.${col('Web_Pid')}) as Assortment,
+                    ${metroCol}
+
+                    -- New Pricing, Sales, Category KPIs
+                    any(ms.brand_sales) as Sales_Value,
+                    round(any(ms.brand_sales) / nullIf(any(cms.cat_sales), 0) * 100, 2) as Market_Share_Percentage,
+                    any(cs.Cat_Size) as Cat_Size
+                    
+                FROM rb_pdp_olap t
+                ${metroJoin}
+                ${sosJoin}
+                ${pricingJoin}
+                ${msJoin}
+                ${catSizeJoin}
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? 't.' + catCol : 't.' + match)}
+                GROUP BY DATE${dimGroupStr}
+                ORDER BY DATE DESC
+            `;
+        } else if (reportType === "Availability Analysis") {
             const sosCte = hasKwOlap ? `
                 WITH sos_stats AS (
                     SELECT 
@@ -704,6 +986,7 @@ export const downloadReport = async (req, res) => {
                 "BMI Sales Ratio": "BMI_Sales_Ratio",
                 "Current Inventory": "Current_Inventory",
                 "Target Inventory": "Target_Inventory",
+                "Days on Hand": "Days_Inventory_on_Hand",
                 "Selling Price": "Selling_Price",
                 "ECP": "Selling_Price",
                 "MRP": "MRP",

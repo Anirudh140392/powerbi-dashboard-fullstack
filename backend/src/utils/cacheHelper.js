@@ -16,7 +16,9 @@ export function generateCacheKey(section, filters) {
 
 
     const normalize = (val) => {
-        if (!val || val === 'all' || val === 'All') return 'all';
+        if (!val) return 'all';
+        const str = String(val).toLowerCase().trim();
+        if (str === 'all' || str === 'select all' || str === 'all india' || str === 'all platforms' || str === 'all categories' || str === 'all cities') return 'all';
         let values = [];
         if (Array.isArray(val)) {
             values = val;

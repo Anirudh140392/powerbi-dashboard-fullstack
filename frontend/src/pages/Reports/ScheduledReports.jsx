@@ -6,9 +6,13 @@ import { saveAs } from 'file-saver';
 import { fetchReportFilterOptions, downloadReport, fetchAvailableReportTypes, fetchReportBuilderOptions } from "../../api/reportsService";
 import { FilterContext } from "../../utils/FilterContext";
 import { useContext } from "react";
+import { useAuth } from "../../utils/AuthContext";
 
 export default function ScheduledReports() {
     const { refreshFilters } = useContext(FilterContext);
+    const { user } = useAuth();
+    const isQc = Number(user?.qc_user ?? user?.qcUser) === 1;
+    const maxAllowedDate = dayjs(isQc ? dayjs().format('YYYY-MM-DD') : dayjs().subtract(1, 'day').format('YYYY-MM-DD'));
 
     // Restore comprehensive platform list from rca_sku_dim on mount
     // (Prevents subsetting from other pages like Performance Marketing)
@@ -33,8 +37,8 @@ export default function ScheduledReports() {
     });
 
     const [customDateRange, setCustomDateRange] = useState({
-        startDate: dayjs().subtract(30, 'day'),
-        endDate: dayjs(),
+        startDate: (isQc ? dayjs() : dayjs().subtract(1, 'day')).subtract(30, 'day'),
+        endDate: isQc ? dayjs() : dayjs().subtract(1, 'day'),
     });
 
     const [showSuccess, setShowSuccess] = useState(false);
@@ -216,8 +220,11 @@ export default function ScheduledReports() {
             const currentFilters = { ...selectedFilters, ...overrideFilters };
             const { 
                 platform, brand, location, timePeriod, reportType, category, metrics, dimensions,
-                granularitySku, granularityGeo, granularityTime, overrideDates, dataMode
+                granularitySku, granularityGeo, granularityTime, overrideDates, dataMode,
+                startDate: directStart, endDate: directEnd
             } = currentFilters;
+
+            const isDarkstore = dataMode === 'darkstore' || reportType === 'Darkstore Data';
 
             // Build params for backend API
             const params = {
@@ -225,7 +232,7 @@ export default function ScheduledReports() {
                 brand: (brand && brand !== 'All Brands') ? brand : undefined,
                 city: (location && location !== 'All Locations') ? location : undefined,
                 format: (category && category !== 'All Categories') ? category : undefined,
-                timePeriod: timePeriod,
+                timePeriod: (overrideDates || (directStart && directEnd)) ? "Custom Range" : timePeriod,
                 reportType: reportType,
                 dataMode: dataMode || undefined,
                 metrics: metrics, // Send selected tags to backend
@@ -239,24 +246,38 @@ export default function ScheduledReports() {
             if (overrideDates) {
                 params.startDate = overrideDates.start;
                 params.endDate = overrideDates.end;
-            } else if (timePeriod === "Custom Range") {
+            } else if (directStart && directEnd) {
+                params.startDate = directStart;
+                params.endDate = directEnd;
+            } else if (params.timePeriod === "Custom Range") {
                 params.startDate = dayjs(customDateRange.startDate).format('YYYY-MM-DD');
                 params.endDate = dayjs(customDateRange.endDate).format('YYYY-MM-DD');
+            }
+
+            // Cap custom dates for non-QC users only in aggregated mode (NOT darkstore)
+            if (!isQc && !isDarkstore) {
+                const maxDateStr = maxAllowedDate.format('YYYY-MM-DD');
+                if (params.endDate && dayjs(params.endDate).isAfter(maxAllowedDate)) {
+                    params.endDate = maxDateStr;
+                }
+                if (params.startDate && dayjs(params.startDate).isAfter(maxAllowedDate)) {
+                    params.startDate = maxDateStr;
+                }
             }
 
             // Call backend API — returns Blob (Excel or CSV)
             const blob = await downloadReport(params);
 
             // Determine extension: darkstore mode, blob type text/csv, or date range > 31 days -> .csv
-            const isDarkstore = dataMode === 'darkstore' || reportType === 'Darkstore Data';
-
             let sDate = params.startDate;
             let eDate = params.endDate;
             if (!sDate) {
-                const now = dayjs();
-                if (timePeriod === "Last 90 Days") { sDate = now.subtract(90, 'day').format('YYYY-MM-DD'); eDate = now.format('YYYY-MM-DD'); }
-                else if (timePeriod === "Last 6 Months") { sDate = now.subtract(6, 'month').format('YYYY-MM-DD'); eDate = now.format('YYYY-MM-DD'); }
-                else if (timePeriod === "Last Year") { sDate = now.subtract(1, 'year').format('YYYY-MM-DD'); eDate = now.format('YYYY-MM-DD'); }
+                const refDate = isQc ? dayjs() : dayjs().subtract(1, 'day');
+                if (timePeriod === "Last 7 Days") { sDate = refDate.subtract(7, 'day').format('YYYY-MM-DD'); eDate = refDate.format('YYYY-MM-DD'); }
+                else if (timePeriod === "Last 30 Days") { sDate = refDate.subtract(30, 'day').format('YYYY-MM-DD'); eDate = refDate.format('YYYY-MM-DD'); }
+                else if (timePeriod === "Last 90 Days") { sDate = refDate.subtract(90, 'day').format('YYYY-MM-DD'); eDate = refDate.format('YYYY-MM-DD'); }
+                else if (timePeriod === "Last 6 Months") { sDate = refDate.subtract(6, 'month').format('YYYY-MM-DD'); eDate = refDate.format('YYYY-MM-DD'); }
+                else if (timePeriod === "Last Year") { sDate = refDate.subtract(1, 'year').format('YYYY-MM-DD'); eDate = refDate.format('YYYY-MM-DD'); }
             }
             const isOver31Days = sDate && eDate ? (dayjs(eDate).diff(dayjs(sDate), 'day') + 1 > 31) : false;
             const isCsv = isDarkstore || isOver31Days || (blob && blob.type && blob.type.includes('csv'));

@@ -1,4 +1,4 @@
-import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPmPlatforms, getPlatformMetadata, getPlatformChannels, getChannels, getPdpPlatforms, getCrossPlatformPricing, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductsWithSap, getSubBrands, getProductCategories, getMaxDatesAll, getWatchTowerCascadedFilters, getMsls, getCrossPlatformBrandMatrix } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPmPlatforms, getPlatformMetadata, getPlatformChannels, getChannels, getPdpChannels, getPdpPlatforms, getCrossPlatformPricing, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductsWithSap, getSubBrands, getProductCategories, getMaxDatesAll, getWatchTowerCascadedFilters, getMsls, getCrossPlatformBrandMatrix } from '../controllers/watchTowerController.js';
 import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
 import { getCompareSkuDateRange, getCompareSkuFilters, getCompareSkuProducts, getCompareSkuMetrics, getCompareSkuTrend } from '../controllers/compareSkuController.js';
 
@@ -147,6 +147,7 @@ export default (app) => {
     app.get('/api/watchtower/platform-metadata', getPlatformMetadata);
     app.get('/api/watchtower/platform-channels', getPlatformChannels);
     app.get('/api/watchtower/channels', getChannels);
+    app.get('/api/watchtower/pdp-channels', getPdpChannels);
     app.get('/api/watchtower/pdp-platforms', getPdpPlatforms);
 
     app.get('/api/watchtower/debug', debugAvailability);

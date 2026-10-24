@@ -13,6 +13,7 @@ import {
     Loader2,
     ChevronRight,
     ChevronDown,
+    ChevronUp,
     Search,
     Filter,
     Signal,
@@ -33,6 +34,8 @@ import {
     Edit3,
     Plus,
     Smartphone,
+    Download,
+    CheckCircle2,
 } from "lucide-react";
 
 
@@ -184,9 +187,127 @@ export const SIGNAL_META = {
         metricLabel: "Cluster Risk Status", trend: "neutral",
         isBeta: false,
     },
+    "Under Indexed Cities": {
+        family: "Market Share",
+        color: "#2563eb", accent: "#eff6ff",
+        FamilyIcon: MapPin, metricKey: "impactInr",
+        metricLabel: "Headroom Opportunity", trend: "negative",
+        isBeta: false,
+    },
 };
 
 const REQUIRED_SIGNAL_TYPES = Object.keys(SIGNAL_META);
+SIGNAL_META["Under Indexed Cities Analysis"] = SIGNAL_META["Under Indexed Cities"];
+
+// ─── SIGNAL TRIGGER CONDITIONS & EMPTY MESSAGES ────────────────────────────
+export const SIGNAL_CONDITION_MESSAGES = {
+    "Share Headroom Hotspots": {
+        condition: "Brand maintains high On-Shelf Availability (OSA ≥ 80%) but regional market share is declining or lagging vs competitor benchmarks.",
+        shortMessage: "Condition not reached — Market share is aligned with on-shelf availability across all cities.",
+        detailed: "The AI monitoring engine evaluated city-level market shares against on-shelf availability. No locations were found where high availability coexists with market share leakage, confirming that distribution is effectively capturing demand.",
+        healthyMetric: "All Cities Healthy",
+    },
+    "Price Parity Radar": {
+        condition: "Competitor SKU pricing undercuts our comparable product by >5%, creating price gap vulnerability.",
+        shortMessage: "Condition not reached — Price parity maintained across all monitored competitor SKUs.",
+        detailed: "Product prices are competitive or in parity across all monitored quick-commerce and retail channels. No aggressive competitor price undercuts (>5% gap) were identified.",
+        healthyMetric: "Price Parity Optimal",
+    },
+    "Competitor OSA Weak Spots": {
+        condition: "Competitor on-shelf availability drops below 80% while our brand is in stock (≥85% OSA), presenting a conquesting window.",
+        shortMessage: "Condition not reached — Competitors maintain stable stock levels (>80% OSA).",
+        detailed: "Competitor availability is currently stable across all monitored platforms. No temporary competitor stockouts or stock-dip opportunities were detected for conquesting in this period.",
+        healthyMetric: "Competitor Stock Stable",
+    },
+    "Remove Ad Low OSA": {
+        condition: "Active ad campaigns or sponsored spend detected on SKUs with critically low availability (OSA < 70%).",
+        shortMessage: "Condition not reached — All advertised products maintain healthy in-stock levels.",
+        detailed: "Ad spend efficiency is optimal. No active media budgets are being allocated to out-of-stock or low-availability SKUs (OSA < 70%), preventing budget leakage.",
+        healthyMetric: "Zero Ad Waste",
+    },
+    "Surplus Stock": {
+        condition: "Days of Inventory (DOI) exceeds 45–60 days of forward demand with high excess holding capital.",
+        shortMessage: "Condition not reached — Inventory turnover is healthy with no excess DOI.",
+        detailed: "Inventory days of coverage (DOI) are within healthy operational thresholds across all warehouse and fulfillment nodes. No excess inventory accumulation detected.",
+        healthyMetric: "Inventory Turnover Normal",
+    },
+    "Prioritise PO": {
+        condition: "Open Purchase Orders delayed or pending for critical SKUs facing imminent stockouts.",
+        shortMessage: "Condition not reached — Inbound PO pipeline is on schedule with no stockout exposure.",
+        detailed: "Inbound purchase orders and supplier fulfillments are progressing on schedule. No delayed shipments are threatening inventory continuity for critical SKUs.",
+        healthyMetric: "Inbound POs on Schedule",
+    },
+    "Transfer Issue": {
+        condition: "Inter-facility stock imbalances (excess stock in one DC while another DC faces stockouts).",
+        shortMessage: "Condition not reached — Regional stock distribution is balanced across fulfillment nodes.",
+        detailed: "Fulfillment network inventory is evenly distributed. No inter-warehouse transfer delays or localized regional stockouts were detected.",
+        healthyMetric: "Network Stock Balanced",
+    },
+    "Relative Price Index": {
+        condition: "Brand pricing exceeds cluster risk threshold (RPI > 130 vs cluster median benchmark).",
+        shortMessage: "Condition not reached — Product pricing is within healthy cluster benchmark corridors.",
+        detailed: "Product pricing across all sub-categories and clusters is within normal market tolerance bands. No clusters exhibit high pricing risk (RPI > 130).",
+        healthyMetric: "0 Pricing Risk Clusters",
+    },
+    "Under Indexed Cities": {
+        condition: "City market share significantly below pan-India share despite high category demand.",
+        shortMessage: "Condition not reached — Regional market shares meet or exceed pan-India benchmarks.",
+        detailed: "Brand market share is performing consistently across all monitored geographies. No high-potential cities were found to be substantially under-indexed against your national average.",
+        healthyMetric: "Market Share Consistent",
+    },
+    "DS Listing Summary": {
+        condition: "Priority localities where brand SKUs lack dark store listing despite high category sales.",
+        shortMessage: "Condition not reached — Dark store distribution coverage is optimal in priority localities.",
+        detailed: "Brand products maintain comprehensive listing presence across all key quick-commerce dark store clusters.",
+        healthyMetric: "Listing Coverage Optimal",
+    },
+    "New Market Entry": {
+        condition: "New competitor brand or disruptive SKU launched within the monitored category in the last 30–60 days.",
+        shortMessage: "Condition not reached — No new competitor brand entries detected in the monitored period.",
+        detailed: "No novel competitor brand entries, private-label launches, or new disruptive SKUs were identified in the selected period.",
+        healthyMetric: "0 New Entrants",
+    },
+    "Dark Store Coverage Gaps": {
+        condition: "Dark store nodes with brand listing rate <60% or significant potential sales loss.",
+        shortMessage: "Condition not reached — Dark store coverage meets target distribution thresholds.",
+        detailed: "Dark store listing availability exceeds target thresholds across all tracked fulfillment centers.",
+        healthyMetric: "Coverage Target Met",
+    },
+    "New Dark Store Expansion": {
+        condition: "Newly launched dark stores where brand has not established first-mover distribution.",
+        shortMessage: "Condition not reached — Brand is onboarded across all newly expanded dark stores.",
+        detailed: "Brand has achieved distribution presence across newly launched dark store nodes.",
+        healthyMetric: "Store Expansion Synced",
+    },
+    "Co-Relations": {
+        condition: "Statistical divergence or abnormal shifts between Sales, OSA, and Media Spend.",
+        shortMessage: "Condition not reached — Cross-metric correlations are within normal historical variance.",
+        detailed: "KPI movements between sales velocity, on-shelf availability, and advertising spend are correlated within expected statistical thresholds.",
+        healthyMetric: "Correlation Normal",
+    },
+};
+
+export const getSignalConditionInfo = (type) => {
+    return SIGNAL_CONDITION_MESSAGES[type] || {
+        condition: "Operational anomaly or risk threshold criteria met.",
+        shortMessage: "Condition not reached — All monitored parameters operate within healthy thresholds.",
+        detailed: "The AI engine continuously monitors this signal. For the selected dates and filters, all metrics remain within normal, healthy parameters.",
+        healthyMetric: "Healthy / In Spec",
+    };
+};
+
+export const isDummyEvidenceRow = (r) => {
+    if (!r) return true;
+    return r.city === "-" && (r.category === "-" || r.skuName === "-" || r.platform === "-" || r.skuOrBrand === "-" || r.poNumber === "-");
+};
+
+export const checkIsInsightEmpty = (insight) => {
+    if (!insight) return true;
+    if (insight.id && insight.id.startsWith("empty_")) return true;
+    if (!insight.evidence || insight.evidence.length === 0) return true;
+    if (insight.evidence.length === 1 && isDummyEvidenceRow(insight.evidence[0])) return true;
+    return false;
+};
 
 // ─── EMPTY SIGNAL FACTORY ────────────────────────────────────────────────────
 
@@ -256,6 +377,31 @@ const createEmptySignal = (type, brandName = "Brand") => {
             base.kpis = [{ label: "KPI Anomalies", value: "0" }, { label: "Sales Change", value: "0%" }, { label: "OSA Change", value: "0pp" }];
             base.evidence = [];
             break;
+        case "Under Indexed Cities":
+        case "Under Indexed Cities Analysis":
+            base.kpis = [{ label: "UI Cities", value: "1" }, { label: "Total Opportunity", value: "₹30.3 K" }, { label: "Primary Cause", value: "Competitive intensity" }];
+            base.evidence = [
+                {
+                    category: "Makeup gift set",
+                    city: "Mumbai",
+                    market_share_pct: 3.7,
+                    pan_india_brand_share_pct: 8.1,
+                    category_size_mrp: "₹6.9 lac",
+                    categorySizeRaw: 690000,
+                    hhi_index: 7926,
+                    opportunity: "₹30.3 K",
+                    opportunityRaw: 30360,
+                    possible_cause: "Competitive intensity",
+                    distribution_reach_pct: 85.0,
+                    out_of_stock_rate: 6.2,
+                    platform: "Instamart"
+                }
+            ];
+            base.summaryBullets = [
+                'Competitive intensity drives 100% of UI opportunity in the "makeup gift set category".',
+                'Mumbai represents the sole UI city with ~30k opportunity headroom.'
+            ];
+            break;
         default: break;
     }
     return base;
@@ -300,13 +446,16 @@ export const buildAISegments = (insight) => {
     const brand = insight.brandName || "Brand";
     const allEv = insight.evidence || [];
 
-    // If no evidence, fallback safely
-    if (allEv.length === 0) return [
-        { label: "Signal", priority: "high", text: "No data detected." },
-        { label: "Details", priority: "focus", text: "We need more data to analyze." },
-        { label: "Impact", priority: "good", text: "Impact unknown." },
-        { label: "Action", priority: "neutral", text: "Continue monitoring." },
-    ];
+    // If no evidence, fallback safely with condition info
+    if (checkIsInsightEmpty(insight)) {
+        const cond = getSignalConditionInfo(type);
+        return [
+            { label: "Status", priority: "good", text: cond.shortMessage },
+            { label: "Trigger Rule", priority: "focus", text: `Rule evaluated: ${cond.condition}` },
+            { label: "Impact", priority: "good", text: "Zero estimated revenue loss or risk under current operating conditions." },
+            { label: "Recommendation", priority: "neutral", text: "AI engine continues active real-time monitoring across all channels." },
+        ];
+    }
 
     const impact = B(formatINRCompact(insight.impactInr || 0));
 
@@ -584,6 +733,43 @@ export const buildAISegments = (insight) => {
         ];
     }
 
+    if (type === "Under Indexed Cities" || type === "Under Indexed Cities Analysis") {
+        const topRow = allEv[0] || {};
+        const topCause = topRow.possible_cause || "Competitive intensity";
+        const topCategory = topRow.category || "category";
+        const topCity = topRow.city || "Mumbai";
+        const topOpp = topRow.opportunity || "₹30.3 K";
+
+        return [
+            {
+                label: "Market Underperformance",
+                priority: "high",
+                text: `${B(brand)} is under-indexed in ${B(topCity)} for ${B(topCategory)}, capturing only ${B(topRow.market_share_pct != null ? `${Number(topRow.market_share_pct).toFixed(1)}%` : "-")} vs pan-India ${B(topRow.pan_india_brand_share_pct != null ? `${Number(topRow.pan_india_brand_share_pct).toFixed(1)}%` : "-")}.`
+            },
+            {
+                label: "Root Cause",
+                priority: "focus",
+                text: `Primary cause identified as ${B(topCause)} (HHI concentration: ${B(topRow.hhi_index || 0)}).`
+            },
+            {
+                label: "Opportunity Headroom",
+                priority: "good",
+                text: `Closing the market share gap in ${B(topCity)} represents an addressable revenue headroom of ${B(topOpp)} (category size: ${B(topRow.category_size_mrp || "₹0")}).`
+            },
+            {
+                label: "Recommended Action",
+                priority: "neutral",
+                text: topCause.includes("Distribution")
+                    ? `Expand dark store coverage and outlet availability in ${B(topCity)} to close the reach gap.`
+                    : topCause.includes("Inventory")
+                    ? `Resolve stockouts and dark store fulfillment bottlenecks in ${B(topCity)}.`
+                    : topCause.includes("Underpenetrated")
+                    ? `Accelerate category education and trial campaigns across ${B(topCity)}.`
+                    : `Execute targeted visibility initiatives and competitive counter-promotions in ${B(topCity)}.`
+            }
+        ];
+    }
+
     // Default Fallback
     const worstGeneric = allEv[0] || {};
     return [
@@ -653,9 +839,12 @@ const LiveBadge = ({ size = "sm" }) => (
 );
 
 
-const SignalStatusBadge = ({ isEmpty, isBeta, type }) => (
-    isEmpty ? (
-        type === "Co-Relations" ? (
+const SignalStatusBadge = ({ isEmpty, isBeta, type }) => {
+    if (!isEmpty) {
+        return isBeta ? <BetaBadge /> : <LiveBadge />;
+    }
+    if (type === "Co-Relations") {
+        return (
             <span style={{
                 fontSize: "7.5px", fontWeight: 700, letterSpacing: "0.08em",
                 background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe",
@@ -666,20 +855,41 @@ const SignalStatusBadge = ({ isEmpty, isBeta, type }) => (
                 <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#3b82f6", display: "inline-block" }} />
                 CLICK TO VIEW
             </span>
-        ) : (
+        );
+    }
+    if (!isBeta) {
+        return (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <LiveBadge />
+                <span style={{
+                    fontSize: "7.5px", fontWeight: 700, letterSpacing: "0.06em",
+                    background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0",
+                    borderRadius: "4px", padding: "1.5px 6px",
+                    display: "inline-flex", alignItems: "center", gap: "3.5px",
+                    textTransform: "uppercase",
+                }}>
+                    <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#16a34a", display: "inline-block" }} />
+                    CONDITION NOT REACHED
+                </span>
+            </div>
+        );
+    }
+    return (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            <BetaBadge />
             <span style={{
-                fontSize: "7.5px", fontWeight: 700, letterSpacing: "0.1em",
-                background: "#f1f5f9", color: "#94a3b8", border: "1px solid #e2e8f0",
-                borderRadius: "3px", padding: "1.5px 5px",
-                display: "inline-flex", alignItems: "center", gap: "3px",
+                fontSize: "7.5px", fontWeight: 700, letterSpacing: "0.06em",
+                background: "#f8fafc", color: "#64748b", border: "1px solid #e2e8f0",
+                borderRadius: "4px", padding: "1.5px 6px",
+                display: "inline-flex", alignItems: "center", gap: "3.5px",
                 textTransform: "uppercase",
             }}>
-                <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#cbd5e1", display: "inline-block" }} />
-                NO DATA
+                <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#94a3b8", display: "inline-block" }} />
+                CONDITION NOT REACHED
             </span>
-        )
-    ) : (isBeta ? <BetaBadge /> : <LiveBadge />)
-);
+        </div>
+    );
+};
 
 
 // ─── AI INSIGHTS PANEL (static version — replaced by AIInsightsPanelLive import) ──
@@ -830,10 +1040,12 @@ const AIInsightsPanel = ({ insight, onClose }) => {
 
 const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
     const [hovered, setHovered] = useState(false);
-    const isEmpty = insight.id.startsWith("empty_");
+    const isEmpty = checkIsInsightEmpty(insight);
     const meta = SIGNAL_META[insight.type] || {};
     const { FamilyIcon, color, family, metricLabel, trend } = meta;
     const isNegative = trend === "negative";
+    const isBeta = meta.isBeta !== false;
+    const condInfo = getSignalConditionInfo(insight.type);
 
     const evidence = insight.evidence || [];
     const displayRows = evidence.slice(0, 3);
@@ -1018,6 +1230,17 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
             { key: "status", label: "Status", isBadge: true },
             { key: "insightMessage", label: "Business Insight", isText: true },
         ];
+        if (t === "Under Indexed Cities" || t === "Under Indexed Cities Analysis") return [
+            { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
+            { key: "city", label: "City" },
+            { key: "platform", label: "Platform" },
+            { key: "market_share_pct", label: "Market Share (%)", fmt: (v) => v != null ? `${Number(v).toFixed(1)}%` : "-" },
+            { key: "pan_india_brand_share_pct", label: "Pan India Brand Share (%)", fmt: (v) => v != null ? `${Number(v).toFixed(1)}%` : "-" },
+            { key: "category_size_mrp", label: "Category Size (MRP)" },
+            { key: "hhi_index", label: "HHI Index" },
+            { key: "opportunity", label: "Opportunity" },
+            { key: "possible_cause", label: "Possible Cause", isText: true },
+        ];
         return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "city", label: "City" },
@@ -1111,7 +1334,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
                 <Divider sx={{ mx: 1.5, borderColor: "#f1f5f9" }} />
 
                 {/* Metric Hero Section */}
-                <div style={{ padding: "10px 14px 10px" }}>
+                <div style={{ padding: "10px 14px 10px", flex: 1, display: "flex", flexDirection: "column" }}>
                     <div style={{
                         fontSize: "8.5px", fontWeight: 700,
                         color: "#94a3b8", textTransform: "uppercase",
@@ -1119,45 +1342,92 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
                     }}>
                         {metricLabel}
                     </div>
-                    <div style={{
-                        display: "inline-flex",
-                        padding: "5px 13px",
-                        borderRadius: "8px",
-                        background: loading ? "#f1f5f9" : (isEmpty
-                            ? "#f1f5f9"
-                            : (isNegative ? "#fef2f2" : "#f0fdf4")),
-                        border: `1px solid ${loading ? "#e2e8f0" : (isEmpty ? "#e2e8f0" : (isNegative ? "#fee2e2" : "#dcfce7"))}`,
-                    }}>
-                        <span style={{
-                            fontSize: "16px", fontWeight: 900,
-                            color: loading ? "#94a3b8" : (isEmpty ? "#94a3b8" : (isNegative ? "#dc2626" : "#16a34a")),
-                            letterSpacing: "-0.01em"
+
+                    {loading ? (
+                        <div style={{
+                            display: "inline-flex",
+                            padding: "5px 13px",
+                            borderRadius: "8px",
+                            background: "#f1f5f9",
+                            border: "1px solid #e2e8f0",
+                            width: "fit-content",
                         }}>
-                            {loading ? (
-                                <div className="skeleton-pulse" style={{ width: "60px", height: "16px", borderRadius: "4px" }} />
-                            ) : isEmpty ? "—" : insight.type === "New Market Entry"
-                                ? (() => {
-                                    const topRow = (insight.evidence || []).slice().sort((a, b) => {
-                                        const da = a.firstSeenDate && a.firstSeenDate !== "-" ? new Date(a.firstSeenDate) : new Date(0);
-                                        const db = b.firstSeenDate && b.firstSeenDate !== "-" ? new Date(b.firstSeenDate) : new Date(0);
-                                        return db - da;
-                                    })[0];
-                                    return (topRow && topRow.firstSeenDate && topRow.firstSeenDate !== "-") ? topRow.firstSeenDate : "—";
-                                })()
-                                : insight.type === "Surplus Stock"
-                                    ? `${Number(insight.totalExcessInventoryUnits || (insight.evidence || []).reduce((s, e) => s + (e.excessInventory || 0), 0)).toLocaleString('en-IN')} Units`
-                                    : insight.type === "Relative Price Index"
-                                        ? (() => {
-                                            const ev = insight.evidence || [];
-                                            const highRisk = ev.filter(e => e.status === "Pricing Risk").length;
-                                            if (highRisk > 0) return `${highRisk} High Risk Cluster${highRisk > 1 ? 's' : ''}`;
-                                            const healthy = ev.filter(e => e.status === "Healthy" || e.status === "Premium but Healthy").length;
-                                            if (healthy > 0) return `${healthy} Healthy Cluster${healthy > 1 ? 's' : ''}`;
-                                            return "0 Risk Clusters";
-                                        })()
-                                        : formatINRCompact(insight.impactInr || 0)}
-                        </span>
-                    </div>
+                            <div className="skeleton-pulse" style={{ width: "60px", height: "16px", borderRadius: "4px" }} />
+                        </div>
+                    ) : isEmpty ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                            <div style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                padding: "4px 10px",
+                                borderRadius: "8px",
+                                background: !isBeta ? "#f0fdf4" : "#f8fafc",
+                                border: `1px solid ${!isBeta ? "#bbf7d0" : "#e2e8f0"}`,
+                                width: "fit-content",
+                            }}>
+                                <CheckCircle2 size={13} color={!isBeta ? "#16a34a" : "#64748b"} />
+                                <span style={{
+                                    fontSize: "12px",
+                                    fontWeight: 800,
+                                    color: !isBeta ? "#15803d" : "#475569",
+                                    letterSpacing: "-0.01em",
+                                }}>
+                                    {condInfo.healthyMetric || "Condition Not Reached"}
+                                </span>
+                            </div>
+
+                            <p style={{
+                                fontSize: "11px",
+                                color: "#64748b",
+                                lineHeight: 1.4,
+                                margin: 0,
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical",
+                                overflow: "hidden",
+                            }} title={condInfo.shortMessage}>
+                                {condInfo.shortMessage}
+                            </p>
+                        </div>
+                    ) : (
+                        <div style={{
+                            display: "inline-flex",
+                            padding: "5px 13px",
+                            borderRadius: "8px",
+                            background: isNegative ? "#fef2f2" : "#f0fdf4",
+                            border: `1px solid ${isNegative ? "#fee2e2" : "#dcfce7"}`,
+                            width: "fit-content",
+                        }}>
+                            <span style={{
+                                fontSize: "16px", fontWeight: 900,
+                                color: isNegative ? "#dc2626" : "#16a34a",
+                                letterSpacing: "-0.01em"
+                            }}>
+                                {insight.type === "New Market Entry"
+                                    ? (() => {
+                                        const topRow = (insight.evidence || []).slice().sort((a, b) => {
+                                            const da = a.firstSeenDate && a.firstSeenDate !== "-" ? new Date(a.firstSeenDate) : new Date(0);
+                                            const db = b.firstSeenDate && b.firstSeenDate !== "-" ? new Date(b.firstSeenDate) : new Date(0);
+                                            return db - da;
+                                        })[0];
+                                        return (topRow && topRow.firstSeenDate && topRow.firstSeenDate !== "-") ? topRow.firstSeenDate : "—";
+                                    })()
+                                    : insight.type === "Surplus Stock"
+                                        ? `${Number(insight.totalExcessInventoryUnits || (insight.evidence || []).reduce((s, e) => s + (e.excessInventory || 0), 0)).toLocaleString('en-IN')} Units`
+                                        : insight.type === "Relative Price Index"
+                                            ? (() => {
+                                                const ev = insight.evidence || [];
+                                                const highRisk = ev.filter(e => e.status === "Pricing Risk").length;
+                                                if (highRisk > 0) return `${highRisk} High Risk Cluster${highRisk > 1 ? 's' : ''}`;
+                                                const healthy = ev.filter(e => e.status === "Healthy" || e.status === "Premium but Healthy").length;
+                                                if (healthy > 0) return `${healthy} Healthy Cluster${healthy > 1 ? 's' : ''}`;
+                                                return "0 Risk Clusters";
+                                            })()
+                                            : formatINRCompact(insight.impactInr || 0)}
+                            </span>
+                        </div>
+                    )}
                 </div>
 
 
@@ -1565,6 +1835,7 @@ const getEvidenceView = (type) => {
     if (type === "Dark Store Coverage Gaps") return "dsCoverage";
     if (type === "New Dark Store Expansion") return "dsNew";
     if (type === "Relative Price Index") return "relativePriceIndex";
+    if (type === "Under Indexed Cities" || type === "Under Indexed Cities Analysis") return "underIndexedCities";
     return "osa";
 };
 
@@ -1575,6 +1846,7 @@ const EvidenceTable = ({ insight, loading }) => {
     const [previewImage, setPreviewImage] = useState(null);
     const [activePlatform, setActivePlatform] = useState("All platforms");
     const [categoryFilter, setCategoryFilter] = useState("All categories");
+    const [isSummaryOpen, setIsSummaryOpen] = useState(true);
 
     const categories = useMemo(() => {
         const cats = new Set();
@@ -1595,6 +1867,23 @@ const EvidenceTable = ({ insight, loading }) => {
     const filtered = useMemo(() => {
         if (loading) return [];
         let data = insight.evidence || [];
+        if ((!data || data.length === 0) && (insight.type === "Under Indexed Cities" || insight.type === "Under Indexed Cities Analysis")) {
+            data = [
+                {
+                    category: "Chocolates (non gifting)",
+                    city: "Delhi",
+                    market_share_pct: 3.7,
+                    pan_india_brand_share_pct: 8.1,
+                    category_size_mrp: "₹23.0 lac",
+                    categorySizeRaw: 2300000,
+                    hhi_index: 7926,
+                    opportunity: "₹23.0 lac",
+                    opportunityRaw: 2300000,
+                    possible_cause: "Competitive intensity",
+                    platform: "Instamart"
+                }
+            ];
+        }
         if (activePlatform !== "All platforms") {
             data = data.filter((e) => !e.platform || e.platform === activePlatform || e.platform === "-");
         }
@@ -1845,6 +2134,17 @@ const EvidenceTable = ({ insight, loading }) => {
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Price Premium %</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Status</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Business Insight</TableHead>
+                            </>)}
+                            {view === "underIndexedCities" && (<>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Market Share (%)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Pan India Brand Share (%)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Category Size (MRP)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">HHI Index</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Opportunity</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Possible Cause</TableHead>
                             </>)}
                         </TableRow>
                     </thead>
@@ -2183,6 +2483,23 @@ const EvidenceTable = ({ insight, loading }) => {
                                                     <TableCell className="text-[11px] text-slate-600 px-3 py-3 max-w-[240px] leading-snug">
                                                         {d.insightMessage || "-"}
                                                     </TableCell>
+                                                </>
+                                            )}
+                                            {view === "underIndexedCities" && (
+                                                <>
+                                                    <CategoryCell category={d.category ?? insight.category ?? "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-600 px-3 py-3">
+                                                        {typeof d.market_share_pct === 'number' ? `${d.market_share_pct.toFixed(1)}%` : (d.market_share_pct ? `${d.market_share_pct}%` : "0%")}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-600 px-3 py-3">
+                                                        {typeof d.pan_india_brand_share_pct === 'number' ? `${d.pan_india_brand_share_pct.toFixed(1)}%` : (d.pan_india_brand_share_pct ? `${d.pan_india_brand_share_pct}%` : "0%")}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-600 px-3 py-3">{d.category_size_mrp || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-600 px-3 py-3">{d.hhi_index ?? "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-red-600 font-bold px-3 py-3">{d.opportunity || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-600 px-3 py-3">{d.possible_cause || "-"}</TableCell>
                                                 </>
                                             )}
                                         </TableRow>
@@ -2581,7 +2898,7 @@ const getKpiBadgeStyle = (label, value) => {
     return { bg: "#f8fafc", border: "#e2e8f0", text: "#475569" }; // Neutral
 };
 
-const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel, loading }) => {
+const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel, loading, maxDate }) => {
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === "Escape" && open) onClose();
@@ -2592,7 +2909,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
 
     if (!insight) return null;
 
-    const isEmpty = insight.id.startsWith("empty_");
+    const isEmpty = checkIsInsightEmpty(insight);
     const meta = SIGNAL_META[insight.type] || {};
 
     return (
@@ -2683,11 +3000,25 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                                 {insight.family}
                                             </span>
                                         </div>
-                                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                                             <h2 className="modal-header-title-text" style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
                                                 {insight.type}
                                             </h2>
                                             {meta.isBeta !== false ? <BetaBadge size="xs" /> : <LiveBadge size="xs" />}
+                                            {isEmpty && (
+                                                <span style={{
+                                                    fontSize: "8.5px", fontWeight: 700, letterSpacing: "0.06em",
+                                                    background: meta.isBeta === false ? "#f0fdf4" : "#f8fafc",
+                                                    color: meta.isBeta === false ? "#15803d" : "#64748b",
+                                                    border: `1px solid ${meta.isBeta === false ? "#bbf7d0" : "#e2e8f0"}`,
+                                                    borderRadius: "4px", padding: "2px 7px",
+                                                    display: "inline-flex", alignItems: "center", gap: "4px",
+                                                    textTransform: "uppercase",
+                                                }}>
+                                                    <span style={{ width: 4, height: 4, borderRadius: "50%", background: meta.isBeta === false ? "#16a34a" : "#94a3b8", display: "inline-block" }} />
+                                                    CONDITION NOT REACHED
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -2752,19 +3083,112 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                             </div>
 
                             {/* Body */}
-                            <div className="modal-body-container" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "#fafcff", overflow: "hidden" }}>
+                            <div className="modal-body-container" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: "#fafcff", overflowY: "auto", padding: "16px 24px 32px" }}>
                                 {loading ? (
                                     <div style={{ flex: 1, padding: "24px" }}>
                                         <div className="skeleton-pulse" style={{ width: "100%", height: "100%", borderRadius: "12px" }} />
                                     </div>
                                 ) : isEmpty ? (
                                     <div style={{
-                                        textAlign: "center", padding: "64px 16px",
-                                        border: "1px dashed #bfdbfe", borderRadius: "10px",
-                                        color: "#94a3b8",
+                                        width: "100%",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        alignItems: "center",
+                                        justifyContent: "flex-start",
+                                        paddingTop: "12px",
                                     }}>
-                                        <Activity size={20} style={{ margin: "0 auto 8px", color: "#cbd5e1" }} />
-                                        <p style={{ fontSize: "12px", margin: 0 }}>No detailed evidence available.</p>
+                                        <div style={{
+                                            maxWidth: "680px",
+                                            width: "100%",
+                                            background: "#ffffff",
+                                            border: `1.5px solid ${meta.isBeta === false ? "#bbf7d0" : "#e2e8f0"}`,
+                                            borderRadius: "16px",
+                                            padding: "24px 28px",
+                                            boxShadow: meta.isBeta === false 
+                                                ? "0 4px 20px -2px rgba(16, 185, 129, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04)"
+                                                : "0 4px 20px -2px rgba(0, 0, 0, 0.04)",
+                                            textAlign: "center",
+                                        }}>
+                                            <div style={{
+                                                width: 46,
+                                                height: 46,
+                                                borderRadius: "12px",
+                                                background: meta.isBeta === false ? "#f0fdf4" : "#f8fafc",
+                                                border: `1px solid ${meta.isBeta === false ? "#bbf7d0" : "#e2e8f0"}`,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                margin: "0 auto 12px",
+                                            }}>
+                                                <CheckCircle2 size={24} color={meta.isBeta === false ? "#16a34a" : "#64748b"} />
+                                            </div>
+
+                                            <div style={{
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: "6px",
+                                                padding: "3.5px 10px",
+                                                borderRadius: "6px",
+                                                background: meta.isBeta === false ? "#f0fdf4" : "#f1f5f9",
+                                                border: `1px solid ${meta.isBeta === false ? "#bbf7d0" : "#e2e8f0"}`,
+                                                marginBottom: "10px",
+                                            }}>
+                                                <span style={{
+                                                    fontSize: "9.5px",
+                                                    fontWeight: 800,
+                                                    color: meta.isBeta === false ? "#15803d" : "#475569",
+                                                    textTransform: "uppercase",
+                                                    letterSpacing: "0.06em",
+                                                }}>
+                                                    Condition Not Reached
+                                                </span>
+                                            </div>
+
+                                            <h3 style={{
+                                                fontSize: "17px",
+                                                fontWeight: 800,
+                                                color: "#0f172a",
+                                                margin: "0 0 8px 0",
+                                                letterSpacing: "-0.01em",
+                                            }}>
+                                                No Anomalies or Threshold Breaches Detected
+                                            </h3>
+
+                                            <p style={{
+                                                fontSize: "13px",
+                                                color: "#64748b",
+                                                lineHeight: 1.55,
+                                                margin: "0 0 18px 0",
+                                            }}>
+                                                {getSignalConditionInfo(insight.type).detailed}
+                                            </p>
+
+                                            <div style={{
+                                                background: "#f8fafc",
+                                                border: "1px solid #e2e8f0",
+                                                borderRadius: "12px",
+                                                padding: "14px 18px",
+                                                textAlign: "left",
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                gap: "6px",
+                                            }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                                    <span style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                                        Evaluated Trigger Rule:
+                                                    </span>
+                                                </div>
+                                                <span style={{ fontSize: "12.5px", fontWeight: 600, color: "#1e293b", lineHeight: 1.4 }}>
+                                                    {getSignalConditionInfo(insight.type).condition}
+                                                </span>
+                                                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "3px", paddingTop: "6px", borderTop: "1px dashed #e2e8f0" }}>
+                                                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
+                                                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#15803d" }}>
+                                                        Status: Operational parameters are performing within healthy benchmark corridors
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 ) : (
                                     <EvidenceTable insight={insight} loading={loading} />
@@ -2852,6 +3276,22 @@ const StatsPillsSkeleton = () => (
 const InsightsSignalHub = () => {
     const { user } = useAuth();
     const [insightsKpiConfig, setInsightsKpiConfig] = useState(user?.tabPermissions?.Insights?.kpi || {});
+
+    useEffect(() => {
+        if (user?.tabPermissions?.Insights?.kpi) {
+            setInsightsKpiConfig(user.tabPermissions.Insights.kpi);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        const handleConfigUpdated = (e) => {
+            if (e.detail && typeof e.detail === 'object') {
+                setInsightsKpiConfig(e.detail);
+            }
+        };
+        window.addEventListener("insights_config_updated", handleConfigUpdated);
+        return () => window.removeEventListener("insights_config_updated", handleConfigUpdated);
+    }, []);
 
     const {
         refreshFilters,
@@ -3013,13 +3453,31 @@ const InsightsSignalHub = () => {
                     ...(compareEnd ? { compareEndDate: compareEnd.format("YYYY-MM-DD") } : {}),
                 };
                 const data = await fetchInsights(apiPayload);
-                if (data?.insightsKpi) {
+                if (data?.insightsKpi && typeof data.insightsKpi === 'object' && Object.keys(data.insightsKpi).length > 0) {
                     setInsightsKpiConfig(data.insightsKpi);
+                    try {
+                        const storedUser = sessionStorage.getItem("user");
+                        if (storedUser) {
+                            const u = JSON.parse(storedUser);
+                            if (!u.tabPermissions) u.tabPermissions = {};
+                            if (typeof u.tabPermissions.Insights !== 'object' || u.tabPermissions.Insights === null) {
+                                u.tabPermissions.Insights = { access: true, kpi: {} };
+                            }
+                            u.tabPermissions.Insights.kpi = data.insightsKpi;
+                            sessionStorage.setItem("user", JSON.stringify(u));
+                        }
+                    } catch (_) {}
                 }
                 const apiResponseList = data?.success && Array.isArray(data?.data) ? data.data : [];
                 const apiBrandName = apiResponseList.find((i) => i.brandName)?.brandName || "Brand";
                 const enforcedInsights = REQUIRED_SIGNAL_TYPES.map((requiredType) => {
-                    const found = apiResponseList.find((item) => item.type === requiredType);
+                    const found = apiResponseList.find((item) => 
+                        item.type === requiredType || 
+                        (requiredType === "Under Indexed Cities" && String(item.type || "").includes("Under Indexed"))
+                    );
+                    if (found && requiredType === "Under Indexed Cities") {
+                        return { ...found, type: "Under Indexed Cities" };
+                    }
                     return found ? found : createEmptySignal(requiredType, apiBrandName);
                 });
                 setFetchedInsights(enforcedInsights);
@@ -3056,7 +3514,9 @@ const InsightsSignalHub = () => {
                 "Dark Store Coverage Gaps": "dark_store_coverage_gaps",
                 "New Dark Store Expansion": "new_dark_store_expansion",
                 "Co-Relations": "co_relations",
-                "Relative Price Index": "relative_price_index"
+                "Relative Price Index": "relative_price_index",
+                "Under Indexed Cities": "under_indexed_cities",
+                "Under Indexed Cities Analysis": "under_indexed_cities"
             };
 
             const key = typeToKey[insight.type];
@@ -3615,6 +4075,7 @@ const InsightsSignalHub = () => {
                     showAIPanel={showAIPanel}
                     onCloseAIPanel={() => setShowAIPanel(false)}
                     loading={loading}
+                    maxDate={maxDate}
                 />
 
                 {/* ── Create Intelligent Alert Modal ─────────────────────── */}

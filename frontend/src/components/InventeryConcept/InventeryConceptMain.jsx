@@ -506,6 +506,9 @@ function InventeryConceptMain() {
 
   // Build cards from backend API data — NO hardcoded fallback
   const m = overviewData?.metrics;
+  const formattedStartDate = timeStart ? timeStart.format("YYYY-MM-DD") : undefined;
+  const formattedEndDate = timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined;
+
   const cards = m ? [
     {
       title: "DOH",
@@ -518,6 +521,9 @@ function InventeryConceptMain() {
       extraChange: "",
       extraChangeColor: "green",
       sparklineData: m.doh.sparkline || [0],
+      months: m.doh.labels,
+      startDate: formattedStartDate,
+      endDate: formattedEndDate,
     },
     {
       title: "DRR",
@@ -530,6 +536,9 @@ function InventeryConceptMain() {
       extraChange: "",
       extraChangeColor: "green",
       sparklineData: m.drr.sparkline || [0],
+      months: m.drr.labels,
+      startDate: formattedStartDate,
+      endDate: formattedEndDate,
     },
     {
       title: "Total Boxes Required",
@@ -542,6 +551,9 @@ function InventeryConceptMain() {
       extraChange: "",
       extraChangeColor: "green",
       sparklineData: m.totalBoxesRequired.sparkline || [0],
+      months: m.totalBoxesRequired.labels,
+      startDate: formattedStartDate,
+      endDate: formattedEndDate,
     },
   ] : [];
 

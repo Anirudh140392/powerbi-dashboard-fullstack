@@ -69,6 +69,31 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
+      // ── Dedicated Report Backend API proxy (port 5001) ──
+      '/api/reports/download': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        timeout: 10 * 60 * 1000,
+        proxyTimeout: 10 * 60 * 1000,
+      },
+      '/api/reports/download-pdp-report': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        timeout: 10 * 60 * 1000,
+        proxyTimeout: 10 * 60 * 1000,
+      },
+      '/api/reports/download-promo-violation-report': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        timeout: 10 * 60 * 1000,
+        proxyTimeout: 10 * 60 * 1000,
+      },
+      '/api/reports/studio': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        timeout: 10 * 60 * 1000,
+        proxyTimeout: 10 * 60 * 1000,
+      },
       // ── Main backend API proxy (catch-all for other /api/*) ──
       '/api': {
         target: 'http://localhost:5000',
@@ -87,6 +112,12 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
         ws: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            if (err.code === 'ECONNRESET' || err.code === 'EPIPE' || err.code === 'ECONNABORTED') return;
+            console.warn('[vite] ws proxy error:', err.message);
+          });
+        },
       },
     },
   },

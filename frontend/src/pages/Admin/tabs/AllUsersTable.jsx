@@ -89,7 +89,8 @@ const AllUsersTable = () => {
         email: "",
         role: "user",
         status: "active",
-        db_id: ""
+        db_id: "",
+        qcUser: 0
     });
     const [errors, setErrors] = useState({});
 
@@ -161,7 +162,7 @@ const AllUsersTable = () => {
                 if (response.data.success) {
                     await fetchUsers(); // Refresh the list
                     setShowModal(false);
-                    setFormData({ password: "", email: "", role: "user", status: "active", db_id: "" });
+                    setFormData({ password: "", email: "", role: "user", status: "active", db_id: "", qcUser: 0 });
                     setErrors({});
                     setCurrentPage(1);
                 } else {
@@ -310,13 +311,21 @@ const AllUsersTable = () => {
                                             </div>
                                         </td>
                                         <td className="px-8 py-5">
-                                            <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
-                                                user.role === 'admin' ? 'bg-rose-50 text-rose-600' :
-                                                user.role === 'manager' ? 'bg-amber-50 text-amber-600' :
-                                                'bg-indigo-50 text-indigo-600'
-                                            }`}>
-                                                <Shield className="w-3 h-3" />
-                                                {user.role}
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                                                    user.role === 'admin' ? 'bg-rose-50 text-rose-600' :
+                                                    user.role === 'manager' ? 'bg-amber-50 text-amber-600' :
+                                                    'bg-indigo-50 text-indigo-600'
+                                                }`}>
+                                                    <Shield className="w-3 h-3" />
+                                                    {user.role}
+                                                </div>
+                                                {(user.qcUser === 1 || user.qc_user === 1) && (
+                                                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-600 border border-purple-200">
+                                                        <UserCheck className="w-3 h-3" />
+                                                        QC
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-8 py-5">
@@ -509,24 +518,43 @@ const AllUsersTable = () => {
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Database</label>
-                                    <div className="relative">
-                                        <select
-                                            value={formData.db_id}
-                                            onChange={(e) => setFormData({ ...formData, db_id: e.target.value })}
-                                            className={`w-full px-5 py-3 bg-slate-50 border ${errors.db_id ? 'border-rose-300 ring-4 ring-rose-50' : 'border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-2xl text-sm transition-all outline-none appearance-none cursor-pointer font-medium text-slate-700`}
-                                        >
-                                            <option value="">Select Database</option>
-                                            {databases.map((db, idx) => (
-                                                <option key={idx} value={db.db_id}>{db.db_name}</option>
-                                            ))}
-                                        </select>
-                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                                            <ChevronRight className="w-4 h-4 rotate-90" />
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Database</label>
+                                        <div className="relative">
+                                            <select
+                                                value={formData.db_id}
+                                                onChange={(e) => setFormData({ ...formData, db_id: e.target.value })}
+                                                className={`w-full px-5 py-3 bg-slate-50 border ${errors.db_id ? 'border-rose-300 ring-4 ring-rose-50' : 'border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-2xl text-sm transition-all outline-none appearance-none cursor-pointer font-medium text-slate-700`}
+                                            >
+                                                <option value="">Select Database</option>
+                                                {databases.map((db, idx) => (
+                                                    <option key={idx} value={db.db_id}>{db.db_name}</option>
+                                                ))}
+                                            </select>
+                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                                <ChevronRight className="w-4 h-4 rotate-90" />
+                                            </div>
+                                        </div>
+                                        {errors.db_id && <p className="text-[10px] font-bold text-rose-500 ml-1 uppercase tracking-tighter italic">! {errors.db_id}</p>}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">QC User</label>
+                                        <div className="relative">
+                                            <select
+                                                value={formData.qcUser || 0}
+                                                onChange={(e) => setFormData({ ...formData, qcUser: Number(e.target.value) })}
+                                                className="w-full px-5 py-3 bg-slate-50 border border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 rounded-2xl text-sm transition-all outline-none appearance-none cursor-pointer font-medium text-slate-700"
+                                            >
+                                                <option value={0}>False (0)</option>
+                                                <option value={1}>True (1)</option>
+                                            </select>
+                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                                <ChevronRight className="w-4 h-4 rotate-90" />
+                                            </div>
                                         </div>
                                     </div>
-                                    {errors.db_id && <p className="text-[10px] font-bold text-rose-500 ml-1 uppercase tracking-tighter italic">! {errors.db_id}</p>}
                                 </div>
 
                                 <div className="pt-6 flex items-center gap-4">

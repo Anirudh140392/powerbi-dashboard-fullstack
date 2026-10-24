@@ -1,9 +1,10 @@
 import watchTowerService from '../services/watchTowerService.js';
+import { applyQcDateFilter, getMaxAllowedDate } from '../helper/qcDateHelper.js';
 
 
 export const watchTowerOverview = async (req, res) => {
     try {
-        const filters = { ...req.query };
+        const filters = applyQcDateFilter({ ...req.query }, req);
         console.log("watch tower api call received", filters);
         const data = await watchTowerService.getSummaryMetrics(filters);
         res.json(data);
@@ -38,7 +39,7 @@ export const watchTowerOverview = async (req, res) => {
 export const getTrendData = async (req, res) => {
     try {
         // UPDATED: Extract all 4 filter keys with default values
-        const filters = {
+        const rawFilters = {
             platform: req.query.platform || "All",
             location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             brand: req.query.brand || "All",
@@ -52,6 +53,7 @@ export const getTrendData = async (req, res) => {
             skuCode: req.query.skuCode,
             msl: req.query.msl
         };
+        const filters = applyQcDateFilter(rawFilters, req);
         console.log("trend data api call received", filters);
         const data = await watchTowerService.getTrendData(filters);
         res.json(data);
@@ -64,7 +66,7 @@ export const getTrendData = async (req, res) => {
 export const getLatestAvailableMonth = async (req, res) => {
     try {
         console.log("🔥 [DEBUG getLatestAvailableMonth Controller] Called with dbName:", req.user?.dbName, "query:", req.query);
-        const filters = { ...req.query };
+        const filters = applyQcDateFilter({ ...req.query }, req);
         const latest = await watchTowerService.getLatestAvailableMonth(filters);
         console.log("🔥 [DEBUG getLatestAvailableMonth Controller] Result:", latest);
 
@@ -135,10 +137,21 @@ export const getChannels = async (req, res) => {
 
 export const getPdpPlatforms = async (req, res) => {
     try {
-        const platforms = await watchTowerService.getPdpPlatforms();
+        const { channel } = req.query;
+        const platforms = await watchTowerService.getPdpPlatforms(channel);
         res.json(platforms);
     } catch (error) {
         console.error('Error fetching PDP platforms:', error);
+        res.json([]);
+    }
+};
+
+export const getPdpChannels = async (req, res) => {
+    try {
+        const channels = await watchTowerService.getChannels();
+        res.json(channels);
+    } catch (error) {
+        console.error('Error fetching PDP channels:', error);
         res.json([]);
     }
 };
@@ -236,7 +249,7 @@ export const debugAvailability = async (req, res) => {
  */
 export const getOverview = async (req, res) => {
     try {
-        const filters = { ...req.query };
+        const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getOverview] API call received with filters:', filters);
         const data = await watchTowerService.getOverview(filters);
         res.json(data);
@@ -251,7 +264,7 @@ export const getOverview = async (req, res) => {
  */
 export const getPerformanceMetrics = async (req, res) => {
     try {
-        const filters = { ...req.query };
+        const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getPerformanceMetrics] API call received with filters:', filters);
         const data = await watchTowerService.getPerformanceMetrics(filters);
         res.json(data);
@@ -266,7 +279,7 @@ export const getPerformanceMetrics = async (req, res) => {
  */
 export const getPlatformOverview = async (req, res) => {
     try {
-        const filters = { ...req.query };
+        const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getPlatformOverview] API call received with filters:', filters);
         const data = await watchTowerService.getPlatformOverview(filters);
         res.json(data);
@@ -281,7 +294,7 @@ export const getPlatformOverview = async (req, res) => {
  */
 export const getMonthOverview = async (req, res) => {
     try {
-        const filters = { ...req.query };
+        const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getMonthOverview] API call received with filters:', filters);
         const data = await watchTowerService.getMonthOverview(filters);
         res.json(data);
@@ -296,7 +309,7 @@ export const getMonthOverview = async (req, res) => {
  */
 export const getCategoryOverview = async (req, res) => {
     try {
-        const filters = { ...req.query };
+        const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getCategoryOverview] API call received with filters:', filters);
         const data = await watchTowerService.getCategoryOverview(filters);
         res.json(data);
@@ -311,7 +324,7 @@ export const getCategoryOverview = async (req, res) => {
  */
 export const getBrandsOverview = async (req, res) => {
     try {
-        const filters = { ...req.query };
+        const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getBrandsOverview] API call received with filters:', filters);
         const data = await watchTowerService.getBrandsOverview(filters);
         res.json(data);
@@ -327,8 +340,7 @@ export const getBrandsOverview = async (req, res) => {
 export const getKpiTrends = async (req, res) => {
     try {
         const src = req.method === 'POST' ? { ...req.query, ...req.body } : req.query;
-        // UPDATED: Extract all 4 filter keys with default values
-        const filters = {
+        const rawFilters = {
             platform: src.platform || "All",
             location: src.location && src.location !== 'All India' ? src.location : 'All',
             brand: src.brand || "All",
@@ -339,14 +351,16 @@ export const getKpiTrends = async (req, res) => {
             timeStep: src.timeStep,
             startDate: src.startDate,
             endDate: src.endDate,
-            skuName: src.skuName || src.sku,
-            skuCode: src.skuCode,
-            sapCode: src.sapCode,
+            sku: src.sku || src.skuName || src['sku[]'] || src['skuName[]'],
+            skuName: src.skuName || src.sku || src['skuName[]'] || src['sku[]'],
+            skuCode: src.skuCode || src['skuCode[]'],
+            sapCode: src.sapCode || src['sapCode[]'] || src.sap_code,
             msl: src.msl,
             resellerName: src.resellerName,
             dimension: src.dimension,
             dimensionValue: src.dimensionValue
         };
+        const filters = applyQcDateFilter(rawFilters, req);
         console.log('[getKpiTrends] API call received with filters:', filters);
         const data = await watchTowerService.getKpiTrends(filters);
         res.json(data);
@@ -361,10 +375,10 @@ export const getKpiTrends = async (req, res) => {
  */
 export const getTrendsFilterOptions = async (req, res) => {
     try {
-        const { filterType, platform, brand, subBrand, category, resellerName, sku, skuName } = req.query;
+        const { filterType, platform, brand, subBrand, category, resellerName, sku, skuName, msl } = req.query;
         const dbName = req.user?.dbName?.toLowerCase();
-        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand, subBrand, category, resellerName, sku, skuName, dbName });
-        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand, subBrand, category, resellerName, sku, skuName, dbName });
+        console.log('[getTrendsFilterOptions] API call for:', { filterType, platform, brand, subBrand, category, resellerName, sku, skuName, msl, dbName });
+        const data = await watchTowerService.getTrendsFilterOptions({ filterType, platform, brand, subBrand, category, resellerName, sku, skuName, msl, dbName });
         res.json(data);
     } catch (error) {
         console.error('[getTrendsFilterOptions] Error:', error);
@@ -379,7 +393,7 @@ export const getTrendsFilterOptions = async (req, res) => {
  */
 export const getCompetition = async (req, res) => {
     try {
-        const filters = {
+        const rawFilters = {
             platform: req.query.platform || 'All',
             location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             category: req.query.category || 'All',
@@ -388,8 +402,11 @@ export const getCompetition = async (req, res) => {
             channel: req.query.channel,
             period: req.query.period || '1M',
             resellerName: req.query.resellerName || undefined,
-            msl: req.query.msl || 'All'
+            msl: req.query.msl || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
         };
+        const filters = applyQcDateFilter(rawFilters, req);
 
         console.log('[getCompetition] Request:', filters);
         const data = await watchTowerService.getCompetitionData(filters);
@@ -434,8 +451,8 @@ export const getCompetitionFilterOptions = async (req, res) => {
 export const getCompetitionBrandTrends = async (req, res) => {
     try {
         // Merge query params and body to support both GET and POST
-        const params = { ...req.query, ...req.body };
-        const { brands, skus, category, period, location, platform, timeStep } = params;
+        const params = applyQcDateFilter({ ...req.query, ...req.body }, req);
+        const { brands, skus, category, period, location, platform, timeStep, startDate, endDate, maxAllowedDate, isQcUser } = params;
         const resolvedLocation = location && location !== 'All India' ? location : 'All';
         console.log('[getCompetitionBrandTrends] Request:', { brands, skus: Array.isArray(skus) ? `[array:${skus.length}]` : skus, location: resolvedLocation, platform, category, period, timeStep, msl: params.msl });
         const data = await watchTowerService.getCompetitionBrandTrends({
@@ -446,6 +463,10 @@ export const getCompetitionBrandTrends = async (req, res) => {
             category,
             period,
             timeStep,
+            startDate,
+            endDate,
+            maxAllowedDate,
+            isQcUser,
             resellerName: params.resellerName || undefined,
             msl: params.msl || 'All'
         });
@@ -463,13 +484,14 @@ export const getCompetitionBrandTrends = async (req, res) => {
  */
 export const getDarkStoreCount = async (req, res) => {
     try {
-        const filters = {
+        const rawFilters = {
             platform: req.query.platform || 'All',
             location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             channel: req.query.channel,
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };
+        const filters = applyQcDateFilter(rawFilters, req);
 
         console.log('[getDarkStoreCount] Request:', filters);
         const data = await watchTowerService.getDarkStoreCount(filters);
@@ -485,12 +507,14 @@ export const getDarkStoreCount = async (req, res) => {
  */
 export const getTopActions = async (req, res) => {
     try {
-        const filters = {
+        const rawFilters = {
             platform: req.query.platform || 'All',
             location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             channel: req.query.channel,
+            category: req.query.category,
             endDate: req.query.endDate
         };
+        const filters = applyQcDateFilter(rawFilters, req);
 
         console.log('[getTopActions] Request:', filters);
         const data = await watchTowerService.getTopActions(filters);
@@ -505,12 +529,14 @@ export const getTopActions = async (req, res) => {
  */
 export const getOsaDeepDive = async (req, res) => {
     try {
-        const filters = {
+        const rawFilters = {
             platform: req.query.platform || 'All',
             location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             channel: req.query.channel,
+            category: req.query.category,
             endDate: req.query.endDate
         };
+        const filters = applyQcDateFilter(rawFilters, req);
 
         console.log('[getOsaDeepDive] Request:', filters);
         const data = await watchTowerService.getOsaDeepDive(filters);
@@ -527,7 +553,7 @@ export const getOsaDeepDive = async (req, res) => {
  */
 export const getSkuOverview = async (req, res) => {
     try {
-        const filters = { ...req.query };
+        const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getSkuOverview] API call received with filters:', filters);
         const data = await watchTowerService.getSkuOverview(filters);
         res.json(data);
@@ -543,7 +569,7 @@ export const getSkuOverview = async (req, res) => {
  */
 export const getCityOverview = async (req, res) => {
     try {
-        const filters = { ...req.query };
+        const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getCityOverview] API call received with filters:', filters);
         const data = await watchTowerService.getCityOverview(filters);
         res.json(data);
@@ -559,7 +585,7 @@ export const getCityOverview = async (req, res) => {
  */
 export const getPerformanceBreakdown = async (req, res) => {
     try {
-        const filters = { ...req.query };
+        const filters = applyQcDateFilter({ ...req.query }, req);
         console.log('[getPerformanceBreakdown] API call received with filters:', filters);
         const data = await watchTowerService.getPerformanceBreakdownData(filters);
         res.json(data);
@@ -591,8 +617,8 @@ export const getProducts = async (req, res) => {
  */
 export const getProductsWithSap = async (req, res) => {
     try {
-        const { platform, brand, category, subBrand, sub_brand } = req.query;
-        const products = await watchTowerService.getProductsWithSap({ platform, brand, category, subBrand: subBrand || sub_brand });
+        const { platform, brand, category, subBrand, sub_brand, msl } = req.query;
+        const products = await watchTowerService.getProductsWithSap({ platform, brand, category, subBrand: subBrand || sub_brand, msl });
         res.json(products);
     } catch (error) {
         console.error('[getProductsWithSap] Error:', error);
@@ -644,8 +670,9 @@ export const getMaxDatesAll = async (req, res) => {
         if (!dbName) {
             return res.status(400).json({ error: 'No database context available' });
         }
-        console.log(`[getMaxDatesAll] Fetching max dates for db: ${dbName}`);
-        const dates = await fetchMaxDates(dbName);
+        const maxAllowed = getMaxAllowedDate(req);
+        console.log(`[getMaxDatesAll] Fetching max dates for db: ${dbName}, maxAllowed: ${maxAllowed}`);
+        const dates = await fetchMaxDates(dbName, maxAllowed);
         res.json({
             ...dates,
             updatedAt: new Date().toISOString(),
@@ -658,7 +685,8 @@ export const getMaxDatesAll = async (req, res) => {
 
 export const getWatchTowerCascadedFilters = async (req, res) => {
     try {
-        const { channel, platform, category, brand, location, startDate, endDate, sapCode } = req.query;
+        const filters = applyQcDateFilter({ ...req.query }, req);
+        const { channel, platform, category, brand, location, startDate, endDate, sapCode } = filters;
         const data = await watchTowerService.getWatchTowerCascadedFilters({
             channel: channel || 'All',
             platform: platform || 'All',
@@ -678,7 +706,8 @@ export const getWatchTowerCascadedFilters = async (req, res) => {
 
 export const getMsls = async (req, res) => {
     try {
-        const data = await watchTowerService.getMsls();
+        const dbName = req.user?.dbName?.toLowerCase();
+        const data = await watchTowerService.getMsls({ ...req.query, dbName });
         res.json(data);
     } catch (error) {
         console.error('[getMsls] Error in controller:', error);
@@ -688,7 +717,7 @@ export const getMsls = async (req, res) => {
 
 export const getCrossPlatformBrandMatrix = async (req, res) => {
     try {
-        const filters = { ...req.query, ...req.body };
+        const filters = applyQcDateFilter({ ...req.query, ...req.body }, req);
         console.log('[getCrossPlatformBrandMatrix] Controller hit with filters:', filters);
         const data = await watchTowerService.getCrossPlatformBrandMatrix(filters);
         res.json(data);

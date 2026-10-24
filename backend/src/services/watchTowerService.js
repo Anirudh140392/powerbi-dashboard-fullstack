@@ -30,7 +30,7 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
 // Import Redis data layer for indexed platform data (data retrieval only, no caching)
 import { ensurePlatformData, queryByFilters, aggregateMetrics, getPlatformStats, isPlatformDataLoaded, coalesceRequest, getBrandMonthlyData } from './redisDataService.js';
-import { normalizeFilterArray as originalNormalizeFilterArray, getMarketShare, getMarketShareByMonth, getMarketShareByBrand, getMarketShareTimeSeries, isDanoneDb, DANONE_OWN_BRANDS } from './marketShareHelper.js';
+import { normalizeFilterArray as originalNormalizeFilterArray, normalizePlatformArrayForMs, getMarketShare, getMarketShareByMonth, getMarketShareByBrand, getMarketShareTimeSeries, isDanoneDb, DANONE_OWN_BRANDS } from './marketShareHelper.js';
 
 const normalizeFilterArray = (value) => {
     const arr = originalNormalizeFilterArray(value);
@@ -54,16 +54,20 @@ const getDrlResellerConds = (filters = {}) => {
             if (rArr.length > 0) {
                 return {
                     pdpCond: `Reseller_Name IN (${rArr.map(r => `'${escapeStr(r)}'`).join(', ')})`,
+                    pdpOfftakeCond: '',
+                    isBuymoreMode: false,
                     includeBuyMoreTable: false
                 };
             }
         }
-        return { pdpCond: '', includeBuyMoreTable: false };
+        return { pdpCond: '', pdpOfftakeCond: '', isBuymoreMode: false, includeBuyMoreTable: false };
     }
 
     const resellerList = (resellerVal && resellerVal !== 'All' && resellerVal !== 'all')
         ? normalizeFilterArray(resellerVal).map(r => String(r).toLowerCase().trim()).filter(Boolean)
         : [];
+
+    const buymoreOfftakeCondition = `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`;
 
     if (resellerList.length > 0) {
         const hasBuyMore = resellerList.some(r => r.includes('buy') || r.includes('more') || r.includes('3p'));
@@ -72,17 +76,23 @@ const getDrlResellerConds = (filters = {}) => {
 
         if (hasBuyMore && !has1P && !hasOther) {
             return {
-                pdpCond: `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`,
+                pdpCond: ``, // Do NOT filter catalog crawl rows in WHERE clause so OSA, Wt OSA, Listing %, ASP work
+                pdpOfftakeCond: buymoreOfftakeCondition,
+                isBuymoreMode: true,
                 includeBuyMoreTable: true
             };
         } else if ((has1P || hasOther) && !hasBuyMore) {
             return {
                 pdpCond: ``,
+                pdpOfftakeCond: ``,
+                isBuymoreMode: false,
                 includeBuyMoreTable: false
             };
         } else {
             return {
                 pdpCond: ``,
+                pdpOfftakeCond: ``,
+                isBuymoreMode: false,
                 includeBuyMoreTable: true
             };
         }
@@ -91,17 +101,23 @@ const getDrlResellerConds = (filters = {}) => {
     if (drlMode === 'portal' || drlMode === 'rk') {
         return {
             pdpCond: ``,
+            pdpOfftakeCond: ``,
+            isBuymoreMode: false,
             includeBuyMoreTable: false
         };
     } else if (drlMode === 'buymore') {
         return {
-            pdpCond: `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`,
+            pdpCond: ``, // Do NOT filter catalog crawl rows in WHERE clause so OSA, Wt OSA, Listing %, ASP work
+            pdpOfftakeCond: buymoreOfftakeCondition,
+            isBuymoreMode: true,
             includeBuyMoreTable: true
         };
     }
 
     return {
         pdpCond: '',
+        pdpOfftakeCond: '',
+        isBuymoreMode: false,
         includeBuyMoreTable: true
     };
 };
@@ -160,11 +176,11 @@ const buildBuymoreCondsForTab = (sDate, eDate, filters = {}) => {
 // Gifting (gift, tin pack, minis) from Non-Gifting
 const PRODUCT_CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Category != '0', 
     Category, 
-    multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
+    multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'gmfc', 
             LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
                 if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 
-                   'Chocolates (Gifting)', 
-                   'Chocolates (Non Gifting)'), 
+                   'chocolates (gifting)', 
+                   'chocolates (non gifting)'), 
             'Others')
 )`;
 
@@ -322,7 +338,8 @@ async function getWatchtowerSource(filters = {}) {
             sellingPrice: wrap(sellingPriceCol),
             sellingPriceRaw: `toFloat64OrNull(toString(${sellingPriceCol}))`,
             product: productCol,
-            skuCode: columnExists(cols, 'sap_code') ? r('sap_code') : webPidCol,
+            sapCode: columnExists(cols, 'sap_code') ? r('sap_code') : (columnExists(cols, 'sapcode') ? r('sapcode') : null),
+            skuCode: columnExists(cols, 'sku_code') ? r('sku_code') : (webPidCol || (columnExists(cols, 'sap_code') ? r('sap_code') : null)),
             webPid: webPidCol,
             quantitySold: qtySoldCol,
             discount: `if(${wrap(mrpCol)} > 0, (${wrap(mrpCol)} - ${wrap(sellingPriceCol)}) / ${wrap(mrpCol)} * 100, 0)`,
@@ -636,37 +653,63 @@ const buildStateQueryCond = (stateVal, locationCol = 'location') => {
 
 /**
  * Get the latest available date in rb_pdp_olap
+ * @param {string|null} maxAllowedDate - Optional date cap (YYYY-MM-DD)
  */
-const getCachedMaxDate = async () => {
+const getCachedMaxDate = async (maxAllowedDate = null) => {
     const dbCache = getDbCache();
-    if (dbCache.maxDate.date && (Date.now() - dbCache.maxDate.timestamp) < MAX_DATE_TTL) {
-        return dbCache.maxDate.date;
+    if (!dbCache.maxDates) {
+        dbCache.maxDates = new Map();
+    }
+    const key = maxAllowedDate || 'all';
+    const cached = dbCache.maxDates.get(key);
+    if (cached?.date && (Date.now() - cached.timestamp) < MAX_DATE_TTL) {
+        return cached.date;
     }
 
-    if (dbCache.maxDate.promise) {
-        return dbCache.maxDate.promise;
+    if (cached?.promise) {
+        return cached.promise;
     }
 
-    dbCache.maxDate.promise = (async () => {
+    const promise = (async () => {
         try {
             const src = await getWatchtowerSource();
             const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
-            const result = await queryClickHouse(`SELECT MAX(${dateCol}) as maxDate FROM ${src.table}`);
+            let query = `SELECT MAX(${dateCol}) as maxDate FROM ${src.table}`;
+            if (maxAllowedDate) {
+                query += ` WHERE ${dateCol} <= '${maxAllowedDate}'`;
+            }
+            const result = await queryClickHouse(query);
             const maxDateStr = result?.[0]?.maxDate;
-            const maxDate = maxDateStr ? dayjs(maxDateStr).endOf('day') : dayjs().endOf('day');
+            let maxDate;
+            if (maxDateStr) {
+                maxDate = dayjs(maxDateStr).endOf('day');
+            } else if (maxAllowedDate) {
+                maxDate = dayjs(maxAllowedDate).endOf('day');
+            } else {
+                maxDate = dayjs().endOf('day');
+            }
+            if (maxAllowedDate && maxDate.isAfter(dayjs(maxAllowedDate).endOf('day'))) {
+                maxDate = dayjs(maxAllowedDate).endOf('day');
+            }
 
-            dbCache.maxDate = { date: maxDate, timestamp: Date.now(), promise: null };
-            console.log(`🎯 [MaxDate][${getCurrentDbName()}] Latest available date detected and cached: ${maxDate.format('YYYY-MM-DD')}`);
+            dbCache.maxDates.set(key, { date: maxDate, timestamp: Date.now(), promise: null });
+            if (key === 'all') {
+                dbCache.maxDate = { date: maxDate, timestamp: Date.now(), promise: null };
+            }
+            console.log(`🎯 [MaxDate][${getCurrentDbName()}][${key}] Latest available date detected and cached: ${maxDate.format('YYYY-MM-DD')}`);
             return maxDate;
         } catch (error) {
             console.error('Error fetching max date:', error);
-            return dayjs().endOf('day'); // Fallback to today
+            const fallback = maxAllowedDate ? dayjs(maxAllowedDate).endOf('day') : dayjs().endOf('day');
+            return fallback;
         } finally {
-            dbCache.maxDate.promise = null;
+            const entry = dbCache.maxDates.get(key);
+            if (entry) entry.promise = null;
         }
     })();
 
-    return dbCache.maxDate.promise;
+    dbCache.maxDates.set(key, { date: null, timestamp: 0, promise });
+    return promise;
 };
 
 
@@ -1171,12 +1214,22 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const monthsBack = parseInt(months, 10) || 1;
 
         // Calculate date range
-        let endDate = await getCachedMaxDate();
+        let endDate = await getCachedMaxDate(filters.maxAllowedDate);
         let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
 
         if (qStartDate && qEndDate) {
             startDate = dayjs(qStartDate, ['YYYY-MM-DD', 'DD-MM-YYYY']).startOf('day');
             endDate = dayjs(qEndDate, ['YYYY-MM-DD', 'DD-MM-YYYY']).endOf('day');
+        }
+
+        if (filters.maxAllowedDate) {
+            const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+            if (endDate.isAfter(maxAllowedDay)) {
+                endDate = maxAllowedDay;
+            }
+            if (startDate.isAfter(maxAllowedDay)) {
+                startDate = maxAllowedDay;
+            }
         }
 
         // Calculate MoM (Previous Period) Date Range
@@ -1185,6 +1238,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         if (qCompareStartDate && qCompareEndDate) {
             momStartDate = dayjs(qCompareStartDate, ['YYYY-MM-DD', 'DD-MM-YYYY']).startOf('day');
             momEndDate = dayjs(qCompareEndDate, ['YYYY-MM-DD', 'DD-MM-YYYY']).endOf('day');
+        }
+
+        if (filters.maxAllowedDate) {
+            const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+            if (momEndDate.isAfter(maxAllowedDay)) {
+                momEndDate = maxAllowedDay;
+            }
+            if (momStartDate.isAfter(maxAllowedDay)) {
+                momStartDate = maxAllowedDay;
+            }
         }
 
         console.log(`Date Range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`);
@@ -1264,11 +1327,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
             const conditions = [`${dateCol} BETWEEN '${s.format('YYYY-MM-DD')}' AND '${e.format('YYYY-MM-DD')}'`];
 
-            // Filter for Our Brands Only (Comp_flag=0) if specific brands are selected
+            // Filter for Our Brands Only (Comp_flag=0)
             const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
-            if (brandArr && brandArr.length > 0) {
-                conditions.push(`${compFlagCol} = 0`);
-            }
+            conditions.push(`toString(${compFlagCol}) = '0'`);
 
             const brandCol = src.f.brand;
             if (brandArr && brandArr.length > 0) {
@@ -1339,6 +1400,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const drlResellerInfoMain = getDrlResellerConds(filters);
             if (drlResellerInfoMain.pdpCond) {
                 conditions.push(drlResellerInfoMain.pdpCond);
+            }
+            if (drlResellerInfoMain.pdpOfftakeCond) {
+                conditions.push(drlResellerInfoMain.pdpOfftakeCond);
             }
 
             return conditions.join(' AND ');
@@ -4982,7 +5046,7 @@ const getChannels = async () => {
     }
 };
 
-const getPdpPlatforms = async () => {
+const getPdpPlatforms = async (channel) => {
     try {
         const cols = await getTableColumns('rb_pdp_olap');
         const hasPlatform = columnExists(cols, 'platform');
@@ -4991,7 +5055,30 @@ const getPdpPlatforms = async () => {
             return [];
         }
         const platformCol = resolveColumn(cols, 'platform');
-        const query = `SELECT DISTINCT ${platformCol} AS platform FROM rb_pdp_olap WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' ORDER BY platform`;
+        const channelCol = resolveColumn(cols, 'channel');
+        const hasChannel = columnExists(cols, 'channel');
+
+        let query;
+        if (hasChannel && channel && channel !== 'All') {
+            const channelStr = (Array.isArray(channel) ? channel.join(',') : String(channel)).toLowerCase().trim();
+            const isEcom = channelStr.includes('ecom') || channelStr.includes('e-com');
+            const isQcomm = channelStr.includes('quick') || channelStr.includes('qcomm');
+            const isEpharm = channelStr.includes('pharm');
+
+            let channelCondition;
+            if (isEpharm) {
+                channelCondition = `(lower(${channelCol}) LIKE '%pharm%' OR lower(${channelCol}) LIKE '%epharm%')`;
+            } else if (isEcom) {
+                channelCondition = `(lower(${channelCol}) LIKE '%ecom%' OR lower(${channelCol}) LIKE '%ecommerce%')`;
+            } else if (isQcomm) {
+                channelCondition = `(lower(${channelCol}) LIKE '%quick%' OR lower(${channelCol}) LIKE '%qcomm%')`;
+            } else {
+                channelCondition = `(lower(${channelCol}) = '${channelStr.replace(/'/g, "''")}' OR lower(${channelCol}) LIKE '%${channelStr.replace(/'/g, "''")}%')`;
+            }
+            query = `SELECT DISTINCT ${platformCol} AS platform FROM rb_pdp_olap WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' AND ${channelCondition} ORDER BY platform`;
+        } else {
+            query = `SELECT DISTINCT ${platformCol} AS platform FROM rb_pdp_olap WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' ORDER BY platform`;
+        }
         const results = await queryClickHouse(query);
         return results.map(r => r.platform).filter(Boolean).sort();
     } catch (error) {
@@ -5445,7 +5532,7 @@ const computeTrendData = async (filters) => {
         const channel = extractChannel(filters);
 
         // 1. Determine Date Range
-        let endDate = await getCachedMaxDate();
+        let endDate = await getCachedMaxDate(filters.maxAllowedDate);
         let startDate = endDate.clone();
 
         if (period === 'Custom' && customStart && customEnd) {
@@ -5458,6 +5545,16 @@ const computeTrendData = async (filters) => {
                 case '6M': startDate = startDate.subtract(6, 'month'); break;
                 case '1Y': startDate = startDate.subtract(1, 'year'); break;
                 default: startDate = startDate.subtract(3, 'month'); // Default 3M
+            }
+        }
+
+        if (filters.maxAllowedDate) {
+            const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+            if (endDate.isAfter(maxAllowedDay)) {
+                endDate = maxAllowedDay;
+            }
+            if (startDate.isAfter(maxAllowedDay)) {
+                startDate = maxAllowedDay;
             }
         }
 
@@ -5863,11 +5960,16 @@ const getPlatformOverview = async (filters) => {
     const monthsBack = parseInt(months, 10) || 1;
 
     // Calculate date range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    }
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     // Helper for currency formatting
@@ -6021,6 +6123,7 @@ const getPlatformOverview = async (filters) => {
     // Get the optimized data source (Materialized View table or raw table)
     const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
+    const drlResellerInfo = getDrlResellerConds(filters);
 
 
     // ===== INLINE BULK PLATFORM METRICS QUERY - USING CLICKHOUSE =====
@@ -6232,8 +6335,8 @@ const getPlatformOverview = async (filters) => {
         // Query 1: Current period offtake metrics by platform
         queryClickHouse(`
                     SELECT ${src.f.platform} as Platform,
-                        SUM(${src.f.sales}) as sales,
-                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as qty,
+                        SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as sales,
+                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ${src.f.qty} ELSE 0 END) as qty,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as neno,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as deno,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} ELSE 0 END) as buy_box_neno,
@@ -6249,8 +6352,8 @@ const getPlatformOverview = async (filters) => {
         // Query 2: Previous period offtake metrics by platform
         queryClickHouse(`
                     SELECT ${src.f.platform} as Platform,
-                        SUM(${src.f.sales}) as sales,
-                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as qty,
+                        SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as sales,
+                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ${src.f.qty} ELSE 0 END) as qty,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as neno,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as deno,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} ELSE 0 END) as buy_box_neno,
@@ -6696,8 +6799,8 @@ const getPlatformOverview = async (filters) => {
     const [allMetricsResult, prevAllMetricsResult, allPmMetricsResult, prevAllPmMetricsResult] = await Promise.all([
         queryClickHouse(`
                     SELECT 
-                        SUM(${src.f.sales}) as total_sales,
-                        SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.quantitySold} ELSE 0 END) as total_qty,
+                        SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales,
+                        SUM(CASE WHEN ${src.f.compFlag} = 0 ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ${src.f.quantitySold} ELSE 0 END) as total_qty,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
                         AVG(if(${src.f.compFlag} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
@@ -6710,8 +6813,8 @@ const getPlatformOverview = async (filters) => {
                 `),
         queryClickHouse(`
                     SELECT 
-                        SUM(${src.f.sales}) as total_sales,
-                        SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.quantitySold} ELSE 0 END) as total_qty,
+                        SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales,
+                        SUM(CASE WHEN ${src.f.compFlag} = 0 ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ${src.f.quantitySold} ELSE 0 END) as total_qty,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
                         AVG(if(${src.f.compFlag} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
@@ -6928,10 +7031,10 @@ const getPlatformOverview = async (filters) => {
             const prevOfftakeCondsNoLoc = buildOfftakeConds(momStart, momEnd, true);
 
             const [allNoLocRes, prevAllNoLocRes, cNoLoc, pNoLoc] = await Promise.all([
-                queryClickHouse(`SELECT SUM(${src.f.sales}) as total_sales FROM ${src.table} WHERE ${allCondsNoLoc}`),
-                queryClickHouse(`SELECT SUM(${src.f.sales}) as total_sales FROM ${src.table} WHERE ${prevAllCondsNoLoc}`),
-                queryClickHouse(`SELECT ${src.f.platform} as Platform, SUM(${src.f.sales}) as sales FROM ${src.table} WHERE ${currOfftakeCondsNoLoc} GROUP BY Platform`),
-                queryClickHouse(`SELECT ${src.f.platform} as Platform, SUM(${src.f.sales}) as sales FROM ${src.table} WHERE ${prevOfftakeCondsNoLoc} GROUP BY Platform`)
+                queryClickHouse(`SELECT SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales FROM ${src.table} WHERE ${allCondsNoLoc}`),
+                queryClickHouse(`SELECT SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales FROM ${src.table} WHERE ${prevAllCondsNoLoc}`),
+                queryClickHouse(`SELECT ${src.f.platform} as Platform, SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as sales FROM ${src.table} WHERE ${currOfftakeCondsNoLoc} GROUP BY Platform`),
+                queryClickHouse(`SELECT ${src.f.platform} as Platform, SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as sales FROM ${src.table} WHERE ${prevOfftakeCondsNoLoc} GROUP BY Platform`)
             ]);
             if (allNoLocRes.length > 0 && allNoLocRes[0].total_sales !== undefined) {
                 allOfftakeNoLoc = parseFloat(allNoLocRes[0].total_sales || 0);
@@ -6994,7 +7097,7 @@ const getPlatformOverview = async (filters) => {
                     const overviewMetric = overviewChangeMap[overviewName];
                     if (!overviewMetric) continue;
 
-                    const col = allRow.columns.find(c => c.title === colTitle);
+                    const col = allRow.columns.find(c => c.title === colTitle || (colTitle === 'Availability' && c.title === 'OSA'));
                     if (col && col.change) {
                         col.change.text = overviewMetric.trend;
                         col.change.positive = overviewMetric.trendType === 'positive';
@@ -7009,7 +7112,7 @@ const getPlatformOverview = async (filters) => {
                 if (offtakeCol && summaryMetrics.offtakes) {
                     offtakeCol.value = summaryMetrics.offtakes;
                 }
-                const availCol = allRow.columns.find(c => c.title === 'Availability');
+                const availCol = allRow.columns.find(c => c.title === 'Availability' || c.title === 'OSA');
                 if (availCol && summaryMetrics.stockAvailability) {
                     availCol.value = summaryMetrics.stockAvailability;
                 }
@@ -7192,11 +7295,16 @@ const getMonthOverview = async (filters) => {
     const moPlatform = monthOverviewPlatform || filters.platform || null;
 
     // Calculate date range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    }
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     // For comparison, we need one extra month at the beginning
@@ -7218,6 +7326,7 @@ const getMonthOverview = async (filters) => {
     // Query all months at once with GROUP BY - USING CLICKHOUSE
     const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
+    const drlResellerInfoMonth = getDrlResellerConds(filters);
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
     // Build offtake conditions - using fetchStartDate for historical data
@@ -7259,7 +7368,6 @@ const getMonthOverview = async (filters) => {
                 conds.push(`(${mslConds})`);
             }
         }
-        const drlResellerInfoMonth = getDrlResellerConds(filters);
         if (drlResellerInfoMonth.pdpCond) {
             conds.push(drlResellerInfoMonth.pdpCond);
         }
@@ -7336,8 +7444,8 @@ const getMonthOverview = async (filters) => {
         queryClickHouse(`
                     SELECT 
                         formatDateTime(toDate(${src.f.date}), '%Y-%m-01') as month_date,
-                        SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
-                        SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.quantitySold} ELSE 0 END) as total_qty,
+                        SUM(CASE WHEN ${src.f.compFlag} = 0 ${drlResellerInfoMonth.pdpOfftakeCond ? `AND ${drlResellerInfoMonth.pdpOfftakeCond}` : ''} THEN ${src.f.sales} ELSE 0 END) as total_sales,
+                        SUM(CASE WHEN ${src.f.compFlag} = 0 ${drlResellerInfoMonth.pdpOfftakeCond ? `AND ${drlResellerInfoMonth.pdpOfftakeCond}` : ''} THEN ${src.f.quantitySold} ELSE 0 END) as total_qty,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 AND ${src.f.mrp} > 0 THEN ${src.f.mrp} * ${src.f.quantitySold} ELSE 0 END) as my_mrp_val,
@@ -7440,7 +7548,6 @@ const getMonthOverview = async (filters) => {
     const catSizeMonthMap = new Map(catSizeMonth.map(r => [r.month_date, parseFloat(r.cat_size || 0)]));
 
     const isDrlDbMonth = getCurrentDbName() === 'drl';
-    const drlResellerInfoMonth = getDrlResellerConds(filters);
     if (isDrlDbMonth && drlResellerInfoMonth.includeBuyMoreTable) {
         try {
             const bmMonthlyRes = await queryClickHouse(`
@@ -7659,11 +7766,16 @@ const getCategoryOverview = async (filters) => {
     const catPlatform = categoryOverviewPlatform || filters.platform || 'All';
 
     // Calculate date range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    }
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     // Comparison period logic (MoM / same duration)
@@ -7674,6 +7786,7 @@ const getCategoryOverview = async (filters) => {
     // Get the optimized data source
     const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
+    const drlResellerInfoCat = getDrlResellerConds(filters);
 
 
 
@@ -7685,6 +7798,10 @@ const getCategoryOverview = async (filters) => {
     const buildCatConds = (sDate, eDate) => {
         const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
         const conds = [`${dateCol} BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
+
+        // Filter for Our Brands Only (Comp_flag=0)
+        const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
+        conds.push(`toString(${compFlagCol}) = '0'`);
 
         const platformCol = src.isAgg ? 'platform' : 'Platform';
         const platformCond = buildPlatformChannelCond(catPlatform, channel, platformCol, false, src.f.channel);
@@ -7735,7 +7852,6 @@ const getCategoryOverview = async (filters) => {
             }
         }
 
-        const drlResellerInfoCat = getDrlResellerConds(filters);
         if (drlResellerInfoCat.pdpCond) {
             conds.push(drlResellerInfoCat.pdpCond);
         }
@@ -7849,8 +7965,8 @@ const getCategoryOverview = async (filters) => {
         `),
         // Metrics
         queryClickHouse(`SELECT ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} as Category,
-            SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
-            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+            SUM(${drlResellerInfoCat.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfoCat.pdpOfftakeCond} THEN ifNull(toFloat64OrZero(toString(${src.f.sales})), 0) ELSE 0 END` : `ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)`}) as total_sales,
+            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCat.pdpOfftakeCond ? `AND ${drlResellerInfoCat.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.deno})), 0) ELSE 0 END) as total_deno,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as my_mrp_val,
@@ -7864,8 +7980,8 @@ const getCategoryOverview = async (filters) => {
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
         FROM ${src.table} WHERE ${buildCatConds(startDate, endDate)} GROUP BY Category`),
         queryClickHouse(`SELECT ${src.isAgg ? 'category' : PRODUCT_CATEGORY_SQL} as Category,
-            SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
-            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+            SUM(${drlResellerInfoCat.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfoCat.pdpOfftakeCond} THEN ifNull(toFloat64OrZero(toString(${src.f.sales})), 0) ELSE 0 END` : `ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)`}) as total_sales,
+            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCat.pdpOfftakeCond ? `AND ${drlResellerInfoCat.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.deno})), 0) ELSE 0 END) as total_deno,
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as my_mrp_val,
@@ -7925,7 +8041,6 @@ const getCategoryOverview = async (filters) => {
     ]);
 
     const isDrlDbCat = getCurrentDbName() === 'drl';
-    const drlResellerInfoCat = getDrlResellerConds(filters);
     if (isDrlDbCat && drlResellerInfoCat.includeBuyMoreTable) {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
@@ -8022,7 +8137,16 @@ const getCategoryOverview = async (filters) => {
         GROUP BY keyword_category
     `);
 
-    const categories = distinctCategories.map(c => c.category).filter(Boolean);
+    const seenCatKeys = new Set();
+    const categories = [];
+    for (const c of distinctCategories) {
+        if (!c.category) continue;
+        const lowerKey = c.category.toLowerCase();
+        if (!seenCatKeys.has(lowerKey)) {
+            seenCatKeys.add(lowerKey);
+            categories.push(c.category);
+        }
+    }
 
     // Build maps for efficient lookup
     const buildMap = (data, keyField, valField) => new Map(data.map(r => [r[keyField] != null ? String(r[keyField]).toLowerCase() : '', r[valField]]));
@@ -8222,11 +8346,16 @@ const getBrandsOverview = async (filters) => {
     const boCategory = brandsOverviewCategory || filters.category || 'All';
 
     // Calculate date range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    }
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     // Comparison period logic (MoM / same duration)
@@ -8237,6 +8366,7 @@ const getBrandsOverview = async (filters) => {
     // Get the optimized data source
     const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
+    const drlResellerInfoBrand = getDrlResellerConds(filters);
 
 
     // Helper to escape strings for ClickHouse
@@ -8288,7 +8418,6 @@ const getBrandsOverview = async (filters) => {
             }
         }
 
-        const drlResellerInfoBrand = getDrlResellerConds(filters);
         if (drlResellerInfoBrand.pdpCond) {
             conds.push(drlResellerInfoBrand.pdpCond);
         }
@@ -8380,8 +8509,8 @@ const getBrandsOverview = async (filters) => {
         `),
         // Metrics
         queryClickHouse(`SELECT ${src.f.brand} as Brand,
-            SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
-            SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+            SUM(${drlResellerInfoBrand.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfoBrand.pdpOfftakeCond} THEN ifNull(toFloat64OrZero(toString(${src.f.sales})), 0) ELSE 0 END` : `ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)`}) as total_sales,
+            SUM(CASE WHEN ${src.f.compFlag} = 0 ${drlResellerInfoBrand.pdpOfftakeCond ? `AND ${drlResellerInfoBrand.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.deno})), 0) ELSE 0 END) as total_deno,
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as my_mrp_val,
@@ -8395,8 +8524,8 @@ const getBrandsOverview = async (filters) => {
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * ${src.f.sales} ELSE 0 END) / NULLIF(SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.sales} ELSE 0 END), 0) * 100 as my_wt_discount
         FROM ${src.table} WHERE ${buildBrandConds(startDate, endDate)} AND ${src.f.compFlag} = 0 GROUP BY Brand`),
         queryClickHouse(`SELECT ${src.f.brand} as Brand,
-            SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
-            SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+            SUM(${drlResellerInfoBrand.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfoBrand.pdpOfftakeCond} THEN ifNull(toFloat64OrZero(toString(${src.f.sales})), 0) ELSE 0 END` : `ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)`}) as total_sales,
+            SUM(CASE WHEN ${src.f.compFlag} = 0 ${drlResellerInfoBrand.pdpOfftakeCond ? `AND ${drlResellerInfoBrand.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.deno})), 0) ELSE 0 END) as total_deno,
             SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as my_mrp_val,
@@ -8443,7 +8572,6 @@ const getBrandsOverview = async (filters) => {
     ]);
 
     const isDrlDbBrand = getCurrentDbName() === 'drl';
-    const drlResellerInfoBrand = getDrlResellerConds(filters);
     if (isDrlDbBrand && drlResellerInfoBrand.includeBuyMoreTable) {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
@@ -8769,10 +8897,31 @@ const getKpiTrends = async (filters) => {
     console.log('[getKpiTrends] Computing KPI trends data with filters:', filters);
 
     const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, skuName, skuCode, dimension, dimensionValue, resellerName } = filters;
+    const rawSapCode = filters.sapCode || filters['sapCode[]'] || filters.sap_code;
+    const targetSkuName = skuName || filters.sku || filters['skuName[]'] || filters['sku[]'];
+    const targetSkuCode = skuCode || filters['skuCode[]'];
     const channel = extractChannel(filters);
 
+    // Helper to escape strings for ClickHouse
+    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+    // Normalize incoming effective filters array or strings
+    const catArr = normalizeFilterArray(category);
+    const locArr = normalizeFilterArray(location);
+    const brandArr = normalizeFilterArray(brand);
+    const platArr = normalizeFilterArray(platform);
+    const skuArrArr = normalizeFilterArray(targetSkuName);
+    const skuCodeArrArr = normalizeFilterArray(targetSkuCode);
+    const sapArr = normalizeFilterArray(rawSapCode);
+    const subBrandTarget = filters.subBrand || filters.sub_brand;
+    const subBrandArr = normalizeFilterArray(subBrandTarget);
+
+    const hasSkuNameFilter = skuArrArr && skuArrArr.length > 0 && !skuArrArr.includes('All') && !skuArrArr.includes('');
+    const hasSkuCodeFilter = skuCodeArrArr && skuCodeArrArr.length > 0 && !skuCodeArrArr.includes('All') && !skuCodeArrArr.includes('');
+    const hasSapFilter = sapArr && sapArr.length > 0 && !sapArr.includes('All') && !sapArr.includes('');
+
     // 1. Determine Date Range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.clone();
 
     if (period === 'Custom' && customStart && customEnd) {
@@ -8788,7 +8937,13 @@ const getKpiTrends = async (filters) => {
         }
     }
 
-    const isSkuSelected = (skuName && skuName !== 'All' && skuName !== '') || (skuCode && skuCode !== 'All' && skuCode !== '');
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
+    }
+
+    const isSkuSelected = hasSkuNameFilter || hasSkuCodeFilter || hasSapFilter;
     // When SKU is selected, use rb_pdp_olap for PM KPIs (Spend, ROAS, Conversion, CPC, CPM)
     // instead of rb_pm_olap, since PM table only has aggregate-level data
     const usePdpForPmKpis = isSkuSelected;
@@ -8815,17 +8970,6 @@ const getKpiTrends = async (filters) => {
         groupExpression = `formatDateTime(toDate(DATE), '${groupFormat}')`;
         groupExpressionKw = `formatDateTime(toDate(DATE), '${groupFormat}')`;
     }
-
-    // Helper to escape strings for ClickHouse
-    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
-
-    // Normalize incoming effective filters array or strings
-    const catArr = normalizeFilterArray(category);
-    const locArr = normalizeFilterArray(location);
-    const brandArr = normalizeFilterArray(brand);
-    const platArr = normalizeFilterArray(platform);
-    const subBrandTarget = filters.subBrand || filters.sub_brand;
-    const subBrandArr = normalizeFilterArray(subBrandTarget);
 
     // Check for Tier-2/Tier-3 city selections
     const tier1Cities = [
@@ -8892,16 +9036,41 @@ const getKpiTrends = async (filters) => {
         }
 
         // Advanced SKU Search Filters
-        const skuArrArr = normalizeFilterArray(skuName);
-        if (skuArrArr && skuArrArr.length > 0) {
+        if (hasSkuNameFilter) {
             const skuConds = skuArrArr.map(s => `${src.f.product} LIKE '%${escapeStr(s)}%'`).join(' OR ');
             conds.push(`(${skuConds})`);
         }
-        const skuCodeArrArr = normalizeFilterArray(skuCode);
-        if (skuCodeArrArr && skuCodeArrArr.length > 0) {
-            const skuCodeConds = skuCodeArrArr.map(s => `toString(${src.f.skuCode}) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+
+        if (hasSapFilter && hasSkuCodeFilter) {
+            // When both sapCode and skuCode (webPid) are provided (common in DRL where webPid may be null on sales rows):
+            // Match sap_code OR webPid so neither sales rows (webPid null) nor crawl rows (sap_code populated, webPid populated) are lost.
+            const sapClause = src.f.sapCode ? sapArr.map(s => `toString(${src.f.sapCode}) = '${escapeStr(s)}'`).join(' OR ') : '';
+            const codeClause = (src.f.webPid || src.f.skuCode) ? skuCodeArrArr.map(s => `(toString(${src.f.webPid || src.f.skuCode}) LIKE '%${escapeStr(s)}%')`).join(' OR ') : '';
+            if (sapClause && codeClause) {
+                conds.push(`(${sapClause} OR ${codeClause})`);
+            } else if (sapClause) {
+                conds.push(`(${sapClause})`);
+            } else if (codeClause) {
+                conds.push(`(${codeClause})`);
+            }
+        } else if (hasSapFilter) {
+            if (src.f.sapCode) {
+                const sapConds = sapArr.map(s => `toString(${src.f.sapCode}) = '${escapeStr(s)}'`).join(' OR ');
+                conds.push(`(${sapConds})`);
+            } else if (src.f.skuCode) {
+                const sapConds = sapArr.map(s => `toString(${src.f.skuCode}) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+                conds.push(`(${sapConds})`);
+            }
+        } else if (hasSkuCodeFilter) {
+            const skuCodeConds = skuCodeArrArr.map(s => {
+                const checks = [];
+                if (src.f.webPid) checks.push(`toString(${src.f.webPid}) LIKE '%${escapeStr(s)}%'`);
+                if (src.f.skuCode) checks.push(`toString(${src.f.skuCode}) LIKE '%${escapeStr(s)}%'`);
+                return checks.length > 0 ? `(${checks.join(' OR ')})` : '1=1';
+            }).join(' OR ');
             conds.push(`(${skuCodeConds})`);
         }
+
         if (!src.isAgg) {
             const mslArr = normalizeFilterArray(filters.msl);
             if (mslArr && mslArr.length > 0) {
@@ -8983,8 +9152,8 @@ const getKpiTrends = async (filters) => {
             SELECT 
                 ${groupExpression.replace('DATE', src.f.date)} as date_group,
                 MAX(toDate(${src.f.date})) as ref_date,
-                SUM(${src.f.sales}) as total_sales,
-                SUM(CASE WHEN toString(${src.f.compFlag}) = '0' THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+                SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales,
+                SUM(CASE WHEN toString(${src.f.compFlag}) = '0' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
                 countIf(${src.isAgg ? 'total_sales > 0' : 'Sales IS NOT NULL AND toString(Sales) != \'\' AND toString(Sales) != \'null\''}) as valid_sales_count,
                 SUM(${src.f.adSales}) as total_Ad_sales,
                 SUM(${src.f.spend}) as total_ad_spend,
@@ -9058,6 +9227,23 @@ const getKpiTrends = async (filters) => {
                     conds.push(`lower(Platform) IN (${targetPlats.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
                 }
 
+                // SKU / Product / SAP Code filters for buymore table
+                if (hasSapFilter || hasSkuCodeFilter || hasSkuNameFilter) {
+                    const bmSkuConds = [];
+                    if (hasSkuNameFilter) {
+                        bmSkuConds.push(...skuArrArr.map(s => `(lower(sku_name) LIKE '%${escapeStr(s.toLowerCase())}%' OR lower(Buymore_sku) LIKE '%${escapeStr(s.toLowerCase())}%')`));
+                    }
+                    if (hasSapFilter) {
+                        bmSkuConds.push(...sapArr.map(s => `(toString(sap_code) LIKE '%${escapeStr(s)}%' OR toString(Buymore_sku) LIKE '%${escapeStr(s)}%' OR toString(sku_name) LIKE '%${escapeStr(s)}%')`));
+                    }
+                    if (hasSkuCodeFilter) {
+                        bmSkuConds.push(...skuCodeArrArr.map(s => `(toString(Product_id) LIKE '%${escapeStr(s)}%' OR toString(Buymore_sku) LIKE '%${escapeStr(s)}%' OR toString(sku_name) LIKE '%${escapeStr(s)}%')`));
+                    }
+                    if (bmSkuConds.length > 0) {
+                        conds.push(`(${bmSkuConds.join(' OR ')})`);
+                    }
+                }
+
                 // Enforce 13 specific Status values for buymore_rb_pdp_olap
                 const validStatuses = [
                     'shiplable generated',
@@ -9110,11 +9296,15 @@ const getKpiTrends = async (filters) => {
                     const row = kpiMap.get(groupKey);
                     row.total_sales = parseFloat(row.total_sales || 0) + buySales;
                     row.total_qty = parseFloat(row.total_qty || 0) + buyQty;
+                    if (buySales > 0 || buyQty > 0) {
+                        row.valid_sales_count = (parseInt(row.valid_sales_count || 0, 10)) + 1;
+                    }
                 } else {
                     const newRow = {
                         date_group: groupKey,
                         total_sales: buySales,
                         total_qty: buyQty,
+                        valid_sales_count: buySales > 0 ? 1 : 0,
                         total_Ad_sales: 0,
                         total_ad_spend: 0,
                         total_ad_orders: 0,
@@ -9164,6 +9354,11 @@ const getKpiTrends = async (filters) => {
     // Numerator conditions - use flag=0 for our brands
     const sosNumConds = buildSosConds();
     sosNumConds.push(`toString(flag) = '1'`);
+    if (hasSkuNameFilter) {
+        sosNumConds.push(`(${skuArrArr.map(s => `lower(keyword_search_product) LIKE '%${escapeStr(s.toLowerCase())}%'`).join(' OR ')})`);
+    } else if (hasSkuCodeFilter) {
+        sosNumConds.push(`(${skuCodeArrArr.map(s => `(lower(web_pid) LIKE '%${escapeStr(s.toLowerCase())}%' OR lower(keyword_search_product) LIKE '%${escapeStr(s.toLowerCase())}%')`).join(' OR ')})`);
+    }
 
     // Denominator: All products (no brand filter, matching Platform Overview)
     const sosDenomConds = buildSosConds();
@@ -9309,7 +9504,7 @@ const getKpiTrends = async (filters) => {
     const hasSosDenominatorData = sosDenominator.some(r => parseInt(r.count || 0, 10) > 0);
     const hasSosFinalData = hasSosNumeratorData && hasSosDenominatorData;
 
-    const hasMsData = !hasTier23 && msTimeSeriesMap.size > 0 && Array.from(msTimeSeriesMap.values()).some(v => v > 0);
+    const hasMsData = !isSkuSelected && !hasTier23 && msTimeSeriesMap.size > 0 && Array.from(msTimeSeriesMap.values()).some(v => v > 0);
 
     // Legacy generic table-level flags still used for KPI Availability status map
     const hasPdpData = kpiResults.length > 0;
@@ -9339,7 +9534,7 @@ const getKpiTrends = async (filters) => {
         const row = scaleMarsMetrics(rowRaw, brand || category || skuName || dimensionValue);
 
         // Extract values
-        const hasValidSales = row.valid_sales_count !== undefined ? parseInt(row.valid_sales_count, 10) > 0 : (row.total_sales !== null && row.total_sales !== undefined);
+        const hasValidSales = (row.valid_sales_count !== undefined ? parseInt(row.valid_sales_count, 10) > 0 : (row.total_sales !== null && row.total_sales !== undefined)) || (parseFloat(row.total_sales || 0) > 0);
         const totalSales = (hasValidSales && row.total_sales !== null && row.total_sales !== undefined) ? parseFloat(row.total_sales) : null;
         const adSales = parseFloat(row.total_Ad_sales || 0);
         const adSpend = parseFloat(row.total_ad_spend || 0);
@@ -9505,9 +9700,9 @@ const getKpiTrends = async (filters) => {
  * @param {string} platform - Selected platform filter
  * @param {string} brand - Selected brand filter (for cities)
  */
-const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, category, resellerName, sku, skuName, dbName: propDbName }) => {
+const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, category, resellerName, sku, skuName, msl, dbName: propDbName }) => {
     try {
-        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, subBrand=${subBrand}, category=${category}, resellerName=${resellerName}, sku=${sku || skuName}`);
+        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, subBrand=${subBrand}, category=${category}, resellerName=${resellerName}, sku=${sku || skuName}, msl=${msl}`);
         const src = await getWatchtowerSource();
 
         // Normalize arrays for multi-select support
@@ -9515,6 +9710,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
         const brandArr = normalizeFilterArray(brand);
         const subBrandArr = normalizeFilterArray(subBrand);
         const catArr = normalizeFilterArray(category);
+        const mslArr = (msl && msl !== 'All' && msl !== 'all') ? normalizeFilterArray(msl) : null;
 
         // Reseller_Name filter (DRL DB context only)
         const effectiveDb = (propDbName || getCurrentDbName() || '').toLowerCase();
@@ -9682,6 +9878,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
             // Fetch unique products - exclusive to Our SKUs (compFlag = 0)
             const pdpCols = await getTableColumns('rb_pdp_olap');
             const hasSapCode = columnExists(pdpCols, 'sap_code');
+            const mslCol = resolveColumn(pdpCols, 'msl');
 
             if (isDrl || hasSapCode) {
                 const sapCol = hasSapCode ? resolveColumn(pdpCols, 'sap_code') : "''";
@@ -9707,6 +9904,9 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
                 if (resellerArr && resellerArr.length > 0 && columnExists(pdpCols, 'Reseller_Name')) {
                     pdpConditions.push(`Reseller_Name IN (${resellerArr.map(r => `'${escapeStr(r)}'`).join(',')})`);
                 }
+                if (mslCol && mslArr && mslArr.length > 0) {
+                    pdpConditions.push(`(${mslArr.map(m => `toString(${mslCol}) = '${escapeStr(m)}'`).join(' OR ')})`);
+                }
 
                 const webPidCol = resolveColumn(pdpCols, 'Web_Pid');
                 const query = `SELECT DISTINCT ${pCol} as sku, any(${sapCol}) as sap_code, any(${webPidCol}) as web_pid FROM rb_pdp_olap WHERE ${pdpConditions.join(' AND ')} GROUP BY sku ORDER BY sku`;
@@ -9730,12 +9930,51 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand, subBrand, c
                 conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
             }
             addResellerCondition(conditions);
+            if (src.f.msl && mslArr && mslArr.length > 0) {
+                conditions.push(`(${mslArr.map(m => `toString(${src.f.msl}) = '${escapeStr(m)}'`).join(' OR ')})`);
+            }
 
             const query = `SELECT DISTINCT ${src.f.product} as sku, any(${src.f.skuCode}) as web_pid FROM ${src.table} WHERE ${conditions.join(' AND ')} GROUP BY sku ORDER BY sku`;
             const results = await queryClickHouse(query);
             const skuList = results.map(s => s.sku).filter(s => s && s.trim()).sort();
             const skuDetails = results.filter(s => s.sku && s.sku.trim()).map(s => ({ name: s.sku, webPid: s.web_pid || null }));
             return { options: [...skuList], skuDetails };
+        }
+
+        if (filterType === 'msls') {
+            const pdpCols = await getTableColumns('rb_pdp_olap');
+            const mslCol = resolveColumn(pdpCols, 'msl');
+            if (!mslCol) return { options: [] };
+
+            const cFlag = resolveColumn(pdpCols, 'Comp_flag', 'Comp_flag');
+            const platCol = resolveColumn(pdpCols, 'Platform', 'Platform');
+            const brandCol = resolveColumn(pdpCols, 'Brand', 'Brand');
+            const catCol = resolveColumn(pdpCols, 'Category', 'Category');
+
+            const pdpConditions = [`${mslCol} IS NOT NULL`, `toString(${cFlag}) = '0'`];
+            if (platArr && platArr.length > 0) {
+                pdpConditions.push(`lower(${platCol}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+            }
+            if (brandArr && brandArr.length > 0) {
+                pdpConditions.push(`lower(${brandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+            }
+            if (subBrandArr && subBrandArr.length > 0 && columnExists(pdpCols, 'sub_brand')) {
+                pdpConditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
+            }
+            if (catArr && catArr.length > 0) {
+                pdpConditions.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+            }
+            addResellerCondition(pdpConditions);
+
+            const query = `
+                SELECT DISTINCT ${mslCol} AS msl_val
+                FROM rb_pdp_olap
+                WHERE ${pdpConditions.join(' AND ')}
+                ORDER BY msl_val ASC
+            `;
+            const results = await queryClickHouse(query);
+            const mslValues = results.map(r => String(r.msl_val)).filter(v => v !== null && v !== undefined && v !== '');
+            return { options: mslValues };
         }
 
         return { options: [] };
@@ -9762,8 +10001,14 @@ const getCompetitionData = async (filters = {}) => {
         const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
         const days = periodDays[period] || 30;
 
-        const endDate = (filters.startDate && filters.endDate) ? dayjs(filters.endDate) : dayjs();
-        const startDate = (filters.startDate && filters.endDate) ? dayjs(filters.startDate) : endDate.clone().subtract(days, 'days');
+        let endDate = (filters.startDate && filters.endDate) ? dayjs(filters.endDate) : (filters.maxAllowedDate ? dayjs(filters.maxAllowedDate) : dayjs());
+        if (filters.maxAllowedDate && endDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+            endDate = dayjs(filters.maxAllowedDate).endOf('day');
+        }
+        let startDate = (filters.startDate && filters.endDate) ? dayjs(filters.startDate) : endDate.clone().subtract(days, 'days');
+        if (filters.maxAllowedDate && startDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+            startDate = dayjs(filters.maxAllowedDate).endOf('day');
+        }
         const momStartDate = startDate.clone().subtract(days, 'days');
         const momEndDate = startDate.clone().subtract(1, 'day');
 
@@ -9838,6 +10083,7 @@ const getCompetitionData = async (filters = {}) => {
             WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL AND brand_name != ''
         `);
         const validBrandNames = validBrandsResult.map(b => b.brand_name).filter(Boolean);
+        const validBrandNamesLower = new Set(validBrandNames.map(b => (b || '').toLowerCase().trim()));
         console.log(`[getCompetitionData] Valid brands (comp_flag=0): ${validBrandNames.length}`);
 
         // 🔹 Calculate date range for rb_ms_olap (Market Share & Offtake Share)
@@ -9845,17 +10091,32 @@ const getCompetitionData = async (filters = {}) => {
         let msStartDate = (filters.startDate && filters.endDate) ? dayjs(filters.startDate) : null;
 
         if (!msEndDate || !msStartDate) {
-            const maxMsCond = (platArr && platArr.length > 0)
+            let maxMsCond = (platArr && platArr.length > 0)
                 ? `WHERE sales IS NOT NULL AND sales > 0 AND lower(platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`
                 : `WHERE sales IS NOT NULL AND sales > 0`;
+            if (filters.maxAllowedDate) {
+                maxMsCond += ` AND toDate(created_on) <= '${filters.maxAllowedDate}'`;
+            }
             const maxMsResult = await queryClickHouse(`SELECT max(toDate(created_on)) as max_date FROM rb_ms_olap ${maxMsCond}`);
             const rawMaxMs = maxMsResult[0]?.max_date;
             if (rawMaxMs && dayjs(rawMaxMs).isValid()) {
                 msEndDate = dayjs(rawMaxMs);
+            } else if (filters.maxAllowedDate) {
+                msEndDate = dayjs(filters.maxAllowedDate);
             } else {
                 msEndDate = dayjs();
             }
+            if (filters.maxAllowedDate && msEndDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+                msEndDate = dayjs(filters.maxAllowedDate).endOf('day');
+            }
             msStartDate = msEndDate.clone().subtract(days, 'days');
+        } else if (filters.maxAllowedDate) {
+            if (msEndDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+                msEndDate = dayjs(filters.maxAllowedDate).endOf('day');
+            }
+            if (msStartDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+                msStartDate = dayjs(filters.maxAllowedDate).endOf('day');
+            }
         }
 
         const msMomStartDate = msStartDate.clone().subtract(days, 'days');
@@ -10119,6 +10380,24 @@ const getCompetitionData = async (filters = {}) => {
         const msPlatArr = normalizeFilterArray(platform);
         if (msPlatArr && msPlatArr.length > 0) baseMsConds.push(`lower(platform) IN (${msPlatArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
 
+        // Check if selected platform exists in rb_ms_olap table
+        let isPlatformInMsOlap = true;
+        if (msPlatArr && msPlatArr.length > 0) {
+            const checkPlats = normalizePlatformArrayForMs(msPlatArr);
+            try {
+                const platRows = await queryClickHouse(`
+                    SELECT DISTINCT lower(platform) as platform 
+                    FROM rb_ms_olap 
+                    WHERE lower(platform) IN (${checkPlats.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})
+                    LIMIT 1
+                `);
+                isPlatformInMsOlap = Boolean(platRows && platRows.length > 0);
+            } catch (err) {
+                console.warn('[getCompetitionData] Failed to check platform in rb_ms_olap:', err.message);
+                isPlatformInMsOlap = false;
+            }
+        }
+
         const msLocArr = normalizeFilterArray(location);
         if (msLocArr && msLocArr.length > 0) baseMsConds.push(`lower(location) IN (${msLocArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
 
@@ -10244,6 +10523,23 @@ const getCompetitionData = async (filters = {}) => {
 
         console.log(`[getCompetitionData] Got category sales data(${categoryTotalSalesMap.size} total, ${categoryOurBrandsSalesMap.size} our brands) from rb_brand_ms`);
 
+        const hasAnyMsData = isPlatformInMsOlap && (
+            (msPlatArr && msPlatArr.length > 0)
+                ? isPlatformInMsOlap
+                : (categoryTotalSalesMap.size > 0 || skuMsMap.size > 0 || brandSalesMap.size > 0)
+        );
+
+        if (!hasAnyMsData) {
+            brandSalesMap.clear();
+            brandSalesMapPrev.clear();
+            brandAbsoluteSalesMap.clear();
+            brandAbsoluteSalesMapPrev.clear();
+            categoryTotalSalesMap.clear();
+            categoryTotalSalesMapPrev.clear();
+            skuMsMap.clear();
+            skuMsMapPrev.clear();
+        }
+
 
         let allDanoneOwnSalesInCatMap = new Map();
         let allDanoneOwnSalesInCatMapPrev = new Map();
@@ -10316,12 +10612,12 @@ const getCompetitionData = async (filters = {}) => {
             const brandSales = brandAbsoluteSalesMap.get(brandLower) || 0;
             const brandSalesPrev = brandAbsoluteSalesMapPrev.get(brandLower) || 0;
 
-            const hasMsData = brandSalesMap.has(brandLower);
+            const hasMsData = hasAnyMsData && brandSalesMap.has(brandLower);
 
             // Market Share: Individual brand's share = brand's sales / total platform sales
             const marketShare = hasMsData ? (brandSalesMap.get(brandLower) || 0) : null;
-            const marketSharePrev = brandSalesMapPrev.get(brandLower) || 0;
-            const marketShareDelta = marketShare === null ? null : calcChange(marketShare, marketSharePrev);
+            const marketSharePrev = (hasAnyMsData && hasMsData) ? (brandSalesMapPrev.get(brandLower) || 0) : null;
+            const marketShareDelta = (marketShare === null || marketSharePrev === null) ? null : calcChange(marketShare, marketSharePrev);
 
             // Category Share: Individual brand's share in its specific category
             const lowerBrandCat = brandCategory.toLowerCase();
@@ -10333,8 +10629,8 @@ const getCompetitionData = async (filters = {}) => {
             if (categoryTotalSalesPrev === 0) {
                 categoryTotalSalesPrev = Array.from(categoryTotalSalesMapPrev.values()).reduce((sum, v) => sum + v, 0);
             }
-            let categoryShare = (categoryTotalSales > 0 && brandSales > 0) ? (brandSales / categoryTotalSales) * 100 : (marketShare !== null ? marketShare : null);
-            let categorySharePrev = (categoryTotalSalesPrev > 0 && brandSalesPrev > 0) ? (brandSalesPrev / categoryTotalSalesPrev) * 100 : (marketSharePrev !== null ? marketSharePrev : 0);
+            let categoryShare = (hasAnyMsData && categoryTotalSales > 0 && brandSales > 0) ? (brandSales / categoryTotalSales) * 100 : (hasMsData && marketShare !== null ? marketShare : null);
+            let categorySharePrev = (hasAnyMsData && categoryTotalSalesPrev > 0 && brandSalesPrev > 0) ? (brandSalesPrev / categoryTotalSalesPrev) * 100 : (hasMsData && marketSharePrev !== null ? marketSharePrev : null);
 
             if (isDanoneDb() && DANONE_OWN_BRANDS.includes(brandLower)) {
                 const totalDanoneInCat = allDanoneOwnSalesInCatMap.get(lowerBrandCat) || brandSales;
@@ -10352,7 +10648,7 @@ const getCompetitionData = async (filters = {}) => {
                 }
             }
 
-            const categoryShareDelta = categoryShare === null ? null : calcChange(categoryShare, categorySharePrev);
+            const categoryShareDelta = (categoryShare === null || categorySharePrev === null) ? null : calcChange(categoryShare, categorySharePrev);
 
             const offtakeShare = categoryShare;
             const offtakeShareDelta = categoryShareDelta;
@@ -10362,9 +10658,15 @@ const getCompetitionData = async (filters = {}) => {
             const prevListingPercent = parseFloat(prevBrand.avg_listing_percent || 0);
             const listingPercentDelta = calcChange(listingPercent, prevListingPercent);
 
+            const brandCleanName = (brand.Brand || '').trim();
+            const isOwnBrand = validBrandNamesLower.has(brandCleanName.toLowerCase());
+
             return {
-                brand_name: brand.Brand,
-                brand: brand.Brand,
+                brand_name: brandCleanName,
+                brand: brandCleanName,
+                name: brandCleanName,
+                isOwnBrand,
+                is_my_brand: isOwnBrand,
                 OSA: { value: osa === null ? null : parseFloat(osa.toFixed(2)), delta: osaDelta === null ? null : parseFloat(osaDelta.toFixed(2)) },
                 SOS: { value: sos === null ? null : parseFloat(sos.toFixed(3)), delta: sosDelta === null ? null : parseFloat(sosDelta.toFixed(3)) },
                 Discount: { value: parseFloat(discount.toFixed(2)), delta: parseFloat(discountDelta.toFixed(2)) },
@@ -10385,11 +10687,11 @@ const getCompetitionData = async (filters = {}) => {
             };
         });
 
-        // 5. Sort by OSA descending and limit to top 10
+        // 5. Sort by OSA descending
         brandMetrics.sort((a, b) => (b.OSA?.value || 0) - (a.OSA?.value || 0));
         const topBrands = brandMetrics.slice(0, 10);
 
-        console.log(`[getCompetitionData] Returning ${topBrands.length} brands`);
+        console.log(`[getCompetitionData] Returning ${brandMetrics.length} brands (top 10 brands slice available)`);
 
         // If no brands found, help user debug by showing available values
         if (topBrands.length === 0 && (location !== 'All' || category !== 'All')) {
@@ -10506,7 +10808,7 @@ const getCompetitionData = async (filters = {}) => {
 
             // Calculate SKU Market Share: SKU sales in rb_ms_olap * 100.0 / Total Category sales in rb_ms_olap
             const getSkuMarketShare = (prodName, catName, msMap, catSalesMap) => {
-                if (!prodName) return null;
+                if (!hasAnyMsData || !prodName || msMap.size === 0 || catSalesMap.size === 0) return null;
                 const lowerProd = prodName.toLowerCase().trim();
                 let item = msMap.get(lowerProd);
 
@@ -10519,47 +10821,59 @@ const getCompetitionData = async (filters = {}) => {
                     }
                 }
 
-                if (!item || !item.sales || item.sales <= 0) {
-                    return 0;
-                }
-
-                const skuCat = item.category || (catName ? catName.toLowerCase().trim() : '');
+                const skuCat = (item && item.category) || (catName ? catName.toLowerCase().trim() : '');
                 let catTotal = catSalesMap.get(skuCat) || 0;
                 if (catTotal === 0) {
                     catTotal = Array.from(catSalesMap.values()).reduce((sum, val) => sum + val, 0);
                 }
 
-                if (catTotal > 0) {
-                    return (item.sales * 100.0) / catTotal;
+                if (catTotal <= 0) {
+                    return null;
                 }
-                return 0;
+
+                if (!item || !item.sales || item.sales <= 0) {
+                    return 0;
+                }
+
+                return (item.sales * 100.0) / catTotal;
             };
 
             const skuMsCurr = getSkuMarketShare(sku.Product, skuCategory, skuMsMap, categoryTotalSalesMap);
             const skuMsPrev = getSkuMarketShare(sku.Product, skuCategory, skuMsMapPrev, categoryTotalSalesMapPrev);
 
             const totalSkuSalesVal = parseFloat(sku.total_sales || 0);
-            const fallbackMs = (totalSkuSales > 0 && totalSkuSalesVal > 0) ? (totalSkuSalesVal * 100.0) / totalSkuSales : 0;
-            const marketShare = (skuMsCurr !== null && skuMsCurr > 0) ? skuMsCurr : fallbackMs;
-            const marketShareDelta = marketShare === null ? null : calcChange(marketShare, skuMsPrev || 0);
+            const marketShare = (hasAnyMsData && skuMsCurr !== null) ? skuMsCurr : null;
+            const marketShareDelta = (marketShare === null || skuMsPrev === null) ? null : calcChange(marketShare, skuMsPrev);
 
             // Category Share: Our brands' share in this SKU's specific category
             const lowerSkuCat = skuCategory.toLowerCase();
             const skuBrandSales = brandAbsoluteSalesMap.get(sku.Brand?.toLowerCase()) || 0;
             const skuCategoryTotalSales = categoryTotalSalesMap.get(lowerSkuCat) || 0;
-            const hasMsData = brandSalesMap.has(sku.Brand?.toLowerCase()) || (marketShare !== null && marketShare > 0);
-            const categoryShare = hasMsData ? (skuCategoryTotalSales > 0 ? (skuBrandSales / skuCategoryTotalSales) * 100 : 0) : null;
+            const hasMsData = hasAnyMsData && (brandSalesMap.has(sku.Brand?.toLowerCase()) || (marketShare !== null));
+            const categoryShare = hasMsData ? (skuCategoryTotalSales > 0 ? (skuBrandSales / skuCategoryTotalSales) * 100 : (marketShare !== null ? marketShare : null)) : null;
 
             const skuBrandSalesPrev = brandAbsoluteSalesMapPrev.get(sku.Brand?.toLowerCase()) || 0;
             const skuCategoryTotalSalesPrev = categoryTotalSalesMapPrev.get(lowerSkuCat) || 0;
-            const categorySharePrev = skuCategoryTotalSalesPrev > 0 ? (skuBrandSalesPrev / skuCategoryTotalSalesPrev) * 100 : 0;
-            const categoryShareDelta = categoryShare === null ? null : calcChange(categoryShare, categorySharePrev);
+            const categorySharePrev = (hasMsData && skuCategoryTotalSalesPrev > 0) ? (skuBrandSalesPrev / skuCategoryTotalSalesPrev) * 100 : null;
+            const categoryShareDelta = (categoryShare === null || categorySharePrev === null) ? null : calcChange(categoryShare, categorySharePrev);
 
             // SKU Offtake Share: SKU sales in rb_ms_olap / Total Category Sales in rb_ms_olap * 100
-            const skuOfftakeShare = (skuMsCurr !== null && skuMsCurr > 0) ? skuMsCurr : ((skuCategoryTotalSales > 0 && totalSkuSalesVal > 0) ? (totalSkuSalesVal / skuCategoryTotalSales) * 100 : 0);
-            const prevSkuSalesVal = parseFloat(prevSku.total_sales || 0);
-            const skuOfftakeSharePrev = (skuMsPrev !== null && skuMsPrev > 0) ? skuMsPrev : ((skuCategoryTotalSalesPrev > 0 && prevSkuSalesVal > 0) ? (prevSkuSalesVal / skuCategoryTotalSalesPrev) * 100 : 0);
-            const skuOfftakeShareDelta = calcChange(skuOfftakeShare, skuOfftakeSharePrev);
+            let skuOfftakeShare = null;
+            let skuOfftakeSharePrev = null;
+            if (hasAnyMsData) {
+                if (skuMsCurr !== null) {
+                    skuOfftakeShare = skuMsCurr;
+                } else if (skuCategoryTotalSales > 0 && totalSkuSalesVal > 0) {
+                    skuOfftakeShare = (totalSkuSalesVal / skuCategoryTotalSales) * 100;
+                }
+                const prevSkuSalesVal = parseFloat(prevSku.total_sales || 0);
+                if (skuMsPrev !== null) {
+                    skuOfftakeSharePrev = skuMsPrev;
+                } else if (skuCategoryTotalSalesPrev > 0 && prevSkuSalesVal > 0) {
+                    skuOfftakeSharePrev = (prevSkuSalesVal / skuCategoryTotalSalesPrev) * 100;
+                }
+            }
+            const skuOfftakeShareDelta = (skuOfftakeShare === null || skuOfftakeSharePrev === null) ? null : calcChange(skuOfftakeShare, skuOfftakeSharePrev);
 
             // Listing Percent
             const skuListingPercent = parseFloat(sku.avg_listing_percent || 0);
@@ -10576,8 +10890,8 @@ const getCompetitionData = async (filters = {}) => {
                 Price: { value: parseFloat(avgPrice.toFixed(0)), delta: parseFloat(priceDelta.toFixed(2)) },
                 CategoryShare: { value: categoryShare === null ? null : parseFloat(categoryShare.toFixed(2)), delta: categoryShareDelta === null ? null : parseFloat(categoryShareDelta.toFixed(2)) },
                 MarketShare: { value: marketShare === null ? null : parseFloat(marketShare.toFixed(2)), delta: marketShareDelta === null ? null : parseFloat(marketShareDelta.toFixed(2)) },
-                OfftakeShare: { value: parseFloat(skuOfftakeShare.toFixed(2)), delta: parseFloat(skuOfftakeShareDelta.toFixed(2)) },
-                offtake_share: parseFloat(skuOfftakeShare.toFixed(2)),
+                OfftakeShare: { value: skuOfftakeShare === null ? null : parseFloat(skuOfftakeShare.toFixed(2)), delta: (skuOfftakeShare === null || skuOfftakeShareDelta === null) ? null : parseFloat(skuOfftakeShareDelta.toFixed(2)) },
+                offtake_share: skuOfftakeShare === null ? null : parseFloat(skuOfftakeShare.toFixed(2)),
                 'Promo-My': { value: parseFloat((sku.avg_discount || 0).toFixed(2)), delta: calcChange(sku.avg_discount || 0, prevSku.avg_discount || 0) },
                 'PromoMy': { value: parseFloat((sku.avg_discount || 0).toFixed(2)), delta: calcChange(sku.avg_discount || 0, prevSku.avg_discount || 0) },
                 ListingPercent: { value: parseFloat(skuListingPercent.toFixed(2)), delta: parseFloat(skuListingPercentDelta.toFixed(2)) }
@@ -10601,10 +10915,12 @@ const getCompetitionData = async (filters = {}) => {
         });
         const topSkus = skuMetrics;
 
-        console.log(`[getCompetitionData] Returning ${topBrands.length} brands and ${topSkus.length} SKUs`);
+        console.log(`[getCompetitionData] Returning ${brandMetrics.length} brands and ${topSkus.length} SKUs`);
 
         return {
-            brands: topBrands,
+            brands: brandMetrics,
+            topBrands,
+            ourBrands: validBrandNames,
             skus: topSkus,  // ADDED: Return SKU data
             metadata: {
                 period,
@@ -10795,6 +11111,10 @@ const getLatestAvailableMonth = async (filters = {}) => {
                 contentConditions.push(`lower(brand_name) = lower('${escapeStr(brand)}')`);
             }
 
+            if (filters.maxAllowedDate) {
+                contentConditions.push(`toDate(extraction_timestamp) <= '${escapeStr(filters.maxAllowedDate)}'`);
+            }
+
             const contentWhere = contentConditions.length > 0 ? `WHERE ${contentConditions.join(' AND ')} ` : '';
 
             const contentResult = await queryClickHouse(`
@@ -10807,7 +11127,11 @@ const getLatestAvailableMonth = async (filters = {}) => {
             const latestContentDate = contentResult?.[0]?.latestDate;
             if (!latestContentDate) return { available: false };
 
-            const latestC = dayjs(latestContentDate);
+            let latestC = dayjs(latestContentDate);
+            if (filters.maxAllowedDate && latestC.isAfter(dayjs(filters.maxAllowedDate))) {
+                latestC = dayjs(filters.maxAllowedDate);
+            }
+
             return {
                 available: true,
                 minDate: minContentDate && minContentDate !== '0000-00-00' && minContentDate !== '1970-01-01' ? dayjs(minContentDate).format('YYYY-MM-DD') : undefined,
@@ -10868,6 +11192,10 @@ const getLatestAvailableMonth = async (filters = {}) => {
             conditions.push(`lower(${PRODUCT_CATEGORY_SQL}) = '${escapeStr(category.toLowerCase())}'`);
         }
 
+        if (filters.maxAllowedDate) {
+            conditions.push(`toDate(${dateCol}) <= '${escapeStr(filters.maxAllowedDate)}'`);
+        }
+
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')} ` : '';
 
         // Query target table for the min and latest dates
@@ -10884,7 +11212,10 @@ const getLatestAvailableMonth = async (filters = {}) => {
             return { available: false };
         }
 
-        const latest = dayjs(latestDate);
+        let latest = dayjs(latestDate);
+        if (filters.maxAllowedDate && latest.isAfter(dayjs(filters.maxAllowedDate))) {
+            latest = dayjs(filters.maxAllowedDate);
+        }
 
         return {
             available: true,
@@ -10951,12 +11282,15 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
         // Get the latest date from both pdp and ms tables to ensure we show the most recent data
         const [pdpMaxDateRes, msMaxDateRes] = await Promise.all([
-            getCachedMaxDate(),
-            queryClickHouse(`SELECT MAX(toDate(created_on)) as max_date FROM rb_ms_olap`)
+            getCachedMaxDate(filters.maxAllowedDate),
+            queryClickHouse(`SELECT MAX(toDate(created_on)) as max_date FROM rb_ms_olap${filters.maxAllowedDate ? ` WHERE toDate(created_on) <= '${filters.maxAllowedDate}'` : ''}`)
         ]);
         const pdpMaxDate = dayjs(pdpMaxDateRes);
         const msMaxDate = dayjs(msMaxDateRes[0]?.max_date || '2000-01-01');
-        const endDate = pdpMaxDate.isAfter(msMaxDate) ? pdpMaxDate : msMaxDate;
+        let endDate = pdpMaxDate.isAfter(msMaxDate) ? pdpMaxDate : msMaxDate;
+        if (filters.maxAllowedDate && endDate.isAfter(dayjs(filters.maxAllowedDate).endOf('day'))) {
+            endDate = dayjs(filters.maxAllowedDate).endOf('day');
+        }
         let startDate;
         switch (period) {
             case '1W': startDate = endDate.subtract(7, 'days'); break;
@@ -11543,6 +11877,10 @@ const getTopActions = async (filters = {}) => {
             ? (Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()))
             : [];
 
+        const platCond = platformArr.length > 0
+            ? `lower(platform) IN (${platformArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`
+            : '1=1';
+
         const src = await getWatchtowerSource();
         const platCondOlap = buildPlatformChannelCond(platformArr, null, src.f.platform);
         const catCol = src.f.category;
@@ -11551,9 +11889,13 @@ const getTopActions = async (filters = {}) => {
             ? `AND ${catCol} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`
             : '';
 
-        const requestedEnd = (filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined')
+        let requestedEnd = (filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined')
             ? dayjs(filters.endDate).format('YYYY-MM-DD')
-            : dayjs().format('YYYY-MM-DD');
+            : (filters.maxAllowedDate ? filters.maxAllowedDate : dayjs().format('YYYY-MM-DD'));
+
+        if (filters.maxAllowedDate && dayjs(requestedEnd).isAfter(dayjs(filters.maxAllowedDate))) {
+            requestedEnd = filters.maxAllowedDate;
+        }
 
         // Check for presence of data for the EXACT requested date
         const [olapCheckRes, insightCheckRes] = await Promise.all([
@@ -11569,7 +11911,8 @@ const getTopActions = async (filters = {}) => {
 
         // Fallback: if no data for exact date, find latest available date
         if (!hasOlapData) {
-            const latestRes = await queryClickHouse(`SELECT MAX(toDate(${src.f.date})) as latest FROM ${src.table} WHERE ${platCondOlap} ${catCondOlap} `);
+            const dateCap = filters.maxAllowedDate ? `AND toDate(${src.f.date}) <= '${filters.maxAllowedDate}'` : '';
+            const latestRes = await queryClickHouse(`SELECT MAX(toDate(${src.f.date})) as latest FROM ${src.table} WHERE ${platCondOlap} ${catCondOlap} ${dateCap}`);
             if (latestRes[0]?.latest) {
                 endDateStr = dayjs(latestRes[0].latest).format('YYYY-MM-DD');
                 hasOlapData = true;
@@ -11577,12 +11920,18 @@ const getTopActions = async (filters = {}) => {
             }
         }
         if (!hasInsightData) {
-            const latestInsightRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rca_watchtower_insight WHERE ${platCond} `);
+            const dateCap = filters.maxAllowedDate ? `AND toDate(DATE) <= '${filters.maxAllowedDate}'` : '';
+            const latestInsightRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rca_watchtower_insight WHERE ${platCond} ${dateCap}`);
             if (latestInsightRes[0]?.latest) {
                 insightDateStr = dayjs(latestInsightRes[0].latest).format('YYYY-MM-DD');
                 hasInsightData = true;
                 console.log(`[getTopActions] No Insight data for ${requestedEnd}, falling back to latest: ${insightDateStr} `);
             }
+        }
+
+        if (filters.maxAllowedDate) {
+            if (dayjs(endDateStr).isAfter(dayjs(filters.maxAllowedDate))) endDateStr = filters.maxAllowedDate;
+            if (dayjs(insightDateStr).isAfter(dayjs(filters.maxAllowedDate))) insightDateStr = filters.maxAllowedDate;
         }
 
         console.log(`[getTopActions] Requested: ${requestedEnd}, Using OLAP: ${endDateStr}, Using Insight: ${insightDateStr} `);
@@ -11745,6 +12094,15 @@ const getOsaDeepDive = async (filters = {}) => {
         const platCondDarkstore = platformArr.length > 0
             ? `platform IN(${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
             : '1=1';
+        const catArr = normalizeFilterArray(filters.category || filters.categoryOverviewCategory);
+        let requestedEnd = (filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined')
+            ? dayjs(filters.endDate).format('YYYY-MM-DD')
+            : (filters.maxAllowedDate ? filters.maxAllowedDate : dayjs().format('YYYY-MM-DD'));
+
+        if (filters.maxAllowedDate && dayjs(requestedEnd).isAfter(dayjs(filters.maxAllowedDate))) {
+            requestedEnd = filters.maxAllowedDate;
+        }
+
         const src = await getWatchtowerSource();
         const platCondOlap = buildPlatformChannelCond(platformArr, null, src.f.platform);
         const catCol = src.f.category;
@@ -11752,7 +12110,7 @@ const getOsaDeepDive = async (filters = {}) => {
 
         // Check for presence of data for the EXACT requested date
         const [olapCheckRes, insightCheckRes] = await Promise.all([
-            queryClickHouse(`SELECT count(*) as count FROM ${src.table} WHERE ${platCondOlap} AND toDate(${src.f.date}) = '${requestedEnd}'`),
+            queryClickHouse(`SELECT count(*) as count FROM ${src.table} WHERE ${platCondOlap} ${catCondOlapClean} AND toDate(${src.f.date}) = '${requestedEnd}'`),
             queryClickHouse(`SELECT count(*) as count FROM rca_watchtower_insight WHERE ${platCondDarkstore} AND toDate(DATE) = '${requestedEnd}'`)
         ]);
 
@@ -11763,7 +12121,8 @@ const getOsaDeepDive = async (filters = {}) => {
 
         // Fallback: if no data for exact date, find latest available date
         if (!hasOlap) {
-            const latestRes = await queryClickHouse(`SELECT MAX(toDate(${src.f.date})) as latest FROM ${src.table} WHERE ${platCondOlap} `);
+            const dateCap = filters.maxAllowedDate ? `AND toDate(${src.f.date}) <= '${filters.maxAllowedDate}'` : '';
+            const latestRes = await queryClickHouse(`SELECT MAX(toDate(${src.f.date})) as latest FROM ${src.table} WHERE ${platCondOlap} ${catCondOlapClean} ${dateCap}`);
             if (latestRes[0]?.latest) {
                 endDateStr = dayjs(latestRes[0].latest).format('YYYY-MM-DD');
                 hasOlap = true;
@@ -11771,11 +12130,16 @@ const getOsaDeepDive = async (filters = {}) => {
             }
         }
         if (!hasInsight) {
-            const latestInsightRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rca_watchtower_insight WHERE ${platCondDarkstore} `);
+            const dateCap = filters.maxAllowedDate ? `AND toDate(DATE) <= '${filters.maxAllowedDate}'` : '';
+            const latestInsightRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rca_watchtower_insight WHERE ${platCondDarkstore} ${dateCap}`);
             if (latestInsightRes[0]?.latest) {
                 hasInsight = true;
                 console.log(`[getOsaDeepDive] No Insight data for ${requestedEnd}, falling back to latest insight date`);
             }
+        }
+
+        if (filters.maxAllowedDate && dayjs(endDateStr).isAfter(dayjs(filters.maxAllowedDate))) {
+            endDateStr = filters.maxAllowedDate;
         }
 
         // If still no data after fallback, return empty
@@ -13161,11 +13525,16 @@ const getSkuOverview = async (filters) => {
     const monthsBack = parseInt(months, 10) || 1;
 
     // Calculate current date range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    }
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     // Comparison period logic (MoM / same duration)
@@ -13177,6 +13546,7 @@ const getSkuOverview = async (filters) => {
 
     // Get the optimized data source
     const src = await getWatchtowerSource(filters);
+    const drlResellerInfoSku = getDrlResellerConds(filters);
 
     // Build SKU conditions for rb_pdp_olap
     const buildSkuConds = (sDate, eDate) => {
@@ -13231,7 +13601,6 @@ const getSkuOverview = async (filters) => {
             }
         }
 
-        const drlResellerInfoSku = getDrlResellerConds(filters);
         if (drlResellerInfoSku.pdpCond) {
             conds.push(drlResellerInfoSku.pdpCond);
         }
@@ -13297,8 +13666,8 @@ const getSkuOverview = async (filters) => {
     const results = await Promise.all([
         queryClickHouse(`
             SELECT ${src.isAgg ? 'brand' : 'Product'} as Product,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as total_qty,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoSku.pdpOfftakeCond ? `AND ${drlResellerInfoSku.pdpOfftakeCond}` : ''} THEN ${src.f.sales} ELSE 0 END) as total_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoSku.pdpOfftakeCond ? `AND ${drlResellerInfoSku.pdpOfftakeCond}` : ''} THEN ${src.f.qty} ELSE 0 END) as total_qty,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.spend} ELSE 0 END) as total_spend,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.adSales} ELSE 0 END) as total_Ad_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.clicks} ELSE 0 END) as total_clicks,
@@ -13325,8 +13694,8 @@ const getSkuOverview = async (filters) => {
                 `),
         queryClickHouse(`
             SELECT ${src.isAgg ? 'brand' : 'Product'} as Product,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as total_qty,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoSku.pdpOfftakeCond ? `AND ${drlResellerInfoSku.pdpOfftakeCond}` : ''} THEN ${src.f.sales} ELSE 0 END) as total_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoSku.pdpOfftakeCond ? `AND ${drlResellerInfoSku.pdpOfftakeCond}` : ''} THEN ${src.f.qty} ELSE 0 END) as total_qty,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.spend} ELSE 0 END) as total_spend,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.adSales} ELSE 0 END) as total_Ad_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.clicks} ELSE 0 END) as total_clicks,
@@ -13396,7 +13765,6 @@ const getSkuOverview = async (filters) => {
     ] = results;
 
     const isDrlDbSku = getCurrentDbName() === 'drl';
-    const drlResellerInfoSku = getDrlResellerConds(filters);
     if (isDrlDbSku && drlResellerInfoSku.includeBuyMoreTable) {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
@@ -13665,6 +14033,32 @@ const getSkuOverview = async (filters) => {
         };
     });
 
+    skuOverview.sort((a, b) => {
+        const getOsaVal = (item) => {
+            const availCol = item.columns?.find(c => c.title === 'Availability' || c.title === 'OSA' || c.title === 'Stock Availability' || c.title === 'On Shelf Availability');
+            if (availCol && availCol.rawVal !== undefined && availCol.rawVal !== null && !isNaN(availCol.rawVal)) {
+                return Number(availCol.rawVal);
+            }
+            if (availCol && availCol.value && availCol.value !== 'N/A') {
+                const parsed = parseFloat(String(availCol.value).replace(/%/g, '').replace(/,/g, ''));
+                if (!isNaN(parsed)) return parsed;
+            }
+            const wtOsaCol = item.columns?.find(c => c.title === 'Wt OSA');
+            if (wtOsaCol && wtOsaCol.rawVal !== undefined && wtOsaCol.rawVal !== null && !isNaN(wtOsaCol.rawVal)) {
+                return Number(wtOsaCol.rawVal);
+            }
+            if (wtOsaCol && wtOsaCol.value && wtOsaCol.value !== 'N/A') {
+                const parsed = parseFloat(String(wtOsaCol.value).replace(/%/g, '').replace(/,/g, ''));
+                if (!isNaN(parsed)) return parsed;
+            }
+            return -Infinity;
+        };
+        const osaA = getOsaVal(a);
+        const osaB = getOsaVal(b);
+        if (osaA === -Infinity && osaB === -Infinity) return 0;
+        return osaB - osaA;
+    });
+
     console.log(`[getSkuOverview] Returning ${skuOverview.length} SKUs`);
     return skuOverview;
 };
@@ -13695,11 +14089,16 @@ const getCityOverview = async (filters) => {
     const monthsBack = parseInt(months, 10) || 1;
 
     // Calculate current date range
-    let endDate = await getCachedMaxDate();
+    let endDate = await getCachedMaxDate(filters.maxAllowedDate);
     let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    }
+    if (filters.maxAllowedDate) {
+        const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+        if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+        if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
     // Comparison period logic (MoM / same duration)
@@ -13712,11 +14111,16 @@ const getCityOverview = async (filters) => {
     // Get the optimized data source
     const src = await getWatchtowerSource(filters);
     const pmSrc = await getPmSource();
+    const drlResellerInfoCity = getDrlResellerConds(filters);
 
     // Build City conditions for rb_pdp_olap
     const buildCityConds = (sDate, eDate) => {
         const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
         const conds = [`${dateCol} BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
+
+        // Filter for Our Brands Only (Comp_flag=0)
+        const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
+        conds.push(`toString(${compFlagCol}) = '0'`);
 
         const brandCol = src.isAgg ? 'brand' : 'Brand';
         if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
@@ -13755,7 +14159,6 @@ const getCityOverview = async (filters) => {
             }
         }
 
-        const drlResellerInfoCity = getDrlResellerConds(filters);
         if (drlResellerInfoCity.pdpCond) {
             conds.push(drlResellerInfoCity.pdpCond);
         }
@@ -13806,8 +14209,8 @@ const getCityOverview = async (filters) => {
     const results = await Promise.all([
         queryClickHouse(`
             SELECT ${src.isAgg ? 'location' : 'Location'} as Location,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as total_qty,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCity.pdpOfftakeCond ? `AND ${drlResellerInfoCity.pdpOfftakeCond}` : ''} THEN ${src.f.sales} ELSE 0 END) as total_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCity.pdpOfftakeCond ? `AND ${drlResellerInfoCity.pdpOfftakeCond}` : ''} THEN ${src.f.qty} ELSE 0 END) as total_qty,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.spend} ELSE 0 END) as total_spend,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.adSales} ELSE 0 END) as total_Ad_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.clicks} ELSE 0 END) as total_clicks,
@@ -13830,8 +14233,8 @@ const getCityOverview = async (filters) => {
                 `),
         queryClickHouse(`
             SELECT ${src.isAgg ? 'location' : 'Location'} as Location,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as total_qty,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCity.pdpOfftakeCond ? `AND ${drlResellerInfoCity.pdpOfftakeCond}` : ''} THEN ${src.f.sales} ELSE 0 END) as total_sales,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 ${drlResellerInfoCity.pdpOfftakeCond ? `AND ${drlResellerInfoCity.pdpOfftakeCond}` : ''} THEN ${src.f.qty} ELSE 0 END) as total_qty,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.spend} ELSE 0 END) as total_spend,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.adSales} ELSE 0 END) as total_Ad_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.clicks} ELSE 0 END) as total_clicks,
@@ -13962,7 +14365,6 @@ const getCityOverview = async (filters) => {
     ] = results;
 
     const isDrlDbCity = getCurrentDbName() === 'drl';
-    const drlResellerInfoCity = getDrlResellerConds(filters);
     if (isDrlDbCity && drlResellerInfoCity.includeBuyMoreTable) {
         try {
             const [currBmRes, prevBmRes] = await Promise.all([
@@ -14323,9 +14725,13 @@ const getPerformanceBreakdownData = async (filters) => {
         const groupByCol = groupByMap[filters.group_by] || pmSrc.f.category;
 
         // ── Apply Date Range or Fallback to MTD (Month-To-Date) ──
-        const now = new Date();
-        const dateStart = filters.startDate ? new Date(filters.startDate).toISOString().split('T')[0] : new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const dateEnd = filters.endDate ? new Date(filters.endDate).toISOString().split('T')[0] : now.toISOString().split('T')[0];
+        const now = filters.maxAllowedDate ? dayjs(filters.maxAllowedDate).toDate() : new Date();
+        let dateStart = filters.startDate ? new Date(filters.startDate).toISOString().split('T')[0] : new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        let dateEnd = filters.endDate ? new Date(filters.endDate).toISOString().split('T')[0] : now.toISOString().split('T')[0];
+        if (filters.maxAllowedDate) {
+            if (dateEnd > filters.maxAllowedDate) dateEnd = filters.maxAllowedDate;
+            if (dateStart > filters.maxAllowedDate) dateStart = filters.maxAllowedDate;
+        }
         const dateClause = `AND ${pmSrc.f.date} >= '${dateStart}' AND ${pmSrc.f.date} <= '${dateEnd}'`;
 
         // ── Build consolidated platform/channel condition ──
@@ -14456,14 +14862,44 @@ const getPerformanceBreakdownData = async (filters) => {
             const periodKeys = typeof comparePeriodKeys === 'string' ? comparePeriodKeys.split(',').map(k => k.trim()) : [];
 
             const getPresetRange = (key) => {
-                const now = new Date();
-                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                if (key === 'previous_period' || key === 'prev_period') {
+                    if (filters.compareStartDate && filters.compareEndDate) {
+                        return { start: new Date(filters.compareStartDate), end: new Date(filters.compareEndDate) };
+                    }
+                    const curStart = new Date(dateStart);
+                    const curEnd = new Date(dateEnd);
+                    const durationMs = curEnd.getTime() - curStart.getTime();
+                    const prevEnd = new Date(curStart.getTime() - 86400000);
+                    const prevStart = new Date(prevEnd.getTime() - durationMs);
+                    return { start: prevStart, end: prevEnd };
+                }
+
+                const curStart = new Date(dateStart);
+                const curEnd = new Date(dateEnd);
+
                 switch (key) {
-                    case 'last_week': { const e = new Date(today); e.setDate(e.getDate() - 1); const s = new Date(e); s.setDate(s.getDate() - 6); return { start: s, end: e }; }
-                    case 'last_month': { const e = new Date(today.getFullYear(), today.getMonth(), 0); return { start: new Date(e.getFullYear(), e.getMonth(), 1), end: e }; }
-                    case 'mtd': { const s = new Date(today.getFullYear(), today.getMonth(), 1); const e = new Date(today); e.setDate(e.getDate() - 1); return { start: s, end: e }; }
-                    case 'last_3_months': { const e = new Date(today); e.setDate(e.getDate() - 1); const s = new Date(e); s.setMonth(s.getMonth() - 3); return { start: s, end: e }; }
-                    case 'ytd': { const s = new Date(today.getFullYear(), 0, 1); const e = new Date(today); e.setDate(e.getDate() - 1); return { start: s, end: e }; }
+                    case 'last_week': {
+                        // 7 days preceding current start date so periods do not overlap
+                        const e = new Date(curStart.getTime() - 86400000);
+                        const s = new Date(e.getTime() - 6 * 86400000);
+                        return { start: s, end: e };
+                    }
+                    case 'last_month': {
+                        const e = new Date(curEnd.getFullYear(), curEnd.getMonth(), 0);
+                        return { start: new Date(e.getFullYear(), e.getMonth(), 1), end: e };
+                    }
+                    case 'mtd': {
+                        const s = new Date(curEnd.getFullYear(), curEnd.getMonth(), 1);
+                        return { start: s, end: curEnd };
+                    }
+                    case 'last_3_months': {
+                        const e = new Date(curEnd.getFullYear(), curEnd.getMonth(), 0);
+                        return { start: new Date(e.getFullYear(), e.getMonth() - 2, 1), end: e };
+                    }
+                    case 'ytd': {
+                        const s = new Date(curEnd.getFullYear(), 0, 1);
+                        return { start: s, end: curEnd };
+                    }
                     default: return null;
                 }
             };
@@ -14665,7 +15101,7 @@ const getSubBrands = async (filters = {}) => {
 const getProductsWithSap = async (filters = {}) => {
     try {
         const src = await getWatchtowerSource();
-        const { platform, brand, category, subBrand, sub_brand, sapCode, sap_code } = filters;
+        const { platform, brand, category, subBrand, sub_brand, sapCode, sap_code, msl } = filters;
         const targetSubBrand = subBrand || sub_brand;
         const targetSapCode = sapCode || sap_code;
         const conditions = [
@@ -14680,6 +15116,7 @@ const getProductsWithSap = async (filters = {}) => {
         const catArr = normalizeFilterArray(category);
         const subArr = normalizeFilterArray(targetSubBrand);
         const sapArr = normalizeFilterArray(targetSapCode);
+        const mslArr = (msl && msl !== 'All' && msl !== 'all') ? normalizeFilterArray(msl) : null;
 
         if (platArr && platArr.length > 0) {
             conditions.push(`lower(${src.f.platform}) IN(${platArr.map(p => `'${_esc(p.toLowerCase())}'`).join(', ')})`);
@@ -14694,6 +15131,11 @@ const getProductsWithSap = async (filters = {}) => {
         // Discover identifier columns safely so the same dropdown works for every client.
         const tableName = src.table || 'rb_pdp_olap';
         const cols = await getTableColumns(tableName);
+
+        const mslCol = resolveColumn(cols, 'msl');
+        if (mslCol && mslArr && mslArr.length > 0) {
+            conditions.push(`(${mslArr.map(m => `toString(${mslCol}) = '${_esc(m)}'`).join(' OR ')})`);
+        }
 
         const hasSubBrandCol = columnExists(cols, 'sub_brand') || columnExists(cols, 'subbrand');
         if (subArr && subArr.length > 0 && hasSubBrandCol) {
@@ -14945,15 +15387,44 @@ const getWatchTowerCascadedFilters = async (filters) => {
     }
 };
 
-const getMsls = async () => {
+const getMsls = async (filters = {}) => {
     try {
+        const { platform, brand, category, subBrand } = filters;
+        const platArr = normalizeFilterArray(platform);
+        const brandArr = normalizeFilterArray(brand);
+        const catArr = normalizeFilterArray(category);
+        const subBrandArr = normalizeFilterArray(subBrand);
+
         // Resolve the actual column name dynamically (could be 'msl', 'MSL', etc.)
         const cols = await getTableColumns('rb_pdp_olap');
         const mslCol = resolveColumn(cols, 'msl');
+        if (!mslCol) return [];
+
+        const conditions = [`${mslCol} IS NOT NULL`];
+        const cFlag = resolveColumn(cols, 'Comp_flag');
+        if (cFlag) conditions.push(`toString(${cFlag}) = '0'`);
+
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+        if (platArr && platArr.length > 0) {
+            const platCol = resolveColumn(cols, 'Platform');
+            if (platCol) conditions.push(`lower(${platCol}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+        }
+        if (brandArr && brandArr.length > 0) {
+            const brandCol = resolveColumn(cols, 'Brand');
+            if (brandCol) conditions.push(`lower(${brandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+        }
+        if (catArr && catArr.length > 0) {
+            const catCol = resolveColumn(cols, 'Category');
+            if (catCol) conditions.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+        }
+        if (subBrandArr && subBrandArr.length > 0 && columnExists(cols, 'sub_brand')) {
+            conditions.push(`lower(sub_brand) IN (${subBrandArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(',')})`);
+        }
+
         const query = `
             SELECT DISTINCT ${mslCol} AS msl_val
             FROM rb_pdp_olap 
-            WHERE ${mslCol} IS NOT NULL 
+            WHERE ${conditions.join(' AND ')} 
             ORDER BY msl_val ASC
             LIMIT 20
         `;
@@ -14988,11 +15459,16 @@ const getCrossPlatformBrandMatrix = async (filters) => {
         const locationArr = normalizeFilterArray(rawLocation);
 
         const monthsBack = parseInt(months, 10) || 1;
-        let endDate = await getCachedMaxDate();
+        let endDate = await getCachedMaxDate(filters.maxAllowedDate);
         let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
         if (qStartDate && qEndDate) {
             startDate = dayjs(qStartDate).startOf('day');
             endDate = dayjs(qEndDate).endOf('day');
+        }
+        if (filters.maxAllowedDate) {
+            const maxAllowedDay = dayjs(filters.maxAllowedDate).endOf('day');
+            if (endDate.isAfter(maxAllowedDay)) endDate = maxAllowedDay;
+            if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
         }
 
         const sDateStr = startDate.format('YYYY-MM-DD');
