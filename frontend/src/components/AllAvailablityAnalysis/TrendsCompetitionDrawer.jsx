@@ -1421,7 +1421,7 @@ export default function TrendsCompetitionDrawer({
         };
 
         console.log('[TrendsDrawer] Fetching PRICING trends with params:', params);
-        const response = await axiosInstance.get('/pricing-analysis/dimension-trends', { params });
+        const response = await axiosInstance.post('/pricing-analysis/dimension-trends', params);
 
         if (response.data?.timeSeries?.length > 0) {
           setChartData(response.data.timeSeries);
@@ -1485,7 +1485,7 @@ export default function TrendsCompetitionDrawer({
           msl: toApiParam(drawerFilters.Msl),
         };
 
-        const response = await axiosInstance.get('/availability-analysis/kpi-trends', { params });
+        const response = await axiosInstance.post('/availability-analysis/kpi-trends', params);
 
         if (response.data?.timeSeries?.length > 0) {
           setChartData(response.data.timeSeries);
@@ -1516,7 +1516,7 @@ export default function TrendsCompetitionDrawer({
           msl: toApiParam(drawerFilters.Msl),
         };
 
-        const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
+        const response = await axiosInstance.post('/watchtower/kpi-trends', params);
 
         if (response.data?.timeSeries?.length > 0) {
           setChartData(response.data.timeSeries);
@@ -3529,6 +3529,19 @@ export default function TrendsCompetitionDrawer({
                         const isAllFilteredSelected = filteredSkus.length > 0 && filteredSkus.every(opt => isSkuSelected(opt));
 
                         const handleToggleAllFiltered = () => {
+                          if (drawerFilters.SKU === 'All' && skuSearchTerm) {
+                            // User searched while 'All' was active and clicked 'Select All Matching SKUs'
+                            const selectedWebPids = filteredSkus.map(name => {
+                              const details = getSkuDetails(name);
+                              return details?.webPid || details?.web_pid;
+                            }).filter(Boolean);
+                            setDrawerFilters(prev => ({
+                              ...prev,
+                              SKU: filteredSkus.join(';;'),
+                              SKUWebPid: selectedWebPids.length > 0 ? selectedWebPids.join(',') : 'All'
+                            }));
+                            return;
+                          }
                           const currentSelected = getCurrentlySelectedList();
                           let nextSelected;
                           if (isAllFilteredSelected) {
@@ -3599,6 +3612,17 @@ export default function TrendsCompetitionDrawer({
                                 <Box
                                   key={opt}
                                   onClick={() => {
+                                    if (drawerFilters.SKU === 'All') {
+                                      // When 'All' is active and user clicks a particular SKU, select ONLY this SKU
+                                      const details = getSkuDetails(opt);
+                                      const webPid = details?.webPid || details?.web_pid;
+                                      setDrawerFilters(prev => ({
+                                        ...prev,
+                                        SKU: opt,
+                                        SKUWebPid: webPid || 'All'
+                                      }));
+                                      return;
+                                    }
                                     const currentSelected = getCurrentlySelectedList();
                                     const exists = currentSelected.some(s => s.toLowerCase() === opt.toLowerCase());
                                     let nextSelected;
