@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 import { buildContentOlapExportQuery } from '../services/contentExportService.js';
+import { buildReviewOlapExportQuery, REVIEW_OLAP_TABLES } from '../services/reviewExportService.js';
 
 const UPPERCASE_WEB_PID_TARGETS = [
     'amazon',
@@ -56,6 +57,16 @@ const checkTableExists = async (tableName) => {
         console.warn(`[Reports] Table existence check failed for ${tableName}:`, error.message);
         return false;
     }
+};
+
+/**
+ * Returns the review OLAP table (Review Rating page data) present in the current database, or null.
+ */
+const resolveReviewTable = async () => {
+    for (const table of REVIEW_OLAP_TABLES) {
+        if (await checkTableExists(table)) return table;
+    }
+    return null;
 };
 
 /**
@@ -159,7 +170,7 @@ export const getReportFilterOptions = async (req, res) => {
  */
 export const getReportBuilderOptions = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('report_builder_options_v1', {});
+        const cacheKey = generateCacheKey('report_builder_options_v2', {});
         const pdpCols = await getTableColumns('rb_pdp_olap');
 
         let catCol = 'Product_type';
@@ -239,6 +250,23 @@ export const getReportBuilderOptions = async (req, res) => {
                 }
             } catch (err) {
                 console.error('[getReportBuilderOptions] Error checking contentDateRange:', err);
+            }
+
+            try {
+                // Only accounts with Review Rating data get a reviewDateRange;
+                // the frontend hides the "Review Rating Data" button when it is missing
+                const reviewTable = await resolveReviewTable();
+                if (reviewTable) {
+                    const dates = await queryClickHouse(`SELECT MIN(review_date) as minDate, MAX(review_date) as maxDate FROM ${reviewTable}`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.reviewDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking reviewDateRange:', err);
             }
 
             return out;
@@ -400,6 +428,28 @@ export const downloadReport = async (req, res) => {
             });
             console.log('[downloadReport Microservice] Streaming Content Data CSV from rb_content_olap');
             return streamCsvResponse(res, contentQuery, `Content_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Content Data');
+        }
+
+        // ── REVIEW RATING DATA EXPORT (rb_review_olap / rb_reviews_olap) — Streaming CSV ──
+        // "Review Rating" tab permission is checked by the main backend before proxying here (same as Content Data)
+        if (dataMode === 'review' || reportType === 'Review Rating Data') {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            const reviewTable = await resolveReviewTable();
+            if (!reviewTable) {
+                return res.status(404).json({ error: 'Review Rating data is not available for this account' });
+            }
+            const reviewQuery = buildReviewOlapExportQuery({
+                table: reviewTable,
+                platform,
+                brand,
+                category: format,
+                startDate,
+                endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
+            });
+            console.log(`[downloadReport Microservice] Streaming Review Rating Data CSV from ${reviewTable}`);
+            return streamCsvResponse(res, reviewQuery, `Review_Rating_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Review Rating Data');
         }
 
         // ── DARKSTORE DATA EXPORT (rb_pdp_week) — Streaming CSV ──

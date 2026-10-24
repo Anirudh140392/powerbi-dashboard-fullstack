@@ -8,6 +8,8 @@ import http from 'http';
 import { URL } from 'url';
 import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 import { buildContentOlapExportQuery } from '../services/contentAnalysisService.js';
+import { buildReviewOlapExportQuery, REVIEW_OLAP_TABLES } from '../services/reviewExportService.js';
+import { isTabPermitted } from '../helper/permissionMiddleware.js';
 
 const REPORT_SERVICE_URL = process.env.REPORT_SERVICE_URL || 'http://localhost:5001';
 
@@ -119,6 +121,16 @@ const checkTableExists = async (tableName) => {
         console.warn(`[Reports] Table existence check failed for ${tableName}:`, error.message);
         return false;
     }
+};
+
+/**
+ * Returns the review OLAP table (Review Rating page data) present in the current database, or null.
+ */
+const resolveReviewTable = async () => {
+    for (const table of REVIEW_OLAP_TABLES) {
+        if (await checkTableExists(table)) return table;
+    }
+    return null;
 };
 
 /**
@@ -321,7 +333,7 @@ export const getReportBuilderOptions = async (req, res) => {
         const qcFilters = applyQcDateFilter(req.query, req);
         const { isQcUser, maxAllowedDate } = qcFilters;
         const currentDb = getCurrentDbName() || 'boat';
-        const cacheKey = generateCacheKey(`report_builder_options_v4_${currentDb}_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
+        const cacheKey = generateCacheKey(`report_builder_options_v5_${currentDb}_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
         const pdpCols = await getTableColumns('rb_pdp_olap');
 
         // Resolve the category column dynamically
@@ -406,6 +418,24 @@ export const getReportBuilderOptions = async (req, res) => {
                 console.error('[getReportBuilderOptions] Error checking contentDateRange:', err);
             }
 
+            try {
+                // Only accounts with Review Rating data get a reviewDateRange;
+                // the frontend hides the "Review Rating Data" button when it is missing
+                const reviewTable = await resolveReviewTable();
+                if (reviewTable) {
+                    const reviewCond = !isQcUser ? `WHERE review_date <= toDate('${maxAllowedDate}')` : '';
+                    const dates = await queryClickHouse(`SELECT MIN(review_date) as minDate, MAX(review_date) as maxDate FROM ${reviewTable} ${reviewCond}`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.reviewDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking reviewDateRange:', err);
+            }
+
             out.maxAllowedDate = maxAllowedDate;
             out.isQcUser = isQcUser;
 
@@ -427,6 +457,11 @@ export const downloadReport = async (req, res) => {
     const isContentExport = req.query.dataMode === 'content' || req.query.reportType === 'Content Data';
     if (isContentExport && req.user?.tabPermissions?.['Content Analysis'] !== true) {
         return res.status(403).json({ error: 'Content Analysis is not enabled for this account' });
+    }
+    // Same rule as the sidebar's Review Rating tab ("Rating" is its alias in tab_permissions)
+    const isReviewExport = req.query.dataMode === 'review' || req.query.reportType === 'Review Rating Data';
+    if (isReviewExport && !isTabPermitted(req.user?.tabPermissions, ['Review Rating', 'Rating'])) {
+        return res.status(403).json({ error: 'Review Rating is not enabled for this account' });
     }
 
     const proxied = await proxyToReportService(req, res);
@@ -523,6 +558,28 @@ export const downloadReport = async (req, res) => {
             });
             console.log('[downloadReport] Streaming Content Data CSV from rb_content_olap');
             return streamCsvResponse(res, contentQuery, `Content_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Content Data');
+        }
+
+        // ── REVIEW RATING DATA EXPORT (rb_review_olap / rb_reviews_olap) — Streaming CSV ──
+        // One row per review, as shown on the Review Rating page; only where the Review Rating tab is available
+        if (isReviewExport) {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            const reviewTable = await resolveReviewTable();
+            if (!reviewTable) {
+                return res.status(404).json({ error: 'Review Rating data is not available for this account' });
+            }
+            const reviewQuery = buildReviewOlapExportQuery({
+                table: reviewTable,
+                platform,
+                brand,
+                category: format,
+                startDate,
+                endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
+            });
+            console.log(`[downloadReport] Streaming Review Rating Data CSV from ${reviewTable}`);
+            return streamCsvResponse(res, reviewQuery, `Review_Rating_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Review Rating Data');
         }
 
         // ── DARKSTORE DATA EXPORT (rb_pdp_week) — Streaming CSV ──
