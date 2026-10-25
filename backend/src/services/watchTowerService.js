@@ -68,34 +68,35 @@ const getDrlResellerConds = (filters = {}) => {
         : [];
 
     const buymoreOfftakeCondition = `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`;
+    const rkOfftakeCondition = `(lower(trim(seller_name)) = 'rk world' OR lower(trim(seller_name)) LIKE '%rk%world%')`;
 
     if (resellerList.length > 0) {
         const hasBuyMore = resellerList.some(r => r.includes('buy') || r.includes('more') || r.includes('3p'));
-        const has1P = resellerList.some(r => r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal'));
-        const hasOther = resellerList.some(r => !(r.includes('buy') || r.includes('more') || r.includes('3p')));
+        const has1P = resellerList.some(r => r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal') || r.includes('world'));
+        const hasOther = resellerList.some(r => !(r.includes('buy') || r.includes('more') || r.includes('3p') || r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal') || r.includes('world')));
 
-        if (hasBuyMore && !has1P && !hasOther) {
-            return {
-                pdpCond: ``, // Do NOT filter catalog crawl rows in WHERE clause so OSA, Wt OSA, Listing %, ASP work
-                pdpOfftakeCond: buymoreOfftakeCondition,
-                isBuymoreMode: true,
-                includeBuyMoreTable: true
-            };
-        } else if ((has1P || hasOther) && !hasBuyMore) {
-            return {
-                pdpCond: ``,
-                pdpOfftakeCond: ``,
-                isBuymoreMode: false,
-                includeBuyMoreTable: false
-            };
-        } else {
-            return {
-                pdpCond: ``,
-                pdpOfftakeCond: ``,
-                isBuymoreMode: false,
-                includeBuyMoreTable: true
-            };
+        const conds = [];
+        if (hasBuyMore) {
+            conds.push(buymoreOfftakeCondition);
         }
+        if (has1P) {
+            conds.push(rkOfftakeCondition);
+        }
+        if (hasOther) {
+            const otherResellers = resellerList.filter(r => !(r.includes('buy') || r.includes('more') || r.includes('3p') || r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal') || r.includes('world')));
+            if (otherResellers.length > 0) {
+                conds.push(`lower(trim(seller_name)) IN (${otherResellers.map(r => `'${escapeStr(r)}'`).join(', ')})`);
+            }
+        }
+
+        const combinedOfftakeCond = conds.length > 1 ? `(${conds.join(' OR ')})` : (conds[0] || '');
+
+        return {
+            pdpCond: ``, // Do NOT filter catalog crawl rows in WHERE clause so OSA, Wt OSA, Listing %, ASP work
+            pdpOfftakeCond: combinedOfftakeCond,
+            isBuymoreMode: hasBuyMore && !has1P && !hasOther,
+            includeBuyMoreTable: hasBuyMore
+        };
     }
 
     if (drlMode === 'portal' || drlMode === 'rk') {
@@ -9154,7 +9155,7 @@ const getKpiTrends = async (filters) => {
                 MAX(toDate(${src.f.date})) as ref_date,
                 SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales,
                 SUM(CASE WHEN toString(${src.f.compFlag}) = '0' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
-                countIf(${src.isAgg ? 'total_sales > 0' : 'Sales IS NOT NULL AND toString(Sales) != \'\' AND toString(Sales) != \'null\''}) as valid_sales_count,
+                countIf(${src.isAgg ? 'total_sales > 0' : `Sales IS NOT NULL AND toString(Sales) != '' AND toString(Sales) != 'null' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''}`}) as valid_sales_count,
                 SUM(${src.f.adSales}) as total_Ad_sales,
                 SUM(${src.f.spend}) as total_ad_spend,
                 SUM(${src.f.orders}) as total_ad_orders,
