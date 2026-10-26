@@ -275,7 +275,7 @@ export default function PivotTable({ pivot, config, actions, isUpdating }) {
                 {/* Comparable columns keep the slot even when empty, so values stay aligned. */}
                 {pivot.compare && (
                     <span className={`pv-delta${direction?.good === true ? " is-good" : direction?.good === false ? " is-bad" : ""}`} title="Change vs previous period">
-                        {change ? `${DIRECTION_ARROWS[direction.dir]} ${formatChange(change)}` : ""}
+                        {change ? `${DIRECTION_ARROWS[direction.dir]} ${formatChange(change)}` : "N/A"}
                     </span>
                 )}
             </td>
