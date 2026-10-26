@@ -16,6 +16,8 @@ const buildMultiCondition = (value, column) => {
     return `lower(toString(${column})) IN (${values.map(v => `lower('${escapeCH(v)}')`).join(',')})`;
 };
 
+const BRAND_COL_EXPR = `if(Brand IS NOT NULL AND toString(Brand) != '' AND toString(Brand) != '0', toString(Brand), toString(brand_name))`;
+
 const buildFilterClause = (filters, ignoreDates = false) => {
     const conditions = [];
 
@@ -26,7 +28,7 @@ const buildFilterClause = (filters, ignoreDates = false) => {
         conditions.push(buildMultiCondition(filters.platformName, 'pf_name'));
     }
     if (filters.brand && filters.brand !== 'All') {
-        conditions.push(buildMultiCondition(filters.brand, 'brand_name'));
+        conditions.push(`(${buildMultiCondition(filters.brand, BRAND_COL_EXPR)} OR ${buildMultiCondition(filters.brand, 'brand_name')})`);
     }
     if (filters.subBrand && filters.subBrand !== 'All') {
         conditions.push(buildMultiCondition(filters.subBrand, '`Sub Brand`'));
@@ -73,7 +75,7 @@ export const getSecondaryFilterOptions = async (filters = {}) => {
     const [sellers, platforms, brands, subBrands, skus, sapCodes, fys, qtrs] = await Promise.all([
         queryClickHouse(`SELECT DISTINCT toString(Seller_name) AS val FROM ${table} WHERE Seller_name IS NOT NULL AND toString(Seller_name) != '' AND toString(Seller_name) != '0' AND ${sellerClause} ORDER BY val`),
         queryClickHouse(`SELECT DISTINCT toString(pf_name) AS val FROM ${table} WHERE pf_name IS NOT NULL AND toString(pf_name) != '' AND toString(pf_name) != '0' AND ${platformClause} ORDER BY val`),
-        queryClickHouse(`SELECT DISTINCT toString(brand_name) AS val FROM ${table} WHERE brand_name IS NOT NULL AND toString(brand_name) != '' AND toString(brand_name) != '0' AND ${brandClause} ORDER BY val`),
+        queryClickHouse(`SELECT DISTINCT toString(${BRAND_COL_EXPR}) AS val FROM ${table} WHERE (${BRAND_COL_EXPR}) IS NOT NULL AND toString(${BRAND_COL_EXPR}) != '' AND toString(${BRAND_COL_EXPR}) != '0' AND ${brandClause} ORDER BY val`),
         queryClickHouse(`SELECT DISTINCT toString(\`Sub Brand\`) AS val FROM ${table} WHERE \`Sub Brand\` IS NOT NULL AND toString(\`Sub Brand\`) != '' AND toString(\`Sub Brand\`) != '0' AND ${subBrandClause} ORDER BY val`),
         queryClickHouse(`SELECT DISTINCT toString(SKU) AS val FROM ${table} WHERE SKU IS NOT NULL AND toString(SKU) != '' AND toString(SKU) != '0' AND ${skuClause} ORDER BY val`),
         queryClickHouse(`SELECT DISTINCT toString(\`DRL Sap Code\`) AS val FROM ${table} WHERE \`DRL Sap Code\` IS NOT NULL AND toString(\`DRL Sap Code\`) != '' AND toString(\`DRL Sap Code\`) != '0' AND ${sapCodeClause} ORDER BY val`),
@@ -269,12 +271,12 @@ export const getSecondaryTopBrands = async (filters = {}, metricType = 'MRP') =>
 
     const query = `
         SELECT
-            toString(brand_name) AS brand,
+            toString(${BRAND_COL_EXPR}) AS brand,
             COALESCE(SUM(toFloat64OrZero(toString(${metricCol}))), 0) AS value
         FROM ${table}
-        WHERE brand_name IS NOT NULL
-          AND toString(brand_name) != ''
-          AND toString(brand_name) != '0'
+        WHERE (${BRAND_COL_EXPR}) IS NOT NULL
+          AND toString(${BRAND_COL_EXPR}) != ''
+          AND toString(${BRAND_COL_EXPR}) != '0'
           AND date IS NOT NULL
           AND ${filterClause}
         GROUP BY brand
