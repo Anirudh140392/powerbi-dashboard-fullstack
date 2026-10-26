@@ -358,7 +358,8 @@ export const getKpiTrends = async (req, res) => {
             msl: src.msl,
             resellerName: src.resellerName,
             dimension: src.dimension,
-            dimensionValue: src.dimensionValue
+            dimensionValue: src.dimensionValue,
+            drlSource: src.drlSource || src.drl_source || src.drlMode
         };
         const filters = applyQcDateFilter(rawFilters, req);
         console.log('[getKpiTrends] API call received with filters:', filters);

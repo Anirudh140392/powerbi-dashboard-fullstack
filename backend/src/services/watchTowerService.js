@@ -102,7 +102,7 @@ const getDrlResellerConds = (filters = {}) => {
     if (drlMode === 'portal' || drlMode === 'rk') {
         return {
             pdpCond: ``,
-            pdpOfftakeCond: ``,
+            pdpOfftakeCond: `NOT (lower(trim(ifNull(seller_name, ''))) = 'buymore' OR lower(trim(ifNull(seller_name, ''))) LIKE '%buy%more%')`,
             isBuymoreMode: false,
             includeBuyMoreTable: false
         };

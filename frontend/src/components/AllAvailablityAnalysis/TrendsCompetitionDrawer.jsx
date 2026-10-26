@@ -758,6 +758,7 @@ export default function TrendsCompetitionDrawer({
   defaultView = "Trends",
   initialAudience = "Platform",
   showResellerFilter = true,
+  drlSource = 'rk',
 }) {
   const isHayatna = useMemo(() => {
     try {
@@ -1601,6 +1602,7 @@ export default function TrendsCompetitionDrawer({
           sapCode: (isDrlUser && drawerFilters.SapCode && drawerFilters.SapCode !== 'All') ? toApiParam(drawerFilters.SapCode) : undefined,
           channel: derivedChannel || undefined,
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
+          drlSource: isDrl ? (drlSource || 'rk') : undefined,
           msl: toApiParam(drawerFilters.Msl),
         };
 
@@ -1627,7 +1629,7 @@ export default function TrendsCompetitionDrawer({
     } finally {
       setLoading(false);
     }
-  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel, selectedSubCategory, isDrl]);
+  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel, selectedSubCategory, isDrl, drlSource]);
 
   useEffect(() => {
     if (view !== "Trends" || !open) return;
