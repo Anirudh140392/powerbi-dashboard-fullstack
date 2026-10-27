@@ -614,15 +614,10 @@ export function AggregatedViewTable() {
 
             const result = res.data;
             if (res.success && result?.success && result.data?.length > 0) {
-                // Ensure no other, others, unknown, or null tags are displayed on the dashboard
-                const cleanData = result.data.filter(row => {
-                    const t = String(row.tag || '').trim().toLowerCase();
-                    return t && !['other', 'others', 'unknown', 'null', 'nan', 'undefined'].includes(t);
-                });
-                setData(cleanData);
+                setData(result.data);
 
-                // Dynamically calculate totals strictly based on the clean row data
-                const calcTotals = cleanData.reduce((acc, row) => {
+                // Dynamically calculate totals strictly based on the fetched row data
+                const calcTotals = result.data.reduce((acc, row) => {
                     acc.impressions += (parseFloat(row.impressions) || 0);
                     acc.clicks += (parseFloat(row.clicks) || 0);
                     acc.atc += (parseFloat(row.atc) || 0);
