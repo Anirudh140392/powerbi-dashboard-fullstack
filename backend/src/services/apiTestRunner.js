@@ -69,19 +69,103 @@ async function asyncPool(limit, items, iteratorFn) {
 }
 
 /**
+ * Check whether an API response payload is empty (returns 1) or has non-empty data (returns 0).
+ * Even if status code is 200, if response data has no records/items, empty_response will be 1.
+ */
+export function isResponseEmpty(data) {
+    if (data === null || data === undefined) return 1;
+
+    // String check
+    if (typeof data === 'string') {
+        const trimmed = data.trim();
+        if (!trimmed || trimmed === '[]' || trimmed === '{}' || trimmed === 'null') return 1;
+        try {
+            const parsed = JSON.parse(trimmed);
+            return isResponseEmpty(parsed);
+        } catch {
+            return 0; // Has text body
+        }
+    }
+
+    // Number or boolean body
+    if (typeof data === 'number' || typeof data === 'boolean') {
+        return 0;
+    }
+
+    // Array check
+    if (Array.isArray(data)) {
+        return data.length === 0 ? 1 : 0;
+    }
+
+    // Object check
+    if (typeof data === 'object') {
+        const keys = Object.keys(data);
+        if (keys.length === 0) return 1;
+
+        // Common wrapper keys containing data payload
+        const payloadCandidates = [
+            'data', 'rows', 'results', 'items', 'records', 'list',
+            'platforms', 'categories', 'brands', 'skus', 'cities',
+            'overview', 'table', 'chart', 'kpis', 'metrics', 'trends'
+        ];
+
+        // Check if any payload candidate exists
+        for (const key of payloadCandidates) {
+            if (key in data) {
+                const val = data[key];
+                if (val === null || val === undefined) return 1;
+                if (Array.isArray(val)) return val.length === 0 ? 1 : 0;
+                if (typeof val === 'object') return Object.keys(val).length === 0 ? 1 : 0;
+                if (typeof val === 'string') return val.trim().length === 0 ? 1 : 0;
+                if (typeof val === 'number' || typeof val === 'boolean') return 0;
+            }
+        }
+
+        // If no candidate key matched, filter out generic metadata/status keys
+        const metadataKeys = new Set([
+            'success', 'status', 'statusCode', 'code', 'message', 'msg',
+            'error', 'timestamp', 'time', 'cached', 'duration', 'page', 'pageSize', 'totalPages'
+        ]);
+        const contentKeys = keys.filter(k => !metadataKeys.has(k));
+
+        // If the object only contained metadata keys like { success: true } or { success: true, message: 'OK' }
+        if (contentKeys.length === 0) {
+            if ('total' in data && (data.total === 0 || data.total === '0')) return 1;
+            return 1;
+        }
+
+        // Check if any content key has non-empty value
+        const hasActualContent = contentKeys.some(k => {
+            const val = data[k];
+            if (val === null || val === undefined) return false;
+            if (Array.isArray(val)) return val.length > 0;
+            if (typeof val === 'object') return Object.keys(val).length > 0;
+            if (typeof val === 'string') return val.trim().length > 0;
+            if (typeof val === 'number' || typeof val === 'boolean') return true;
+            return false;
+        });
+
+        return hasActualContent ? 0 : 1;
+    }
+
+    return 0;
+}
+
+/**
  * Test a single endpoint and record results.
  */
-async function testEndpoint({ endpoint, context, baseUrl, authHeaders, runId, runDateStr }) {
+async function testEndpoint({ endpoint, context, baseUrl, authHeaders, runId, runDateStr, targetDb }) {
     const fullUrl = `${baseUrl}${endpoint.path}`;
     const params = endpoint.buildParams ? endpoint.buildParams(context) : {};
 
-    console.log(`[ApiTestRunner] Testing: [${endpoint.method}] ${endpoint.path} (Segment: ${endpoint.segment})`);
+    console.log(`[ApiTestRunner] Testing: [${endpoint.method}] ${endpoint.path} (Segment: ${endpoint.segment}, Client: ${targetDb || 'demo'})`);
 
     const startTime = Date.now();
     let statusCode = 0;
     let responseStatus = 'Failed';
     let errorMessage = '';
     let responseTimeMs = 0;
+    let emptyResponse = 1; // Default to empty
 
     try {
         const response = await axios({
@@ -98,6 +182,9 @@ async function testEndpoint({ endpoint, context, baseUrl, authHeaders, runId, ru
 
         const isHttpSuccess = statusCode >= 200 && statusCode < 300;
         const isBodySuccess = response.data?.success !== false;
+
+        // Check whether API response payload is empty (1) or non-empty (0)
+        emptyResponse = isResponseEmpty(response.data);
 
         if (isHttpSuccess && isBodySuccess) {
             if (responseTimeMs > SLOW_THRESHOLD_MS) {
@@ -116,6 +203,7 @@ async function testEndpoint({ endpoint, context, baseUrl, authHeaders, runId, ru
     } catch (err) {
         responseTimeMs = Date.now() - startTime;
         responseStatus = 'Failed';
+        emptyResponse = 1;
 
         if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
             statusCode = 0;
@@ -140,6 +228,8 @@ async function testEndpoint({ endpoint, context, baseUrl, authHeaders, runId, ru
         status_code: statusCode,
         response_status: responseStatus,
         response_time_ms: responseTimeMs,
+        empty_response: emptyResponse,
+        client_db: String(targetDb || context.targetDb || 'demo'),
         error_message: errorMessage,
         run_id: runId,
         created_at: dayjs().tz(TIMEZONE).format('YYYY-MM-DD HH:mm:ss'),
@@ -148,9 +238,9 @@ async function testEndpoint({ endpoint, context, baseUrl, authHeaders, runId, ru
 
 /**
  * Execute all tests for a registered page.
- * Idempotent: deletes any existing runs for today and page before writing new results.
+ * Idempotent: deletes any existing runs for today, page, and targetDb before writing new results.
  */
-export async function runPageTests(pageName = 'Pricing Analysis') {
+export async function runPageTests(pageName = 'Pricing Analysis', clientDb = '') {
     if (isRunInProgress) {
         console.warn(`[ApiTestRunner] Execution skipped: another run is already in progress.`);
         return {
@@ -176,20 +266,22 @@ export async function runPageTests(pageName = 'Pricing Analysis') {
 
         const port = process.env.PORT || 5000;
         const baseUrl = process.env.API_LOGGER_BASE_URL || `http://localhost:${port}`;
-        const targetDb = pageConfig.targetDb || process.env.API_LOGGER_TARGET_DB || process.env.CLICKHOUSE_DB || 'demo';
+        const targetDb = pageConfig.targetDb || clientDb || process.env.API_LOGGER_TARGET_DB || process.env.CLICKHOUSE_DB || 'demo';
 
         const token = generateServiceToken(targetDb);
         const authHeaders = {
             'Authorization': `Bearer ${token}`,
             'x-db-name': targetDb,
             'x-current-date': runDateStr,
+            'x-automated-test-runner': 'true',
         };
 
         // 1. Resolve realistic dynamic context
         const context = await pageConfig.resolveContext(baseUrl, authHeaders);
         context.pageName = pageName;
+        context.targetDb = targetDb;
 
-        console.log(`[ApiTestRunner] Context resolved: Platform=${context.platform}, Category=${context.category}, DateRange=${context.startDate} to ${context.endDate}`);
+        console.log(`[ApiTestRunner] Context resolved: Client=${targetDb}, Platform=${context.platform}, Category=${context.category}, DateRange=${context.startDate} to ${context.endDate}`);
 
         // 2. Run endpoint tests with concurrency pool
         const results = await asyncPool(
@@ -202,6 +294,7 @@ export async function runPageTests(pageName = 'Pricing Analysis') {
                 authHeaders,
                 runId,
                 runDateStr,
+                targetDb,
             })
         );
 
@@ -212,8 +305,8 @@ export async function runPageTests(pageName = 'Pricing Analysis') {
 
         console.log(`[ApiTestRunner] Test Execution Completed: Total=${results.length}, Success=${successCount}, Slow=${slowCount}, Failed=${failedCount}`);
 
-        // 4. Idempotent deletion: remove any prior rows for (date, pageName)
-        await deleteLogsForDateAndPage(runDateStr, pageName);
+        // 4. Idempotent deletion: remove any prior rows for (date, pageName, targetDb)
+        await deleteLogsForDateAndPage(runDateStr, pageName, targetDb);
 
         // 5. Batch insert results into ClickHouse
         await insertLogs(results);
@@ -228,6 +321,7 @@ export async function runPageTests(pageName = 'Pricing Analysis') {
             runId,
             date: runDateStr,
             page: pageName,
+            clientDb: targetDb,
             totalTested: results.length,
             successCount,
             slowCount,

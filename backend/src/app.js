@@ -176,8 +176,11 @@ redisClient.connect()
 app.use("/api/cache", cacheRoutes);
 
 // JWT Authentication middleware - protects all /api/* routes below this point
+import { apiLiveLoggerMiddleware } from "./middleware/apiLiveLogger.js";
 app.use("/api", authMiddleware);
 app.use("/api", platformPermissionMiddleware);
+// Live API logger disabled - only automated tested APIs are recorded
+// app.use("/api", apiLiveLoggerMiddleware);
 
 // all Routes (PROTECTED - JWT required)
 AllRoutes(app);

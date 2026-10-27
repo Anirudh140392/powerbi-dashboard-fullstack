@@ -30,9 +30,18 @@ export async function fetchApiLogsFilters() {
 }
 
 /**
- * Trigger an immediate manual test run for a page.
+ * Fetch 2-day health distribution (Success, Slow, Failed) and complete API lists for Pie Chart.
  */
-export async function triggerApiTestRun(page = 'Pricing Analysis') {
-    const response = await axiosInstance.post('/api-logs/run', { page });
+export async function fetchApiLogsDistribution(params = {}) {
+    const response = await axiosInstance.get('/api-logs/distribution', { params });
+    return response.data;
+}
+
+/**
+ * Trigger an immediate manual test run for a page and optional client database.
+ */
+export async function triggerApiTestRun(page = 'Pricing Analysis', clientDb = '') {
+    const payload = typeof page === 'object' ? page : { page, clientDb };
+    const response = await axiosInstance.post('/api-logs/run', payload);
     return response.data;
 }

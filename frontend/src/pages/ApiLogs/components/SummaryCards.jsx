@@ -9,13 +9,14 @@ import {
 } from 'lucide-react';
 import { Skeleton } from '@mui/material';
 
-export default function SummaryCards({ summary, loading }) {
+export default function SummaryCards({ summary, loading, onSelectStatus, selectedStatus }) {
     const cards = [
         {
             title: "Total APIs Tested",
             value: summary?.totalApis ?? 0,
             subtitle: "All monitored endpoints",
             icon: Activity,
+            statusFilter: 'All',
             color: "text-blue-600",
             bg: "bg-blue-50/70 border-blue-100",
             iconBg: "bg-blue-100 text-blue-600",
@@ -25,6 +26,7 @@ export default function SummaryCards({ summary, loading }) {
             value: summary?.successCount ?? 0,
             subtitle: "2xx within latency limit",
             icon: CheckCircle2,
+            statusFilter: 'Success',
             color: "text-emerald-600",
             bg: "bg-emerald-50/70 border-emerald-100",
             iconBg: "bg-emerald-100 text-emerald-600",
@@ -34,6 +36,7 @@ export default function SummaryCards({ summary, loading }) {
             value: summary?.failedCount ?? 0,
             subtitle: "Non-2xx, timeout or error",
             icon: AlertTriangle,
+            statusFilter: 'Failed',
             color: "text-rose-600",
             bg: "bg-rose-50/70 border-rose-100",
             iconBg: "bg-rose-100 text-rose-600",
@@ -43,6 +46,7 @@ export default function SummaryCards({ summary, loading }) {
             value: summary?.slowCount ?? 0,
             subtitle: "2xx exceeding SLA limit",
             icon: Clock,
+            statusFilter: 'Slow',
             color: "text-amber-600",
             bg: "bg-amber-50/70 border-amber-100",
             iconBg: "bg-amber-100 text-amber-600",
@@ -71,10 +75,20 @@ export default function SummaryCards({ summary, loading }) {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
             {cards.map((c, idx) => {
                 const IconComponent = c.icon;
+                const isClickable = Boolean(c.statusFilter && onSelectStatus);
+                const isSelected = selectedStatus && c.statusFilter && selectedStatus === c.statusFilter;
+
                 return (
                     <div 
                         key={idx}
-                        className={`p-4 rounded-xl border transition-all duration-200 hover:shadow-md bg-white/80 backdrop-blur-sm ${c.bg}`}
+                        onClick={() => {
+                            if (isClickable) {
+                                onSelectStatus(c.statusFilter);
+                            }
+                        }}
+                        className={`p-4 rounded-xl border transition-all duration-200 bg-white/80 backdrop-blur-sm ${c.bg} ${
+                            isClickable ? 'cursor-pointer hover:shadow-md hover:scale-[1.01]' : ''
+                        } ${isSelected ? 'ring-2 ring-blue-500 shadow-md' : ''}`}
                     >
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-medium text-slate-500 uppercase tracking-wider truncate">

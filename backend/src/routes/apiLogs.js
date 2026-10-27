@@ -2,10 +2,25 @@ import {
     getApiLogs, 
     getApiLogsSummary, 
     getApiLogsFilters, 
-    triggerApiLogsRun 
+    triggerApiLogsRun,
+    getApiLogsDistribution
 } from '../controllers/apiLogsController.js';
 
 export default (app) => {
+    // Restrict all /api/api-logs endpoints strictly to Admin users
+    app.use('/api/api-logs', (req, res, next) => {
+        const userRole = (req.user?.role || '').toLowerCase();
+        const isAdmin = userRole.includes('admin') || userRole.includes('super');
+        const isTrailytics = (req.user?.email || '').toLowerCase().endsWith('@trailytics.com');
+        if (!isAdmin && !isTrailytics) {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required to view API monitoring logs.',
+            });
+        }
+        next();
+    });
+
     /**
      * @swagger
      * /api/api-logs:
@@ -128,5 +143,30 @@ export default (app) => {
      *       409:
      *         description: A test run is already currently executing
      */
+    /**
+     * @swagger
+     * /api/api-logs/distribution:
+     *   get:
+     *     summary: Get 2-Day Health Distribution and API listings
+     *     description: Retrieve status distribution (Success, Slow, Failed) and complete list of tested endpoints for pie chart and hover cards.
+     *     tags: [API Logger]
+     *     parameters:
+     *       - in: query
+     *         name: page
+     *         schema:
+     *           type: string
+     *         description: Filter by page name (optional)
+     *       - in: query
+     *         name: days
+     *         schema:
+     *           type: integer
+     *           default: 2
+     *         description: Number of days to aggregate (default 2)
+     *     responses:
+     *       200:
+     *         description: Health distribution and categorized API list
+     */
+    app.get('/api/api-logs/distribution', getApiLogsDistribution);
+
     app.post('/api/api-logs/run', triggerApiLogsRun);
 };

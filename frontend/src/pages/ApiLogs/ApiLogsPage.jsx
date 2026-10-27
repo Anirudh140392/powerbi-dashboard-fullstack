@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-    Play, 
-    RefreshCw, 
     Clock, 
     CheckCircle2, 
     AlertCircle, 
@@ -13,12 +11,11 @@ import {
 import { 
     Snackbar, 
     Alert, 
-    CircularProgress, 
-    Tooltip, 
-    Chip 
+    CircularProgress 
 } from '@mui/material';
 import CommonContainer from '../../components/CommonLayout/CommonContainer';
 import SummaryCards from './components/SummaryCards';
+import ApiHealthPieChart from './components/ApiHealthPieChart';
 import FiltersBar from './components/FiltersBar';
 import LogsTable from './components/LogsTable';
 import LogDetailsDrawer from './components/LogDetailsDrawer';
@@ -26,16 +23,19 @@ import {
     fetchApiLogs, 
     fetchApiLogsSummary, 
     fetchApiLogsFilters, 
+    fetchApiLogsDistribution,
     triggerApiTestRun 
 } from '../../api/apiLogsService';
 
-export default function ApiLogsPage() {
+export default function ApiLogsPage({ isEmbedded = false }) {
     // Filter State
     const [filters, setFilters] = useState({
         date: '',
+        clientDb: 'All',
         page: '',
         segment: '',
         status: 'All',
+        emptyResponse: 'All',
         search: '',
     });
 
@@ -49,8 +49,10 @@ export default function ApiLogsPage() {
     const [logs, setLogs] = useState([]);
     const [total, setTotal] = useState(0);
     const [summary, setSummary] = useState(null);
+    const [distribution, setDistribution] = useState(null);
     const [availableOptions, setAvailableOptions] = useState({
         dates: [],
+        clients: [],
         pages: [],
         segments: [],
     });
@@ -58,6 +60,7 @@ export default function ApiLogsPage() {
     // Loading & UX State
     const [loadingLogs, setLoadingLogs] = useState(true);
     const [loadingSummary, setLoadingSummary] = useState(true);
+    const [loadingDistribution, setLoadingDistribution] = useState(true);
     const [runningTest, setRunningTest] = useState(false);
 
     // Drawer State
@@ -72,6 +75,7 @@ export default function ApiLogsPage() {
     });
 
     const isMounted = useRef(true);
+    const hasAutoRunRef = useRef(false);
 
     const showToast = (message, severity = 'info') => {
         setToast({ open: true, message, severity });
@@ -88,10 +92,11 @@ export default function ApiLogsPage() {
             const filterData = res?.data || res?.filters;
             if (res && res.success && filterData) {
                 const dates = filterData.dates || [];
+                const clients = filterData.clients || [];
                 const pages = filterData.pages || [];
                 const segments = filterData.segments || [];
 
-                setAvailableOptions({ dates, pages, segments });
+                setAvailableOptions({ dates, clients, pages, segments });
 
                 if (isInitial && dates.length > 0) {
                     setFilters((prev) => ({
@@ -111,6 +116,7 @@ export default function ApiLogsPage() {
             if (!isSilent) setLoadingSummary(true);
             const params = {};
             if (currentFilters.date) params.date = currentFilters.date;
+            if (currentFilters.clientDb && currentFilters.clientDb !== 'All') params.clientDb = currentFilters.clientDb;
             if (currentFilters.page) params.page = currentFilters.page;
             if (currentFilters.segment) params.segment = currentFilters.segment;
 
@@ -126,6 +132,25 @@ export default function ApiLogsPage() {
         }
     }, []);
 
+    // 2.5 Fetch 2-Day Health Distribution (Pie Chart & Hover List)
+    const loadDistribution = useCallback(async (currentFilters, isSilent = false) => {
+        try {
+            if (!isSilent) setLoadingDistribution(true);
+            const params = { days: 2 };
+            if (currentFilters.clientDb && currentFilters.clientDb !== 'All') params.clientDb = currentFilters.clientDb;
+            if (currentFilters.page) params.page = currentFilters.page;
+
+            const res = await fetchApiLogsDistribution(params);
+            if (res && res.success) {
+                setDistribution(res);
+            }
+        } catch (err) {
+            console.error('[ApiLogsPage] Failed to load distribution:', err);
+        } finally {
+            if (!isSilent) setLoadingDistribution(false);
+        }
+    }, []);
+
     // 3. Fetch Logs Table Data
     const loadLogs = useCallback(async (currentFilters, pNum, pSize, sBy, sOrder, isSilent = false) => {
         try {
@@ -138,10 +163,16 @@ export default function ApiLogsPage() {
             };
 
             if (currentFilters.date) params.date = currentFilters.date;
+            if (currentFilters.clientDb && currentFilters.clientDb !== 'All') {
+                params.clientDb = currentFilters.clientDb;
+            }
             if (currentFilters.page) params.page = currentFilters.page;
             if (currentFilters.segment) params.segment = currentFilters.segment;
             if (currentFilters.status && currentFilters.status !== 'All') {
                 params.status = currentFilters.status;
+            }
+            if (currentFilters.emptyResponse && currentFilters.emptyResponse !== 'All') {
+                params.emptyResponse = currentFilters.emptyResponse;
             }
             if (currentFilters.search) params.search = currentFilters.search.trim();
 
@@ -162,10 +193,37 @@ export default function ApiLogsPage() {
         }
     }, []);
 
-    // Initial Mount
+    // Initial Mount: Load filter options and auto-run test suite once on page open
     useEffect(() => {
         isMounted.current = true;
         loadFilterOptions(true);
+
+        // Run tests automatically when user opens this page
+        if (!hasAutoRunRef.current) {
+            hasAutoRunRef.current = true;
+            (async () => {
+                try {
+                    setRunningTest(true);
+                    const res = await triggerApiTestRun('', '');
+                    if (res && res.success) {
+                        setTimeout(async () => {
+                            if (!isMounted.current) return;
+                            await loadFilterOptions(false);
+                            await loadSummary(filters);
+                            await loadDistribution(filters);
+                            await loadLogs(filters, pageNumber, pageSize, sortBy, sortOrder);
+                            setRunningTest(false);
+                            showToast('API diagnostic health check completed. Results updated.', 'success');
+                        }, 4500);
+                    } else {
+                        setRunningTest(false);
+                    }
+                } catch (err) {
+                    console.error('[ApiLogsPage] Auto-run error on page open:', err);
+                    setRunningTest(false);
+                }
+            })();
+        }
 
         return () => {
             isMounted.current = false;
@@ -177,10 +235,11 @@ export default function ApiLogsPage() {
         loadLogs(filters, pageNumber, pageSize, sortBy, sortOrder);
     }, [filters, pageNumber, pageSize, sortBy, sortOrder, loadLogs]);
 
-    // React to date/page/segment changes for summary
+    // React to date/page/segment changes for summary & distribution
     useEffect(() => {
         loadSummary(filters);
-    }, [filters, loadSummary]);
+        loadDistribution(filters);
+    }, [filters, loadSummary, loadDistribution]);
 
     // 60-Second Auto Refresh (Completely silent in background to prevent page flashing)
     useEffect(() => {
@@ -188,45 +247,23 @@ export default function ApiLogsPage() {
             if (!drawerOpen) {
                 loadLogs(filters, pageNumber, pageSize, sortBy, sortOrder, true);
                 loadSummary(filters, true);
+                loadDistribution(filters, true);
             }
         }, 60000);
 
         return () => clearInterval(interval);
-    }, [drawerOpen, filters, pageNumber, pageSize, sortBy, sortOrder, loadLogs, loadSummary]);
-
-    // Handle "Run Now" Manual Trigger
-    const handleRunNow = async () => {
-        if (runningTest) return;
-        try {
-            setRunningTest(true);
-            const targetPageName = filters.page || 'All Pages';
-            showToast(`Starting automated test run for "${targetPageName}" APIs...`, 'info');
-
-            const res = await triggerApiTestRun(filters.page || '');
-            if (res && res.success) {
-                showToast(`Run initiated. Executing tests in background...`, 'info');
-
-                // Wait 4.5s for runner to complete concurrency batch
-                setTimeout(async () => {
-                    await loadFilterOptions(false);
-                    await loadSummary(filters);
-                    await loadLogs(filters, pageNumber, pageSize, sortBy, sortOrder);
-                    setRunningTest(false);
-                    showToast(`API tests for "${targetPageName}" completed! Results updated.`, 'success');
-                }, 4500);
-            } else {
-                setRunningTest(false);
-                showToast(res?.message || 'Failed to trigger test run.', 'error');
-            }
-        } catch (err) {
-            console.error('[ApiLogsPage] Run now error:', err);
-            setRunningTest(false);
-            showToast(err.response?.data?.message || 'Error executing test suite.', 'error');
-        }
-    };
+    }, [drawerOpen, filters, pageNumber, pageSize, sortBy, sortOrder, loadLogs, loadSummary, loadDistribution]);
 
     // Filter Change Handler
     const handleFiltersChange = (newFilters) => {
+        // If user specifically selects "Failed" status, and the current selected single date has 0 failures,
+        // automatically switch date to "All Dates" ('') so all failed APIs across the test window are immediately visible!
+        if (newFilters.status === 'Failed' && summary?.failedCount === 0 && newFilters.date) {
+            newFilters = {
+                ...newFilters,
+                date: '',
+            };
+        }
         setFilters(newFilters);
         setPageNumber(1); // Reset to page 1 on filter change
     };
@@ -236,9 +273,11 @@ export default function ApiLogsPage() {
         const defaultDate = availableOptions.dates?.length > 0 ? availableOptions.dates[0] : '';
         setFilters({
             date: defaultDate,
+            clientDb: 'All',
             page: '',
             segment: '',
             status: 'All',
+            emptyResponse: 'All',
             search: '',
         });
         setPageNumber(1);
@@ -252,12 +291,8 @@ export default function ApiLogsPage() {
         setDrawerOpen(true);
     };
 
-    return (
-        <CommonContainer
-            title="API Logs"
-            hideFilters={true}
-        >
-            <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+    const mainContent = (
+        <div className={isEmbedded ? "space-y-6 w-full" : "p-4 md:p-6 max-w-7xl mx-auto space-y-6"}>
                 
                 {/* ─── Top Header Banner ─── */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
@@ -280,8 +315,16 @@ export default function ApiLogsPage() {
                         </div>
                     </div>
 
-                    {/* Right Action Buttons */}
+                    {/* Right Status Indicators */}
                     <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+                        {/* Auto-Running Health Checks Indicator */}
+                        {runningTest && (
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold animate-pulse shadow-sm">
+                                <CircularProgress size={12} color="inherit" />
+                                <span>Running Health Checks...</span>
+                            </div>
+                        )}
+
                         {/* Last Run Badge */}
                         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-600 text-xs font-medium">
                             <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -289,49 +332,51 @@ export default function ApiLogsPage() {
                                 Last Run: <strong className="text-slate-800 font-semibold">{summary?.lastRunAt || summary?.lastRunTime || 'N/A'}</strong>
                             </span>
                         </div>
-
-                        {/* Refresh Data button */}
-                        <Tooltip title="Refresh data table">
-                            <button
-                                onClick={() => {
-                                    loadSummary(filters);
-                                    loadLogs(filters, pageNumber, pageSize, sortBy, sortOrder);
-                                    showToast('Data refreshed', 'info');
-                                }}
-                                disabled={loadingLogs}
-                                className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors shadow-sm disabled:opacity-50"
-                            >
-                                <RefreshCw className={`w-4 h-4 ${loadingLogs ? 'animate-spin text-blue-600' : ''}`} />
-                            </button>
-                        </Tooltip>
-
-                        {/* Run Now Trigger Button */}
-                        <button
-                            onClick={handleRunNow}
-                            disabled={runningTest}
-                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white shadow-sm transition-all ${
-                                runningTest 
-                                    ? 'bg-blue-400 cursor-not-allowed' 
-                                    : 'bg-blue-600 hover:bg-blue-700 active:scale-95 shadow-blue-500/20'
-                            }`}
-                        >
-                            {runningTest ? (
-                                <>
-                                    <CircularProgress size={14} color="inherit" />
-                                    <span>Running Suite...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Play className="w-3.5 h-3.5 fill-current" />
-                                    <span>Run Now</span>
-                                </>
-                            )}
-                        </button>
                     </div>
                 </div>
 
                 {/* ─── Summary Metric Cards ─── */}
-                <SummaryCards summary={summary} loading={loadingSummary} />
+                <SummaryCards 
+                    summary={summary} 
+                    loading={loadingSummary} 
+                    selectedStatus={filters.status}
+                    onSelectStatus={(status) => {
+                        handleFiltersChange({
+                            ...filters,
+                            status: filters.status === status ? 'All' : status,
+                        });
+                    }}
+                />
+
+                {/* ─── 2-Day Health Distribution Pie Chart & Inspector ─── */}
+                <ApiHealthPieChart
+                    distribution={distribution}
+                    loading={loadingDistribution}
+                    selectedStatus={filters.status}
+                    selectedEmptyResponse={filters.emptyResponse}
+                    onSelectStatus={(status) => {
+                        if (status === 'Reset' || status === 'All') {
+                            handleFiltersChange({
+                                ...filters,
+                                status: 'All',
+                                emptyResponse: 'All',
+                            });
+                        } else if (status === 'Empty') {
+                            const isCurrentlyEmpty = filters.emptyResponse === '1';
+                            handleFiltersChange({
+                                ...filters,
+                                status: 'All',
+                                emptyResponse: isCurrentlyEmpty ? 'All' : '1',
+                            });
+                        } else {
+                            handleFiltersChange({
+                                ...filters,
+                                status: filters.status === status ? 'All' : status,
+                                emptyResponse: 'All',
+                            });
+                        }
+                    }}
+                />
 
                 {/* ─── Filter & Search Bar ─── */}
                 <FiltersBar
@@ -394,6 +439,18 @@ export default function ApiLogsPage() {
                 </Snackbar>
 
             </div>
+    );
+
+    if (isEmbedded) {
+        return mainContent;
+    }
+
+    return (
+        <CommonContainer
+            title="API Logs"
+            hideFilters={true}
+        >
+            {mainContent}
         </CommonContainer>
     );
 }

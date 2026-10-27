@@ -1,8 +1,16 @@
-// src/config/adminClickhouse.js
-// Query the admin_master database using the existing ClickHouse connection
-// Uses cross-database syntax (admin_master.table_name) to avoid creating a second client
-import 'dotenv/config';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 import { createClient } from '@clickhouse/client';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Ensure backend/.env is loaded even if CWD is project root or another folder
+if (!process.env.CLICKHOUSE_URL) {
+    dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+    dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+}
 
 const ADMIN_DB = process.env.ADMIN_DB || 'admin_master';
 

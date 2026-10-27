@@ -1,0 +1,20 @@
+# Secrets
+.env
+*.env.local
+
+# Logs
+logs/
+*.log
+
+# Generated previews and scratch files
+preview.html
+scratch/
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env/

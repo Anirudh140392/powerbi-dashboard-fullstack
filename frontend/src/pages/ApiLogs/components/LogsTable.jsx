@@ -82,7 +82,22 @@ export default function LogsTable({
                                 </div>
                             </th>
 
-                            {/* 3. Segment */}
+                            {/* 3. Client DB */}
+                            <th 
+                                onClick={() => handleSort('client_db')}
+                                className="px-4 py-3 cursor-pointer hover:text-slate-900 transition-colors select-none text-center"
+                            >
+                                <div className="flex items-center justify-center gap-1">
+                                    <span>Client DB</span>
+                                    {sortBy === 'client_db' || sortBy === 'clientDb' ? (
+                                        sortOrder === 'ASC' ? <ChevronUp className="w-3.5 h-3.5 text-blue-600" /> : <ChevronDown className="w-3.5 h-3.5 text-blue-600" />
+                                    ) : (
+                                        <ArrowUpDown className="w-3 h-3 text-slate-300" />
+                                    )}
+                                </div>
+                            </th>
+
+                            {/* 4. Segment */}
                             <th 
                                 onClick={() => handleSort('segment')}
                                 className="px-4 py-3 cursor-pointer hover:text-slate-900 transition-colors select-none"
@@ -97,7 +112,7 @@ export default function LogsTable({
                                 </div>
                             </th>
 
-                            {/* 4. API Path */}
+                            {/* 5. API Path */}
                             <th 
                                 onClick={() => handleSort('api')}
                                 className="px-4 py-3 cursor-pointer hover:text-slate-900 transition-colors select-none min-w-[280px]"
@@ -112,7 +127,7 @@ export default function LogsTable({
                                 </div>
                             </th>
 
-                            {/* 5. Status Code */}
+                            {/* 6. Status Code */}
                             <th 
                                 onClick={() => handleSort('status_code')}
                                 className="px-4 py-3 cursor-pointer hover:text-slate-900 transition-colors select-none text-center"
@@ -127,7 +142,7 @@ export default function LogsTable({
                                 </div>
                             </th>
 
-                            {/* 6. Response Status */}
+                            {/* 7. Response Status */}
                             <th 
                                 onClick={() => handleSort('response_status')}
                                 className="px-4 py-3 cursor-pointer hover:text-slate-900 transition-colors select-none text-center"
@@ -142,7 +157,23 @@ export default function LogsTable({
                                 </div>
                             </th>
 
-                            {/* 7. Response Time */}
+                            {/* 8. Empty Response (0 / 1) */}
+                            <th 
+                                onClick={() => handleSort('empty_response')}
+                                className="px-4 py-3 cursor-pointer hover:text-slate-900 transition-colors select-none text-center"
+                                title="0 = Non-empty response, 1 = Empty response (even on 200 OK)"
+                            >
+                                <div className="flex items-center justify-center gap-1">
+                                    <span>Empty (0/1)</span>
+                                    {sortBy === 'empty_response' || sortBy === 'emptyResponse' ? (
+                                        sortOrder === 'ASC' ? <ChevronUp className="w-3.5 h-3.5 text-blue-600" /> : <ChevronDown className="w-3.5 h-3.5 text-blue-600" />
+                                    ) : (
+                                        <ArrowUpDown className="w-3 h-3 text-slate-300" />
+                                    )}
+                                </div>
+                            </th>
+
+                            {/* 9. Response Time */}
                             <th 
                                 onClick={() => handleSort('response_time_ms')}
                                 className="px-4 py-3 cursor-pointer hover:text-slate-900 transition-colors select-none text-right"
@@ -167,22 +198,24 @@ export default function LogsTable({
                                 <tr key={idx} className="animate-pulse">
                                     <td className="px-4 py-3"><Skeleton variant="text" width={75} /></td>
                                     <td className="px-4 py-3"><Skeleton variant="text" width={95} /></td>
+                                    <td className="px-4 py-3 text-center"><Skeleton variant="rounded" width={55} height={20} className="mx-auto" /></td>
                                     <td className="px-4 py-3"><Skeleton variant="text" width={90} /></td>
                                     <td className="px-4 py-3"><Skeleton variant="text" width={220} /></td>
                                     <td className="px-4 py-3 text-center"><Skeleton variant="rounded" width={45} height={20} className="mx-auto" /></td>
                                     <td className="px-4 py-3 text-center"><Skeleton variant="rounded" width={70} height={20} className="mx-auto" /></td>
+                                    <td className="px-4 py-3 text-center"><Skeleton variant="rounded" width={32} height={20} className="mx-auto" /></td>
                                     <td className="px-4 py-3 text-right"><Skeleton variant="text" width={55} className="ml-auto" /></td>
                                     <td className="px-4 py-3"><Skeleton variant="circular" width={20} height={20} /></td>
                                 </tr>
                             ))
                         ) : logs.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="py-16 text-center">
+                                <td colSpan={10} className="py-16 text-center">
                                     <div className="flex flex-col items-center justify-center text-slate-400">
                                         <Inbox className="w-10 h-10 mb-2 stroke-[1.5]" />
                                         <p className="text-sm font-medium text-slate-600">No logs found</p>
                                         <p className="text-xs text-slate-400 mt-0.5">
-                                            No test records match the selected filters or date window.
+                                             No test records match the selected filters or date window.
                                         </p>
                                     </div>
                                 </td>
@@ -202,6 +235,13 @@ export default function LogsTable({
                                     {/* Page */}
                                     <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">
                                         {row.page}
+                                    </td>
+
+                                    {/* Client DB */}
+                                    <td className="px-4 py-3 whitespace-nowrap text-center">
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-200/70">
+                                            {row.clientDb || row.client_db || 'demo'}
+                                        </span>
                                     </td>
 
                                     {/* Segment */}
@@ -239,6 +279,20 @@ export default function LogsTable({
                                     {/* Response Status */}
                                     <td className="px-4 py-3 text-center whitespace-nowrap">
                                         <StatusBadge status={row.responseStatus} />
+                                    </td>
+
+                                    {/* Empty Response (0 or 1) */}
+                                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                                        <span 
+                                            title={row.emptyResponse === 1 ? "Empty response: 1 (No payload / records)" : "Non-empty response: 0 (Data returned)"}
+                                            className={`inline-flex items-center justify-center font-mono font-bold text-xs px-2.5 py-0.5 rounded-full border shadow-2xs ${
+                                                row.emptyResponse === 1
+                                                    ? 'bg-rose-50 text-rose-700 border-rose-300'
+                                                    : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                            }`}
+                                        >
+                                            {row.emptyResponse === 1 ? '1' : '0'}
+                                        </span>
                                     </td>
 
                                     {/* Response Time */}

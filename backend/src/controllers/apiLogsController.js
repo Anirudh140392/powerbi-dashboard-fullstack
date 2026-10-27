@@ -7,7 +7,8 @@
 import { 
     getLogs, 
     getSummary, 
-    getFilterOptions 
+    getFilterOptions,
+    getDistribution
 } from '../services/apiLoggerRepository.js';
 import { 
     runPageTests, 
@@ -26,6 +27,10 @@ export async function getApiLogs(req, res) {
             page,
             segment,
             status,
+            emptyResponse,
+            empty_response,
+            clientDb,
+            client_db,
             search,
             pageNumber,
             pageSize,
@@ -38,6 +43,8 @@ export async function getApiLogs(req, res) {
             page,
             segment,
             status,
+            emptyResponse: emptyResponse ?? empty_response,
+            clientDb: clientDb || client_db,
             search,
             pageNumber,
             pageSize,
@@ -65,9 +72,13 @@ export async function getApiLogs(req, res) {
  */
 export async function getApiLogsSummary(req, res) {
     try {
-        const { date, page } = req.query;
+        const { date, page, clientDb, client_db } = req.query;
 
-        const summary = await getSummary({ date, page });
+        const summary = await getSummary({ 
+            date, 
+            page, 
+            clientDb: clientDb || client_db 
+        });
 
         return res.status(200).json({
             success: true,
@@ -126,16 +137,17 @@ export async function triggerApiLogsRun(req, res) {
         }
 
         const targetPage = req.body?.page || req.query?.page || '';
+        const targetClientDb = req.body?.clientDb || req.body?.client_db || req.query?.clientDb || req.query?.client_db || '';
 
         // Trigger run in background
         (async () => {
             if (!targetPage || targetPage === 'All' || targetPage === 'All Pages') {
                 const pages = getRegisteredPages();
                 for (const p of pages) {
-                    await runPageTests(p);
+                    await runPageTests(p, targetClientDb);
                 }
             } else {
-                await runPageTests(targetPage);
+                await runPageTests(targetPage, targetClientDb);
             }
         })().catch(runErr => {
             console.error('[ApiLogsController] Background test run error:', runErr.message);
@@ -144,13 +156,41 @@ export async function triggerApiLogsRun(req, res) {
         return res.status(202).json({
             success: true,
             status: 'started',
-            message: `API health test run initiated in background for "${targetPage || 'All Pages'}".`,
+            message: `API health test run initiated in background for "${targetPage || 'All Pages'}"${targetClientDb ? ` (Client: ${targetClientDb})` : ''}.`,
         });
     } catch (err) {
         console.error('[ApiLogsController] Error triggering test run:', err.message);
         return res.status(500).json({
             success: false,
             error: 'Failed to trigger API test run',
+            message: err.message,
+        });
+    }
+}
+
+/**
+ * GET /api/api-logs/distribution
+ * Fetch 2-day health distribution (Success, Slow, Failed) and complete list of APIs per category for Pie Chart.
+ */
+export async function getApiLogsDistribution(req, res) {
+    try {
+        const { page, clientDb, client_db, days = 2 } = req.query;
+
+        const result = await getDistribution({ 
+            page, 
+            clientDb: clientDb || client_db, 
+            days 
+        });
+
+        return res.status(200).json({
+            success: true,
+            ...result,
+        });
+    } catch (err) {
+        console.error('[ApiLogsController] Error in getApiLogsDistribution:', err.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to retrieve API logs distribution',
             message: err.message,
         });
     }

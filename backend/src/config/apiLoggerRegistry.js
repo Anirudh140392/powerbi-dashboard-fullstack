@@ -2310,6 +2310,369 @@ export const PAGE_REGISTRY = {
             },
         ],
     },
+
+    'Primary Summary': {
+        pageName: 'Primary Summary',
+        description: 'Primary Sales overview, MOM, Quarterly trends, and Brand/Retailer pivot tables',
+        targetDb: 'drl',
+
+        resolveContext: async (baseUrl, authHeaders) => {
+            const context = {
+                xAxis: 'Retailer Name',
+                metricType: 'MRP',
+                retailerName: 'All',
+                brandName: 'All',
+                location: 'All',
+                division: 'All',
+                zone: 'All',
+                ...getDynamicDateRange(),
+            };
+
+            try {
+                // 1. Fetch latest dates
+                const dateRes = await axios.get(`${baseUrl}/api/primary-sales/latest-date`, {
+                    headers: authHeaders,
+                    timeout: 5000,
+                }).catch(() => null);
+
+                if (dateRes?.data?.defaultEndDate && dateRes?.data?.defaultStartDate) {
+                    context.endDate = dateRes.data.defaultEndDate;
+                    context.startDate = dateRes.data.defaultStartDate;
+                }
+
+                // 2. Fetch filters
+                const filterRes = await axios.get(`${baseUrl}/api/primary-sales/filters`, {
+                    headers: authHeaders,
+                    timeout: 7000,
+                }).catch(() => null);
+
+                if (filterRes?.data?.data) {
+                    const { retailers, brands, locations, divisions, zones } = filterRes.data.data;
+                    if (Array.isArray(retailers) && retailers.length > 0) {
+                        context.retailerName = retailers[0];
+                    }
+                    if (Array.isArray(brands) && brands.length > 0) {
+                        context.brandName = brands[0];
+                    }
+                    if (Array.isArray(locations) && locations.length > 0) {
+                        context.location = locations[0];
+                    }
+                    if (Array.isArray(divisions) && divisions.length > 0) {
+                        context.division = divisions[0];
+                    }
+                    if (Array.isArray(zones) && zones.length > 0) {
+                        context.zone = zones[0];
+                    }
+                }
+            } catch (err) {
+                console.warn('[ApiLoggerRegistry] Note: Used default context for Primary Summary:', err.message);
+            }
+
+            return context;
+        },
+
+        endpoints: [
+            {
+                path: '/api/primary-sales/all',
+                method: 'GET',
+                segment: 'Overview',
+                description: 'Consolidated Primary Summary data (MOM, Quarterly, and Pivot table combined)',
+                buildParams: (ctx) => ({
+                    xAxis: ctx.xAxis || 'Retailer Name',
+                    metricType: ctx.metricType || 'MRP',
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                }),
+            },
+            {
+                path: '/api/primary-sales/filters',
+                method: 'GET',
+                segment: 'Filters',
+                description: 'Distinct filter options across locations, brands, channels, platforms, retailers, products, divisions, zones',
+                buildParams: () => ({}),
+            },
+            {
+                path: '/api/primary-sales/latest-date',
+                method: 'GET',
+                segment: 'Filters',
+                description: 'Earliest and latest billing dates available in rb_primary_olap',
+                buildParams: () => ({}),
+            },
+            {
+                path: '/api/primary-sales/mom',
+                method: 'GET',
+                segment: 'Month Over Month',
+                description: 'Month-over-Month primary sales trends with optional granularity',
+                buildParams: (ctx) => ({
+                    metricType: ctx.metricType || 'MRP',
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                }),
+            },
+            {
+                path: '/api/primary-sales/quarterly',
+                method: 'GET',
+                segment: 'Quarterly Trends',
+                description: 'Financial Year quarter-wise primary sales distribution',
+                buildParams: (ctx) => ({
+                    metricType: ctx.metricType || 'MRP',
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                }),
+            },
+            {
+                path: '/api/primary-sales/pivot-table',
+                method: 'GET',
+                segment: 'Pivot Matrix',
+                description: 'Primary sales pivoted by dynamic dimension (Retailer Name, Brand Name, etc.)',
+                buildParams: (ctx) => ({
+                    xAxis: ctx.xAxis || 'Retailer Name',
+                    metricType: ctx.metricType || 'MRP',
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                }),
+            },
+            {
+                path: '/api/primary-sales/top-products',
+                method: 'GET',
+                segment: 'Top Products',
+                description: 'Top products breakdown for gainers and drainers drilldown',
+                buildParams: (ctx) => ({
+                    xAxis: ctx.xAxis || 'Retailer Name',
+                    entityName: ctx.retailerName || 'All',
+                    metricType: ctx.metricType || 'MRP',
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                }),
+            },
+            {
+                path: '/api/primary-sales/retailer-daily-trend',
+                method: 'GET',
+                segment: 'Retailer Trends',
+                description: 'Daily sales and units trend for retailer-wise analysis',
+                buildParams: (ctx) => ({
+                    retailerName: ctx.retailerName || 'All',
+                    metricType: ctx.metricType || 'MRP',
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                }),
+            },
+        ],
+    },
+
+    'Secondary Summary': {
+        pageName: 'Secondary Summary',
+        description: 'Secondary Sales overview, seller-wise analysis, quarterly trends, top brand contributions, and sales timelines',
+        targetDb: 'drl',
+
+        resolveContext: async (baseUrl, authHeaders) => {
+            const context = {
+                metricType: 'MRP',
+                seller: 'All',
+                platformName: 'All',
+                brand: 'All',
+                subBrand: 'All',
+                sku: 'All',
+                fiscalYear: 'All',
+                quarter: 'All',
+                ...getDynamicDateRange(),
+            };
+
+            try {
+                // 1. Fetch latest dates
+                const dateRes = await axios.get(`${baseUrl}/api/secondary-sales/latest-date`, {
+                    headers: authHeaders,
+                    timeout: 5000,
+                }).catch(() => null);
+
+                if (dateRes?.data?.defaultEndDate && dateRes?.data?.defaultStartDate) {
+                    context.endDate = dateRes.data.defaultEndDate;
+                    context.startDate = dateRes.data.defaultStartDate;
+                }
+
+                // 2. Fetch filters
+                const filterRes = await axios.get(`${baseUrl}/api/secondary-sales/filters`, {
+                    headers: authHeaders,
+                    timeout: 7000,
+                }).catch(() => null);
+
+                if (filterRes?.data?.data) {
+                    const { seller, platformName, brand, subBrand } = filterRes.data.data;
+                    if (Array.isArray(seller) && seller.length > 0) {
+                        context.seller = seller[0];
+                    }
+                    if (Array.isArray(platformName) && platformName.length > 0) {
+                        context.platformName = platformName[0];
+                    }
+                    if (Array.isArray(brand) && brand.length > 0) {
+                        context.brand = brand[0];
+                    }
+                    if (Array.isArray(subBrand) && subBrand.length > 0) {
+                        context.subBrand = subBrand[0];
+                    }
+                }
+            } catch (err) {
+                console.warn('[ApiLoggerRegistry] Note: Used default context for Secondary Summary:', err.message);
+            }
+
+            return context;
+        },
+
+        endpoints: [
+            {
+                path: '/api/secondary-sales/filters',
+                method: 'GET',
+                segment: 'Filters',
+                description: 'Distinct filter options across sellers, platforms, brands, sub-brands, SKUs, SAP codes, and fiscal periods',
+                buildParams: () => ({}),
+            },
+            {
+                path: '/api/secondary-sales/latest-date',
+                method: 'GET',
+                segment: 'Filters',
+                description: 'Earliest and latest transaction dates available in rb_secondary_olap',
+                buildParams: () => ({}),
+            },
+            {
+                path: '/api/secondary-sales/seller-wise',
+                method: 'GET',
+                segment: 'Seller Wise',
+                description: 'Seller-wise sales breakdown for donut chart and ranking table',
+                buildParams: (ctx) => ({
+                    metricType: ctx.metricType || 'MRP',
+                    seller: ctx.seller || 'All',
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                }),
+            },
+            {
+                path: '/api/secondary-sales/quarter-wise',
+                method: 'GET',
+                segment: 'Quarter Wise',
+                description: 'Quarterly secondary sales trend area chart',
+                buildParams: (ctx) => ({
+                    metricType: ctx.metricType || 'MRP',
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                }),
+            },
+            {
+                path: '/api/secondary-sales/top-brands',
+                method: 'GET',
+                segment: 'Brand Contribution',
+                description: 'Top 5 brand contribution and market distribution',
+                buildParams: (ctx) => ({
+                    metricType: ctx.metricType || 'MRP',
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                }),
+            },
+            {
+                path: '/api/secondary-sales/sales-timeline',
+                method: 'GET',
+                segment: 'Sales Timeline',
+                description: 'Daily and monthly sales timeline progression',
+                buildParams: (ctx) => ({
+                    metricType: ctx.metricType || 'MRP',
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                }),
+            },
+        ],
+    },
+
+    'Download Report': {
+        pageName: 'Download Report',
+        description: 'Raw PDP Availability data export and Promo Compliance report downloads',
+        targetDb: 'emami',
+
+        resolveContext: async (baseUrl, authHeaders) => {
+            const context = {
+                platform: 'blinkit',
+                brand: 'boroplus',
+                skuType: 'our',
+                ...getDynamicDateRange(),
+            };
+
+            try {
+                // 1. Fetch PDP report filters to get valid platform and dates
+                const filterRes = await axios.get(`${baseUrl}/api/reports/pdp-report-filters`, {
+                    headers: authHeaders,
+                    timeout: 7000,
+                }).catch(() => null);
+
+                if (filterRes?.data) {
+                    const { platforms, brands, dates } = filterRes.data;
+                    if (Array.isArray(platforms) && platforms.length > 0) {
+                        context.platform = platforms[0];
+                    }
+                    if (Array.isArray(brands) && brands.length > 0) {
+                        context.brand = brands[0];
+                    }
+                    if (Array.isArray(dates) && dates.length > 0) {
+                        context.endDate = dates[0];
+                        context.startDate = dates[Math.min(dates.length - 1, 6)] || dates[0];
+                    }
+                }
+            } catch (err) {
+                console.warn('[ApiLoggerRegistry] Note: Used default context for Download Report:', err.message);
+            }
+
+            return context;
+        },
+
+        endpoints: [
+            {
+                path: '/api/reports/pdp-report-filters',
+                method: 'GET',
+                segment: 'Filters',
+                description: 'Filter options across platforms, locations, pincodes, brands, categories, and SKUs',
+                buildParams: () => ({}),
+            },
+            {
+                path: '/api/reports/preview-pdp-report',
+                method: 'GET',
+                segment: 'Availability Preview',
+                description: 'Paginated report preview data for Availability and OSA records',
+                buildParams: (ctx) => ({
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                    platform: ctx.platform || undefined,
+                    limit: 10,
+                    offset: 0,
+                }),
+            },
+            {
+                path: '/api/reports/promo-violation-filters',
+                method: 'GET',
+                segment: 'Filters',
+                description: 'Filter options for promotional violations across KAMs, ASMs, platforms, SKUs',
+                buildParams: () => ({}),
+            },
+            {
+                path: '/api/reports/preview-promo-violation-report',
+                method: 'GET',
+                segment: 'Promo Compliance Preview',
+                description: 'Paginated preview table for promotional pricing violations',
+                buildParams: (ctx) => ({
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                    limit: 10,
+                    offset: 0,
+                }),
+            },
+            {
+                path: '/api/reports/download-promo-violation-report',
+                method: 'GET',
+                segment: 'Report Export',
+                description: 'Generated Excel export for Promo Compliance reporting',
+                buildParams: (ctx) => ({
+                    startDate: ctx.startDate,
+                    endDate: ctx.endDate,
+                }),
+            },
+        ],
+    },
 };
 
 /**

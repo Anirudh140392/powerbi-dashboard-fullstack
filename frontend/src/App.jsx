@@ -236,13 +236,13 @@ function AppContent() {
             } />
 
             <Route path="/admin" element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly={true}>
                 <AdminPanel />
               </ProtectedRoute>
             } />
 
             <Route path="/api-logs" element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly={true}>
                 <ApiLogsPage />
               </ProtectedRoute>
             } />

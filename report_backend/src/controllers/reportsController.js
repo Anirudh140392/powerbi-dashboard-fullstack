@@ -1250,6 +1250,7 @@ export const downloadPdpReport = async (req, res) => {
 
         const skuPlatCols = await getTableColumns('rb_sku_platform').catch(() => new Map());
         const hasPortfolio = skuPlatCols.has('portfolio');
+        const hasIsCompetitor = skuPlatCols.has('is_competitor');
 
         const pdpRawCols = await getTableColumns(pdpTable).catch(() => new Map());
         const pdpResellerCol = pdpRawCols.has('reseller_name') ? pdpRawCols.get('reseller_name')

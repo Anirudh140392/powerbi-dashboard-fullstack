@@ -9,7 +9,8 @@ import {
     Calendar, 
     Layers, 
     LayoutGrid, 
-    FileText 
+    FileText,
+    Database
 } from 'lucide-react';
 import { Drawer } from '@mui/material';
 import StatusBadge from './StatusBadge';
@@ -154,6 +155,44 @@ export default function LogDetailsDrawer({ log, open, onClose }) {
                             <span className="text-xs font-semibold text-slate-700">
                                 {log.createdAt || log.timestamp}
                             </span>
+                        </div>
+
+                        {/* Client DB Card */}
+                        <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 col-span-2">
+                            <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1 mb-1">
+                                <Database className="w-3.5 h-3.5 text-violet-500" />
+                                Client Database
+                            </span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                                    {log.clientDb || log.client_db || 'demo'}
+                                </span>
+                                <span className="text-xs text-slate-500">
+                                    Tenant client workspace under which the API request was executed
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Empty Response Card */}
+                        <div className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 col-span-2">
+                            <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1 mb-1">
+                                <Database className="w-3.5 h-3.5 text-amber-500" />
+                                Empty Response (0 / 1)
+                            </span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <span className={`inline-flex items-center justify-center font-mono font-bold text-xs px-2.5 py-0.5 rounded-full border shadow-2xs ${
+                                    log.emptyResponse === 1
+                                        ? 'bg-rose-50 text-rose-700 border-rose-300'
+                                        : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                }`}>
+                                    Value: {log.emptyResponse === 1 ? '1' : '0'}
+                                </span>
+                                <span className="text-xs text-slate-600 font-medium">
+                                    {log.emptyResponse === 1
+                                        ? 'Empty Response (1) - The API returned no records or an empty body'
+                                        : 'Non-Empty Response (0) - Valid response payload returned'}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
