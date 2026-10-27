@@ -216,7 +216,7 @@ export const fetchStudioRows = async (params, { signal } = {}) => {
     const response = await axiosInstance.get("/reports/studio/rows", {
         params: formatParams(params),
         signal,
-        timeout: 5 * 60 * 1000,
+        timeout: 10 * 60 * 1000,
     });
     return response.data;
 };
