@@ -14782,6 +14782,11 @@ const getPerformanceBreakdownData = async (filters) => {
         }
         */
 
+        // ── Exclude other, others, unknown, null, and empty tags from the DB query ──
+        const validDimensionClause = (groupByCol && groupByCol !== "'Unknown'")
+            ? `AND ${groupByCol} IS NOT NULL AND lower(trim(toString(${groupByCol}))) NOT IN ('', 'other', 'others', 'unknown', 'null', 'nan', 'undefined')`
+            : `AND 1 = 0`;
+
         // ── Calculate total spends by summing rows later to ensure 100% share consistency ──
         // (Removing separate total_spends query for performance and better percentage alignment)
 
@@ -14802,7 +14807,7 @@ const getPerformanceBreakdownData = async (filters) => {
                 if (group_clicks_total > 0, (group_orders / group_clicks_total) * 100, 0) AS cvr,
                 SUM(${pmSrc.f.adSales}) AS group_sales
             FROM ${pmSrc.table}
-            WHERE 1 = 1 ${platformCond} ${dateClause} ${extraClauses} ${ourBrandClause}
+            WHERE 1 = 1 ${platformCond} ${dateClause} ${extraClauses} ${ourBrandClause} ${validDimensionClause}
             GROUP BY tag
             ORDER BY group_spends DESC
         `;
@@ -14813,7 +14818,12 @@ const getPerformanceBreakdownData = async (filters) => {
             impressions: 0, clicks: 0, ctr: 0, spends: 0, cpc: 0, orders: 0, cvr: 0, sales: 0, atc: 0, aov: 0, totalClicks: 0
         };
 
-        const parsedData = data.map(row => {
+        const validRows = data.filter(row => {
+            const tagStr = String(row.tag || '').trim().toLowerCase();
+            return tagStr && !['other', 'others', 'unknown', 'null', 'nan', 'undefined'].includes(tagStr);
+        });
+
+        const parsedData = validRows.map(row => {
             const scaled = scaleMarsMetrics(row, row.tag);
             const impressions = parseFloat(scaled.group_impressions) || 0;
             const clicks = parseFloat(scaled.group_clicks) || 0;
@@ -14831,7 +14841,7 @@ const getPerformanceBreakdownData = async (filters) => {
             totals.totalClicks = (totals.totalClicks || 0) + totalClicks;
 
             return {
-                tag: scaled.tag || 'Unknown',
+                tag: scaled.tag || row.tag,
                 impressions,
                 clicks: parseFloat(scaled.group_clicks_ecom) || 0,
                 ctr: parseFloat(scaled.ctr) || 0,
@@ -14939,11 +14949,16 @@ const getPerformanceBreakdownData = async (filters) => {
                         SUM(${pmSrc.f.orders}) AS group_orders, 
                         SUM(${pmSrc.f.adSales}) AS group_sales
                     FROM ${pmSrc.table}
-                    WHERE 1 = 1 ${platformCond} ${pDateClause} ${extraClauses} ${ourBrandClause}
+                    WHERE 1 = 1 ${platformCond} ${pDateClause} ${extraClauses} ${ourBrandClause} ${validDimensionClause}
                     GROUP BY tag
                 `);
 
-                const mappedData = periodData.map(r => {
+                const validPeriodRows = periodData.filter(r => {
+                    const tagStr = String(r.tag || '').trim().toLowerCase();
+                    return tagStr && !['other', 'others', 'unknown', 'null', 'nan', 'undefined'].includes(tagStr);
+                });
+
+                const mappedData = validPeriodRows.map(r => {
                     const scaled = scaleMarsMetrics(r, r.tag);
                     const impressions = parseFloat(scaled.group_impressions) || 0;
                     const orders = parseFloat(scaled.group_orders) || 0;
@@ -14954,7 +14969,7 @@ const getPerformanceBreakdownData = async (filters) => {
                     const sales = parseFloat(scaled.group_sales) || 0;
 
                     return {
-                        tag: scaled.tag || 'Unknown',
+                        tag: scaled.tag || r.tag,
                         impressions,
                         clicks: clicksEcom,
                         atc,
