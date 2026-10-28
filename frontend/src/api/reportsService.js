@@ -152,6 +152,49 @@ export const previewPromoViolationReport = async (params = {}) => {
     }
 };
 
+export const fetchPriceViolationFilters = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/reports/price-violation-filters", { params: formatParams(params) });
+        return response.data;
+    } catch (error) {
+        console.error("fetchPriceViolationFilters error:", error);
+        throw error;
+    }
+};
+
+export const downloadPriceViolationReport = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/reports/download-price-violation-report", {
+            params: formatParams(params),
+            responseType: 'blob',
+            timeout: 10 * 60 * 1000,
+        });
+        if (response.status === 204) {
+            const err = new Error("No Content");
+            err.status = 204;
+            throw err;
+        }
+        return response.data;
+    } catch (error) {
+        if (error.status !== 204) {
+            console.error("downloadPriceViolationReport error:", error);
+        }
+        throw error;
+    }
+};
+
+export const previewPriceViolationReport = async (params = {}) => {
+    try {
+        const response = await axiosInstance.get("/reports/preview-price-violation-report", {
+            params: formatParams(params),
+            timeout: 2 * 60 * 1000,
+        });
+        return response.data;
+    } catch (error) {
+        console.error("previewPriceViolationReport error:", error);
+        throw error;
+    }
+};
 
 // ── Report Studio ──
 
@@ -173,7 +216,7 @@ export const fetchStudioRows = async (params, { signal } = {}) => {
     const response = await axiosInstance.get("/reports/studio/rows", {
         params: formatParams(params),
         signal,
-        timeout: 5 * 60 * 1000,
+        timeout: 10 * 60 * 1000,
     });
     return response.data;
 };

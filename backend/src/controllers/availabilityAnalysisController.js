@@ -462,26 +462,27 @@ export const getOsaDetailByCategory = async (req, res) => {
  */
 export const getAvailabilityKpiTrends = async (req, res) => {
     try {
+        const src = req.method === 'POST' ? { ...req.query, ...req.body } : req.query;
         const filters = applyQcDateFilter({
-            platform: parseFilter(req.query.platform),
-            brand: parseFilter(req.query.brand),
-            subBrand: parseFilter(req.query.subBrand || req.query.sub_brand || req.query['subBrand[]'] || req.query['sub_brand[]']),
-            location: parseFilter(req.query.location),
-            category: parseFilter(req.query.category),
-            productCategory: parseFilter(req.query.productCategory),
-            sku: parseFilter(req.query.sku),
-            skuName: parseFilter(req.query.skuName),
-            period: req.query.period || '1M',
-            timeStep: req.query.timeStep || 'Daily',
-            channel: req.query.channel,
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            ownBrandsOnly: req.query.ownBrandsOnly,
-            msl: req.query.msl,
-            sapCode: parseFilter(req.query.sapCode || req.query.skuCode || req.query['sapCode[]']),
-            dimension: req.query.dimension,
-            dimensionValue: req.query.dimensionValue,
-            resellerName: parseFilter(req.query.resellerName),
+            platform: parseFilter(src.platform),
+            brand: parseFilter(src.brand),
+            subBrand: parseFilter(src.subBrand || src.sub_brand || src['subBrand[]'] || src['sub_brand[]']),
+            location: parseFilter(src.location),
+            category: parseFilter(src.category),
+            productCategory: parseFilter(src.productCategory),
+            sku: parseFilter(src.sku),
+            skuName: parseFilter(src.skuName),
+            period: src.period || '1M',
+            timeStep: src.timeStep || 'Daily',
+            channel: src.channel,
+            startDate: src.startDate,
+            endDate: src.endDate,
+            ownBrandsOnly: src.ownBrandsOnly,
+            msl: src.msl,
+            sapCode: parseFilter(src.sapCode || src.skuCode || src['sapCode[]']),
+            dimension: src.dimension,
+            dimensionValue: src.dimensionValue,
+            resellerName: parseFilter(src.resellerName),
             productType: getProductTypeFilter(req)
         }, req);
         console.log('\n========== AVAILABILITY KPI TRENDS API ==========');

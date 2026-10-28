@@ -67,41 +67,42 @@ const getDrlResellerConds = (filters = {}) => {
         ? normalizeFilterArray(resellerVal).map(r => String(r).toLowerCase().trim()).filter(Boolean)
         : [];
 
-    const buymoreOfftakeCondition = `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`;
+    const buymoreOfftakeCondition = `(lower(trim(ifNull(seller_name, ''))) LIKE '%buy%more%' OR lower(trim(ifNull(seller_name, ''))) = 'buymore')`;
+    const rkOfftakeCondition = `(lower(trim(ifNull(seller_name, ''))) = 'rk world' OR lower(trim(ifNull(seller_name, ''))) LIKE '%rk%world%')`;
 
     if (resellerList.length > 0) {
         const hasBuyMore = resellerList.some(r => r.includes('buy') || r.includes('more') || r.includes('3p'));
-        const has1P = resellerList.some(r => r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal'));
-        const hasOther = resellerList.some(r => !(r.includes('buy') || r.includes('more') || r.includes('3p')));
+        const has1P = resellerList.some(r => r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal') || r.includes('world'));
+        const hasOther = resellerList.some(r => !(r.includes('buy') || r.includes('more') || r.includes('3p') || r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal') || r.includes('world')));
 
-        if (hasBuyMore && !has1P && !hasOther) {
-            return {
-                pdpCond: ``, // Do NOT filter catalog crawl rows in WHERE clause so OSA, Wt OSA, Listing %, ASP work
-                pdpOfftakeCond: buymoreOfftakeCondition,
-                isBuymoreMode: true,
-                includeBuyMoreTable: true
-            };
-        } else if ((has1P || hasOther) && !hasBuyMore) {
-            return {
-                pdpCond: ``,
-                pdpOfftakeCond: ``,
-                isBuymoreMode: false,
-                includeBuyMoreTable: false
-            };
-        } else {
-            return {
-                pdpCond: ``,
-                pdpOfftakeCond: ``,
-                isBuymoreMode: false,
-                includeBuyMoreTable: true
-            };
+        const conds = [];
+        if (hasBuyMore) {
+            conds.push(buymoreOfftakeCondition);
         }
+        if (has1P) {
+            conds.push(rkOfftakeCondition);
+        }
+        if (hasOther) {
+            const otherResellers = resellerList.filter(r => !(r.includes('buy') || r.includes('more') || r.includes('3p') || r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal') || r.includes('world')));
+            if (otherResellers.length > 0) {
+                conds.push(`lower(trim(ifNull(seller_name, ''))) IN (${otherResellers.map(r => `'${escapeStr(r)}'`).join(', ')})`);
+            }
+        }
+
+        const combinedOfftakeCond = conds.length > 1 ? `(${conds.join(' OR ')})` : (conds[0] || '');
+
+        return {
+            pdpCond: ``, // Do NOT filter catalog crawl rows in WHERE clause so OSA, Wt OSA, Listing %, ASP work
+            pdpOfftakeCond: combinedOfftakeCond,
+            isBuymoreMode: hasBuyMore && !has1P && !hasOther,
+            includeBuyMoreTable: hasBuyMore
+        };
     }
 
     if (drlMode === 'portal' || drlMode === 'rk') {
         return {
             pdpCond: ``,
-            pdpOfftakeCond: ``,
+            pdpOfftakeCond: `NOT (lower(trim(ifNull(seller_name, ''))) = 'buymore' OR lower(trim(ifNull(seller_name, ''))) LIKE '%buy%more%')`,
             isBuymoreMode: false,
             includeBuyMoreTable: false
         };
@@ -338,7 +339,8 @@ async function getWatchtowerSource(filters = {}) {
             sellingPrice: wrap(sellingPriceCol),
             sellingPriceRaw: `toFloat64OrNull(toString(${sellingPriceCol}))`,
             product: productCol,
-            skuCode: columnExists(cols, 'sap_code') ? r('sap_code') : webPidCol,
+            sapCode: columnExists(cols, 'sap_code') ? r('sap_code') : (columnExists(cols, 'sapcode') ? r('sapcode') : null),
+            skuCode: columnExists(cols, 'sku_code') ? r('sku_code') : (webPidCol || (columnExists(cols, 'sap_code') ? r('sap_code') : null)),
             webPid: webPidCol,
             quantitySold: qtySoldCol,
             discount: `if(${wrap(mrpCol)} > 0, (${wrap(mrpCol)} - ${wrap(sellingPriceCol)}) / ${wrap(mrpCol)} * 100, 0)`,
@@ -8896,7 +8898,28 @@ const getKpiTrends = async (filters) => {
     console.log('[getKpiTrends] Computing KPI trends data with filters:', filters);
 
     const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, skuName, skuCode, dimension, dimensionValue, resellerName } = filters;
+    const rawSapCode = filters.sapCode || filters['sapCode[]'] || filters.sap_code;
+    const targetSkuName = skuName || filters.sku || filters['skuName[]'] || filters['sku[]'];
+    const targetSkuCode = skuCode || filters['skuCode[]'];
     const channel = extractChannel(filters);
+
+    // Helper to escape strings for ClickHouse
+    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+    // Normalize incoming effective filters array or strings
+    const catArr = normalizeFilterArray(category);
+    const locArr = normalizeFilterArray(location);
+    const brandArr = normalizeFilterArray(brand);
+    const platArr = normalizeFilterArray(platform);
+    const skuArrArr = normalizeFilterArray(targetSkuName);
+    const skuCodeArrArr = normalizeFilterArray(targetSkuCode);
+    const sapArr = normalizeFilterArray(rawSapCode);
+    const subBrandTarget = filters.subBrand || filters.sub_brand;
+    const subBrandArr = normalizeFilterArray(subBrandTarget);
+
+    const hasSkuNameFilter = skuArrArr && skuArrArr.length > 0 && !skuArrArr.includes('All') && !skuArrArr.includes('');
+    const hasSkuCodeFilter = skuCodeArrArr && skuCodeArrArr.length > 0 && !skuCodeArrArr.includes('All') && !skuCodeArrArr.includes('');
+    const hasSapFilter = sapArr && sapArr.length > 0 && !sapArr.includes('All') && !sapArr.includes('');
 
     // 1. Determine Date Range
     let endDate = await getCachedMaxDate(filters.maxAllowedDate);
@@ -8921,7 +8944,7 @@ const getKpiTrends = async (filters) => {
         if (startDate.isAfter(maxAllowedDay)) startDate = maxAllowedDay;
     }
 
-    const isSkuSelected = (skuName && skuName !== 'All' && skuName !== '') || (skuCode && skuCode !== 'All' && skuCode !== '');
+    const isSkuSelected = hasSkuNameFilter || hasSkuCodeFilter || hasSapFilter;
     // When SKU is selected, use rb_pdp_olap for PM KPIs (Spend, ROAS, Conversion, CPC, CPM)
     // instead of rb_pm_olap, since PM table only has aggregate-level data
     const usePdpForPmKpis = isSkuSelected;
@@ -8948,17 +8971,6 @@ const getKpiTrends = async (filters) => {
         groupExpression = `formatDateTime(toDate(DATE), '${groupFormat}')`;
         groupExpressionKw = `formatDateTime(toDate(DATE), '${groupFormat}')`;
     }
-
-    // Helper to escape strings for ClickHouse
-    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
-
-    // Normalize incoming effective filters array or strings
-    const catArr = normalizeFilterArray(category);
-    const locArr = normalizeFilterArray(location);
-    const brandArr = normalizeFilterArray(brand);
-    const platArr = normalizeFilterArray(platform);
-    const subBrandTarget = filters.subBrand || filters.sub_brand;
-    const subBrandArr = normalizeFilterArray(subBrandTarget);
 
     // Check for Tier-2/Tier-3 city selections
     const tier1Cities = [
@@ -9025,16 +9037,41 @@ const getKpiTrends = async (filters) => {
         }
 
         // Advanced SKU Search Filters
-        const skuArrArr = normalizeFilterArray(skuName);
-        if (skuArrArr && skuArrArr.length > 0) {
+        if (hasSkuNameFilter) {
             const skuConds = skuArrArr.map(s => `${src.f.product} LIKE '%${escapeStr(s)}%'`).join(' OR ');
             conds.push(`(${skuConds})`);
         }
-        const skuCodeArrArr = normalizeFilterArray(skuCode);
-        if (skuCodeArrArr && skuCodeArrArr.length > 0) {
-            const skuCodeConds = skuCodeArrArr.map(s => `toString(${src.f.skuCode}) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+
+        if (hasSapFilter && hasSkuCodeFilter) {
+            // When both sapCode and skuCode (webPid) are provided (common in DRL where webPid may be null on sales rows):
+            // Match sap_code OR webPid so neither sales rows (webPid null) nor crawl rows (sap_code populated, webPid populated) are lost.
+            const sapClause = src.f.sapCode ? sapArr.map(s => `toString(${src.f.sapCode}) = '${escapeStr(s)}'`).join(' OR ') : '';
+            const codeClause = (src.f.webPid || src.f.skuCode) ? skuCodeArrArr.map(s => `(toString(${src.f.webPid || src.f.skuCode}) LIKE '%${escapeStr(s)}%')`).join(' OR ') : '';
+            if (sapClause && codeClause) {
+                conds.push(`(${sapClause} OR ${codeClause})`);
+            } else if (sapClause) {
+                conds.push(`(${sapClause})`);
+            } else if (codeClause) {
+                conds.push(`(${codeClause})`);
+            }
+        } else if (hasSapFilter) {
+            if (src.f.sapCode) {
+                const sapConds = sapArr.map(s => `toString(${src.f.sapCode}) = '${escapeStr(s)}'`).join(' OR ');
+                conds.push(`(${sapConds})`);
+            } else if (src.f.skuCode) {
+                const sapConds = sapArr.map(s => `toString(${src.f.skuCode}) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+                conds.push(`(${sapConds})`);
+            }
+        } else if (hasSkuCodeFilter) {
+            const skuCodeConds = skuCodeArrArr.map(s => {
+                const checks = [];
+                if (src.f.webPid) checks.push(`toString(${src.f.webPid}) LIKE '%${escapeStr(s)}%'`);
+                if (src.f.skuCode) checks.push(`toString(${src.f.skuCode}) LIKE '%${escapeStr(s)}%'`);
+                return checks.length > 0 ? `(${checks.join(' OR ')})` : '1=1';
+            }).join(' OR ');
             conds.push(`(${skuCodeConds})`);
         }
+
         if (!src.isAgg) {
             const mslArr = normalizeFilterArray(filters.msl);
             if (mslArr && mslArr.length > 0) {
@@ -9118,7 +9155,7 @@ const getKpiTrends = async (filters) => {
                 MAX(toDate(${src.f.date})) as ref_date,
                 SUM(${drlResellerInfo.pdpOfftakeCond ? `CASE WHEN ${drlResellerInfo.pdpOfftakeCond} THEN ${src.f.sales} ELSE 0 END` : src.f.sales}) as total_sales,
                 SUM(CASE WHEN toString(${src.f.compFlag}) = '0' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
-                countIf(${src.isAgg ? 'total_sales > 0' : 'Sales IS NOT NULL AND toString(Sales) != \'\' AND toString(Sales) != \'null\''}) as valid_sales_count,
+                countIf(${src.isAgg ? 'total_sales > 0' : `Sales IS NOT NULL AND toString(Sales) != '' AND toString(Sales) != 'null' ${drlResellerInfo.pdpOfftakeCond ? `AND ${drlResellerInfo.pdpOfftakeCond}` : ''}`}) as valid_sales_count,
                 SUM(${src.f.adSales}) as total_Ad_sales,
                 SUM(${src.f.spend}) as total_ad_spend,
                 SUM(${src.f.orders}) as total_ad_orders,
@@ -9189,6 +9226,23 @@ const getKpiTrends = async (filters) => {
                 }
                 if (targetPlats.length > 0) {
                     conds.push(`lower(Platform) IN (${targetPlats.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                }
+
+                // SKU / Product / SAP Code filters for buymore table
+                if (hasSapFilter || hasSkuCodeFilter || hasSkuNameFilter) {
+                    const bmSkuConds = [];
+                    if (hasSkuNameFilter) {
+                        bmSkuConds.push(...skuArrArr.map(s => `(lower(sku_name) LIKE '%${escapeStr(s.toLowerCase())}%' OR lower(Buymore_sku) LIKE '%${escapeStr(s.toLowerCase())}%')`));
+                    }
+                    if (hasSapFilter) {
+                        bmSkuConds.push(...sapArr.map(s => `(toString(sap_code) LIKE '%${escapeStr(s)}%' OR toString(Buymore_sku) LIKE '%${escapeStr(s)}%' OR toString(sku_name) LIKE '%${escapeStr(s)}%')`));
+                    }
+                    if (hasSkuCodeFilter) {
+                        bmSkuConds.push(...skuCodeArrArr.map(s => `(toString(Product_id) LIKE '%${escapeStr(s)}%' OR toString(Buymore_sku) LIKE '%${escapeStr(s)}%' OR toString(sku_name) LIKE '%${escapeStr(s)}%')`));
+                    }
+                    if (bmSkuConds.length > 0) {
+                        conds.push(`(${bmSkuConds.join(' OR ')})`);
+                    }
                 }
 
                 // Enforce 13 specific Status values for buymore_rb_pdp_olap
@@ -9301,6 +9355,11 @@ const getKpiTrends = async (filters) => {
     // Numerator conditions - use flag=0 for our brands
     const sosNumConds = buildSosConds();
     sosNumConds.push(`toString(flag) = '1'`);
+    if (hasSkuNameFilter) {
+        sosNumConds.push(`(${skuArrArr.map(s => `lower(keyword_search_product) LIKE '%${escapeStr(s.toLowerCase())}%'`).join(' OR ')})`);
+    } else if (hasSkuCodeFilter) {
+        sosNumConds.push(`(${skuCodeArrArr.map(s => `(lower(web_pid) LIKE '%${escapeStr(s.toLowerCase())}%' OR lower(keyword_search_product) LIKE '%${escapeStr(s.toLowerCase())}%')`).join(' OR ')})`);
+    }
 
     // Denominator: All products (no brand filter, matching Platform Overview)
     const sosDenomConds = buildSosConds();
@@ -9446,7 +9505,7 @@ const getKpiTrends = async (filters) => {
     const hasSosDenominatorData = sosDenominator.some(r => parseInt(r.count || 0, 10) > 0);
     const hasSosFinalData = hasSosNumeratorData && hasSosDenominatorData;
 
-    const hasMsData = !hasTier23 && msTimeSeriesMap.size > 0 && Array.from(msTimeSeriesMap.values()).some(v => v > 0);
+    const hasMsData = !isSkuSelected && !hasTier23 && msTimeSeriesMap.size > 0 && Array.from(msTimeSeriesMap.values()).some(v => v > 0);
 
     // Legacy generic table-level flags still used for KPI Availability status map
     const hasPdpData = kpiResults.length > 0;
