@@ -220,9 +220,20 @@ export default function ReportStudio() {
     const isUpdating = datesReady && (config !== debouncedConfig || isLoading);
 
     const hasPivotValues = resolvePivotLayout(supportedFields(config), pivotConfig.areas).values.length > 0;
+    const activePivotKeys = [
+        ...(pivotConfig.areas.filters || []),
+        ...(pivotConfig.areas.columns || []),
+        ...(pivotConfig.areas.rows || []),
+        ...(pivotConfig.areas.values || []),
+    ];
+    const unsupportedInPivot = validation.unsupported.filter((k) => activePivotKeys.includes(k));
+    const configError = view === "custom"
+        ? (unsupportedInPivot.length ? `${unsupportedInPivot.length === 1 ? "1 column in the pivot isn't" : `${unsupportedInPivot.length} columns in the pivot aren't`} supported by the selected sources.` : undefined)
+        : validation.errors[0];
+
     const downloadBlockedReason = !datesReady
         ? "Waiting for the time period to load"
-        : validation.errors[0] ||
+        : configError ||
           (view === "custom" && !hasPivotValues ? "Add a KPI to Values to download the pivot" : undefined) ||
           (isUpdating || preview.status !== "ready" ? "Waiting for the report to load" : undefined);
 

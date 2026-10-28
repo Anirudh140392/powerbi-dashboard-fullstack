@@ -5,6 +5,8 @@ import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { applyQcDateFilter } from '../helper/qcDateHelper.js';
+import { buildContentOlapExportQuery } from '../services/contentExportService.js';
+import { buildReviewOlapExportQuery, REVIEW_OLAP_TABLES } from '../services/reviewExportService.js';
 
 const UPPERCASE_WEB_PID_TARGETS = [
     'amazon',
@@ -32,7 +34,7 @@ function processWebPidUppercase(row) {
     if (!row) return row;
     const platformVal = row.Platform || row.platform || row["Platform Name"] || row.platform_name || '';
     if (shouldUppercaseWebPid(platformVal)) {
-        const keys = ['Web_Pid', 'Web Pid', 'web_pid', 'Web_pid'];
+        const keys = ['Web_Pid', 'Web Pid', 'Web PID', 'web_pid', 'Web_pid'];
         for (const key of keys) {
             if (row[key] !== undefined && row[key] !== null) {
                 row[key] = String(row[key]).toUpperCase();
@@ -55,6 +57,16 @@ const checkTableExists = async (tableName) => {
         console.warn(`[Reports] Table existence check failed for ${tableName}:`, error.message);
         return false;
     }
+};
+
+/**
+ * Returns the review OLAP table (Review Rating page data) present in the current database, or null.
+ */
+const resolveReviewTable = async () => {
+    for (const table of REVIEW_OLAP_TABLES) {
+        if (await checkTableExists(table)) return table;
+    }
+    return null;
 };
 
 /**
@@ -158,7 +170,7 @@ export const getReportFilterOptions = async (req, res) => {
  */
 export const getReportBuilderOptions = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('report_builder_options_v1', {});
+        const cacheKey = generateCacheKey('report_builder_options_v2', {});
         const pdpCols = await getTableColumns('rb_pdp_olap');
 
         let catCol = 'Product_type';
@@ -224,6 +236,39 @@ export const getReportBuilderOptions = async (req, res) => {
                 console.error('[getReportBuilderOptions] Error checking darkstoreDateRange:', err);
             }
 
+            try {
+                // Only accounts with Content Analysis data (rb_content_olap) get a contentDateRange;
+                // the frontend hides the "Content Data" button when it is missing
+                if (await checkTableExists('rb_content_olap')) {
+                    const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM rb_content_olap`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.contentDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking contentDateRange:', err);
+            }
+
+            try {
+                // Only accounts with Review Rating data get a reviewDateRange;
+                // the frontend hides the "Review Rating Data" button when it is missing
+                const reviewTable = await resolveReviewTable();
+                if (reviewTable) {
+                    const dates = await queryClickHouse(`SELECT MIN(review_date) as minDate, MAX(review_date) as maxDate FROM ${reviewTable}`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.reviewDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking reviewDateRange:', err);
+            }
+
             return out;
         }, CACHE_TTL.METRICS);
 
@@ -232,6 +277,78 @@ export const getReportBuilderOptions = async (req, res) => {
         console.error('[getReportBuilderOptions] Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
+};
+
+/**
+ * Streams a ClickHouse query as CSV directly to the HTTP response.
+ * Avoids loading millions of rows into memory (which caused OOM / Docker crashes).
+ */
+const csvEscape = (val) => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+};
+
+const streamCsvResponse = async (res, query, fileName, label) => {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const stream = await streamClickHouse(query);
+
+    let headerWritten = false;
+    let rowCount = 0;
+
+    // The ClickHouse client stream() emits arrays of Row objects.
+    // Each Row has .json() → parsed object, .text → raw string.
+    stream.on('data', (rows) => {
+        const rowArray = Array.isArray(rows) ? rows : [rows];
+        let needsDrain = false;
+        for (const rowObj of rowArray) {
+            const row = (typeof rowObj.json === 'function') ? rowObj.json()
+                : (Buffer.isBuffer(rowObj)) ? JSON.parse(rowObj.toString())
+                : (typeof rowObj === 'string') ? JSON.parse(rowObj)
+                : rowObj;
+
+            processWebPidUppercase(row);
+
+            if (!headerWritten) {
+                res.write(Object.keys(row).map(csvEscape).join(',') + '\n');
+                headerWritten = true;
+            }
+            if (!res.write(Object.values(row).map(csvEscape).join(',') + '\n')) needsDrain = true;
+            rowCount++;
+        }
+        // Backpressure: pause after the whole batch is written, resume once the socket drains
+        if (needsDrain) {
+            stream.pause();
+            res.once('drain', () => stream.resume());
+        }
+    });
+
+    stream.on('end', () => {
+        console.log(`[downloadReport Microservice] Streamed ${rowCount} ${label} CSV rows`);
+        if (rowCount === 0 && !res.headersSent) {
+            // No rows: 204 lets the frontend show "No data found" instead of saving an empty file
+            res.removeHeader('Content-Type');
+            res.removeHeader('Content-Disposition');
+            res.removeHeader('Transfer-Encoding');
+            return res.status(204).end();
+        }
+        res.end();
+    });
+
+    stream.on('error', (err) => {
+        console.error(`[downloadReport Microservice] ${label} stream error:`, err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Stream failed' });
+        } else {
+            res.end();
+        }
+    });
 };
 
 /**
@@ -291,6 +408,49 @@ export const downloadReport = async (req, res) => {
             const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
             return `lower(${column}) IN (${items})`;
         };
+
+        // ── CONTENT DATA EXPORT (rb_content_olap) — Streaming CSV ──
+        // "Content Analysis" permission is checked by the main backend (fresh tb_user.tab_permissions) before
+        // proxying here — the JWT does not carry tabPermissions, so it cannot be re-checked in this service
+        if (dataMode === 'content' || reportType === 'Content Data') {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            if (!(await checkTableExists('rb_content_olap'))) {
+                return res.status(404).json({ error: 'Content data is not available for this account' });
+            }
+            const contentQuery = buildContentOlapExportQuery({
+                platform,
+                brand,
+                category: format,
+                startDate,
+                endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
+            });
+            console.log('[downloadReport Microservice] Streaming Content Data CSV from rb_content_olap');
+            return streamCsvResponse(res, contentQuery, `Content_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Content Data');
+        }
+
+        // ── REVIEW RATING DATA EXPORT (rb_review_olap / rb_reviews_olap) — Streaming CSV ──
+        // "Review Rating" tab permission is checked by the main backend before proxying here (same as Content Data)
+        if (dataMode === 'review' || reportType === 'Review Rating Data') {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            const reviewTable = await resolveReviewTable();
+            if (!reviewTable) {
+                return res.status(404).json({ error: 'Review Rating data is not available for this account' });
+            }
+            const reviewQuery = buildReviewOlapExportQuery({
+                table: reviewTable,
+                platform,
+                brand,
+                category: format,
+                startDate,
+                endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
+            });
+            console.log(`[downloadReport Microservice] Streaming Review Rating Data CSV from ${reviewTable}`);
+            return streamCsvResponse(res, reviewQuery, `Review_Rating_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Review Rating Data');
+        }
 
         // ── DARKSTORE DATA EXPORT (rb_pdp_week) — Streaming CSV ──
         if (isDarkstoreMode) {

@@ -7,6 +7,9 @@ import ExcelJS from 'exceljs';
 import http from 'http';
 import { URL } from 'url';
 import { applyQcDateFilter } from '../helper/qcDateHelper.js';
+import { buildContentOlapExportQuery } from '../services/contentAnalysisService.js';
+import { buildReviewOlapExportQuery, REVIEW_OLAP_TABLES } from '../services/reviewExportService.js';
+import { isTabPermitted } from '../helper/permissionMiddleware.js';
 
 const REPORT_SERVICE_URL = process.env.REPORT_SERVICE_URL || 'http://localhost:5001';
 
@@ -95,7 +98,7 @@ function processWebPidUppercase(row) {
     if (!row) return row;
     const platformVal = row.Platform || row.platform || row["Platform Name"] || row.platform_name || '';
     if (shouldUppercaseWebPid(platformVal)) {
-        const keys = ['Web_Pid', 'Web Pid', 'web_pid', 'Web_pid'];
+        const keys = ['Web_Pid', 'Web Pid', 'Web PID', 'web_pid', 'Web_pid'];
         for (const key of keys) {
             if (row[key] !== undefined && row[key] !== null) {
                 row[key] = String(row[key]).toUpperCase();
@@ -118,6 +121,88 @@ const checkTableExists = async (tableName) => {
         console.warn(`[Reports] Table existence check failed for ${tableName}:`, error.message);
         return false;
     }
+};
+
+/**
+ * Returns the review OLAP table (Review Rating page data) present in the current database, or null.
+ */
+const resolveReviewTable = async () => {
+    for (const table of REVIEW_OLAP_TABLES) {
+        if (await checkTableExists(table)) return table;
+    }
+    return null;
+};
+
+/**
+ * Streams a ClickHouse query as CSV directly to the HTTP response.
+ * Avoids loading millions of rows into memory (which caused OOM / Docker crashes).
+ */
+const csvEscape = (val) => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+};
+
+const streamCsvResponse = async (res, query, fileName, label) => {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const stream = await streamClickHouse(query);
+
+    let headerWritten = false;
+    let rowCount = 0;
+
+    // The ClickHouse client stream() emits arrays of Row objects.
+    // Each Row has .json() → parsed object, .text → raw string.
+    stream.on('data', (rows) => {
+        const rowArray = Array.isArray(rows) ? rows : [rows];
+        let needsDrain = false;
+        for (const rowObj of rowArray) {
+            const row = (typeof rowObj.json === 'function') ? rowObj.json()
+                : (Buffer.isBuffer(rowObj)) ? JSON.parse(rowObj.toString())
+                : (typeof rowObj === 'string') ? JSON.parse(rowObj)
+                : rowObj;
+
+            processWebPidUppercase(row);
+
+            if (!headerWritten) {
+                res.write(Object.keys(row).map(csvEscape).join(',') + '\n');
+                headerWritten = true;
+            }
+            if (!res.write(Object.values(row).map(csvEscape).join(',') + '\n')) needsDrain = true;
+            rowCount++;
+        }
+        // Backpressure: pause after the whole batch is written, resume once the socket drains
+        if (needsDrain) {
+            stream.pause();
+            res.once('drain', () => stream.resume());
+        }
+    });
+
+    stream.on('end', () => {
+        console.log(`[downloadReport] Streamed ${rowCount} ${label} CSV rows`);
+        if (rowCount === 0 && !res.headersSent) {
+            // No rows: 204 lets the frontend show "No data found" instead of saving an empty file
+            res.removeHeader('Content-Type');
+            res.removeHeader('Content-Disposition');
+            res.removeHeader('Transfer-Encoding');
+            return res.status(204).end();
+        }
+        res.end();
+    });
+
+    stream.on('error', (err) => {
+        console.error(`[downloadReport] ${label} stream error:`, err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Stream failed' });
+        } else {
+            res.end();
+        }
+    });
 };
 
 /**
@@ -248,7 +333,7 @@ export const getReportBuilderOptions = async (req, res) => {
         const qcFilters = applyQcDateFilter(req.query, req);
         const { isQcUser, maxAllowedDate } = qcFilters;
         const currentDb = getCurrentDbName() || 'boat';
-        const cacheKey = generateCacheKey(`report_builder_options_v3_${currentDb}_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
+        const cacheKey = generateCacheKey(`report_builder_options_v5_${currentDb}_${isQcUser ? 'qc' : `nonqc_${maxAllowedDate}`}`, {});
         const pdpCols = await getTableColumns('rb_pdp_olap');
 
         // Resolve the category column dynamically
@@ -316,6 +401,41 @@ export const getReportBuilderOptions = async (req, res) => {
                 console.error('[getReportBuilderOptions] Error checking darkstoreDateRange:', err);
             }
 
+            try {
+                // Only accounts with Content Analysis data (rb_content_olap) get a contentDateRange;
+                // the frontend hides the "Content Data" button when it is missing
+                if (await checkTableExists('rb_content_olap')) {
+                    const contentCond = !isQcUser ? `WHERE toDate(created_on) <= '${maxAllowedDate}'` : '';
+                    const dates = await queryClickHouse(`SELECT MIN(toDate(created_on)) as minDate, MAX(toDate(created_on)) as maxDate FROM rb_content_olap ${contentCond}`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.contentDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking contentDateRange:', err);
+            }
+
+            try {
+                // Only accounts with Review Rating data get a reviewDateRange;
+                // the frontend hides the "Review Rating Data" button when it is missing
+                const reviewTable = await resolveReviewTable();
+                if (reviewTable) {
+                    const reviewCond = !isQcUser ? `WHERE review_date <= toDate('${maxAllowedDate}')` : '';
+                    const dates = await queryClickHouse(`SELECT MIN(review_date) as minDate, MAX(review_date) as maxDate FROM ${reviewTable} ${reviewCond}`).catch(() => null);
+                    if (dates && dates[0] && dates[0].minDate && !String(dates[0].minDate).startsWith('1970')) {
+                        out.reviewDateRange = {
+                            minDate: dayjs(dates[0].minDate).format('YYYY-MM-DD'),
+                            maxDate: dayjs(dates[0].maxDate).format('YYYY-MM-DD'),
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('[getReportBuilderOptions] Error checking reviewDateRange:', err);
+            }
+
             out.maxAllowedDate = maxAllowedDate;
             out.isQcUser = isQcUser;
 
@@ -333,6 +453,17 @@ export const getReportBuilderOptions = async (req, res) => {
  * Download Report as Excel
  */
 export const downloadReport = async (req, res) => {
+    // Checked here (fresh tb_user.tab_permissions via platformPermissionMiddleware) before proxying to report_backend
+    const isContentExport = req.query.dataMode === 'content' || req.query.reportType === 'Content Data';
+    if (isContentExport && req.user?.tabPermissions?.['Content Analysis'] !== true) {
+        return res.status(403).json({ error: 'Content Analysis is not enabled for this account' });
+    }
+    // Same rule as the sidebar's Review Rating tab ("Rating" is its alias in tab_permissions)
+    const isReviewExport = req.query.dataMode === 'review' || req.query.reportType === 'Review Rating Data';
+    if (isReviewExport && !isTabPermitted(req.user?.tabPermissions, ['Review Rating', 'Rating'])) {
+        return res.status(403).json({ error: 'Review Rating is not enabled for this account' });
+    }
+
     const proxied = await proxyToReportService(req, res);
     if (proxied) return;
 
@@ -408,6 +539,48 @@ export const downloadReport = async (req, res) => {
             const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
             return `lower(${column}) IN (${items})`;
         };
+
+        // ── CONTENT DATA EXPORT (rb_content_olap) — Streaming CSV ──
+        // Content Analysis KPIs per SKU per day; only for accounts with "Content Analysis" enabled in tb_user.tab_permissions
+        if (isContentExport) {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            if (!(await checkTableExists('rb_content_olap'))) {
+                return res.status(404).json({ error: 'Content data is not available for this account' });
+            }
+            const contentQuery = buildContentOlapExportQuery({
+                platform,
+                brand,
+                category: format,
+                startDate,
+                endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
+            });
+            console.log('[downloadReport] Streaming Content Data CSV from rb_content_olap');
+            return streamCsvResponse(res, contentQuery, `Content_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Content Data');
+        }
+
+        // ── REVIEW RATING DATA EXPORT (rb_review_olap / rb_reviews_olap) — Streaming CSV ──
+        // One row per review, as shown on the Review Rating page; only where the Review Rating tab is available
+        if (isReviewExport) {
+            if (![startDate, endDate].every(d => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))) {
+                return res.status(400).json({ error: 'Invalid date range' });
+            }
+            const reviewTable = await resolveReviewTable();
+            if (!reviewTable) {
+                return res.status(404).json({ error: 'Review Rating data is not available for this account' });
+            }
+            const reviewQuery = buildReviewOlapExportQuery({
+                table: reviewTable,
+                platform,
+                brand,
+                category: format,
+                startDate,
+                endDate: !isQcUser && dayjs(endDate).isAfter(maxAllowedDate) ? dayjs(maxAllowedDate).format('YYYY-MM-DD') : endDate,
+            });
+            console.log(`[downloadReport] Streaming Review Rating Data CSV from ${reviewTable}`);
+            return streamCsvResponse(res, reviewQuery, `Review_Rating_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Review Rating Data');
+        }
 
         // ── DARKSTORE DATA EXPORT (rb_pdp_week) — Streaming CSV ──
         // Streams rows directly from ClickHouse → CSV → HTTP response.
@@ -568,77 +741,7 @@ export const downloadReport = async (req, res) => {
 
             console.log(`[downloadReport] Streaming Darkstore CSV from ${weekTable}`);
 
-            // ── CSV helper: escape a value for CSV (handles commas, quotes, newlines) ──
-            const csvEscape = (val) => {
-                if (val === null || val === undefined) return '';
-                let str = String(val).replace(/[\r\n]+/g, ' ').trim();
-                if (str.includes(',') || str.includes('"')) {
-                    return `"${str.replace(/"/g, '""')}"`;
-                }
-                return str;
-            };
-
-            // Set streaming CSV response headers
-            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-            res.setHeader('Content-Disposition', `attachment; filename=Darkstore_Data_${dayjs().format('YYYYMMDD')}.csv`);
-            res.setHeader('Transfer-Encoding', 'chunked');
-
-            // Stream from ClickHouse
-            const stream = await streamClickHouse(darkstoreQuery);
-
-            let headerWritten = false;
-            let rowCount = 0;
-
-            // The ClickHouse client stream() emits arrays of Row objects.
-            // Each Row has .json() → parsed object, .text → raw string.
-            stream.on('data', (rows) => {
-                const rowArray = Array.isArray(rows) ? rows : [rows];
-                for (const rowObj of rowArray) {
-                    // Row objects from @clickhouse/client have .json() method
-                    const row = (typeof rowObj.json === 'function') ? rowObj.json()
-                        : (Buffer.isBuffer(rowObj)) ? JSON.parse(rowObj.toString())
-                            : (typeof rowObj === 'string') ? JSON.parse(rowObj)
-                                : rowObj;
-
-                    // Apply web_pid uppercase transformation in-place
-                    processWebPidUppercase(row);
-
-                    // Write CSV header on first row
-                    if (!headerWritten) {
-                        const headers = Object.keys(row);
-                        res.write(headers.map(csvEscape).join(',') + '\n');
-                        headerWritten = true;
-                    }
-
-                    // Write CSV row
-                    const values = Object.values(row);
-                    res.write(values.map(csvEscape).join(',') + '\n');
-                    rowCount++;
-                }
-            });
-
-            stream.on('end', () => {
-                console.log(`[downloadReport] Streamed ${rowCount} Darkstore CSV rows`);
-                if (rowCount === 0) {
-                    // If no rows were streamed and headers not written, send 204
-                    if (!headerWritten) {
-                        // Headers already set for CSV, so just end with empty body
-                        // The frontend handles empty response
-                    }
-                }
-                res.end();
-            });
-
-            stream.on('error', (err) => {
-                console.error('[downloadReport] Darkstore stream error:', err);
-                if (!res.headersSent) {
-                    res.status(500).json({ error: 'Stream failed' });
-                } else {
-                    res.end();
-                }
-            });
-
-            return; // Response is handled by stream events
+            return streamCsvResponse(res, darkstoreQuery, `Darkstore_Data_${dayjs().format('YYYYMMDD')}.csv`, 'Darkstore');
         }
 
 

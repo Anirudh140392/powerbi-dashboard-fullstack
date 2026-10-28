@@ -27,8 +27,8 @@ export const DATE_GRAINS = { day: "Day", week: "Week", period: "Period", month: 
 
 export const VALUES_AXES = { columns: "Columns", rows: "Rows" };
 
-/** The pivot is computed in the browser; reports with more rows are refused, not truncated. */
-export const PIVOT_SOURCE_ROW_LIMIT = 200000;
+/** The pivot is computed in the browser over all returned rows without limit. */
+export const PIVOT_SOURCE_ROW_LIMIT = Infinity;
 
 export const GRAND_TOTAL = "Grand Total";
 
@@ -302,7 +302,9 @@ export const buildPivot = (report, fields, config) => {
         }),
     };
     const sourceRows = report.totalRows;
-    if (sourceRows > PIVOT_SOURCE_ROW_LIMIT) return { status: "too-large", layout, sourceRows };
+    if (Number.isFinite(PIVOT_SOURCE_ROW_LIMIT) && sourceRows > PIVOT_SOURCE_ROW_LIMIT) {
+        return { status: "too-large", layout, sourceRows };
+    }
 
     const grain = config.dateGrain;
     const rowCount = layout.rows.length;

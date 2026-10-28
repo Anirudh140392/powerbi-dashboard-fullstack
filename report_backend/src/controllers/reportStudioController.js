@@ -5,7 +5,7 @@ import { buildStudioQuery, parseStudioRequest, StudioRequestError } from '../stu
 import { applyQcDateFilter } from '../helper/qcDateHelper.js';
 
 /** The pivot summarises at most this many rows (PIVOT_SOURCE_ROW_LIMIT in the frontend). */
-export const STUDIO_ROWS_LIMIT = 200000;
+export const STUDIO_ROWS_LIMIT = null;
 const MAX_PAGE_SIZE = 500;
 
 // Counts come back as numbers rather than quoted strings, and blanks in a CSV as empty cells.
@@ -46,17 +46,14 @@ export const previewStudioReport = async (req, res) => {
     }
 };
 
-/** GET /studio/rows — every row, for the pivot, up to STUDIO_ROWS_LIMIT. */
+/** GET /studio/rows — every row, for the pivot. */
 export const getStudioRows = async (req, res) => {
     try {
         const request = parseRequest(req);
         const { sql, params, unavailable } = await buildStudioQuery(request);
         if (!sql) return res.json({ status: 'ok', totalRows: 0, rows: [], unavailable });
 
-        const rows = await queryClickHouse(`${sql} LIMIT {limit:UInt32}`, { ...params, limit: STUDIO_ROWS_LIMIT + 1 }, SETTINGS);
-        if (rows.length > STUDIO_ROWS_LIMIT) {
-            return res.json({ status: 'too-large', totalRows: await countRows(sql, params), limit: STUDIO_ROWS_LIMIT, unavailable });
-        }
+        const rows = await queryClickHouse(sql, params, SETTINGS);
         res.json({ status: 'ok', totalRows: rows.length, rows, unavailable });
     } catch (error) {
         handleError(res, 'rows', error);

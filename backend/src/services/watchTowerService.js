@@ -67,8 +67,8 @@ const getDrlResellerConds = (filters = {}) => {
         ? normalizeFilterArray(resellerVal).map(r => String(r).toLowerCase().trim()).filter(Boolean)
         : [];
 
-    const buymoreOfftakeCondition = `(lower(trim(seller_name)) LIKE '%buy%more%' OR lower(trim(seller_name)) = 'buymore')`;
-    const rkOfftakeCondition = `(lower(trim(seller_name)) = 'rk world' OR lower(trim(seller_name)) LIKE '%rk%world%')`;
+    const buymoreOfftakeCondition = `(lower(trim(ifNull(seller_name, ''))) LIKE '%buy%more%' OR lower(trim(ifNull(seller_name, ''))) = 'buymore')`;
+    const rkOfftakeCondition = `(lower(trim(ifNull(seller_name, ''))) = 'rk world' OR lower(trim(ifNull(seller_name, ''))) LIKE '%rk%world%')`;
 
     if (resellerList.length > 0) {
         const hasBuyMore = resellerList.some(r => r.includes('buy') || r.includes('more') || r.includes('3p'));
@@ -85,7 +85,7 @@ const getDrlResellerConds = (filters = {}) => {
         if (hasOther) {
             const otherResellers = resellerList.filter(r => !(r.includes('buy') || r.includes('more') || r.includes('3p') || r.includes('dr') || r.includes('reddy') || r.includes('1p') || r.includes('rk') || r.includes('portal') || r.includes('world')));
             if (otherResellers.length > 0) {
-                conds.push(`lower(trim(seller_name)) IN (${otherResellers.map(r => `'${escapeStr(r)}'`).join(', ')})`);
+                conds.push(`lower(trim(ifNull(seller_name, ''))) IN (${otherResellers.map(r => `'${escapeStr(r)}'`).join(', ')})`);
             }
         }
 
@@ -102,7 +102,7 @@ const getDrlResellerConds = (filters = {}) => {
     if (drlMode === 'portal' || drlMode === 'rk') {
         return {
             pdpCond: ``,
-            pdpOfftakeCond: ``,
+            pdpOfftakeCond: `NOT (lower(trim(ifNull(seller_name, ''))) = 'buymore' OR lower(trim(ifNull(seller_name, ''))) LIKE '%buy%more%')`,
             isBuymoreMode: false,
             includeBuyMoreTable: false
         };

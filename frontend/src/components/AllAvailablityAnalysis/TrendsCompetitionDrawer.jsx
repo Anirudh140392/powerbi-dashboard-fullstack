@@ -758,6 +758,7 @@ export default function TrendsCompetitionDrawer({
   defaultView = "Trends",
   initialAudience = "Platform",
   showResellerFilter = true,
+  drlSource = 'rk',
 }) {
   const isHayatna = useMemo(() => {
     try {
@@ -917,6 +918,28 @@ export default function TrendsCompetitionDrawer({
     const db = (drlUser?.dbName || drlUser?.db_name || drlUser?.database || '').toLowerCase();
     return db === 'drl' || db === 'prestige';
   })();
+  const userManuallyChangedResellerRef = useRef(false);
+
+  const isBuymoreOption = (opt) => {
+    if (!opt) return false;
+    const s = String(opt).toLowerCase().trim();
+    return (s.includes('buy') && s.includes('more')) || s === 'buymore' || s.includes('3p');
+  };
+
+  const getDefaultResellerValue = useCallback((options, source) => {
+    if (!options || options.length === 0) return 'All';
+    const mode = String(source || 'rk').toLowerCase().trim();
+    if (mode === 'rk' || mode === 'portal') {
+      const nonBuymore = options.filter(o => !isBuymoreOption(o));
+      return nonBuymore.length > 0 ? nonBuymore.join(',') : 'All';
+    } else if (mode === 'buymore') {
+      const buymoreOpts = options.filter(o => isBuymoreOption(o));
+      return buymoreOpts.length > 0 ? buymoreOpts.join(',') : 'All';
+    } else {
+      return options.join(',');
+    }
+  }, []);
+
   const [resellerOptions, setResellerOptions] = useState([]);
   const selectedPlatformLower = (drawerFilters.Platform || '').toLowerCase();
   const isEcommPlatform = selectedPlatformLower === 'amazon' || selectedPlatformLower === 'flipkart';
@@ -934,14 +957,31 @@ export default function TrendsCompetitionDrawer({
           params: { filterType: 'resellerNames', platform: selectedPlatformLower }
         });
         if (res.data?.options) {
-          setResellerOptions(res.data.options);
+          const opts = res.data.options;
+          setResellerOptions(opts);
+          if (!userManuallyChangedResellerRef.current) {
+            const defaultReseller = getDefaultResellerValue(opts, drlSource);
+            setDrawerFilters(prev => {
+              if (prev.ResellerName !== defaultReseller) {
+                return { ...prev, ResellerName: defaultReseller };
+              }
+              return prev;
+            });
+          }
         }
       } catch (err) {
         console.error('[TrendsDrawer] Error fetching reseller names:', err);
       }
     };
     fetchResellerOptions();
-  }, [open, shouldShowResellerFilter, selectedPlatformLower]);
+  }, [open, shouldShowResellerFilter, selectedPlatformLower, drlSource, getDefaultResellerValue]);
+
+  // Reset user manual reseller tracking when drawer closes
+  useEffect(() => {
+    if (!open) {
+      userManuallyChangedResellerRef.current = false;
+    }
+  }, [open]);
 
   const prevPropsRef = useRef({
     open: false,
@@ -1046,10 +1086,25 @@ export default function TrendsCompetitionDrawer({
       baseline[targetDimensionKey] = normalizeToString(selectedColumn);
     }
 
+    const effectivePlat = normInitPlat !== 'All' 
+      ? normInitPlat 
+      : (targetDimensionKey === 'Platform' && selectedColumn ? normalizeToString(selectedColumn) : (normGlobalPlat !== 'All' ? normGlobalPlat : 'All'));
+    const isEcomm = ['amazon', 'flipkart'].includes(String(effectivePlat).toLowerCase());
+    if (isDrlUser && isEcomm) {
+      if (resellerOptions.length > 0) {
+        baseline.ResellerName = getDefaultResellerValue(resellerOptions, drlSource);
+      } else if (String(effectivePlat).toLowerCase() === 'amazon' && (drlSource === 'rk' || drlSource === 'portal')) {
+        baseline.ResellerName = 'rk world';
+      } else if (String(effectivePlat).toLowerCase() === 'amazon' && drlSource === 'buymore') {
+        baseline.ResellerName = 'buy more';
+      }
+    }
+
     return { baseline, targetDimensionKey };
-  }, [selectedLevel, initialAudience, allTrendMeta?.context?.audience, initialPlatform, globalPlatform, globalBrand, globalLocation, globalCategory, selectedSubBrand, selectedMsl, selectedColumn]);
+  }, [selectedLevel, initialAudience, allTrendMeta?.context?.audience, initialPlatform, globalPlatform, globalBrand, globalLocation, globalCategory, selectedSubBrand, selectedMsl, selectedColumn, isDrlUser, drlSource, resellerOptions, getDefaultResellerValue]);
 
   const handleClearDrawerFilters = useCallback(() => {
+    userManuallyChangedResellerRef.current = false;
     const { baseline } = getBaselineFilters();
     setDrawerFilters(baseline);
   }, [getBaselineFilters]);
@@ -1601,6 +1656,7 @@ export default function TrendsCompetitionDrawer({
           sapCode: (isDrlUser && drawerFilters.SapCode && drawerFilters.SapCode !== 'All') ? toApiParam(drawerFilters.SapCode) : undefined,
           channel: derivedChannel || undefined,
           resellerName: isDrl ? toApiParam(drawerFilters.ResellerName) : undefined,
+          drlSource: isDrl ? (drlSource || 'rk') : undefined,
           msl: toApiParam(drawerFilters.Msl),
         };
 
@@ -1627,7 +1683,7 @@ export default function TrendsCompetitionDrawer({
     } finally {
       setLoading(false);
     }
-  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel, selectedSubCategory, isDrl]);
+  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel, selectedSubCategory, isDrl, drlSource]);
 
   useEffect(() => {
     if (view !== "Trends" || !open) return;
@@ -3463,6 +3519,7 @@ export default function TrendsCompetitionDrawer({
                   value={drawerFilters.Platform}
                   options={PLATFORM_OPTIONS}
                   onChange={(v) => {
+                    userManuallyChangedResellerRef.current = false;
                     setDrawerFilters(prev => ({ ...prev, Platform: v, Format: 'All', Brand: 'All', SubBrand: 'All', City: 'All', SKU: 'All', ResellerName: 'All' }));
                   }}
                 />
@@ -3507,6 +3564,7 @@ export default function TrendsCompetitionDrawer({
                     value={drawerFilters.ResellerName}
                     options={resellerOptions}
                     onChange={(v) => {
+                      userManuallyChangedResellerRef.current = true;
                       setDrawerFilters(prev => ({ ...prev, ResellerName: v, Format: 'All', Brand: 'All', City: 'All', SKU: 'All' }));
                     }}
                   />
