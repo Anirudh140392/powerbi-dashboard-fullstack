@@ -256,8 +256,12 @@ export default function ReportBuilder({
   const isDrl = user?.dbName?.toLowerCase() === 'drl';
   const [dataMode, setDataMode] = useState("aggregated"); // "aggregated" | "darkstore" | "content" | "review"
   // "Content Data" is only offered when tb_user.tab_permissions has "Content Analysis": true
-  // and the account has Content Analysis data (builder-options sends contentDateRange only then)
-  const hasContentAnalysis = user?.tabPermissions?.["Content Analysis"] === true && !!builderOptions?.contentDateRange;
+  // (on mars, "Content Score": true — its sidebar tab for the same data) and the account has
+  // Content Analysis data (builder-options sends contentDateRange only then)
+  const isMars = user?.dbName?.toLowerCase() === 'mars';
+  const hasContentPermission = user?.tabPermissions?.["Content Analysis"] === true
+    || (isMars && user?.tabPermissions?.["Content Score"] === true);
+  const hasContentAnalysis = hasContentPermission && !!builderOptions?.contentDateRange;
 
   // "Review Rating Data" is only offered where the sidebar shows the Review Rating tab
   // and the account has review data (builder-options sends reviewDateRange only then)
