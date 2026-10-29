@@ -11,6 +11,7 @@ import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { FilterContext } from "../../utils/FilterContext";
 import { useAuth } from "../../utils/AuthContext";
 import SourceSelector from "../../components/ReportStudio/SourceSelector";
+import BrandScopeBar from "../../components/ReportStudio/BrandScopeBar";
 import TemplateGallery from "../../components/ReportStudio/TemplateGallery";
 import ReportingPeriodBar from "../../components/ReportStudio/ReportingPeriodBar";
 import FieldPanel from "../../components/ReportStudio/FieldPanel";
@@ -145,6 +146,7 @@ export default function ReportStudio() {
             columns: fields.map((f) => f.key),
             startDate: fetchStartDate,
             endDate: currEndStr,
+            brandScope: debouncedConfig.brandScope,
         };
         return {
             fields,
@@ -366,6 +368,8 @@ export default function ReportStudio() {
                 />
 
                 <SourceSelector sources={config.sources} onToggle={actions.toggleSource} />
+
+                <BrandScopeBar value={config.brandScope} onChange={actions.setBrandScope} sources={config.sources} />
 
                 {hasFiscalPeriods && <ReportingPeriodBar value={period} onChange={setPeriod} range={range} />}
 

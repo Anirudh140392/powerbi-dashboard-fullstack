@@ -41,8 +41,11 @@ export const reportConfigReducer = (state, action) => {
             columns.splice(to, 0, action.key);
             return { ...state, columns };
         }
+        case "setBrandScope":
+            return { ...state, brandScope: action.scope };
         case "applyTemplate":
             return {
+                brandScope: state.brandScope,
                 sources: SOURCE_ORDER.filter((id) => action.template.sources.includes(id)),
                 columns: [...REQUIRED_KEYS, ...action.template.columns.filter((k) => !REQUIRED_KEYS.includes(k))],
             };
@@ -53,13 +56,14 @@ export const reportConfigReducer = (state, action) => {
     }
 };
 
-/** Report configuration state: selected sources and ordered columns. */
+/** Report configuration state: selected sources, ordered columns and brand scope. */
 export default function useReportConfig() {
     const [config, dispatch] = useReducer(reportConfigReducer, DEFAULT_CONFIG);
 
     const actions = useMemo(
         () => ({
             toggleSource: (id) => dispatch({ type: "toggleSource", id }),
+            setBrandScope: (scope) => dispatch({ type: "setBrandScope", scope }),
             toggleColumn: (key) => dispatch({ type: "toggleColumn", key }),
             selectAll: () => dispatch({ type: "selectAll" }),
             clearOptional: () => dispatch({ type: "clearOptional" }),
