@@ -20,6 +20,7 @@ import primarySales from './routes/primarySales.js';
 import secondarySales from './routes/secondarySales.js';
 import mopAnalysis from './routes/mopAnalysis.js';
 import reportSchedules from './routes/reportSchedules.js';
+import reportTemplates from './routes/reportTemplates.js';
 
 
 export default (app) => {
@@ -74,6 +75,9 @@ export default (app) => {
 
     // Scheduled report emails
     reportSchedules(app);
+
+    // Saved Report Studio templates
+    reportTemplates(app);
 
     // Map Intellect routes
     mapIntellect(app);

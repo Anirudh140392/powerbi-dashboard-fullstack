@@ -45,7 +45,8 @@ export const reportConfigReducer = (state, action) => {
             return { ...state, brandScope: action.scope };
         case "applyTemplate":
             return {
-                brandScope: state.brandScope,
+                // Saved templates carry their brand scope; built-in ones keep the current one.
+                brandScope: action.template.brandScope || state.brandScope,
                 sources: SOURCE_ORDER.filter((id) => action.template.sources.includes(id)),
                 columns: [...REQUIRED_KEYS, ...action.template.columns.filter((k) => !REQUIRED_KEYS.includes(k))],
             };

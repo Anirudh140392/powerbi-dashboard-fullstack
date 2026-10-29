@@ -61,7 +61,8 @@ const formFromSchedule = (s) => ({
 /** Splits typed or pasted text ("a@x.com, b@y.com; c@z.com") into addresses. */
 const splitEmails = (text) => text.split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
 
-function ReportSummary({ config }) {
+/** Sources, columns and brand scope of a report setup. */
+export function ReportSummary({ config }) {
     const sources = config.sources.map((id) => SOURCES_BY_ID[id]?.label || id).join(", ");
     const columns = config.columns.map((key) => FIELDS_BY_KEY[key]?.label || key);
     return (

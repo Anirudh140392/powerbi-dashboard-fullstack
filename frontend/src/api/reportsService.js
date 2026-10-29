@@ -264,3 +264,31 @@ export const sendReportScheduleNow = async (id) => {
     const response = await axiosInstance.post(`/report-schedules/${id}/send`, null, { timeout: 10 * 60 * 1000 });
     return response.data.data;
 };
+
+// ── Saved Report Studio templates ──
+
+/** The user's own templates and the workspace's shared ones. */
+export const fetchReportTemplates = async () => {
+    const response = await axiosInstance.get("/report-templates");
+    return response.data.data;
+};
+
+/** { name, description, visibility, config: { view, sources, columns, brandScope, pivot, period, includeFilters } } */
+export const createReportTemplate = async (template) => {
+    const response = await axiosInstance.post("/report-templates", template);
+    return response.data.data;
+};
+
+/** Any of name, description, visibility, config. */
+export const updateReportTemplate = async (id, changes) => {
+    const response = await axiosInstance.put(`/report-templates/${id}`, changes);
+    return response.data.data;
+};
+
+export const deleteReportTemplate = async (id) => {
+    await axiosInstance.delete(`/report-templates/${id}`);
+};
+
+export const markReportTemplateUsed = async (id) => {
+    await axiosInstance.post(`/report-templates/${id}/used`);
+};

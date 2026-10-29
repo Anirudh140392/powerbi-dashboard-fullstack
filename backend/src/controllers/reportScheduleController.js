@@ -1,24 +1,10 @@
-import { queryAdminDB } from '../config/adminClickhouse.js';
 import { verifyToken } from '../services/authService.js';
+import { isAdmin, resolveDbId, userEmail } from '../helper/workspaceHelper.js';
 import {
     createSchedule, getSchedule, listSchedules, removeRecipient, ScheduleValidationError,
     setScheduleStatus, toClient, updateSchedule,
 } from '../services/reportScheduleService.js';
 import { deliverSchedule } from '../services/reportScheduleCronService.js';
-
-/** The tenant's db_id for the workspace the user is in (req.user.dbName honours the workspace switcher). */
-const resolveDbId = async (user) => {
-    if (user?.dbName) {
-        const [row] = await queryAdminDB(
-            `SELECT toString(db_id) AS db_id FROM tb_database WHERE lower(db_name) = {dbName:String} LIMIT 1`,
-            { dbName: user.dbName.toLowerCase() }
-        );
-        if (row?.db_id) return row.db_id;
-    }
-    return user?.dbId || '';
-};
-
-const isAdmin = (user) => /admin|super/.test(String(user?.role || '').toLowerCase());
 
 /** The schedule, if it belongs to the user's workspace and they may change it (its owner or an admin). */
 const loadManageable = async (req, res) => {
@@ -27,7 +13,7 @@ const loadManageable = async (req, res) => {
         res.status(404).json({ success: false, error: 'Schedule not found' });
         return null;
     }
-    if (schedule.created_by !== String(req.user.email || '').toLowerCase() && !isAdmin(req.user)) {
+    if (schedule.created_by !== userEmail(req.user) && !isAdmin(req.user)) {
         res.status(403).json({ success: false, error: 'Only the person who created this schedule or an admin can change it' });
         return null;
     }

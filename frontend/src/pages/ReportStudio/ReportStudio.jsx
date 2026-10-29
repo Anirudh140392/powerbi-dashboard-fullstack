@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Box, Button, Chip, CircularProgress, Snackbar, Tooltip, Typography } from "@mui/material";
 import {
+    BookmarkAddOutlined as SaveTemplateIcon,
     EventRepeatOutlined as SchedulesIcon,
     FileDownloadOutlined as DownloadIcon,
     RestartAlt as ResetIcon,
@@ -19,6 +20,9 @@ import ScheduleReportDialog from "../../components/ReportStudio/ScheduleReportDi
 import ReportSchedulesDialog from "../../components/ReportStudio/ReportSchedulesDialog";
 import { formatSendTime } from "../../components/ReportStudio/scheduleOptions";
 import TemplateGallery from "../../components/ReportStudio/TemplateGallery";
+import SaveTemplateDialog from "../../components/ReportStudio/SaveTemplateDialog";
+import ConfirmDialog from "../../components/ReportStudio/ConfirmDialog";
+import { currentPeriod, isModifiedFrom, toGalleryTemplate } from "../../components/ReportStudio/savedTemplates";
 import ReportingPeriodBar from "../../components/ReportStudio/ReportingPeriodBar";
 import FieldPanel from "../../components/ReportStudio/FieldPanel";
 import ReportPreview from "../../components/ReportStudio/ReportPreview";
@@ -28,7 +32,9 @@ import { FIELD_GROUPS, FIELDS_BY_KEY, getTemplateCatalog, isMarsAccount, SOURCES
 import { FISCAL_PERIODS, lastPeriods, resolvePeriodRange } from "../../components/ReportStudio/fiscalCalendar";
 import { buildFileName, isFieldAvailable } from "../../components/ReportStudio/reportStudioUtils";
 import { buildPivot, buildPivotCsv, PIVOT_SOURCE_ROW_LIMIT, resolvePivotLayout } from "../../components/ReportStudio/pivotUtils";
-import { downloadStudioCsv, fetchStudioPreview, fetchStudioRows } from "../../api/reportsService";
+import {
+    deleteReportTemplate, downloadStudioCsv, fetchReportTemplates, fetchStudioPreview, fetchStudioRows, markReportTemplateUsed, updateReportTemplate,
+} from "../../api/reportsService";
 
 const PREVIEW_DEBOUNCE_MS = 300;
 
@@ -73,7 +79,7 @@ const toReport = ({ totalRows, rows = [] }, { offset = 0, startDate, endDate, pe
 });
 
 export default function ReportStudio() {
-    const { timeStart, timeEnd, datesFetched, compareStart, compareEnd } = useContext(FilterContext);
+    const { timeStart, timeEnd, setTimeStart, setTimeEnd, datesFetched, compareStart, compareEnd } = useContext(FilterContext);
     const { user } = useAuth();
     // Mars gets the Special templates and its fiscal reporting periods; everyone else the General templates.
     const hasFiscalPeriods = isMarsAccount(user?.dbName);
@@ -98,6 +104,34 @@ export default function ReportStudio() {
     const [scheduleForm, setScheduleForm] = useState({ open: false, schedule: null });
     const [schedulesOpen, setSchedulesOpen] = useState(() => searchParams.get("schedules") === "1");
     const [schedulesVersion, setSchedulesVersion] = useState(0);
+    // Saved templates: the list, which gallery tab is open, the one last applied, and the open dialogs.
+    const [savedTemplates, setSavedTemplates] = useState([]);
+    const [savedStatus, setSavedStatus] = useState("loading");
+    const [savedAttempt, setSavedAttempt] = useState(0);
+    const [templateTab, setTemplateTab] = useState("builtin");
+    const [activeSavedId, setActiveSavedId] = useState(null);
+    const [templateDialog, setTemplateDialog] = useState({ open: false, template: null });
+    const [templateConfirm, setTemplateConfirm] = useState(null);
+    const [templateBusy, setTemplateBusy] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        setSavedStatus("loading");
+        fetchReportTemplates()
+            .then((list) => {
+                if (cancelled) return;
+                setSavedTemplates(list);
+                setSavedStatus("ready");
+            })
+            .catch((error) => {
+                if (cancelled) return;
+                console.error("[ReportStudio] Failed to load saved templates:", error);
+                setSavedStatus("error");
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.dbName, savedAttempt]);
 
     // QC users can report on today; everyone else up to yesterday.
     const isQcUser = Number(user?.qcUser) === 1;
@@ -298,12 +332,120 @@ export default function ReportStudio() {
 
     const appliedTemplate = view === "custom" ? findAppliedTemplate(catalog.templates, config, pivotConfig) : undefined;
 
+    // A saved template's relative date range, moved up to the latest data.
+    const applySavedPeriod = (saved) => {
+        if (saved.type === "fiscal_periods") {
+            if (hasFiscalPeriods) setPeriod({ mode: "fiscal", ...lastPeriods(saved.count) });
+            return;
+        }
+        if (hasFiscalPeriods) setPeriod((p) => ({ ...p, mode: "dashboard" }));
+        setTimeStart(lastDataDay.subtract(saved.count - 1, "day"));
+        setTimeEnd(lastDataDay);
+    };
+
     const applyTemplate = (template) => {
         actions.applyTemplate(template);
-        pivotActions.applyTemplate(template.pivot);
+        pivotActions.applyTemplate(template.pivot || {});
         if (template.periods && hasFiscalPeriods) setPeriod({ mode: "fiscal", ...lastPeriods(template.periods) });
-        setView("custom");
+        if (template.period) applySavedPeriod(template.period);
+        setView(template.view || "custom");
+        setActiveSavedId(template.saved ? template.id : null);
+        if (template.saved) markReportTemplateUsed(template.id).catch(() => {});
     };
+
+    // The report on screen, as a template records it.
+    const currentSetup = { view, sources: config.sources, columns: config.columns, brandScope: config.brandScope, pivot: pivotConfig };
+    const periodNow = currentPeriod({ fiscal: hasFiscalPeriods && period.mode === "fiscal", period, range });
+    const hasPivotFilters = view === "custom" && Object.values(pivotConfig.excluded).some((values) => values.length > 0);
+    const galleryTemplates = savedTemplates.map(toGalleryTemplate);
+    const activeSaved = galleryTemplates.find((t) => t.id === activeSavedId);
+    const activeModified = Boolean(activeSaved) && isModifiedFrom(activeSaved, currentSetup);
+    const userEmail = String(user?.email || "").toLowerCase();
+    const canManageActive = Boolean(activeSaved) && (activeSaved.saved.createdBy === userEmail || /admin|super/.test(String(user?.role || "").toLowerCase()));
+
+    /** Overwrites a saved template with the report on screen, keeping its choice of filters and date range. */
+    const overwriteTemplate = async (saved) => {
+        setTemplateBusy(true);
+        try {
+            const updated = await updateReportTemplate(saved.id, {
+                config: {
+                    ...currentSetup,
+                    includeFilters: Boolean(saved.config.pivot?.excluded),
+                    period: saved.config.period ? periodNow || saved.config.period : null,
+                },
+            });
+            setSavedTemplates((list) => list.map((t) => (t.id === updated.id ? updated : t)));
+            setActiveSavedId(updated.id);
+            notify("success", `Updated "${updated.name}"`);
+        } catch (error) {
+            notify("error", error.response?.data?.error || "The template couldn't be updated.");
+        } finally {
+            setTemplateBusy(false);
+            setTemplateConfirm(null);
+        }
+    };
+
+    const removeTemplate = async (saved) => {
+        setTemplateBusy(true);
+        try {
+            await deleteReportTemplate(saved.id);
+            setSavedTemplates((list) => list.filter((t) => t.id !== saved.id));
+            if (activeSavedId === saved.id) setActiveSavedId(null);
+            notify("success", `Deleted "${saved.name}"`);
+        } catch (error) {
+            notify("error", error.response?.data?.error || "The template couldn't be deleted.");
+        } finally {
+            setTemplateBusy(false);
+            setTemplateConfirm(null);
+        }
+    };
+
+    const handleTemplateSaved = (saved, { created }) => {
+        setTemplateDialog({ open: false, template: null });
+        setSavedTemplates((list) => (created ? [saved, ...list] : list.map((t) => (t.id === saved.id ? saved : t))));
+        if (created) {
+            setActiveSavedId(saved.id);
+            setTemplateTab("mine");
+        }
+        notify("success", created ? `Saved template "${saved.name}"` : `Saved "${saved.name}"`);
+    };
+
+    const templateActions = (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+            {activeModified && (
+                <Typography sx={{ fontSize: "0.74rem", color: "#64748b", whiteSpace: "nowrap" }}>
+                    Changed since applying “{activeSaved.label}”
+                </Typography>
+            )}
+            {activeModified && canManageActive && (
+                <Button
+                    size="small"
+                    onClick={() => overwriteTemplate(activeSaved.saved)}
+                    disabled={templateBusy}
+                    sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.78rem", color: "#2563eb", px: 1.25 }}
+                >
+                    Save changes
+                </Button>
+            )}
+            <Tooltip title={config.sources.length ? "" : "Select a data source first"} arrow>
+                <span>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<SaveTemplateIcon />}
+                        onClick={() => setTemplateDialog({ open: true, template: null })}
+                        disabled={!config.sources.length}
+                        sx={{
+                            textTransform: "none", borderRadius: "10px", fontWeight: 700, fontSize: "0.78rem", px: 1.5, py: 0.4, whiteSpace: "nowrap",
+                            borderColor: "#bfdbfe", color: "#2563eb", "&:hover": { borderColor: "#2563eb", bgcolor: "#eff6ff" },
+                        }}
+                    >
+                        {activeModified ? "Save as new" : "Save as template"}
+                    </Button>
+                </span>
+            </Tooltip>
+        </Box>
+    );
 
     const scheduleBlockedReason = !config.sources.length ? "Select a data source first" : validation.errors[0];
     const scheduledReport = {
@@ -415,6 +557,7 @@ export default function ReportStudio() {
                             onClick={() => {
                                 actions.reset();
                                 pivotActions.reset();
+                                setActiveSavedId(null);
                                 setPeriod(defaultPeriod());
                                 setView("raw");
                             }}
@@ -432,8 +575,17 @@ export default function ReportStudio() {
                 <TemplateGallery
                     category={catalog.category}
                     templates={catalog.templates}
-                    appliedId={appliedTemplate?.id}
+                    savedTemplates={galleryTemplates}
+                    savedState={{ status: savedStatus, onRetry: () => setSavedAttempt((n) => n + 1) }}
+                    appliedId={activeSaved ? (activeModified ? undefined : activeSaved.id) : appliedTemplate?.id}
                     onApply={applyTemplate}
+                    tab={templateTab}
+                    onTabChange={setTemplateTab}
+                    user={user}
+                    headerAction={templateActions}
+                    onEdit={(saved) => setTemplateDialog({ open: true, template: saved })}
+                    onUpdate={(saved) => setTemplateConfirm({ kind: "update", template: saved })}
+                    onDelete={(saved) => setTemplateConfirm({ kind: "delete", template: saved })}
                 />
 
                 <SourceSelector sources={config.sources} onToggle={actions.toggleSource} />
@@ -489,6 +641,29 @@ export default function ReportStudio() {
                     />
                 </Box>
             </Box>
+
+            <SaveTemplateDialog
+                open={templateDialog.open}
+                template={templateDialog.template}
+                setup={currentSetup}
+                period={periodNow}
+                hasFilters={hasPivotFilters}
+                onClose={() => setTemplateDialog({ open: false, template: null })}
+                onSaved={handleTemplateSaved}
+            />
+
+            <ConfirmDialog
+                open={Boolean(templateConfirm)}
+                busy={templateBusy}
+                title={templateConfirm?.kind === "delete" ? `Delete “${templateConfirm?.template.name}”?` : `Update “${templateConfirm?.template.name}”?`}
+                message={templateConfirm?.kind === "delete"
+                    ? `${templateConfirm?.template.visibility === "workspace" ? "It disappears for everyone in this workspace. " : ""}This can't be undone.`
+                    : "Its columns and layout are replaced with the report currently on screen."}
+                confirmLabel={templateConfirm?.kind === "delete" ? "Delete" : "Update template"}
+                danger={templateConfirm?.kind === "delete"}
+                onConfirm={() => (templateConfirm.kind === "delete" ? removeTemplate : overwriteTemplate)(templateConfirm.template)}
+                onClose={() => setTemplateConfirm(null)}
+            />
 
             <ScheduleReportDialog
                 open={scheduleForm.open}
