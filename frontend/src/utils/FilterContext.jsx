@@ -206,10 +206,14 @@ export const FilterProvider = ({ children }) => {
             const isSecondary = path.includes('/secondary');
             const isPrimary = path.includes('/primary') && !path.includes('/watch-tower') && !path.includes('/watchtower');
             const isMop = path.includes('/mop-analysis');
+            const isReviewRating = path.includes('/review-rating');
 
             let endpoint;
             let pageLabel;
-            if (isMop) {
+            if (isReviewRating) {
+                endpoint = '/review-rating/latest-date';
+                pageLabel = 'Review Rating (rb_review_olap)';
+            } else if (isMop) {
                 endpoint = '/mop-analysis/latest-date';
                 pageLabel = 'MOP Analysis (mop_master)';
             } else if (isMarketShare) {
