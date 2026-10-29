@@ -1,24 +1,30 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Box, Button, Chip, CircularProgress, Snackbar, Tooltip, Typography } from "@mui/material";
 import {
+    EventRepeatOutlined as SchedulesIcon,
     FileDownloadOutlined as DownloadIcon,
     RestartAlt as ResetIcon,
+    ScheduleSendOutlined as ScheduleIcon,
 } from "@mui/icons-material";
 import dayjs from "dayjs";
 import { useDebounce } from "use-debounce";
+import { useSearchParams } from "react-router-dom";
 import { saveAs } from "file-saver";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { FilterContext } from "../../utils/FilterContext";
 import { useAuth } from "../../utils/AuthContext";
 import SourceSelector from "../../components/ReportStudio/SourceSelector";
 import BrandScopeBar from "../../components/ReportStudio/BrandScopeBar";
+import ScheduleReportDialog from "../../components/ReportStudio/ScheduleReportDialog";
+import ReportSchedulesDialog from "../../components/ReportStudio/ReportSchedulesDialog";
+import { formatSendTime } from "../../components/ReportStudio/scheduleOptions";
 import TemplateGallery from "../../components/ReportStudio/TemplateGallery";
 import ReportingPeriodBar from "../../components/ReportStudio/ReportingPeriodBar";
 import FieldPanel from "../../components/ReportStudio/FieldPanel";
 import ReportPreview from "../../components/ReportStudio/ReportPreview";
 import useReportConfig from "../../components/ReportStudio/useReportConfig";
 import usePivotConfig from "../../components/ReportStudio/usePivotConfig";
-import { FIELD_GROUPS, FIELDS_BY_KEY, getTemplateCatalog, isMarsAccount } from "../../components/ReportStudio/reportStudioConfig";
+import { FIELD_GROUPS, FIELDS_BY_KEY, getTemplateCatalog, isMarsAccount, SOURCES_BY_ID } from "../../components/ReportStudio/reportStudioConfig";
 import { FISCAL_PERIODS, lastPeriods, resolvePeriodRange } from "../../components/ReportStudio/fiscalCalendar";
 import { buildFileName, isFieldAvailable } from "../../components/ReportStudio/reportStudioUtils";
 import { buildPivot, buildPivotCsv, PIVOT_SOURCE_ROW_LIMIT, resolvePivotLayout } from "../../components/ReportStudio/pivotUtils";
@@ -87,6 +93,11 @@ export default function ReportStudio() {
     // Kept after closing so the toast keeps its content during the exit transition.
     const [toast, setToast] = useState({ open: false, severity: "success", message: "" });
     const notify = (severity, message) => setToast({ open: true, severity, message });
+    // Scheduled emails: the form (new, or editing `schedule`) and the list, which the email's "Manage schedule" link opens.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [scheduleForm, setScheduleForm] = useState({ open: false, schedule: null });
+    const [schedulesOpen, setSchedulesOpen] = useState(() => searchParams.get("schedules") === "1");
+    const [schedulesVersion, setSchedulesVersion] = useState(0);
 
     // QC users can report on today; everyone else up to yesterday.
     const isQcUser = Number(user?.qcUser) === 1;
@@ -294,6 +305,50 @@ export default function ReportStudio() {
         setView("custom");
     };
 
+    const scheduleBlockedReason = !config.sources.length ? "Select a data source first" : validation.errors[0];
+    const scheduledReport = {
+        sources: config.sources,
+        columns: supportedFields(config).map((f) => f.key),
+        brandScope: config.brandScope,
+    };
+    const scheduledReportName = appliedTemplate?.label || `${config.sources.map((id) => SOURCES_BY_ID[id].label).join(" + ")} report`;
+
+    const closeSchedules = () => {
+        setSchedulesOpen(false);
+        if (searchParams.has("schedules")) {
+            searchParams.delete("schedules");
+            setSearchParams(searchParams, { replace: true });
+        }
+    };
+
+    const handleScheduleSaved = (schedule, { created }) => {
+        setScheduleForm({ open: false, schedule: null });
+        setSchedulesVersion((n) => n + 1);
+        const next = schedule.nextSendAt ? ` First email ${formatSendTime(schedule.nextSendAt)} IST.` : "";
+        notify("success", created ? `Scheduled "${schedule.name}".${next}` : `Saved "${schedule.name}".`);
+    };
+
+    const scheduleButton = (
+        <Tooltip title={scheduleBlockedReason || "Email this report on a schedule"} arrow>
+            <span>
+                <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setScheduleForm({ open: true, schedule: null })}
+                    disabled={Boolean(scheduleBlockedReason)}
+                    startIcon={<ScheduleIcon />}
+                    sx={{
+                        textTransform: "none", borderRadius: "10px", fontWeight: 700, px: 2, py: 0.7, whiteSpace: "nowrap",
+                        borderColor: "#bfdbfe", color: "#2563eb",
+                        "&:hover": { borderColor: "#2563eb", bgcolor: "#eff6ff" },
+                    }}
+                >
+                    Schedule
+                </Button>
+            </span>
+        </Tooltip>
+    );
+
     const downloadButton = (
         <Tooltip title={downloadBlockedReason || ""} arrow>
             <span>
@@ -341,23 +396,37 @@ export default function ReportStudio() {
                         />
                     </Box>
 
-                    <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => {
-                            actions.reset();
-                            pivotActions.reset();
-                            setPeriod(defaultPeriod());
-                            setView("raw");
-                        }}
-                        startIcon={<ResetIcon />}
-                        sx={{
-                            textTransform: "none", borderRadius: "10px", borderColor: "#cbd5e1", color: "#64748b", fontWeight: 650, px: 2, whiteSpace: "nowrap",
-                            "&:hover": { borderColor: "#94a3b8", backgroundColor: "#f8fafc" },
-                        }}
-                    >
-                        Reset configuration
-                    </Button>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => setSchedulesOpen(true)}
+                            startIcon={<SchedulesIcon />}
+                            sx={{
+                                textTransform: "none", borderRadius: "10px", borderColor: "#cbd5e1", color: "#64748b", fontWeight: 650, px: 2, whiteSpace: "nowrap",
+                                "&:hover": { borderColor: "#94a3b8", backgroundColor: "#f8fafc" },
+                            }}
+                        >
+                            Scheduled reports
+                        </Button>
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => {
+                                actions.reset();
+                                pivotActions.reset();
+                                setPeriod(defaultPeriod());
+                                setView("raw");
+                            }}
+                            startIcon={<ResetIcon />}
+                            sx={{
+                                textTransform: "none", borderRadius: "10px", borderColor: "#cbd5e1", color: "#64748b", fontWeight: 650, px: 2, whiteSpace: "nowrap",
+                                "&:hover": { borderColor: "#94a3b8", backgroundColor: "#f8fafc" },
+                            }}
+                        >
+                            Reset configuration
+                        </Button>
+                    </Box>
                 </Box>
 
                 <TemplateGallery
@@ -399,7 +468,12 @@ export default function ReportStudio() {
                         pivot={pivot}
                         pivotConfig={pivotConfig}
                         pivotActions={pivotActions}
-                        headerAction={downloadButton}
+                        headerAction={
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                {scheduleButton}
+                                {downloadButton}
+                            </Box>
+                        }
                         isUpdating={isUpdating}
                         page={page}
                         pageSize={pageSize}
@@ -415,6 +489,24 @@ export default function ReportStudio() {
                     />
                 </Box>
             </Box>
+
+            <ScheduleReportDialog
+                open={scheduleForm.open}
+                schedule={scheduleForm.schedule}
+                reportConfig={scheduledReport}
+                reportName={scheduledReportName}
+                onClose={() => setScheduleForm({ open: false, schedule: null })}
+                onSaved={handleScheduleSaved}
+            />
+
+            <ReportSchedulesDialog
+                open={schedulesOpen}
+                onClose={closeSchedules}
+                user={user}
+                refreshKey={schedulesVersion}
+                onEdit={(schedule) => setScheduleForm({ open: true, schedule })}
+                notify={notify}
+            />
 
             <Snackbar
                 open={toast.open}

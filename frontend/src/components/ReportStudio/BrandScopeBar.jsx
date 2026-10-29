@@ -25,14 +25,7 @@ const segmentedSx = {
  * have availability, pricing and share data but no sales.
  */
 export default function BrandScopeBar({ value, onChange, sources }) {
-    const withCompetitors = value === "all";
-    const notes = withCompetitors
-        ? [
-              "Add Brand or Brand Type to see competitors separately.",
-              sources.includes("pdp") && "Offtake and Quantity Sold aren't tracked for competitors.",
-              sources.includes("pm") && "Performance Marketing covers your own campaigns only.",
-          ].filter(Boolean)
-        : [];
+    const notes = value === "all" && sources.includes("pm") ? ["Performance Marketing covers your own campaigns only."] : [];
 
     return (
         <Box

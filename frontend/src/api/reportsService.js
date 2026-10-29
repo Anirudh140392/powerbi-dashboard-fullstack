@@ -230,3 +230,37 @@ export const downloadStudioCsv = async (params) => {
     });
     return response.data;
 };
+
+// ── Scheduled report emails ──
+
+/** The workspace's report schedules, newest first. */
+export const fetchReportSchedules = async () => {
+    const response = await axiosInstance.get("/report-schedules");
+    return response.data.data;
+};
+
+export const createReportSchedule = async (schedule) => {
+    const response = await axiosInstance.post("/report-schedules", schedule);
+    return response.data.data;
+};
+
+export const updateReportSchedule = async (id, schedule) => {
+    const response = await axiosInstance.put(`/report-schedules/${id}`, schedule);
+    return response.data.data;
+};
+
+/** status: "active" | "paused" */
+export const setReportScheduleStatus = async (id, status) => {
+    const response = await axiosInstance.patch(`/report-schedules/${id}/status`, { status });
+    return response.data.data;
+};
+
+export const deleteReportSchedule = async (id) => {
+    await axiosInstance.delete(`/report-schedules/${id}`);
+};
+
+/** Builds and emails the report now: { status, rows }. */
+export const sendReportScheduleNow = async (id) => {
+    const response = await axiosInstance.post(`/report-schedules/${id}/send`, null, { timeout: 10 * 60 * 1000 });
+    return response.data.data;
+};

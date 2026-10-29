@@ -135,6 +135,10 @@ app.use("/api/auth", authRoutes);
 import whatsappWebhookRoutes from "./routes/whatsappWebhookRoutes.js";
 app.use("/api/whatsapp/webhook", whatsappWebhookRoutes);
 
+// Scheduled report unsubscribe link (PUBLIC - verified via the signed token in each email)
+import { unsubscribeHandler } from "./controllers/reportScheduleController.js";
+app.get("/api/report-schedules/unsubscribe", unsubscribeHandler);
+
 // Visitor tracking routes (accessible with or without token)
 import visitorRoutes from "./routes/visitors.js";
 app.use("/api/visitors", visitorRoutes);
@@ -199,8 +203,10 @@ initSocket(server);
 // Start the background email alert cron scheduler
 import { initAlertCron } from './services/alertCronService.js';
 import { initKamAlertCron } from './services/kamAlertCronService.js';
+import { initReportScheduleCron } from './services/reportScheduleCronService.js';
 initAlertCron();
 initKamAlertCron();
+initReportScheduleCron();
 
 // Process Error Handling for Auto-Restart Safety
 process.on('uncaughtException', (err) => {

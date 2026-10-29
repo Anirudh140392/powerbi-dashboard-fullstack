@@ -19,6 +19,7 @@ import supplyChain from './routes/supplyChain.js';
 import primarySales from './routes/primarySales.js';
 import secondarySales from './routes/secondarySales.js';
 import mopAnalysis from './routes/mopAnalysis.js';
+import reportSchedules from './routes/reportSchedules.js';
 
 
 export default (app) => {
@@ -70,6 +71,9 @@ export default (app) => {
 
     // Reports routes
     reports(app);
+
+    // Scheduled report emails
+    reportSchedules(app);
 
     // Map Intellect routes
     mapIntellect(app);

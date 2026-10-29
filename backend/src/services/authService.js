@@ -650,6 +650,14 @@ export async function loginUser(email, password, deviceInfo = {}) {
 }
 
 /**
+ * Sign a JWT with the app secret, e.g. a short-lived token a background job
+ * uses to call report_backend on a user's behalf.
+ */
+export function signToken(payload, options = {}) {
+    return jwt.sign(payload, JWT_SECRET, options);
+}
+
+/**
  * Verify a JWT token and return the decoded payload
  */
 export function verifyToken(token) {

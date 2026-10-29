@@ -163,7 +163,6 @@ export default function ReportingPeriodBar({ value, onChange, range, today = day
                         {range.start.format("DD MMM YYYY")} – {range.end.format("DD MMM YYYY")}
                     </Box>
                     {` · ${days} ${days === 1 ? "day" : "days"}`}
-                    {!fiscal && <Box component="span" sx={{ color: "#94a3b8" }}> · set in the page header</Box>}
                 </Typography>
             ) : (
                 <Typography sx={{ fontSize: "0.78rem", color: "#94a3b8" }}>Loading dates…</Typography>

@@ -195,3 +195,17 @@ export async function sendNewDashboardAccessEmail(toEmail, dbName = '', frontend
     console.log('======================================================\n');
     return true;
 }
+
+/**
+ * Send an email with optional attachments. Unlike the invite emails there is
+ * no dev fallback: callers record the failure, so a missing SMTP setup throws.
+ * @param {{ to: string, subject: string, html: string, attachments?: object[] }} message
+ */
+export async function sendEmail({ to, subject, html, attachments = [] }) {
+    const activeTransporter = getTransporter();
+    if (!activeTransporter) throw new Error('SMTP credentials are not configured');
+
+    const senderEmail = process.env.SMTP_USER || process.env.Alert_email || 'business@trailytics.com';
+    const fromAddress = process.env.EMAIL_FROM || `"Trailytics Reports" <${senderEmail}>`;
+    await activeTransporter.sendMail({ from: fromAddress, to, subject, html, attachments });
+}
