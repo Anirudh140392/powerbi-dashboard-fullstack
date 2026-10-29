@@ -330,11 +330,6 @@ export const buildPivot = (report, fields, config) => {
         const dimValues = dims.map((dim) => dim.read(row));
         // A row with no value for a pivot dimension is left out, so there's no blank group.
         if (dimValues.includes(null)) continue;
-        let included = true;
-        dims.forEach((dim, d) => {
-            if (dim.excluded.has(dimValues[d])) included = false;
-        });
-        if (!included) continue;
 
         const rowDate = String(row.date || row.Date || row.DATE || "").slice(0, 10);
         const isCurrent = !hasPeriods || (rowDate >= currStart && rowDate <= currEnd);
@@ -342,10 +337,16 @@ export const buildPivot = (report, fields, config) => {
 
         if (!isCurrent && !isPrevious) continue;
 
-        if (isCurrent) {
-            dims.forEach((dim, d) => dim.seen.add(dimValues[d]));
-            currMatchedRows += 1;
-        }
+        // Filter options are collected before exclusions, so hidden values stay listed and can be re-selected.
+        if (isCurrent) dims.forEach((dim, d) => dim.seen.add(dimValues[d]));
+
+        let included = true;
+        dims.forEach((dim, d) => {
+            if (dim.excluded.has(dimValues[d])) included = false;
+        });
+        if (!included) continue;
+
+        if (isCurrent) currMatchedRows += 1;
         matchedRows += 1;
 
         const rowPath = dimValues.slice(0, rowCount);
